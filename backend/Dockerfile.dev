@@ -1,0 +1,34 @@
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        curl \
+        unzip \
+        $(apt-cache show libaio1t64 >/dev/null 2>&1 && echo libaio1t64 || echo libaio1) \
+    && rm -rf /var/lib/apt/lists/*
+
+# Oracle Instant Client 19 (compatible con Oracle 11g) para thick mode de python-oracledb
+RUN mkdir -p /opt/oracle && cd /opt/oracle && \
+    curl -fsSL -o ic.zip https://download.oracle.com/otn_software/linux/instantclient/1923000/instantclient-basiclite-linux.x64-19.23.0.0.0dbru.zip && \
+    unzip -q ic.zip && rm ic.zip && \
+    ln -s /opt/oracle/instantclient_19_23 /opt/oracle/instantclient && \
+    echo /opt/oracle/instantclient > /etc/ld.so.conf.d/oracle-instantclient.conf && \
+    if [ -f /usr/lib/x86_64-linux-gnu/libaio.so.1t64 ] && [ ! -e /usr/lib/x86_64-linux-gnu/libaio.so.1 ]; then \
+      ln -s /usr/lib/x86_64-linux-gnu/libaio.so.1t64 /usr/lib/x86_64-linux-gnu/libaio.so.1; \
+    fi && \
+    ldconfig
+ENV LD_LIBRARY_PATH=/opt/oracle/instantclient
+
+COPY requirements.txt .
+RUN pip install --upgrade pip && pip install -r requirements.txt
+
+# El codigo se monta por volumen en compose para hot reload con runserver.
+EXPOSE 8000
+
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
