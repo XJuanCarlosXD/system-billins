@@ -231,8 +231,8 @@ def list_lineas(no_cia: str = '01') -> list[dict]:
 def list_companias() -> list[dict]:
     """Compañías/empresas del módulo INV."""
     return client.fetch_dicts(
-        "SELECT no_cia, descri descripcion, activo "
-        "FROM INV.TINV_COMPANIA ORDER BY no_cia",
+        "SELECT no_cia, descripcion, activa activo "
+        "FROM INV.TINV_CIAS ORDER BY no_cia",
         [],
     )
 
@@ -240,7 +240,7 @@ def list_companias() -> list[dict]:
 def list_puntos(no_cia: str) -> list[dict]:
     """Puntos de venta/sucursales para una compañía."""
     return client.fetch_dicts(
-        "SELECT no_cia, punto, descri descripcion, mes_proceso, ano_proceso, activo "
+        "SELECT no_cia, punto, descripcion, mes_proceso, ano_proceso, activo "
         "FROM INV.TINV_PUNTO WHERE no_cia = :1 ORDER BY punto",
         [no_cia],
     )
@@ -249,8 +249,8 @@ def list_puntos(no_cia: str) -> list[dict]:
 def list_unidades() -> list[dict]:
     """Unidades de medida (TINV_UNIDAD)."""
     return client.fetch_dicts(
-        "SELECT cod_unidad, descri descripcion "
-        "FROM INV.TINV_UNIDAD ORDER BY cod_unidad",
+        "SELECT unidad cod_unidad, descri descripcion "
+        "FROM INV.TINV_UNIDAD ORDER BY unidad",
         [],
     )
 
@@ -264,7 +264,7 @@ def list_sublineas(no_cia: str = '01', linea: str = '') -> list[dict]:
         where_parts.append(f"linea = :{len(params)}")
     sql = (
         f"SELECT linea, sub_linea, descri descripcion, "
-        f"NVL(pct_comision, 0) pct_comision, NVL(pct_margen, 0) pct_margen "
+        f"NVL(comision, 0) pct_comision, NVL(margen, 0) pct_margen "
         f"FROM INV.TINV_SUB_LINEA "
         f"WHERE {' AND '.join(where_parts)} "
         f"ORDER BY linea, sub_linea"
