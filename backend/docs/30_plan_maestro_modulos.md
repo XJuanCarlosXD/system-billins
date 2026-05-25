@@ -35,6 +35,50 @@ Cada módulo sigue el mismo patrón:
 - TFAT_TDOCU — tipos de documento: AF, CO, CT, FC, FT
 - TFAT_PUNTO / TFAT_CIAS — configuración de puntos y empresas
 
+### Configuración FAT (campos capturados 2026-05-14)
+
+**Companias:**
+- NO_CIA, Descripción, Dirección, Teléfono, Fax, RNC
+- Activa (checkbox), Fecha, Impuesto (%), Tasa US
+- Prox Reporte, Máximo Descuento
+
+**Tipo de Documento:**
+- Tipo Doc (AF, CO, CT, FC, FT), Descripción
+- Código de NCF (FC-001, FT-001), Tipo Transacción (dropdown)
+- Afecta CXC (checkbox), Activo (checkbox)
+- Controlar Formulario (checkbox), Nota Por Defecto, Nota Variable
+- Próximo Formulario
+- Datos NCF: Posiciones Fijas, NCF Inicial, NCF Final, Prox NCF, Inventario de NCF
+
+**Condición de Pago, Tipos de Pago, Listas de Precio:** (por confirmar en capturas)
+
+**Clientes FAT:** (relacionado a FAT, no CXC directamente)
+
+### Proceso Facturación (campos capturados 2026-05-14)
+
+**Encabezado Factura:**
+- No Cotización/Pedido, Tipo Doc (FT, FC), Fecha
+- No Cliente, Código NCF, Vendedor, RNC
+- Desc P/Pago (Descripción), Plazo Pago
+- Forma Pago (Crédito, Contado), Tipo Moneda (RD, US)
+- Tasa (57.50)
+- Dirección Cliente (si aplica)
+- Tipo Ingreso, Nota
+- Orden Compra, Cob (Cobrador?), Itbis en Precio (checkbox)
+
+**Líneas Factura:**
+- Alm (Almacén), No Prod Emp, Descripción
+- Lista Precio, Cant[CIS], Cantidad
+- Precio, % Desc (porcentaje descuento), Monto, IBIS
+- Empaque, Cantidad Porciones, No Lote, Cantidad Regalía, Precio de Lista
+
+**Cálculos Automáticos:**
+- Sub Total, Total Descuento (por línea y general)
+- Total Impuesto (ITBIS), Total Neto
+- Moneda Lista Precio, Precio Con Desc, Almacen
+- Fraccionario, Lista Precio
+- Debitos hacia CXC (ST_GENERADO_CXC flag)
+
 ### Columnas TFAT_FACTURA (header)
 NO_CIA, PUNTO, TIPO_FACTURA, NO_FACTURA, NO_CLIENTE, FECHA, VENDEDOR, AFECTA_CXC,
 TASA_US, PORC_IMPUESTO, DESCUENTO, IMPUESTO, TOTAL_LINEA, TOTAL_NETO, ESTADO,
@@ -89,6 +133,29 @@ MODIFICAR_CONDUCE_USUARIO
 - TCXC_FINANCIAMIENTO / TCXC_TIPO_FINANCIAMIENTO — financiamientos
 - TCXC_TDOCU — tipos doc: AC, AD, AF, BC, BI, CD, DV, FC, NC, ND, RI
 - TCXC_CTRLDOCU / TCXC_CIERRE — control y cierre
+- TCXC_SECTOR_BARRIO — sectores o barrios (geolocalización)
+
+### Configuración CXC (campos capturados 2026-05-14)
+
+**Companias:**
+- NO_CIA, Nombre, Status (Activa)
+
+**Sectores o Barrios:**
+- Ciudad, Nombre de la Ciudad, Sector/Barrio (código), Nombre
+
+**Clientes:**
+- NO_CIA, Punto, No Cliente (ID único), Tipo Cliente (09=?)
+- Nombre (razón social), RNC, Tipo Contable (01=?)
+- Contacto (nombre), Teléfono, Fax, Celular
+- Vendedor (código + descripción, ej: 0003 Venta Mostrador)
+- Código NCF (FC-001 FACTURA DE CREDITO FISCAL)
+- Cobrador (código + descripción, ej: 0050 COBRADOR ADM)
+- No Cadena (1 = CADENA 01)
+- Localidad (01 = ABREGONZA)
+- Usuario, Ruta Venta Vend., Producción
+- Usa Ruta (checkbox), Exento Ibis (checkbox), Enviar Factura (checkbox)
+- Tabs: Info Financiera, Ubicación, Info Varias, Prog Facturación, Referencias, Attachments, Contactos
+- Tabla de Contactos: No Contacto, Nombre, Teléfono, Celular, Extensión, Email, Área de Trabajo, Por Defecto
 
 ### Flags de usuario (TCXC_USUARIO)
 VARIAR_TIPO_DOCU, VARIAR_LIMITE_CREDITO, HACER_TRANSACCIONES, GENERAR_LISTADO_CXC,

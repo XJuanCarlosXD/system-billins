@@ -13,6 +13,7 @@ import { Route as ClerkRouteRouteImport } from './routes/clerk/route'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedNcfAlertsRouteImport } from './routes/_authenticated/ncf-alerts'
+import { Route as AuthenticatedInvRouteImport } from './routes/_authenticated/inv'
 import { Route as AuthenticatedFatRouteImport } from './routes/_authenticated/fat'
 import { Route as AuthenticatedEmpresasRouteImport } from './routes/_authenticated/empresas'
 import { Route as AuthenticatedDocsRouteImport } from './routes/_authenticated/docs'
@@ -64,6 +65,11 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
 const AuthenticatedNcfAlertsRoute = AuthenticatedNcfAlertsRouteImport.update({
   id: '/ncf-alerts',
   path: '/ncf-alerts',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedInvRoute = AuthenticatedInvRouteImport.update({
+  id: '/inv',
+  path: '/inv',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedFatRoute = AuthenticatedFatRouteImport.update({
@@ -260,6 +266,7 @@ export interface FileRoutesByFullPath {
   '/docs': typeof AuthenticatedDocsRoute
   '/empresas': typeof AuthenticatedEmpresasRoute
   '/fat': typeof AuthenticatedFatRoute
+  '/inv': typeof AuthenticatedInvRoute
   '/ncf-alerts': typeof AuthenticatedNcfAlertsRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
@@ -294,6 +301,7 @@ export interface FileRoutesByTo {
   '/docs': typeof AuthenticatedDocsRoute
   '/empresas': typeof AuthenticatedEmpresasRoute
   '/fat': typeof AuthenticatedFatRoute
+  '/inv': typeof AuthenticatedInvRoute
   '/ncf-alerts': typeof AuthenticatedNcfAlertsRoute
   '/': typeof AuthenticatedIndexRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
@@ -334,6 +342,7 @@ export interface FileRoutesById {
   '/_authenticated/docs': typeof AuthenticatedDocsRoute
   '/_authenticated/empresas': typeof AuthenticatedEmpresasRoute
   '/_authenticated/fat': typeof AuthenticatedFatRoute
+  '/_authenticated/inv': typeof AuthenticatedInvRoute
   '/_authenticated/ncf-alerts': typeof AuthenticatedNcfAlertsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
@@ -373,6 +382,7 @@ export interface FileRouteTypes {
     | '/docs'
     | '/empresas'
     | '/fat'
+    | '/inv'
     | '/ncf-alerts'
     | '/errors/$error'
     | '/settings/account'
@@ -407,6 +417,7 @@ export interface FileRouteTypes {
     | '/docs'
     | '/empresas'
     | '/fat'
+    | '/inv'
     | '/ncf-alerts'
     | '/'
     | '/errors/$error'
@@ -446,6 +457,7 @@ export interface FileRouteTypes {
     | '/_authenticated/docs'
     | '/_authenticated/empresas'
     | '/_authenticated/fat'
+    | '/_authenticated/inv'
     | '/_authenticated/ncf-alerts'
     | '/_authenticated/'
     | '/_authenticated/errors/$error'
@@ -508,6 +520,13 @@ declare module '@tanstack/react-router' {
       path: '/ncf-alerts'
       fullPath: '/ncf-alerts'
       preLoaderRoute: typeof AuthenticatedNcfAlertsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/inv': {
+      id: '/_authenticated/inv'
+      path: '/inv'
+      fullPath: '/inv'
+      preLoaderRoute: typeof AuthenticatedInvRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/fat': {
@@ -774,6 +793,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDocsRoute: typeof AuthenticatedDocsRoute
   AuthenticatedEmpresasRoute: typeof AuthenticatedEmpresasRoute
   AuthenticatedFatRoute: typeof AuthenticatedFatRoute
+  AuthenticatedInvRoute: typeof AuthenticatedInvRoute
   AuthenticatedNcfAlertsRoute: typeof AuthenticatedNcfAlertsRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
@@ -792,6 +812,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDocsRoute: AuthenticatedDocsRoute,
   AuthenticatedEmpresasRoute: AuthenticatedEmpresasRoute,
   AuthenticatedFatRoute: AuthenticatedFatRoute,
+  AuthenticatedInvRoute: AuthenticatedInvRoute,
   AuthenticatedNcfAlertsRoute: AuthenticatedNcfAlertsRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,

@@ -17,6 +17,7 @@ y decisiones de arquitectura. Esta página se mantiene al día junto con el cód
 | `30_plan_maestro_modulos.md` | Plan maestro por módulos, incluye CNT y orden de ejecución |
 | 31_cnt_plan_detallado.md | Plan CNT completo: menu, rutas, validacion y exportacion |
 | 32_cnt_comparacion_legado_pendiente.md | Auditoria pendiente para comparar CNT nuevo vs sistema viejo |
+| `33_inv_plan_detallado.md` | Plan INV completo: catálogo de forms legacy, rutas, prioridades |
 
 ## Estado actual del proyecto
 

@@ -1,4 +1,4 @@
-import {
+﻿import {
   AlertTriangle,
   Banknote,
   BookOpen,
@@ -28,7 +28,7 @@ export const sidebarData: SidebarData = {
     {
       name: 'Regal General Clon',
       logo: Command,
-      plan: 'AbreGonza · Multi-empresa',
+      plan: 'AbreGonza Â· Multi-empresa',
     },
   ],
   navGroups: [
@@ -57,8 +57,14 @@ export const sidebarData: SidebarData = {
       items: [
         {
           title: 'Facturacion (FAT)',
-          url: '/fat',
           icon: Receipt,
+          items: [
+            { title: 'Configuracion', url: '/fat', search: { section: 'configuracion' } },
+            { title: 'Operacion', url: '/fat', search: { section: 'operacion' } },
+            { title: 'Consultas', url: '/fat', search: { section: 'consultas' } },
+            { title: 'Reportes', url: '/fat', search: { section: 'reportes' } },
+            { title: 'Administracion', url: '/fat', search: { section: 'administracion' } },
+          ],
         },
         {
           title: 'Cuentas por Cobrar',
@@ -71,9 +77,16 @@ export const sidebarData: SidebarData = {
           icon: Wallet,
         },
         {
-          title: 'Inventario',
-          url: '/inv',
+          title: 'Inventario (INV)',
           icon: Package,
+          items: [
+            { title: 'Configuración', url: '/inv', search: { section: 'configuracion' } },
+            { title: 'Procesos', url: '/inv', search: { section: 'procesos' } },
+            { title: 'Consultas', url: '/inv', search: { section: 'consultas' } },
+            { title: 'Reportes', url: '/inv', search: { section: 'reportes' } },
+            { title: 'Conteo Físico', url: '/inv', search: { section: 'conteo-fisico' } },
+            { title: 'Cierre', url: '/inv', search: { section: 'cierre' } },
+          ],
         },
         {
           title: 'Ordenes de Compra',
@@ -138,3 +151,4 @@ export const sidebarData: SidebarData = {
     },
   ],
 }
+
