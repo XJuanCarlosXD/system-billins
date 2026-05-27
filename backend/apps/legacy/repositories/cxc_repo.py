@@ -1,21 +1,1003 @@
-"""Cuentas por Cobrar (CxC) — repo de lectura."""
+"""CXC (Cuentas por Cobrar) - Oracle repository. Schema verified against live DB."""
 from __future__ import annotations
-
 from .. import client
+from datetime import date
 
 
-def count_clientes(no_cia: str) -> int:
-    row = client.fetch_one(
-        "SELECT COUNT(*) FROM CXC.TCXC_CLIENTE WHERE no_cia = :1",
-        [no_cia],
-    )
-    return int(row[0]) if row else 0
+# --- COMPANIAS ---------------------------------------------------------------
+# TCXC_CIAS: NO_CIA, DESCRIPCION, ACTIVA
 
-
-def list_document_types(no_cia: str) -> list[dict]:
+def list_cias():
     return client.fetch_dicts(
-        "SELECT no_cia, tipo_docu, descripcion, NVL(activo,'S') AS activo, codigo_ncf "
-        "FROM CXC.TCXC_TDOCU WHERE no_cia = :1 AND NVL(activo,'S')='S' "
-        "ORDER BY tipo_docu",
-        [no_cia],
+        "SELECT no_cia, descripcion, NVL(activa,'S') activa FROM CXC.TCXC_CIAS ORDER BY no_cia")
+
+def save_cia(d: dict):
+    exists = client.fetch_one("SELECT 1 FROM CXC.TCXC_CIAS WHERE no_cia=:1", [d['no_cia']])
+    with client.cursor() as cur:
+        if exists:
+            cur.execute("UPDATE CXC.TCXC_CIAS SET descripcion=:1, activa=:2 WHERE no_cia=:3",
+                        [d.get('descripcion', ''), d.get('activa', 'S'), d['no_cia']])
+        else:
+            cur.execute("INSERT INTO CXC.TCXC_CIAS(no_cia,descripcion,activa) VALUES(:1,:2,:3)",
+                        [d['no_cia'], d.get('descripcion', ''), d.get('activa', 'S')])
+        cur.connection.commit()
+
+
+# --- PUNTOS DE TRABAJO -------------------------------------------------------
+# TCXC_PUNTO: NO_CIA, PUNTO, DESCRIPCION, ANO_PROCESO, MES_PROCESO, PROX_CLIENTE
+
+def list_puntos(no_cia: str):
+    return client.fetch_dicts(
+        "SELECT no_cia, punto, descripcion, NVL(activo,'S') activo, "
+        "NVL(mes_proceso,1) mes_proceso, NVL(ano_proceso,2025) ano_proceso "
+        "FROM CXC.TCXC_PUNTO WHERE no_cia=:1 ORDER BY punto",
+        [no_cia])
+
+def save_punto(d: dict):
+    exists = client.fetch_one(
+        "SELECT 1 FROM CXC.TCXC_PUNTO WHERE no_cia=:1 AND punto=:2",
+        [d['no_cia'], d['punto']])
+    with client.cursor() as cur:
+        if exists:
+            cur.execute(
+                "UPDATE CXC.TCXC_PUNTO SET descripcion=:1 WHERE no_cia=:2 AND punto=:3",
+                [d.get('descripcion', ''), d['no_cia'], d['punto']])
+        else:
+            cur.execute(
+                "INSERT INTO CXC.TCXC_PUNTO(no_cia,punto,descripcion,mes_proceso,ano_proceso) "
+                "VALUES(:1,:2,:3,:4,:5)",
+                [d['no_cia'], d['punto'], d.get('descripcion', ''),
+                 d.get('mes_proceso', 1), d.get('ano_proceso', 2025)])
+        cur.connection.commit()
+
+def get_punto(no_cia: str, punto: str):
+    rows = client.fetch_dicts(
+        "SELECT * FROM CXC.TCXC_PUNTO WHERE no_cia=:1 AND punto=:2", [no_cia, punto])
+    return rows[0] if rows else None
+
+
+# --- TIPOS DE DOCUMENTO ------------------------------------------------------
+# TCXC_TDOCU: NO_CIA, TIPO_DOCU, TIPO_MOVI, DESCRIPCION, TIPO_TRANSACCION, CODIGO_NCF
+
+def list_tdocu(no_cia: str):
+    return client.fetch_dicts(
+        "SELECT no_cia, tipo_docu tipo_doc, descripcion, tipo_transaccion, "
+        "tipo_movi tipo_movimiento, codigo_ncf, 'S' activo "
+        "FROM CXC.TCXC_TDOCU WHERE no_cia=:1 ORDER BY tipo_docu",
+        [no_cia])
+
+def save_tdocu(d: dict):
+    exists = client.fetch_one(
+        "SELECT 1 FROM CXC.TCXC_TDOCU WHERE no_cia=:1 AND tipo_docu=:2",
+        [d['no_cia'], d['tipo_docu']])
+    with client.cursor() as cur:
+        if exists:
+            cur.execute(
+                "UPDATE CXC.TCXC_TDOCU SET descripcion=:1, tipo_transaccion=:2, tipo_movi=:3 "
+                "WHERE no_cia=:4 AND tipo_docu=:5",
+                [d.get('descripcion', ''), d.get('tipo_transaccion', 'D'),
+                 d.get('tipo_movi', 'D'), d['no_cia'], d['tipo_docu']])
+        else:
+            cur.execute(
+                "INSERT INTO CXC.TCXC_TDOCU(no_cia,tipo_docu,descripcion,tipo_transaccion,tipo_movi) "
+                "VALUES(:1,:2,:3,:4,:5)",
+                [d['no_cia'], d['tipo_docu'], d.get('descripcion', ''),
+                 d.get('tipo_transaccion', 'D'), d.get('tipo_movi', 'D')])
+        cur.connection.commit()
+
+def delete_tdocu(no_cia: str, tipo_docu: str):
+    with client.cursor() as cur:
+        cur.execute("DELETE FROM CXC.TCXC_TDOCU WHERE no_cia=:1 AND tipo_docu=:2",
+                    [no_cia, tipo_docu])
+        cur.connection.commit()
+
+
+# --- TIPOS DE CLIENTES -------------------------------------------------------
+# TCXC_TCLI: NO_CIA, TIPO_CLIENTE, DESCRIPCION
+
+def list_tcli(no_cia: str):
+    return client.fetch_dicts(
+        "SELECT no_cia, tipo_cliente, descripcion FROM CXC.TCXC_TCLI "
+        "WHERE no_cia=:1 ORDER BY tipo_cliente",
+        [no_cia])
+
+def save_tcli(d: dict):
+    exists = client.fetch_one(
+        "SELECT 1 FROM CXC.TCXC_TCLI WHERE no_cia=:1 AND tipo_cliente=:2",
+        [d['no_cia'], d['tipo_cliente']])
+    with client.cursor() as cur:
+        if exists:
+            cur.execute(
+                "UPDATE CXC.TCXC_TCLI SET descripcion=:1 "
+                "WHERE no_cia=:2 AND tipo_cliente=:3",
+                [d.get('descripcion', ''), d['no_cia'], d['tipo_cliente']])
+        else:
+            cur.execute(
+                "INSERT INTO CXC.TCXC_TCLI(no_cia,tipo_cliente,descripcion) VALUES(:1,:2,:3)",
+                [d['no_cia'], d['tipo_cliente'], d.get('descripcion', '')])
+        cur.connection.commit()
+
+def delete_tcli(no_cia: str, tipo_cliente: str):
+    with client.cursor() as cur:
+        cur.execute("DELETE FROM CXC.TCXC_TCLI WHERE no_cia=:1 AND tipo_cliente=:2",
+                    [no_cia, tipo_cliente])
+        cur.connection.commit()
+
+
+# --- SUPERVISORES ------------------------------------------------------------
+# TCXC_SUPERVISOR: NO_CIA, SUPERVISOR, NOMBRE, COMISION, ACTIVO, CUOTA
+
+def list_supervisores(no_cia: str):
+    return client.fetch_dicts(
+        "SELECT no_cia, supervisor, nombre, NVL(comision,0) comision, "
+        "NVL(activo,'S') activo, NVL(cuota,0) cuota "
+        "FROM CXC.TCXC_SUPERVISOR WHERE no_cia=:1 ORDER BY supervisor",
+        [no_cia])
+
+def save_supervisor(d: dict):
+    exists = client.fetch_one(
+        "SELECT 1 FROM CXC.TCXC_SUPERVISOR WHERE no_cia=:1 AND supervisor=:2",
+        [d['no_cia'], d['supervisor']])
+    with client.cursor() as cur:
+        if exists:
+            cur.execute(
+                "UPDATE CXC.TCXC_SUPERVISOR SET nombre=:1, activo=:2 "
+                "WHERE no_cia=:3 AND supervisor=:4",
+                [d.get('nombre', ''), d.get('activo', 'S'), d['no_cia'], d['supervisor']])
+        else:
+            cur.execute(
+                "INSERT INTO CXC.TCXC_SUPERVISOR(no_cia,supervisor,nombre,activo) "
+                "VALUES(:1,:2,:3,:4)",
+                [d['no_cia'], d['supervisor'], d.get('nombre', ''), d.get('activo', 'S')])
+        cur.connection.commit()
+
+def delete_supervisor(no_cia: str, supervisor: str):
+    with client.cursor() as cur:
+        cur.execute("DELETE FROM CXC.TCXC_SUPERVISOR WHERE no_cia=:1 AND supervisor=:2",
+                    [no_cia, supervisor])
+        cur.connection.commit()
+
+
+# --- VENDEDORES --------------------------------------------------------------
+# TCXC_VENDEDOR: NO_CIA, VENDEDOR, NOMBRE, COMISION, SUPERVISOR, PUNTO,
+#                ACTIVO, CUOTA, TIPO_VENDEDOR, CLASE, EMAIL, FLOTA
+
+def list_vendedores(no_cia: str):
+    return client.fetch_dicts(
+        "SELECT no_cia, vendedor, nombre, supervisor, email, "
+        "NVL(activo,'S') activo, tipo_vendedor, clase, "
+        "NVL(cuota,0) cuota, flota "
+        "FROM CXC.TCXC_VENDEDOR WHERE no_cia=:1 ORDER BY vendedor",
+        [no_cia])
+
+def get_vendedor(no_cia: str, vendedor: str):
+    rows = client.fetch_dicts(
+        "SELECT * FROM CXC.TCXC_VENDEDOR WHERE no_cia=:1 AND vendedor=:2",
+        [no_cia, vendedor])
+    return rows[0] if rows else None
+
+def save_vendedor(d: dict):
+    exists = client.fetch_one(
+        "SELECT 1 FROM CXC.TCXC_VENDEDOR WHERE no_cia=:1 AND vendedor=:2",
+        [d['no_cia'], d['vendedor']])
+    with client.cursor() as cur:
+        if exists:
+            cur.execute(
+                "UPDATE CXC.TCXC_VENDEDOR SET nombre=:1, email=:2, supervisor=:3, activo=:4, "
+                "tipo_vendedor=:5, clase=:6, cuota=:7, flota=:8 "
+                "WHERE no_cia=:9 AND vendedor=:10",
+                [d.get('nombre', ''), d.get('email', ''), d.get('supervisor', ''),
+                 d.get('activo', 'S'), d.get('tipo_vendedor', 'P'), d.get('clase', ''),
+                 d.get('cuota', 0), d.get('flota', ''),
+                 d['no_cia'], d['vendedor']])
+        else:
+            cur.execute(
+                "INSERT INTO CXC.TCXC_VENDEDOR(no_cia,vendedor,nombre,email,supervisor,activo,"
+                "tipo_vendedor,clase,cuota,flota) VALUES(:1,:2,:3,:4,:5,:6,:7,:8,:9,:10)",
+                [d['no_cia'], d['vendedor'], d.get('nombre', ''), d.get('email', ''),
+                 d.get('supervisor', ''), d.get('activo', 'S'), d.get('tipo_vendedor', 'P'),
+                 d.get('clase', ''), d.get('cuota', 0), d.get('flota', '')])
+        cur.connection.commit()
+
+def delete_vendedor(no_cia: str, vendedor: str):
+    with client.cursor() as cur:
+        cur.execute(
+            "UPDATE CXC.TCXC_VENDEDOR SET activo='N' WHERE no_cia=:1 AND vendedor=:2",
+            [no_cia, vendedor])
+        cur.connection.commit()
+
+
+# --- RUTAS -------------------------------------------------------------------
+# TCXC_RUTA: NO_CIA, RUTA, DESCRIPCION, PUNTO, VENDEDOR (no ACTIVO column)
+
+def list_rutas(no_cia: str):
+    return client.fetch_dicts(
+        "SELECT no_cia, ruta, descripcion, punto, vendedor "
+        "FROM CXC.TCXC_RUTA WHERE no_cia=:1 ORDER BY ruta",
+        [no_cia])
+
+def save_ruta(d: dict):
+    exists = client.fetch_one(
+        "SELECT 1 FROM CXC.TCXC_RUTA WHERE no_cia=:1 AND ruta=:2",
+        [d['no_cia'], d['ruta']])
+    with client.cursor() as cur:
+        if exists:
+            cur.execute(
+                "UPDATE CXC.TCXC_RUTA SET descripcion=:1, punto=:2, vendedor=:3 "
+                "WHERE no_cia=:4 AND ruta=:5",
+                [d.get('descripcion', ''), d.get('punto', ''), d.get('vendedor', ''),
+                 d['no_cia'], d['ruta']])
+        else:
+            cur.execute(
+                "INSERT INTO CXC.TCXC_RUTA(no_cia,ruta,descripcion,punto,vendedor) "
+                "VALUES(:1,:2,:3,:4,:5)",
+                [d['no_cia'], d['ruta'], d.get('descripcion', ''),
+                 d.get('punto', ''), d.get('vendedor', '')])
+        cur.connection.commit()
+
+def delete_ruta(no_cia: str, ruta: str):
+    with client.cursor() as cur:
+        cur.execute("DELETE FROM CXC.TCXC_RUTA WHERE no_cia=:1 AND ruta=:2", [no_cia, ruta])
+        cur.connection.commit()
+
+
+# --- TIPO CONTABLE -----------------------------------------------------------
+# TCXC_TCONTABLE: NO_CIA, TIPO_CONTABLE, DESCRIPCION, CUENTA_CLIENTE, CUENTA_CH_DEV
+
+def list_tcontable(no_cia: str):
+    return client.fetch_dicts(
+        "SELECT no_cia, tipo_contable, descripcion "
+        "FROM CXC.TCXC_TCONTABLE WHERE no_cia=:1 ORDER BY tipo_contable",
+        [no_cia])
+
+def save_tcontable(d: dict):
+    exists = client.fetch_one(
+        "SELECT 1 FROM CXC.TCXC_TCONTABLE WHERE no_cia=:1 AND tipo_contable=:2",
+        [d['no_cia'], d['tipo_contable']])
+    with client.cursor() as cur:
+        if exists:
+            cur.execute(
+                "UPDATE CXC.TCXC_TCONTABLE SET descripcion=:1 "
+                "WHERE no_cia=:2 AND tipo_contable=:3",
+                [d.get('descripcion', ''), d['no_cia'], d['tipo_contable']])
+        else:
+            cur.execute(
+                "INSERT INTO CXC.TCXC_TCONTABLE(no_cia,tipo_contable,descripcion) VALUES(:1,:2,:3)",
+                [d['no_cia'], d['tipo_contable'], d.get('descripcion', '')])
+        cur.connection.commit()
+
+def delete_tcontable(no_cia: str, tipo_contable: str):
+    with client.cursor() as cur:
+        cur.execute(
+            "DELETE FROM CXC.TCXC_TCONTABLE WHERE no_cia=:1 AND tipo_contable=:2",
+            [no_cia, tipo_contable])
+        cur.connection.commit()
+
+
+# --- CIUDADES ----------------------------------------------------------------
+# TCXC_CIUDAD: CIUDAD, DESCRIPCION  (no NO_CIA)
+
+def list_ciudades(no_cia: str = ''):
+    return client.fetch_dicts(
+        "SELECT ciudad, descripcion FROM CXC.TCXC_CIUDAD ORDER BY ciudad")
+
+def save_ciudad(d: dict):
+    exists = client.fetch_one(
+        "SELECT 1 FROM CXC.TCXC_CIUDAD WHERE ciudad=:1", [d['ciudad']])
+    with client.cursor() as cur:
+        if exists:
+            cur.execute("UPDATE CXC.TCXC_CIUDAD SET descripcion=:1 WHERE ciudad=:2",
+                        [d.get('descripcion', ''), d['ciudad']])
+        else:
+            cur.execute("INSERT INTO CXC.TCXC_CIUDAD(ciudad,descripcion) VALUES(:1,:2)",
+                        [d['ciudad'], d.get('descripcion', '')])
+        cur.connection.commit()
+
+def delete_ciudad(no_cia: str, ciudad: str):
+    with client.cursor() as cur:
+        cur.execute("DELETE FROM CXC.TCXC_CIUDAD WHERE ciudad=:1", [ciudad])
+        cur.connection.commit()
+
+
+# --- BARRIOS -----------------------------------------------------------------
+# TCXC_BARRIO: CIUDAD, BARRIO, DESCRIPCION  (no NO_CIA)
+
+def list_barrios(no_cia: str = ''):
+    return client.fetch_dicts(
+        "SELECT ciudad, barrio, descripcion FROM CXC.TCXC_BARRIO ORDER BY ciudad, barrio")
+
+def save_barrio(d: dict):
+    exists = client.fetch_one(
+        "SELECT 1 FROM CXC.TCXC_BARRIO WHERE ciudad=:1 AND barrio=:2",
+        [d['ciudad'], d['barrio']])
+    with client.cursor() as cur:
+        if exists:
+            cur.execute(
+                "UPDATE CXC.TCXC_BARRIO SET descripcion=:1 WHERE ciudad=:2 AND barrio=:3",
+                [d.get('descripcion', ''), d['ciudad'], d['barrio']])
+        else:
+            cur.execute(
+                "INSERT INTO CXC.TCXC_BARRIO(ciudad,barrio,descripcion) VALUES(:1,:2,:3)",
+                [d['ciudad'], d['barrio'], d.get('descripcion', '')])
+        cur.connection.commit()
+
+def delete_barrio(no_cia: str, barrio: str):
+    with client.cursor() as cur:
+        # barrio arg may be "CIUDAD|BARRIO"
+        parts = barrio.split('|')
+        if len(parts) == 2:
+            cur.execute("DELETE FROM CXC.TCXC_BARRIO WHERE ciudad=:1 AND barrio=:2", parts)
+        else:
+            cur.execute("DELETE FROM CXC.TCXC_BARRIO WHERE barrio=:1", [barrio])
+        cur.connection.commit()
+
+
+# --- ZONAS -------------------------------------------------------------------
+# TCXC_ZONA: NO_CIA, ZONA, DESCRIPCION
+
+def list_zonas(no_cia: str):
+    return client.fetch_dicts(
+        "SELECT no_cia, zona, descripcion FROM CXC.TCXC_ZONA "
+        "WHERE no_cia=:1 ORDER BY zona",
+        [no_cia])
+
+def save_zona(d: dict):
+    exists = client.fetch_one(
+        "SELECT 1 FROM CXC.TCXC_ZONA WHERE no_cia=:1 AND zona=:2",
+        [d['no_cia'], d['zona']])
+    with client.cursor() as cur:
+        if exists:
+            cur.execute(
+                "UPDATE CXC.TCXC_ZONA SET descripcion=:1 WHERE no_cia=:2 AND zona=:3",
+                [d.get('descripcion', ''), d['no_cia'], d['zona']])
+        else:
+            cur.execute(
+                "INSERT INTO CXC.TCXC_ZONA(no_cia,zona,descripcion) VALUES(:1,:2,:3)",
+                [d['no_cia'], d['zona'], d.get('descripcion', '')])
+        cur.connection.commit()
+
+def delete_zona(no_cia: str, zona: str):
+    with client.cursor() as cur:
+        cur.execute("DELETE FROM CXC.TCXC_ZONA WHERE no_cia=:1 AND zona=:2", [no_cia, zona])
+        cur.connection.commit()
+
+
+# --- CADENAS -----------------------------------------------------------------
+# TCXC_CADENA: NO_CIA, NO_CADENA, DESCRIPCION
+
+def list_cadenas(no_cia: str):
+    return client.fetch_dicts(
+        "SELECT no_cia, no_cadena, descripcion FROM CXC.TCXC_CADENA "
+        "WHERE no_cia=:1 ORDER BY no_cadena",
+        [no_cia])
+
+def save_cadena(d: dict):
+    exists = client.fetch_one(
+        "SELECT 1 FROM CXC.TCXC_CADENA WHERE no_cia=:1 AND no_cadena=:2",
+        [d['no_cia'], d['no_cadena']])
+    with client.cursor() as cur:
+        if exists:
+            cur.execute(
+                "UPDATE CXC.TCXC_CADENA SET descripcion=:1 WHERE no_cia=:2 AND no_cadena=:3",
+                [d.get('descripcion', ''), d['no_cia'], d['no_cadena']])
+        else:
+            cur.execute(
+                "INSERT INTO CXC.TCXC_CADENA(no_cia,no_cadena,descripcion) VALUES(:1,:2,:3)",
+                [d['no_cia'], d['no_cadena'], d.get('descripcion', '')])
+        cur.connection.commit()
+
+def delete_cadena(no_cia: str, no_cadena: str):
+    with client.cursor() as cur:
+        cur.execute("DELETE FROM CXC.TCXC_CADENA WHERE no_cia=:1 AND no_cadena=:2",
+                    [no_cia, no_cadena])
+        cur.connection.commit()
+
+
+# --- CLIENTES ----------------------------------------------------------------
+# TCXC_CLIENTE: NO_CIA, PUNTO, NO_CLIENTE, TIPO_CONTABLE, TIPO_CLIENTE, NOMBRE,
+#               VENDEDOR, LIMITE_CREDITO, PLAZO, TELEFONO, TELEFONO2, EMAIL1,
+#               CIUDAD, BARRIO, ZONA, DIRECCION, RNC, CEDULA, RUTA_ENTREGA,
+#               NO_CADENA, SALDO_INICIAL, DEBITOS, CREDITOS
+
+def search_clientes(no_cia: str, q: str = '', page: int = 1, page_size: int = 50):
+    offset = (page - 1) * page_size
+    like = f'%{q.upper()}%' if q else '%'
+    count_row = client.fetch_one(
+        "SELECT COUNT(*) FROM CXC.TCXC_CLIENTE "
+        "WHERE no_cia=:1 AND (UPPER(nombre) LIKE :2 OR UPPER(no_cliente) LIKE :3)",
+        [no_cia, like, like])
+    total = count_row[0] if count_row else 0
+    sql = (
+        "SELECT * FROM ("
+        "  SELECT c.*, ROWNUM rn FROM ("
+        "    SELECT no_cia, no_cliente, punto, nombre nombre_cliente, tipo_contable tipo_conta,"
+        "           tipo_cliente tipo_cli, cedula, rnc, telefono, email1 email, ciudad, zona,"
+        "           vendedor, ruta_entrega ruta,"
+        "           NVL(limite_credito,0) limite_credito, NVL(plazo,0) dias_credito,"
+        "           NVL(debitos,0)-NVL(creditos,0) saldo_actual"
+        "    FROM CXC.TCXC_CLIENTE"
+        "    WHERE no_cia=:1"
+        "    AND (UPPER(nombre) LIKE :2 OR UPPER(no_cliente) LIKE :3)"
+        "    ORDER BY nombre"
+        "  ) c WHERE ROWNUM <= :4"
+        ") WHERE rn > :5"
     )
+    rows = client.fetch_dicts(sql, [no_cia, like, like, offset + page_size, offset])
+    return {'items': rows, 'count': total}
+
+def get_cliente(no_cia: str, no_cliente: str):
+    rows = client.fetch_dicts(
+        "SELECT c.*, NVL(c.debitos,0)-NVL(c.creditos,0) saldo_actual "
+        "FROM CXC.TCXC_CLIENTE c WHERE c.no_cia=:1 AND c.no_cliente=:2",
+        [no_cia, no_cliente])
+    if not rows:
+        return None
+    cli = rows[0]
+    # Punto is part of key for sub-tables
+    punto = cli.get('punto', '01')
+    cli['contactos'] = client.fetch_dicts(
+        "SELECT no_contacto, nombre, telefono, celular, email, area "
+        "FROM CXC.TCXC_CONTACTO_CLIENTE "
+        "WHERE no_cia=:1 AND no_cliente=:2 ORDER BY no_contacto",
+        [no_cia, no_cliente])
+    cli['referencias'] = client.fetch_dicts(
+        "SELECT tipo_referencia, nombre, telefono, relacion "
+        "FROM CXC.TCXC_REFECLIENTE "
+        "WHERE no_cia=:1 AND no_cliente=:2",
+        [no_cia, no_cliente])
+    return cli
+
+def save_cliente(d: dict):
+    no_cia = d['no_cia']
+    punto = d.get('punto', '01')
+    # Accept frontend aliases or legacy field names
+    nombre = d.get('nombre_cliente') or d.get('nombre', '')
+    tipo_contable = d.get('tipo_conta') or d.get('tipo_contable', '')
+    tipo_cliente = d.get('tipo_cli') or d.get('tipo_cliente', '')
+    email1 = d.get('email') or d.get('email1', '')
+    ruta_entrega = d.get('ruta') or d.get('ruta_entrega', '')
+    no_cadena = d.get('cadena') or d.get('no_cadena', '')
+    dias_credito = d.get('dias_credito') or d.get('plazo', 0)
+    with client.cursor() as cur:
+        is_new = not d.get('no_cliente')
+        if is_new:
+            row = cur.execute(
+                "SELECT NVL(prox_cliente,1) FROM CXC.TCXC_PUNTO "
+                "WHERE no_cia=:1 AND punto=:2", [no_cia, punto]).fetchone()
+            next_num = row[0] if row else 1
+            d['no_cliente'] = str(next_num).zfill(6)
+            cur.execute(
+                "UPDATE CXC.TCXC_PUNTO SET prox_cliente=prox_cliente+1 "
+                "WHERE no_cia=:1 AND punto=:2", [no_cia, punto])
+        exists = cur.execute(
+            "SELECT 1 FROM CXC.TCXC_CLIENTE WHERE no_cia=:1 AND no_cliente=:2",
+            [no_cia, d['no_cliente']]).fetchone()
+        if exists:
+            cur.execute(
+                "UPDATE CXC.TCXC_CLIENTE SET nombre=:1, tipo_contable=:2, tipo_cliente=:3,"
+                "cedula=:4, rnc=:5, telefono=:6, telefono2=:7, email1=:8, direccion=:9,"
+                "ciudad=:10, barrio=:11, zona=:12, no_cadena=:13, vendedor=:14,"
+                "ruta_entrega=:15, limite_credito=:16, plazo=:17 "
+                "WHERE no_cia=:18 AND no_cliente=:19",
+                [nombre, tipo_contable, tipo_cliente,
+                 d.get('cedula', ''), d.get('rnc', ''), d.get('telefono', ''),
+                 d.get('telefono2', ''), email1, d.get('direccion', ''),
+                 d.get('ciudad', ''), d.get('barrio', ''), d.get('zona', ''),
+                 no_cadena, d.get('vendedor', ''), ruta_entrega,
+                 d.get('limite_credito', 0), dias_credito,
+                 no_cia, d['no_cliente']])
+        else:
+            cur.execute(
+                "INSERT INTO CXC.TCXC_CLIENTE"
+                "(no_cia,punto,no_cliente,nombre,tipo_contable,tipo_cliente,"
+                "cedula,rnc,telefono,telefono2,email1,direccion,ciudad,barrio,zona,"
+                "no_cadena,vendedor,ruta_entrega,limite_credito,plazo,fecha_ingreso) "
+                "VALUES(:1,:2,:3,:4,:5,:6,:7,:8,:9,:10,:11,:12,:13,:14,:15,:16,:17,:18,:19,:20,SYSDATE)",
+                [no_cia, punto, d['no_cliente'], nombre,
+                 tipo_contable, tipo_cliente,
+                 d.get('cedula', ''), d.get('rnc', ''), d.get('telefono', ''),
+                 d.get('telefono2', ''), email1, d.get('direccion', ''),
+                 d.get('ciudad', ''), d.get('barrio', ''), d.get('zona', ''),
+                 no_cadena, d.get('vendedor', ''), ruta_entrega,
+                 d.get('limite_credito', 0), dias_credito])
+        # Sync contactos
+        cur.execute(
+            "DELETE FROM CXC.TCXC_CONTACTO_CLIENTE "
+            "WHERE no_cia=:1 AND no_cliente=:2", [no_cia, d['no_cliente']])
+        for i, c in enumerate(d.get('contactos', []), 1):
+            cur.execute(
+                "INSERT INTO CXC.TCXC_CONTACTO_CLIENTE"
+                "(no_cia,punto,no_cliente,no_contacto,nombre,telefono,celular,email) "
+                "VALUES(:1,:2,:3,:4,:5,:6,:7,:8)",
+                [no_cia, punto, d['no_cliente'], i, c.get('nombre', ''),
+                 c.get('telefono', ''), c.get('celular', ''), c.get('email', '')])
+        # Sync referencias
+        cur.execute(
+            "DELETE FROM CXC.TCXC_REFECLIENTE "
+            "WHERE no_cia=:1 AND no_cliente=:2", [no_cia, d['no_cliente']])
+        for i, r in enumerate(d.get('referencias', []), 1):
+            cur.execute(
+                "INSERT INTO CXC.TCXC_REFECLIENTE"
+                "(no_cia,punto,no_cliente,tipo_referencia,nombre,telefono,relacion) "
+                "VALUES(:1,:2,:3,:4,:5,:6,:7)",
+                [no_cia, punto, d['no_cliente'], str(i),
+                 r.get('nombre', ''), r.get('telefono', ''), r.get('relacion', '')])
+        cur.connection.commit()
+    return d['no_cliente']
+
+def delete_cliente(no_cia: str, no_cliente: str):
+    with client.cursor() as cur:
+        cur.execute(
+            "UPDATE CXC.TCXC_CLIENTE SET fecha_suspension=SYSDATE "
+            "WHERE no_cia=:1 AND no_cliente=:2", [no_cia, no_cliente])
+        cur.connection.commit()
+
+def get_clientes_ruta(no_cia: str, ruta: str):
+    return client.fetch_dicts(
+        "SELECT no_cliente, nombre nombre_cliente, ruta_entrega FROM CXC.TCXC_CLIENTE "
+        "WHERE no_cia=:1 AND ruta_entrega=:2 ORDER BY nombre",
+        [no_cia, ruta])
+
+def assign_cliente_ruta(no_cia: str, no_cliente: str, ruta: str):
+    asignar_cliente_ruta(no_cia, no_cliente, ruta)
+
+def asignar_cliente_ruta(no_cia: str, no_cliente: str, ruta: str):
+    with client.cursor() as cur:
+        cur.execute(
+            "UPDATE CXC.TCXC_CLIENTE SET ruta_entrega=:1 "
+            "WHERE no_cia=:2 AND no_cliente=:3",
+            [ruta, no_cia, no_cliente])
+        cur.connection.commit()
+
+
+# --- DOCUMENTOS --------------------------------------------------------------
+# TCXC_DOCUMENTO: NO_CIA, PUNTO, TIPO_DOCU, NO_DOCU, NO_CLIENTE, FECHA,
+#                 VALOR_ORIGINAL, SALDO, ST_ANULADO, DETALLE, NCF, VENDEDOR
+
+def list_documentos(no_cia: str, punto: str = '', tipo_doc: str = '',
+                    desde: str = '', hasta: str = '', no_cliente: str = '',
+                    estado: str = '', page: int = 1, page_size: int = 50):
+    params = [no_cia]
+    where = "WHERE d.no_cia=:1"
+    n = 2
+    if punto:
+        where += f" AND d.punto=:{n}"; params.append(punto); n += 1
+    if tipo_doc:
+        where += f" AND d.tipo_docu=:{n}"; params.append(tipo_doc); n += 1
+    if desde:
+        where += f" AND d.fecha>=TO_DATE(:{n},'YYYY-MM-DD')"; params.append(desde); n += 1
+    if hasta:
+        where += f" AND d.fecha<=TO_DATE(:{n},'YYYY-MM-DD')"; params.append(hasta); n += 1
+    if no_cliente:
+        where += f" AND d.no_cliente=:{n}"; params.append(no_cliente); n += 1
+    if estado == 'pendiente':
+        where += " AND NVL(d.st_anulado,'N')='N' AND NVL(d.saldo,0)>0"
+    elif estado == 'anulado':
+        where += " AND NVL(d.st_anulado,'N')='S'"
+    count_row = client.fetch_one(
+        f"SELECT COUNT(*) FROM CXC.TCXC_DOCUMENTO d {where}", params)
+    total = count_row[0] if count_row else 0
+    offset = (page - 1) * page_size
+    sql = (
+        "SELECT * FROM ("
+        "  SELECT d.*, ROWNUM rn FROM ("
+        "    SELECT d.no_cia, d.punto, d.tipo_docu tipo_doc, d.no_docu no_doc,"
+        "           d.no_cliente, d.fecha,"
+        "           NVL(d.valor_original,0) valor, NVL(d.saldo,0) saldo,"
+        "           d.ncf, d.detalle,"
+        "           CASE NVL(d.st_anulado,'N') WHEN 'S' THEN 'R' ELSE 'A' END estado,"
+        "           c.nombre nombre_cliente"
+        "    FROM CXC.TCXC_DOCUMENTO d"
+        "    LEFT JOIN CXC.TCXC_CLIENTE c"
+        "      ON c.no_cia=d.no_cia AND c.no_cliente=d.no_cliente"
+        f"    {where} ORDER BY d.fecha DESC, d.no_docu DESC"
+        f"  ) d WHERE ROWNUM <= :{n}"
+        f") WHERE rn > :{n+1}"
+    )
+    params += [offset + page_size, offset]
+    return {'items': client.fetch_dicts(sql, params), 'count': total}
+
+def get_documento(no_cia: str, no_docu: str):
+    rows = client.fetch_dicts(
+        "SELECT d.no_cia, d.punto, d.tipo_docu tipo_doc, d.no_docu no_doc, "
+        "d.no_cliente, d.fecha, c.nombre nombre_cliente, c.rnc, "
+        "NVL(d.valor_original,0) valor, NVL(d.saldo,0) saldo, "
+        "d.ncf, d.detalle, "
+        "CASE NVL(d.st_anulado,'N') WHEN 'S' THEN 'R' ELSE 'A' END estado "
+        "FROM CXC.TCXC_DOCUMENTO d "
+        "LEFT JOIN CXC.TCXC_CLIENTE c ON c.no_cia=d.no_cia AND c.no_cliente=d.no_cliente "
+        "WHERE d.no_cia=:1 AND d.no_docu=:2",
+        [no_cia, no_docu])
+    if not rows:
+        return None
+    doc = rows[0]
+    doc['lineas'] = client.fetch_dicts(
+        "SELECT cuenta, centro_costo, "
+        "CASE WHEN tipo_movi='D' THEN NVL(monto,0) ELSE 0 END debito, "
+        "CASE WHEN tipo_movi='C' THEN NVL(monto,0) ELSE 0 END credito, "
+        "detalle "
+        "FROM CXC.TCXC_DCDOCU WHERE no_cia=:1 AND no_docu=:2",
+        [no_cia, no_docu])
+    return doc
+
+def get_next_no_doc(no_cia: str, punto: str) -> str:
+    row = client.fetch_one(
+        "SELECT NVL(MAX(TO_NUMBER(REGEXP_SUBSTR(no_docu,'[0-9]+'))),0)+1 "
+        "FROM CXC.TCXC_DOCUMENTO WHERE no_cia=:1 AND punto=:2",
+        [no_cia, punto])
+    return str(row[0]).zfill(8) if row else '00000001'
+
+def save_documento(d: dict):
+    no_cia = d['no_cia']
+    punto = d.get('punto', '01')
+    # Accept both frontend aliases and legacy field names
+    no_docu = d.get('no_doc') or d.get('no_docu', '')
+    tipo_docu = d.get('tipo_doc') or d.get('tipo_docu', '')
+    valor = d.get('valor') or d.get('valor_original', 0)
+    with client.cursor() as cur:
+        exists = cur.execute(
+            "SELECT 1 FROM CXC.TCXC_DOCUMENTO WHERE no_cia=:1 AND no_docu=:2",
+            [no_cia, no_docu]).fetchone()
+        fecha = d.get('fecha', date.today().isoformat())
+        if exists:
+            cur.execute(
+                "UPDATE CXC.TCXC_DOCUMENTO "
+                "SET tipo_docu=:1, no_cliente=:2, fecha=TO_DATE(:3,'YYYY-MM-DD'),"
+                "valor_original=:4, ncf=:5, detalle=:6 "
+                "WHERE no_cia=:7 AND no_docu=:8",
+                [tipo_docu, d.get('no_cliente', ''), fecha,
+                 valor, d.get('ncf', ''), d.get('detalle', ''),
+                 no_cia, no_docu])
+        else:
+            cur.execute(
+                "INSERT INTO CXC.TCXC_DOCUMENTO"
+                "(no_cia,punto,tipo_docu,no_docu,no_cliente,"
+                "fecha,valor_original,saldo,ncf,detalle,st_anulado) "
+                "VALUES(:1,:2,:3,:4,:5,TO_DATE(:6,'YYYY-MM-DD'),:7,:7,:8,:9,'N')",
+                [no_cia, punto, tipo_docu, no_docu,
+                 d.get('no_cliente', ''), fecha,
+                 valor, d.get('ncf', ''), d.get('detalle', '')])
+        # Replace detail lines
+        cur.execute(
+            "DELETE FROM CXC.TCXC_DCDOCU WHERE no_cia=:1 AND no_docu=:2",
+            [no_cia, no_docu])
+        for l in d.get('lineas', []):
+            # Frontend sends debito/credito; legacy sends tipo_movi/monto
+            if 'debito' in l or 'credito' in l:
+                debito = float(l.get('debito') or 0)
+                credito = float(l.get('credito') or 0)
+                if debito > 0:
+                    cur.execute(
+                        "INSERT INTO CXC.TCXC_DCDOCU"
+                        "(no_cia,punto,tipo_docu,no_docu,cuenta,tipo_movi,monto,centro_costo,no_cliente) "
+                        "VALUES(:1,:2,:3,:4,:5,'D',:6,:7,:8)",
+                        [no_cia, punto, tipo_docu, no_docu,
+                         l.get('cuenta', ''), debito,
+                         l.get('centro_costo', ''), d.get('no_cliente', '')])
+                if credito > 0:
+                    cur.execute(
+                        "INSERT INTO CXC.TCXC_DCDOCU"
+                        "(no_cia,punto,tipo_docu,no_docu,cuenta,tipo_movi,monto,centro_costo,no_cliente) "
+                        "VALUES(:1,:2,:3,:4,:5,'C',:6,:7,:8)",
+                        [no_cia, punto, tipo_docu, no_docu,
+                         l.get('cuenta', ''), credito,
+                         l.get('centro_costo', ''), d.get('no_cliente', '')])
+            else:
+                cur.execute(
+                    "INSERT INTO CXC.TCXC_DCDOCU"
+                    "(no_cia,punto,tipo_docu,no_docu,cuenta,tipo_movi,monto,centro_costo,no_cliente) "
+                    "VALUES(:1,:2,:3,:4,:5,:6,:7,:8,:9)",
+                    [no_cia, punto, tipo_docu, no_docu,
+                     l.get('cuenta', ''), l.get('tipo_movi', 'D'),
+                     l.get('monto', 0), l.get('centro_costo', ''), d.get('no_cliente', '')])
+        cur.connection.commit()
+    return no_docu
+
+
+# --- PROCESOS ----------------------------------------------------------------
+
+def reversar_documento(no_cia: str, no_docu: str, tipo_doc_rev: str = '',
+                       fecha_trans: str = '', liberar_ncf: bool = False,
+                       usuario: str = ''):
+    with client.cursor() as cur:
+        cur.execute(
+            "UPDATE CXC.TCXC_DOCUMENTO SET st_anulado='S', detalle='ANULADO' "
+            "WHERE no_cia=:1 AND no_docu=:2",
+            [no_cia, no_docu])
+        cur.connection.commit()
+    return no_docu
+
+def get_documentos_pendientes_masivo(no_cia: str, desde: str, hasta: str):
+    return client.fetch_dicts(
+        "SELECT d.punto, d.tipo_docu tipo_doc, d.no_docu no_doc, "
+        "d.no_cliente, c.nombre nombre_cliente, d.fecha,"
+        "NVL(d.valor_original,0) valor, NVL(d.saldo,0) saldo "
+        "FROM CXC.TCXC_DOCUMENTO d "
+        "JOIN CXC.TCXC_CLIENTE c ON c.no_cia=d.no_cia AND c.no_cliente=d.no_cliente "
+        "WHERE d.no_cia=:1 AND NVL(d.st_anulado,'N')='N' AND NVL(d.saldo,0)>0 "
+        "AND d.fecha BETWEEN TO_DATE(:2,'YYYY-MM-DD') AND TO_DATE(:3,'YYYY-MM-DD') "
+        "ORDER BY d.fecha, d.no_docu",
+        [no_cia, desde, hasta])
+
+def apply_pagos_masivos(no_cia: str, punto: str = '', tipo_doc: str = '',
+                        fecha: str = '', pagos: list = None):
+    pagos = pagos or []
+    with client.cursor() as cur:
+        for p in pagos:
+            # Accept frontend (no_doc/valor_pagado) or legacy (no_docu/monto)
+            no_docu = p.get('no_doc') or p.get('no_docu', '')
+            monto = p.get('valor_pagado') or p.get('monto', 0)
+            cur.execute(
+                "UPDATE CXC.TCXC_DOCUMENTO SET saldo=NVL(saldo,0)-:1 "
+                "WHERE no_cia=:2 AND no_docu=:3",
+                [monto, no_cia, no_docu])
+        cur.connection.commit()
+    return {'applied': len(pagos)}
+
+def get_debitos_cliente(no_cia: str, no_cliente: str, no_docu_cr: str):
+    return client.fetch_dicts(
+        "SELECT no_docu no_doc, tipo_docu tipo_doc, fecha, "
+        "NVL(valor_original,0) valor, NVL(saldo,0) saldo, detalle "
+        "FROM CXC.TCXC_DOCUMENTO "
+        "WHERE no_cia=:1 AND no_cliente=:2 AND NVL(st_anulado,'N')='N' "
+        "AND NVL(saldo,0)>0 AND no_docu<>:3 ORDER BY fecha",
+        [no_cia, no_cliente, no_docu_cr])
+
+def liberar_credito(no_cia: str, no_docu_cr: str, debitos: list):
+    with client.cursor() as cur:
+        for d in debitos:
+            # Accept frontend (no_doc_dr/valor_aplica) or legacy (no_docu/monto_aplicar)
+            no_docu = d.get('no_doc_dr') or d.get('no_docu', '')
+            monto = d.get('valor_aplica') or d.get('monto_aplicar', 0)
+            cur.execute(
+                "UPDATE CXC.TCXC_DOCUMENTO SET saldo=NVL(saldo,0)-:1 "
+                "WHERE no_cia=:2 AND no_docu=:3",
+                [monto, no_cia, no_docu])
+        cur.execute(
+            "UPDATE CXC.TCXC_DOCUMENTO SET saldo=0 WHERE no_cia=:1 AND no_docu=:2",
+            [no_cia, no_docu_cr])
+        cur.connection.commit()
+    return {'ok': True}
+
+def corregir_ncf(no_cia: str, no_docu: str, ncf: str, ncf_anterior: str = ''):
+    with client.cursor() as cur:
+        cur.execute(
+            "UPDATE CXC.TCXC_DOCUMENTO SET ncf=:1 WHERE no_cia=:2 AND no_docu=:3",
+            [ncf, no_cia, no_docu])
+        cur.connection.commit()
+    return {'ok': True}
+
+
+# --- CONSULTAS ---------------------------------------------------------------
+
+def estado_cuenta(no_cia: str, no_cliente: str):
+    cli = client.fetch_dicts(
+        "SELECT no_cliente, nombre, NVL(limite_credito,0) limite, "
+        "NVL(plazo,0) dias, NVL(debitos,0)-NVL(creditos,0) saldo_actual "
+        "FROM CXC.TCXC_CLIENTE WHERE no_cia=:1 AND no_cliente=:2",
+        [no_cia, no_cliente])
+    if not cli:
+        return None
+    docs = client.fetch_dicts(
+        "SELECT no_docu no_doc, tipo_docu tipo_doc, fecha, "
+        "NVL(valor_original,0) valor, NVL(saldo,0) saldo,"
+        "ncf, detalle, TRUNC(SYSDATE)-TRUNC(fecha) dias_vencido "
+        "FROM CXC.TCXC_DOCUMENTO "
+        "WHERE no_cia=:1 AND no_cliente=:2 AND NVL(st_anulado,'N')='N' "
+        "AND NVL(saldo,0)<>0 ORDER BY fecha",
+        [no_cia, no_cliente])
+    row = cli[0]
+    total_pendiente = sum(d.get('saldo', 0) for d in docs)
+    return {
+        'cliente': {'nombre': row['nombre'], 'limite': row['limite'], 'dias': row['dias']},
+        'total_pendiente': total_pendiente,
+        'documentos': docs
+    }
+
+def balance_clientes(no_cia: str, punto: str = ''):
+    params = [no_cia]
+    extra = " AND d.punto=:2" if punto else ""
+    if punto:
+        params.append(punto)
+    sql = (
+        "SELECT c.no_cliente, c.nombre nombre_cliente, c.vendedor, "
+        "SUM(CASE WHEN TRUNC(SYSDATE)-TRUNC(d.fecha) BETWEEN 0 AND 30 "
+        "     THEN NVL(d.saldo,0) ELSE 0 END) dias_0_30, "
+        "SUM(CASE WHEN TRUNC(SYSDATE)-TRUNC(d.fecha) BETWEEN 31 AND 60 "
+        "     THEN NVL(d.saldo,0) ELSE 0 END) dias_31_60, "
+        "SUM(CASE WHEN TRUNC(SYSDATE)-TRUNC(d.fecha) BETWEEN 61 AND 90 "
+        "     THEN NVL(d.saldo,0) ELSE 0 END) dias_61_90, "
+        "SUM(CASE WHEN TRUNC(SYSDATE)-TRUNC(d.fecha) > 90 "
+        "     THEN NVL(d.saldo,0) ELSE 0 END) mas_90, "
+        "SUM(NVL(d.saldo,0)) total_saldo "
+        "FROM CXC.TCXC_DOCUMENTO d "
+        "JOIN CXC.TCXC_CLIENTE c ON c.no_cia=d.no_cia AND c.no_cliente=d.no_cliente "
+        f"WHERE d.no_cia=:1 AND NVL(d.st_anulado,'N')='N' AND NVL(d.saldo,0)<>0{extra} "
+        "GROUP BY c.no_cliente, c.nombre, c.vendedor "
+        "ORDER BY c.nombre"
+    )
+    return client.fetch_dicts(sql, params)
+
+def historico_pagos(no_cia: str, no_cliente: str = '', desde: str = '', hasta: str = ''):
+    params = [no_cia]
+    where = "WHERE d.no_cia=:1 AND NVL(d.st_anulado,'N')='N'"
+    n = 2
+    if no_cliente:
+        where += f" AND d.no_cliente=:{n}"; params.append(no_cliente); n += 1
+    if desde:
+        where += f" AND d.fecha>=TO_DATE(:{n},'YYYY-MM-DD')"; params.append(desde); n += 1
+    if hasta:
+        where += f" AND d.fecha<=TO_DATE(:{n},'YYYY-MM-DD')"; params.append(hasta); n += 1
+    return client.fetch_dicts(
+        f"SELECT d.no_docu no_doc, d.tipo_docu tipo_doc, d.no_cliente, "
+        f"c.nombre nombre_cliente, d.fecha, "
+        f"NVL(d.valor_original,0) valor, NVL(d.saldo,0) saldo, "
+        f"NVL(t.tipo_movi,'DR') tipo_movimiento, d.ncf "
+        f"FROM CXC.TCXC_DOCUMENTO d "
+        f"LEFT JOIN CXC.TCXC_CLIENTE c ON c.no_cia=d.no_cia AND c.no_cliente=d.no_cliente "
+        f"LEFT JOIN CXC.TCXC_TDOCU t ON t.no_cia=d.no_cia AND t.tipo_docu=d.tipo_docu "
+        f"{where} ORDER BY d.fecha DESC, d.no_docu DESC",
+        params)
+
+def libro_ventas(no_cia: str, desde: str, hasta: str, punto: str = ''):
+    params = [no_cia, desde, hasta]
+    extra = " AND d.punto=:4" if punto else ""
+    if punto:
+        params.append(punto)
+    return client.fetch_dicts(
+        "SELECT d.no_docu no_doc, d.tipo_docu tipo_doc, d.no_cliente, "
+        "c.nombre nombre_cliente, c.rnc, d.fecha, "
+        "d.ncf, NVL(d.valor_original,0) valor, NVL(d.saldo,0) saldo "
+        "FROM CXC.TCXC_DOCUMENTO d "
+        "LEFT JOIN CXC.TCXC_CLIENTE c ON c.no_cia=d.no_cia AND c.no_cliente=d.no_cliente "
+        "WHERE d.no_cia=:1 AND d.fecha BETWEEN "
+        f"TO_DATE(:2,'YYYY-MM-DD') AND TO_DATE(:3,'YYYY-MM-DD'){extra} "
+        "ORDER BY d.fecha, d.no_docu",
+        params)
+
+
+# --- REPORTES ----------------------------------------------------------------
+
+def rep_envejecimiento(no_cia: str, punto: str = '', vendedor: str = '',
+                       fecha_corte: str = ''):
+    params = [no_cia]
+    where = "WHERE d.no_cia=:1 AND NVL(d.st_anulado,'N')='N' AND NVL(d.saldo,0)<>0"
+    n = 2
+    if punto:
+        where += f" AND d.punto=:{n}"; params.append(punto); n += 1
+    if vendedor:
+        where += f" AND c.vendedor=:{n}"; params.append(vendedor); n += 1
+    if fecha_corte:
+        date_expr = f"TO_DATE(:{n},'YYYY-MM-DD')"
+        params.append(fecha_corte)
+    else:
+        date_expr = "TRUNC(SYSDATE)"
+    sql = (
+        f"SELECT c.no_cliente, c.nombre nombre_cliente, c.vendedor, "
+        f"SUM(CASE WHEN {date_expr}-TRUNC(d.fecha) BETWEEN 0 AND 30 "
+        f"     THEN NVL(d.saldo,0) ELSE 0 END) c0, "
+        f"SUM(CASE WHEN {date_expr}-TRUNC(d.fecha) BETWEEN 31 AND 60 "
+        f"     THEN NVL(d.saldo,0) ELSE 0 END) c30, "
+        f"SUM(CASE WHEN {date_expr}-TRUNC(d.fecha) BETWEEN 61 AND 90 "
+        f"     THEN NVL(d.saldo,0) ELSE 0 END) c60, "
+        f"SUM(CASE WHEN {date_expr}-TRUNC(d.fecha) BETWEEN 91 AND 120 "
+        f"     THEN NVL(d.saldo,0) ELSE 0 END) c90, "
+        f"SUM(CASE WHEN {date_expr}-TRUNC(d.fecha) > 120 "
+        f"     THEN NVL(d.saldo,0) ELSE 0 END) c120, "
+        f"SUM(NVL(d.saldo,0)) total "
+        f"FROM CXC.TCXC_DOCUMENTO d "
+        f"JOIN CXC.TCXC_CLIENTE c ON c.no_cia=d.no_cia AND c.no_cliente=d.no_cliente "
+        f"{where} "
+        f"GROUP BY c.no_cliente, c.nombre, c.vendedor "
+        f"HAVING SUM(NVL(d.saldo,0)) <> 0 "
+        f"ORDER BY c.nombre"
+    )
+    rows = client.fetch_dicts(sql, params)
+    total = sum(r.get('total', 0) for r in rows)
+    return {'items': rows, 'total': total}
+
+def rep_cobros_vendedor(no_cia: str, desde: str, hasta: str, punto: str = ''):
+    params = [no_cia, desde, hasta]
+    extra = " AND d.punto=:4" if punto else ""
+    if punto:
+        params.append(punto)
+    rows = client.fetch_dicts(
+        "SELECT c.vendedor, v.nombre nombre_vendedor, COUNT(*) cobros, "
+        "SUM(NVL(d.valor_original,0)) total_cobrado "
+        "FROM CXC.TCXC_DOCUMENTO d "
+        "JOIN CXC.TCXC_CLIENTE c ON c.no_cia=d.no_cia AND c.no_cliente=d.no_cliente "
+        "LEFT JOIN CXC.TCXC_VENDEDOR v ON v.no_cia=d.no_cia AND v.vendedor=c.vendedor "
+        "WHERE d.no_cia=:1 AND NVL(d.st_anulado,'N')='N' "
+        f"AND d.fecha BETWEEN TO_DATE(:2,'YYYY-MM-DD') AND TO_DATE(:3,'YYYY-MM-DD'){extra} "
+        "GROUP BY c.vendedor, v.nombre ORDER BY c.vendedor",
+        params)
+    total = sum(r.get('total_cobrado', 0) for r in rows)
+    return {'items': rows, 'total': total}
+
+def rep_comisiones(no_cia: str, desde: str, hasta: str, punto: str = ''):
+    params = [no_cia, desde, hasta]
+    extra = " AND d.punto=:4" if punto else ""
+    if punto:
+        params.append(punto)
+    rows = client.fetch_dicts(
+        "SELECT c.vendedor, v.nombre nombre_vendedor, COUNT(*) facturas, "
+        "NVL(v.comision,0) porciento, "
+        "SUM(NVL(d.valor_original,0)) total_ventas, "
+        "SUM(NVL(d.valor_original,0)) * NVL(v.comision,0) / 100 comision "
+        "FROM CXC.TCXC_DOCUMENTO d "
+        "JOIN CXC.TCXC_CLIENTE c ON c.no_cia=d.no_cia AND c.no_cliente=d.no_cliente "
+        "LEFT JOIN CXC.TCXC_VENDEDOR v ON v.no_cia=d.no_cia AND v.vendedor=c.vendedor "
+        "WHERE d.no_cia=:1 AND NVL(d.st_anulado,'N')='N' "
+        f"AND d.fecha BETWEEN TO_DATE(:2,'YYYY-MM-DD') AND TO_DATE(:3,'YYYY-MM-DD'){extra} "
+        "GROUP BY c.vendedor, v.nombre, v.comision ORDER BY c.vendedor",
+        params)
+    total_comision = sum(r.get('comision', 0) for r in rows)
+    return {'items': rows, 'total_comision': total_comision}
+
+def rep_ncf_emitidos(no_cia: str, desde: str, hasta: str, punto: str = ''):
+    params = [no_cia, desde, hasta]
+    extra = " AND punto=:4" if punto else ""
+    if punto:
+        params.append(punto)
+    rows = client.fetch_dicts(
+        "SELECT d.no_docu no_doc, d.tipo_docu tipo_doc, d.no_cliente, "
+        "c.nombre nombre_cliente, c.rnc, d.fecha, d.ncf, "
+        "NVL(d.valor_original,0) valor, "
+        "CASE NVL(d.st_anulado,'N') WHEN 'S' THEN 'R' ELSE 'A' END estado "
+        "FROM CXC.TCXC_DOCUMENTO d "
+        "LEFT JOIN CXC.TCXC_CLIENTE c ON c.no_cia=d.no_cia AND c.no_cliente=d.no_cliente "
+        "WHERE d.no_cia=:1 AND d.ncf IS NOT NULL "
+        f"AND d.fecha BETWEEN TO_DATE(:2,'YYYY-MM-DD') AND TO_DATE(:3,'YYYY-MM-DD'){extra} "
+        "ORDER BY d.fecha, d.ncf",
+        params)
+    total = sum(r.get('valor', 0) for r in rows)
+    return {'items': rows, 'count': len(rows), 'total': total}
+
+
+# --- CIERRE ------------------------------------------------------------------
+
+def get_asiento_contable(no_cia: str, punto: str, mes: int, ano: int):
+    return client.fetch_dicts(
+        "SELECT l.cuenta, l.centro_costo, l.tipo_movi, "
+        "SUM(CASE WHEN l.tipo_movi='D' THEN NVL(l.monto,0) ELSE 0 END) total_debito, "
+        "SUM(CASE WHEN l.tipo_movi='C' THEN NVL(l.monto,0) ELSE 0 END) total_credito "
+        "FROM CXC.TCXC_DCDOCU l "
+        "JOIN CXC.TCXC_DOCUMENTO d ON d.no_cia=l.no_cia AND d.no_docu=l.no_docu "
+        "WHERE l.no_cia=:1 AND d.punto=:2 "
+        "AND EXTRACT(MONTH FROM d.fecha)=:3 AND EXTRACT(YEAR FROM d.fecha)=:4 "
+        "AND NVL(d.st_anulado,'N')='N' "
+        "GROUP BY l.cuenta, l.centro_costo, l.tipo_movi ORDER BY l.cuenta",
+        [no_cia, punto, mes, ano])
+
+def generar_asiento_mayor(no_cia: str, punto: str, mes_proceso: int,
+                          ano_proceso: int, cierre_fiscal: bool = False):
+    # Mark all CXC documents for this period as posted to CNT
+    with client.cursor() as cur:
+        cur.execute(
+            "UPDATE CXC.TCXC_DOCUMENTO SET st_generado_cnt='S' "
+            "WHERE no_cia=:1 AND punto=:2 "
+            "AND EXTRACT(MONTH FROM fecha)=:3 AND EXTRACT(YEAR FROM fecha)=:4 "
+            "AND NVL(st_anulado,'N')='N' AND NVL(st_generado_cnt,'N')='N'",
+            [no_cia, punto, mes_proceso, ano_proceso])
+        cur.connection.commit()
+    return {'ok': True}
+
+def cierre_cxc(no_cia: str, punto: str):
+    row = client.fetch_one(
+        "SELECT NVL(mes_proceso,1), NVL(ano_proceso,2025) "
+        "FROM CXC.TCXC_PUNTO WHERE no_cia=:1 AND punto=:2",
+        [no_cia, punto])
+    if not row:
+        raise ValueError('Punto no encontrado')
+    mes, ano = row
+    if mes == 12:
+        nuevo_mes, nuevo_ano = 1, ano + 1
+    else:
+        nuevo_mes, nuevo_ano = mes + 1, ano
+    with client.cursor() as cur:
+        cur.execute(
+            "UPDATE CXC.TCXC_PUNTO SET mes_proceso=:1, ano_proceso=:2 "
+            "WHERE no_cia=:3 AND punto=:4",
+            [nuevo_mes, nuevo_ano, no_cia, punto])
+        cur.connection.commit()
+    return {'mes': nuevo_mes, 'ano': nuevo_ano}

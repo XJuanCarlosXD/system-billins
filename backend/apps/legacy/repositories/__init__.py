@@ -1,4 +1,4 @@
-"""Repositorios de lectura del legado Regal General.
+"""Repositorios de lectura del legado SIGAFPLUS.
 
 Convención:
 - 1 archivo por módulo del ERP (fat_repo, cxc_repo, etc.).

@@ -1,4 +1,4 @@
-"""Empresas (multi-cía) del legado Regal General.
+"""Empresas (multi-cía) del legado SIGAFPLUS.
 
 Cada módulo tiene su propia tabla TXXX_CIAS. Tomamos FAT.TFAT_CIAS
 como canónica porque tiene los campos más completos (DESCRIPCION, RNC,

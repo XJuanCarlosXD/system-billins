@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { downloadCsv, printHtml } from './export-utils'
+import { buildReportMeta, downloadCsv, printMayorGeneral, type MayorAccount, type MayorTx } from './export-utils'
 
 interface Props { noCia: string; punto: string; ano: number; mes: number }
 
@@ -68,8 +68,9 @@ export function MayorCuenta({ noCia, punto, ano }: Props) {
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / 25))
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
     if (!result) return
+    const meta = await buildReportMeta(noCia, punto, `${String(mesIni).padStart(2, '0')}-${ano}`)
     downloadCsv(
       `cnt-mayor-${cuenta}-${ano}-${mesIni}-${mesFin}.csv`,
       ['No.', 'Fecha', 'Detalle', 'Tipo', 'Monto', 'Saldo'],
@@ -81,38 +82,39 @@ export function MayorCuenta({ noCia, punto, ano }: Props) {
         row.monto,
         row.saldo_acumulado,
       ]),
+      meta,
     )
   }
 
-  const exportPdf = () => {
+  const exportPdf = async () => {
     if (!result) return
-    const body = `
-      <table>
-        <thead>
-          <tr>
-            <th>No.</th>
-            <th>Fecha</th>
-            <th>Detalle</th>
-            <th>Debito</th>
-            <th>Credito</th>
-            <th>Saldo</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${filteredRows.map((row: any) => `
-            <tr>
-              <td>${row.no_asiento ?? ''}</td>
-              <td>${row.fecha ? String(row.fecha).slice(0, 10) : ''}</td>
-              <td>${row.detalle ?? ''}</td>
-              <td class="numeric">${row.tipo_movi === 'D' ? fmt(row.monto) : ''}</td>
-              <td class="numeric">${row.tipo_movi === 'C' ? fmt(row.monto) : ''}</td>
-              <td class="numeric">${fmt(row.saldo_acumulado)}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    `
-    printHtml(`Mayor ${cuenta} ${ano}`, body)
+
+    const txs: MayorTx[] = filteredRows.map((mov: any) => ({
+      asiento: String(mov.no_asiento ?? '').padStart(4, '0'),
+      fecha: mov.fecha ? String(mov.fecha).slice(0, 10) : '',
+      ap: mov.tipo_movi ?? '',
+      detalle: mov.detalle ?? '',
+      debito: mov.tipo_movi === 'D' ? Number(mov.monto || 0) : 0,
+      credito: mov.tipo_movi === 'C' ? Number(mov.monto || 0) : 0,
+      balance: Number(mov.saldo_acumulado || 0),
+    }))
+
+    let totalDeb = 0
+    let totalCre = 0
+    txs.forEach((t) => { totalDeb += t.debito; totalCre += t.credito })
+
+    const account: MayorAccount = {
+      cuenta: result.cuenta?.cuenta ?? cuenta,
+      nombre: result.cuenta?.descripcion ?? '',
+      balanceInicial: Number(result.cuenta?.saldo_ini || 0),
+      transactions: txs,
+      totalDebito: totalDeb,
+      totalCredito: totalCre,
+      balanceFinal: Number(result.cuenta?.saldo_fin || result.cuenta?.saldo_acumulado || 0),
+    }
+
+    const meta = await buildReportMeta(noCia, punto, `${String(mesIni).padStart(2, '0')}-${ano}`)
+    printMayorGeneral(meta, [account])
   }
 
   return (

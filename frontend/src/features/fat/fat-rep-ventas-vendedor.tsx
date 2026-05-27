@@ -1,0 +1,179 @@
+import { useEffect, useState } from 'react'
+import { Users, FileSpreadsheet, Printer } from 'lucide-react'
+import { regalGeneralApi } from '@/lib/regal-general-api'
+import { Button } from '@/components/ui/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { buildReportMeta, downloadCsv } from './fat-export'
+
+interface Props { noCia: string; punto: string; ano: number; mes: number }
+
+type VentaVendedor = {
+  vendedor: string
+  nombre_vendedor: string
+  facturas: number
+  total_neto: number
+  total_itbis: number
+  total_bruto: number
+}
+
+const fmtN = (n: number) => Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+export function RepVentasVendedor({ noCia, punto, ano, mes }: Props) {
+  const [rows, setRows] = useState<VentaVendedor[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const load = () => {
+    if (!noCia) return
+    setLoading(true)
+    const desde = `${ano}-${String(mes).padStart(2, '0')}-01`
+    const d = new Date(ano, mes, 0)
+    const hasta = `${ano}-${String(mes).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    regalGeneralApi.fatRepVentasVendedor(noCia, punto, desde, hasta)
+      .then((r) => setRows(r.items as VentaVendedor[]))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [noCia, punto, ano, mes])
+
+  const totalNeto = rows.reduce((s, r) => s + r.total_neto, 0)
+  const totalItbis = rows.reduce((s, r) => s + r.total_itbis, 0)
+  const totalBruto = rows.reduce((s, r) => s + r.total_bruto, 0)
+  const totalFacts = rows.reduce((s, r) => s + r.facturas, 0)
+
+  const mesAno = `${String(mes).padStart(2, '0')}-${ano}`
+
+  const exportCsv = async () => {
+    const meta = await buildReportMeta(noCia, punto, mesAno)
+    downloadCsv(
+      `fat-ventas-vendedor-${ano}${String(mes).padStart(2, '0')}.csv`,
+      ['Vendedor', 'Nombre', 'Facturas', 'Total Neto', 'ITBIS', 'Total Bruto'],
+      rows.map(r => [r.vendedor, r.nombre_vendedor, r.facturas, fmtN(r.total_neto), fmtN(r.total_itbis), fmtN(r.total_bruto)]),
+      meta,
+    )
+  }
+
+  const exportPdf = async () => {
+    const meta = await buildReportMeta(noCia, punto, mesAno)
+    const now = new Date()
+    const fecha = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`
+    const maxBruto = Math.max(...rows.map(r => r.total_bruto), 1)
+    const win = window.open('', '_blank')!
+    win.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/>
+    <title>RFAT302 - Ventas por Vendedor</title>
+    <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body{font-family:Arial,sans-serif;font-size:8pt;color:#000;background:#fff;-webkit-print-color-adjust:exact}
+    .rh{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px}
+    .rh-left .co{font-size:11pt;font-weight:bold;line-height:1.3}
+    .rh-left .co-line{font-size:8pt;line-height:1.5}
+    .rh-right{font-size:8pt;text-align:right;line-height:1.5;white-space:nowrap}
+    .rh-right .rep-code{font-size:10pt;font-weight:bold}
+    .sep-double{border:none;border-top:3px double #000;margin:4px 0 2px 0}
+    table.rpt{width:100%;border-collapse:collapse;font-size:8pt;margin-top:4px;border:1px solid #000}
+    table.rpt thead th{font-weight:bold;text-align:left;border:1px solid #000;padding:3px 5px;white-space:nowrap;background:#e8e8e8}
+    table.rpt thead th.r{text-align:right}
+    table.rpt tbody td{padding:2px 5px;vertical-align:top;border:1px solid #000;line-height:1.4}
+    table.rpt tbody td.r{text-align:right}
+    table.rpt tfoot td{border:1px solid #000;font-weight:bold;padding:3px 5px;font-size:8pt;background:#e8e8e8}
+    table.rpt tfoot td.r{text-align:right}
+    .bar{background:#4f81bd;height:8px;display:inline-block;vertical-align:middle}
+    @page{size:letter portrait;margin:1.4cm 1.5cm 1.6cm 1.5cm}
+    @media print{body{margin:0;-webkit-print-color-adjust:exact}table{page-break-inside:avoid}}
+    </style></head><body>
+    <div class="rh">
+      <div class="rh-left">
+        <div class="co">${meta.company}</div>
+        ${meta.direccion1 ? `<div class="co-line">${meta.direccion1}</div>` : ''}
+        ${meta.ciudad ? `<div class="co-line">${meta.ciudad}</div>` : ''}
+        ${meta.telefono ? `<div class="co-line">Tel. ${meta.telefono}</div>` : ''}
+        ${meta.rnc ? `<div class="co-line">RNC ${meta.rnc}</div>` : ''}
+        <div class="co-line">${fecha}</div>
+      </div>
+      <div class="rh-right">
+        <div>Facturación</div>
+        <div class="rep-code">RFAT302</div>
+        <div>Ventas por Vendedor</div>
+        <div>${mesAno}</div>
+      </div>
+    </div>
+    <hr class="sep-double"/>
+    <table class="rpt"><thead><tr>
+    <th>Vendedor</th><th>Nombre</th><th class="r">Facturas</th>
+    <th class="r">Total Neto</th><th class="r">ITBIS</th><th class="r">Total Bruto</th><th>Participacion</th></tr></thead>
+    <tbody>${rows.map(r => `<tr>
+    <td>${r.vendedor}</td><td>${r.nombre_vendedor}</td>
+    <td class="r">${r.facturas}</td>
+    <td class="r">${fmtN(r.total_neto)}</td>
+    <td class="r">${fmtN(r.total_itbis)}</td>
+    <td class="r">${fmtN(r.total_bruto)}</td>
+    <td><span class="bar" style="width:${Math.round((r.total_bruto/maxBruto)*120)}px"></span> ${totalBruto > 0 ? ((r.total_bruto/totalBruto)*100).toFixed(1) : 0}%</td>
+    </tr>`).join('')}
+    </tbody>
+    <tfoot><tr><td colspan="2"><b>TOTALES — ${rows.length} vendedor(es)</b></td>
+    <td class="r"><b>${totalFacts}</b></td>
+    <td class="r"><b>${fmtN(totalNeto)}</b></td>
+    <td class="r"><b>${fmtN(totalItbis)}</b></td>
+    <td class="r"><b>${fmtN(totalBruto)}</b></td><td></td></tr></tfoot>
+    </table></body></html>`)
+    win.document.close(); win.print()
+  }
+
+  return (
+    <section className='space-y-4'>
+      <div className='flex flex-wrap items-center justify-between gap-3'>
+        <div>
+          <h2 className='text-lg font-semibold flex items-center gap-2'>
+            <Users className='h-5 w-5' /> Ventas por Vendedor
+          </h2>
+          <p className='text-sm text-muted-foreground'>RFAT302 — Empresa {noCia} · Punto {punto}</p>
+        </div>
+        <div className='flex gap-2'>
+          <Button variant='outline' size='sm' onClick={exportPdf}><Printer className='mr-1 h-4 w-4' /> PDF</Button>
+          <Button variant='outline' size='sm' onClick={exportCsv}><FileSpreadsheet className='mr-1 h-4 w-4' /> Excel</Button>
+        </div>
+      </div>
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className='w-24'>Vendedor</TableHead>
+            <TableHead>Nombre</TableHead>
+            <TableHead className='w-20 text-right'>Facturas</TableHead>
+            <TableHead className='w-32 text-right'>Total Neto</TableHead>
+            <TableHead className='w-28 text-right'>ITBIS</TableHead>
+            <TableHead className='w-32 text-right'>Total Bruto</TableHead>
+            <TableHead className='w-24 text-right'>Part. %</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading && <TableRow><TableCell colSpan={7} className='py-10 text-center text-muted-foreground'>Cargando...</TableCell></TableRow>}
+          {!loading && rows.length === 0 && <TableRow><TableCell colSpan={7} className='py-10 text-center text-muted-foreground'>Sin ventas para este período.</TableCell></TableRow>}
+          {rows.map((row) => (
+            <TableRow key={row.vendedor}>
+              <TableCell className='font-mono text-sm'>{row.vendedor}</TableCell>
+              <TableCell className='text-sm font-medium'>{row.nombre_vendedor}</TableCell>
+              <TableCell className='text-right text-sm'>{row.facturas}</TableCell>
+              <TableCell className='text-right font-mono text-sm'>{fmtN(row.total_neto)}</TableCell>
+              <TableCell className='text-right font-mono text-sm'>{fmtN(row.total_itbis)}</TableCell>
+              <TableCell className='text-right font-mono text-sm font-semibold'>{fmtN(row.total_bruto)}</TableCell>
+              <TableCell className='text-right text-sm text-muted-foreground'>
+                {totalBruto > 0 ? ((row.total_bruto / totalBruto) * 100).toFixed(1) : '0.0'}%
+              </TableCell>
+            </TableRow>
+          ))}
+          {rows.length > 0 && (
+            <TableRow className='border-t-2 font-semibold bg-muted/40'>
+              <TableCell colSpan={2} className='text-right'>TOTALES</TableCell>
+              <TableCell className='text-right font-mono'>{totalFacts}</TableCell>
+              <TableCell className='text-right font-mono'>{fmtN(totalNeto)}</TableCell>
+              <TableCell className='text-right font-mono'>{fmtN(totalItbis)}</TableCell>
+              <TableCell className='text-right font-mono'>{fmtN(totalBruto)}</TableCell>
+              <TableCell className='text-right'>100.0%</TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </section>
+  )
+}

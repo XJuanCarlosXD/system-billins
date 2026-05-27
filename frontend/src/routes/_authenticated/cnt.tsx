@@ -8,6 +8,7 @@ export const Route = createFileRoute('/_authenticated/cnt')({
       .enum(['configuracion', 'procesos', 'consultas', 'reportes', 'cierres'])
       .optional()
       .catch('reportes'),
+    view: z.string().optional().catch(undefined),
   }),
   component: CntPage,
 })

@@ -538,3 +538,572 @@ def create_centro_costo(centro_costo, descripcion, acepta_movi='N', usuario='REG
         'activo': 'S',
         'acepta_movi': 'S' if str(acepta_movi).upper() in ('S', 'TRUE', '1') else 'N',
     }
+
+# === ADDITIONS TO cnt_repo.py ===
+
+
+# ------------------------------------------
+# COMPAÑÍAS (FCNT101)
+# ------------------------------------------
+
+def list_cias():
+    return client.fetch_dicts(
+        """SELECT no_cia, descripcion, direccion1, direccion2, rnc,
+                  telefono1, telefono2, fax, email, website, activa,
+                  tasa_us, itbis, fecha, utilidad_retenida,
+                  cuenta_itbis_retenido, cuenta_isr
+           FROM CNT.TCNT_CIAS ORDER BY no_cia"""
+    )
+
+
+def get_cia(no_cia: str):
+    rows = client.fetch_dicts(
+        """SELECT no_cia, descripcion, direccion1, direccion2, rnc,
+                  telefono1, telefono2, fax, email, website, activa,
+                  tasa_us, itbis, fecha, utilidad_retenida,
+                  cuenta_itbis_retenido, cuenta_isr
+           FROM CNT.TCNT_CIAS WHERE no_cia=:1""",
+        [no_cia]
+    )
+    return rows[0] if rows else None
+
+
+def update_cia(no_cia: str, **kwargs):
+    allowed = {
+        'descripcion', 'direccion1', 'direccion2', 'rnc',
+        'telefono1', 'telefono2', 'fax', 'email', 'website',
+        'activa', 'tasa_us', 'itbis', 'utilidad_retenida',
+        'cuenta_itbis_retenido', 'cuenta_isr',
+    }
+    sets, params = [], []
+    for k, v in kwargs.items():
+        if k in allowed:
+            sets.append(f"{k.upper()}=:{len(params)+1}")
+            params.append(v)
+    if not sets:
+        return
+    params.append(no_cia)
+    with client.connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            f"UPDATE CNT.TCNT_CIAS SET {','.join(sets)} WHERE NO_CIA=:{len(params)}",
+            params
+        )
+        conn.commit()
+
+
+# ------------------------------------------
+# SUCURSALES / PUNTOS (FCNT102)
+# ------------------------------------------
+
+def list_puntos_full(no_cia: str):
+    return client.fetch_dicts(
+        """SELECT no_cia, punto, descripcion, ano_proceso, mes_proceso, mes_cierre,
+                  fecha_inicial, fecha_proceso,
+                  direccion1, direccion2, telefono, fax,
+                  activa, encargado_sucursal, fecha, grupo_contable,
+                  esta_en_cierre_p, genero_ed_cierre_p
+           FROM CNT.TCNT_PUNTO WHERE no_cia=:1 ORDER BY punto""",
+        [no_cia]
+    )
+
+
+def get_punto_full(no_cia: str, punto: str):
+    rows = client.fetch_dicts(
+        """SELECT no_cia, punto, descripcion, ano_proceso, mes_proceso, mes_cierre,
+                  fecha_inicial, fecha_proceso,
+                  direccion1, direccion2, telefono, fax,
+                  activa, encargado_sucursal, fecha, grupo_contable,
+                  esta_en_cierre_p, genero_ed_cierre_p
+           FROM CNT.TCNT_PUNTO WHERE no_cia=:1 AND punto=:2""",
+        [no_cia, punto]
+    )
+    return rows[0] if rows else None
+
+
+def update_punto(no_cia: str, punto: str, **kwargs):
+    allowed = {
+        'descripcion', 'direccion1', 'direccion2', 'telefono', 'fax',
+        'activa', 'encargado_sucursal', 'grupo_contable', 'mes_cierre',
+    }
+    sets, params = [], []
+    for k, v in kwargs.items():
+        if k in allowed:
+            sets.append(f"{k.upper()}=:{len(params)+1}")
+            params.append(v)
+    if not sets:
+        return
+    params += [no_cia, punto]
+    with client.connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            f"UPDATE CNT.TCNT_PUNTO SET {','.join(sets)} WHERE NO_CIA=:{len(params)-1} AND PUNTO=:{len(params)}",
+            params
+        )
+        conn.commit()
+
+
+# ------------------------------------------
+# GRUPOS CONTABLES (FCNT107)
+# ------------------------------------------
+
+def list_grupos_contables():
+    return client.fetch_dicts(
+        """SELECT grupo_contable, descripcion,
+                  costo_oferta, venta_credito, venta_contado,
+                  desc_venta_cr, desc_venta_co, efectivo,
+                  itbis_venta, itbis_compra
+           FROM CNT.TCNT_GRUPO_CONTABLE ORDER BY grupo_contable"""
+    )
+
+
+def get_grupo_contable(grupo: str):
+    rows = client.fetch_dicts(
+        """SELECT grupo_contable, descripcion,
+                  costo_oferta, venta_credito, venta_contado,
+                  desc_venta_cr, desc_venta_co, efectivo,
+                  itbis_venta, itbis_compra
+           FROM CNT.TCNT_GRUPO_CONTABLE WHERE grupo_contable=:1""",
+        [grupo]
+    )
+    return rows[0] if rows else None
+
+
+def update_grupo_contable(grupo: str, **kwargs):
+    allowed = {
+        'descripcion', 'costo_oferta', 'venta_credito', 'venta_contado',
+        'desc_venta_cr', 'desc_venta_co', 'efectivo', 'itbis_venta', 'itbis_compra',
+    }
+    sets, params = [], []
+    for k, v in kwargs.items():
+        if k in allowed:
+            sets.append(f"{k.upper()}=:{len(params)+1}")
+            params.append(v)
+    if not sets:
+        return
+    params.append(grupo)
+    with client.connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            f"UPDATE CNT.TCNT_GRUPO_CONTABLE SET {','.join(sets)} WHERE GRUPO_CONTABLE=:{len(params)}",
+            params
+        )
+        conn.commit()
+
+
+# ------------------------------------------
+# AUTORIZAR MES COMPLETO (FCNT202)
+# ------------------------------------------
+
+def autorizar_mes(no_cia: str, punto: str, ano: int, mes: int, usuario: str):
+    """Autoriza TODOS los asientos pendientes del mes (botón AUTORIZAR del legado)."""
+    with client.connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """UPDATE CNT.TCNT_ASIENTO
+               SET AUTORIZADO='S'
+               WHERE no_cia=:1 AND punto=:2 AND ano=:3 AND mes=:4
+                 AND st_anulado='N' AND AUTORIZADO='N'""",
+            [no_cia, punto, int(ano), int(mes)]
+        )
+        count = cur.rowcount
+        conn.commit()
+    return count
+
+
+# ------------------------------------------
+# CIERRE MENSUAL (FCNT401)
+# ------------------------------------------
+
+def get_cierre_info(no_cia: str, punto: str):
+    """Datos para la pantalla de cierre mensual (FCNT401)."""
+    import calendar
+    import datetime
+    p = get_punto_full(no_cia, punto)
+    if not p:
+        return None
+    cia = get_cia(no_cia)
+    ano = int(p['ano_proceso'])
+    mes = int(p['mes_proceso'])
+    _, last_day = calendar.monthrange(ano, mes)
+    fecha_proceso = datetime.date(ano, mes, last_day)
+    if mes < 12:
+        fecha_siguiente = datetime.date(ano, mes + 1, 1)
+    else:
+        fecha_siguiente = datetime.date(ano + 1, 1, 1)
+    pending = client.fetch_dicts(
+        """SELECT COUNT(*) AS total FROM CNT.TCNT_ASIENTO
+           WHERE no_cia=:1 AND punto=:2 AND ano=:3 AND mes=:4
+             AND st_anulado='N' AND AUTORIZADO='N'""",
+        [no_cia, punto, ano, mes]
+    )
+    already = client.fetch_dicts(
+        """SELECT COUNT(*) AS total FROM CNT.TCNT_CIERRE
+           WHERE no_cia=:1 AND punto=:2 AND ano=:3 AND mes=:4""",
+        [no_cia, punto, ano, mes]
+    )
+    meses_nombres = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+    mes_cierre = int(p['mes_cierre'] or 12)
+    return {
+        'no_cia': no_cia,
+        'punto': punto,
+        'ano_proceso': ano,
+        'mes_proceso': mes,
+        'mes_proceso_nombre': meses_nombres[mes],
+        'mes_cierre': mes_cierre,
+        'mes_cierre_nombre': meses_nombres[mes_cierre],
+        'fecha_inicial': str(p['fecha_inicial'])[:10] if p.get('fecha_inicial') else None,
+        'fecha_proceso': str(fecha_proceso),
+        'fecha_siguiente': str(fecha_siguiente),
+        'utilidad_retenida': cia.get('utilidad_retenida') if cia else None,
+        'tasa_us': float(cia.get('tasa_us') or 0) if cia else 0,
+        'asientos_pendientes': int(pending[0]['total']) if pending else 0,
+        'ya_cerrado': int(already[0]['total'] if already else 0) > 0,
+        'es_cierre_fiscal': mes == mes_cierre,
+    }
+
+
+def cierre_mensual(no_cia: str, punto: str, usuario: str):
+    """Ejecuta el cierre mensual: inserta TCNT_CIERRE y avanza mes en TCNT_PUNTO."""
+    import calendar
+    import datetime
+    p = get_punto_full(no_cia, punto)
+    if not p:
+        raise ValueError("Punto no encontrado")
+    ano = int(p['ano_proceso'])
+    mes = int(p['mes_proceso'])
+    already = client.fetch_dicts(
+        """SELECT COUNT(*) AS total FROM CNT.TCNT_CIERRE
+           WHERE no_cia=:1 AND punto=:2 AND ano=:3 AND mes=:4""",
+        [no_cia, punto, ano, mes]
+    )
+    if int(already[0]['total'] if already else 0) > 0:
+        raise ValueError(f"El periodo {mes}/{ano} ya esta cerrado")
+    pending = client.fetch_dicts(
+        """SELECT COUNT(*) AS total FROM CNT.TCNT_ASIENTO
+           WHERE no_cia=:1 AND punto=:2 AND ano=:3 AND mes=:4
+             AND st_anulado='N' AND AUTORIZADO='N'""",
+        [no_cia, punto, ano, mes]
+    )
+    n_pending = int(pending[0]['total']) if pending else 0
+    if n_pending > 0:
+        raise ValueError(
+            f"Hay {n_pending} asientos sin autorizar. "
+            "Autorice todos los asientos antes de cerrar el periodo."
+        )
+    if mes < 12:
+        next_mes, next_ano = mes + 1, ano
+    else:
+        next_mes, next_ano = 1, ano + 1
+    _, last_day_next = calendar.monthrange(next_ano, next_mes)
+    fecha_proceso_next = datetime.date(next_ano, next_mes, last_day_next)
+    with client.connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO CNT.TCNT_CIERRE
+               (no_cia, punto, ano, mes, fecha_cierre, fecha_sysdate, usuario)
+               VALUES (:1, :2, :3, :4, SYSDATE, SYSDATE, :5)""",
+            [no_cia, punto, ano, mes, usuario]
+        )
+        cur.execute(
+            """UPDATE CNT.TCNT_PUNTO
+               SET mes_proceso=:1, ano_proceso=:2, fecha_proceso=:3
+               WHERE no_cia=:4 AND punto=:5""",
+            [next_mes, next_ano, fecha_proceso_next, no_cia, punto]
+        )
+        conn.commit()
+    return {
+        'ano_cerrado': ano,
+        'mes_cerrado': mes,
+        'proximo_mes': next_mes,
+        'proximo_ano': next_ano,
+    }
+
+
+# ------------------------------------------
+# CATALOGO SUCURSAL (FCNT106)
+# ------------------------------------------
+
+def list_catalogo_sucursal(no_cia: str, punto: str):
+    """Cuentas del catálogo con flag asignada para el punto dado."""
+    return client.fetch_dicts(
+        """SELECT c.cuenta, c.nombre, c.tipo, c.clase, c.acepta_movi,
+                  CASE WHEN b.cuenta IS NOT NULL THEN 'S' ELSE 'N' END AS asignada
+           FROM CNT.TCNT_CATALOGO c
+           LEFT JOIN CNT.TCNT_BCUENTA b
+               ON b.no_cia = :1 AND b.punto = :2 AND b.cuenta = c.cuenta AND b.activa = 'S'
+           WHERE c.activa = 'S'
+           ORDER BY c.cuenta""",
+        [no_cia, punto]
+    )
+
+
+def assign_cuenta_sucursal(no_cia: str, punto: str, cuenta: str, asignar: bool, usuario: str):
+    """Asigna o desasigna una cuenta al punto (TCNT_BCUENTA)."""
+    with client.connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT COUNT(*) FROM CNT.TCNT_BCUENTA WHERE no_cia=:1 AND punto=:2 AND cuenta=:3",
+            [no_cia, punto, cuenta]
+        )
+        exists = cur.fetchone()[0]
+        if asignar:
+            if exists:
+                cur.execute(
+                    "UPDATE CNT.TCNT_BCUENTA SET activa='S', usuario=:1 WHERE no_cia=:2 AND punto=:3 AND cuenta=:4",
+                    [usuario, no_cia, punto, cuenta]
+                )
+            else:
+                cur.execute(
+                    """INSERT INTO CNT.TCNT_BCUENTA
+                       (no_cia, punto, cuenta, saldo_periodo_ant, saldo_mes_ant, debitos, creditos,
+                        saldo_periodo_ant_us, saldo_mes_ant_us, debitos_us, creditos_us,
+                        activa, fecha_creacion, usuario)
+                       VALUES (:1, :2, :3, 0, 0, 0, 0, 0, 0, 0, 0, 'S', SYSDATE, :4)""",
+                    [no_cia, punto, cuenta, usuario]
+                )
+        else:
+            if exists:
+                cur.execute(
+                    "UPDATE CNT.TCNT_BCUENTA SET activa='N', usuario=:1 WHERE no_cia=:2 AND punto=:3 AND cuenta=:4",
+                    [usuario, no_cia, punto, cuenta]
+                )
+        conn.commit()
+
+
+# ------------------------------------------
+# CREAR COMPANIA (FCNT101)
+# ------------------------------------------
+
+def create_cia(no_cia: str, descripcion: str, usuario: str, **kwargs):
+    """Inserta una nueva compania en TCNT_CIAS."""
+    with client.connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO CNT.TCNT_CIAS
+               (no_cia, descripcion, activa, tasa_us, itbis, fecha, tipo, usuario,
+                cerrar_sin_movi, rnc, direccion1, direccion2, telefono1, telefono2,
+                fax, email, website)
+               VALUES (:1, :2, 'S', :3, :4, SYSDATE, 'N', :5, 'S', :6, :7, :8, :9, :10, :11, :12, :13)""",
+            [
+                no_cia, descripcion,
+                kwargs.get('tasa_us', 58),
+                kwargs.get('itbis', 18),
+                usuario,
+                kwargs.get('rnc', None),
+                kwargs.get('direccion1', None),
+                kwargs.get('direccion2', None),
+                kwargs.get('telefono1', None),
+                kwargs.get('telefono2', None),
+                kwargs.get('fax', None),
+                kwargs.get('email', None),
+                kwargs.get('website', None),
+            ]
+        )
+        conn.commit()
+
+
+# ------------------------------------------
+# CREAR SUCURSAL (FCNT102)
+# ------------------------------------------
+
+def create_punto(no_cia: str, punto: str, descripcion: str, ano_proceso: int, usuario: str, **kwargs):
+    """Inserta una nueva sucursal en TCNT_PUNTO."""
+    import datetime, calendar
+    mes_proceso = kwargs.get('mes_proceso', 1)
+    mes_cierre = kwargs.get('mes_cierre', 12)
+    grupo_contable = kwargs.get('grupo_contable', None)
+    fecha_inicial = datetime.date(ano_proceso, 1, 1)
+    _, last_day = calendar.monthrange(ano_proceso, int(mes_proceso))
+    fecha_proceso = datetime.date(ano_proceso, int(mes_proceso), last_day)
+    with client.connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO CNT.TCNT_PUNTO
+               (no_cia, punto, descripcion, ano_proceso, mes_proceso, mes_cierre,
+                activa, fecha, fecha_inicial, fecha_proceso, grupo_contable, usuario,
+                esta_en_cierre_p, genero_ed_cierre_p, encf_en_contingencia, fase_encf)
+               VALUES (:1, :2, :3, :4, :5, :6, 'S', SYSDATE, :7, :8, :9, :10, 'N', 'N', 'N', 0)""",
+            [
+                no_cia, punto, descripcion, ano_proceso, mes_proceso, mes_cierre,
+                fecha_inicial, fecha_proceso, grupo_contable, usuario,
+            ]
+        )
+        conn.commit()
+
+# ---- Tipos de Cuenta CRUD (FCNT104) ----
+
+def get_tcuenta(tipo: str):
+    rows = client.fetch_dicts(
+        "SELECT tipo, descripcion, clase FROM CNT.TCNT_TCUENTA WHERE tipo=:1",
+        [tipo]
+    )
+    return rows[0] if rows else None
+
+
+def create_tcuenta(tipo: str, descripcion: str, clase: str):
+    with client.connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO CNT.TCNT_TCUENTA (tipo, descripcion, clase) VALUES (:1,:2,:3)",
+            [tipo.upper(), descripcion, clase.upper()]
+        )
+        conn.commit()
+
+
+def update_tcuenta(tipo: str, **kwargs):
+    allowed = {"descripcion", "clase"}
+    sets, params = [], []
+    for k, v in kwargs.items():
+        if k in allowed:
+            sets.append(f"{k.upper()}=:{len(params)+1}")
+            params.append(v)
+    if not sets:
+        return
+    params.append(tipo)
+    with client.connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            f"UPDATE CNT.TCNT_TCUENTA SET {','.join(sets)} WHERE tipo=:{len(params)}",
+            params
+        )
+        conn.commit()
+
+
+def delete_tcuenta(tipo: str):
+    with client.connection() as conn:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM CNT.TCNT_TCUENTA WHERE tipo=:1", [tipo])
+        conn.commit()
+
+
+# ---- Cabecera de empresa para PDF ----
+
+def get_cia_header(no_cia: str):
+    rows = client.fetch_dicts(
+        "SELECT no_cia, descripcion, direccion1, direccion2, rnc, telefono1, logo FROM CNT.TCNT_CIAS WHERE no_cia=:1",
+        [no_cia]
+    )
+    if not rows:
+        return None
+    row = rows[0]
+    # Build logo_url: if logo field has a path/filename, expose via /api/cnt/cia-logo/<no_cia>/
+    logo_val = row.get('logo') or ''
+    if logo_val.strip():
+        row['logo_url'] = f'/api/cnt/cia-logo/{no_cia}/'
+    else:
+        row['logo_url'] = None
+    return row
+
+# ---- Tipos de Proyecto (FCNT110) ----
+
+def list_tipos_proyecto():
+    return client.fetch_dicts(
+        "SELECT tipo, descripcion FROM CNT.TCNT_TIPO_PROYECTO ORDER BY tipo"
+    )
+
+def get_tipo_proyecto(tipo: str):
+    rows = client.fetch_dicts(
+        "SELECT tipo, descripcion FROM CNT.TCNT_TIPO_PROYECTO WHERE tipo=:1", [tipo]
+    )
+    return rows[0] if rows else None
+
+def create_tipo_proyecto(tipo: str, descripcion: str):
+    with client.connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO CNT.TCNT_TIPO_PROYECTO (tipo, descripcion) VALUES (:1, :2)",
+            [tipo, descripcion]
+        )
+        conn.commit()
+
+def update_tipo_proyecto(tipo: str, descripcion: str):
+    with client.connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE CNT.TCNT_TIPO_PROYECTO SET DESCRIPCION=:1 WHERE tipo=:2",
+            [descripcion, tipo]
+        )
+        conn.commit()
+
+def delete_tipo_proyecto(tipo: str):
+    with client.connection() as conn:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM CNT.TCNT_TIPO_PROYECTO WHERE tipo=:1", [tipo])
+        conn.commit()
+
+
+# ---- Movimientos de cuentas (FCNT502) ----
+
+def get_movimientos_cuenta(
+    no_cia: str, punto: str, cuenta: str,
+    desde_ano: int, desde_mes: int,
+    hasta_ano: int, hasta_mes: int,
+    tipo_movi: str = 'A',
+):
+    filtro = ''
+    if tipo_movi == 'D':
+        filtro = "AND m.tipo_movi = 'D'"
+    elif tipo_movi == 'C':
+        filtro = "AND m.tipo_movi = 'C'"
+    q = f"""
+        SELECT m.no_asiento, m.fecha, m.auxiliar, m.tipo_movi,
+               m.no_componente, m.detalle, m.monto, m.monto_us,
+               m.tasa_us, m.st_anulado, m.mes_actual,
+               m.ano, m.mes, m.centro_costo, m.afecta_presupuesto
+        FROM CNT.TCNT_MOVIMIENTO m
+        WHERE m.no_cia=:1 AND m.punto=:2 AND m.cuenta=:3
+          AND (m.ano * 100 + m.mes) BETWEEN (:4 * 100 + :5) AND (:6 * 100 + :7)
+          {filtro}
+        ORDER BY m.ano, m.mes, m.no_asiento, m.no_linea
+    """
+    rows = client.fetch_dicts(q, [no_cia, punto, cuenta, desde_ano, desde_mes, hasta_ano, hasta_mes])
+    saldo = 0.0
+    result = []
+    for r in rows:
+        monto = float(r['monto'] or 0)
+        if r['tipo_movi'] == 'D':
+            saldo += monto
+        else:
+            saldo -= monto
+        r2 = dict(r)
+        if r2.get('fecha'):
+            r2['fecha'] = str(r2['fecha'])[:10]
+        r2['balance'] = round(saldo, 2)
+        result.append(r2)
+    return result
+
+
+# ---- Centros de costo asignados a cuenta (FCNT109) ----
+
+def get_centros_cuenta(no_cia: str, punto: str, cuenta: str):
+    todos = client.fetch_dicts(
+        "SELECT cc.centro_costo, cc.descripcion, cc.activo, cc.acepta_movi FROM CNT.TCNT_CENTRO_COSTO cc ORDER BY cc.centro_costo"
+    )
+    asignados = set(
+        r['centro_costo']
+        for r in client.fetch_dicts(
+            "SELECT centro_costo FROM CNT.TCNT_BCENTRO_COSTO WHERE no_cia=:1 AND punto=:2 AND cuenta=:3",
+            [no_cia, punto, cuenta]
+        )
+    )
+    return [{**r, 'asignado': r['centro_costo'] in asignados} for r in todos]
+
+def asignar_centro_cuenta(no_cia: str, punto: str, cuenta: str, centro: str):
+    with client.connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO CNT.TCNT_BCENTRO_COSTO (no_cia, punto, cuenta, centro_costo, activo) VALUES (:1, :2, :3, :4, 'S')",
+            [no_cia, punto, cuenta, centro]
+        )
+        conn.commit()
+
+def desasignar_centro_cuenta(no_cia: str, punto: str, cuenta: str, centro: str):
+    with client.connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "DELETE FROM CNT.TCNT_BCENTRO_COSTO WHERE no_cia=:1 AND punto=:2 AND cuenta=:3 AND centro_costo=:4",
+            [no_cia, punto, cuenta, centro]
+        )
+        conn.commit()

@@ -17,7 +17,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { regalGeneralApi, ApiError, type AdminUser, type Company, type ModuleAccess } from '@/lib/regal-general-api'
+import { sigafApi, ApiError, type AdminUser, type Company, type ModuleAccess } from '@/lib/sigaf-api'
 
 const MODULE_LABELS: Record<string, string> = {
   fat: 'Facturación',
@@ -92,7 +92,7 @@ function ModuleFlagsPanel({ username, modulo, no_cia, punto }: { username: strin
 
   useEffect(() => {
     setLoading(true)
-    regalGeneralApi.adminGetModuleFlags(username, modulo, no_cia, punto)
+    sigafApi.adminGetModuleFlags(username, modulo, no_cia, punto)
       .then((r) => setFlags(r.flags))
       .catch(() => setFlags({}))
       .finally(() => setLoading(false))
@@ -101,7 +101,7 @@ function ModuleFlagsPanel({ username, modulo, no_cia, punto }: { username: strin
   async function toggle(flag: string, current: boolean) {
     setWorking(flag)
     try {
-      await regalGeneralApi.adminSetModuleFlag(username, modulo, no_cia, punto, flag, !current)
+      await sigafApi.adminSetModuleFlag(username, modulo, no_cia, punto, flag, !current)
       setFlags((prev) => ({ ...prev, [flag]: !current }))
     } catch (e) {
       toast.error(e instanceof ApiError ? e.detail?.detail || 'Error' : 'Error de red')
@@ -141,7 +141,7 @@ function DocPermsPanel({ username, modulo, no_cia, punto }: { username: string; 
   async function load() {
     setLoading(true)
     try {
-      const res = await regalGeneralApi.adminGetDocPerms(username, modulo, no_cia, punto)
+      const res = await sigafApi.adminGetDocPerms(username, modulo, no_cia, punto)
       const assignedSet = new Set(res.assigned.map((a) => a.tipo_docu))
       const defSet = new Set(res.assigned.filter((a) => a.por_defecto).map((a) => a.tipo_docu))
       setDocs(res.available.map((av) => ({
@@ -157,10 +157,10 @@ function DocPermsPanel({ username, modulo, no_cia, punto }: { username: string; 
     setWorking(doc.tipo_docu)
     try {
       if (doc.assigned) {
-        await regalGeneralApi.adminRevokeDocAccess(username, modulo, no_cia, punto, doc.tipo_docu)
+        await sigafApi.adminRevokeDocAccess(username, modulo, no_cia, punto, doc.tipo_docu)
         toast.success(`Documento ${doc.tipo_docu} removido`)
       } else {
-        await regalGeneralApi.adminGrantDocAccess(username, modulo, { no_cia, punto, tipo_docu: doc.tipo_docu })
+        await sigafApi.adminGrantDocAccess(username, modulo, { no_cia, punto, tipo_docu: doc.tipo_docu })
         toast.success(`Documento ${doc.tipo_docu} asignado`)
       }
       load()
@@ -223,7 +223,7 @@ export function UserAccessPage({
   async function load() {
     setLoading(true)
     try {
-      const res = await regalGeneralApi.adminListUserAccess(user.username)
+      const res = await sigafApi.adminListUserAccess(user.username)
       setAccess(res.access)
     } catch (e) {
       toast.error(e instanceof ApiError ? e.detail?.detail || 'Error' : 'Error de red')
@@ -233,7 +233,7 @@ export function UserAccessPage({
   async function loadModules(cia: string) {
     setLoadingModules(true)
     try {
-      const res = await regalGeneralApi.adminListModulesForCompany(cia)
+      const res = await sigafApi.adminListModulesForCompany(cia)
       setAvailableModules(res.modules)
       if (res.modules.length > 0) setNewModulo(res.modules[0])
     } catch { setAvailableModules([]) } finally { setLoadingModules(false) }
@@ -245,7 +245,7 @@ export function UserAccessPage({
   async function grant() {
     setWorking(true)
     try {
-      await regalGeneralApi.adminGrantAccess(user.username, {
+      await sigafApi.adminGrantAccess(user.username, {
         modulo: newModulo, no_cia: newCia, punto: newPunto,
         activo: true, por_defecto: newPorDefecto,
       })
@@ -259,7 +259,7 @@ export function UserAccessPage({
   async function revoke(a: ModuleAccess) {
     if (!confirm(`Quitar acceso a ${MODULE_LABELS[a.modulo] || a.modulo.toUpperCase()} en empresa ${a.no_cia}?`)) return
     try {
-      await regalGeneralApi.adminRevokeAccess(user.username, a.modulo, a.no_cia, a.punto)
+      await sigafApi.adminRevokeAccess(user.username, a.modulo, a.no_cia, a.punto)
       toast.success('Acceso removido')
       load(); onChanged?.()
     } catch (e) {

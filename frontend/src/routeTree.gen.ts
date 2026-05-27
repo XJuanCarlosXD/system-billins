@@ -17,6 +17,8 @@ import { Route as AuthenticatedInvRouteImport } from './routes/_authenticated/in
 import { Route as AuthenticatedFatRouteImport } from './routes/_authenticated/fat'
 import { Route as AuthenticatedEmpresasRouteImport } from './routes/_authenticated/empresas'
 import { Route as AuthenticatedDocsRouteImport } from './routes/_authenticated/docs'
+import { Route as AuthenticatedCxpRouteImport } from './routes/_authenticated/cxp'
+import { Route as AuthenticatedCxcRouteImport } from './routes/_authenticated/cxc'
 import { Route as AuthenticatedCntRouteImport } from './routes/_authenticated/cnt'
 import { Route as AuthenticatedCambiarClaveRouteImport } from './routes/_authenticated/cambiar-clave'
 import { Route as errors503RouteImport } from './routes/(errors)/503'
@@ -35,7 +37,11 @@ import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authen
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedTasksIndexRouteImport } from './routes/_authenticated/tasks/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
+import { Route as AuthenticatedInvIndexRouteImport } from './routes/_authenticated/inv/index'
 import { Route as AuthenticatedHelpCenterIndexRouteImport } from './routes/_authenticated/help-center/index'
+import { Route as AuthenticatedFatIndexRouteImport } from './routes/_authenticated/fat/index'
+import { Route as AuthenticatedCxpIndexRouteImport } from './routes/_authenticated/cxp/index'
+import { Route as AuthenticatedCxcIndexRouteImport } from './routes/_authenticated/cxc/index'
 import { Route as AuthenticatedChatsIndexRouteImport } from './routes/_authenticated/chats/index'
 import { Route as AuthenticatedAppsIndexRouteImport } from './routes/_authenticated/apps/index'
 import { Route as ClerkAuthenticatedUserManagementRouteImport } from './routes/clerk/_authenticated/user-management'
@@ -46,7 +52,87 @@ import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes
 import { Route as AuthenticatedSettingsDisplayRouteImport } from './routes/_authenticated/settings/display'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
 import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_authenticated/settings/account'
+import { Route as AuthenticatedFatTransportistasRouteImport } from './routes/_authenticated/fat/transportistas'
+import { Route as AuthenticatedFatTiposPagoRouteImport } from './routes/_authenticated/fat/tipos-pago'
+import { Route as AuthenticatedFatTdocuRouteImport } from './routes/_authenticated/fat/tdocu'
+import { Route as AuthenticatedFatRepVentasVendedorRouteImport } from './routes/_authenticated/fat/rep-ventas-vendedor'
+import { Route as AuthenticatedFatRepVentasClienteRouteImport } from './routes/_authenticated/fat/rep-ventas-cliente'
+import { Route as AuthenticatedFatRepVentasRouteImport } from './routes/_authenticated/fat/rep-ventas'
+import { Route as AuthenticatedFatRepNcfNulosRouteImport } from './routes/_authenticated/fat/rep-ncf-nulos'
+import { Route as AuthenticatedFatRepAnaliticaRouteImport } from './routes/_authenticated/fat/rep-analitica'
+import { Route as AuthenticatedFatRep607RouteImport } from './routes/_authenticated/fat/rep-607'
+import { Route as AuthenticatedFatPuntosRouteImport } from './routes/_authenticated/fat/puntos'
+import { Route as AuthenticatedFatNuevoConduceRouteImport } from './routes/_authenticated/fat/nuevo-conduce'
+import { Route as AuthenticatedFatNuevaFacturaRouteImport } from './routes/_authenticated/fat/nueva-factura'
+import { Route as AuthenticatedFatNotasRouteImport } from './routes/_authenticated/fat/notas'
+import { Route as AuthenticatedFatNcfRouteImport } from './routes/_authenticated/fat/ncf'
+import { Route as AuthenticatedFatListasPrecioRouteImport } from './routes/_authenticated/fat/listas-precio'
+import { Route as AuthenticatedFatGenerarAsientosRouteImport } from './routes/_authenticated/fat/generar-asientos'
+import { Route as AuthenticatedFatFacturasRouteImport } from './routes/_authenticated/fat/facturas'
+import { Route as AuthenticatedFatCuadreCajaRouteImport } from './routes/_authenticated/fat/cuadre-caja'
+import { Route as AuthenticatedFatConducesRouteImport } from './routes/_authenticated/fat/conduces'
+import { Route as AuthenticatedFatCondicionesRouteImport } from './routes/_authenticated/fat/condiciones'
+import { Route as AuthenticatedFatCompaniasRouteImport } from './routes/_authenticated/fat/companias'
+import { Route as AuthenticatedFatCierreMensualRouteImport } from './routes/_authenticated/fat/cierre-mensual'
+import { Route as AuthenticatedFatAnularFacturaRouteImport } from './routes/_authenticated/fat/anular-factura'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
+import { Route as AuthenticatedCxpUsuariosRouteImport } from './routes/_authenticated/cxp/usuarios'
+import { Route as AuthenticatedCxpTproveedoresRouteImport } from './routes/_authenticated/cxp/tproveedores'
+import { Route as AuthenticatedCxpTdocuRouteImport } from './routes/_authenticated/cxp/tdocu'
+import { Route as AuthenticatedCxpReversarRouteImport } from './routes/_authenticated/cxp/reversar'
+import { Route as AuthenticatedCxpRepRetencionesRouteImport } from './routes/_authenticated/cxp/rep-retenciones'
+import { Route as AuthenticatedCxpRepMovimientosRouteImport } from './routes/_authenticated/cxp/rep-movimientos'
+import { Route as AuthenticatedCxpRepMayorRouteImport } from './routes/_authenticated/cxp/rep-mayor'
+import { Route as AuthenticatedCxpRepCuadreRouteImport } from './routes/_authenticated/cxp/rep-cuadre'
+import { Route as AuthenticatedCxpRepAlfabeticoRouteImport } from './routes/_authenticated/cxp/rep-alfabetico'
+import { Route as AuthenticatedCxpRep607RouteImport } from './routes/_authenticated/cxp/rep-607'
+import { Route as AuthenticatedCxpRep606RouteImport } from './routes/_authenticated/cxp/rep-606'
+import { Route as AuthenticatedCxpPuntosRouteImport } from './routes/_authenticated/cxp/puntos'
+import { Route as AuthenticatedCxpProveedoresRouteImport } from './routes/_authenticated/cxp/proveedores'
+import { Route as AuthenticatedCxpMovimientosRouteImport } from './routes/_authenticated/cxp/movimientos'
+import { Route as AuthenticatedCxpLiberarDebitoRouteImport } from './routes/_authenticated/cxp/liberar-debito'
+import { Route as AuthenticatedCxpGenerarAsientoRouteImport } from './routes/_authenticated/cxp/generar-asiento'
+import { Route as AuthenticatedCxpEnvejecimientoRouteImport } from './routes/_authenticated/cxp/envejecimiento'
+import { Route as AuthenticatedCxpEntradaDocumentosRouteImport } from './routes/_authenticated/cxp/entrada-documentos'
+import { Route as AuthenticatedCxpDocumentosRouteImport } from './routes/_authenticated/cxp/documentos'
+import { Route as AuthenticatedCxpCuentasRouteImport } from './routes/_authenticated/cxp/cuentas'
+import { Route as AuthenticatedCxpCiudadesRouteImport } from './routes/_authenticated/cxp/ciudades'
+import { Route as AuthenticatedCxpCierreRouteImport } from './routes/_authenticated/cxp/cierre'
+import { Route as AuthenticatedCxpCiasRouteImport } from './routes/_authenticated/cxp/cias'
+import { Route as AuthenticatedCxpBloquearPagoRouteImport } from './routes/_authenticated/cxp/bloquear-pago'
+import { Route as AuthenticatedCxpBarriosRouteImport } from './routes/_authenticated/cxp/barrios'
+import { Route as AuthenticatedCxpAsientoContableRouteImport } from './routes/_authenticated/cxp/asiento-contable'
+import { Route as AuthenticatedCxcZonasRouteImport } from './routes/_authenticated/cxc/zonas'
+import { Route as AuthenticatedCxcVendedoresRouteImport } from './routes/_authenticated/cxc/vendedores'
+import { Route as AuthenticatedCxcTransaccionesRouteImport } from './routes/_authenticated/cxc/transacciones'
+import { Route as AuthenticatedCxcTdocuRouteImport } from './routes/_authenticated/cxc/tdocu'
+import { Route as AuthenticatedCxcTcontableRouteImport } from './routes/_authenticated/cxc/tcontable'
+import { Route as AuthenticatedCxcTcliRouteImport } from './routes/_authenticated/cxc/tcli'
+import { Route as AuthenticatedCxcSupervisoresRouteImport } from './routes/_authenticated/cxc/supervisores'
+import { Route as AuthenticatedCxcRutasRouteImport } from './routes/_authenticated/cxc/rutas'
+import { Route as AuthenticatedCxcReversarRouteImport } from './routes/_authenticated/cxc/reversar'
+import { Route as AuthenticatedCxcRepNcfRouteImport } from './routes/_authenticated/cxc/rep-ncf'
+import { Route as AuthenticatedCxcRepEnvejecimientoRouteImport } from './routes/_authenticated/cxc/rep-envejecimiento'
+import { Route as AuthenticatedCxcRepComisionesRouteImport } from './routes/_authenticated/cxc/rep-comisiones'
+import { Route as AuthenticatedCxcRepCobrosVendedorRouteImport } from './routes/_authenticated/cxc/rep-cobros-vendedor'
+import { Route as AuthenticatedCxcPuntosRouteImport } from './routes/_authenticated/cxc/puntos'
+import { Route as AuthenticatedCxcPagosMasivosRouteImport } from './routes/_authenticated/cxc/pagos-masivos'
+import { Route as AuthenticatedCxcLibroVentasRouteImport } from './routes/_authenticated/cxc/libro-ventas'
+import { Route as AuthenticatedCxcLiberarCreditoRouteImport } from './routes/_authenticated/cxc/liberar-credito'
+import { Route as AuthenticatedCxcHistoricoRouteImport } from './routes/_authenticated/cxc/historico'
+import { Route as AuthenticatedCxcGenerarAsientoRouteImport } from './routes/_authenticated/cxc/generar-asiento'
+import { Route as AuthenticatedCxcEstadoCuentaRouteImport } from './routes/_authenticated/cxc/estado-cuenta'
+import { Route as AuthenticatedCxcDocumentosRouteImport } from './routes/_authenticated/cxc/documentos'
+import { Route as AuthenticatedCxcCorregirNcfRouteImport } from './routes/_authenticated/cxc/corregir-ncf'
+import { Route as AuthenticatedCxcClientesRouteImport } from './routes/_authenticated/cxc/clientes'
+import { Route as AuthenticatedCxcClienteRutaRouteImport } from './routes/_authenticated/cxc/cliente-ruta'
+import { Route as AuthenticatedCxcCiudadesRouteImport } from './routes/_authenticated/cxc/ciudades'
+import { Route as AuthenticatedCxcCierreRouteImport } from './routes/_authenticated/cxc/cierre'
+import { Route as AuthenticatedCxcCiasRouteImport } from './routes/_authenticated/cxc/cias'
+import { Route as AuthenticatedCxcCadenasRouteImport } from './routes/_authenticated/cxc/cadenas'
+import { Route as AuthenticatedCxcBarriosRouteImport } from './routes/_authenticated/cxc/barrios'
+import { Route as AuthenticatedCxcBalanceRouteImport } from './routes/_authenticated/cxc/balance'
+import { Route as AuthenticatedCxcAsientoContableRouteImport } from './routes/_authenticated/cxc/asiento-contable'
 
 const ClerkRouteRoute = ClerkRouteRouteImport.update({
   id: '/clerk',
@@ -85,6 +171,16 @@ const AuthenticatedEmpresasRoute = AuthenticatedEmpresasRouteImport.update({
 const AuthenticatedDocsRoute = AuthenticatedDocsRouteImport.update({
   id: '/docs',
   path: '/docs',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCxpRoute = AuthenticatedCxpRouteImport.update({
+  id: '/cxp',
+  path: '/cxp',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCxcRoute = AuthenticatedCxcRouteImport.update({
+  id: '/cxc',
+  path: '/cxc',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedCntRoute = AuthenticatedCntRouteImport.update({
@@ -178,12 +274,32 @@ const AuthenticatedSettingsIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
+const AuthenticatedInvIndexRoute = AuthenticatedInvIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedInvRoute,
+} as any)
 const AuthenticatedHelpCenterIndexRoute =
   AuthenticatedHelpCenterIndexRouteImport.update({
     id: '/help-center/',
     path: '/help-center/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedFatIndexRoute = AuthenticatedFatIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedFatRoute,
+} as any)
+const AuthenticatedCxpIndexRoute = AuthenticatedCxpIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedCxpRoute,
+} as any)
+const AuthenticatedCxcIndexRoute = AuthenticatedCxcIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedCxcRoute,
+} as any)
 const AuthenticatedChatsIndexRoute = AuthenticatedChatsIndexRouteImport.update({
   id: '/chats/',
   path: '/chats/',
@@ -240,11 +356,467 @@ const AuthenticatedSettingsAccountRoute =
     path: '/account',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
+const AuthenticatedFatTransportistasRoute =
+  AuthenticatedFatTransportistasRouteImport.update({
+    id: '/transportistas',
+    path: '/transportistas',
+    getParentRoute: () => AuthenticatedFatRoute,
+  } as any)
+const AuthenticatedFatTiposPagoRoute =
+  AuthenticatedFatTiposPagoRouteImport.update({
+    id: '/tipos-pago',
+    path: '/tipos-pago',
+    getParentRoute: () => AuthenticatedFatRoute,
+  } as any)
+const AuthenticatedFatTdocuRoute = AuthenticatedFatTdocuRouteImport.update({
+  id: '/tdocu',
+  path: '/tdocu',
+  getParentRoute: () => AuthenticatedFatRoute,
+} as any)
+const AuthenticatedFatRepVentasVendedorRoute =
+  AuthenticatedFatRepVentasVendedorRouteImport.update({
+    id: '/rep-ventas-vendedor',
+    path: '/rep-ventas-vendedor',
+    getParentRoute: () => AuthenticatedFatRoute,
+  } as any)
+const AuthenticatedFatRepVentasClienteRoute =
+  AuthenticatedFatRepVentasClienteRouteImport.update({
+    id: '/rep-ventas-cliente',
+    path: '/rep-ventas-cliente',
+    getParentRoute: () => AuthenticatedFatRoute,
+  } as any)
+const AuthenticatedFatRepVentasRoute =
+  AuthenticatedFatRepVentasRouteImport.update({
+    id: '/rep-ventas',
+    path: '/rep-ventas',
+    getParentRoute: () => AuthenticatedFatRoute,
+  } as any)
+const AuthenticatedFatRepNcfNulosRoute =
+  AuthenticatedFatRepNcfNulosRouteImport.update({
+    id: '/rep-ncf-nulos',
+    path: '/rep-ncf-nulos',
+    getParentRoute: () => AuthenticatedFatRoute,
+  } as any)
+const AuthenticatedFatRepAnaliticaRoute =
+  AuthenticatedFatRepAnaliticaRouteImport.update({
+    id: '/rep-analitica',
+    path: '/rep-analitica',
+    getParentRoute: () => AuthenticatedFatRoute,
+  } as any)
+const AuthenticatedFatRep607Route = AuthenticatedFatRep607RouteImport.update({
+  id: '/rep-607',
+  path: '/rep-607',
+  getParentRoute: () => AuthenticatedFatRoute,
+} as any)
+const AuthenticatedFatPuntosRoute = AuthenticatedFatPuntosRouteImport.update({
+  id: '/puntos',
+  path: '/puntos',
+  getParentRoute: () => AuthenticatedFatRoute,
+} as any)
+const AuthenticatedFatNuevoConduceRoute =
+  AuthenticatedFatNuevoConduceRouteImport.update({
+    id: '/nuevo-conduce',
+    path: '/nuevo-conduce',
+    getParentRoute: () => AuthenticatedFatRoute,
+  } as any)
+const AuthenticatedFatNuevaFacturaRoute =
+  AuthenticatedFatNuevaFacturaRouteImport.update({
+    id: '/nueva-factura',
+    path: '/nueva-factura',
+    getParentRoute: () => AuthenticatedFatRoute,
+  } as any)
+const AuthenticatedFatNotasRoute = AuthenticatedFatNotasRouteImport.update({
+  id: '/notas',
+  path: '/notas',
+  getParentRoute: () => AuthenticatedFatRoute,
+} as any)
+const AuthenticatedFatNcfRoute = AuthenticatedFatNcfRouteImport.update({
+  id: '/ncf',
+  path: '/ncf',
+  getParentRoute: () => AuthenticatedFatRoute,
+} as any)
+const AuthenticatedFatListasPrecioRoute =
+  AuthenticatedFatListasPrecioRouteImport.update({
+    id: '/listas-precio',
+    path: '/listas-precio',
+    getParentRoute: () => AuthenticatedFatRoute,
+  } as any)
+const AuthenticatedFatGenerarAsientosRoute =
+  AuthenticatedFatGenerarAsientosRouteImport.update({
+    id: '/generar-asientos',
+    path: '/generar-asientos',
+    getParentRoute: () => AuthenticatedFatRoute,
+  } as any)
+const AuthenticatedFatFacturasRoute =
+  AuthenticatedFatFacturasRouteImport.update({
+    id: '/facturas',
+    path: '/facturas',
+    getParentRoute: () => AuthenticatedFatRoute,
+  } as any)
+const AuthenticatedFatCuadreCajaRoute =
+  AuthenticatedFatCuadreCajaRouteImport.update({
+    id: '/cuadre-caja',
+    path: '/cuadre-caja',
+    getParentRoute: () => AuthenticatedFatRoute,
+  } as any)
+const AuthenticatedFatConducesRoute =
+  AuthenticatedFatConducesRouteImport.update({
+    id: '/conduces',
+    path: '/conduces',
+    getParentRoute: () => AuthenticatedFatRoute,
+  } as any)
+const AuthenticatedFatCondicionesRoute =
+  AuthenticatedFatCondicionesRouteImport.update({
+    id: '/condiciones',
+    path: '/condiciones',
+    getParentRoute: () => AuthenticatedFatRoute,
+  } as any)
+const AuthenticatedFatCompaniasRoute =
+  AuthenticatedFatCompaniasRouteImport.update({
+    id: '/companias',
+    path: '/companias',
+    getParentRoute: () => AuthenticatedFatRoute,
+  } as any)
+const AuthenticatedFatCierreMensualRoute =
+  AuthenticatedFatCierreMensualRouteImport.update({
+    id: '/cierre-mensual',
+    path: '/cierre-mensual',
+    getParentRoute: () => AuthenticatedFatRoute,
+  } as any)
+const AuthenticatedFatAnularFacturaRoute =
+  AuthenticatedFatAnularFacturaRouteImport.update({
+    id: '/anular-factura',
+    path: '/anular-factura',
+    getParentRoute: () => AuthenticatedFatRoute,
+  } as any)
 const AuthenticatedErrorsErrorRoute =
   AuthenticatedErrorsErrorRouteImport.update({
     id: '/errors/$error',
     path: '/errors/$error',
     getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCxpUsuariosRoute =
+  AuthenticatedCxpUsuariosRouteImport.update({
+    id: '/usuarios',
+    path: '/usuarios',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
+const AuthenticatedCxpTproveedoresRoute =
+  AuthenticatedCxpTproveedoresRouteImport.update({
+    id: '/tproveedores',
+    path: '/tproveedores',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
+const AuthenticatedCxpTdocuRoute = AuthenticatedCxpTdocuRouteImport.update({
+  id: '/tdocu',
+  path: '/tdocu',
+  getParentRoute: () => AuthenticatedCxpRoute,
+} as any)
+const AuthenticatedCxpReversarRoute =
+  AuthenticatedCxpReversarRouteImport.update({
+    id: '/reversar',
+    path: '/reversar',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
+const AuthenticatedCxpRepRetencionesRoute =
+  AuthenticatedCxpRepRetencionesRouteImport.update({
+    id: '/rep-retenciones',
+    path: '/rep-retenciones',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
+const AuthenticatedCxpRepMovimientosRoute =
+  AuthenticatedCxpRepMovimientosRouteImport.update({
+    id: '/rep-movimientos',
+    path: '/rep-movimientos',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
+const AuthenticatedCxpRepMayorRoute =
+  AuthenticatedCxpRepMayorRouteImport.update({
+    id: '/rep-mayor',
+    path: '/rep-mayor',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
+const AuthenticatedCxpRepCuadreRoute =
+  AuthenticatedCxpRepCuadreRouteImport.update({
+    id: '/rep-cuadre',
+    path: '/rep-cuadre',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
+const AuthenticatedCxpRepAlfabeticoRoute =
+  AuthenticatedCxpRepAlfabeticoRouteImport.update({
+    id: '/rep-alfabetico',
+    path: '/rep-alfabetico',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
+const AuthenticatedCxpRep607Route = AuthenticatedCxpRep607RouteImport.update({
+  id: '/rep-607',
+  path: '/rep-607',
+  getParentRoute: () => AuthenticatedCxpRoute,
+} as any)
+const AuthenticatedCxpRep606Route = AuthenticatedCxpRep606RouteImport.update({
+  id: '/rep-606',
+  path: '/rep-606',
+  getParentRoute: () => AuthenticatedCxpRoute,
+} as any)
+const AuthenticatedCxpPuntosRoute = AuthenticatedCxpPuntosRouteImport.update({
+  id: '/puntos',
+  path: '/puntos',
+  getParentRoute: () => AuthenticatedCxpRoute,
+} as any)
+const AuthenticatedCxpProveedoresRoute =
+  AuthenticatedCxpProveedoresRouteImport.update({
+    id: '/proveedores',
+    path: '/proveedores',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
+const AuthenticatedCxpMovimientosRoute =
+  AuthenticatedCxpMovimientosRouteImport.update({
+    id: '/movimientos',
+    path: '/movimientos',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
+const AuthenticatedCxpLiberarDebitoRoute =
+  AuthenticatedCxpLiberarDebitoRouteImport.update({
+    id: '/liberar-debito',
+    path: '/liberar-debito',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
+const AuthenticatedCxpGenerarAsientoRoute =
+  AuthenticatedCxpGenerarAsientoRouteImport.update({
+    id: '/generar-asiento',
+    path: '/generar-asiento',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
+const AuthenticatedCxpEnvejecimientoRoute =
+  AuthenticatedCxpEnvejecimientoRouteImport.update({
+    id: '/envejecimiento',
+    path: '/envejecimiento',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
+const AuthenticatedCxpEntradaDocumentosRoute =
+  AuthenticatedCxpEntradaDocumentosRouteImport.update({
+    id: '/entrada-documentos',
+    path: '/entrada-documentos',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
+const AuthenticatedCxpDocumentosRoute =
+  AuthenticatedCxpDocumentosRouteImport.update({
+    id: '/documentos',
+    path: '/documentos',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
+const AuthenticatedCxpCuentasRoute = AuthenticatedCxpCuentasRouteImport.update({
+  id: '/cuentas',
+  path: '/cuentas',
+  getParentRoute: () => AuthenticatedCxpRoute,
+} as any)
+const AuthenticatedCxpCiudadesRoute =
+  AuthenticatedCxpCiudadesRouteImport.update({
+    id: '/ciudades',
+    path: '/ciudades',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
+const AuthenticatedCxpCierreRoute = AuthenticatedCxpCierreRouteImport.update({
+  id: '/cierre',
+  path: '/cierre',
+  getParentRoute: () => AuthenticatedCxpRoute,
+} as any)
+const AuthenticatedCxpCiasRoute = AuthenticatedCxpCiasRouteImport.update({
+  id: '/cias',
+  path: '/cias',
+  getParentRoute: () => AuthenticatedCxpRoute,
+} as any)
+const AuthenticatedCxpBloquearPagoRoute =
+  AuthenticatedCxpBloquearPagoRouteImport.update({
+    id: '/bloquear-pago',
+    path: '/bloquear-pago',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
+const AuthenticatedCxpBarriosRoute = AuthenticatedCxpBarriosRouteImport.update({
+  id: '/barrios',
+  path: '/barrios',
+  getParentRoute: () => AuthenticatedCxpRoute,
+} as any)
+const AuthenticatedCxpAsientoContableRoute =
+  AuthenticatedCxpAsientoContableRouteImport.update({
+    id: '/asiento-contable',
+    path: '/asiento-contable',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
+const AuthenticatedCxcZonasRoute = AuthenticatedCxcZonasRouteImport.update({
+  id: '/zonas',
+  path: '/zonas',
+  getParentRoute: () => AuthenticatedCxcRoute,
+} as any)
+const AuthenticatedCxcVendedoresRoute =
+  AuthenticatedCxcVendedoresRouteImport.update({
+    id: '/vendedores',
+    path: '/vendedores',
+    getParentRoute: () => AuthenticatedCxcRoute,
+  } as any)
+const AuthenticatedCxcTransaccionesRoute =
+  AuthenticatedCxcTransaccionesRouteImport.update({
+    id: '/transacciones',
+    path: '/transacciones',
+    getParentRoute: () => AuthenticatedCxcRoute,
+  } as any)
+const AuthenticatedCxcTdocuRoute = AuthenticatedCxcTdocuRouteImport.update({
+  id: '/tdocu',
+  path: '/tdocu',
+  getParentRoute: () => AuthenticatedCxcRoute,
+} as any)
+const AuthenticatedCxcTcontableRoute =
+  AuthenticatedCxcTcontableRouteImport.update({
+    id: '/tcontable',
+    path: '/tcontable',
+    getParentRoute: () => AuthenticatedCxcRoute,
+  } as any)
+const AuthenticatedCxcTcliRoute = AuthenticatedCxcTcliRouteImport.update({
+  id: '/tcli',
+  path: '/tcli',
+  getParentRoute: () => AuthenticatedCxcRoute,
+} as any)
+const AuthenticatedCxcSupervisoresRoute =
+  AuthenticatedCxcSupervisoresRouteImport.update({
+    id: '/supervisores',
+    path: '/supervisores',
+    getParentRoute: () => AuthenticatedCxcRoute,
+  } as any)
+const AuthenticatedCxcRutasRoute = AuthenticatedCxcRutasRouteImport.update({
+  id: '/rutas',
+  path: '/rutas',
+  getParentRoute: () => AuthenticatedCxcRoute,
+} as any)
+const AuthenticatedCxcReversarRoute =
+  AuthenticatedCxcReversarRouteImport.update({
+    id: '/reversar',
+    path: '/reversar',
+    getParentRoute: () => AuthenticatedCxcRoute,
+  } as any)
+const AuthenticatedCxcRepNcfRoute = AuthenticatedCxcRepNcfRouteImport.update({
+  id: '/rep-ncf',
+  path: '/rep-ncf',
+  getParentRoute: () => AuthenticatedCxcRoute,
+} as any)
+const AuthenticatedCxcRepEnvejecimientoRoute =
+  AuthenticatedCxcRepEnvejecimientoRouteImport.update({
+    id: '/rep-envejecimiento',
+    path: '/rep-envejecimiento',
+    getParentRoute: () => AuthenticatedCxcRoute,
+  } as any)
+const AuthenticatedCxcRepComisionesRoute =
+  AuthenticatedCxcRepComisionesRouteImport.update({
+    id: '/rep-comisiones',
+    path: '/rep-comisiones',
+    getParentRoute: () => AuthenticatedCxcRoute,
+  } as any)
+const AuthenticatedCxcRepCobrosVendedorRoute =
+  AuthenticatedCxcRepCobrosVendedorRouteImport.update({
+    id: '/rep-cobros-vendedor',
+    path: '/rep-cobros-vendedor',
+    getParentRoute: () => AuthenticatedCxcRoute,
+  } as any)
+const AuthenticatedCxcPuntosRoute = AuthenticatedCxcPuntosRouteImport.update({
+  id: '/puntos',
+  path: '/puntos',
+  getParentRoute: () => AuthenticatedCxcRoute,
+} as any)
+const AuthenticatedCxcPagosMasivosRoute =
+  AuthenticatedCxcPagosMasivosRouteImport.update({
+    id: '/pagos-masivos',
+    path: '/pagos-masivos',
+    getParentRoute: () => AuthenticatedCxcRoute,
+  } as any)
+const AuthenticatedCxcLibroVentasRoute =
+  AuthenticatedCxcLibroVentasRouteImport.update({
+    id: '/libro-ventas',
+    path: '/libro-ventas',
+    getParentRoute: () => AuthenticatedCxcRoute,
+  } as any)
+const AuthenticatedCxcLiberarCreditoRoute =
+  AuthenticatedCxcLiberarCreditoRouteImport.update({
+    id: '/liberar-credito',
+    path: '/liberar-credito',
+    getParentRoute: () => AuthenticatedCxcRoute,
+  } as any)
+const AuthenticatedCxcHistoricoRoute =
+  AuthenticatedCxcHistoricoRouteImport.update({
+    id: '/historico',
+    path: '/historico',
+    getParentRoute: () => AuthenticatedCxcRoute,
+  } as any)
+const AuthenticatedCxcGenerarAsientoRoute =
+  AuthenticatedCxcGenerarAsientoRouteImport.update({
+    id: '/generar-asiento',
+    path: '/generar-asiento',
+    getParentRoute: () => AuthenticatedCxcRoute,
+  } as any)
+const AuthenticatedCxcEstadoCuentaRoute =
+  AuthenticatedCxcEstadoCuentaRouteImport.update({
+    id: '/estado-cuenta',
+    path: '/estado-cuenta',
+    getParentRoute: () => AuthenticatedCxcRoute,
+  } as any)
+const AuthenticatedCxcDocumentosRoute =
+  AuthenticatedCxcDocumentosRouteImport.update({
+    id: '/documentos',
+    path: '/documentos',
+    getParentRoute: () => AuthenticatedCxcRoute,
+  } as any)
+const AuthenticatedCxcCorregirNcfRoute =
+  AuthenticatedCxcCorregirNcfRouteImport.update({
+    id: '/corregir-ncf',
+    path: '/corregir-ncf',
+    getParentRoute: () => AuthenticatedCxcRoute,
+  } as any)
+const AuthenticatedCxcClientesRoute =
+  AuthenticatedCxcClientesRouteImport.update({
+    id: '/clientes',
+    path: '/clientes',
+    getParentRoute: () => AuthenticatedCxcRoute,
+  } as any)
+const AuthenticatedCxcClienteRutaRoute =
+  AuthenticatedCxcClienteRutaRouteImport.update({
+    id: '/cliente-ruta',
+    path: '/cliente-ruta',
+    getParentRoute: () => AuthenticatedCxcRoute,
+  } as any)
+const AuthenticatedCxcCiudadesRoute =
+  AuthenticatedCxcCiudadesRouteImport.update({
+    id: '/ciudades',
+    path: '/ciudades',
+    getParentRoute: () => AuthenticatedCxcRoute,
+  } as any)
+const AuthenticatedCxcCierreRoute = AuthenticatedCxcCierreRouteImport.update({
+  id: '/cierre',
+  path: '/cierre',
+  getParentRoute: () => AuthenticatedCxcRoute,
+} as any)
+const AuthenticatedCxcCiasRoute = AuthenticatedCxcCiasRouteImport.update({
+  id: '/cias',
+  path: '/cias',
+  getParentRoute: () => AuthenticatedCxcRoute,
+} as any)
+const AuthenticatedCxcCadenasRoute = AuthenticatedCxcCadenasRouteImport.update({
+  id: '/cadenas',
+  path: '/cadenas',
+  getParentRoute: () => AuthenticatedCxcRoute,
+} as any)
+const AuthenticatedCxcBarriosRoute = AuthenticatedCxcBarriosRouteImport.update({
+  id: '/barrios',
+  path: '/barrios',
+  getParentRoute: () => AuthenticatedCxcRoute,
+} as any)
+const AuthenticatedCxcBalanceRoute = AuthenticatedCxcBalanceRouteImport.update({
+  id: '/balance',
+  path: '/balance',
+  getParentRoute: () => AuthenticatedCxcRoute,
+} as any)
+const AuthenticatedCxcAsientoContableRoute =
+  AuthenticatedCxcAsientoContableRouteImport.update({
+    id: '/asiento-contable',
+    path: '/asiento-contable',
+    getParentRoute: () => AuthenticatedCxcRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -263,12 +835,94 @@ export interface FileRoutesByFullPath {
   '/503': typeof errors503Route
   '/cambiar-clave': typeof AuthenticatedCambiarClaveRoute
   '/cnt': typeof AuthenticatedCntRoute
+  '/cxc': typeof AuthenticatedCxcRouteWithChildren
+  '/cxp': typeof AuthenticatedCxpRouteWithChildren
   '/docs': typeof AuthenticatedDocsRoute
   '/empresas': typeof AuthenticatedEmpresasRoute
-  '/fat': typeof AuthenticatedFatRoute
-  '/inv': typeof AuthenticatedInvRoute
+  '/fat': typeof AuthenticatedFatRouteWithChildren
+  '/inv': typeof AuthenticatedInvRouteWithChildren
   '/ncf-alerts': typeof AuthenticatedNcfAlertsRoute
+  '/cxc/asiento-contable': typeof AuthenticatedCxcAsientoContableRoute
+  '/cxc/balance': typeof AuthenticatedCxcBalanceRoute
+  '/cxc/barrios': typeof AuthenticatedCxcBarriosRoute
+  '/cxc/cadenas': typeof AuthenticatedCxcCadenasRoute
+  '/cxc/cias': typeof AuthenticatedCxcCiasRoute
+  '/cxc/cierre': typeof AuthenticatedCxcCierreRoute
+  '/cxc/ciudades': typeof AuthenticatedCxcCiudadesRoute
+  '/cxc/cliente-ruta': typeof AuthenticatedCxcClienteRutaRoute
+  '/cxc/clientes': typeof AuthenticatedCxcClientesRoute
+  '/cxc/corregir-ncf': typeof AuthenticatedCxcCorregirNcfRoute
+  '/cxc/documentos': typeof AuthenticatedCxcDocumentosRoute
+  '/cxc/estado-cuenta': typeof AuthenticatedCxcEstadoCuentaRoute
+  '/cxc/generar-asiento': typeof AuthenticatedCxcGenerarAsientoRoute
+  '/cxc/historico': typeof AuthenticatedCxcHistoricoRoute
+  '/cxc/liberar-credito': typeof AuthenticatedCxcLiberarCreditoRoute
+  '/cxc/libro-ventas': typeof AuthenticatedCxcLibroVentasRoute
+  '/cxc/pagos-masivos': typeof AuthenticatedCxcPagosMasivosRoute
+  '/cxc/puntos': typeof AuthenticatedCxcPuntosRoute
+  '/cxc/rep-cobros-vendedor': typeof AuthenticatedCxcRepCobrosVendedorRoute
+  '/cxc/rep-comisiones': typeof AuthenticatedCxcRepComisionesRoute
+  '/cxc/rep-envejecimiento': typeof AuthenticatedCxcRepEnvejecimientoRoute
+  '/cxc/rep-ncf': typeof AuthenticatedCxcRepNcfRoute
+  '/cxc/reversar': typeof AuthenticatedCxcReversarRoute
+  '/cxc/rutas': typeof AuthenticatedCxcRutasRoute
+  '/cxc/supervisores': typeof AuthenticatedCxcSupervisoresRoute
+  '/cxc/tcli': typeof AuthenticatedCxcTcliRoute
+  '/cxc/tcontable': typeof AuthenticatedCxcTcontableRoute
+  '/cxc/tdocu': typeof AuthenticatedCxcTdocuRoute
+  '/cxc/transacciones': typeof AuthenticatedCxcTransaccionesRoute
+  '/cxc/vendedores': typeof AuthenticatedCxcVendedoresRoute
+  '/cxc/zonas': typeof AuthenticatedCxcZonasRoute
+  '/cxp/asiento-contable': typeof AuthenticatedCxpAsientoContableRoute
+  '/cxp/barrios': typeof AuthenticatedCxpBarriosRoute
+  '/cxp/bloquear-pago': typeof AuthenticatedCxpBloquearPagoRoute
+  '/cxp/cias': typeof AuthenticatedCxpCiasRoute
+  '/cxp/cierre': typeof AuthenticatedCxpCierreRoute
+  '/cxp/ciudades': typeof AuthenticatedCxpCiudadesRoute
+  '/cxp/cuentas': typeof AuthenticatedCxpCuentasRoute
+  '/cxp/documentos': typeof AuthenticatedCxpDocumentosRoute
+  '/cxp/entrada-documentos': typeof AuthenticatedCxpEntradaDocumentosRoute
+  '/cxp/envejecimiento': typeof AuthenticatedCxpEnvejecimientoRoute
+  '/cxp/generar-asiento': typeof AuthenticatedCxpGenerarAsientoRoute
+  '/cxp/liberar-debito': typeof AuthenticatedCxpLiberarDebitoRoute
+  '/cxp/movimientos': typeof AuthenticatedCxpMovimientosRoute
+  '/cxp/proveedores': typeof AuthenticatedCxpProveedoresRoute
+  '/cxp/puntos': typeof AuthenticatedCxpPuntosRoute
+  '/cxp/rep-606': typeof AuthenticatedCxpRep606Route
+  '/cxp/rep-607': typeof AuthenticatedCxpRep607Route
+  '/cxp/rep-alfabetico': typeof AuthenticatedCxpRepAlfabeticoRoute
+  '/cxp/rep-cuadre': typeof AuthenticatedCxpRepCuadreRoute
+  '/cxp/rep-mayor': typeof AuthenticatedCxpRepMayorRoute
+  '/cxp/rep-movimientos': typeof AuthenticatedCxpRepMovimientosRoute
+  '/cxp/rep-retenciones': typeof AuthenticatedCxpRepRetencionesRoute
+  '/cxp/reversar': typeof AuthenticatedCxpReversarRoute
+  '/cxp/tdocu': typeof AuthenticatedCxpTdocuRoute
+  '/cxp/tproveedores': typeof AuthenticatedCxpTproveedoresRoute
+  '/cxp/usuarios': typeof AuthenticatedCxpUsuariosRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
+  '/fat/anular-factura': typeof AuthenticatedFatAnularFacturaRoute
+  '/fat/cierre-mensual': typeof AuthenticatedFatCierreMensualRoute
+  '/fat/companias': typeof AuthenticatedFatCompaniasRoute
+  '/fat/condiciones': typeof AuthenticatedFatCondicionesRoute
+  '/fat/conduces': typeof AuthenticatedFatConducesRoute
+  '/fat/cuadre-caja': typeof AuthenticatedFatCuadreCajaRoute
+  '/fat/facturas': typeof AuthenticatedFatFacturasRoute
+  '/fat/generar-asientos': typeof AuthenticatedFatGenerarAsientosRoute
+  '/fat/listas-precio': typeof AuthenticatedFatListasPrecioRoute
+  '/fat/ncf': typeof AuthenticatedFatNcfRoute
+  '/fat/notas': typeof AuthenticatedFatNotasRoute
+  '/fat/nueva-factura': typeof AuthenticatedFatNuevaFacturaRoute
+  '/fat/nuevo-conduce': typeof AuthenticatedFatNuevoConduceRoute
+  '/fat/puntos': typeof AuthenticatedFatPuntosRoute
+  '/fat/rep-607': typeof AuthenticatedFatRep607Route
+  '/fat/rep-analitica': typeof AuthenticatedFatRepAnaliticaRoute
+  '/fat/rep-ncf-nulos': typeof AuthenticatedFatRepNcfNulosRoute
+  '/fat/rep-ventas': typeof AuthenticatedFatRepVentasRoute
+  '/fat/rep-ventas-cliente': typeof AuthenticatedFatRepVentasClienteRoute
+  '/fat/rep-ventas-vendedor': typeof AuthenticatedFatRepVentasVendedorRoute
+  '/fat/tdocu': typeof AuthenticatedFatTdocuRoute
+  '/fat/tipos-pago': typeof AuthenticatedFatTiposPagoRoute
+  '/fat/transportistas': typeof AuthenticatedFatTransportistasRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
@@ -279,7 +933,11 @@ export interface FileRoutesByFullPath {
   '/clerk/user-management': typeof ClerkAuthenticatedUserManagementRoute
   '/apps/': typeof AuthenticatedAppsIndexRoute
   '/chats/': typeof AuthenticatedChatsIndexRoute
+  '/cxc/': typeof AuthenticatedCxcIndexRoute
+  '/cxp/': typeof AuthenticatedCxpIndexRoute
+  '/fat/': typeof AuthenticatedFatIndexRoute
   '/help-center/': typeof AuthenticatedHelpCenterIndexRoute
+  '/inv/': typeof AuthenticatedInvIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/tasks/': typeof AuthenticatedTasksIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
@@ -300,11 +958,89 @@ export interface FileRoutesByTo {
   '/cnt': typeof AuthenticatedCntRoute
   '/docs': typeof AuthenticatedDocsRoute
   '/empresas': typeof AuthenticatedEmpresasRoute
-  '/fat': typeof AuthenticatedFatRoute
-  '/inv': typeof AuthenticatedInvRoute
   '/ncf-alerts': typeof AuthenticatedNcfAlertsRoute
   '/': typeof AuthenticatedIndexRoute
+  '/cxc/asiento-contable': typeof AuthenticatedCxcAsientoContableRoute
+  '/cxc/balance': typeof AuthenticatedCxcBalanceRoute
+  '/cxc/barrios': typeof AuthenticatedCxcBarriosRoute
+  '/cxc/cadenas': typeof AuthenticatedCxcCadenasRoute
+  '/cxc/cias': typeof AuthenticatedCxcCiasRoute
+  '/cxc/cierre': typeof AuthenticatedCxcCierreRoute
+  '/cxc/ciudades': typeof AuthenticatedCxcCiudadesRoute
+  '/cxc/cliente-ruta': typeof AuthenticatedCxcClienteRutaRoute
+  '/cxc/clientes': typeof AuthenticatedCxcClientesRoute
+  '/cxc/corregir-ncf': typeof AuthenticatedCxcCorregirNcfRoute
+  '/cxc/documentos': typeof AuthenticatedCxcDocumentosRoute
+  '/cxc/estado-cuenta': typeof AuthenticatedCxcEstadoCuentaRoute
+  '/cxc/generar-asiento': typeof AuthenticatedCxcGenerarAsientoRoute
+  '/cxc/historico': typeof AuthenticatedCxcHistoricoRoute
+  '/cxc/liberar-credito': typeof AuthenticatedCxcLiberarCreditoRoute
+  '/cxc/libro-ventas': typeof AuthenticatedCxcLibroVentasRoute
+  '/cxc/pagos-masivos': typeof AuthenticatedCxcPagosMasivosRoute
+  '/cxc/puntos': typeof AuthenticatedCxcPuntosRoute
+  '/cxc/rep-cobros-vendedor': typeof AuthenticatedCxcRepCobrosVendedorRoute
+  '/cxc/rep-comisiones': typeof AuthenticatedCxcRepComisionesRoute
+  '/cxc/rep-envejecimiento': typeof AuthenticatedCxcRepEnvejecimientoRoute
+  '/cxc/rep-ncf': typeof AuthenticatedCxcRepNcfRoute
+  '/cxc/reversar': typeof AuthenticatedCxcReversarRoute
+  '/cxc/rutas': typeof AuthenticatedCxcRutasRoute
+  '/cxc/supervisores': typeof AuthenticatedCxcSupervisoresRoute
+  '/cxc/tcli': typeof AuthenticatedCxcTcliRoute
+  '/cxc/tcontable': typeof AuthenticatedCxcTcontableRoute
+  '/cxc/tdocu': typeof AuthenticatedCxcTdocuRoute
+  '/cxc/transacciones': typeof AuthenticatedCxcTransaccionesRoute
+  '/cxc/vendedores': typeof AuthenticatedCxcVendedoresRoute
+  '/cxc/zonas': typeof AuthenticatedCxcZonasRoute
+  '/cxp/asiento-contable': typeof AuthenticatedCxpAsientoContableRoute
+  '/cxp/barrios': typeof AuthenticatedCxpBarriosRoute
+  '/cxp/bloquear-pago': typeof AuthenticatedCxpBloquearPagoRoute
+  '/cxp/cias': typeof AuthenticatedCxpCiasRoute
+  '/cxp/cierre': typeof AuthenticatedCxpCierreRoute
+  '/cxp/ciudades': typeof AuthenticatedCxpCiudadesRoute
+  '/cxp/cuentas': typeof AuthenticatedCxpCuentasRoute
+  '/cxp/documentos': typeof AuthenticatedCxpDocumentosRoute
+  '/cxp/entrada-documentos': typeof AuthenticatedCxpEntradaDocumentosRoute
+  '/cxp/envejecimiento': typeof AuthenticatedCxpEnvejecimientoRoute
+  '/cxp/generar-asiento': typeof AuthenticatedCxpGenerarAsientoRoute
+  '/cxp/liberar-debito': typeof AuthenticatedCxpLiberarDebitoRoute
+  '/cxp/movimientos': typeof AuthenticatedCxpMovimientosRoute
+  '/cxp/proveedores': typeof AuthenticatedCxpProveedoresRoute
+  '/cxp/puntos': typeof AuthenticatedCxpPuntosRoute
+  '/cxp/rep-606': typeof AuthenticatedCxpRep606Route
+  '/cxp/rep-607': typeof AuthenticatedCxpRep607Route
+  '/cxp/rep-alfabetico': typeof AuthenticatedCxpRepAlfabeticoRoute
+  '/cxp/rep-cuadre': typeof AuthenticatedCxpRepCuadreRoute
+  '/cxp/rep-mayor': typeof AuthenticatedCxpRepMayorRoute
+  '/cxp/rep-movimientos': typeof AuthenticatedCxpRepMovimientosRoute
+  '/cxp/rep-retenciones': typeof AuthenticatedCxpRepRetencionesRoute
+  '/cxp/reversar': typeof AuthenticatedCxpReversarRoute
+  '/cxp/tdocu': typeof AuthenticatedCxpTdocuRoute
+  '/cxp/tproveedores': typeof AuthenticatedCxpTproveedoresRoute
+  '/cxp/usuarios': typeof AuthenticatedCxpUsuariosRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
+  '/fat/anular-factura': typeof AuthenticatedFatAnularFacturaRoute
+  '/fat/cierre-mensual': typeof AuthenticatedFatCierreMensualRoute
+  '/fat/companias': typeof AuthenticatedFatCompaniasRoute
+  '/fat/condiciones': typeof AuthenticatedFatCondicionesRoute
+  '/fat/conduces': typeof AuthenticatedFatConducesRoute
+  '/fat/cuadre-caja': typeof AuthenticatedFatCuadreCajaRoute
+  '/fat/facturas': typeof AuthenticatedFatFacturasRoute
+  '/fat/generar-asientos': typeof AuthenticatedFatGenerarAsientosRoute
+  '/fat/listas-precio': typeof AuthenticatedFatListasPrecioRoute
+  '/fat/ncf': typeof AuthenticatedFatNcfRoute
+  '/fat/notas': typeof AuthenticatedFatNotasRoute
+  '/fat/nueva-factura': typeof AuthenticatedFatNuevaFacturaRoute
+  '/fat/nuevo-conduce': typeof AuthenticatedFatNuevoConduceRoute
+  '/fat/puntos': typeof AuthenticatedFatPuntosRoute
+  '/fat/rep-607': typeof AuthenticatedFatRep607Route
+  '/fat/rep-analitica': typeof AuthenticatedFatRepAnaliticaRoute
+  '/fat/rep-ncf-nulos': typeof AuthenticatedFatRepNcfNulosRoute
+  '/fat/rep-ventas': typeof AuthenticatedFatRepVentasRoute
+  '/fat/rep-ventas-cliente': typeof AuthenticatedFatRepVentasClienteRoute
+  '/fat/rep-ventas-vendedor': typeof AuthenticatedFatRepVentasVendedorRoute
+  '/fat/tdocu': typeof AuthenticatedFatTdocuRoute
+  '/fat/tipos-pago': typeof AuthenticatedFatTiposPagoRoute
+  '/fat/transportistas': typeof AuthenticatedFatTransportistasRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
@@ -315,7 +1051,11 @@ export interface FileRoutesByTo {
   '/clerk/user-management': typeof ClerkAuthenticatedUserManagementRoute
   '/apps': typeof AuthenticatedAppsIndexRoute
   '/chats': typeof AuthenticatedChatsIndexRoute
+  '/cxc': typeof AuthenticatedCxcIndexRoute
+  '/cxp': typeof AuthenticatedCxpIndexRoute
+  '/fat': typeof AuthenticatedFatIndexRoute
   '/help-center': typeof AuthenticatedHelpCenterIndexRoute
+  '/inv': typeof AuthenticatedInvIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
@@ -339,13 +1079,95 @@ export interface FileRoutesById {
   '/(errors)/503': typeof errors503Route
   '/_authenticated/cambiar-clave': typeof AuthenticatedCambiarClaveRoute
   '/_authenticated/cnt': typeof AuthenticatedCntRoute
+  '/_authenticated/cxc': typeof AuthenticatedCxcRouteWithChildren
+  '/_authenticated/cxp': typeof AuthenticatedCxpRouteWithChildren
   '/_authenticated/docs': typeof AuthenticatedDocsRoute
   '/_authenticated/empresas': typeof AuthenticatedEmpresasRoute
-  '/_authenticated/fat': typeof AuthenticatedFatRoute
-  '/_authenticated/inv': typeof AuthenticatedInvRoute
+  '/_authenticated/fat': typeof AuthenticatedFatRouteWithChildren
+  '/_authenticated/inv': typeof AuthenticatedInvRouteWithChildren
   '/_authenticated/ncf-alerts': typeof AuthenticatedNcfAlertsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/cxc/asiento-contable': typeof AuthenticatedCxcAsientoContableRoute
+  '/_authenticated/cxc/balance': typeof AuthenticatedCxcBalanceRoute
+  '/_authenticated/cxc/barrios': typeof AuthenticatedCxcBarriosRoute
+  '/_authenticated/cxc/cadenas': typeof AuthenticatedCxcCadenasRoute
+  '/_authenticated/cxc/cias': typeof AuthenticatedCxcCiasRoute
+  '/_authenticated/cxc/cierre': typeof AuthenticatedCxcCierreRoute
+  '/_authenticated/cxc/ciudades': typeof AuthenticatedCxcCiudadesRoute
+  '/_authenticated/cxc/cliente-ruta': typeof AuthenticatedCxcClienteRutaRoute
+  '/_authenticated/cxc/clientes': typeof AuthenticatedCxcClientesRoute
+  '/_authenticated/cxc/corregir-ncf': typeof AuthenticatedCxcCorregirNcfRoute
+  '/_authenticated/cxc/documentos': typeof AuthenticatedCxcDocumentosRoute
+  '/_authenticated/cxc/estado-cuenta': typeof AuthenticatedCxcEstadoCuentaRoute
+  '/_authenticated/cxc/generar-asiento': typeof AuthenticatedCxcGenerarAsientoRoute
+  '/_authenticated/cxc/historico': typeof AuthenticatedCxcHistoricoRoute
+  '/_authenticated/cxc/liberar-credito': typeof AuthenticatedCxcLiberarCreditoRoute
+  '/_authenticated/cxc/libro-ventas': typeof AuthenticatedCxcLibroVentasRoute
+  '/_authenticated/cxc/pagos-masivos': typeof AuthenticatedCxcPagosMasivosRoute
+  '/_authenticated/cxc/puntos': typeof AuthenticatedCxcPuntosRoute
+  '/_authenticated/cxc/rep-cobros-vendedor': typeof AuthenticatedCxcRepCobrosVendedorRoute
+  '/_authenticated/cxc/rep-comisiones': typeof AuthenticatedCxcRepComisionesRoute
+  '/_authenticated/cxc/rep-envejecimiento': typeof AuthenticatedCxcRepEnvejecimientoRoute
+  '/_authenticated/cxc/rep-ncf': typeof AuthenticatedCxcRepNcfRoute
+  '/_authenticated/cxc/reversar': typeof AuthenticatedCxcReversarRoute
+  '/_authenticated/cxc/rutas': typeof AuthenticatedCxcRutasRoute
+  '/_authenticated/cxc/supervisores': typeof AuthenticatedCxcSupervisoresRoute
+  '/_authenticated/cxc/tcli': typeof AuthenticatedCxcTcliRoute
+  '/_authenticated/cxc/tcontable': typeof AuthenticatedCxcTcontableRoute
+  '/_authenticated/cxc/tdocu': typeof AuthenticatedCxcTdocuRoute
+  '/_authenticated/cxc/transacciones': typeof AuthenticatedCxcTransaccionesRoute
+  '/_authenticated/cxc/vendedores': typeof AuthenticatedCxcVendedoresRoute
+  '/_authenticated/cxc/zonas': typeof AuthenticatedCxcZonasRoute
+  '/_authenticated/cxp/asiento-contable': typeof AuthenticatedCxpAsientoContableRoute
+  '/_authenticated/cxp/barrios': typeof AuthenticatedCxpBarriosRoute
+  '/_authenticated/cxp/bloquear-pago': typeof AuthenticatedCxpBloquearPagoRoute
+  '/_authenticated/cxp/cias': typeof AuthenticatedCxpCiasRoute
+  '/_authenticated/cxp/cierre': typeof AuthenticatedCxpCierreRoute
+  '/_authenticated/cxp/ciudades': typeof AuthenticatedCxpCiudadesRoute
+  '/_authenticated/cxp/cuentas': typeof AuthenticatedCxpCuentasRoute
+  '/_authenticated/cxp/documentos': typeof AuthenticatedCxpDocumentosRoute
+  '/_authenticated/cxp/entrada-documentos': typeof AuthenticatedCxpEntradaDocumentosRoute
+  '/_authenticated/cxp/envejecimiento': typeof AuthenticatedCxpEnvejecimientoRoute
+  '/_authenticated/cxp/generar-asiento': typeof AuthenticatedCxpGenerarAsientoRoute
+  '/_authenticated/cxp/liberar-debito': typeof AuthenticatedCxpLiberarDebitoRoute
+  '/_authenticated/cxp/movimientos': typeof AuthenticatedCxpMovimientosRoute
+  '/_authenticated/cxp/proveedores': typeof AuthenticatedCxpProveedoresRoute
+  '/_authenticated/cxp/puntos': typeof AuthenticatedCxpPuntosRoute
+  '/_authenticated/cxp/rep-606': typeof AuthenticatedCxpRep606Route
+  '/_authenticated/cxp/rep-607': typeof AuthenticatedCxpRep607Route
+  '/_authenticated/cxp/rep-alfabetico': typeof AuthenticatedCxpRepAlfabeticoRoute
+  '/_authenticated/cxp/rep-cuadre': typeof AuthenticatedCxpRepCuadreRoute
+  '/_authenticated/cxp/rep-mayor': typeof AuthenticatedCxpRepMayorRoute
+  '/_authenticated/cxp/rep-movimientos': typeof AuthenticatedCxpRepMovimientosRoute
+  '/_authenticated/cxp/rep-retenciones': typeof AuthenticatedCxpRepRetencionesRoute
+  '/_authenticated/cxp/reversar': typeof AuthenticatedCxpReversarRoute
+  '/_authenticated/cxp/tdocu': typeof AuthenticatedCxpTdocuRoute
+  '/_authenticated/cxp/tproveedores': typeof AuthenticatedCxpTproveedoresRoute
+  '/_authenticated/cxp/usuarios': typeof AuthenticatedCxpUsuariosRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
+  '/_authenticated/fat/anular-factura': typeof AuthenticatedFatAnularFacturaRoute
+  '/_authenticated/fat/cierre-mensual': typeof AuthenticatedFatCierreMensualRoute
+  '/_authenticated/fat/companias': typeof AuthenticatedFatCompaniasRoute
+  '/_authenticated/fat/condiciones': typeof AuthenticatedFatCondicionesRoute
+  '/_authenticated/fat/conduces': typeof AuthenticatedFatConducesRoute
+  '/_authenticated/fat/cuadre-caja': typeof AuthenticatedFatCuadreCajaRoute
+  '/_authenticated/fat/facturas': typeof AuthenticatedFatFacturasRoute
+  '/_authenticated/fat/generar-asientos': typeof AuthenticatedFatGenerarAsientosRoute
+  '/_authenticated/fat/listas-precio': typeof AuthenticatedFatListasPrecioRoute
+  '/_authenticated/fat/ncf': typeof AuthenticatedFatNcfRoute
+  '/_authenticated/fat/notas': typeof AuthenticatedFatNotasRoute
+  '/_authenticated/fat/nueva-factura': typeof AuthenticatedFatNuevaFacturaRoute
+  '/_authenticated/fat/nuevo-conduce': typeof AuthenticatedFatNuevoConduceRoute
+  '/_authenticated/fat/puntos': typeof AuthenticatedFatPuntosRoute
+  '/_authenticated/fat/rep-607': typeof AuthenticatedFatRep607Route
+  '/_authenticated/fat/rep-analitica': typeof AuthenticatedFatRepAnaliticaRoute
+  '/_authenticated/fat/rep-ncf-nulos': typeof AuthenticatedFatRepNcfNulosRoute
+  '/_authenticated/fat/rep-ventas': typeof AuthenticatedFatRepVentasRoute
+  '/_authenticated/fat/rep-ventas-cliente': typeof AuthenticatedFatRepVentasClienteRoute
+  '/_authenticated/fat/rep-ventas-vendedor': typeof AuthenticatedFatRepVentasVendedorRoute
+  '/_authenticated/fat/tdocu': typeof AuthenticatedFatTdocuRoute
+  '/_authenticated/fat/tipos-pago': typeof AuthenticatedFatTiposPagoRoute
+  '/_authenticated/fat/transportistas': typeof AuthenticatedFatTransportistasRoute
   '/_authenticated/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/settings/display': typeof AuthenticatedSettingsDisplayRoute
@@ -356,7 +1178,11 @@ export interface FileRoutesById {
   '/clerk/_authenticated/user-management': typeof ClerkAuthenticatedUserManagementRoute
   '/_authenticated/apps/': typeof AuthenticatedAppsIndexRoute
   '/_authenticated/chats/': typeof AuthenticatedChatsIndexRoute
+  '/_authenticated/cxc/': typeof AuthenticatedCxcIndexRoute
+  '/_authenticated/cxp/': typeof AuthenticatedCxpIndexRoute
+  '/_authenticated/fat/': typeof AuthenticatedFatIndexRoute
   '/_authenticated/help-center/': typeof AuthenticatedHelpCenterIndexRoute
+  '/_authenticated/inv/': typeof AuthenticatedInvIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/tasks/': typeof AuthenticatedTasksIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
@@ -379,12 +1205,94 @@ export interface FileRouteTypes {
     | '/503'
     | '/cambiar-clave'
     | '/cnt'
+    | '/cxc'
+    | '/cxp'
     | '/docs'
     | '/empresas'
     | '/fat'
     | '/inv'
     | '/ncf-alerts'
+    | '/cxc/asiento-contable'
+    | '/cxc/balance'
+    | '/cxc/barrios'
+    | '/cxc/cadenas'
+    | '/cxc/cias'
+    | '/cxc/cierre'
+    | '/cxc/ciudades'
+    | '/cxc/cliente-ruta'
+    | '/cxc/clientes'
+    | '/cxc/corregir-ncf'
+    | '/cxc/documentos'
+    | '/cxc/estado-cuenta'
+    | '/cxc/generar-asiento'
+    | '/cxc/historico'
+    | '/cxc/liberar-credito'
+    | '/cxc/libro-ventas'
+    | '/cxc/pagos-masivos'
+    | '/cxc/puntos'
+    | '/cxc/rep-cobros-vendedor'
+    | '/cxc/rep-comisiones'
+    | '/cxc/rep-envejecimiento'
+    | '/cxc/rep-ncf'
+    | '/cxc/reversar'
+    | '/cxc/rutas'
+    | '/cxc/supervisores'
+    | '/cxc/tcli'
+    | '/cxc/tcontable'
+    | '/cxc/tdocu'
+    | '/cxc/transacciones'
+    | '/cxc/vendedores'
+    | '/cxc/zonas'
+    | '/cxp/asiento-contable'
+    | '/cxp/barrios'
+    | '/cxp/bloquear-pago'
+    | '/cxp/cias'
+    | '/cxp/cierre'
+    | '/cxp/ciudades'
+    | '/cxp/cuentas'
+    | '/cxp/documentos'
+    | '/cxp/entrada-documentos'
+    | '/cxp/envejecimiento'
+    | '/cxp/generar-asiento'
+    | '/cxp/liberar-debito'
+    | '/cxp/movimientos'
+    | '/cxp/proveedores'
+    | '/cxp/puntos'
+    | '/cxp/rep-606'
+    | '/cxp/rep-607'
+    | '/cxp/rep-alfabetico'
+    | '/cxp/rep-cuadre'
+    | '/cxp/rep-mayor'
+    | '/cxp/rep-movimientos'
+    | '/cxp/rep-retenciones'
+    | '/cxp/reversar'
+    | '/cxp/tdocu'
+    | '/cxp/tproveedores'
+    | '/cxp/usuarios'
     | '/errors/$error'
+    | '/fat/anular-factura'
+    | '/fat/cierre-mensual'
+    | '/fat/companias'
+    | '/fat/condiciones'
+    | '/fat/conduces'
+    | '/fat/cuadre-caja'
+    | '/fat/facturas'
+    | '/fat/generar-asientos'
+    | '/fat/listas-precio'
+    | '/fat/ncf'
+    | '/fat/notas'
+    | '/fat/nueva-factura'
+    | '/fat/nuevo-conduce'
+    | '/fat/puntos'
+    | '/fat/rep-607'
+    | '/fat/rep-analitica'
+    | '/fat/rep-ncf-nulos'
+    | '/fat/rep-ventas'
+    | '/fat/rep-ventas-cliente'
+    | '/fat/rep-ventas-vendedor'
+    | '/fat/tdocu'
+    | '/fat/tipos-pago'
+    | '/fat/transportistas'
     | '/settings/account'
     | '/settings/appearance'
     | '/settings/display'
@@ -395,7 +1303,11 @@ export interface FileRouteTypes {
     | '/clerk/user-management'
     | '/apps/'
     | '/chats/'
+    | '/cxc/'
+    | '/cxp/'
+    | '/fat/'
     | '/help-center/'
+    | '/inv/'
     | '/settings/'
     | '/tasks/'
     | '/users/'
@@ -416,11 +1328,89 @@ export interface FileRouteTypes {
     | '/cnt'
     | '/docs'
     | '/empresas'
-    | '/fat'
-    | '/inv'
     | '/ncf-alerts'
     | '/'
+    | '/cxc/asiento-contable'
+    | '/cxc/balance'
+    | '/cxc/barrios'
+    | '/cxc/cadenas'
+    | '/cxc/cias'
+    | '/cxc/cierre'
+    | '/cxc/ciudades'
+    | '/cxc/cliente-ruta'
+    | '/cxc/clientes'
+    | '/cxc/corregir-ncf'
+    | '/cxc/documentos'
+    | '/cxc/estado-cuenta'
+    | '/cxc/generar-asiento'
+    | '/cxc/historico'
+    | '/cxc/liberar-credito'
+    | '/cxc/libro-ventas'
+    | '/cxc/pagos-masivos'
+    | '/cxc/puntos'
+    | '/cxc/rep-cobros-vendedor'
+    | '/cxc/rep-comisiones'
+    | '/cxc/rep-envejecimiento'
+    | '/cxc/rep-ncf'
+    | '/cxc/reversar'
+    | '/cxc/rutas'
+    | '/cxc/supervisores'
+    | '/cxc/tcli'
+    | '/cxc/tcontable'
+    | '/cxc/tdocu'
+    | '/cxc/transacciones'
+    | '/cxc/vendedores'
+    | '/cxc/zonas'
+    | '/cxp/asiento-contable'
+    | '/cxp/barrios'
+    | '/cxp/bloquear-pago'
+    | '/cxp/cias'
+    | '/cxp/cierre'
+    | '/cxp/ciudades'
+    | '/cxp/cuentas'
+    | '/cxp/documentos'
+    | '/cxp/entrada-documentos'
+    | '/cxp/envejecimiento'
+    | '/cxp/generar-asiento'
+    | '/cxp/liberar-debito'
+    | '/cxp/movimientos'
+    | '/cxp/proveedores'
+    | '/cxp/puntos'
+    | '/cxp/rep-606'
+    | '/cxp/rep-607'
+    | '/cxp/rep-alfabetico'
+    | '/cxp/rep-cuadre'
+    | '/cxp/rep-mayor'
+    | '/cxp/rep-movimientos'
+    | '/cxp/rep-retenciones'
+    | '/cxp/reversar'
+    | '/cxp/tdocu'
+    | '/cxp/tproveedores'
+    | '/cxp/usuarios'
     | '/errors/$error'
+    | '/fat/anular-factura'
+    | '/fat/cierre-mensual'
+    | '/fat/companias'
+    | '/fat/condiciones'
+    | '/fat/conduces'
+    | '/fat/cuadre-caja'
+    | '/fat/facturas'
+    | '/fat/generar-asientos'
+    | '/fat/listas-precio'
+    | '/fat/ncf'
+    | '/fat/notas'
+    | '/fat/nueva-factura'
+    | '/fat/nuevo-conduce'
+    | '/fat/puntos'
+    | '/fat/rep-607'
+    | '/fat/rep-analitica'
+    | '/fat/rep-ncf-nulos'
+    | '/fat/rep-ventas'
+    | '/fat/rep-ventas-cliente'
+    | '/fat/rep-ventas-vendedor'
+    | '/fat/tdocu'
+    | '/fat/tipos-pago'
+    | '/fat/transportistas'
     | '/settings/account'
     | '/settings/appearance'
     | '/settings/display'
@@ -431,7 +1421,11 @@ export interface FileRouteTypes {
     | '/clerk/user-management'
     | '/apps'
     | '/chats'
+    | '/cxc'
+    | '/cxp'
+    | '/fat'
     | '/help-center'
+    | '/inv'
     | '/settings'
     | '/tasks'
     | '/users'
@@ -454,13 +1448,95 @@ export interface FileRouteTypes {
     | '/(errors)/503'
     | '/_authenticated/cambiar-clave'
     | '/_authenticated/cnt'
+    | '/_authenticated/cxc'
+    | '/_authenticated/cxp'
     | '/_authenticated/docs'
     | '/_authenticated/empresas'
     | '/_authenticated/fat'
     | '/_authenticated/inv'
     | '/_authenticated/ncf-alerts'
     | '/_authenticated/'
+    | '/_authenticated/cxc/asiento-contable'
+    | '/_authenticated/cxc/balance'
+    | '/_authenticated/cxc/barrios'
+    | '/_authenticated/cxc/cadenas'
+    | '/_authenticated/cxc/cias'
+    | '/_authenticated/cxc/cierre'
+    | '/_authenticated/cxc/ciudades'
+    | '/_authenticated/cxc/cliente-ruta'
+    | '/_authenticated/cxc/clientes'
+    | '/_authenticated/cxc/corregir-ncf'
+    | '/_authenticated/cxc/documentos'
+    | '/_authenticated/cxc/estado-cuenta'
+    | '/_authenticated/cxc/generar-asiento'
+    | '/_authenticated/cxc/historico'
+    | '/_authenticated/cxc/liberar-credito'
+    | '/_authenticated/cxc/libro-ventas'
+    | '/_authenticated/cxc/pagos-masivos'
+    | '/_authenticated/cxc/puntos'
+    | '/_authenticated/cxc/rep-cobros-vendedor'
+    | '/_authenticated/cxc/rep-comisiones'
+    | '/_authenticated/cxc/rep-envejecimiento'
+    | '/_authenticated/cxc/rep-ncf'
+    | '/_authenticated/cxc/reversar'
+    | '/_authenticated/cxc/rutas'
+    | '/_authenticated/cxc/supervisores'
+    | '/_authenticated/cxc/tcli'
+    | '/_authenticated/cxc/tcontable'
+    | '/_authenticated/cxc/tdocu'
+    | '/_authenticated/cxc/transacciones'
+    | '/_authenticated/cxc/vendedores'
+    | '/_authenticated/cxc/zonas'
+    | '/_authenticated/cxp/asiento-contable'
+    | '/_authenticated/cxp/barrios'
+    | '/_authenticated/cxp/bloquear-pago'
+    | '/_authenticated/cxp/cias'
+    | '/_authenticated/cxp/cierre'
+    | '/_authenticated/cxp/ciudades'
+    | '/_authenticated/cxp/cuentas'
+    | '/_authenticated/cxp/documentos'
+    | '/_authenticated/cxp/entrada-documentos'
+    | '/_authenticated/cxp/envejecimiento'
+    | '/_authenticated/cxp/generar-asiento'
+    | '/_authenticated/cxp/liberar-debito'
+    | '/_authenticated/cxp/movimientos'
+    | '/_authenticated/cxp/proveedores'
+    | '/_authenticated/cxp/puntos'
+    | '/_authenticated/cxp/rep-606'
+    | '/_authenticated/cxp/rep-607'
+    | '/_authenticated/cxp/rep-alfabetico'
+    | '/_authenticated/cxp/rep-cuadre'
+    | '/_authenticated/cxp/rep-mayor'
+    | '/_authenticated/cxp/rep-movimientos'
+    | '/_authenticated/cxp/rep-retenciones'
+    | '/_authenticated/cxp/reversar'
+    | '/_authenticated/cxp/tdocu'
+    | '/_authenticated/cxp/tproveedores'
+    | '/_authenticated/cxp/usuarios'
     | '/_authenticated/errors/$error'
+    | '/_authenticated/fat/anular-factura'
+    | '/_authenticated/fat/cierre-mensual'
+    | '/_authenticated/fat/companias'
+    | '/_authenticated/fat/condiciones'
+    | '/_authenticated/fat/conduces'
+    | '/_authenticated/fat/cuadre-caja'
+    | '/_authenticated/fat/facturas'
+    | '/_authenticated/fat/generar-asientos'
+    | '/_authenticated/fat/listas-precio'
+    | '/_authenticated/fat/ncf'
+    | '/_authenticated/fat/notas'
+    | '/_authenticated/fat/nueva-factura'
+    | '/_authenticated/fat/nuevo-conduce'
+    | '/_authenticated/fat/puntos'
+    | '/_authenticated/fat/rep-607'
+    | '/_authenticated/fat/rep-analitica'
+    | '/_authenticated/fat/rep-ncf-nulos'
+    | '/_authenticated/fat/rep-ventas'
+    | '/_authenticated/fat/rep-ventas-cliente'
+    | '/_authenticated/fat/rep-ventas-vendedor'
+    | '/_authenticated/fat/tdocu'
+    | '/_authenticated/fat/tipos-pago'
+    | '/_authenticated/fat/transportistas'
     | '/_authenticated/settings/account'
     | '/_authenticated/settings/appearance'
     | '/_authenticated/settings/display'
@@ -471,7 +1547,11 @@ export interface FileRouteTypes {
     | '/clerk/_authenticated/user-management'
     | '/_authenticated/apps/'
     | '/_authenticated/chats/'
+    | '/_authenticated/cxc/'
+    | '/_authenticated/cxp/'
+    | '/_authenticated/fat/'
     | '/_authenticated/help-center/'
+    | '/_authenticated/inv/'
     | '/_authenticated/settings/'
     | '/_authenticated/tasks/'
     | '/_authenticated/users/'
@@ -548,6 +1628,20 @@ declare module '@tanstack/react-router' {
       path: '/docs'
       fullPath: '/docs'
       preLoaderRoute: typeof AuthenticatedDocsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/cxp': {
+      id: '/_authenticated/cxp'
+      path: '/cxp'
+      fullPath: '/cxp'
+      preLoaderRoute: typeof AuthenticatedCxpRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/cxc': {
+      id: '/_authenticated/cxc'
+      path: '/cxc'
+      fullPath: '/cxc'
+      preLoaderRoute: typeof AuthenticatedCxcRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/cnt': {
@@ -676,12 +1770,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsIndexRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
+    '/_authenticated/inv/': {
+      id: '/_authenticated/inv/'
+      path: '/'
+      fullPath: '/inv/'
+      preLoaderRoute: typeof AuthenticatedInvIndexRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
     '/_authenticated/help-center/': {
       id: '/_authenticated/help-center/'
       path: '/help-center'
       fullPath: '/help-center/'
       preLoaderRoute: typeof AuthenticatedHelpCenterIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/fat/': {
+      id: '/_authenticated/fat/'
+      path: '/'
+      fullPath: '/fat/'
+      preLoaderRoute: typeof AuthenticatedFatIndexRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/cxp/': {
+      id: '/_authenticated/cxp/'
+      path: '/'
+      fullPath: '/cxp/'
+      preLoaderRoute: typeof AuthenticatedCxpIndexRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxc/': {
+      id: '/_authenticated/cxc/'
+      path: '/'
+      fullPath: '/cxc/'
+      preLoaderRoute: typeof AuthenticatedCxcIndexRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
     }
     '/_authenticated/chats/': {
       id: '/_authenticated/chats/'
@@ -753,12 +1875,572 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsAccountRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
+    '/_authenticated/fat/transportistas': {
+      id: '/_authenticated/fat/transportistas'
+      path: '/transportistas'
+      fullPath: '/fat/transportistas'
+      preLoaderRoute: typeof AuthenticatedFatTransportistasRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/tipos-pago': {
+      id: '/_authenticated/fat/tipos-pago'
+      path: '/tipos-pago'
+      fullPath: '/fat/tipos-pago'
+      preLoaderRoute: typeof AuthenticatedFatTiposPagoRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/tdocu': {
+      id: '/_authenticated/fat/tdocu'
+      path: '/tdocu'
+      fullPath: '/fat/tdocu'
+      preLoaderRoute: typeof AuthenticatedFatTdocuRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/rep-ventas-vendedor': {
+      id: '/_authenticated/fat/rep-ventas-vendedor'
+      path: '/rep-ventas-vendedor'
+      fullPath: '/fat/rep-ventas-vendedor'
+      preLoaderRoute: typeof AuthenticatedFatRepVentasVendedorRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/rep-ventas-cliente': {
+      id: '/_authenticated/fat/rep-ventas-cliente'
+      path: '/rep-ventas-cliente'
+      fullPath: '/fat/rep-ventas-cliente'
+      preLoaderRoute: typeof AuthenticatedFatRepVentasClienteRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/rep-ventas': {
+      id: '/_authenticated/fat/rep-ventas'
+      path: '/rep-ventas'
+      fullPath: '/fat/rep-ventas'
+      preLoaderRoute: typeof AuthenticatedFatRepVentasRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/rep-ncf-nulos': {
+      id: '/_authenticated/fat/rep-ncf-nulos'
+      path: '/rep-ncf-nulos'
+      fullPath: '/fat/rep-ncf-nulos'
+      preLoaderRoute: typeof AuthenticatedFatRepNcfNulosRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/rep-analitica': {
+      id: '/_authenticated/fat/rep-analitica'
+      path: '/rep-analitica'
+      fullPath: '/fat/rep-analitica'
+      preLoaderRoute: typeof AuthenticatedFatRepAnaliticaRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/rep-607': {
+      id: '/_authenticated/fat/rep-607'
+      path: '/rep-607'
+      fullPath: '/fat/rep-607'
+      preLoaderRoute: typeof AuthenticatedFatRep607RouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/puntos': {
+      id: '/_authenticated/fat/puntos'
+      path: '/puntos'
+      fullPath: '/fat/puntos'
+      preLoaderRoute: typeof AuthenticatedFatPuntosRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/nuevo-conduce': {
+      id: '/_authenticated/fat/nuevo-conduce'
+      path: '/nuevo-conduce'
+      fullPath: '/fat/nuevo-conduce'
+      preLoaderRoute: typeof AuthenticatedFatNuevoConduceRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/nueva-factura': {
+      id: '/_authenticated/fat/nueva-factura'
+      path: '/nueva-factura'
+      fullPath: '/fat/nueva-factura'
+      preLoaderRoute: typeof AuthenticatedFatNuevaFacturaRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/notas': {
+      id: '/_authenticated/fat/notas'
+      path: '/notas'
+      fullPath: '/fat/notas'
+      preLoaderRoute: typeof AuthenticatedFatNotasRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/ncf': {
+      id: '/_authenticated/fat/ncf'
+      path: '/ncf'
+      fullPath: '/fat/ncf'
+      preLoaderRoute: typeof AuthenticatedFatNcfRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/listas-precio': {
+      id: '/_authenticated/fat/listas-precio'
+      path: '/listas-precio'
+      fullPath: '/fat/listas-precio'
+      preLoaderRoute: typeof AuthenticatedFatListasPrecioRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/generar-asientos': {
+      id: '/_authenticated/fat/generar-asientos'
+      path: '/generar-asientos'
+      fullPath: '/fat/generar-asientos'
+      preLoaderRoute: typeof AuthenticatedFatGenerarAsientosRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/facturas': {
+      id: '/_authenticated/fat/facturas'
+      path: '/facturas'
+      fullPath: '/fat/facturas'
+      preLoaderRoute: typeof AuthenticatedFatFacturasRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/cuadre-caja': {
+      id: '/_authenticated/fat/cuadre-caja'
+      path: '/cuadre-caja'
+      fullPath: '/fat/cuadre-caja'
+      preLoaderRoute: typeof AuthenticatedFatCuadreCajaRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/conduces': {
+      id: '/_authenticated/fat/conduces'
+      path: '/conduces'
+      fullPath: '/fat/conduces'
+      preLoaderRoute: typeof AuthenticatedFatConducesRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/condiciones': {
+      id: '/_authenticated/fat/condiciones'
+      path: '/condiciones'
+      fullPath: '/fat/condiciones'
+      preLoaderRoute: typeof AuthenticatedFatCondicionesRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/companias': {
+      id: '/_authenticated/fat/companias'
+      path: '/companias'
+      fullPath: '/fat/companias'
+      preLoaderRoute: typeof AuthenticatedFatCompaniasRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/cierre-mensual': {
+      id: '/_authenticated/fat/cierre-mensual'
+      path: '/cierre-mensual'
+      fullPath: '/fat/cierre-mensual'
+      preLoaderRoute: typeof AuthenticatedFatCierreMensualRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/anular-factura': {
+      id: '/_authenticated/fat/anular-factura'
+      path: '/anular-factura'
+      fullPath: '/fat/anular-factura'
+      preLoaderRoute: typeof AuthenticatedFatAnularFacturaRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
     '/_authenticated/errors/$error': {
       id: '/_authenticated/errors/$error'
       path: '/errors/$error'
       fullPath: '/errors/$error'
       preLoaderRoute: typeof AuthenticatedErrorsErrorRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/cxp/usuarios': {
+      id: '/_authenticated/cxp/usuarios'
+      path: '/usuarios'
+      fullPath: '/cxp/usuarios'
+      preLoaderRoute: typeof AuthenticatedCxpUsuariosRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/tproveedores': {
+      id: '/_authenticated/cxp/tproveedores'
+      path: '/tproveedores'
+      fullPath: '/cxp/tproveedores'
+      preLoaderRoute: typeof AuthenticatedCxpTproveedoresRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/tdocu': {
+      id: '/_authenticated/cxp/tdocu'
+      path: '/tdocu'
+      fullPath: '/cxp/tdocu'
+      preLoaderRoute: typeof AuthenticatedCxpTdocuRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/reversar': {
+      id: '/_authenticated/cxp/reversar'
+      path: '/reversar'
+      fullPath: '/cxp/reversar'
+      preLoaderRoute: typeof AuthenticatedCxpReversarRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/rep-retenciones': {
+      id: '/_authenticated/cxp/rep-retenciones'
+      path: '/rep-retenciones'
+      fullPath: '/cxp/rep-retenciones'
+      preLoaderRoute: typeof AuthenticatedCxpRepRetencionesRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/rep-movimientos': {
+      id: '/_authenticated/cxp/rep-movimientos'
+      path: '/rep-movimientos'
+      fullPath: '/cxp/rep-movimientos'
+      preLoaderRoute: typeof AuthenticatedCxpRepMovimientosRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/rep-mayor': {
+      id: '/_authenticated/cxp/rep-mayor'
+      path: '/rep-mayor'
+      fullPath: '/cxp/rep-mayor'
+      preLoaderRoute: typeof AuthenticatedCxpRepMayorRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/rep-cuadre': {
+      id: '/_authenticated/cxp/rep-cuadre'
+      path: '/rep-cuadre'
+      fullPath: '/cxp/rep-cuadre'
+      preLoaderRoute: typeof AuthenticatedCxpRepCuadreRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/rep-alfabetico': {
+      id: '/_authenticated/cxp/rep-alfabetico'
+      path: '/rep-alfabetico'
+      fullPath: '/cxp/rep-alfabetico'
+      preLoaderRoute: typeof AuthenticatedCxpRepAlfabeticoRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/rep-607': {
+      id: '/_authenticated/cxp/rep-607'
+      path: '/rep-607'
+      fullPath: '/cxp/rep-607'
+      preLoaderRoute: typeof AuthenticatedCxpRep607RouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/rep-606': {
+      id: '/_authenticated/cxp/rep-606'
+      path: '/rep-606'
+      fullPath: '/cxp/rep-606'
+      preLoaderRoute: typeof AuthenticatedCxpRep606RouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/puntos': {
+      id: '/_authenticated/cxp/puntos'
+      path: '/puntos'
+      fullPath: '/cxp/puntos'
+      preLoaderRoute: typeof AuthenticatedCxpPuntosRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/proveedores': {
+      id: '/_authenticated/cxp/proveedores'
+      path: '/proveedores'
+      fullPath: '/cxp/proveedores'
+      preLoaderRoute: typeof AuthenticatedCxpProveedoresRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/movimientos': {
+      id: '/_authenticated/cxp/movimientos'
+      path: '/movimientos'
+      fullPath: '/cxp/movimientos'
+      preLoaderRoute: typeof AuthenticatedCxpMovimientosRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/liberar-debito': {
+      id: '/_authenticated/cxp/liberar-debito'
+      path: '/liberar-debito'
+      fullPath: '/cxp/liberar-debito'
+      preLoaderRoute: typeof AuthenticatedCxpLiberarDebitoRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/generar-asiento': {
+      id: '/_authenticated/cxp/generar-asiento'
+      path: '/generar-asiento'
+      fullPath: '/cxp/generar-asiento'
+      preLoaderRoute: typeof AuthenticatedCxpGenerarAsientoRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/envejecimiento': {
+      id: '/_authenticated/cxp/envejecimiento'
+      path: '/envejecimiento'
+      fullPath: '/cxp/envejecimiento'
+      preLoaderRoute: typeof AuthenticatedCxpEnvejecimientoRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/entrada-documentos': {
+      id: '/_authenticated/cxp/entrada-documentos'
+      path: '/entrada-documentos'
+      fullPath: '/cxp/entrada-documentos'
+      preLoaderRoute: typeof AuthenticatedCxpEntradaDocumentosRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/documentos': {
+      id: '/_authenticated/cxp/documentos'
+      path: '/documentos'
+      fullPath: '/cxp/documentos'
+      preLoaderRoute: typeof AuthenticatedCxpDocumentosRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/cuentas': {
+      id: '/_authenticated/cxp/cuentas'
+      path: '/cuentas'
+      fullPath: '/cxp/cuentas'
+      preLoaderRoute: typeof AuthenticatedCxpCuentasRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/ciudades': {
+      id: '/_authenticated/cxp/ciudades'
+      path: '/ciudades'
+      fullPath: '/cxp/ciudades'
+      preLoaderRoute: typeof AuthenticatedCxpCiudadesRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/cierre': {
+      id: '/_authenticated/cxp/cierre'
+      path: '/cierre'
+      fullPath: '/cxp/cierre'
+      preLoaderRoute: typeof AuthenticatedCxpCierreRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/cias': {
+      id: '/_authenticated/cxp/cias'
+      path: '/cias'
+      fullPath: '/cxp/cias'
+      preLoaderRoute: typeof AuthenticatedCxpCiasRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/bloquear-pago': {
+      id: '/_authenticated/cxp/bloquear-pago'
+      path: '/bloquear-pago'
+      fullPath: '/cxp/bloquear-pago'
+      preLoaderRoute: typeof AuthenticatedCxpBloquearPagoRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/barrios': {
+      id: '/_authenticated/cxp/barrios'
+      path: '/barrios'
+      fullPath: '/cxp/barrios'
+      preLoaderRoute: typeof AuthenticatedCxpBarriosRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/asiento-contable': {
+      id: '/_authenticated/cxp/asiento-contable'
+      path: '/asiento-contable'
+      fullPath: '/cxp/asiento-contable'
+      preLoaderRoute: typeof AuthenticatedCxpAsientoContableRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxc/zonas': {
+      id: '/_authenticated/cxc/zonas'
+      path: '/zonas'
+      fullPath: '/cxc/zonas'
+      preLoaderRoute: typeof AuthenticatedCxcZonasRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/vendedores': {
+      id: '/_authenticated/cxc/vendedores'
+      path: '/vendedores'
+      fullPath: '/cxc/vendedores'
+      preLoaderRoute: typeof AuthenticatedCxcVendedoresRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/transacciones': {
+      id: '/_authenticated/cxc/transacciones'
+      path: '/transacciones'
+      fullPath: '/cxc/transacciones'
+      preLoaderRoute: typeof AuthenticatedCxcTransaccionesRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/tdocu': {
+      id: '/_authenticated/cxc/tdocu'
+      path: '/tdocu'
+      fullPath: '/cxc/tdocu'
+      preLoaderRoute: typeof AuthenticatedCxcTdocuRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/tcontable': {
+      id: '/_authenticated/cxc/tcontable'
+      path: '/tcontable'
+      fullPath: '/cxc/tcontable'
+      preLoaderRoute: typeof AuthenticatedCxcTcontableRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/tcli': {
+      id: '/_authenticated/cxc/tcli'
+      path: '/tcli'
+      fullPath: '/cxc/tcli'
+      preLoaderRoute: typeof AuthenticatedCxcTcliRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/supervisores': {
+      id: '/_authenticated/cxc/supervisores'
+      path: '/supervisores'
+      fullPath: '/cxc/supervisores'
+      preLoaderRoute: typeof AuthenticatedCxcSupervisoresRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/rutas': {
+      id: '/_authenticated/cxc/rutas'
+      path: '/rutas'
+      fullPath: '/cxc/rutas'
+      preLoaderRoute: typeof AuthenticatedCxcRutasRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/reversar': {
+      id: '/_authenticated/cxc/reversar'
+      path: '/reversar'
+      fullPath: '/cxc/reversar'
+      preLoaderRoute: typeof AuthenticatedCxcReversarRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/rep-ncf': {
+      id: '/_authenticated/cxc/rep-ncf'
+      path: '/rep-ncf'
+      fullPath: '/cxc/rep-ncf'
+      preLoaderRoute: typeof AuthenticatedCxcRepNcfRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/rep-envejecimiento': {
+      id: '/_authenticated/cxc/rep-envejecimiento'
+      path: '/rep-envejecimiento'
+      fullPath: '/cxc/rep-envejecimiento'
+      preLoaderRoute: typeof AuthenticatedCxcRepEnvejecimientoRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/rep-comisiones': {
+      id: '/_authenticated/cxc/rep-comisiones'
+      path: '/rep-comisiones'
+      fullPath: '/cxc/rep-comisiones'
+      preLoaderRoute: typeof AuthenticatedCxcRepComisionesRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/rep-cobros-vendedor': {
+      id: '/_authenticated/cxc/rep-cobros-vendedor'
+      path: '/rep-cobros-vendedor'
+      fullPath: '/cxc/rep-cobros-vendedor'
+      preLoaderRoute: typeof AuthenticatedCxcRepCobrosVendedorRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/puntos': {
+      id: '/_authenticated/cxc/puntos'
+      path: '/puntos'
+      fullPath: '/cxc/puntos'
+      preLoaderRoute: typeof AuthenticatedCxcPuntosRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/pagos-masivos': {
+      id: '/_authenticated/cxc/pagos-masivos'
+      path: '/pagos-masivos'
+      fullPath: '/cxc/pagos-masivos'
+      preLoaderRoute: typeof AuthenticatedCxcPagosMasivosRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/libro-ventas': {
+      id: '/_authenticated/cxc/libro-ventas'
+      path: '/libro-ventas'
+      fullPath: '/cxc/libro-ventas'
+      preLoaderRoute: typeof AuthenticatedCxcLibroVentasRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/liberar-credito': {
+      id: '/_authenticated/cxc/liberar-credito'
+      path: '/liberar-credito'
+      fullPath: '/cxc/liberar-credito'
+      preLoaderRoute: typeof AuthenticatedCxcLiberarCreditoRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/historico': {
+      id: '/_authenticated/cxc/historico'
+      path: '/historico'
+      fullPath: '/cxc/historico'
+      preLoaderRoute: typeof AuthenticatedCxcHistoricoRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/generar-asiento': {
+      id: '/_authenticated/cxc/generar-asiento'
+      path: '/generar-asiento'
+      fullPath: '/cxc/generar-asiento'
+      preLoaderRoute: typeof AuthenticatedCxcGenerarAsientoRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/estado-cuenta': {
+      id: '/_authenticated/cxc/estado-cuenta'
+      path: '/estado-cuenta'
+      fullPath: '/cxc/estado-cuenta'
+      preLoaderRoute: typeof AuthenticatedCxcEstadoCuentaRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/documentos': {
+      id: '/_authenticated/cxc/documentos'
+      path: '/documentos'
+      fullPath: '/cxc/documentos'
+      preLoaderRoute: typeof AuthenticatedCxcDocumentosRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/corregir-ncf': {
+      id: '/_authenticated/cxc/corregir-ncf'
+      path: '/corregir-ncf'
+      fullPath: '/cxc/corregir-ncf'
+      preLoaderRoute: typeof AuthenticatedCxcCorregirNcfRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/clientes': {
+      id: '/_authenticated/cxc/clientes'
+      path: '/clientes'
+      fullPath: '/cxc/clientes'
+      preLoaderRoute: typeof AuthenticatedCxcClientesRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/cliente-ruta': {
+      id: '/_authenticated/cxc/cliente-ruta'
+      path: '/cliente-ruta'
+      fullPath: '/cxc/cliente-ruta'
+      preLoaderRoute: typeof AuthenticatedCxcClienteRutaRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/ciudades': {
+      id: '/_authenticated/cxc/ciudades'
+      path: '/ciudades'
+      fullPath: '/cxc/ciudades'
+      preLoaderRoute: typeof AuthenticatedCxcCiudadesRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/cierre': {
+      id: '/_authenticated/cxc/cierre'
+      path: '/cierre'
+      fullPath: '/cxc/cierre'
+      preLoaderRoute: typeof AuthenticatedCxcCierreRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/cias': {
+      id: '/_authenticated/cxc/cias'
+      path: '/cias'
+      fullPath: '/cxc/cias'
+      preLoaderRoute: typeof AuthenticatedCxcCiasRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/cadenas': {
+      id: '/_authenticated/cxc/cadenas'
+      path: '/cadenas'
+      fullPath: '/cxc/cadenas'
+      preLoaderRoute: typeof AuthenticatedCxcCadenasRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/barrios': {
+      id: '/_authenticated/cxc/barrios'
+      path: '/barrios'
+      fullPath: '/cxc/barrios'
+      preLoaderRoute: typeof AuthenticatedCxcBarriosRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/balance': {
+      id: '/_authenticated/cxc/balance'
+      path: '/balance'
+      fullPath: '/cxc/balance'
+      preLoaderRoute: typeof AuthenticatedCxcBalanceRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/asiento-contable': {
+      id: '/_authenticated/cxc/asiento-contable'
+      path: '/asiento-contable'
+      fullPath: '/cxc/asiento-contable'
+      preLoaderRoute: typeof AuthenticatedCxcAsientoContableRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
     }
   }
 }
@@ -786,14 +2468,224 @@ const AuthenticatedSettingsRouteRouteWithChildren =
     AuthenticatedSettingsRouteRouteChildren,
   )
 
+interface AuthenticatedCxcRouteChildren {
+  AuthenticatedCxcAsientoContableRoute: typeof AuthenticatedCxcAsientoContableRoute
+  AuthenticatedCxcBalanceRoute: typeof AuthenticatedCxcBalanceRoute
+  AuthenticatedCxcBarriosRoute: typeof AuthenticatedCxcBarriosRoute
+  AuthenticatedCxcCadenasRoute: typeof AuthenticatedCxcCadenasRoute
+  AuthenticatedCxcCiasRoute: typeof AuthenticatedCxcCiasRoute
+  AuthenticatedCxcCierreRoute: typeof AuthenticatedCxcCierreRoute
+  AuthenticatedCxcCiudadesRoute: typeof AuthenticatedCxcCiudadesRoute
+  AuthenticatedCxcClienteRutaRoute: typeof AuthenticatedCxcClienteRutaRoute
+  AuthenticatedCxcClientesRoute: typeof AuthenticatedCxcClientesRoute
+  AuthenticatedCxcCorregirNcfRoute: typeof AuthenticatedCxcCorregirNcfRoute
+  AuthenticatedCxcDocumentosRoute: typeof AuthenticatedCxcDocumentosRoute
+  AuthenticatedCxcEstadoCuentaRoute: typeof AuthenticatedCxcEstadoCuentaRoute
+  AuthenticatedCxcGenerarAsientoRoute: typeof AuthenticatedCxcGenerarAsientoRoute
+  AuthenticatedCxcHistoricoRoute: typeof AuthenticatedCxcHistoricoRoute
+  AuthenticatedCxcLiberarCreditoRoute: typeof AuthenticatedCxcLiberarCreditoRoute
+  AuthenticatedCxcLibroVentasRoute: typeof AuthenticatedCxcLibroVentasRoute
+  AuthenticatedCxcPagosMasivosRoute: typeof AuthenticatedCxcPagosMasivosRoute
+  AuthenticatedCxcPuntosRoute: typeof AuthenticatedCxcPuntosRoute
+  AuthenticatedCxcRepCobrosVendedorRoute: typeof AuthenticatedCxcRepCobrosVendedorRoute
+  AuthenticatedCxcRepComisionesRoute: typeof AuthenticatedCxcRepComisionesRoute
+  AuthenticatedCxcRepEnvejecimientoRoute: typeof AuthenticatedCxcRepEnvejecimientoRoute
+  AuthenticatedCxcRepNcfRoute: typeof AuthenticatedCxcRepNcfRoute
+  AuthenticatedCxcReversarRoute: typeof AuthenticatedCxcReversarRoute
+  AuthenticatedCxcRutasRoute: typeof AuthenticatedCxcRutasRoute
+  AuthenticatedCxcSupervisoresRoute: typeof AuthenticatedCxcSupervisoresRoute
+  AuthenticatedCxcTcliRoute: typeof AuthenticatedCxcTcliRoute
+  AuthenticatedCxcTcontableRoute: typeof AuthenticatedCxcTcontableRoute
+  AuthenticatedCxcTdocuRoute: typeof AuthenticatedCxcTdocuRoute
+  AuthenticatedCxcTransaccionesRoute: typeof AuthenticatedCxcTransaccionesRoute
+  AuthenticatedCxcVendedoresRoute: typeof AuthenticatedCxcVendedoresRoute
+  AuthenticatedCxcZonasRoute: typeof AuthenticatedCxcZonasRoute
+  AuthenticatedCxcIndexRoute: typeof AuthenticatedCxcIndexRoute
+}
+
+const AuthenticatedCxcRouteChildren: AuthenticatedCxcRouteChildren = {
+  AuthenticatedCxcAsientoContableRoute: AuthenticatedCxcAsientoContableRoute,
+  AuthenticatedCxcBalanceRoute: AuthenticatedCxcBalanceRoute,
+  AuthenticatedCxcBarriosRoute: AuthenticatedCxcBarriosRoute,
+  AuthenticatedCxcCadenasRoute: AuthenticatedCxcCadenasRoute,
+  AuthenticatedCxcCiasRoute: AuthenticatedCxcCiasRoute,
+  AuthenticatedCxcCierreRoute: AuthenticatedCxcCierreRoute,
+  AuthenticatedCxcCiudadesRoute: AuthenticatedCxcCiudadesRoute,
+  AuthenticatedCxcClienteRutaRoute: AuthenticatedCxcClienteRutaRoute,
+  AuthenticatedCxcClientesRoute: AuthenticatedCxcClientesRoute,
+  AuthenticatedCxcCorregirNcfRoute: AuthenticatedCxcCorregirNcfRoute,
+  AuthenticatedCxcDocumentosRoute: AuthenticatedCxcDocumentosRoute,
+  AuthenticatedCxcEstadoCuentaRoute: AuthenticatedCxcEstadoCuentaRoute,
+  AuthenticatedCxcGenerarAsientoRoute: AuthenticatedCxcGenerarAsientoRoute,
+  AuthenticatedCxcHistoricoRoute: AuthenticatedCxcHistoricoRoute,
+  AuthenticatedCxcLiberarCreditoRoute: AuthenticatedCxcLiberarCreditoRoute,
+  AuthenticatedCxcLibroVentasRoute: AuthenticatedCxcLibroVentasRoute,
+  AuthenticatedCxcPagosMasivosRoute: AuthenticatedCxcPagosMasivosRoute,
+  AuthenticatedCxcPuntosRoute: AuthenticatedCxcPuntosRoute,
+  AuthenticatedCxcRepCobrosVendedorRoute:
+    AuthenticatedCxcRepCobrosVendedorRoute,
+  AuthenticatedCxcRepComisionesRoute: AuthenticatedCxcRepComisionesRoute,
+  AuthenticatedCxcRepEnvejecimientoRoute:
+    AuthenticatedCxcRepEnvejecimientoRoute,
+  AuthenticatedCxcRepNcfRoute: AuthenticatedCxcRepNcfRoute,
+  AuthenticatedCxcReversarRoute: AuthenticatedCxcReversarRoute,
+  AuthenticatedCxcRutasRoute: AuthenticatedCxcRutasRoute,
+  AuthenticatedCxcSupervisoresRoute: AuthenticatedCxcSupervisoresRoute,
+  AuthenticatedCxcTcliRoute: AuthenticatedCxcTcliRoute,
+  AuthenticatedCxcTcontableRoute: AuthenticatedCxcTcontableRoute,
+  AuthenticatedCxcTdocuRoute: AuthenticatedCxcTdocuRoute,
+  AuthenticatedCxcTransaccionesRoute: AuthenticatedCxcTransaccionesRoute,
+  AuthenticatedCxcVendedoresRoute: AuthenticatedCxcVendedoresRoute,
+  AuthenticatedCxcZonasRoute: AuthenticatedCxcZonasRoute,
+  AuthenticatedCxcIndexRoute: AuthenticatedCxcIndexRoute,
+}
+
+const AuthenticatedCxcRouteWithChildren =
+  AuthenticatedCxcRoute._addFileChildren(AuthenticatedCxcRouteChildren)
+
+interface AuthenticatedCxpRouteChildren {
+  AuthenticatedCxpAsientoContableRoute: typeof AuthenticatedCxpAsientoContableRoute
+  AuthenticatedCxpBarriosRoute: typeof AuthenticatedCxpBarriosRoute
+  AuthenticatedCxpBloquearPagoRoute: typeof AuthenticatedCxpBloquearPagoRoute
+  AuthenticatedCxpCiasRoute: typeof AuthenticatedCxpCiasRoute
+  AuthenticatedCxpCierreRoute: typeof AuthenticatedCxpCierreRoute
+  AuthenticatedCxpCiudadesRoute: typeof AuthenticatedCxpCiudadesRoute
+  AuthenticatedCxpCuentasRoute: typeof AuthenticatedCxpCuentasRoute
+  AuthenticatedCxpDocumentosRoute: typeof AuthenticatedCxpDocumentosRoute
+  AuthenticatedCxpEntradaDocumentosRoute: typeof AuthenticatedCxpEntradaDocumentosRoute
+  AuthenticatedCxpEnvejecimientoRoute: typeof AuthenticatedCxpEnvejecimientoRoute
+  AuthenticatedCxpGenerarAsientoRoute: typeof AuthenticatedCxpGenerarAsientoRoute
+  AuthenticatedCxpLiberarDebitoRoute: typeof AuthenticatedCxpLiberarDebitoRoute
+  AuthenticatedCxpMovimientosRoute: typeof AuthenticatedCxpMovimientosRoute
+  AuthenticatedCxpProveedoresRoute: typeof AuthenticatedCxpProveedoresRoute
+  AuthenticatedCxpPuntosRoute: typeof AuthenticatedCxpPuntosRoute
+  AuthenticatedCxpRep606Route: typeof AuthenticatedCxpRep606Route
+  AuthenticatedCxpRep607Route: typeof AuthenticatedCxpRep607Route
+  AuthenticatedCxpRepAlfabeticoRoute: typeof AuthenticatedCxpRepAlfabeticoRoute
+  AuthenticatedCxpRepCuadreRoute: typeof AuthenticatedCxpRepCuadreRoute
+  AuthenticatedCxpRepMayorRoute: typeof AuthenticatedCxpRepMayorRoute
+  AuthenticatedCxpRepMovimientosRoute: typeof AuthenticatedCxpRepMovimientosRoute
+  AuthenticatedCxpRepRetencionesRoute: typeof AuthenticatedCxpRepRetencionesRoute
+  AuthenticatedCxpReversarRoute: typeof AuthenticatedCxpReversarRoute
+  AuthenticatedCxpTdocuRoute: typeof AuthenticatedCxpTdocuRoute
+  AuthenticatedCxpTproveedoresRoute: typeof AuthenticatedCxpTproveedoresRoute
+  AuthenticatedCxpUsuariosRoute: typeof AuthenticatedCxpUsuariosRoute
+  AuthenticatedCxpIndexRoute: typeof AuthenticatedCxpIndexRoute
+}
+
+const AuthenticatedCxpRouteChildren: AuthenticatedCxpRouteChildren = {
+  AuthenticatedCxpAsientoContableRoute: AuthenticatedCxpAsientoContableRoute,
+  AuthenticatedCxpBarriosRoute: AuthenticatedCxpBarriosRoute,
+  AuthenticatedCxpBloquearPagoRoute: AuthenticatedCxpBloquearPagoRoute,
+  AuthenticatedCxpCiasRoute: AuthenticatedCxpCiasRoute,
+  AuthenticatedCxpCierreRoute: AuthenticatedCxpCierreRoute,
+  AuthenticatedCxpCiudadesRoute: AuthenticatedCxpCiudadesRoute,
+  AuthenticatedCxpCuentasRoute: AuthenticatedCxpCuentasRoute,
+  AuthenticatedCxpDocumentosRoute: AuthenticatedCxpDocumentosRoute,
+  AuthenticatedCxpEntradaDocumentosRoute:
+    AuthenticatedCxpEntradaDocumentosRoute,
+  AuthenticatedCxpEnvejecimientoRoute: AuthenticatedCxpEnvejecimientoRoute,
+  AuthenticatedCxpGenerarAsientoRoute: AuthenticatedCxpGenerarAsientoRoute,
+  AuthenticatedCxpLiberarDebitoRoute: AuthenticatedCxpLiberarDebitoRoute,
+  AuthenticatedCxpMovimientosRoute: AuthenticatedCxpMovimientosRoute,
+  AuthenticatedCxpProveedoresRoute: AuthenticatedCxpProveedoresRoute,
+  AuthenticatedCxpPuntosRoute: AuthenticatedCxpPuntosRoute,
+  AuthenticatedCxpRep606Route: AuthenticatedCxpRep606Route,
+  AuthenticatedCxpRep607Route: AuthenticatedCxpRep607Route,
+  AuthenticatedCxpRepAlfabeticoRoute: AuthenticatedCxpRepAlfabeticoRoute,
+  AuthenticatedCxpRepCuadreRoute: AuthenticatedCxpRepCuadreRoute,
+  AuthenticatedCxpRepMayorRoute: AuthenticatedCxpRepMayorRoute,
+  AuthenticatedCxpRepMovimientosRoute: AuthenticatedCxpRepMovimientosRoute,
+  AuthenticatedCxpRepRetencionesRoute: AuthenticatedCxpRepRetencionesRoute,
+  AuthenticatedCxpReversarRoute: AuthenticatedCxpReversarRoute,
+  AuthenticatedCxpTdocuRoute: AuthenticatedCxpTdocuRoute,
+  AuthenticatedCxpTproveedoresRoute: AuthenticatedCxpTproveedoresRoute,
+  AuthenticatedCxpUsuariosRoute: AuthenticatedCxpUsuariosRoute,
+  AuthenticatedCxpIndexRoute: AuthenticatedCxpIndexRoute,
+}
+
+const AuthenticatedCxpRouteWithChildren =
+  AuthenticatedCxpRoute._addFileChildren(AuthenticatedCxpRouteChildren)
+
+interface AuthenticatedFatRouteChildren {
+  AuthenticatedFatAnularFacturaRoute: typeof AuthenticatedFatAnularFacturaRoute
+  AuthenticatedFatCierreMensualRoute: typeof AuthenticatedFatCierreMensualRoute
+  AuthenticatedFatCompaniasRoute: typeof AuthenticatedFatCompaniasRoute
+  AuthenticatedFatCondicionesRoute: typeof AuthenticatedFatCondicionesRoute
+  AuthenticatedFatConducesRoute: typeof AuthenticatedFatConducesRoute
+  AuthenticatedFatCuadreCajaRoute: typeof AuthenticatedFatCuadreCajaRoute
+  AuthenticatedFatFacturasRoute: typeof AuthenticatedFatFacturasRoute
+  AuthenticatedFatGenerarAsientosRoute: typeof AuthenticatedFatGenerarAsientosRoute
+  AuthenticatedFatListasPrecioRoute: typeof AuthenticatedFatListasPrecioRoute
+  AuthenticatedFatNcfRoute: typeof AuthenticatedFatNcfRoute
+  AuthenticatedFatNotasRoute: typeof AuthenticatedFatNotasRoute
+  AuthenticatedFatNuevaFacturaRoute: typeof AuthenticatedFatNuevaFacturaRoute
+  AuthenticatedFatNuevoConduceRoute: typeof AuthenticatedFatNuevoConduceRoute
+  AuthenticatedFatPuntosRoute: typeof AuthenticatedFatPuntosRoute
+  AuthenticatedFatRep607Route: typeof AuthenticatedFatRep607Route
+  AuthenticatedFatRepAnaliticaRoute: typeof AuthenticatedFatRepAnaliticaRoute
+  AuthenticatedFatRepNcfNulosRoute: typeof AuthenticatedFatRepNcfNulosRoute
+  AuthenticatedFatRepVentasRoute: typeof AuthenticatedFatRepVentasRoute
+  AuthenticatedFatRepVentasClienteRoute: typeof AuthenticatedFatRepVentasClienteRoute
+  AuthenticatedFatRepVentasVendedorRoute: typeof AuthenticatedFatRepVentasVendedorRoute
+  AuthenticatedFatTdocuRoute: typeof AuthenticatedFatTdocuRoute
+  AuthenticatedFatTiposPagoRoute: typeof AuthenticatedFatTiposPagoRoute
+  AuthenticatedFatTransportistasRoute: typeof AuthenticatedFatTransportistasRoute
+  AuthenticatedFatIndexRoute: typeof AuthenticatedFatIndexRoute
+}
+
+const AuthenticatedFatRouteChildren: AuthenticatedFatRouteChildren = {
+  AuthenticatedFatAnularFacturaRoute: AuthenticatedFatAnularFacturaRoute,
+  AuthenticatedFatCierreMensualRoute: AuthenticatedFatCierreMensualRoute,
+  AuthenticatedFatCompaniasRoute: AuthenticatedFatCompaniasRoute,
+  AuthenticatedFatCondicionesRoute: AuthenticatedFatCondicionesRoute,
+  AuthenticatedFatConducesRoute: AuthenticatedFatConducesRoute,
+  AuthenticatedFatCuadreCajaRoute: AuthenticatedFatCuadreCajaRoute,
+  AuthenticatedFatFacturasRoute: AuthenticatedFatFacturasRoute,
+  AuthenticatedFatGenerarAsientosRoute: AuthenticatedFatGenerarAsientosRoute,
+  AuthenticatedFatListasPrecioRoute: AuthenticatedFatListasPrecioRoute,
+  AuthenticatedFatNcfRoute: AuthenticatedFatNcfRoute,
+  AuthenticatedFatNotasRoute: AuthenticatedFatNotasRoute,
+  AuthenticatedFatNuevaFacturaRoute: AuthenticatedFatNuevaFacturaRoute,
+  AuthenticatedFatNuevoConduceRoute: AuthenticatedFatNuevoConduceRoute,
+  AuthenticatedFatPuntosRoute: AuthenticatedFatPuntosRoute,
+  AuthenticatedFatRep607Route: AuthenticatedFatRep607Route,
+  AuthenticatedFatRepAnaliticaRoute: AuthenticatedFatRepAnaliticaRoute,
+  AuthenticatedFatRepNcfNulosRoute: AuthenticatedFatRepNcfNulosRoute,
+  AuthenticatedFatRepVentasRoute: AuthenticatedFatRepVentasRoute,
+  AuthenticatedFatRepVentasClienteRoute: AuthenticatedFatRepVentasClienteRoute,
+  AuthenticatedFatRepVentasVendedorRoute:
+    AuthenticatedFatRepVentasVendedorRoute,
+  AuthenticatedFatTdocuRoute: AuthenticatedFatTdocuRoute,
+  AuthenticatedFatTiposPagoRoute: AuthenticatedFatTiposPagoRoute,
+  AuthenticatedFatTransportistasRoute: AuthenticatedFatTransportistasRoute,
+  AuthenticatedFatIndexRoute: AuthenticatedFatIndexRoute,
+}
+
+const AuthenticatedFatRouteWithChildren =
+  AuthenticatedFatRoute._addFileChildren(AuthenticatedFatRouteChildren)
+
+interface AuthenticatedInvRouteChildren {
+  AuthenticatedInvIndexRoute: typeof AuthenticatedInvIndexRoute
+}
+
+const AuthenticatedInvRouteChildren: AuthenticatedInvRouteChildren = {
+  AuthenticatedInvIndexRoute: AuthenticatedInvIndexRoute,
+}
+
+const AuthenticatedInvRouteWithChildren =
+  AuthenticatedInvRoute._addFileChildren(AuthenticatedInvRouteChildren)
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
   AuthenticatedCambiarClaveRoute: typeof AuthenticatedCambiarClaveRoute
   AuthenticatedCntRoute: typeof AuthenticatedCntRoute
+  AuthenticatedCxcRoute: typeof AuthenticatedCxcRouteWithChildren
+  AuthenticatedCxpRoute: typeof AuthenticatedCxpRouteWithChildren
   AuthenticatedDocsRoute: typeof AuthenticatedDocsRoute
   AuthenticatedEmpresasRoute: typeof AuthenticatedEmpresasRoute
-  AuthenticatedFatRoute: typeof AuthenticatedFatRoute
-  AuthenticatedInvRoute: typeof AuthenticatedInvRoute
+  AuthenticatedFatRoute: typeof AuthenticatedFatRouteWithChildren
+  AuthenticatedInvRoute: typeof AuthenticatedInvRouteWithChildren
   AuthenticatedNcfAlertsRoute: typeof AuthenticatedNcfAlertsRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
@@ -809,10 +2701,12 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRouteRoute: AuthenticatedSettingsRouteRouteWithChildren,
   AuthenticatedCambiarClaveRoute: AuthenticatedCambiarClaveRoute,
   AuthenticatedCntRoute: AuthenticatedCntRoute,
+  AuthenticatedCxcRoute: AuthenticatedCxcRouteWithChildren,
+  AuthenticatedCxpRoute: AuthenticatedCxpRouteWithChildren,
   AuthenticatedDocsRoute: AuthenticatedDocsRoute,
   AuthenticatedEmpresasRoute: AuthenticatedEmpresasRoute,
-  AuthenticatedFatRoute: AuthenticatedFatRoute,
-  AuthenticatedInvRoute: AuthenticatedInvRoute,
+  AuthenticatedFatRoute: AuthenticatedFatRouteWithChildren,
+  AuthenticatedInvRoute: AuthenticatedInvRouteWithChildren,
   AuthenticatedNcfAlertsRoute: AuthenticatedNcfAlertsRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,

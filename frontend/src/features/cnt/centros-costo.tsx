@@ -7,7 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { downloadCsv, printHtml } from './export-utils'
+import { buildReportMeta, downloadCsv, printCentrosCosto } from './export-utils'
 
 interface Props { noCia: string; punto: string; ano: number; mes: number }
 
@@ -41,38 +41,23 @@ export function CentrosCosto({ noCia, punto }: Props) {
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / 15))
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
+    const now = new Date()
+    const mesAno = `${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`
+    const meta = await buildReportMeta(noCia, punto, mesAno)
     downloadCsv(
       `cnt-centros-costo-${noCia}.csv`,
       ['Centro', 'Descripcion', 'Activo', 'Acepta movimiento'],
       filteredRows.map((row) => [row.centro_costo, row.descripcion, row.activo, row.acepta_movi ?? 'N']),
+      meta,
     )
   }
 
-  const exportPdf = () => {
-    const body = `
-      <table>
-        <thead>
-          <tr>
-            <th>Centro</th>
-            <th>Descripcion</th>
-            <th>Activo</th>
-            <th>Acepta movimiento</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${filteredRows.map((row) => `
-            <tr>
-              <td>${row.centro_costo ?? ''}</td>
-              <td>${row.descripcion ?? ''}</td>
-              <td>${row.activo ?? ''}</td>
-              <td>${row.acepta_movi ?? 'N'}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    `
-    printHtml(`Centros de costo ${noCia}`, body)
+  const exportPdf = async () => {
+    const now = new Date()
+    const mesAno = `${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`
+    const meta = await buildReportMeta(noCia, punto, mesAno)
+    printCentrosCosto(meta, filteredRows)
   }
 
   return (

@@ -1,4 +1,4 @@
-"""Cliente único de Oracle 11g (legacy Regal General).
+"""Cliente único de Oracle 11g (legacy SIGAFPLUS).
 
 Reglas duras:
 - Lecturas siempre por este cliente (pool oracledb thick mode).

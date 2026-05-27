@@ -3,7 +3,7 @@ import { FileSpreadsheet, Printer, RefreshCw } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { downloadCsv, printHtml } from './export-utils'
+import { buildReportMeta, downloadCsv, printBalanceComprobacion, type BalanceRow } from './export-utils'
 
 interface Props { noCia: string; punto: string; ano: number; mes: number }
 
@@ -22,44 +22,29 @@ export function BalanceComprobacion({ noCia, punto, ano, mes }: Props) {
   const totSD = rows.reduce((sum, row) => sum + Number(row.saldo_d || 0), 0)
   const totSC = rows.reduce((sum, row) => sum + Number(row.saldo_c || 0), 0)
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
+    const meta = await buildReportMeta(noCia, punto, `${String(mes).padStart(2, '0')}-${ano}`)
     downloadCsv(
       `cnt-balance-${noCia}-${punto}-${ano}-${mes}.csv`,
       ['Cuenta', 'Descripcion', 'Clase', 'Debitos', 'Creditos', 'Saldo D', 'Saldo C'],
       rows.map((row) => [row.cuenta, row.descripcion, row.clase, row.debitos, row.creditos, row.saldo_d, row.saldo_c]),
+      meta,
     )
   }
 
-  const exportPdf = () => {
-    const body = `
-      <table>
-        <thead>
-          <tr>
-            <th>Cuenta</th>
-            <th>Descripcion</th>
-            <th>Clase</th>
-            <th>Debitos</th>
-            <th>Creditos</th>
-            <th>Saldo D</th>
-            <th>Saldo C</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows.map((row) => `
-            <tr>
-              <td>${row.cuenta ?? ''}</td>
-              <td>${row.descripcion ?? ''}</td>
-              <td>${row.clase ?? ''}</td>
-              <td class="numeric">${fmt(row.debitos)}</td>
-              <td class="numeric">${fmt(row.creditos)}</td>
-              <td class="numeric">${row.saldo_d > 0 ? fmt(row.saldo_d) : ''}</td>
-              <td class="numeric">${row.saldo_c > 0 ? fmt(row.saldo_c) : ''}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    `
-    printHtml(`Balance de comprobacion ${ano}/${String(mes).padStart(2, '0')}`, body)
+  const exportPdf = async () => {
+    const meta = await buildReportMeta(noCia, punto, `${String(mes).padStart(2, '0')}-${ano}`)
+    const balanceRows: BalanceRow[] = rows.map((r) => ({
+      cuenta: r.cuenta ?? '',
+      nombre: r.descripcion ?? '',
+      isGroup: r.es_grupo === true || r.es_grupo === 'S',
+      saldoMesAnt: r.saldo_mes_ant != null ? Number(r.saldo_mes_ant) : null,
+      debitos: r.debitos != null ? Number(r.debitos) : null,
+      creditos: r.creditos != null ? Number(r.creditos) : null,
+      saldoDebito: r.saldo_d != null ? Number(r.saldo_d) : null,
+      saldoCredito: r.saldo_c != null ? Number(r.saldo_c) : null,
+    }))
+    printBalanceComprobacion(meta, balanceRows)
   }
 
   return (

@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Search } from 'lucide-react'
+import { Pencil, Plus, Search, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { regalGeneralApi } from '@/lib/regal-general-api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-
-const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
 
 interface Props { noCia: string; punto: string }
 
@@ -20,26 +21,12 @@ interface SubLinea {
   linea: string
   sub_linea: string
   descripcion: string
-  porc_comision?: number | null
-  porc_margen?: number | null
+  pct_comision?: number | null
+  pct_margen?: number | null
   [key: string]: any
 }
 
-async function fetchLineas(noCia: string): Promise<Linea[]> {
-  const res = await fetch(`${API_BASE}/inv/lineas/?no_cia=${encodeURIComponent(noCia)}`, { credentials: 'include' })
-  if (!res.ok) throw new Error(`Error ${res.status}: ${res.statusText}`)
-  const data = await res.json()
-  return Array.isArray(data) ? data : (data.results ?? [])
-}
-
-async function fetchSubLineas(noCia: string, linea: string): Promise<SubLinea[]> {
-  const params = new URLSearchParams({ no_cia: noCia })
-  if (linea) params.set('linea', linea)
-  const res = await fetch(`${API_BASE}/inv/sublineas/?${params.toString()}`, { credentials: 'include' })
-  if (!res.ok) throw new Error(`Error ${res.status}: ${res.statusText}`)
-  const data = await res.json()
-  return Array.isArray(data) ? data : (data.results ?? [])
-}
+const PAGE_SIZE = 20
 
 export function SubLineasProductos({ noCia }: Props) {
   const [lineas, setLineas] = useState<Linea[]>([])
@@ -49,24 +36,29 @@ export function SubLineasProductos({ noCia }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [formOpen, setFormOpen] = useState(false)
+  const [editing, setEditing] = useState<SubLinea | null>(null)
+  const [deleting, setDeleting] = useState<SubLinea | null>(null)
 
   useEffect(() => {
     if (noCia) {
-      fetchLineas(noCia).then(setLineas).catch(() => {})
+      regalGeneralApi.invListLineas(noCia).then((d) => setLineas(d.results ?? [])).catch(() => {})
     }
   }, [noCia])
 
   const load = () => {
     setLoading(true)
     setError(null)
-    fetchSubLineas(noCia, selectedLinea)
-      .then(setRows)
-      .catch((err) => setError(err.message ?? 'Error al cargar sublíneas'))
+    regalGeneralApi
+      .invListSublineas(noCia, selectedLinea)
+      .then((data) => setRows(data.results ?? []))
+      .catch((err) => setError(err?.detail?.error ?? err?.message ?? 'Error al cargar sublíneas'))
       .finally(() => setLoading(false))
   }
 
   useEffect(() => {
     if (noCia) load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noCia, selectedLinea])
 
   const filtered = useMemo(() => {
@@ -80,9 +72,23 @@ export function SubLineasProductos({ noCia }: Props) {
     )
   }, [rows, search])
 
-  const PAGE_SIZE = 20
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  const openCreate = () => { setEditing(null); setFormOpen(true) }
+  const openEdit = (row: SubLinea) => { setEditing(row); setFormOpen(true) }
+
+  const confirmDelete = async () => {
+    if (!deleting) return
+    try {
+      await regalGeneralApi.invDeleteSublinea(deleting.linea, deleting.sub_linea)
+      toast.success(`Sub línea ${deleting.sub_linea} eliminada`)
+      setDeleting(null)
+      load()
+    } catch (err: any) {
+      toast.error(err?.detail?.error ?? err?.message ?? 'No se pudo eliminar')
+    }
+  }
 
   return (
     <section className='space-y-4'>
@@ -91,7 +97,12 @@ export function SubLineasProductos({ noCia }: Props) {
           <h2 className='text-lg font-semibold'>Sub Líneas de Productos</h2>
           <p className='text-sm text-muted-foreground'>Catálogo de sublíneas para la clasificación detallada de productos.</p>
         </div>
-        <span className='text-sm text-muted-foreground'>{filtered.length} registros</span>
+        <div className='flex items-center gap-3'>
+          <span className='text-sm text-muted-foreground'>{filtered.length} registros</span>
+          <Button size='sm' onClick={openCreate}>
+            <Plus className='mr-2 h-4 w-4' /> Nueva sublínea
+          </Button>
+        </div>
       </div>
 
       <div className='flex flex-wrap gap-3'>
@@ -135,14 +146,15 @@ export function SubLineasProductos({ noCia }: Props) {
             <TableHead className='w-28'>Línea</TableHead>
             <TableHead className='w-32'>Sub Línea</TableHead>
             <TableHead>Descripción</TableHead>
-            <TableHead className='text-right w-32'>% Comisión</TableHead>
-            <TableHead className='text-right w-32'>% Margen</TableHead>
+            <TableHead className='text-right w-28'>% Comisión</TableHead>
+            <TableHead className='text-right w-28'>% Margen</TableHead>
+            <TableHead className='w-32 text-right'>Acciones</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {loading && (
             <TableRow>
-              <TableCell colSpan={5} className='py-10 text-center text-muted-foreground'>
+              <TableCell colSpan={6} className='py-10 text-center text-muted-foreground'>
                 Cargando...
               </TableCell>
             </TableRow>
@@ -155,16 +167,26 @@ export function SubLineasProductos({ noCia }: Props) {
               <TableCell className='font-mono font-medium'>{row.sub_linea}</TableCell>
               <TableCell>{row.descripcion}</TableCell>
               <TableCell className='text-right font-mono'>
-                {row.porc_comision != null ? `${Number(row.porc_comision).toFixed(2)}%` : '—'}
+                {row.pct_comision != null ? `${Number(row.pct_comision).toFixed(2)}%` : '—'}
               </TableCell>
               <TableCell className='text-right font-mono'>
-                {row.porc_margen != null ? `${Number(row.porc_margen).toFixed(2)}%` : '—'}
+                {row.pct_margen != null ? `${Number(row.pct_margen).toFixed(2)}%` : '—'}
+              </TableCell>
+              <TableCell className='text-right'>
+                <div className='flex justify-end gap-1'>
+                  <Button variant='ghost' size='icon' className='h-8 w-8' onClick={() => openEdit(row)}>
+                    <Pencil className='h-4 w-4' />
+                  </Button>
+                  <Button variant='ghost' size='icon' className='h-8 w-8 text-red-600' onClick={() => setDeleting(row)}>
+                    <Trash2 className='h-4 w-4' />
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}
           {!loading && !error && filtered.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5} className='py-10 text-center text-muted-foreground'>
+              <TableCell colSpan={6} className='py-10 text-center text-muted-foreground'>
                 No se encontraron sublíneas de productos.
               </TableCell>
             </TableRow>
@@ -179,6 +201,144 @@ export function SubLineasProductos({ noCia }: Props) {
           <Button variant='outline' size='sm' disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Siguiente</Button>
         </div>
       </div>
+
+      {formOpen && (
+        <SubLineaFormDialog
+          sublinea={editing}
+          lineas={lineas}
+          defaultLinea={selectedLinea}
+          onClose={() => setFormOpen(false)}
+          onSaved={() => { setFormOpen(false); load() }}
+        />
+      )}
+
+      {deleting && (
+        <Dialog open onOpenChange={() => setDeleting(null)}>
+          <DialogContent className='max-w-sm'>
+            <DialogHeader>
+              <DialogTitle>Eliminar sublínea</DialogTitle>
+            </DialogHeader>
+            <p className='text-sm text-muted-foreground'>
+              Se eliminará la sublínea <span className='font-mono font-medium'>{deleting.linea}/{deleting.sub_linea}</span> ({deleting.descripcion}). Esta acción no se puede deshacer.
+            </p>
+            <div className='flex justify-end gap-2'>
+              <Button variant='outline' size='sm' onClick={() => setDeleting(null)}>Cancelar</Button>
+              <Button variant='destructive' size='sm' onClick={confirmDelete}>Eliminar</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </section>
+  )
+}
+
+function SubLineaFormDialog({
+  sublinea,
+  lineas,
+  defaultLinea,
+  onClose,
+  onSaved,
+}: {
+  sublinea: SubLinea | null
+  lineas: Linea[]
+  defaultLinea: string
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const isEdit = Boolean(sublinea)
+  const [linea, setLinea] = useState(sublinea?.linea ?? defaultLinea ?? '')
+  const [subLinea, setSubLinea] = useState(sublinea?.sub_linea ?? '')
+  const [descripcion, setDescripcion] = useState(sublinea?.descripcion ?? '')
+  const [pctComision, setPctComision] = useState(sublinea?.pct_comision != null ? String(sublinea.pct_comision) : '')
+  const [pctMargen, setPctMargen] = useState(sublinea?.pct_margen != null ? String(sublinea.pct_margen) : '')
+  const [saving, setSaving] = useState(false)
+
+  const save = async () => {
+    if (!linea.trim() || !subLinea.trim()) {
+      toast.error('Línea y sub línea son requeridos')
+      return
+    }
+    const comision = pctComision.trim() === '' ? null : Number(pctComision)
+    const margen = pctMargen.trim() === '' ? null : Number(pctMargen)
+    setSaving(true)
+    try {
+      if (isEdit) {
+        await regalGeneralApi.invUpdateSublinea(linea.trim(), subLinea.trim(), {
+          descripcion: descripcion.trim(),
+          pct_comision: comision,
+          pct_margen: margen,
+        })
+        toast.success(`Sub línea ${subLinea.trim()} actualizada`)
+      } else {
+        await regalGeneralApi.invCreateSublinea({
+          linea: linea.trim(),
+          sub_linea: subLinea.trim(),
+          descripcion: descripcion.trim(),
+          pct_comision: comision,
+          pct_margen: margen,
+        })
+        toast.success(`Sub línea ${subLinea.trim()} creada`)
+      }
+      onSaved()
+    } catch (err: any) {
+      toast.error(err?.detail?.error ?? err?.message ?? 'No se pudo guardar')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className='max-w-md'>
+        <DialogHeader>
+          <DialogTitle>{isEdit ? 'Editar sublínea' : 'Nueva sublínea'}</DialogTitle>
+        </DialogHeader>
+        <div className='space-y-3'>
+          <div className='space-y-1'>
+            <label className='text-xs font-medium'>Línea</label>
+            {isEdit ? (
+              <Input value={linea} disabled />
+            ) : (
+              <Select value={linea} onValueChange={setLinea}>
+                <SelectTrigger className='h-9'>
+                  <SelectValue placeholder='Seleccione una línea' />
+                </SelectTrigger>
+                <SelectContent>
+                  {lineas.map((l) => (
+                    <SelectItem key={l.linea} value={l.linea}>
+                      {l.linea} — {l.descripcion}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          <div className='space-y-1'>
+            <label className='text-xs font-medium'>Sub Línea</label>
+            <Input value={subLinea} onChange={(e) => setSubLinea(e.target.value)} disabled={isEdit} />
+          </div>
+          <div className='space-y-1'>
+            <label className='text-xs font-medium'>Descripción</label>
+            <Input value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
+          </div>
+          <div className='grid grid-cols-2 gap-3'>
+            <div className='space-y-1'>
+              <label className='text-xs font-medium'>% Comisión</label>
+              <Input type='number' value={pctComision} onChange={(e) => setPctComision(e.target.value)} />
+            </div>
+            <div className='space-y-1'>
+              <label className='text-xs font-medium'>% Margen</label>
+              <Input type='number' value={pctMargen} onChange={(e) => setPctMargen(e.target.value)} />
+            </div>
+          </div>
+          <div className='flex justify-end gap-2'>
+            <Button variant='outline' size='sm' onClick={onClose}>Cancelar</Button>
+            <Button size='sm' onClick={save} disabled={saving}>
+              {saving ? 'Guardando...' : isEdit ? 'Guardar' : 'Crear'}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

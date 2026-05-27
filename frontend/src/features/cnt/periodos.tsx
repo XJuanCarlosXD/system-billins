@@ -7,7 +7,7 @@ import { regalGeneralApi } from '@/lib/regal-general-api'
 
 interface Props { noCia: string; punto: string; ano: number; mes: number }
 
-export function PeriodosFiscales({ noCia }: Props) {
+export function PeriodosFiscales({ noCia, punto, ano, mes }: Props) {
   const [data, setData] = useState<{ puntos: any[]; cierres: any[]; years?: number[]; rangos?: Record<string, any> }>({
     puntos: [],
     cierres: [],

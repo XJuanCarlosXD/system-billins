@@ -6,7 +6,7 @@ import { ThemeSwitch } from '@/components/theme-switch'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, Building2 } from 'lucide-react'
-import { regalGeneralApi, type Company, ApiError } from '@/lib/regal-general-api'
+import { sigafApi, type Company, ApiError } from '@/lib/sigaf-api'
 import { useCompany } from '@/context/company-context'
 
 export function EmpresasPage() {
@@ -20,7 +20,7 @@ export function EmpresasPage() {
       setLoading(true)
       setError(null)
       try {
-        const res = await regalGeneralApi.adminListCompanies()
+        const res = await sigafApi.adminListCompanies()
         setCompanies(res.companies)
       } catch (e) {
         const msg = e instanceof ApiError ? e.detail?.detail || 'Error' : 'Error de red'

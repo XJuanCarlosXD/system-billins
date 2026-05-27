@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { getRouteApi } from '@tanstack/react-router'
 import {
   ArchiveX,
@@ -826,15 +826,27 @@ export function InvPage() {
   const navigate = route.useNavigate()
   const { selectedCompany, selectedPoint } = useCompany()
   const activeSection = search.section as SectionKey
-  const [activeView, setActiveView] = useState<ViewKey>(actionsBySection[activeSection][0].key)
+  const [activeView, setActiveView] = useState<ViewKey>(
+    (search.view as ViewKey) || actionsBySection[activeSection][0].key,
+  )
   const [showWorkspace, setShowWorkspace] = useState(false)
+
+  // Deep-link from the sidebar: ?view= selects the tab and, when the view is
+  // implemented, opens its workspace directly (planned ones keep the grid).
+  useEffect(() => {
+    if (!search.view) return
+    const action = actionsBySection[activeSection]?.find((a) => a.key === search.view)
+    if (!action) return
+    setActiveView(action.key)
+    setShowWorkspace(action.status === 'ready')
+  }, [search.view, activeSection])
 
   const currentAction = getAction(activeSection, activeView)
   const SectionIcon = sectionMeta[activeSection].icon
 
   const openSection = (section: SectionKey) => {
     navigate({
-      search: (prev) => ({ ...prev, section }),
+      search: (prev) => ({ ...prev, section, view: actionsBySection[section][0].key }),
       replace: true,
     })
     setActiveView(actionsBySection[section][0].key)
@@ -844,12 +856,10 @@ export function InvPage() {
   const openView = (action: Action) => {
     if (action.status !== 'ready') return
     const nextSection = sectionFromAction(action.key)
-    if (nextSection !== activeSection) {
-      navigate({
-        search: (prev) => ({ ...prev, section: nextSection }),
-        replace: true,
-      })
-    }
+    navigate({
+      search: (prev) => ({ ...prev, section: nextSection, view: action.key }),
+      replace: true,
+    })
     setActiveView(action.key)
     setShowWorkspace(true)
   }

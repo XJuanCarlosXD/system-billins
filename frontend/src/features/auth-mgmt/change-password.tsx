@@ -19,7 +19,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { PasswordInput } from '@/components/password-input'
-import { regalGeneralApi, ApiError } from '@/lib/regal-general-api'
+import { sigafApi, ApiError } from '@/lib/sigaf-api'
 
 const schema = z
   .object({
@@ -46,7 +46,7 @@ export function ChangePasswordPage() {
   async function onSubmit(d: z.infer<typeof schema>) {
     setLoading(true)
     try {
-      await regalGeneralApi.changeOwnPassword(d.current_password, d.new_password, d.confirm_password)
+      await sigafApi.changeOwnPassword(d.current_password, d.new_password, d.confirm_password)
       toast.success('Contraseña actualizada')
       form.reset()
     } catch (e) {
@@ -72,7 +72,7 @@ export function ChangePasswordPage() {
               <KeyRound className='h-5 w-5' /> Cambiar mi contraseña
             </CardTitle>
             <CardDescription>
-              La contraseña se actualiza en Oracle. Aplica para Regal General legado y para el clon.
+              La contraseña se actualiza en Oracle. Aplica para SIGAFPLUS legado y para el clon.
             </CardDescription>
           </CardHeader>
           <CardContent>

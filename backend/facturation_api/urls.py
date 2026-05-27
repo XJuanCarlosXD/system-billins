@@ -7,5 +7,8 @@ urlpatterns = [
     path('api/', include('apps.auth_legacy.urls')),
     path('api/', include('apps.fat.urls')),
     path('api/', include('apps.docs.urls')),
+    path('api/', include('apps.cnt.urls')),
     path('api/inv/', include('apps.legacy.inv_urls')),
+    path('api/cxp/', include('apps.legacy.cxp_urls')),
+    path('api/cxc/', include('apps.legacy.cxc_urls')),
 ]

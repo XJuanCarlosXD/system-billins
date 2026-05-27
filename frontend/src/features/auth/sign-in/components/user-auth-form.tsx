@@ -7,7 +7,7 @@ import { Loader2, LogIn } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { cn } from '@/lib/utils'
-import { regalGeneralApi, ApiError } from '@/lib/regal-general-api'
+import { sigafApi, ApiError } from '@/lib/sigaf-api'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -52,7 +52,7 @@ export function UserAuthForm({
   async function onSubmit(data: z.infer<typeof formSchema>) {
     setIsLoading(true)
     try {
-      const res = await regalGeneralApi.login(data.username.toUpperCase(), data.password)
+      const res = await sigafApi.login(data.username.toUpperCase(), data.password)
       auth.setUser({
         accountNo: res.username,
         email: res.username,

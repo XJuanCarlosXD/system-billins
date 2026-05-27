@@ -22,7 +22,7 @@ import {
   ShieldCheck,
   RefreshCw,
 } from 'lucide-react'
-import { regalGeneralApi, type Me, type NCFAlert } from '@/lib/regal-general-api'
+import { sigafApi, type Me, type NCFAlert } from '@/lib/sigaf-api'
 
 function severityClass(s: 'critical' | 'warning' | 'ok') {
   if (s === 'critical') return 'bg-red-100 text-red-800 border-red-300 dark:bg-red-950 dark:text-red-200'
@@ -41,8 +41,8 @@ export function Dashboard() {
     setError(null)
     try {
       const [meRes, alertsRes] = await Promise.all([
-        regalGeneralApi.me(),
-        regalGeneralApi.fatNcfAlerts('low'),
+        sigafApi.me(),
+        sigafApi.fatNcfAlerts('low'),
       ])
       setMe(meRes)
       setAlerts(alertsRes.alerts)
@@ -66,7 +66,7 @@ export function Dashboard() {
   return (
     <>
       <Header>
-        <h2 className='text-lg font-semibold me-auto'>Dashboard Regal General</h2>
+        <h2 className='text-lg font-semibold me-auto'>Dashboard SIGAFPLUS</h2>
         <ThemeSwitch />
         <ConfigDrawer />
         <ProfileDropdown />
@@ -79,7 +79,7 @@ export function Dashboard() {
               Bienvenido{me ? `, ${me.username}` : ''}
             </h1>
             <p className='text-sm text-muted-foreground'>
-              Datos en tiempo real desde Oracle 11g (legacy Regal General).
+              Datos en tiempo real desde Oracle 11g (legacy SIGAFPLUS).
             </p>
           </div>
           <Button variant='outline' onClick={load} disabled={loading}>

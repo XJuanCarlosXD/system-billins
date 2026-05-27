@@ -24,6 +24,9 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu'
 import {
@@ -106,23 +109,82 @@ function SidebarMenuCollapsible({
         </CollapsibleTrigger>
         <CollapsibleContent className='CollapsibleContent'>
           <SidebarMenuSub>
-            {item.items.map((subItem) => (
-              <SidebarMenuSubItem key={subItem.title}>
+            {item.items.map((subItem) =>
+              subItem.items ? (
+                <SidebarMenuSubCollapsible
+                  key={subItem.title}
+                  item={subItem}
+                  href={href}
+                />
+              ) : (
+                <SidebarMenuSubItem key={subItem.title}>
+                  <SidebarMenuSubButton
+                    asChild
+                    isActive={checkIsActive(href, subItem)}
+                  >
+                    <Link to={subItem.url} search={subItem.search as never} onClick={() => setOpenMobile(false)}>
+                      {subItem.icon && <subItem.icon />}
+                      <span>{subItem.title}</span>
+                      {subItem.badge && <NavBadge>{subItem.badge}</NavBadge>}
+                    </Link>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              ),
+            )}
+          </SidebarMenuSub>
+        </CollapsibleContent>
+      </SidebarMenuItem>
+    </Collapsible>
+  )
+}
+
+// Third level: a section (e.g. "Configuracion") that expands into its tabs.
+function SidebarMenuSubCollapsible({
+  item,
+  href,
+}: {
+  item: NavCollapsible
+  href: string
+}) {
+  const { setOpenMobile } = useSidebar()
+  return (
+    <Collapsible
+      asChild
+      defaultOpen={checkIsActive(href, item)}
+      className='group/subcollapsible'
+    >
+      <SidebarMenuSubItem>
+        <CollapsibleTrigger asChild>
+          <SidebarMenuSubButton className='cursor-pointer'>
+            {item.icon && <item.icon />}
+            <span>{item.title}</span>
+            {item.badge && <NavBadge>{item.badge}</NavBadge>}
+            <ChevronRight className='ms-auto transition-transform duration-200 group-data-[state=open]/subcollapsible:rotate-90 rtl:rotate-180' />
+          </SidebarMenuSubButton>
+        </CollapsibleTrigger>
+        <CollapsibleContent className='CollapsibleContent'>
+          <SidebarMenuSub className='mx-0 border-s-0 px-0'>
+            {item.items.map((leaf) => (
+              <SidebarMenuSubItem key={leaf.title}>
                 <SidebarMenuSubButton
                   asChild
-                  isActive={checkIsActive(href, subItem)}
+                  isActive={checkIsActive(href, leaf)}
                 >
-                  <Link to={subItem.url} search={subItem.search as never} onClick={() => setOpenMobile(false)}>
-                    {subItem.icon && <subItem.icon />}
-                    <span>{subItem.title}</span>
-                    {subItem.badge && <NavBadge>{subItem.badge}</NavBadge>}
+                  <Link
+                    to={leaf.url}
+                    search={leaf.search as never}
+                    onClick={() => setOpenMobile(false)}
+                  >
+                    {leaf.icon && <leaf.icon />}
+                    <span>{leaf.title}</span>
+                    {leaf.badge && <NavBadge>{leaf.badge}</NavBadge>}
                   </Link>
                 </SidebarMenuSubButton>
               </SidebarMenuSubItem>
             ))}
           </SidebarMenuSub>
         </CollapsibleContent>
-      </SidebarMenuItem>
+      </SidebarMenuSubItem>
     </Collapsible>
   )
 }
@@ -153,48 +215,87 @@ function SidebarMenuCollapsedDropdown({
             {item.title} {item.badge ? `(${item.badge})` : ''}
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {item.items.map((sub) => (
-            <DropdownMenuItem key={`${sub.title}-${sub.url}`} asChild>
-              <Link
-                to={sub.url}
-                search={sub.search as never}
-                className={`${checkIsActive(href, sub) ? 'bg-secondary' : ''}`}
-              >
-                {sub.icon && <sub.icon />}
-                <span className='max-w-52 text-wrap'>{sub.title}</span>
-                {sub.badge && (
-                  <span className='ms-auto text-xs'>{sub.badge}</span>
-                )}
-              </Link>
-            </DropdownMenuItem>
-          ))}
+          {item.items.map((sub) =>
+            sub.items ? (
+              <DropdownMenuSub key={`${sub.title}-sub`}>
+                <DropdownMenuSubTrigger
+                  className={checkIsActive(href, sub) ? 'bg-secondary' : ''}
+                >
+                  {sub.icon && <sub.icon />}
+                  <span className='max-w-52 text-wrap'>{sub.title}</span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {sub.items.map((leaf) => (
+                    <DropdownMenuItem key={`${leaf.title}-${leaf.url}`} asChild>
+                      <Link
+                        to={leaf.url}
+                        search={leaf.search as never}
+                        className={checkIsActive(href, leaf) ? 'bg-secondary' : ''}
+                      >
+                        {leaf.icon && <leaf.icon />}
+                        <span className='max-w-52 text-wrap'>{leaf.title}</span>
+                        {leaf.badge && (
+                          <span className='ms-auto text-xs'>{leaf.badge}</span>
+                        )}
+                      </Link>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            ) : (
+              <DropdownMenuItem key={`${sub.title}-${sub.url}`} asChild>
+                <Link
+                  to={sub.url}
+                  search={sub.search as never}
+                  className={`${checkIsActive(href, sub) ? 'bg-secondary' : ''}`}
+                >
+                  {sub.icon && <sub.icon />}
+                  <span className='max-w-52 text-wrap'>{sub.title}</span>
+                  {sub.badge && (
+                    <span className='ms-auto text-xs'>{sub.badge}</span>
+                  )}
+                </Link>
+              </DropdownMenuItem>
+            ),
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </SidebarMenuItem>
   )
 }
 
-function checkIsActive(href: string, item: NavItem, mainNav = false) {
+function checkIsActive(href: string, item: NavItem, mainNav = false): boolean {
   const [path, queryString = ''] = href.split('?')
   const currentSearch = new URLSearchParams(queryString)
-  const searchMatches =
-    !item.search ||
-    Object.entries(item.search).every(
+
+  // A leaf is active when its path matches and every search param it pins
+  // (e.g. section + view) is present in the current URL.
+  const matchesLink = (link: NavItem) => {
+    if (!link.url) return false
+    const samePath = link.url === href || link.url === path
+    if (!samePath) return false
+    if (!link.search) return true
+    return Object.entries(link.search).every(
       ([key, value]) => currentSearch.get(key) === String(value),
     )
+  }
 
-  return (
-    ((href === item.url || path === item.url) && searchMatches) || // endpoint exact or with search
-    !!item?.items?.filter((i) => {
-      const samePath = i.url === href || i.url === path
-      if (!samePath) return false
-      if (!i.search) return true
-      return Object.entries(i.search).every(
-        ([key, value]) => currentSearch.get(key) === String(value),
-      )
-    }).length || // if child nav is active
-    (mainNav &&
-      path.split('/')[1] !== '' &&
-      path.split('/')[1] === item?.url?.split('/')[1])
-  )
+  if (matchesLink(item)) return true
+
+  // A collapsible is active when any descendant (at any depth) is active.
+  if (item.items?.some((child) => checkIsActive(href, child))) return true
+
+  // mainNav: keep a top-level module open whenever the URL is anywhere
+  // inside its route, even if no exact view leaf matches.
+  if (mainNav) {
+    const seg = path.split('/')[1]
+    if (seg && hasUrlSegment(item, seg)) return true
+  }
+
+  return false
+}
+
+function hasUrlSegment(item: NavItem, seg: string): boolean {
+  if (item.url && item.url.split('/')[1] === seg) return true
+  return !!item.items?.some((child) => hasUrlSegment(child, seg))
 }

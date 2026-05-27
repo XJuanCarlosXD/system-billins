@@ -1,329 +1,167 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { getRouteApi } from '@tanstack/react-router'
-import {
-  ReceiptText,
-  FileText,
-  ClipboardList,
-  FileChartColumn,
-  Settings,
-  Gavel,
-} from 'lucide-react'
+import { Receipt } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ThemeSwitch } from '@/components/theme-switch'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useCompany } from '@/context/company-context'
 
-type SectionKey = 'configuracion' | 'operacion' | 'consultas' | 'reportes' | 'administracion'
-type ViewKey =
-  | 'tdocu'
-  | 'condiciones'
-  | 'listas-precio'
-  | 'crear-factura'
-  | 'conduces'
-  | 'devoluciones'
-  | 'listar-facturas'
-  | 'busqueda-avanzada'
-  | 'ventas-periodo'
-  | 'reporte-607'
-  | 'cuadre-caja'
-  | 'control-ncf'
-  | 'integraciones'
-
-type Action = {
-  key: ViewKey
-  label: string
-  legacy: string
-  status: 'ready' | 'planned'
-  summary: string
-  icon: typeof ReceiptText
-}
+import { Facturas } from './facturas'
+import { TiposDocumentoFat } from './tdocu'
+import { CondicionesPago } from './condiciones-pago'
+import { ControlNcf } from './ncf-fat'
+import { Companias } from './companias'
+import { PuntosTrabajoFat } from './puntos'
+import { TiposPagoFat } from './tipos-pago'
+import { ListasPrecioFat } from './listas-precio'
+import { TransportistasFat } from './transportistas'
+import { NotasFat } from './notas'
+import { ConducesFat } from './conduces'
+import { CuadreCajaFat } from './cuadre-caja'
+import { RepVentasProducto } from './rep-ventas'
+import { RepVentasVendedor } from './fat-rep-ventas-vendedor'
+import { RepVentasCliente } from './fat-rep-ventas-cliente'
+import { RepAnaliticaVentas } from './fat-rep-analitica'
+import { RepNcf607 } from './rep-607'
+import { RepNcfNulos } from './rep-ncf-nulos'
+import { CierreMensualFat } from './cierre-mensual'
+import { GenerarAsientosFat } from './generar-asientos'
+import { NuevaFactura } from './fat-nueva-factura'
+import { NuevoConduce } from './fat-nuevo-conduce'
+import { AnularFactura } from './fat-anular-factura'
 
 const route = getRouteApi('/_authenticated/fat')
 
-const sectionMeta: Record<SectionKey, { label: string; icon: typeof ReceiptText }> = {
-  configuracion: { label: 'Configuración', icon: Settings },
-  operacion: { label: 'Operación', icon: ReceiptText },
-  consultas: { label: 'Consultas', icon: ClipboardList },
-  reportes: { label: 'Reportes', icon: FileChartColumn },
-  administracion: { label: 'Administración', icon: Gavel },
-}
+const MESES = [
+  { value: 1, label: 'Enero' }, { value: 2, label: 'Febrero' },
+  { value: 3, label: 'Marzo' }, { value: 4, label: 'Abril' },
+  { value: 5, label: 'Mayo' }, { value: 6, label: 'Junio' },
+  { value: 7, label: 'Julio' }, { value: 8, label: 'Agosto' },
+  { value: 9, label: 'Septiembre' }, { value: 10, label: 'Octubre' },
+  { value: 11, label: 'Noviembre' }, { value: 12, label: 'Diciembre' },
+]
 
-const actionsBySection: Record<SectionKey, Action[]> = {
-  configuracion: [
-    {
-      key: 'tdocu',
-      label: 'Tipos de documento',
-      legacy: 'Mant. Tipos de Factura',
-      status: 'planned',
-      summary: 'Crear y editar tipos de factura (FT, FC, etc.) con NCF asociados.',
-      icon: FileText,
-    },
-    {
-      key: 'condiciones',
-      label: 'Condiciones de pago',
-      legacy: 'Catalogo Condiciones Pago',
-      status: 'planned',
-      summary: 'Mantener catálogo de plazos de pago y condiciones.',
-      icon: Settings,
-    },
-    {
-      key: 'listas-precio',
-      label: 'Listas de precio',
-      legacy: 'Listas de Precios por Cliente',
-      status: 'planned',
-      summary: 'Precios específicos por cliente y lista.',
-      icon: FileText,
-    },
-  ],
-  operacion: [
-    {
-      key: 'crear-factura',
-      label: 'Crear factura',
-      legacy: 'Factura Vendedor',
-      status: 'ready',
-      summary: 'Crear facturas de contado o crédito con líneas de detalle.',
-      icon: ReceiptText,
-    },
-    {
-      key: 'conduces',
-      label: 'Conducés',
-      legacy: 'Conduce',
-      status: 'planned',
-      summary: 'Pre-facturas que se pueden convertir en facturas.',
-      icon: FileText,
-    },
-    {
-      key: 'devoluciones',
-      label: 'Devoluciones',
-      legacy: 'Devolución Vendedor',
-      status: 'planned',
-      summary: 'Procesar devoluciones y crear notas de crédito.',
-      icon: ReceiptText,
-    },
-  ],
-  consultas: [
-    {
-      key: 'listar-facturas',
-      label: 'Listar facturas',
-      legacy: 'Consulta Factura',
-      status: 'ready',
-      summary: 'Consultar todas las facturas con filtros por estado, período, vendedor.',
-      icon: ClipboardList,
-    },
-    {
-      key: 'busqueda-avanzada',
-      label: 'Búsqueda avanzada',
-      legacy: 'Busqueda Factura',
-      status: 'planned',
-      summary: 'Búsqueda por rango de fechas, monto, cliente, NCF.',
-      icon: ClipboardList,
-    },
-  ],
-  reportes: [
-    {
-      key: 'ventas-periodo',
-      label: 'Ventas por período',
-      legacy: 'Reporte Ventas',
-      status: 'ready',
-      summary: 'Totales de ventas por período, vendedor, cliente.',
-      icon: FileChartColumn,
-    },
-    {
-      key: 'reporte-607',
-      label: 'Reporte 607 (DGII)',
-      legacy: 'Reporte 607',
-      status: 'planned',
-      summary: 'Generador de reporte 607 para Dirección General de Impuestos Internos.',
-      icon: FileChartColumn,
-    },
-    {
-      key: 'cuadre-caja',
-      label: 'Cuadre de caja',
-      legacy: 'Cuadre de Caja',
-      status: 'planned',
-      summary: 'Reconciliación de ventas vs. ingresos en caja.',
-      icon: FileChartColumn,
-    },
-  ],
-  administracion: [
-    {
-      key: 'control-ncf',
-      label: 'Control de NCF',
-      legacy: 'Mant. NCF Facturacion',
-      status: 'planned',
-      summary: 'Gestión de secuencias NCF, alertas por vencimiento.',
-      icon: Gavel,
-    },
-    {
-      key: 'integraciones',
-      label: 'Integraciones',
-      legacy: 'Parametrizacion Integraciones',
-      status: 'planned',
-      summary: 'Sincronizar con CXC, INV, CNT y e-CF.',
-      icon: Settings,
-    },
-  ],
+const NOW = new Date()
+const CURRENT_YEAR = NOW.getFullYear()
+const CURRENT_MONTH = NOW.getMonth() + 1
+const YEARS = [CURRENT_YEAR - 2, CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1]
+
+const VIEWS_WITH_DATE = new Set([
+  'facturas', 'conduces', 'cuadre-caja',
+  'rep-ventas', 'rep-607', 'rep-ncf-nulos',
+  'generar-asientos', 'cierre-mensual',
+  'rep-ventas-vendedor', 'rep-ventas-cliente',
+])
+
+function DateFilter({ ano, mes, onAno, onMes }: {
+  ano: number; mes: number
+  onAno: (v: number) => void; onMes: (v: number) => void
+}) {
+  return (
+    <div className='flex items-center gap-2 mb-4'>
+      <Select value={String(ano)} onValueChange={(v) => onAno(Number(v))}>
+        <SelectTrigger className='h-8 w-24'><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {YEARS.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+        </SelectContent>
+      </Select>
+      <Select value={String(mes)} onValueChange={(v) => onMes(Number(v))}>
+        <SelectTrigger className='h-8 w-32'><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {MESES.map((m) => <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    </div>
+  )
 }
 
 export function FatPage() {
   const search = route.useSearch()
-  const [section, setSection] = useState<SectionKey>(search.section || 'operacion')
-  const [selectedView, setSelectedView] = useState<ViewKey | null>(
-    search.view ? (search.view as ViewKey) : null
-  )
+  const { selectedCompany, selectedPoint } = useCompany()
+  const [ano, setAno] = useState(CURRENT_YEAR)
+  const [mes, setMes] = useState(CURRENT_MONTH)
 
-  useEffect(() => {
-    if (search.section) {
-      setSection(search.section as SectionKey)
-    }
-    if (search.view) {
-      setSelectedView(search.view as ViewKey)
-    }
-  }, [search])
-
-  const actions = actionsBySection[section] || []
-  const sectionInfo = sectionMeta[section]
+  const view = (search as any).view ?? 'facturas'
+  const noCia = selectedCompany ?? ''
+  const punto = selectedPoint ?? ''
+  const needsDate = VIEWS_WITH_DATE.has(view)
 
   return (
     <>
       <Header>
-        <h2 className='text-lg font-semibold me-auto flex items-center gap-2'>
-          <ReceiptText className='h-5 w-5' /> Facturación (FAT)
-        </h2>
+        <div className='me-auto flex items-center gap-2'>
+          <Receipt className='h-5 w-5 shrink-0' />
+          <h2 className='text-lg font-semibold'>Facturacion (FAT)</h2>
+        </div>
         <ThemeSwitch />
         <ProfileDropdown />
       </Header>
 
-      <Main>
-        <div className='space-y-4'>
-          {/* Secciones */}
-          <div className='flex gap-2 overflow-x-auto'>
-            <ScrollArea className='w-full whitespace-nowrap'>
-              <div className='flex gap-2 p-1'>
-                {(Object.entries(sectionMeta) as [SectionKey, typeof sectionMeta[SectionKey]][]).map(
-                  ([key, meta]) => (
-                    <Button
-                      key={key}
-                      variant={section === key ? 'default' : 'outline'}
-                      size='sm'
-                      onClick={() => {
-                        setSection(key)
-                        setSelectedView(null)
-                      }}
-                      className='flex items-center gap-2'
-                    >
-                      <meta.icon className='h-4 w-4' />
-                      {meta.label}
-                    </Button>
-                  )
-                )}
-              </div>
-              <ScrollBar orientation='horizontal' />
-            </ScrollArea>
-          </div>
-
-          {/* Grid de acciones */}
-          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
-            {actions.map((action) => (
-              <Card
-                key={action.key}
-                className={`cursor-pointer transition-all hover:shadow-lg ${
-                  action.status === 'planned' ? 'opacity-60' : ''
-                }`}
-                onClick={() => {
-                  if (action.status === 'ready') {
-                    setSelectedView(action.key)
-                  }
-                }}
-              >
-                <CardHeader>
-                  <div className='flex items-start justify-between'>
-                    <div className='flex items-center gap-2'>
-                      <action.icon className='h-5 w-5 text-primary' />
-                      <CardTitle className='text-base'>{action.label}</CardTitle>
-                    </div>
-                    {action.status === 'planned' && (
-                      <Badge variant='secondary' className='text-xs'>
-                        Próximamente
-                      </Badge>
-                    )}
-                    {action.status === 'ready' && (
-                      <Badge variant='default' className='text-xs'>
-                        Disponible
-                      </Badge>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className='text-sm text-muted-foreground mb-3'>{action.summary}</p>
-                  {action.status === 'ready' && (
-                    <p className='text-xs text-muted-foreground italic'>
-                      Del legacy: <strong>{action.legacy}</strong>
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {/* Vista seleccionada */}
-          {selectedView === 'crear-factura' && (
-            <Card className='mt-6'>
-              <CardHeader>
-                <CardTitle>Crear Factura</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className='bg-muted p-8 rounded-lg text-center'>
-                  <ReceiptText className='h-12 w-12 mx-auto mb-4 text-muted-foreground' />
-                  <p className='text-muted-foreground mb-4'>
-                    Módulo de creación de facturas con líneas editables
-                  </p>
-                  <Button>Nueva Factura</Button>
-                </div>
-              </CardContent>
-            </Card>
+      <Main fluid className='px-4 py-4'>
+        <div key={`${view}-${noCia}-${punto}-${ano}-${mes}`} className='py-2'>
+          {needsDate && (
+            <DateFilter ano={ano} mes={mes} onAno={setAno} onMes={setMes} />
           )}
-
-          {selectedView === 'listar-facturas' && (
-            <Card className='mt-6'>
-              <CardHeader>
-                <CardTitle>Listar Facturas</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className='bg-muted p-8 rounded-lg text-center'>
-                  <ClipboardList className='h-12 w-12 mx-auto mb-4 text-muted-foreground' />
-                  <p className='text-muted-foreground mb-4'>
-                    Tabla de facturas con filtros y búsqueda avanzada
-                  </p>
-                  <Button>Ver Facturas</Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {selectedView === 'ventas-periodo' && (
-            <Card className='mt-6'>
-              <CardHeader>
-                <CardTitle>Reporte de Ventas</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className='bg-muted p-8 rounded-lg text-center'>
-                  <FileChartColumn className='h-12 w-12 mx-auto mb-4 text-muted-foreground' />
-                  <p className='text-muted-foreground mb-4'>
-                    Reportes de ventas por período, vendedor y cliente
-                  </p>
-                  <Button>Generar Reporte</Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          {renderView(view, { noCia, punto, ano, mes })}
         </div>
       </Main>
     </>
   )
 }
+
+function renderView(view: string, ctx: { noCia: string; punto: string; ano: number; mes: number }) {
+  switch (view) {
+    case 'anular-factura':
+      return <AnularFactura noCia={ctx.noCia} punto={ctx.punto} />
+    case 'nueva-factura':
+      return <NuevaFactura noCia={ctx.noCia} punto={ctx.punto} />
+    case 'nuevo-conduce':
+      return <NuevoConduce noCia={ctx.noCia} punto={ctx.punto} />
+    case 'facturas':
+      return <Facturas noCia={ctx.noCia} punto={ctx.punto} mes={ctx.mes} ano={ctx.ano} />
+    case 'conduces':
+      return <ConducesFat noCia={ctx.noCia} punto={ctx.punto} mes={ctx.mes} ano={ctx.ano} />
+    case 'cuadre-caja':
+      return <CuadreCajaFat noCia={ctx.noCia} punto={ctx.punto} mes={ctx.mes} ano={ctx.ano} />
+    case 'rep-ventas':
+      return <RepVentasProducto noCia={ctx.noCia} punto={ctx.punto} mes={ctx.mes} ano={ctx.ano} />
+    case 'rep-607':
+      return <RepNcf607 noCia={ctx.noCia} punto={ctx.punto} mes={ctx.mes} ano={ctx.ano} />
+    case 'rep-ncf-nulos':
+      return <RepNcfNulos noCia={ctx.noCia} punto={ctx.punto} mes={ctx.mes} ano={ctx.ano} />
+    case 'rep-ventas-vendedor':
+      return <RepVentasVendedor noCia={ctx.noCia} punto={ctx.punto} mes={ctx.mes} ano={ctx.ano} />
+    case 'rep-ventas-cliente':
+      return <RepVentasCliente noCia={ctx.noCia} punto={ctx.punto} mes={ctx.mes} ano={ctx.ano} />
+    case 'rep-analitica':
+      return <RepAnaliticaVentas noCia={ctx.noCia} punto={ctx.punto} ano={ctx.ano} />
+    case 'generar-asientos':
+      return <GenerarAsientosFat noCia={ctx.noCia} punto={ctx.punto} mes={ctx.mes} ano={ctx.ano} />
+    case 'cierre-mensual':
+      return <CierreMensualFat noCia={ctx.noCia} punto={ctx.punto} mes={ctx.mes} ano={ctx.ano} />
+    case 'companias':
+      return <Companias noCia={ctx.noCia} />
+    case 'puntos':
+      return <PuntosTrabajoFat noCia={ctx.noCia} />
+    case 'tdocu':
+      return <TiposDocumentoFat noCia={ctx.noCia} punto={ctx.punto} />
+    case 'condiciones':
+      return <CondicionesPago noCia={ctx.noCia} punto={ctx.punto} />
+    case 'tipos-pago':
+      return <TiposPagoFat noCia={ctx.noCia} punto={ctx.punto} />
+    case 'listas-precio':
+      return <ListasPrecioFat noCia={ctx.noCia} punto={ctx.punto} />
+    case 'transportistas':
+      return <TransportistasFat />
+    case 'notas':
+      return <NotasFat />
+    case 'ncf':
+      return <ControlNcf noCia={ctx.noCia} punto={ctx.punto} mes={ctx.mes} ano={ctx.ano} />
+    default:
+      return <Facturas noCia={ctx.noCia} punto={ctx.punto} mes={ctx.mes} ano={ctx.ano} />
+  }
+}
+
+export const FatModule = FatPage

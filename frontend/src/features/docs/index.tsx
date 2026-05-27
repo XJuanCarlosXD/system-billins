@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { BookOpen, FileText, Search } from 'lucide-react'
 import { renderMarkdown } from './md'
-import { regalGeneralDocsApi, ApiError, type DocItem, type DocFull } from '@/lib/regal-general-api-docs'
+import { sigafApi, ApiError, type DocItem, type DocFull } from '@/lib/sigaf-api-docs'
 
 export function DocsPage() {
   const [q, setQ] = useState('')
@@ -26,7 +26,7 @@ export function DocsPage() {
   async function loadList(query: string) {
     setLoadingList(true)
     try {
-      const res = await regalGeneralDocsApi.docsList(query)
+      const res = await sigafApi.docsList(query)
       setItems(res.items)
       if (!activeSlug && res.items.length > 0) {
         setActiveSlug(res.items[0].slug)
@@ -45,7 +45,7 @@ export function DocsPage() {
     setLoadingDoc(true)
     setError(null)
     try {
-      const d = await regalGeneralDocsApi.docsGet(slug)
+      const d = await sigafApi.docsGet(slug)
       setDoc(d)
     } catch (e) {
       const msg = e instanceof ApiError ? e.detail?.detail || 'Error' : 'Error de red'

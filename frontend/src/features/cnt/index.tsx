@@ -24,6 +24,17 @@ import { CentrosCosto } from './centros-costo'
 import { MayorCuenta } from './mayor'
 import { NcfContabilidad } from './ncf'
 import { PeriodosFiscales } from './periodos'
+import { Companias } from './companias'
+import { Sucursales } from './sucursales'
+import { TiposCuenta } from './tipos-cuenta'
+import { CatalogoSucursal } from './catalogo-sucursal'
+import { GruposSucursal } from './grupos-sucursal'
+import { PresupuestoAnual } from './presupuesto'
+import { EstadoResultados } from './estado-resultados'
+import { AutorizarMes } from './autorizar-mes'
+import { AutorizarMesAnterior } from './autorizar-mes-anterior'
+import { VerificarAsientos } from './verificar-asientos'
+import { CierreMensual } from './cierre-mensual'
 
 type SectionKey = 'configuracion' | 'procesos' | 'consultas' | 'reportes' | 'cierres'
 type ViewKey =
@@ -31,14 +42,23 @@ type ViewKey =
   | 'centros'
   | 'ncf'
   | 'periodos'
+  | 'companias'
+  | 'sucursales'
+  | 'tipos-cuenta'
+  | 'catalogo-sucursal'
+  | 'grupos-sucursal'
   | 'asientos'
   | 'verificacion'
+  | 'autorizar'
+  | 'autorizar-anterior'
+  | 'presupuesto'
   | 'consulta-asientos'
   | 'movimientos'
   | 'balance'
   | 'mayor'
   | 'estados'
   | 'cierres'
+  | 'cierre-mensual'
 
 type Action = {
   key: ViewKey
@@ -105,6 +125,51 @@ const actionsBySection: Record<SectionKey, Action[]> = {
       tables: ['CNT.TCNT_PUNTO', 'CNT.TCNT_CIERRE', 'CNT.TCNT_HCUENTA', 'CNT.TCNT_ASIENTO'],
       apis: ['GET /api/cnt/config/', 'GET /api/cnt/periodos/'],
     },
+    {
+      key: 'companias',
+      label: 'Companias',
+      legacy: 'Companias',
+      status: 'ready',
+      summary: 'Alta y mantenimiento de empresas.',
+      tables: ['CNT.TCNT_CIA'],
+      apis: ['GET/POST/PATCH /api/cnt/companias/'],
+    },
+    {
+      key: 'sucursales',
+      label: 'Sucursales',
+      legacy: 'Puntos de Trabajo o Sucursales',
+      status: 'ready',
+      summary: 'Configuracion de puntos de trabajo / sucursales.',
+      tables: ['CNT.TCNT_PUNTO'],
+      apis: ['GET/POST/PATCH /api/cnt/sucursales/'],
+    },
+    {
+      key: 'tipos-cuenta',
+      label: 'Tipos de cuenta',
+      legacy: 'Tipo de Cuenta',
+      status: 'ready',
+      summary: 'Clasificacion de cuentas (activo, pasivo, patrimonio, ingresos, gastos).',
+      tables: ['CNT.TCNT_TCUENTA'],
+      apis: ['GET/POST/PATCH /api/cnt/tcuenta/'],
+    },
+    {
+      key: 'catalogo-sucursal',
+      label: 'Asignar cuenta a sucursal',
+      legacy: 'Asignar Cuenta a Sucursal',
+      status: 'ready',
+      summary: 'Relacion cuenta-sucursal.',
+      tables: ['CNT.TCNT_CATALOGO', 'CNT.TCNT_PUNTO'],
+      apis: ['GET/POST /api/cnt/catalogo-sucursal/'],
+    },
+    {
+      key: 'grupos-sucursal',
+      label: 'Grupo contable sucursal',
+      legacy: 'Grupo Contable Sucursal',
+      status: 'ready',
+      summary: 'Agrupacion contable por punto.',
+      tables: ['CNT.TCNT_GRUPO'],
+      apis: ['GET/POST /api/cnt/grupos-sucursal/'],
+    },
   ],
   procesos: [
     {
@@ -120,10 +185,37 @@ const actionsBySection: Record<SectionKey, Action[]> = {
       key: 'verificacion',
       label: 'Verificacion de asientos',
       legacy: 'Rep. Verificacion De Asientos',
-      status: 'planned',
+      status: 'ready',
       summary: 'Control de cuadre y consistencia antes de autorizar.',
       tables: ['CNT.TCNT_ASIENTO', 'CNT.TCNT_ASIENTOL'],
       apis: ['GET /api/cnt/asientos/?...'],
+    },
+    {
+      key: 'autorizar',
+      label: 'Autorizar asientos',
+      legacy: 'Autorizar Asientos',
+      status: 'ready',
+      summary: 'Aprobar asientos del mes para que pasen a libro.',
+      tables: ['CNT.TCNT_ASIENTO'],
+      apis: ['POST /api/cnt/asientos/aprobar/'],
+    },
+    {
+      key: 'autorizar-anterior',
+      label: 'Procesos meses anteriores',
+      legacy: 'Procesos Meses Anteriores',
+      status: 'ready',
+      summary: 'Permitir entrada/autorizacion en meses ya cerrados.',
+      tables: ['CNT.TCNT_ASIENTO', 'CNT.TCNT_CIERRE'],
+      apis: ['POST /api/cnt/asientos/aprobar/'],
+    },
+    {
+      key: 'presupuesto',
+      label: 'Presupuesto',
+      legacy: 'Presupuesto',
+      status: 'ready',
+      summary: 'Manejo de presupuestos contables anuales.',
+      tables: ['CNT.TCNT_PRESUPUESTO'],
+      apis: ['GET/POST /api/cnt/presupuesto/'],
     },
   ],
   consultas: [
@@ -169,7 +261,7 @@ const actionsBySection: Record<SectionKey, Action[]> = {
       key: 'estados',
       label: 'Estados financieros',
       legacy: 'Estados Financieros, Anexos y Presupuesto',
-      status: 'planned',
+      status: 'ready',
       summary: 'Balance general, estado de resultados y anexos.',
       tables: ['CNT.TCNT_CUENTAS_EF', 'CNT.TCNT_ENCABEZADO_EF', 'CNT.TCNT_LINEAS_EF'],
       apis: ['GET /api/cnt/reportes/<reporte>/pdf', 'GET /api/cnt/reportes/<reporte>/xlsx'],
@@ -184,6 +276,15 @@ const actionsBySection: Record<SectionKey, Action[]> = {
       summary: 'Seguimiento del historial y estado de cierre del punto activo.',
       tables: ['CNT.TCNT_CIERRE', 'CNT.TCNT_PUNTO'],
       apis: ['GET /api/cnt/periodos/'],
+    },
+    {
+      key: 'cierre-mensual',
+      label: 'Cierre mensual',
+      legacy: 'Cierre Mensual',
+      status: 'ready',
+      summary: 'Ejecuta el cierre del periodo mensual del punto activo.',
+      tables: ['CNT.TCNT_CIERRE', 'CNT.TCNT_PUNTO'],
+      apis: ['POST /api/cnt/cierre-mensual/'],
     },
   ],
 }
@@ -218,7 +319,7 @@ export function CntPage() {
   const search = route.useSearch()
   const navigate = route.useNavigate()
   const { selectedCompany, selectedPoint, setSelectedPoint } = useCompany()
-  const [activeView, setActiveView] = useState<ViewKey>('balance')
+  const [activeView, setActiveView] = useState<ViewKey>((search.view as ViewKey) || 'balance')
   const [config, setConfig] = useState<{ cia?: Record<string, any>; puntos?: Array<Record<string, any>> } | null>(null)
   const [periodMeta, setPeriodMeta] = useState<PeriodMeta | null>(null)
   const [ano, setAno] = useState(new Date().getFullYear())
@@ -261,6 +362,11 @@ export function CntPage() {
     }
   }, [availableYears, ano])
 
+  // Deep-link from the sidebar: keep the active tab in sync with ?view=.
+  useEffect(() => {
+    if (search.view) setActiveView(search.view as ViewKey)
+  }, [search.view])
+
   useEffect(() => {
     const sectionActions = actionsBySection[activeSection]
     if (!sectionActions.some((action) => action.key === activeView)) {
@@ -268,18 +374,12 @@ export function CntPage() {
     }
   }, [activeSection, activeView])
 
-  const openSection = (section: SectionKey) => {
-    navigate({
-      search: (prev) => ({ ...prev, section }),
-      replace: true,
-    })
-  }
-
   const openView = (view: ViewKey) => {
     const nextSection = sectionFromAction(view)
-    if (nextSection !== activeSection) {
-      openSection(nextSection)
-    }
+    navigate({
+      search: (prev) => ({ ...prev, section: nextSection, view }),
+      replace: true,
+    })
     setActiveView(view)
   }
 
@@ -401,6 +501,28 @@ function renderWorkspace(
     case 'mayor':
     case 'movimientos':
       return <MayorCuenta noCia={context.noCia} punto={context.punto} ano={context.ano} mes={context.mes} />
+    case 'companias':
+      return <Companias noCia={context.noCia} />
+    case 'sucursales':
+      return <Sucursales noCia={context.noCia} punto={context.punto} />
+    case 'tipos-cuenta':
+      return <TiposCuenta />
+    case 'catalogo-sucursal':
+      return <CatalogoSucursal noCia={context.noCia} punto={context.punto} />
+    case 'grupos-sucursal':
+      return <GruposSucursal noCia={context.noCia} punto={context.punto} />
+    case 'verificacion':
+      return <VerificarAsientos noCia={context.noCia} punto={context.punto} ano={context.ano} mes={context.mes} />
+    case 'autorizar':
+      return <AutorizarMes noCia={context.noCia} punto={context.punto} ano={context.ano} mes={context.mes} />
+    case 'autorizar-anterior':
+      return <AutorizarMesAnterior noCia={context.noCia} punto={context.punto} ano={context.ano} mes={context.mes} />
+    case 'presupuesto':
+      return <PresupuestoAnual noCia={context.noCia} punto={context.punto} ano={context.ano} />
+    case 'estados':
+      return <EstadoResultados noCia={context.noCia} punto={context.punto} ano={context.ano} mes={context.mes} />
+    case 'cierre-mensual':
+      return <CierreMensual noCia={context.noCia} punto={context.punto} />
     default:
       return <PlannedWorkspace action={context.action} />
   }

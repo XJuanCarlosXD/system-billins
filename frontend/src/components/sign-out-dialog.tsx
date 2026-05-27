@@ -1,7 +1,7 @@
 import { useNavigate, useLocation } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { regalGeneralApi } from '@/lib/regal-general-api'
+import { sigafApi } from '@/lib/sigaf-api'
 
 interface SignOutDialogProps {
   open: boolean
@@ -15,7 +15,7 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
 
   const handleSignOut = async () => {
     try {
-      await regalGeneralApi.logout()
+      await sigafApi.logout()
     } catch {
       // ignoramos: aunque la cookie no esté ya, igual reseteamos local.
     }

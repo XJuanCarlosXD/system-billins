@@ -24,8 +24,11 @@ type NavLink = BaseNavItem & {
   items?: never
 }
 
+// Collapsible groups can nest arbitrarily: their children are themselves
+// NavItems (links or further collapsibles), enabling the 3-level
+// "Contabilidad > Configuracion > Catalogo de cuentas" sidebar tree.
 type NavCollapsible = BaseNavItem & {
-  items: (BaseNavItem & { url: LinkProps['to'] | (string & {}) })[]
+  items: NavItem[]
   url?: never
 }
 

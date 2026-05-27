@@ -35,7 +35,7 @@ const queryClient = new QueryClient({
         )
       },
       refetchOnWindowFocus: import.meta.env.PROD,
-      staleTime: 10 * 1000, // 10s
+      staleTime: 2 * 60 * 1000, // 2 min — catálogos y listas se mantienen en caché
     },
     mutations: {
       onError: (error) => {

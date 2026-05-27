@@ -1,18 +1,749 @@
-"""Cuentas por Pagar (CxP) — repo de lectura."""
 from __future__ import annotations
-
 from .. import client
 
 
-def count_proveedores(no_cia: str) -> int:
-    row = client.fetch_one(
-        "SELECT COUNT(*) FROM CXP.TCXP_DPROVEEDOR WHERE no_cia = :1",
-        [no_cia],
-    )
-    return int(row[0]) if row else 0
+def list_proveedores(search='', activo=''):
+    conditions = ['1=1']
+    params = []
+    if search:
+        params += [f'%{search.upper()}%', f'%{search.upper()}%']
+        conditions.append(f"(UPPER(p.nombre) LIKE :{len(params)-1} OR UPPER(p.rnc) LIKE :{len(params)})")
+    if activo:
+        params.append(activo)
+        conditions.append(f"p.activo = :{len(params)}")
+    where = ' AND '.join(conditions)
+    sql = f"""
+        SELECT p.no_proveedor, p.nombre, p.rnc, p.cedula,
+               p.telefono, p.celular, p.e_mail,
+               p.direccion, p.plazo_pago, p.activo,
+               p.excento_itbis, p.categoria, p.clasificacion,
+               p.cuenta_banco, p.codigo_banco, p.tipo_cuenta
+        FROM CXP.TCXP_DPROVEEDOR p
+        WHERE {where}
+        ORDER BY p.nombre
+    """
+    return client.fetch_dicts(sql, params)
 
 
-def list_tipo_retencion_dgii() -> list[dict]:
+def get_proveedor(no_proveedor):
+    sql = """
+        SELECT p.no_proveedor, p.nombre, p.rnc, p.cedula,
+               p.telefono, p.celular, p.fax, p.e_mail, p.web_site,
+               p.direccion, p.encargado, p.plazo_pago, p.activo,
+               p.excento_itbis, p.categoria, p.clasificacion,
+               p.cuenta_banco, p.codigo_banco, p.tipo_cuenta
+        FROM CXP.TCXP_DPROVEEDOR p
+        WHERE p.no_proveedor = :1
+    """
+    rows = client.fetch_dicts(sql, [no_proveedor])
+    return rows[0] if rows else None
+
+
+def save_proveedor(data: dict):
+    no_proveedor = (data.get('no_proveedor') or '').strip()
+    with client.cursor() as cur:
+        if no_proveedor:
+            existing_rows = client.fetch_dicts(
+                "SELECT * FROM CXP.TCXP_DPROVEEDOR WHERE no_proveedor=:1", [no_proveedor])
+            ex = existing_rows[0] if existing_rows else {}
+            cur.execute("""
+                UPDATE CXP.TCXP_DPROVEEDOR SET
+                    nombre=:1, rnc=:2, cedula=:3,
+                    telefono=:4, celular=:5, fax=:6,
+                    e_mail=:7, web_site=:8, direccion=:9,
+                    encargado=:10, plazo_pago=:11, activo=:12,
+                    excento_itbis=:13, categoria=:14, clasificacion=:15,
+                    cuenta_banco=:16, codigo_banco=:17, tipo_cuenta=:18
+                WHERE no_proveedor=:19
+            """, [
+                data.get('nombre') or ex.get('nombre', ''),
+                data.get('rnc') if data.get('rnc') is not None else ex.get('rnc', ''),
+                data.get('cedula') if data.get('cedula') is not None else ex.get('cedula', ''),
+                data.get('telefono') if data.get('telefono') is not None else ex.get('telefono', ''),
+                data.get('celular') if data.get('celular') is not None else ex.get('celular', ''),
+                data.get('fax') if data.get('fax') is not None else ex.get('fax', ''),
+                data.get('e_mail') if data.get('e_mail') is not None else ex.get('e_mail', ''),
+                data.get('web_site') if data.get('web_site') is not None else ex.get('web_site', ''),
+                data.get('direccion') if data.get('direccion') is not None else ex.get('direccion', ''),
+                data.get('encargado') if data.get('encargado') is not None else ex.get('encargado', ''),
+                data.get('plazo_pago') if data.get('plazo_pago') is not None else ex.get('plazo_pago', 0),
+                data.get('activo') or ex.get('activo', 'S'),
+                data.get('excento_itbis') or ex.get('excento_itbis', 'N'),
+                data.get('categoria') if data.get('categoria') is not None else ex.get('categoria', ''),
+                data.get('clasificacion') if data.get('clasificacion') is not None else ex.get('clasificacion', ''),
+                data.get('cuenta_banco') if data.get('cuenta_banco') is not None else ex.get('cuenta_banco', ''),
+                data.get('codigo_banco') if data.get('codigo_banco') is not None else ex.get('codigo_banco', ''),
+                data.get('tipo_cuenta') if data.get('tipo_cuenta') is not None else ex.get('tipo_cuenta', ''),
+                no_proveedor,
+            ])
+        else:
+            cur.execute("""
+                SELECT NVL(MAX(TO_NUMBER(no_proveedor)), 0) + 1
+                FROM CXP.TCXP_DPROVEEDOR
+                WHERE REGEXP_LIKE(no_proveedor, '^[0-9]+$')
+            """, [])
+            row = cur.fetchone()
+            no_proveedor = str(int(row[0])).zfill(6)
+            cur.execute("""
+                INSERT INTO CXP.TCXP_DPROVEEDOR
+                    (no_proveedor, nombre, rnc, cedula, telefono, celular, fax,
+                     e_mail, web_site, direccion, encargado, plazo_pago, activo,
+                     excento_itbis, categoria, clasificacion,
+                     cuenta_banco, codigo_banco, tipo_cuenta)
+                VALUES (:1,:2,:3,:4,:5,:6,:7,:8,:9,:10,:11,:12,:13,:14,:15,:16,:17,:18,:19)
+            """, [
+                no_proveedor,
+                data.get('nombre', ''), data.get('rnc', ''), data.get('cedula', ''),
+                data.get('telefono', ''), data.get('celular', ''), data.get('fax', ''),
+                data.get('e_mail', ''), data.get('web_site', ''), data.get('direccion', ''),
+                data.get('encargado', ''), data.get('plazo_pago', 0), data.get('activo', 'S'),
+                data.get('excento_itbis', 'N'), data.get('categoria', ''), data.get('clasificacion', ''),
+                data.get('cuenta_banco', ''), data.get('codigo_banco', ''), data.get('tipo_cuenta', ''),
+            ])
+        cur.connection.commit()
+    return {'no_proveedor': no_proveedor}
+
+
+def list_documentos(no_cia, punto, no_proveedor='', tipo='', desde='', hasta='', status='A'):
+    conditions = ['d.no_cia=:1', 'd.punto=:2']
+    params = [no_cia, punto]
+    if no_proveedor:
+        params.append(no_proveedor)
+        conditions.append(f'd.no_proveedor=:{len(params)}')
+    if tipo:
+        params.append(tipo)
+        conditions.append(f'd.tipo_docu=:{len(params)}')
+    if desde:
+        params.append(desde)
+        conditions.append(f"d.fecha>=TO_DATE(:{len(params)},'YYYY-MM-DD')")
+    if hasta:
+        params.append(hasta)
+        conditions.append(f"d.fecha<=TO_DATE(:{len(params)},'YYYY-MM-DD')")
+    if status:
+        params.append(status)
+        conditions.append(f'd.status=:{len(params)}')
+    where = ' AND '.join(conditions)
+    sql = f"""
+        SELECT d.no_cia, d.punto, d.tipo_docu, d.no_docu,
+               d.no_proveedor, p.nombre AS nombre_proveedor,
+               TO_CHAR(d.fecha,'YYYY-MM-DD') AS fecha,
+               TO_CHAR(d.fecha_vence,'YYYY-MM-DD') AS fecha_vence,
+               d.valor_original, d.saldo, d.status,
+               d.ncf, d.posiciones_fijas_ncf, d.tipo_transaccion,
+               d.impuesto, d.itbis_retenido, d.isr_retenido,
+               d.tipo_movi, d.forma_pago, d.pago_bloqueado
+        FROM CXP.TCXP_DOCUMENTO d
+        JOIN CXP.TCXP_DPROVEEDOR p ON p.no_proveedor = d.no_proveedor
+        WHERE {where}
+        ORDER BY d.fecha DESC, d.no_docu DESC
+    """
+    return client.fetch_dicts(sql, params)
+
+
+def get_documento(no_cia, punto, tipo_docu, no_docu):
+    sql = """
+        SELECT d.no_cia, d.punto, d.tipo_docu, d.no_docu,
+               d.no_proveedor, p.nombre AS nombre_proveedor,
+               TO_CHAR(d.fecha,'YYYY-MM-DD') AS fecha,
+               TO_CHAR(d.fecha_vence,'YYYY-MM-DD') AS fecha_vence,
+               d.valor_original, d.saldo, d.status,
+               d.ncf, d.posiciones_fijas_ncf, d.rnc,
+               d.tipo_transaccion, d.impuesto,
+               d.itbis_retenido, d.isr_retenido,
+               d.tipo_movi, d.forma_pago, d.debito, d.credito,
+               d.pago_bloqueado
+        FROM CXP.TCXP_DOCUMENTO d
+        JOIN CXP.TCXP_DPROVEEDOR p ON p.no_proveedor = d.no_proveedor
+        WHERE d.no_cia=:1 AND d.punto=:2 AND d.tipo_docu=:3 AND d.no_docu=:4
+    """
+    sql_lineas = """
+        SELECT dc.cuenta,
+               dc.monto,
+               dc.tipo_movi
+        FROM CXP.TCXP_DCDOCU dc
+        WHERE dc.no_cia=:1 AND dc.punto=:2 AND dc.tipo_docu=:3 AND dc.no_docu=:4
+        ORDER BY dc.cuenta
+    """
+    rows = client.fetch_dicts(sql, [no_cia, punto, tipo_docu, no_docu])
+    if not rows:
+        return None
+    doc = rows[0]
+    doc['lineas'] = client.fetch_dicts(sql_lineas, [no_cia, punto, tipo_docu, no_docu])
+    return doc
+
+
+def list_tipos_docu():
     return client.fetch_dicts(
-        "SELECT * FROM CXP.TCXP_TIPO_RETENCION_DGII ORDER BY tipo_retencion"
+        "SELECT tipo_docu AS codigo, descri AS nombre, tipo_movi FROM CXP.TCXP_TDOCU ORDER BY tipo_docu", [])
+
+
+def get_aging(no_cia, punto='', no_proveedor=''):
+    conditions = ["d.no_cia=:1", "d.status='A'"]
+    params = [no_cia]
+    if punto:
+        params.append(punto)
+        conditions.append(f'd.punto=:{len(params)}')
+    if no_proveedor:
+        params.append(no_proveedor)
+        conditions.append(f'd.no_proveedor=:{len(params)}')
+    where = ' AND '.join(conditions)
+    sql = f"""
+        SELECT d.no_proveedor, p.nombre,
+               SUM(CASE WHEN d.fecha_vence IS NULL OR SYSDATE - d.fecha_vence <= 0
+                        THEN d.saldo ELSE 0 END) AS corriente,
+               SUM(CASE WHEN SYSDATE - d.fecha_vence BETWEEN 1  AND 30  THEN d.saldo ELSE 0 END) AS d30,
+               SUM(CASE WHEN SYSDATE - d.fecha_vence BETWEEN 31 AND 60  THEN d.saldo ELSE 0 END) AS d60,
+               SUM(CASE WHEN SYSDATE - d.fecha_vence BETWEEN 61 AND 90  THEN d.saldo ELSE 0 END) AS d90,
+               SUM(CASE WHEN SYSDATE - d.fecha_vence > 90               THEN d.saldo ELSE 0 END) AS mas90,
+               SUM(d.saldo) AS total
+        FROM CXP.TCXP_DOCUMENTO d
+        JOIN CXP.TCXP_DPROVEEDOR p ON p.no_proveedor = d.no_proveedor
+        WHERE {where}
+        GROUP BY d.no_proveedor, p.nombre
+        ORDER BY p.nombre
+    """
+    return client.fetch_dicts(sql, params)
+
+
+def get_proveedor_cuenta(no_cia, punto, no_proveedor):
+    """Account summary for FCXP502/503 header"""
+    prov = client.fetch_dicts(
+        "SELECT no_proveedor, nombre, rnc, categoria, clasificacion FROM CXP.TCXP_DPROVEEDOR WHERE no_proveedor=:1",
+        [no_proveedor])
+    if not prov:
+        return None
+    data = prov[0]
+    fin = client.fetch_dicts("""
+        SELECT
+            NVL(SUM(saldo), 0) AS balance,
+            NVL(SUM(CASE WHEN tipo_movi='Credito' THEN valor_original ELSE 0 END), 0) AS compras_acumuladas,
+            NVL(SUM(CASE WHEN tipo_movi='Debito'  THEN valor_original ELSE 0 END), 0) AS pagos_acumulados,
+            MAX(CASE WHEN tipo_movi='Credito' THEN TO_CHAR(fecha,'YYYY-MM-DD') END) AS fecha_ultima_compra,
+            MAX(CASE WHEN tipo_movi='Debito'  THEN TO_CHAR(fecha,'YYYY-MM-DD') END) AS fecha_ultimo_pago
+        FROM CXP.TCXP_DOCUMENTO
+        WHERE no_cia=:1 AND punto=:2 AND no_proveedor=:3
+    """, [no_cia, punto, no_proveedor])
+    data.update(fin[0] if fin else {})
+    return data
+
+
+def list_cuentas_proveedor(no_cia, punto, no_proveedor, tipo_movi='', en_cero='N'):
+    """FCXP502: document list for one proveedor"""
+    conditions = ['d.no_cia=:1', 'd.punto=:2', 'd.no_proveedor=:3']
+    params = [no_cia, punto, no_proveedor]
+    if tipo_movi:
+        params.append(tipo_movi)
+        conditions.append(f'd.tipo_movi=:{len(params)}')
+    if en_cero == 'N':
+        conditions.append('NVL(d.saldo,0) != 0')
+    elif en_cero == 'S':
+        conditions.append('NVL(d.saldo,0) = 0')
+    where = ' AND '.join(conditions)
+    return client.fetch_dicts(f"""
+        SELECT d.tipo_docu, d.no_docu, d.tipo_movi,
+               TO_CHAR(d.fecha,'YYYY-MM-DD') AS fecha,
+               TO_CHAR(d.fecha_vence,'YYYY-MM-DD') AS fecha_vence,
+               d.valor_original, NVL(d.saldo, 0) AS saldo
+        FROM CXP.TCXP_DOCUMENTO d
+        WHERE {where}
+        ORDER BY d.fecha DESC, d.no_docu DESC
+    """, params)
+
+
+def list_movimientos_proveedor(no_cia, punto, no_proveedor, desde='', hasta=''):
+    """FCXP503: movements for one proveedor ordered by date"""
+    conditions = ['d.no_cia=:1', 'd.punto=:2', 'd.no_proveedor=:3']
+    params = [no_cia, punto, no_proveedor]
+    if desde:
+        params.append(desde)
+        conditions.append(f"d.fecha>=TO_DATE(:{len(params)},'YYYY-MM-DD')")
+    if hasta:
+        params.append(hasta)
+        conditions.append(f"d.fecha<=TO_DATE(:{len(params)},'YYYY-MM-DD')")
+    where = ' AND '.join(conditions)
+    return client.fetch_dicts(f"""
+        SELECT d.tipo_docu, d.no_docu, d.tipo_movi,
+               TO_CHAR(d.fecha,'YYYY-MM-DD') AS fecha,
+               d.valor_original,
+               CASE WHEN d.tipo_movi='Debito'  THEN d.valor_original ELSE 0 END AS debito,
+               CASE WHEN d.tipo_movi='Credito' THEN d.valor_original ELSE 0 END AS credito
+        FROM CXP.TCXP_DOCUMENTO d
+        WHERE {where}
+        ORDER BY d.fecha, d.no_docu
+    """, params)
+
+
+# ─── CONFIGURACIÓN ────────────────────────────────────────────────────────────
+
+def list_cias():
+    return client.fetch_dicts(
+        "SELECT no_cia, descri AS descripcion, NVL(activa,'S') activa "
+        "FROM CXP.TCXP_CIAS ORDER BY no_cia", [])
+
+
+def list_puntos(no_cia: str):
+    return client.fetch_dicts(
+        "SELECT no_cia, punto, descri AS descripcion, NVL(activo,'S') activo, "
+        "NVL(mes_proceso,1) mes_proceso, NVL(ano_proceso,2025) ano_proceso "
+        "FROM CXP.TCXP_PUNTO WHERE no_cia=:1 ORDER BY punto",
+        [no_cia])
+
+
+def list_tproveedores():
+    return client.fetch_dicts(
+        "SELECT tipo_proveedor AS codigo, NVL(descri,'') descripcion, "
+        "clase_proveedor, NVL(cuenta,'') cuenta, "
+        "NVL(cuenta_prima,'') cuenta_prima, NVL(centro_costo,'') centro_costo "
+        "FROM CXP.TCXP_TPROVEEDOR ORDER BY tipo_proveedor", [])
+
+
+def list_tdocu_config():
+    """Full tdocu with all columns for configuration screen."""
+    return client.fetch_dicts(
+        "SELECT tipo_docu, tipo_movi, NVL(descri,'') descripcion, "
+        "tipo_transaccion, NVL(cuenta,'') cuenta, NVL(centro_costo,'') centro_costo "
+        "FROM CXP.TCXP_TDOCU ORDER BY tipo_docu", [])
+
+
+def list_ciudades():
+    """Ciudades from shared CXC table (no CXP-specific copy exists)."""
+    return client.fetch_dicts(
+        "SELECT ciudad, descripcion FROM CXC.TCXC_CIUDAD ORDER BY ciudad", [])
+
+
+def list_barrios(ciudad: str = ''):
+    conditions = ['1=1']
+    params = []
+    if ciudad:
+        params.append(ciudad)
+        conditions.append('ciudad=:1')
+    where = ' AND '.join(conditions)
+    return client.fetch_dicts(
+        "SELECT ciudad, barrio, descripcion FROM CXC.TCXC_BARRIO WHERE " + where +
+        " ORDER BY ciudad, barrio", params)
+
+
+# ─── REPORTES READ-ONLY ───────────────────────────────────────────────────────
+
+def rep_alfabetico(no_cia: str = '', punto: str = '', search: str = ''):
+    """Listado alfabetico de proveedores activos con saldo."""
+    conditions = ["p.activo='S'"]
+    params = []
+    if search:
+        params.append('%' + search.upper() + '%')
+        conditions.append('UPPER(p.nombre) LIKE :' + str(len(params)))
+    where = ' AND '.join(conditions)
+    if no_cia and punto:
+        n_cia_idx = len(params) + 1
+        n_pun_idx = n_cia_idx + 1
+        params += [no_cia, punto]
+        sql = (
+            "SELECT p.no_proveedor, p.nombre, p.rnc, p.telefono, "
+            "p.e_mail, p.encargado, "
+            "NVL(b.saldo_inicial,0) saldo_inicial, "
+            "NVL(b.compras_acumuladas,0) compras, "
+            "NVL(b.pagos_acumulados,0) pagos, "
+            "NVL(b.saldo_inicial,0)+NVL(b.creditos,0)-NVL(b.debitos,0) saldo "
+            "FROM CXP.TCXP_DPROVEEDOR p "
+            "LEFT JOIN CXP.TCXP_BPROVEEDOR b "
+            "  ON b.no_proveedor=p.no_proveedor "
+            "  AND b.no_cia=:" + str(n_cia_idx) +
+            "  AND b.punto=:" + str(n_pun_idx) +
+            " WHERE " + where + " ORDER BY p.nombre"
+        )
+    else:
+        sql = (
+            "SELECT p.no_proveedor, p.nombre, p.rnc, p.telefono, "
+            "p.e_mail, p.encargado, "
+            "0 saldo_inicial, 0 compras, 0 pagos, 0 saldo "
+            "FROM CXP.TCXP_DPROVEEDOR p "
+            "WHERE " + where + " ORDER BY p.nombre"
+        )
+    rows = client.fetch_dicts(sql, params)
+    return {'items': rows, 'count': len(rows)}
+
+
+def rep_mayor_auxiliar(no_cia: str, punto: str, desde: str, hasta: str,
+                       no_proveedor: str = ''):
+    """Mayor auxiliar CxP: documentos por proveedor en rango de fechas."""
+    conditions = [
+        "d.no_cia=:1", "d.punto=:2",
+        "d.fecha BETWEEN TO_DATE(:3,'YYYY-MM-DD') AND TO_DATE(:4,'YYYY-MM-DD')"
+    ]
+    params = [no_cia, punto, desde, hasta]
+    if no_proveedor:
+        params.append(no_proveedor)
+        conditions.append('d.no_proveedor=:' + str(len(params)))
+    where = ' AND '.join(conditions)
+    sql = (
+        "SELECT d.no_proveedor, p.nombre AS nombre_proveedor, "
+        "d.tipo_docu, d.no_docu, "
+        "TO_CHAR(d.fecha,'YYYY-MM-DD') AS fecha, "
+        "TO_CHAR(d.fecha_vence,'YYYY-MM-DD') AS fecha_vence, "
+        "d.tipo_movi, d.valor_original, "
+        "CASE WHEN d.tipo_movi='Credito' THEN d.valor_original ELSE 0 END credito, "
+        "CASE WHEN d.tipo_movi='Debito'  THEN d.valor_original ELSE 0 END debito, "
+        "NVL(d.saldo,0) saldo, d.status, d.ncf, d.detalle "
+        "FROM CXP.TCXP_DOCUMENTO d "
+        "JOIN CXP.TCXP_DPROVEEDOR p ON p.no_proveedor=d.no_proveedor "
+        "WHERE " + where + " ORDER BY d.no_proveedor, d.fecha, d.no_docu"
     )
+    rows = client.fetch_dicts(sql, params)
+    total_credito = sum((r.get('credito') or 0) for r in rows)
+    total_debito  = sum((r.get('debito')  or 0) for r in rows)
+    return {'items': rows, 'total_credito': total_credito, 'total_debito': total_debito}
+
+
+def rep_606(no_cia: str, anio: int, mes: int, punto: str = ''):
+    """Reporte 606 - ITBIS en compras locales (Formato DGII)."""
+    conditions = [
+        "d.no_cia=:1",
+        "EXTRACT(YEAR FROM d.fecha)=:2",
+        "EXTRACT(MONTH FROM d.fecha)=:3",
+        "d.tipo_movi='Credito'",
+    ]
+    params = [no_cia, anio, mes]
+    if punto:
+        params.append(punto)
+        conditions.append('d.punto=:' + str(len(params)))
+    where = ' AND '.join(conditions)
+    sql = (
+        "SELECT d.rnc AS rnc_proveedor, "
+        "p.nombre AS nombre_proveedor, "
+        "d.tipo_transaccion, "
+        "d.ncf, d.posiciones_fijas_ncf AS tipo_ncf, "
+        "TO_CHAR(d.fecha,'YYYY-MM-DD') AS fecha, "
+        "TO_CHAR(d.fecha_vence,'YYYY-MM-DD') AS fecha_vence, "
+        "NVL(d.valor_original,0) monto_facturado, "
+        "NVL(d.impuesto,0) itbis_facturado, "
+        "NVL(d.itbis_retenido,0) itbis_retenido, "
+        "NVL(d.isr_retenido,0) isr_retenido, "
+        "NVL(d.valor_bienes,0) valor_bienes, "
+        "NVL(d.valor_servicio,0) valor_servicios, "
+        "NVL(d.forma_pago,1) forma_pago, "
+        "d.no_proveedor, d.tipo_docu, d.no_docu "
+        "FROM CXP.TCXP_DOCUMENTO d "
+        "LEFT JOIN CXP.TCXP_DPROVEEDOR p ON p.no_proveedor=d.no_proveedor "
+        "WHERE " + where + " ORDER BY d.fecha, d.ncf"
+    )
+    rows = client.fetch_dicts(sql, params)
+    total_monto = sum((r.get('monto_facturado') or 0) for r in rows)
+    total_itbis = sum((r.get('itbis_facturado') or 0) for r in rows)
+    return {'items': rows, 'count': len(rows),
+            'total_monto': total_monto, 'total_itbis': total_itbis}
+
+
+def rep_607(no_cia: str, anio: int, mes: int, punto: str = ''):
+    """Reporte 607 - Retenciones del ISR (Formato DGII)."""
+    conditions = [
+        "d.no_cia=:1",
+        "EXTRACT(YEAR FROM d.fecha)=:2",
+        "EXTRACT(MONTH FROM d.fecha)=:3",
+        "d.tipo_movi='Debito'",
+        "NVL(d.isr_retenido,0)>0",
+    ]
+    params = [no_cia, anio, mes]
+    if punto:
+        params.append(punto)
+        conditions.append('d.punto=:' + str(len(params)))
+    where = ' AND '.join(conditions)
+    sql = (
+        "SELECT d.rnc AS rnc_proveedor, "
+        "p.nombre AS nombre_proveedor, "
+        "d.tipo_transaccion, d.ncf, "
+        "TO_CHAR(d.fecha,'YYYY-MM-DD') AS fecha, "
+        "NVL(d.valor_original,0) monto_pago, "
+        "NVL(d.isr_retenido,0) isr_retenido, "
+        "NVL(d.itbis_retenido,0) itbis_retenido, "
+        "NVL(d.tipo_retencion,1) tipo_retencion, "
+        "d.no_proveedor, d.tipo_docu, d.no_docu "
+        "FROM CXP.TCXP_DOCUMENTO d "
+        "LEFT JOIN CXP.TCXP_DPROVEEDOR p ON p.no_proveedor=d.no_proveedor "
+        "WHERE " + where + " ORDER BY d.fecha, d.no_docu"
+    )
+    rows = client.fetch_dicts(sql, params)
+    total_isr   = sum((r.get('isr_retenido')   or 0) for r in rows)
+    total_itbis = sum((r.get('itbis_retenido') or 0) for r in rows)
+    return {'items': rows, 'count': len(rows),
+            'total_isr': total_isr, 'total_itbis': total_itbis}
+
+
+# ─── PROCESOS ESCRITURA ─────────────────────────────────────────────────────
+
+
+def get_siguiente_no_docu(no_cia, punto, tipo_docu):
+    """Preview del siguiente numero de doc (sin commit, solo lectura)."""
+    rows = client.fetch_dicts(
+        "SELECT NVL(ult_docu,0)+1 AS siguiente FROM CXP.TCXP_SECUENCIA "
+        "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3",
+        [no_cia, punto, tipo_docu])
+    n = int(rows[0]['siguiente']) if rows else 1
+    return str(n).zfill(7)
+
+
+def _next_no_docu(cur, no_cia, punto, tipo_docu):
+    """Obtiene siguiente numero de documento de TCXP_SECUENCIA (con FOR UPDATE)."""
+    rows = cur.execute(
+        "SELECT ult_docu FROM CXP.TCXP_SECUENCIA "
+        "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 FOR UPDATE",
+        [no_cia, punto, tipo_docu]).fetchone()
+    if rows:
+        nuevo = rows[0] + 1
+        cur.execute(
+            "UPDATE CXP.TCXP_SECUENCIA SET ult_docu=:1 "
+            "WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4",
+            [nuevo, no_cia, punto, tipo_docu])
+    else:
+        row_max = cur.execute(
+            "SELECT NVL(MAX(TO_NUMBER(no_docu)),0) FROM CXP.TCXP_DOCUMENTO "
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3",
+            [no_cia, punto, tipo_docu]).fetchone()
+        nuevo = (row_max[0] if row_max else 0) + 1
+        cur.execute(
+            "INSERT INTO CXP.TCXP_SECUENCIA(no_cia,punto,tipo_docu,ult_docu) "
+            "VALUES(:1,:2,:3,:4)",
+            [no_cia, punto, tipo_docu, nuevo])
+    return str(int(nuevo)).zfill(7)
+
+
+def entrada_documento(d):
+    """
+    Crea/actualiza un documento CxP (cabecera TCXP_DOCUMENTO + lineas TCXP_DCDOCU).
+    Tipos habituales: AC, AD, BD, FP. REVERSIBLE via reversar_documento.
+    """
+    no_cia        = d["no_cia"]
+    punto         = d.get("punto", "01")
+    tipo_docu     = d["tipo_docu"]
+    no_proveedor  = str(d["no_proveedor"])
+    fecha         = d.get("fecha", "")
+    fecha_vence   = d.get("fecha_vence", fecha)
+    valor         = float(d.get("valor_original") or d.get("valor") or 0)
+    # Oracle TIPO_MOVI = 'D' (debito) / 'C' (credito); accept both long and short forms
+    _tm_raw       = d.get("tipo_movi", "C")
+    tipo_movi     = "D" if str(_tm_raw).upper() in ("D", "DEBITO", "DEBIT") else "C"
+    # TIPO_TRANSACCION is VARCHAR2(1): 'K'=compra local, 'C'=compra exterior
+    # Accept legacy '01'/'02' or short 'K'/'C' forms
+    _tt = str(d.get("tipo_transaccion") or "K").strip()
+    tipo_transacc = _tt[0] if len(_tt) == 1 else ("C" if _tt in ("02", "C", "c") else "K")
+    detalle       = d.get("detalle", "")
+    no_docu       = (d.get("no_docu") or "").strip()
+
+    with client.cursor() as cur:
+        # Oracle constraint: debito=credito always; saldo<=0 for D, >=0 for C
+        saldo_inicial = -valor if tipo_movi == "D" else valor
+
+        if no_docu:
+            cur.execute(
+                "UPDATE CXP.TCXP_DOCUMENTO SET "
+                "no_proveedor=:1, fecha=TO_DATE(:2,'YYYY-MM-DD'), "
+                "fecha_vence=TO_DATE(:3,'YYYY-MM-DD'), "
+                "valor_original=:4, debito=:5, credito=:6, saldo=:7, "
+                "tipo_movi=:8, tipo_transaccion=:9, detalle=:10, "
+                "ncf=:11, rnc=:12, impuesto=:13, "
+                "itbis_retenido=:14, isr_retenido=:15, forma_pago=:16 "
+                "WHERE no_cia=:17 AND punto=:18 AND tipo_docu=:19 AND no_docu=:20",
+                [
+                    no_proveedor, fecha, fecha_vence,
+                    valor,          # :4 valor_original
+                    valor,          # :5 debito (= valor_original always)
+                    valor,          # :6 credito (= valor_original always)
+                    saldo_inicial,  # :7 saldo
+                    tipo_movi, tipo_transacc, detalle,
+                    d.get("ncf", ""), d.get("rnc", ""),
+                    float(d.get("impuesto") or 0),
+                    float(d.get("itbis_retenido") or 0),
+                    float(d.get("isr_retenido") or 0),
+                    int(d.get("forma_pago") or 1),
+                    no_cia, punto, tipo_docu, no_docu,
+                ])
+        else:
+            no_docu = _next_no_docu(cur, no_cia, punto, tipo_docu)
+            # debito = credito = valor_original always (Oracle constraint)
+            # saldo: positive for C (pending to pay), negative for D (payment applied)
+            cur.execute(
+                "INSERT INTO CXP.TCXP_DOCUMENTO("
+                "no_cia,punto,tipo_docu,no_docu,no_proveedor,tipo_movi,tipo_transaccion,"
+                "fecha,fecha_vence,status,valor_original,debito,credito,saldo,"
+                "impuesto,itbis_retenido,isr_retenido,rnc,ncf,detalle,"
+                "st_generado_cnt,pago_bloqueado,estado_encf,usuario,fecha_sysdate"
+                ") VALUES("
+                ":1,:2,:3,:4,:5,:6,:7,"
+                "TO_DATE(:8,'YYYY-MM-DD'),TO_DATE(:9,'YYYY-MM-DD'),'A',:10,:11,:12,:13,"
+                ":14,:15,:16,:17,:18,:19,"
+                "'N','N',0,:20,SYSDATE"
+                ")",
+                [
+                    no_cia, punto, tipo_docu, no_docu, no_proveedor,
+                    tipo_movi, tipo_transacc,
+                    fecha, fecha_vence,
+                    valor,          # :10 valor_original
+                    valor,          # :11 debito (= valor_original always)
+                    valor,          # :12 credito (= valor_original always)
+                    saldo_inicial,  # :13 saldo
+                    float(d.get("impuesto") or 0),
+                    float(d.get("itbis_retenido") or 0),
+                    float(d.get("isr_retenido") or 0),
+                    d.get("rnc", ""), d.get("ncf", ""), detalle,
+                    d.get("usuario", "API"),
+                ])
+
+        cur.execute(
+            "DELETE FROM CXP.TCXP_DCDOCU "
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+            [no_cia, punto, tipo_docu, no_docu])
+
+        no_prov_num = int(no_proveedor) if no_proveedor.isdigit() else 0
+        for linea in d.get("lineas", []):
+            tm    = linea.get("tipo_movi", "D")
+            monto = float(linea.get("monto") or 0)
+            cur.execute(
+                "INSERT INTO CXP.TCXP_DCDOCU("
+                "no_cia,punto,tipo_docu,no_docu,cuenta,centro_costo,"
+                "tipo_movi,no_proveedor,monto,afecta_presupuesto"
+                ") VALUES(:1,:2,:3,:4,:5,:6,:7,:8,:9,'N')",
+                [no_cia, punto, tipo_docu, no_docu,
+                 linea.get("cuenta", ""), linea.get("centro_costo", ""),
+                 tm, no_prov_num, monto])
+
+        cur.connection.commit()
+
+    return no_docu
+
+
+def reversar_documento(no_cia, punto, tipo_docu, no_docu, usuario="API"):
+    """
+    Marca documento como reversado (status=R, saldo=0).
+    Solo sobre docs con status=A. REVERSIBLE en pruebas ZZTEST.
+    """
+    rows = client.fetch_dicts(
+        "SELECT status FROM CXP.TCXP_DOCUMENTO "
+        "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+        [no_cia, punto, tipo_docu, no_docu])
+    if not rows:
+        raise ValueError("Documento no encontrado")
+    if rows[0]["status"] == "C":
+        raise ValueError("Documento ya cerrado, no se puede reversar")
+    with client.cursor() as cur:
+        cur.execute(
+            "UPDATE CXP.TCXP_DOCUMENTO SET status='R', saldo=0, detalle='REVERSADO' "
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+            [no_cia, punto, tipo_docu, no_docu])
+        cur.connection.commit()
+    return {"ok": True, "no_docu": no_docu, "status": "R"}
+
+
+def liberar_debito(no_cia, punto, no_docu_cr, tipo_docu_cr, debitos):
+    """
+    Aplica credito (tipo_movi=C) contra lista de debitos (tipo_movi=D).
+    - Para docs tipo_movi=C: saldo positivo se reduce (saldo - monto).
+    - Para docs tipo_movi=D: saldo negativo se mueve hacia 0 (saldo + monto).
+    - El doc credito queda con saldo=0 al final.
+    REVERSIBLE: restaurar saldos. Solo probar con docs ZZTEST.
+    """
+    with client.cursor() as cur:
+        for deb in debitos:
+            nd    = deb.get("no_docu") or deb.get("no_doc", "")
+            td    = deb.get("tipo_docu") or deb.get("tipo_doc", tipo_docu_cr)
+            monto = float(deb.get("monto") or deb.get("valor_aplica") or 0)
+            # Determine tipo_movi of the debit doc to apply correctly
+            deb_rows = client.fetch_dicts(
+                "SELECT tipo_movi FROM CXP.TCXP_DOCUMENTO "
+                "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+                [no_cia, punto, td, nd])
+            tm = deb_rows[0]["tipo_movi"] if deb_rows else "C"
+            if tm == "D":
+                # saldo is negative; applying payment moves it toward 0
+                cur.execute(
+                    "UPDATE CXP.TCXP_DOCUMENTO SET saldo=NVL(saldo,0)+:1 "
+                    "WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4 AND no_docu=:5",
+                    [monto, no_cia, punto, td, nd])
+            else:
+                cur.execute(
+                    "UPDATE CXP.TCXP_DOCUMENTO SET saldo=NVL(saldo,0)-:1 "
+                    "WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4 AND no_docu=:5",
+                    [monto, no_cia, punto, td, nd])
+        cur.execute(
+            "UPDATE CXP.TCXP_DOCUMENTO SET saldo=0 "
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+            [no_cia, punto, tipo_docu_cr, no_docu_cr])
+        cur.connection.commit()
+    return {"ok": True, "aplicaciones": len(debitos)}
+
+
+def bloquear_pago(no_cia, punto, tipo_docu, no_docu, bloquear=True):
+    """Toggle pago_bloqueado S/N. REVERSIBLE: llamar de nuevo con bloquear=False."""
+    rows = client.fetch_dicts(
+        "SELECT no_docu FROM CXP.TCXP_DOCUMENTO "
+        "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+        [no_cia, punto, tipo_docu, no_docu])
+    if not rows:
+        raise ValueError("Documento no encontrado")
+    flag = "S" if bloquear else "N"
+    with client.cursor() as cur:
+        cur.execute(
+            "UPDATE CXP.TCXP_DOCUMENTO SET pago_bloqueado=:1 "
+            "WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4 AND no_docu=:5",
+            [flag, no_cia, punto, tipo_docu, no_docu])
+        cur.connection.commit()
+    return {"ok": True, "pago_bloqueado": flag}
+
+
+# ─── CIERRE / ASIENTO (IRREVERSIBLES - construidos, NO ejecutar sin supervision) ─
+
+
+def get_asiento_contable_cxp(no_cia, punto, mes, ano):
+    """Consolida lineas TCXP_DCDOCU para el mes/año dado (read-only, seguro)."""
+    return client.fetch_dicts(
+        "SELECT l.cuenta, l.centro_costo, l.tipo_movi, "
+        "SUM(CASE WHEN l.tipo_movi='D' THEN NVL(l.monto,0) ELSE 0 END) total_debito, "
+        "SUM(CASE WHEN l.tipo_movi='C' THEN NVL(l.monto,0) ELSE 0 END) total_credito "
+        "FROM CXP.TCXP_DCDOCU l "
+        "JOIN CXP.TCXP_DOCUMENTO d "
+        "  ON d.no_cia=l.no_cia AND d.punto=l.punto "
+        "  AND d.tipo_docu=l.tipo_docu AND d.no_docu=l.no_docu "
+        "WHERE l.no_cia=:1 AND d.punto=:2 "
+        "AND EXTRACT(MONTH FROM d.fecha)=:3 AND EXTRACT(YEAR FROM d.fecha)=:4 "
+        "AND d.status='A' "
+        "GROUP BY l.cuenta, l.centro_costo, l.tipo_movi ORDER BY l.cuenta",
+        [no_cia, punto, mes, ano])
+
+
+def generar_asiento_mayor_cxp(no_cia, punto, mes_proceso, ano_proceso):
+    """
+    Marca docs del periodo como generados al mayor (st_generado_cnt=S).
+    IRREVERSIBLE sobre datos reales. NO ejecutar sin supervision.
+    """
+    with client.cursor() as cur:
+        cur.execute(
+            "UPDATE CXP.TCXP_DOCUMENTO SET st_generado_cnt='S' "
+            "WHERE no_cia=:1 AND punto=:2 "
+            "AND EXTRACT(MONTH FROM fecha)=:3 AND EXTRACT(YEAR FROM fecha)=:4 "
+            "AND status='A' AND NVL(st_generado_cnt,'N')='N'",
+            [no_cia, punto, mes_proceso, ano_proceso])
+        cur.connection.commit()
+    return {"ok": True}
+
+
+def cierre_cxp(no_cia, punto):
+    """
+    Avanza mes_proceso en TCXP_PUNTO al mes siguiente.
+    IRREVERSIBLE sobre datos reales. NO ejecutar sin supervision.
+    """
+    row = client.fetch_one(
+        "SELECT NVL(mes_proceso,1), NVL(ano_proceso,2025) "
+        "FROM CXP.TCXP_PUNTO WHERE no_cia=:1 AND punto=:2",
+        [no_cia, punto])
+    if not row:
+        raise ValueError("Punto no encontrado")
+    mes, ano = row
+    if mes == 12:
+        nuevo_mes, nuevo_ano = 1, ano + 1
+    else:
+        nuevo_mes, nuevo_ano = mes + 1, ano
+    with client.cursor() as cur:
+        cur.execute(
+            "UPDATE CXP.TCXP_PUNTO SET mes_proceso=:1, ano_proceso=:2 "
+            "WHERE no_cia=:3 AND punto=:4",
+            [nuevo_mes, nuevo_ano, no_cia, punto])
+        cur.connection.commit()
+    return {"mes": nuevo_mes, "ano": nuevo_ano}

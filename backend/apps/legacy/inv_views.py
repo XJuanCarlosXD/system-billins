@@ -8,8 +8,11 @@ from __future__ import annotations
 import decimal
 import datetime
 import io
+import json
 
 from django.http import JsonResponse, HttpResponse
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from apps.legacy.repositories import inv_repo
@@ -28,6 +31,7 @@ def _jsonify(data):
     return data
 
 
+@login_required
 @require_http_methods(["GET"])
 def inv_productos(request):
     """GET /api/inv/productos/?no_cia=01&search=&grupo=&linea=&page=1&page_size=50"""
@@ -59,6 +63,7 @@ def inv_productos(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+@login_required
 @require_http_methods(["GET"])
 def inv_producto(request, no_produ: str):
     """GET /api/inv/productos/<no_produ>/?no_cia=01"""
@@ -72,9 +77,24 @@ def inv_producto(request, no_produ: str):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-@require_http_methods(["GET"])
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
 def inv_grupos(request):
-    """GET /api/inv/grupos/?no_cia=01"""
+    """GET /api/inv/grupos/?no_cia=01 -> lista. POST -> crea (PK no_grupo)."""
+    if request.method == 'POST':
+        try:
+            d = _body(request)
+            no_grupo = str(d.get('grupo_produ', '') or d.get('no_grupo', '') or '').strip()
+            descripcion = str(d.get('descripcion', '') or '').strip()
+            if not no_grupo:
+                return JsonResponse({"error": "El codigo de grupo es requerido"}, status=400)
+            if inv_repo.get_grupo(no_grupo):
+                return JsonResponse({"error": f"El grupo {no_grupo} ya existe"}, status=400)
+            inv_repo.create_grupo(no_grupo, descripcion)
+            return JsonResponse({"ok": True, "grupo_produ": no_grupo}, status=201)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
     try:
         no_cia = request.GET.get('no_cia', '01')
         results = inv_repo.list_grupos(no_cia=no_cia)
@@ -86,9 +106,24 @@ def inv_grupos(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-@require_http_methods(["GET"])
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
 def inv_lineas(request):
-    """GET /api/inv/lineas/?no_cia=01"""
+    """GET /api/inv/lineas/?no_cia=01 -> lista. POST -> crea (PK linea)."""
+    if request.method == 'POST':
+        try:
+            d = _body(request)
+            linea = str(d.get('linea', '') or '').strip()
+            descripcion = str(d.get('descripcion', '') or '').strip()
+            if not linea:
+                return JsonResponse({"error": "El codigo de linea es requerido"}, status=400)
+            if inv_repo.get_linea(linea):
+                return JsonResponse({"error": f"La linea {linea} ya existe"}, status=400)
+            inv_repo.create_linea(linea, descripcion)
+            return JsonResponse({"ok": True, "linea": linea}, status=201)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
     try:
         no_cia = request.GET.get('no_cia', '01')
         results = inv_repo.list_lineas(no_cia=no_cia)
@@ -100,6 +135,7 @@ def inv_lineas(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+@login_required
 @require_http_methods(["GET"])
 def inv_existencias(request):
     """GET /api/inv/existencia/?no_cia=01&almacen=&no_produ=&search="""
@@ -130,6 +166,7 @@ def inv_existencias(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+@login_required
 @require_http_methods(["GET"])
 def inv_movimientos(request):
     """GET /api/inv/movimientos/?no_cia=01&almacen=&no_produ=&desde=&hasta=&tipo="""
@@ -164,12 +201,56 @@ def inv_movimientos(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-@require_http_methods(["GET"])
+def _body(request) -> dict:
+    """Parsea el cuerpo JSON de la petición (POST/PATCH/DELETE)."""
+    if not request.body:
+        return {}
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+        return data if isinstance(data, dict) else {}
+    except (ValueError, UnicodeDecodeError):
+        return {}
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
 def inv_almacenes(request):
-    """GET /api/inv/almacenes/?no_cia=01"""
+    """GET  /api/inv/almacenes/?no_cia=01   -> lista de almacenes
+    POST /api/inv/almacenes/               -> crea almacen (PK no_cia + almacen)
+    """
+    if request.method == 'POST':
+        try:
+            d = _body(request)
+            no_cia = str(d.get('no_cia', '') or '').strip()
+            punto = str(d.get('punto', '') or '').strip()
+            almacen = str(d.get('almacen', '') or '').strip()
+            descripcion = str(d.get('descripcion', '') or '').strip()
+            if not no_cia or not punto or not almacen or not descripcion:
+                return JsonResponse(
+                    {"error": "no_cia, punto, almacen y descripcion son requeridos"}, status=400)
+            if inv_repo.get_almacen(no_cia, punto, almacen):
+                return JsonResponse(
+                    {"error": f"El almacen {almacen} ya existe en el punto {punto}"}, status=400)
+            inv_repo.create_almacen(
+                no_cia,
+                punto,
+                almacen,
+                descripcion,
+                tipo_almacen=str(d.get('tipo_almacen', 'F') or 'F').strip(),
+                cual_costo=str(d.get('cual_costo', 'P') or 'P').strip(),
+                activo=str(d.get('activo', 'S') or 'S').strip(),
+            )
+            return JsonResponse(
+                {"ok": True, "no_cia": no_cia, "punto": punto, "almacen": almacen}, status=201)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+    # GET
     try:
         no_cia = request.GET.get('no_cia', '01')
-        results = inv_repo.list_almacenes(no_cia=no_cia)
+        punto = request.GET.get('punto', '') or None
+        results = inv_repo.list_almacenes(no_cia=no_cia, punto=punto)
         return JsonResponse({
             "results": _jsonify(results),
             "count": len(results),
@@ -178,9 +259,67 @@ def inv_almacenes(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-@require_http_methods(["GET"])
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "PATCH", "DELETE"])
+def inv_almacen_detail(request, almacen: str):
+    """GET/PATCH/DELETE /api/inv/almacenes/<almacen>/?no_cia=01&punto=01
+    La PK es (no_cia, punto, almacen); no_cia y punto vienen de query params o del body.
+    """
+    body = _body(request)
+    no_cia = request.GET.get('no_cia', '') or str(body.get('no_cia', '') or '').strip()
+    punto = request.GET.get('punto', '') or str(body.get('punto', '') or '').strip()
+    if not no_cia or not punto:
+        return JsonResponse({"error": "no_cia y punto son requeridos"}, status=400)
+
+    existing = inv_repo.get_almacen(no_cia, punto, almacen)
+    if not existing:
+        return JsonResponse({"error": "Almacen no encontrado"}, status=404)
+
+    if request.method == 'GET':
+        return JsonResponse({"data": _jsonify(existing)})
+
+    if request.method == 'PATCH':
+        try:
+            payload = {k: v for k, v in body.items() if k not in ('no_cia', 'punto', 'almacen')}
+            inv_repo.update_almacen(no_cia, punto, almacen, **payload)
+            return JsonResponse({"ok": True})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+    # DELETE
+    try:
+        inv_repo.delete_almacen(no_cia, punto, almacen)
+        return JsonResponse({"ok": True})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
 def inv_tipos_docu(request):
-    """GET /api/inv/tipos-docu/"""
+    """GET /api/inv/tipos-docu/ -> lista. POST -> crea (PK tipo_docu)."""
+    if request.method == 'POST':
+        try:
+            d = _body(request)
+            tipo_docu = str(d.get('tipo_docu', '') or '').strip()
+            descripcion = str(d.get('descripcion', '') or '').strip()
+            if not tipo_docu or not descripcion:
+                return JsonResponse(
+                    {"error": "tipo_docu y descripcion son requeridos"}, status=400)
+            if inv_repo.get_tdocu(tipo_docu):
+                return JsonResponse(
+                    {"error": f"El tipo de documento {tipo_docu} ya existe"}, status=400)
+            inv_repo.create_tdocu(
+                tipo_docu, descripcion,
+                tipo_movi=str(d.get('tipo_movi', 'E') or 'E').strip(),
+                tipo_transaccion=str(d.get('tipo_transaccion', 'E') or 'E').strip(),
+                nc_obligatoria=str(d.get('nc_obligatoria', 'N') or 'N').strip(),
+            )
+            return JsonResponse({"ok": True, "tipo_docu": tipo_docu}, status=201)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
     try:
         results = inv_repo.list_tipos_docu_inv()
         return JsonResponse({
@@ -193,9 +332,28 @@ def inv_tipos_docu(request):
 
 # ─── NEW VIEWS ────────────────────────────────────────────────────────────────
 
-@require_http_methods(["GET"])
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
 def inv_companias(request):
-    """GET /api/inv/companias/"""
+    """GET /api/inv/companias/  -> lista. POST -> crea (PK no_cia)."""
+    if request.method == 'POST':
+        try:
+            d = _body(request)
+            no_cia = str(d.get('no_cia', '') or '').strip()
+            descripcion = str(d.get('descripcion', '') or '').strip()
+            if not no_cia or not descripcion:
+                return JsonResponse({"error": "no_cia y descripcion son requeridos"}, status=400)
+            if inv_repo.get_compania(no_cia):
+                return JsonResponse({"error": f"La compania {no_cia} ya existe"}, status=400)
+            inv_repo.create_compania(
+                no_cia, descripcion,
+                activo=str(d.get('activo', 'S') or 'S').strip(),
+                registro_cont=str(d.get('registro_cont', 'S') or 'S').strip(),
+            )
+            return JsonResponse({"ok": True, "no_cia": no_cia}, status=201)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
     try:
         results = inv_repo.list_companias()
         return JsonResponse({"results": _jsonify(results), "count": len(results)})
@@ -203,9 +361,58 @@ def inv_companias(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-@require_http_methods(["GET"])
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "PATCH", "DELETE"])
+def inv_compania_detail(request, no_cia: str):
+    """GET/PATCH/DELETE /api/inv/companias/<no_cia>/ — PK (no_cia)."""
+    existing = inv_repo.get_compania(no_cia)
+    if not existing:
+        return JsonResponse({"error": "Compania no encontrada"}, status=404)
+    if request.method == 'GET':
+        return JsonResponse({"data": _jsonify(existing)})
+    if request.method == 'PATCH':
+        try:
+            body = _body(request)
+            payload = {k: v for k, v in body.items() if k != 'no_cia'}
+            inv_repo.update_compania(no_cia, **payload)
+            return JsonResponse({"ok": True})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    try:
+        inv_repo.delete_compania(no_cia)
+        return JsonResponse({"ok": True})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
 def inv_puntos(request):
-    """GET /api/inv/puntos/?no_cia=01"""
+    """GET /api/inv/puntos/?no_cia=01 -> lista. POST -> crea (PK no_cia, punto)."""
+    if request.method == 'POST':
+        try:
+            d = _body(request)
+            no_cia = str(d.get('no_cia', '') or '').strip()
+            punto = str(d.get('punto', '') or '').strip()
+            descripcion = str(d.get('descripcion', '') or '').strip()
+            if not no_cia or not punto or not descripcion:
+                return JsonResponse(
+                    {"error": "no_cia, punto y descripcion son requeridos"}, status=400)
+            if inv_repo.get_punto(no_cia, punto):
+                return JsonResponse(
+                    {"error": f"El punto {punto} ya existe en la cia {no_cia}"}, status=400)
+            inv_repo.create_punto(
+                no_cia, punto, descripcion,
+                ano_proceso=int(d.get('ano_proceso') or 0),
+                mes_proceso=int(d.get('mes_proceso') or 0),
+                mes_cierre=int(d.get('mes_cierre') or 12),
+                activo=str(d.get('activo', 'S') or 'S').strip(),
+            )
+            return JsonResponse({"ok": True, "no_cia": no_cia, "punto": punto}, status=201)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
     try:
         no_cia = request.GET.get('no_cia', '01')
         results = inv_repo.list_puntos(no_cia=no_cia)
@@ -214,9 +421,52 @@ def inv_puntos(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-@require_http_methods(["GET"])
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "PATCH", "DELETE"])
+def inv_punto_detail(request, punto: str):
+    """GET/PATCH/DELETE /api/inv/puntos/<punto>/?no_cia=01 — PK (no_cia, punto)."""
+    body = _body(request)
+    no_cia = request.GET.get('no_cia', '') or str(body.get('no_cia', '') or '').strip()
+    if not no_cia:
+        return JsonResponse({"error": "no_cia es requerido"}, status=400)
+    existing = inv_repo.get_punto(no_cia, punto)
+    if not existing:
+        return JsonResponse({"error": "Punto no encontrado"}, status=404)
+    if request.method == 'GET':
+        return JsonResponse({"data": _jsonify(existing)})
+    if request.method == 'PATCH':
+        try:
+            payload = {k: v for k, v in body.items() if k not in ('no_cia', 'punto')}
+            inv_repo.update_punto(no_cia, punto, **payload)
+            return JsonResponse({"ok": True})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    try:
+        inv_repo.delete_punto(no_cia, punto)
+        return JsonResponse({"ok": True})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
 def inv_unidades(request):
-    """GET /api/inv/unidades/"""
+    """GET /api/inv/unidades/ -> lista. POST -> crea (PK unidad)."""
+    if request.method == 'POST':
+        try:
+            d = _body(request)
+            unidad = str(d.get('unidad', '') or d.get('cod_unidad', '') or '').strip()
+            descripcion = str(d.get('descripcion', '') or '').strip()
+            if not unidad:
+                return JsonResponse({"error": "unidad es requerida"}, status=400)
+            if inv_repo.get_unidad(unidad):
+                return JsonResponse({"error": f"La unidad {unidad} ya existe"}, status=400)
+            inv_repo.create_unidad(unidad, descripcion)
+            return JsonResponse({"ok": True, "unidad": unidad}, status=201)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
     try:
         results = inv_repo.list_unidades()
         return JsonResponse({"results": _jsonify(results), "count": len(results)})
@@ -224,9 +474,55 @@ def inv_unidades(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-@require_http_methods(["GET"])
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "PATCH", "DELETE"])
+def inv_unidad_detail(request, unidad: str):
+    """GET/PATCH/DELETE /api/inv/unidades/<unidad>/ — PK (unidad)."""
+    existing = inv_repo.get_unidad(unidad)
+    if not existing:
+        return JsonResponse({"error": "Unidad no encontrada"}, status=404)
+    if request.method == 'GET':
+        return JsonResponse({"data": _jsonify(existing)})
+    if request.method == 'PATCH':
+        try:
+            body = _body(request)
+            descripcion = str(body.get('descripcion', '') or '').strip()
+            inv_repo.update_unidad(unidad, descripcion)
+            return JsonResponse({"ok": True})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    try:
+        inv_repo.delete_unidad(unidad)
+        return JsonResponse({"ok": True})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
 def inv_sublineas(request):
-    """GET /api/inv/sublineas/?linea=0001"""
+    """GET /api/inv/sublineas/?linea=0001 -> lista. POST -> crea (PK linea, sub_linea)."""
+    if request.method == 'POST':
+        try:
+            d = _body(request)
+            linea = str(d.get('linea', '') or '').strip()
+            sub_linea = str(d.get('sub_linea', '') or '').strip()
+            descripcion = str(d.get('descripcion', '') or '').strip()
+            if not linea or not sub_linea:
+                return JsonResponse({"error": "linea y sub_linea son requeridos"}, status=400)
+            if inv_repo.get_sublinea(linea, sub_linea):
+                return JsonResponse(
+                    {"error": f"La sub-linea {sub_linea} ya existe en la linea {linea}"}, status=400)
+            inv_repo.create_sublinea(
+                linea, sub_linea, descripcion,
+                pct_comision=d.get('pct_comision'),
+                pct_margen=d.get('pct_margen'),
+            )
+            return JsonResponse({"ok": True, "linea": linea, "sub_linea": sub_linea}, status=201)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
     try:
         no_cia = request.GET.get('no_cia', '01')
         linea = request.GET.get('linea', '')
@@ -236,6 +532,220 @@ def inv_sublineas(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "PATCH", "DELETE"])
+def inv_sublinea_detail(request, sub_linea: str):
+    """GET/PATCH/DELETE /api/inv/sublineas/<sub_linea>/?linea=0001 — PK (linea, sub_linea)."""
+    body = _body(request)
+    linea = request.GET.get('linea', '') or str(body.get('linea', '') or '').strip()
+    if not linea:
+        return JsonResponse({"error": "linea es requerida"}, status=400)
+    existing = inv_repo.get_sublinea(linea, sub_linea)
+    if not existing:
+        return JsonResponse({"error": "Sub-linea no encontrada"}, status=404)
+    if request.method == 'GET':
+        return JsonResponse({"data": _jsonify(existing)})
+    if request.method == 'PATCH':
+        try:
+            payload = {k: v for k, v in body.items() if k not in ('linea', 'sub_linea')}
+            inv_repo.update_sublinea(linea, sub_linea, **payload)
+            return JsonResponse({"ok": True})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    try:
+        inv_repo.delete_sublinea(linea, sub_linea)
+        return JsonResponse({"ok": True})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+# ─── GRUPOS / LÍNEAS / REFERENCIA / GRUPO CONTABLE / TIPOS DOC — CRUD ──────────
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "PATCH", "DELETE"])
+def inv_grupo_detail(request, no_grupo: str):
+    """GET/PATCH/DELETE /api/inv/grupos/<no_grupo>/ — PK (no_grupo)."""
+    existing = inv_repo.get_grupo(no_grupo)
+    if not existing:
+        return JsonResponse({"error": "Grupo no encontrado"}, status=404)
+    if request.method == 'GET':
+        return JsonResponse({"data": _jsonify(existing)})
+    if request.method == 'PATCH':
+        try:
+            body = _body(request)
+            descripcion = str(body.get('descripcion', '') or '').strip()
+            inv_repo.update_grupo(no_grupo, descripcion)
+            return JsonResponse({"ok": True})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    try:
+        inv_repo.delete_grupo(no_grupo)
+        return JsonResponse({"ok": True})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "PATCH", "DELETE"])
+def inv_linea_detail(request, linea: str):
+    """GET/PATCH/DELETE /api/inv/lineas/<linea>/ — PK (linea)."""
+    existing = inv_repo.get_linea(linea)
+    if not existing:
+        return JsonResponse({"error": "Linea no encontrada"}, status=404)
+    if request.method == 'GET':
+        return JsonResponse({"data": _jsonify(existing)})
+    if request.method == 'PATCH':
+        try:
+            body = _body(request)
+            descripcion = str(body.get('descripcion', '') or '').strip()
+            inv_repo.update_linea(linea, descripcion)
+            return JsonResponse({"ok": True})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    try:
+        inv_repo.delete_linea(linea)
+        return JsonResponse({"ok": True})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def inv_referencias(request):
+    """GET /api/inv/referencias-empaque/ -> lista. POST -> crea (PK referencia)."""
+    if request.method == 'POST':
+        try:
+            d = _body(request)
+            referencia = str(d.get('referencia', '') or d.get('cod_referencia', '') or '').strip()
+            descripcion = str(d.get('descripcion', '') or '').strip()
+            if not referencia:
+                return JsonResponse({"error": "referencia es requerida"}, status=400)
+            if inv_repo.get_referencia(referencia):
+                return JsonResponse({"error": f"La referencia {referencia} ya existe"}, status=400)
+            inv_repo.create_referencia(referencia, descripcion)
+            return JsonResponse({"ok": True, "referencia": referencia}, status=201)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    try:
+        results = inv_repo.list_referencias()
+        return JsonResponse({"results": _jsonify(results), "count": len(results)})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "PATCH", "DELETE"])
+def inv_referencia_detail(request, referencia: str):
+    """GET/PATCH/DELETE /api/inv/referencias-empaque/<referencia>/ — PK (referencia)."""
+    existing = inv_repo.get_referencia(referencia)
+    if not existing:
+        return JsonResponse({"error": "Referencia no encontrada"}, status=404)
+    if request.method == 'GET':
+        return JsonResponse({"data": _jsonify(existing)})
+    if request.method == 'PATCH':
+        try:
+            body = _body(request)
+            descripcion = str(body.get('descripcion', '') or '').strip()
+            inv_repo.update_referencia(referencia, descripcion)
+            return JsonResponse({"ok": True})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    try:
+        inv_repo.delete_referencia(referencia)
+        return JsonResponse({"ok": True})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def inv_grupos_contables(request):
+    """GET /api/inv/grupos-contables/ -> lista. POST -> crea (PK grupo_contable)."""
+    if request.method == 'POST':
+        try:
+            d = _body(request)
+            grupo = str(d.get('grupo_contable', '') or '').strip()
+            descripcion = str(d.get('descripcion', '') or '').strip()
+            if not grupo:
+                return JsonResponse({"error": "grupo_contable es requerido"}, status=400)
+            if inv_repo.get_grupo_contable(grupo):
+                return JsonResponse({"error": f"El grupo contable {grupo} ya existe"}, status=400)
+            inv_repo.create_grupo_contable(
+                grupo, descripcion,
+                inventario=(d.get('inventario') or None),
+                ajuste_inventario=(d.get('ajuste_inventario') or None),
+                costo_venta_contado=(d.get('costo_venta_contado') or None),
+                costo_venta_credito=(d.get('costo_venta_credito') or None),
+                ingreso_venta_contado=(d.get('ingreso_venta_contado') or None),
+                ingreso_venta_credito=(d.get('ingreso_venta_credito') or None),
+            )
+            return JsonResponse({"ok": True, "grupo_contable": grupo}, status=201)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    try:
+        results = inv_repo.list_grupos_contables()
+        return JsonResponse({"results": _jsonify(results), "count": len(results)})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "PATCH", "DELETE"])
+def inv_grupo_contable_detail(request, grupo_contable: str):
+    """GET/PATCH/DELETE /api/inv/grupos-contables/<grupo_contable>/ — PK (grupo_contable)."""
+    existing = inv_repo.get_grupo_contable(grupo_contable)
+    if not existing:
+        return JsonResponse({"error": "Grupo contable no encontrado"}, status=404)
+    if request.method == 'GET':
+        return JsonResponse({"data": _jsonify(existing)})
+    if request.method == 'PATCH':
+        try:
+            body = _body(request)
+            payload = {k: v for k, v in body.items() if k != 'grupo_contable'}
+            inv_repo.update_grupo_contable(grupo_contable, **payload)
+            return JsonResponse({"ok": True})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    try:
+        inv_repo.delete_grupo_contable(grupo_contable)
+        return JsonResponse({"ok": True})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "PATCH", "DELETE"])
+def inv_tdocu_detail(request, tipo_docu: str):
+    """GET/PATCH/DELETE /api/inv/tipos-docu/<tipo_docu>/ — PK (tipo_docu)."""
+    existing = inv_repo.get_tdocu(tipo_docu)
+    if not existing:
+        return JsonResponse({"error": "Tipo de documento no encontrado"}, status=404)
+    if request.method == 'GET':
+        return JsonResponse({"data": _jsonify(existing)})
+    if request.method == 'PATCH':
+        try:
+            body = _body(request)
+            payload = {k: v for k, v in body.items() if k != 'tipo_docu'}
+            inv_repo.update_tdocu(tipo_docu, **payload)
+            return JsonResponse({"ok": True})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    try:
+        inv_repo.delete_tdocu(tipo_docu)
+        return JsonResponse({"ok": True})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+@login_required
 @require_http_methods(["GET"])
 def inv_existencia_producto(request, no_produ: str):
     """GET /api/inv/existencia/<no_produ>/?no_cia=01"""
@@ -247,6 +757,7 @@ def inv_existencia_producto(request, no_produ: str):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+@login_required
 @require_http_methods(["GET"])
 def inv_consulta_documentos(request):
     """GET /api/inv/documentos/?no_cia=01&punto=&tipo_docu=&desde=&hasta=&almacen=&limit=100"""
@@ -267,6 +778,7 @@ def inv_consulta_documentos(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+@login_required
 @require_http_methods(["GET"])
 def inv_documento_detalle(request, tipo_docu: str, no_docu: str):
     """GET /api/inv/documentos/<tipo_docu>/<no_docu>/?no_cia=01"""
@@ -280,6 +792,7 @@ def inv_documento_detalle(request, tipo_docu: str, no_docu: str):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+@login_required
 @require_http_methods(["GET"])
 def inv_documento_pdf(request, tipo_docu: str, no_docu: str):
     """GET /api/inv/documentos/<tipo_docu>/<no_docu>/pdf/?no_cia=01"""
@@ -293,7 +806,7 @@ def inv_documento_pdf(request, tipo_docu: str, no_docu: str):
         return JsonResponse({"error": "Documento no encontrado"}, status=404)
 
     try:
-        from reportlab.pagesizes import letter
+        from reportlab.lib.pagesizes import letter
         from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
         from reportlab.lib.styles import getSampleStyleSheet
         from reportlab.lib import colors
@@ -364,6 +877,7 @@ def inv_documento_pdf(request, tipo_docu: str, no_docu: str):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+@login_required
 @require_http_methods(["GET"])
 def inv_kardex(request):
     """GET /api/inv/kardex/?no_cia=01&no_produ=X&almacen=&desde=&hasta="""
@@ -384,6 +898,7 @@ def inv_kardex(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+@login_required
 @require_http_methods(["GET"])
 def inv_valorizacion(request):
     """GET /api/inv/valorizacion/?no_cia=01&almacen="""
@@ -406,7 +921,7 @@ def inv_valorizacion(request):
 def _build_pdf_report(title: str, columns: list[str], rows: list[dict],
                       col_widths: list | None = None) -> bytes:
     """Helper: construye un PDF simple con título y tabla."""
-    from reportlab.pagesizes import letter, landscape
+    from reportlab.lib.pagesizes import letter, landscape
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.lib import colors
@@ -451,11 +966,12 @@ def _build_pdf_report(title: str, columns: list[str], rows: list[dict],
     return buffer.read()
 
 
+@login_required
 @require_http_methods(["GET"])
 def inv_reporte_existencia_pdf(request):
     """GET /api/inv/reportes/existencia/pdf/?no_cia=01&almacen="""
     try:
-        from reportlab.pagesizes import letter  # noqa: probe import
+        from reportlab.lib.pagesizes import letter  # noqa: probe import
     except ImportError:
         return JsonResponse({"error": "reportlab no instalado"}, status=500)
     try:
@@ -472,11 +988,12 @@ def inv_reporte_existencia_pdf(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+@login_required
 @require_http_methods(["GET"])
 def inv_reporte_movimientos_pdf(request):
     """GET /api/inv/reportes/movimientos/pdf/?no_cia=01&desde=&hasta=&tipo_docu="""
     try:
-        from reportlab.pagesizes import letter  # noqa: probe import
+        from reportlab.lib.pagesizes import letter  # noqa: probe import
     except ImportError:
         return JsonResponse({"error": "reportlab no instalado"}, status=500)
     try:
@@ -499,11 +1016,12 @@ def inv_reporte_movimientos_pdf(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+@login_required
 @require_http_methods(["GET"])
 def inv_reporte_kardex_pdf(request):
     """GET /api/inv/reportes/kardex/pdf/?no_cia=01&no_produ=X&almacen=&desde=&hasta="""
     try:
-        from reportlab.pagesizes import letter  # noqa: probe import
+        from reportlab.lib.pagesizes import letter  # noqa: probe import
     except ImportError:
         return JsonResponse({"error": "reportlab no instalado"}, status=500)
     try:
@@ -528,11 +1046,12 @@ def inv_reporte_kardex_pdf(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+@login_required
 @require_http_methods(["GET"])
 def inv_reporte_valorizacion_pdf(request):
     """GET /api/inv/reportes/valorizacion/pdf/?no_cia=01&almacen="""
     try:
-        from reportlab.pagesizes import letter  # noqa: probe import
+        from reportlab.lib.pagesizes import letter  # noqa: probe import
     except ImportError:
         return JsonResponse({"error": "reportlab no instalado"}, status=500)
     try:

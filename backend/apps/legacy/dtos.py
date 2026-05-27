@@ -113,6 +113,12 @@ class DocumentType:
     tipo_transaccion: str
     activo: bool
     codigo_ncf: str | None
+    cuenta_contado: str | None = None
+    cuenta_propina: str | None = None
+    porciento_propina: float | None = None
+    afecta_cxc: bool = False
+    controlar_formulario: bool = False
+    almacen: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

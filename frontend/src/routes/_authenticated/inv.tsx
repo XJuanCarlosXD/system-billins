@@ -8,6 +8,7 @@ export const Route = createFileRoute('/_authenticated/inv')({
       .enum(['configuracion', 'procesos', 'consultas', 'reportes', 'conteo-fisico', 'cierre'])
       .optional()
       .catch('configuracion'),
+    view: z.string().optional().catch(undefined),
   }),
   component: InvPage,
 })

@@ -7,7 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { downloadCsv, printHtml } from './export-utils'
+import { buildReportMeta, downloadCsv, printNcf } from './export-utils'
 
 interface Props { noCia: string; punto: string; ano: number; mes: number }
 
@@ -23,7 +23,7 @@ const emptyForm = {
   ncf_manual: false,
 }
 
-export function NcfContabilidad({ noCia, punto }: Props) {
+export function NcfContabilidad({ noCia, punto, mes, ano }: Props) {
   const [rows, setRows] = useState<NcfRow[]>([])
   const [edit, setEdit] = useState<NcfRow | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
@@ -54,7 +54,9 @@ export function NcfContabilidad({ noCia, punto }: Props) {
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / 12))
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
+    const mesAno = `${String(mes).padStart(2, '0')}-${ano}`
+    const meta = await buildReportMeta(noCia, punto, mesAno)
     downloadCsv(
       `cnt-ncf-${noCia}-${punto}.csv`,
       ['Codigo', 'Inicial', 'Final', 'Proximo', 'Disponibles', 'Tipo', 'Manual', 'Vencimiento'],
@@ -68,39 +70,14 @@ export function NcfContabilidad({ noCia, punto }: Props) {
         row.ncf_manual,
         row.fecha_vencimiento ? String(row.fecha_vencimiento).slice(0, 10) : '',
       ]),
+      meta,
     )
   }
 
-  const exportPdf = () => {
-    const body = `
-      <table>
-        <thead>
-          <tr>
-            <th>Codigo</th>
-            <th>Inicial</th>
-            <th>Final</th>
-            <th>Proximo</th>
-            <th>Disponibles</th>
-            <th>Tipo</th>
-            <th>Vencimiento</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${filteredRows.map((row) => `
-            <tr>
-              <td>${row.codigo_ncf ?? ''}</td>
-              <td class="numeric">${row.ncf_inicial ?? ''}</td>
-              <td class="numeric">${row.ncf_final ?? ''}</td>
-              <td class="numeric">${row.prox_ncf ?? ''}</td>
-              <td class="numeric">${row.disponibles ?? ''}</td>
-              <td>${row.tipo_ncf_fiscal ?? ''}</td>
-              <td>${row.fecha_vencimiento ? String(row.fecha_vencimiento).slice(0, 10) : ''}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    `
-    printHtml(`NCF Contabilidad ${noCia}/${punto}`, body)
+  const exportPdf = async () => {
+    const mesAno = `${String(mes).padStart(2, '0')}-${ano}`
+    const meta = await buildReportMeta(noCia, punto, mesAno)
+    printNcf(meta, filteredRows)
   }
 
   return (
