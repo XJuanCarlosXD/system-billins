@@ -322,7 +322,7 @@ export function ConsultaDocumentos() {
 
       {/* Detail Side Panel */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent className='w-full sm:max-w-2xl overflow-y-auto'>
+        <SheetContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
           <SheetHeader>
             <SheetTitle className='flex items-center gap-2'>
               <FileText className='h-5 w-5' />

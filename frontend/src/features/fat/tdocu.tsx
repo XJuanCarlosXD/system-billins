@@ -162,7 +162,7 @@ export function TiposDocumentoFat({ noCia, punto }: Props) {
       </Table>
 
       <Dialog open={formOpen} onOpenChange={() => { setEdit(null); setCreating(false) }}>
-        <DialogContent className='max-w-md'>
+        <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
           <DialogHeader>
             <DialogTitle>{creating ? 'Nuevo Tipo de Documento' : `Editar ${edit?.tipo_docu} — ${edit?.descripcion}`}</DialogTitle>
           </DialogHeader>

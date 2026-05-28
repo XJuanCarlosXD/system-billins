@@ -300,7 +300,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
 
       {/* Detalle modal */}
       <Dialog open={!!selected || loadingDetail} onOpenChange={() => setSelected(null)}>
-        <DialogContent className='max-w-4xl max-h-[85vh] overflow-y-auto'>
+        <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
           <DialogHeader>
             <div className='flex items-center justify-between'>
               <DialogTitle>
@@ -395,7 +395,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
 
       {/* Confirm Anulación dialog */}
       <Dialog open={anularOpen} onOpenChange={setAnularOpen}>
-        <DialogContent className='max-w-sm'>
+        <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
           <DialogHeader>
             <DialogTitle className='flex items-center gap-2 text-destructive'>
               <AlertTriangle className='h-5 w-5' /> Confirmar Anulación

@@ -256,7 +256,7 @@ function GrupoContableFormDialog({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className='max-w-lg'>
+      <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Editar grupo contable' : 'Nuevo grupo contable'}</DialogTitle>
         </DialogHeader>

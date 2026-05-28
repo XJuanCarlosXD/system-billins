@@ -151,7 +151,7 @@ export function Companias({ noCia }: Props) {
       </Table>
 
       <Dialog open={formOpen} onOpenChange={() => { setEdit(null); setCreating(false) }}>
-        <DialogContent className='max-w-md'>
+        <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
           <DialogHeader>
             <DialogTitle>{creating ? 'Nueva Compañía' : `Editar ${edit?.no_cia} — ${edit?.descripcion}`}</DialogTitle>
           </DialogHeader>

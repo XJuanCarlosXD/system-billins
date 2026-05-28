@@ -113,7 +113,7 @@ export function TransportistasFat() {
       </Table>
 
       <Dialog open={formOpen} onOpenChange={() => { setEdit(null); setCreating(false) }}>
-        <DialogContent className='max-w-sm'>
+        <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
           <DialogHeader>
             <DialogTitle>{creating ? 'Nuevo Transportista' : `Editar #${edit?.codigo}`}</DialogTitle>
           </DialogHeader>

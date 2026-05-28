@@ -176,7 +176,7 @@ export function ControlNcf({ noCia, punto, mes, ano }: Props) {
       </Table>
 
       <Dialog open={formOpen} onOpenChange={() => { setEdit(null); setCreating(false) }}>
-        <DialogContent className='max-w-sm'>
+        <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
           <DialogHeader>
             <DialogTitle>{creating ? 'Nuevo Rango NCF' : `Editar ${edit?.codigo_ncf}`}</DialogTitle>
           </DialogHeader>

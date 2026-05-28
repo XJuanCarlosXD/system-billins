@@ -224,7 +224,7 @@ export function CierreMensual({ noCia, punto }: Props) {
 
       {/* Doble confirmación */}
       <Dialog open={showConfirm} onOpenChange={(open) => { if (!open) setConfirmInput(''); setShowConfirm(open) }}>
-        <DialogContent>
+        <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
           <DialogHeader>
             <DialogTitle className='flex items-center gap-2 text-destructive'>
               <AlertTriangle className='h-5 w-5' />

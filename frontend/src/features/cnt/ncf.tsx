@@ -234,7 +234,7 @@ function NcfEditDialog({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className='max-w-sm'>
+      <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
         <DialogHeader>
           <DialogTitle>Editar NCF {row.codigo_ncf}</DialogTitle>
         </DialogHeader>
@@ -293,7 +293,7 @@ function NcfCreateDialog({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className='max-w-md'>
+      <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
         <DialogHeader>
           <DialogTitle>Nuevo NCF</DialogTitle>
         </DialogHeader>

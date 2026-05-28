@@ -68,7 +68,7 @@ function CreateUserDialog({ onCreated }: { onCreated: () => void }) {
           <Plus className='me-2 h-4 w-4' /> Nuevo usuario
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
         <DialogHeader>
           <DialogTitle>Crear usuario Oracle</DialogTitle>
           <DialogDescription>
@@ -118,7 +118,7 @@ function ResetPasswordDialog({ user, onDone }: { user: AdminUser; onDone: () => 
           <KeyRound className='h-3.5 w-3.5' />
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
         <DialogHeader>
           <DialogTitle>Resetear contraseña — {user.username}</DialogTitle>
           <DialogDescription>El usuario tendrá que cambiarla luego desde su perfil.</DialogDescription>

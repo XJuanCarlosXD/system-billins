@@ -52,7 +52,7 @@ export function ConfigDrawer() {
           <Settings aria-hidden='true' />
         </Button>
       </SheetTrigger>
-      <SheetContent className='flex flex-col'>
+      <SheetContent className='flex flex-col max-w-[70vw] max-h-[70vh] overflow-y-auto'>
         <SheetHeader className='pb-0 text-start'>
           <SheetTitle>Theme Settings</SheetTitle>
           <SheetDescription>

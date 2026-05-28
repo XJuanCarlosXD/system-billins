@@ -263,7 +263,7 @@ export function CatalogoProductos() {
       {/* Detail dialog */}
       {selected && (
         <Dialog open onOpenChange={() => setSelected(null)}>
-          <DialogContent className='max-w-lg'>
+          <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
             <DialogHeader>
               <DialogTitle className='flex items-center gap-2'>
                 <span className='font-mono text-base'>{selected.no_produ}</span>

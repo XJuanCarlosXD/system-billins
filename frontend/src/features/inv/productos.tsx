@@ -156,7 +156,7 @@ export function InvProductos() {
       )}
 
       <Sheet open={!!selected} onOpenChange={o => { if (!o) setSelected(null) }}>
-        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+        <SheetContent className="max-w-[70vw] max-h-[70vh] overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{detalle?.descri ?? 'Cargando…'}</SheetTitle>
           </SheetHeader>

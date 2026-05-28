@@ -65,7 +65,7 @@ export function UsersInviteDialog({
         onOpenChange(state)
       }}
     >
-      <DialogContent className='sm:max-w-md'>
+      <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
         <DialogHeader className='text-start'>
           <DialogTitle className='flex items-center gap-2'>
             <MailPlus /> Invite User

@@ -143,7 +143,7 @@ export function UsersActionDialog({
         onOpenChange(state)
       }}
     >
-      <DialogContent className='sm:max-w-lg'>
+      <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
         <DialogHeader className='text-start'>
           <DialogTitle>{isEdit ? 'Edit User' : 'Add New User'}</DialogTitle>
           <DialogDescription>

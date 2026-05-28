@@ -216,7 +216,7 @@ function ReferenciaFormDialog({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className='max-w-md'>
+      <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Editar referencia' : 'Nueva referencia'}</DialogTitle>
         </DialogHeader>

@@ -114,7 +114,7 @@ export function CxcDocumentos({ noCia, punto }: P) {
 
       {/* Document detail dialog */}
       <Dialog open={!!detail} onOpenChange={() => setDetail(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-[70vw] max-h-[70vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Detalle Documento — {detail?.no_doc}</DialogTitle></DialogHeader>
           {detail && (
             <div className="space-y-4">

@@ -132,7 +132,7 @@ export function CxpProveedores() {
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-[70vw] max-h-[70vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{form.no_proveedor ? `Proveedor ${form.no_proveedor}` : 'Nuevo Proveedor'}</DialogTitle>
           </DialogHeader>

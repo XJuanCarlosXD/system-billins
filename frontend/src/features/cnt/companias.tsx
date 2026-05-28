@@ -267,7 +267,7 @@ export function Companias({ noCia }: Props) {
 
       {/* Dialog nueva compañía */}
       <Dialog open={dlgOpen} onOpenChange={setDlgOpen}>
-        <DialogContent className='sm:max-w-md'>
+        <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
           <DialogHeader><DialogTitle>Nueva Compañía</DialogTitle></DialogHeader>
           <div className='space-y-3 py-2'>
             <div className='flex items-center gap-3'>

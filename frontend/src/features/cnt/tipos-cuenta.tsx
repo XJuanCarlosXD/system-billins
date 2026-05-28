@@ -224,7 +224,7 @@ export function TiposCuenta() {
 
       {/* ── Create / Edit Dialog ── */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className='sm:max-w-md'>
+        <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
           <DialogHeader>
             <DialogTitle>{editTipo ? `Editar Tipo: ${editTipo}` : 'Nuevo Tipo de Cuenta'}</DialogTitle>
           </DialogHeader>

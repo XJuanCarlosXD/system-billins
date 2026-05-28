@@ -200,7 +200,7 @@ export function CxcClientes({ noCia, punto = '01' }: P) {
 
       {/* Client Form Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[70vw] max-h-[70vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {isNew ? 'Nuevo Cliente' : `Editar Cliente — ${form.no_cliente}`}
