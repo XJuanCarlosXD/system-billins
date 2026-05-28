@@ -57,4 +57,8 @@ urlpatterns = [
 
     # Asignar cuentas a sucursal (FCNT106)
     path('cnt/catalogo-sucursal/', views.CatalogoSucursalView.as_view()),
+
+    # Reportes financieros
+    path('cnt/presupuesto/', views.PresupuestoView.as_view()),
+    path('cnt/estado-resultados/', views.EstadoResultadosView.as_view()),
 ]

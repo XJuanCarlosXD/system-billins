@@ -785,3 +785,45 @@ class CentroCuentaView(APIView):
         else:
             cnt_repo.asignar_centro_cuenta(no_cia, punto, cuenta, centro)
         return Response({'ok': True})
+
+class PresupuestoView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """GET /api/cnt/presupuesto/?no_cia=01&punto=01&ano=2025
+        Retorna lista de filas con cuenta, descripcion, tipo, clase, mes_01..mes_12, total_anual."""
+        qp = request.query_params
+        no_cia = qp.get('no_cia', '')
+        punto = qp.get('punto', '')
+        ano = qp.get('ano')
+        if not all([no_cia, punto, ano]):
+            return Response({'error': 'no_cia, punto, ano requeridos'}, status=400)
+        try:
+            data = cnt_repo.list_presupuesto(no_cia, punto, int(ano))
+            return Response(data)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
+class EstadoResultadosView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """GET /api/cnt/estado-resultados/?no_cia=01&punto=01&ano=2025&mes_ini=1&mes_fin=12
+        Retorna {ingresos, costos, gastos, total_ingresos, total_costos,
+                 utilidad_bruta, total_gastos, utilidad_neta}."""
+        qp = request.query_params
+        no_cia = qp.get('no_cia', '')
+        punto = qp.get('punto', '')
+        ano = qp.get('ano')
+        mes_ini = qp.get('mes_ini', '1')
+        mes_fin = qp.get('mes_fin', '12')
+        if not all([no_cia, punto, ano]):
+            return Response({'error': 'no_cia, punto, ano requeridos'}, status=400)
+        try:
+            data = cnt_repo.get_estado_resultados(
+                no_cia, punto, int(ano), int(mes_ini), int(mes_fin)
+            )
+            return Response(data)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)

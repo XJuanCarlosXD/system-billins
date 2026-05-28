@@ -1066,3 +1066,40 @@ def inv_reporte_valorizacion_pdf(request):
         return resp
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def inv_cierre_entrada_diario_pdf(request):
+    """GET /api/inv/cierre/entrada-diario/pdf/?no_cia=01&punto=01&mes=05&ano=2026&tipo=detallado&fecha="""
+    try:
+        from reportlab.lib.pagesizes import letter  # noqa: probe import
+    except ImportError:
+        return JsonResponse({"error": "reportlab no instalado"}, status=500)
+    try:
+        no_cia = request.GET.get('no_cia', '01')
+        punto = request.GET.get('punto', '')
+        mes = request.GET.get('mes', '')
+        ano = request.GET.get('ano', '')
+        tipo = request.GET.get('tipo', 'detallado')
+        fecha = request.GET.get('fecha', '')
+        if not mes or not ano:
+            return JsonResponse({"error": "Parametros mes y ano requeridos"}, status=400)
+        rows = inv_repo.list_entrada_diario(
+            no_cia=no_cia, punto=punto, ano=ano, mes=mes,
+            fecha=fecha, tipo=tipo,
+        )
+        # Detectar si vienen de TINV_ED (tiene campo 'cuenta') o de TINV_MOVIMIENTO
+        if rows and 'cuenta' in rows[0]:
+            cols = ['FECHA', 'TIPO_DOCU', 'NO_DOCU', 'CUENTA', 'TIPO_MOVI',
+                    'CENTRO_COSTO', 'MONTO']
+        else:
+            cols = ['FECHA', 'TIPO_DOCU', 'NO_DOCU', 'ALMACEN', 'NO_PRODU',
+                    'TIPO_MOVI', 'CANTIDAD', 'COSTO', 'MONTO']
+        titulo = f"Entrada de Diario {'Detallado' if tipo == 'detallado' else 'Resumido'} — {mes}/{ano} — Cia {no_cia}"
+        pdf = _build_pdf_report(titulo, cols, rows)
+        resp = HttpResponse(pdf, content_type='application/pdf')
+        resp['Content-Disposition'] = f'inline; filename="INV_EntradaDiario_{no_cia}_{ano}{mes}.pdf"'
+        return resp
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)

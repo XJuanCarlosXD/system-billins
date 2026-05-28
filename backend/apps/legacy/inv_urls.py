@@ -47,4 +47,7 @@ urlpatterns = [
     path('reportes/movimientos/pdf/', inv_views.inv_reporte_movimientos_pdf),
     path('reportes/kardex/pdf/', inv_views.inv_reporte_kardex_pdf),
     path('reportes/valorizacion/pdf/', inv_views.inv_reporte_valorizacion_pdf),
+
+    # Cierre - Entrada de Diario
+    path('cierre/entrada-diario/pdf/', inv_views.inv_cierre_entrada_diario_pdf),
 ]

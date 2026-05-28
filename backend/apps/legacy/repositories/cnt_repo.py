@@ -1107,3 +1107,102 @@ def desasignar_centro_cuenta(no_cia: str, punto: str, cuenta: str, centro: str):
             [no_cia, punto, cuenta, centro]
         )
         conn.commit()
+
+def list_presupuesto(no_cia: str, punto: str, ano: int) -> list[dict]:
+    """Retorna presupuesto anual por cuenta con columnas mes_01..mes_12 y total_anual.
+    Fuente: CNT.TCNT_PRESUPUESTO JOIN CNT.TCNT_CATALOGO."""
+    rows = client.fetch_dicts(
+        """SELECT p.cuenta,
+                  c.nombre AS descripcion,
+                  c.tipo,
+                  c.clase,
+                  SUM(CASE WHEN p.mes=1  THEN p.presupuesto ELSE 0 END) AS mes_01,
+                  SUM(CASE WHEN p.mes=2  THEN p.presupuesto ELSE 0 END) AS mes_02,
+                  SUM(CASE WHEN p.mes=3  THEN p.presupuesto ELSE 0 END) AS mes_03,
+                  SUM(CASE WHEN p.mes=4  THEN p.presupuesto ELSE 0 END) AS mes_04,
+                  SUM(CASE WHEN p.mes=5  THEN p.presupuesto ELSE 0 END) AS mes_05,
+                  SUM(CASE WHEN p.mes=6  THEN p.presupuesto ELSE 0 END) AS mes_06,
+                  SUM(CASE WHEN p.mes=7  THEN p.presupuesto ELSE 0 END) AS mes_07,
+                  SUM(CASE WHEN p.mes=8  THEN p.presupuesto ELSE 0 END) AS mes_08,
+                  SUM(CASE WHEN p.mes=9  THEN p.presupuesto ELSE 0 END) AS mes_09,
+                  SUM(CASE WHEN p.mes=10 THEN p.presupuesto ELSE 0 END) AS mes_10,
+                  SUM(CASE WHEN p.mes=11 THEN p.presupuesto ELSE 0 END) AS mes_11,
+                  SUM(CASE WHEN p.mes=12 THEN p.presupuesto ELSE 0 END) AS mes_12,
+                  SUM(p.presupuesto) AS total_anual
+           FROM CNT.TCNT_PRESUPUESTO p
+           JOIN CNT.TCNT_CATALOGO c ON c.cuenta = p.cuenta
+           WHERE p.no_cia=:1 AND p.punto=:2 AND p.ano=:3
+           GROUP BY p.cuenta, c.nombre, c.tipo, c.clase
+           ORDER BY p.cuenta""",
+        [no_cia, punto, int(ano)]
+    )
+    # Convert Decimal/float to plain float for JSON serialization
+    result = []
+    for r in rows:
+        row = dict(r)
+        for k in ['mes_01','mes_02','mes_03','mes_04','mes_05','mes_06',
+                  'mes_07','mes_08','mes_09','mes_10','mes_11','mes_12','total_anual']:
+            row[k] = float(row.get(k) or 0)
+        result.append(row)
+    return result
+
+
+def get_estado_resultados(no_cia: str, punto: str, ano: int,
+                          mes_ini: int, mes_fin: int) -> dict:
+    """Estado de Resultados (P&L) acumulando debitos/creditos de TCNT_HCUENTA
+    para cuentas de clase I (ingresos), E (egresos/gastos) y clase E tipo 60 (costos)."""
+    rows = client.fetch_dicts(
+        """SELECT h.cuenta, c.nombre AS descripcion, c.tipo, c.clase,
+                  SUM(h.debitos)  AS total_deb,
+                  SUM(h.creditos) AS total_cred
+           FROM CNT.TCNT_HCUENTA h
+           JOIN CNT.TCNT_CATALOGO c ON c.cuenta = h.cuenta
+           WHERE h.no_cia=:1 AND h.punto=:2 AND h.ano=:3
+             AND h.mes >= :4 AND h.mes <= :5
+             AND c.clase IN ('I','E')
+             AND c.acepta_movi='S'
+           GROUP BY h.cuenta, c.nombre, c.tipo, c.clase
+           ORDER BY h.cuenta""",
+        [no_cia, punto, int(ano), int(mes_ini), int(mes_fin)]
+    )
+
+    ingresos = []
+    costos = []
+    gastos = []
+
+    for r in rows:
+        clase = (r.get('clase') or '').upper()
+        tipo = (r.get('tipo') or '').strip()
+        deb = float(r.get('total_deb') or 0)
+        cred = float(r.get('total_cred') or 0)
+        # Ingresos: clase I -> saldo = creditos - debitos
+        if clase == 'I':
+            saldo = round(cred - deb, 2)
+            ingresos.append({'cuenta': r['cuenta'], 'descripcion': r['descripcion'],
+                             'tipo': tipo, 'saldo': saldo})
+        elif clase == 'E':
+            # tipo 60 = costo de ventas; resto = gastos operativos
+            saldo = round(deb - cred, 2)
+            entry = {'cuenta': r['cuenta'], 'descripcion': r['descripcion'],
+                     'tipo': tipo, 'saldo': saldo}
+            if tipo == '60':
+                costos.append(entry)
+            else:
+                gastos.append(entry)
+
+    total_ingresos = round(sum(r['saldo'] for r in ingresos), 2)
+    total_costos = round(sum(r['saldo'] for r in costos), 2)
+    total_gastos = round(sum(r['saldo'] for r in gastos), 2)
+    utilidad_bruta = round(total_ingresos - total_costos, 2)
+    utilidad_neta = round(utilidad_bruta - total_gastos, 2)
+
+    return {
+        'ingresos': ingresos,
+        'costos': costos,
+        'gastos': gastos,
+        'total_ingresos': total_ingresos,
+        'total_costos': total_costos,
+        'utilidad_bruta': utilidad_bruta,
+        'total_gastos': total_gastos,
+        'utilidad_neta': utilidad_neta,
+    }

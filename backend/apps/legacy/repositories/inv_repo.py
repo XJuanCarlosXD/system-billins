@@ -1060,3 +1060,44 @@ def delete_punto(no_cia: str, punto: str) -> None:
             [no_cia, punto],
         )
         conn.commit()
+
+def list_entrada_diario(no_cia: str, punto: str, ano: str, mes: str,
+                        fecha: str = '', tipo: str = 'detallado') -> list[dict]:
+    """Retorna los registros de la entrada de diario del cierre INV.
+    tipo=detallado -> linea por registro; tipo=resumido -> agrupado por cuenta.
+    Usa TINV_ED que acumula las entradas generadas al mayor CNT.
+    Si TINV_ED vacia (pre-cierre) cae a TINV_MOVIMIENTO como respaldo."""
+    rows = client.fetch_dicts(
+        """SELECT e.no_cia, e.punto, e.tipo_docu, e.no_docu,
+                  e.cuenta, e.tipo_movi, e.fecha, e.centro_costo,
+                  e.monto, e.tasa_us, e.usuario
+           FROM INV.TINV_ED e
+           WHERE e.no_cia=:1 AND e.punto=:2
+             AND EXTRACT(YEAR FROM e.fecha)=:3
+             AND EXTRACT(MONTH FROM e.fecha)=:4
+           ORDER BY e.fecha, e.tipo_docu, e.no_docu, e.cuenta""",
+        [no_cia, punto, int(ano), int(mes)]
+    )
+    if not rows:
+        # Fallback: movimientos del mes como fuente
+        rows = client.fetch_dicts(
+            """SELECT m.no_cia, m.punto, m.tipo_docu, m.no_docu,
+                      m.almacen, m.no_produ, m.tipo_movi, m.fecha,
+                      m.cantidad, m.costo, m.monto_neto AS monto
+               FROM INV.TINV_MOVIMIENTO m
+               WHERE m.no_cia=:1 AND m.punto=:2
+                 AND EXTRACT(YEAR FROM m.fecha)=:3
+                 AND EXTRACT(MONTH FROM m.fecha)=:4
+               ORDER BY m.fecha, m.tipo_docu, m.no_docu""",
+            [no_cia, punto, int(ano), int(mes)]
+        )
+    if tipo == 'resumido':
+        summary: dict = {}
+        for r in rows:
+            key = r.get('cuenta') or r.get('tipo_docu') or ''
+            if key not in summary:
+                summary[key] = {**r, 'monto': 0.0}
+            summary[key]['monto'] = round(float(summary[key].get('monto') or 0)
+                                          + float(r.get('monto') or 0), 2)
+        rows = list(summary.values())
+    return rows
