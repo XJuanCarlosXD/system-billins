@@ -370,62 +370,113 @@ def list_conduces(no_cia: str, punto: str, page: int = 1, page_size: int = 30,
 # ── Cuadre de Caja ────────────────────────────────────────────────────────────
 
 def list_cuadre_caja(no_cia: str, punto: str, desde: str = '', hasta: str = '') -> list[dict]:
-    # Group by invoice date so days with invoices always show even without a formal cuadre
-    filters = ["f.no_cia = :1", "f.punto = :2"]
-    params: list = [no_cia, punto]
+    # Group by date — includes FAT facturas + CXC cobros en el total.
+    # Use named params so the UNION ALL can share param names.
+    params: dict = {'p_cia': no_cia, 'p_pto': punto}
+    where_fat = []
+    where_cxc = []
     if desde:
-        filters.append(f"TRUNC(f.fecha) >= TO_DATE(:{len(params)+1},'YYYY-MM-DD')")
-        params.append(desde)
+        params['p_desde'] = desde
+        where_fat.append("AND TRUNC(f.fecha) >= TO_DATE(:p_desde,'YYYY-MM-DD')")
+        where_cxc.append("AND TRUNC(d.fecha) >= TO_DATE(:p_desde,'YYYY-MM-DD')")
     if hasta:
-        filters.append(f"TRUNC(f.fecha) <= TO_DATE(:{len(params)+1},'YYYY-MM-DD')")
-        params.append(hasta)
-    where = " AND ".join(filters)
-    rows = client.fetch_dicts(
-        f"SELECT TRUNC(f.fecha) AS fecha, "
-        f"MAX(cc.no_cuadre_caja) AS no_cuadre_caja, "
-        f"MAX(f.usuario_apertura) AS usuario, "
-        f"SUM(fp.monto) AS total_monto "
-        f"FROM FAT.TFAT_FACTURA f "
-        f"JOIN FAT.TFAT_FORMA_PAGO fp ON fp.no_cia=f.no_cia AND fp.punto=f.punto "
-        f"  AND fp.tipo_factura=f.tipo_factura AND fp.no_factura=f.no_factura "
-        f"LEFT JOIN FAT.TFAT_CUADRE_CAJA cc ON cc.no_cia=f.no_cia AND cc.punto=f.punto "
-        f"  AND TRUNC(cc.fecha)=TRUNC(f.fecha) "
-        f"WHERE {where} GROUP BY TRUNC(f.fecha) ORDER BY TRUNC(f.fecha) DESC", params)
+        params['p_hasta'] = hasta
+        where_fat.append("AND TRUNC(f.fecha) <= TO_DATE(:p_hasta,'YYYY-MM-DD')")
+        where_cxc.append("AND TRUNC(d.fecha) <= TO_DATE(:p_hasta,'YYYY-MM-DD')")
+    extra_fat = " ".join(where_fat)
+    extra_cxc = " ".join(where_cxc)
+    sql = (
+        f"SELECT fecha, MAX(no_cuadre_caja) AS no_cuadre_caja, "
+        f"MAX(usuario) AS usuario, SUM(total_monto) AS total_monto "
+        f"FROM ("
+        f"  SELECT TRUNC(f.fecha) AS fecha, "
+        f"    MAX(cc.no_cuadre_caja) AS no_cuadre_caja, "
+        f"    MAX(f.usuario) AS usuario, "
+        f"    SUM(fp.monto) AS total_monto "
+        f"  FROM FAT.TFAT_FACTURA f "
+        f"  JOIN FAT.TFAT_FORMA_PAGO fp ON fp.no_cia=f.no_cia AND fp.punto=f.punto "
+        f"    AND fp.tipo_factura=f.tipo_factura AND fp.no_factura=f.no_factura "
+        f"  LEFT JOIN FAT.TFAT_CUADRE_CAJA cc ON cc.no_cia=f.no_cia AND cc.punto=f.punto "
+        f"    AND TRUNC(cc.fecha)=TRUNC(f.fecha) "
+        f"  WHERE f.no_cia=:p_cia AND f.punto=:p_pto {extra_fat} "
+        f"  GROUP BY TRUNC(f.fecha) "
+        f"  UNION ALL "
+        f"  SELECT TRUNC(d.fecha) AS fecha, "
+        f"    NULL AS no_cuadre_caja, "
+        f"    MAX(d.usuario) AS usuario, "
+        f"    SUM(d.credito) AS total_monto "
+        f"  FROM CXC.TCXC_DOCUMENTO d "
+        f"  WHERE d.no_cia=:p_cia AND d.punto=:p_pto "
+        f"    AND d.tipo_docu='RI' AND NVL(d.st_anulado,'N')='N' "
+        f"    {extra_cxc} "
+        f"  GROUP BY TRUNC(d.fecha) "
+        f") GROUP BY fecha ORDER BY fecha DESC"
+    )
+    rows = client.fetch_dicts(sql, params)
     return [{'no_cuadre_caja': int(r['no_cuadre_caja'] or 0),
              'fecha': str(r['fecha'])[:10] if r['fecha'] else None,
-             'usuario': r['usuario'] or '',
+             'usuario': (r['usuario'] or '').strip(),
              'total_monto': float(r['total_monto'] or 0)} for r in rows]
 
 
 def get_cuadre_caja_detalle(no_cia: str, punto: str, tipo_factura: str,
                              desde: str, hasta: str, no_cuadre: str = '') -> list[dict]:
-    params: list = [no_cia, punto]
-    where_extra = []
+    # Use named params (dict) so both branches of the UNION ALL can reuse the same names.
+    params: dict = {'p_cia': no_cia, 'p_pto': punto}
+    where_fat = []
+    where_cxc = []
+
     if no_cuadre:
-        params.append(int(no_cuadre))
-        where_extra.append(f"AND f.NO_CUADRE_CAJA = :{len(params)}")
+        params['p_cuadre'] = int(no_cuadre)
+        where_fat.append("AND f.NO_CUADRE_CAJA = :p_cuadre")
+        where_cxc.append("AND d.NO_CUADRE_CAJA = :p_cuadre")
     else:
         if tipo_factura:
-            params.append(tipo_factura.upper())
-            where_extra.append(f"AND fp.tipo_factura = :{len(params)}")
+            params['p_tipo'] = tipo_factura.upper()
+            where_fat.append("AND fp.tipo_factura = :p_tipo")
         if desde:
-            params.append(desde)
-            where_extra.append(f"AND TRUNC(f.fecha) >= TO_DATE(:{len(params)},'YYYY-MM-DD')")
+            params['p_desde'] = desde
+            where_fat.append("AND TRUNC(f.fecha) >= TO_DATE(:p_desde,'YYYY-MM-DD')")
+            where_cxc.append("AND TRUNC(d.fecha) >= TO_DATE(:p_desde,'YYYY-MM-DD')")
         if hasta:
-            params.append(hasta)
-            where_extra.append(f"AND TRUNC(f.fecha) <= TO_DATE(:{len(params)},'YYYY-MM-DD')")
-    extra = " ".join(where_extra)
-    rows = client.fetch_dicts(
-        f"SELECT tp.descripcion AS forma_pago, fp.tipo_pago, "
-        f"COUNT(*) AS cantidad, SUM(fp.monto) AS total "
-        f"FROM FAT.TFAT_FORMA_PAGO fp "
-        f"JOIN FAT.TFAT_FACTURA f ON f.no_cia=fp.no_cia AND f.punto=fp.punto "
-        f"  AND f.tipo_factura=fp.tipo_factura AND f.no_factura=fp.no_factura "
-        f"LEFT JOIN FAT.TFAT_TIPO_PAGO tp ON tp.no_cia=fp.no_cia AND tp.tipo_pago=fp.tipo_pago "
-        f"WHERE fp.no_cia=:1 AND fp.punto=:2 {extra} "
-        f"GROUP BY tp.descripcion, fp.tipo_pago ORDER BY fp.tipo_pago", params)
-    return [{'tipo_pago': r['tipo_pago'], 'forma_pago': (r['forma_pago'] or r['tipo_pago'] or '').strip(),
-             'cantidad': int(r['cantidad'] or 0), 'total': float(r['total'] or 0)} for r in rows]
+            params['p_hasta'] = hasta
+            where_fat.append("AND TRUNC(f.fecha) <= TO_DATE(:p_hasta,'YYYY-MM-DD')")
+            where_cxc.append("AND TRUNC(d.fecha) <= TO_DATE(:p_hasta,'YYYY-MM-DD')")
+
+    extra_fat = " ".join(where_fat)
+    extra_cxc = " ".join(where_cxc)
+
+    sql = (
+        f"SELECT tipo_pago, forma_pago, cantidad, total FROM ("
+        # ── Facturas: TFAT_FORMA_PAGO (efectivo, crédito, cheque, tarjeta, etc.) ──
+        f"  SELECT fp.tipo_pago AS tipo_pago, "
+        f"    NVL(tp.descripcion, fp.tipo_pago) AS forma_pago, "
+        f"    COUNT(*) AS cantidad, SUM(fp.monto) AS total, 1 AS origen "
+        f"  FROM FAT.TFAT_FORMA_PAGO fp "
+        f"  JOIN FAT.TFAT_FACTURA f ON f.no_cia=fp.no_cia AND f.punto=fp.punto "
+        f"    AND f.tipo_factura=fp.tipo_factura AND f.no_factura=fp.no_factura "
+        f"  LEFT JOIN FAT.TFAT_TIPO_PAGO tp ON tp.no_cia=fp.no_cia AND tp.tipo_pago=fp.tipo_pago "
+        f"  WHERE fp.no_cia=:p_cia AND fp.punto=:p_pto {extra_fat} "
+        f"  GROUP BY fp.tipo_pago, NVL(tp.descripcion, fp.tipo_pago) "
+        # ── Cobros CXC: recibos de ingreso aplicados a facturas a crédito ──
+        f"  UNION ALL "
+        f"  SELECT 'C'||d.forma_pago AS tipo_pago, "
+        f"    'COBRO CRED - '||NVL(tp2.descripcion, d.forma_pago) AS forma_pago, "
+        f"    COUNT(*) AS cantidad, SUM(d.credito) AS total, 2 AS origen "
+        f"  FROM CXC.TCXC_DOCUMENTO d "
+        f"  LEFT JOIN FAT.TFAT_TIPO_PAGO tp2 ON tp2.no_cia=:p_cia "
+        f"    AND tp2.tipo_pago=d.forma_pago "
+        f"  WHERE d.no_cia=:p_cia AND d.punto=:p_pto "
+        f"    AND d.tipo_docu='RI' AND NVL(d.st_anulado,'N')='N' "
+        f"    {extra_cxc} "
+        f"  GROUP BY d.forma_pago, NVL(tp2.descripcion, d.forma_pago) "
+        f") ORDER BY origen, tipo_pago"
+    )
+    rows = client.fetch_dicts(sql, params)
+    return [{'tipo_pago': r['tipo_pago'],
+             'forma_pago': (r['forma_pago'] or r['tipo_pago'] or '').strip(),
+             'cantidad': int(r['cantidad'] or 0),
+             'total': float(r['total'] or 0)} for r in rows]
 
 
 # ── Reporte Ventas por Producto ───────────────────────────────────────────────
@@ -501,6 +552,7 @@ def rep_ncf_607(no_cia: str, desde: str, hasta: str) -> list[dict]:
 # ── Reporte NCF Nulos ─────────────────────────────────────────────────────────
 
 def rep_ncf_nulos(no_cia: str, desde: str, hasta: str) -> list[dict]:
+    """Facturas anuladas con NCF asignado (Reporte 608 DGII - NCF Nulos/Anulados)."""
     params: list = [no_cia]
     extra = []
     if desde:
@@ -512,17 +564,26 @@ def rep_ncf_nulos(no_cia: str, desde: str, hasta: str) -> list[dict]:
     extra_sql = " ".join(extra)
     rows = client.fetch_dicts(
         f"SELECT f.ncf, f.codigo_ncf, f.tipo_ncf_fiscal, f.no_factura, f.tipo_factura, "
-        f"f.fecha, cl.nombre AS nombre_cliente, NVL(f.total_neto,0) AS total_neto "
+        f"f.fecha AS fecha_anulacion, "
+        f"f.tipo_anula_dgii, ta.descripcion AS motivo_anulacion "
         f"FROM FAT.TFAT_FACTURA f "
-        f"LEFT JOIN CXC.TCXC_CLIENTE cl ON cl.no_cliente = f.no_cliente "
-        f"WHERE f.no_cia=:1 AND NVL(f.st_anulado,'N')='S' {extra_sql} "
+        f"LEFT JOIN FAT.TFAT_TANULACION_DGII ta ON ta.tipo = f.tipo_anula_dgii "
+        f"WHERE f.no_cia=:1 AND NVL(f.st_anulado,'N')='S' "
+        f"AND f.ncf IS NOT NULL {extra_sql} "
         f"ORDER BY f.fecha DESC", params)
-    return [{'ncf': int(r['ncf']) if r['ncf'] else None, 'codigo_ncf': r['codigo_ncf'] or '',
-             'tipo_ncf_fiscal': r['tipo_ncf_fiscal'] or '', 'no_factura': r['no_factura'] or '',
+    return [{'ncf': int(r['ncf']) if r['ncf'] else None,
+             'codigo_ncf': r['codigo_ncf'] or '',
+             'tipo_ncf_fiscal': r['tipo_ncf_fiscal'] or '',
+             'tipo_ncf': r['codigo_ncf'] or '',
+             'no_factura': r['no_factura'] or '',
              'tipo_factura': r['tipo_factura'] or '',
-             'fecha': str(r['fecha'])[:10] if r['fecha'] else None,
-             'nombre_cliente': (r['nombre_cliente'] or '').strip(),
-             'total_neto': float(r['total_neto'])} for r in rows]
+             # DGII 608 campos: fecha_desde/fecha_hasta = fecha de la factura (rango no disponible por factura)
+             'fecha_desde': str(r['fecha_anulacion'])[:10] if r['fecha_anulacion'] else None,
+             'fecha_hasta': str(r['fecha_anulacion'])[:10] if r['fecha_anulacion'] else None,
+             'fecha_anulacion': str(r['fecha_anulacion'])[:10] if r['fecha_anulacion'] else None,
+             'tipo_anula_dgii': r['tipo_anula_dgii'] or '',
+             'motivo_anulacion': (r['motivo_anulacion'] or r['tipo_anula_dgii'] or '').strip(),
+             } for r in rows]
 
 
 # ── Cierres ────────────────────────────────────────────────────────────────────

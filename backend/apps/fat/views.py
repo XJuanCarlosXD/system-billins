@@ -1,10 +1,21 @@
 """Vistas FAT - endpoints completos de Facturacion."""
+import calendar
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.legacy.repositories import companies_repo, fat_repo, permissions_repo
+
+
+def _ano_mes_to_range(ano: str, mes: str) -> tuple[str, str]:
+    """Convert ano/mes integers to desde/hasta date strings (YYYY-MM-DD)."""
+    y = int(ano or 0)
+    m = int(mes or 0)
+    if not y or not m:
+        return '', ''
+    last_day = calendar.monthrange(y, m)[1]
+    return f'{y:04d}-{m:02d}-01', f'{y:04d}-{m:02d}-{last_day:02d}'
 
 
 def _as_bool(value, default=False) -> bool:
@@ -534,8 +545,14 @@ class FatCuadreCajaView(APIView):
         if forbidden:
             return forbidden
         try:
+            # Support both ano/mes (from frontend) and explicit desde/hasta
             desde = request.query_params.get('desde', '')
             hasta = request.query_params.get('hasta', '')
+            if not desde and not hasta:
+                ano = request.query_params.get('ano', '')
+                mes = request.query_params.get('mes', '')
+                if ano and mes:
+                    desde, hasta = _ano_mes_to_range(ano, mes)
             tipo_factura = request.query_params.get('tipo', '')
             no_cuadre = request.query_params.get('no_cuadre', '')
             resumen = fat_repo.get_cuadre_caja_detalle(no_cia, punto, tipo_factura, desde, hasta, no_cuadre)
@@ -559,10 +576,16 @@ class FatRepVentasView(APIView):
         if forbidden:
             return forbidden
         try:
+            desde = request.query_params.get('desde', '')
+            hasta = request.query_params.get('hasta', '')
+            if not desde and not hasta:
+                ano = request.query_params.get('ano', '')
+                mes = request.query_params.get('mes', '')
+                if ano and mes:
+                    desde, hasta = _ano_mes_to_range(ano, mes)
             rows = fat_repo.rep_ventas_producto(
                 no_cia=no_cia, punto=punto,
-                desde=request.query_params.get('desde', ''),
-                hasta=request.query_params.get('hasta', ''),
+                desde=desde, hasta=hasta,
                 vendedor=request.query_params.get('vendedor', ''),
                 almacen=request.query_params.get('almacen', ''))
             total_neto = sum(r['monto_neto'] for r in rows)
@@ -585,10 +608,14 @@ class FatRep607View(APIView):
         if forbidden:
             return forbidden
         try:
-            rows = fat_repo.rep_ncf_607(
-                no_cia=no_cia,
-                desde=request.query_params.get('desde', ''),
-                hasta=request.query_params.get('hasta', ''))
+            desde = request.query_params.get('desde', '')
+            hasta = request.query_params.get('hasta', '')
+            if not desde and not hasta:
+                ano = request.query_params.get('ano', '')
+                mes = request.query_params.get('mes', '')
+                if ano and mes:
+                    desde, hasta = _ano_mes_to_range(ano, mes)
+            rows = fat_repo.rep_ncf_607(no_cia=no_cia, desde=desde, hasta=hasta)
             total_neto = sum(r['total_neto'] for r in rows)
             total_itbis = sum(r['impuesto'] for r in rows)
             return Response({'items': rows, 'total_neto': total_neto,
@@ -609,10 +636,14 @@ class FatRepNcfNulosView(APIView):
         if forbidden:
             return forbidden
         try:
-            rows = fat_repo.rep_ncf_nulos(
-                no_cia=no_cia,
-                desde=request.query_params.get('desde', ''),
-                hasta=request.query_params.get('hasta', ''))
+            desde = request.query_params.get('desde', '')
+            hasta = request.query_params.get('hasta', '')
+            if not desde and not hasta:
+                ano = request.query_params.get('ano', '')
+                mes = request.query_params.get('mes', '')
+                if ano and mes:
+                    desde, hasta = _ano_mes_to_range(ano, mes)
+            rows = fat_repo.rep_ncf_nulos(no_cia=no_cia, desde=desde, hasta=hasta)
             return Response({'items': rows, 'count': len(rows)})
         except Exception as e:
             return Response({'detail': str(e)}, status=500)
