@@ -16,6 +16,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from apps.legacy.repositories import inv_repo
+from apps.legacy.pdf_helpers import build_pdf_report
 
 
 def _jsonify(data):
@@ -924,53 +925,6 @@ def inv_valorizacion(request):
 
 # ─── REPORT PDFs ──────────────────────────────────────────────────────────────
 
-def _build_pdf_report(title: str, columns: list[str], rows: list[dict],
-                      col_widths: list | None = None) -> bytes:
-    """Helper: construye un PDF simple con título y tabla."""
-    from reportlab.lib.pagesizes import letter, landscape
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-    from reportlab.lib.styles import getSampleStyleSheet
-    from reportlab.lib import colors
-    from reportlab.lib.units import inch
-
-    buffer = io.BytesIO()
-    doc_pdf = SimpleDocTemplate(buffer, pagesize=landscape(letter),
-                                leftMargin=0.5*inch, rightMargin=0.5*inch,
-                                topMargin=0.5*inch, bottomMargin=0.5*inch)
-    styles = getSampleStyleSheet()
-    elements = [Paragraph(title, styles['Title']), Spacer(1, 8)]
-
-    if rows:
-        header_row = [c.upper() for c in columns]
-        data = [header_row]
-        for r in rows[:500]:
-            row_data = []
-            for c in columns:
-                val = r.get(c.lower(), r.get(c.upper(), ''))
-                if isinstance(val, float):
-                    val = f"{val:,.2f}"
-                row_data.append(str(val or ''))
-            data.append(row_data)
-
-        t = Table(data, colWidths=col_widths)
-        t.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 7),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#DCE6F1')]),
-            ('GRID', (0, 0), (-1, -1), 0.3, colors.grey),
-        ]))
-        elements.append(t)
-        elements.append(Spacer(1, 6))
-        elements.append(Paragraph(f"Total registros: {len(rows)}", styles['Normal']))
-    else:
-        elements.append(Paragraph("Sin datos.", styles['Normal']))
-
-    doc_pdf.build(elements)
-    buffer.seek(0)
-    return buffer.read()
-
 
 @login_required
 @require_http_methods(["GET"])
@@ -986,7 +940,7 @@ def inv_reporte_existencia_pdf(request):
         punto = request.GET.get('punto', '')
         rows = inv_repo.list_existencias(no_cia=no_cia, almacen=almacen, punto=punto)
         cols = ['ALMACEN', 'NO_PRODU', 'DESCRIPCION', 'EXISTENCIA', 'COSTO_PROM', 'VALOR']
-        pdf = _build_pdf_report(f"Reporte de Existencias — Empresa {no_cia}", cols, rows)
+        pdf = build_pdf_report(f"Reporte de Existencias — Empresa {no_cia}", cols, rows)
         resp = HttpResponse(pdf, content_type='application/pdf')
         resp['Content-Disposition'] = f'inline; filename="INV_Existencias_{no_cia}.pdf"'
         return resp
@@ -1014,7 +968,7 @@ def inv_reporte_movimientos_pdf(request):
         )
         cols = ['FECHA', 'TIPO_DOCU', 'NO_DOCU', 'ALMACEN', 'NO_PRODU',
                 'DESCRIPCION', 'TIPO_MOVI', 'CANTIDAD', 'COSTO', 'MONTO_NETO']
-        pdf = _build_pdf_report(f"Reporte de Movimientos — Empresa {no_cia}", cols, rows)
+        pdf = build_pdf_report(f"Reporte de Movimientos — Empresa {no_cia}", cols, rows)
         resp = HttpResponse(pdf, content_type='application/pdf')
         resp['Content-Disposition'] = f'inline; filename="INV_Movimientos_{no_cia}.pdf"'
         return resp
@@ -1044,7 +998,7 @@ def inv_reporte_kardex_pdf(request):
         )
         cols = ['FECHA', 'TIPO_DOCU', 'NO_DOCU', 'ALMACEN',
                 'TIPO_MOVI', 'CANTIDAD', 'COSTO', 'SALDO']
-        pdf = _build_pdf_report(f"Kardex — {no_produ} — Empresa {no_cia}", cols, rows)
+        pdf = build_pdf_report(f"Kardex — {no_produ} — Empresa {no_cia}", cols, rows)
         resp = HttpResponse(pdf, content_type='application/pdf')
         resp['Content-Disposition'] = f'inline; filename="INV_Kardex_{no_produ}.pdf"'
         return resp
@@ -1066,7 +1020,7 @@ def inv_reporte_valorizacion_pdf(request):
         rows = inv_repo.get_valoracion_inventario(no_cia=no_cia, almacen=almacen)
         cols = ['ALMACEN', 'ALMACEN_DESC', 'NO_PRODU', 'DESCRIPCION',
                 'EXISTENCIA', 'COSTO_ACTUAL', 'VALOR']
-        pdf = _build_pdf_report(f"Valoración de Inventario — Empresa {no_cia}", cols, rows)
+        pdf = build_pdf_report(f"Valoración de Inventario — Empresa {no_cia}", cols, rows)
         resp = HttpResponse(pdf, content_type='application/pdf')
         resp['Content-Disposition'] = f'inline; filename="INV_Valorizacion_{no_cia}.pdf"'
         return resp
@@ -1103,7 +1057,7 @@ def inv_cierre_entrada_diario_pdf(request):
             cols = ['FECHA', 'TIPO_DOCU', 'NO_DOCU', 'ALMACEN', 'NO_PRODU',
                     'TIPO_MOVI', 'CANTIDAD', 'COSTO', 'MONTO']
         titulo = f"Entrada de Diario {'Detallado' if tipo == 'detallado' else 'Resumido'} — {mes}/{ano} — Cia {no_cia}"
-        pdf = _build_pdf_report(titulo, cols, rows)
+        pdf = build_pdf_report(titulo, cols, rows)
         resp = HttpResponse(pdf, content_type='application/pdf')
         resp['Content-Disposition'] = f'inline; filename="INV_EntradaDiario_{no_cia}_{ano}{mes}.pdf"'
         return resp
