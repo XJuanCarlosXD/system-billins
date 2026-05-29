@@ -1459,3 +1459,32 @@ def create_conduce(no_cia, punto, tipo_conduce, no_cliente, fecha, vendedor,
     return {"no_conduce": no_conduce, "tipo_conduce": tc, "clase": cl,
             "total_neto": total_neto, "total_linea": total_linea,
             "descuento": total_descuento, "impuesto": total_impuesto}
+
+
+# ── Lookups secundarios usados por views_print (FAT-print sprint) ─────────────
+
+def get_vendedor_nombre(no_cia: str, vendedor: str) -> str:
+    """Devuelve el nombre del vendedor o '' si no se encuentra.
+
+    Tabla: CXC.TCXC_VENDEDOR (mismo schema usado por list_vendedores arriba).
+    """
+    if not vendedor:
+        return ''
+    row = client.fetch_one(
+        "SELECT NOMBRE FROM CXC.TCXC_VENDEDOR WHERE NO_CIA = :1 AND VENDEDOR = :2",
+        [no_cia, vendedor.strip().upper()])
+    return (row[0] or '').strip() if row else ''
+
+
+def get_condicion_pago_descripcion(no_condicion_pago: str) -> str:
+    """Devuelve la descripción de la condición de pago o '' si no se encuentra.
+
+    Tabla: FAT.TFAT_CONDICION_PAGO (mismo schema usado por list_condiciones_pago).
+    """
+    if not no_condicion_pago:
+        return ''
+    row = client.fetch_one(
+        "SELECT descripcion FROM FAT.TFAT_CONDICION_PAGO "
+        "WHERE no_condicion_pago = :1",
+        [no_condicion_pago])
+    return (row[0] or '').strip() if row else ''
