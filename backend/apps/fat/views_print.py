@@ -15,8 +15,6 @@ Nota de implementación:
 """
 from __future__ import annotations
 
-import re
-
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.http import require_http_methods
@@ -30,10 +28,6 @@ TIPOS_NCF_VALIDOS_FISICOS = {
     'B01', 'B02', 'B03', 'B04',
     'B11', 'B12', 'B13', 'B14', 'B15',
 }
-
-# Patrón de NCF DGI físico o electrónico (B01..B15, E31..E44, etc.)
-# Códigos legado como "FC-001", "CG-001" no deben mostrarse como NCF válido.
-_PATRON_NCF_DGI = re.compile(r'^[BE]\d{2}\d+$')
 
 NCF_DESCRIPCION = {
     'B01': 'Crédito Fiscal',
@@ -77,7 +71,7 @@ def fat_documento_pdf(request, tipo: str, no_factura: str):
     if factura is None:
         return JsonResponse({"error": "Factura no encontrada"}, status=404)
 
-    tipo_ncf = (factura.get('tipo_ncf_fiscal') or '').strip().upper()
+    tipo_ncf = (factura.get('posiciones_fijas_ncf') or factura.get('tipo_ncf_fiscal') or '').strip().upper()
     # Solo rechazar si hay un tipo explícito que no sea válido DGI.
     # NULL/vacío se permite: la factura puede no tener NCF aún (datos legacy)
     # y el renderer mostrará "(sin NCF asignado)".
@@ -131,10 +125,15 @@ def _render_factura_pdf(*, factura, razon_social, rnc_cliente, direccion_cliente
     fecha_display = (
         f"{fecha[8:10]}/{fecha[5:7]}/{fecha[:4]}" if fecha and len(fecha) >= 10 else fecha
     )
-    # Solo usar codigo_ncf si tiene formato DGI (B01..., E31...).
-    # Códigos legado ("FC-001", "CG-001") se descartan y se muestra "(sin NCF asignado)".
-    _codigo_ncf_raw = (factura.get('codigo_ncf') or '').strip()
-    codigo_ncf = _codigo_ncf_raw if _PATRON_NCF_DGI.match(_codigo_ncf_raw) else ''
+    # Componer NCF real desde POSICIONES_FIJAS_NCF + LPAD(NCF, 8, '0').
+    # El campo CODIGO_NCF de la tabla es un código de SERIE legacy ('FC-001'),
+    # no el NCF DGI. El NCF real se compone de los dos campos por separado.
+    posiciones = (factura.get('posiciones_fijas_ncf') or '').strip().upper()
+    ncf_num = factura.get('ncf')
+    if posiciones and ncf_num:
+        codigo_ncf = f"{posiciones}{int(ncf_num):08d}"
+    else:
+        codigo_ncf = ''
     nombre_cliente = (factura.get('nombre_cliente') or '').strip() or '(sin nombre)'
     vendedor_codigo = (factura.get('vendedor') or '').strip()
     vendedor_display = (
@@ -144,8 +143,6 @@ def _render_factura_pdf(*, factura, razon_social, rnc_cliente, direccion_cliente
     ncf_descripcion = NCF_DESCRIPCION.get(tipo_ncf, '')
     if codigo_ncf and tipo_ncf:
         ncf_display = f"<b>NCF:</b> {codigo_ncf} ({tipo_ncf} — {ncf_descripcion})"
-    elif codigo_ncf:
-        ncf_display = f"<b>NCF:</b> {codigo_ncf}"
     elif tipo_ncf:
         ncf_display = f"<b>NCF:</b> (no asignado, tipo {tipo_ncf})"
     else:

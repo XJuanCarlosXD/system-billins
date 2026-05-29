@@ -790,7 +790,7 @@ def get_factura(no_cia: str, punto: str, tipo_factura: str, no_factura: str) -> 
         "SELECT f.no_cia, f.punto, f.tipo_factura, f.no_factura, f.no_cliente, "
         "c.nombre AS nombre_cliente, f.fecha, f.vendedor, "
         "f.total_linea, f.descuento, f.impuesto, f.total_neto, f.propina, "
-        "f.estado, f.ncf, f.codigo_ncf, f.tipo_ncf_fiscal, "
+        "f.estado, f.ncf, f.posiciones_fijas_ncf, f.codigo_ncf, f.tipo_ncf_fiscal, "
         "f.plazo_pago, f.forma_pago_fat, f.no_condicion_pago, "
         "f.tasa_us, f.porc_impuesto, f.nota, f.detalle, "
         "f.st_anulado, f.st_impresion, f.st_generado_cnt "
@@ -817,7 +817,9 @@ def get_factura(no_cia: str, punto: str, tipo_factura: str, no_factura: str) -> 
         'total_linea': float(r['total_linea'] or 0), 'descuento': float(r['descuento'] or 0),
         'impuesto': float(r['impuesto'] or 0), 'total_neto': float(r['total_neto'] or 0),
         'propina': float(r['propina'] or 0), 'estado': r['estado'] or 'P',
-        'ncf': int(r['ncf']) if r['ncf'] else None, 'codigo_ncf': r['codigo_ncf'] or '',
+        'ncf': int(r['ncf']) if r['ncf'] else None,
+        'posiciones_fijas_ncf': (r['posiciones_fijas_ncf'] or '').strip().upper(),
+        'codigo_ncf': r['codigo_ncf'] or '',
         'tipo_ncf_fiscal': r['tipo_ncf_fiscal'] or '', 'plazo_pago': int(r['plazo_pago'] or 0),
         'forma_pago': r['forma_pago_fat'] or '', 'no_condicion_pago': r['no_condicion_pago'] or '',
         'tasa_us': float(r['tasa_us'] or 0), 'porc_impuesto': float(r['porc_impuesto'] or 0),
