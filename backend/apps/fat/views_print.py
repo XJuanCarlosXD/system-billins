@@ -119,6 +119,9 @@ def _render_factura_pdf(*, factura, razon_social, rnc_cliente, direccion_cliente
     tipo = factura.get('tipo_factura', '')
     no_factura = factura.get('no_factura', '')
     fecha = factura.get('fecha', '') or ''
+    fecha_display = (
+        f"{fecha[8:10]}/{fecha[5:7]}/{fecha[:4]}" if fecha and len(fecha) >= 10 else fecha
+    )
     codigo_ncf = (factura.get('codigo_ncf') or '').strip()
     nombre_cliente = (factura.get('nombre_cliente') or '').strip() or '(sin nombre)'
     vendedor_codigo = (factura.get('vendedor') or '').strip()
@@ -138,7 +141,7 @@ def _render_factura_pdf(*, factura, razon_social, rnc_cliente, direccion_cliente
         f"<b>Cliente:</b> {nombre_cliente}",
         f"<b>RNC/Cédula:</b> {rnc_cliente or 'N/A'}",
         f"<b>Dirección:</b> {direccion_cliente or 'N/A'}",
-        f"<b>Fecha:</b> {fecha}  <b>Vendedor:</b> {vendedor_display or 'N/A'}",
+        f"<b>Fecha:</b> {fecha_display}  <b>Vendedor:</b> {vendedor_display or 'N/A'}",
         f"<b>Condición de pago:</b> {cond_pago_display}",
         ncf_display,
     ]
