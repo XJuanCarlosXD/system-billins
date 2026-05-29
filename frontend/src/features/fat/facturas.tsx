@@ -298,96 +298,137 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
         </div>
       </div>
 
-      {/* Detalle modal */}
+      {/* Detalle modal — mismo patrón del modal de búsqueda de producto:
+          header con título + chips de info + botones; sub-bar de filtros (aquí, datos
+          del cliente); body scrollable con tabla; footer con totales sticky. */}
       <Dialog open={!!selected || loadingDetail} onOpenChange={() => setSelected(null)}>
-        <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
-          <DialogHeader>
-            <div className='flex items-center justify-between'>
-              <DialogTitle>
+        <DialogContent className='w-[80vw] h-[70vh] max-w-none sm:max-w-none flex flex-col p-0 gap-0 overflow-hidden'>
+          <DialogHeader className='px-6 py-4 border-b shrink-0 bg-white'>
+            <div className='flex items-center gap-4 flex-wrap'>
+              <DialogTitle className='text-lg mr-2'>
                 {selected
                   ? `Factura ${selected.tipo_factura} ${selected.no_factura}`
                   : 'Cargando…'}
               </DialogTitle>
+
               {selected && (
-                <div className='flex gap-2 mr-8'>
-                  <Button variant='outline' size='sm' onClick={printDetail}>
-                    <Printer className='mr-2 h-4 w-4' /> Imprimir
-                  </Button>
-                  {isAnulada ? (
-                    <Badge variant='destructive' className='self-center'>Anulada</Badge>
-                  ) : (
-                    <Button variant='destructive' size='sm' onClick={() => { setMotivo(''); setAnularError(''); setAnularOpen(true) }}>
-                      <XCircle className='mr-1 h-4 w-4' /> Anular
-                    </Button>
+                <>
+                  <Badge variant={ESTADO_BADGE[selected.estado]?.variant ?? 'outline'} className='gap-1'>
+                    {ESTADO_BADGE[selected.estado]?.label ?? selected.estado}
+                  </Badge>
+                  {selected.codigo_ncf && (
+                    <span className='text-xs text-gray-600 bg-blue-50 border border-blue-100 rounded px-2 py-1 font-mono'>
+                      NCF: {selected.codigo_ncf} {selected.ncf ?? ''}
+                    </span>
                   )}
-                </div>
+                  <span className='text-xs text-gray-500'>
+                    {selected.fecha} · {selected.vendedor || 'Sin vendedor'}
+                  </span>
+
+                  <div className='ml-auto flex gap-2'>
+                    <Button variant='outline' size='sm' onClick={printDetail}>
+                      <Printer className='mr-1 h-4 w-4' /> Imprimir
+                    </Button>
+                    {isAnulada ? (
+                      <Badge variant='destructive' className='self-center'>Anulada</Badge>
+                    ) : (
+                      <Button variant='destructive' size='sm' onClick={() => { setMotivo(''); setAnularError(''); setAnularOpen(true) }}>
+                        <XCircle className='mr-1 h-4 w-4' /> Anular
+                      </Button>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           </DialogHeader>
 
-          {loadingDetail && <p className='py-8 text-center text-muted-foreground'>Cargando detalle…</p>}
+          {/* Sub-bar tipo "filtros" pero con datos del cliente */}
           {selected && !loadingDetail && (
-            <div className='space-y-4 text-sm'>
-              {/* Info general */}
-              <div className='grid grid-cols-2 gap-x-8 gap-y-1 rounded-lg border p-3'>
-                <div><span className='text-muted-foreground'>Cliente:</span> <strong>{selected.nombre_cliente || `#${selected.no_cliente}`}</strong></div>
-                <div><span className='text-muted-foreground'>Fecha:</span> {selected.fecha}</div>
-                <div><span className='text-muted-foreground'>Vendedor:</span> {selected.vendedor || '—'}</div>
-                <div><span className='text-muted-foreground'>Forma pago:</span> {selected.forma_pago || '—'}</div>
-                <div><span className='text-muted-foreground'>Plazo:</span> {selected.plazo_pago ? `${selected.plazo_pago} días` : '—'}</div>
-                <div><span className='text-muted-foreground'>NCF:</span> <span className='font-mono'>{selected.codigo_ncf} {selected.ncf ?? ''}</span></div>
-                <div><span className='text-muted-foreground'>Estado:</span> <Badge variant={ESTADO_BADGE[selected.estado]?.variant ?? 'outline'}>{ESTADO_BADGE[selected.estado]?.label ?? selected.estado}</Badge></div>
-                <div><span className='text-muted-foreground'>Generado CNT:</span> {selected.st_generado_cnt === 'S' ? 'Sí' : 'No'}</div>
+            <div className='px-6 py-3 border-b shrink-0 bg-gray-50 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-1 text-sm'>
+              <div className='md:col-span-2 min-w-0'>
+                <span className='text-xs text-gray-500 block'>Cliente</span>
+                <span className='font-semibold truncate block'>
+                  {selected.nombre_cliente || `Cliente #${selected.no_cliente}`}
+                </span>
               </div>
+              <div>
+                <span className='text-xs text-gray-500 block'>Forma pago</span>
+                <span>{selected.forma_pago || '—'}{selected.plazo_pago ? ` · ${selected.plazo_pago}d` : ''}</span>
+              </div>
+              <div>
+                <span className='text-xs text-gray-500 block'>Generado CNT</span>
+                <span>{selected.st_generado_cnt === 'S' ? 'Sí' : 'No'}</span>
+              </div>
+            </div>
+          )}
 
-              {/* Líneas */}
+          {loadingDetail && (
+            <div className='flex-1 flex items-center justify-center text-muted-foreground text-base'>
+              Cargando detalle…
+            </div>
+          )}
+
+          {selected && !loadingDetail && (
+            <div className='flex-1 overflow-y-auto px-6 py-2'>
               <Table>
-                <TableHeader>
+                <TableHeader className='sticky top-0 bg-white z-10'>
                   <TableRow>
                     <TableHead className='w-10'>#</TableHead>
-                    <TableHead className='w-24'>Producto</TableHead>
+                    <TableHead className='w-28'>Producto</TableHead>
                     <TableHead>Descripción</TableHead>
-                    <TableHead className='w-16 text-right'>Cant.</TableHead>
-                    <TableHead className='w-20 text-right'>Precio</TableHead>
+                    <TableHead className='w-20 text-right'>Cant.</TableHead>
+                    <TableHead className='w-24 text-right'>Precio</TableHead>
                     <TableHead className='w-16 text-right'>%Desc</TableHead>
-                    <TableHead className='w-20 text-right'>%ITBIS</TableHead>
-                    <TableHead className='w-24 text-right'>Neto</TableHead>
+                    <TableHead className='w-16 text-right'>%ITBIS</TableHead>
+                    <TableHead className='w-28 text-right'>Neto</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {selected.lineas.filter((l) => l.st_anulado !== 'S').length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={8} className='text-center text-gray-400 py-12 text-base'>
+                        Esta factura no tiene líneas activas.
+                      </TableCell>
+                    </TableRow>
+                  )}
                   {selected.lineas.filter((l) => l.st_anulado !== 'S').map((l) => (
-                    <TableRow key={l.no_linea}>
-                      <TableCell>{l.no_linea}</TableCell>
-                      <TableCell className='font-mono'>{l.no_produ}</TableCell>
-                      <TableCell>{l.descripcion}</TableCell>
-                      <TableCell className='text-right'>{l.cantidad.toLocaleString('en-US')}</TableCell>
+                    <TableRow key={l.no_linea} className='hover:bg-blue-50'>
+                      <TableCell className='font-mono text-xs text-gray-500'>{l.no_linea}</TableCell>
+                      <TableCell className='font-mono text-sm font-semibold'>{l.no_produ}</TableCell>
+                      <TableCell className='text-sm'>{l.descripcion}</TableCell>
+                      <TableCell className='text-right font-mono'>{l.cantidad.toLocaleString('en-US')}</TableCell>
                       <TableCell className='text-right font-mono'>{fmtN(l.precio)}</TableCell>
-                      <TableCell className='text-right'>{l.porc_descuento ? `${l.porc_descuento}%` : ''}</TableCell>
-                      <TableCell className='text-right'>{l.porciento_impuesto ? `${l.porciento_impuesto}%` : ''}</TableCell>
-                      <TableCell className='text-right font-mono'>{fmtN(l.monto_neto)}</TableCell>
+                      <TableCell className='text-right text-sm'>{l.porc_descuento ? `${l.porc_descuento}%` : '—'}</TableCell>
+                      <TableCell className='text-right text-sm'>{l.porciento_impuesto ? `${l.porciento_impuesto}%` : '—'}</TableCell>
+                      <TableCell className='text-right font-mono font-bold'>{fmtN(l.monto_neto)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
 
-              {/* Totales */}
-              <div className='flex justify-end'>
-                <table className='text-sm'>
-                  <tbody>
-                    <tr><td className='pr-8 text-muted-foreground'>Total Línea</td><td className='text-right font-mono'>{fmtN(selected.total_linea)}</td></tr>
-                    <tr><td className='pr-8 text-muted-foreground'>Descuento</td><td className='text-right font-mono'>{fmtN(selected.descuento)}</td></tr>
-                    <tr><td className='pr-8 text-muted-foreground'>ITBIS</td><td className='text-right font-mono'>{fmtN(selected.impuesto)}</td></tr>
-                    {(selected.propina ?? 0) > 0 && (
-                      <tr><td className='pr-8 text-muted-foreground'>Propina</td><td className='text-right font-mono'>{fmtN(selected.propina)}</td></tr>
-                    )}
-                    <tr className='border-t font-semibold'><td className='pt-1 pr-8'>Total Neto</td><td className='pt-1 text-right font-mono'>{fmtN(selected.total_neto)}</td></tr>
-                  </tbody>
-                </table>
-              </div>
-
               {selected.nota && (
-                <p className='rounded border bg-muted/30 p-2 text-xs text-muted-foreground'><strong>Nota:</strong> {selected.nota}</p>
+                <p className='mt-3 rounded border bg-muted/30 p-2 text-xs text-muted-foreground'>
+                  <strong>Nota:</strong> {selected.nota}
+                </p>
               )}
+            </div>
+          )}
+
+          {/* Footer sticky con totales */}
+          {selected && !loadingDetail && (
+            <div className='px-6 py-3 border-t shrink-0 bg-gray-50 flex items-center justify-between text-sm'>
+              <span className='text-gray-500'>
+                {selected.lineas.filter((l) => l.st_anulado !== 'S').length} línea{selected.lineas.filter((l) => l.st_anulado !== 'S').length !== 1 ? 's' : ''}
+              </span>
+              <div className='flex items-center gap-6 font-mono'>
+                <span className='text-gray-600'>Subtotal <b className='ml-1'>{fmtN(selected.total_linea)}</b></span>
+                <span className='text-gray-600'>Desc. <b className='ml-1'>{fmtN(selected.descuento)}</b></span>
+                <span className='text-gray-600'>ITBIS <b className='ml-1'>{fmtN(selected.impuesto)}</b></span>
+                {(selected.propina ?? 0) > 0 && (
+                  <span className='text-gray-600'>Propina <b className='ml-1'>{fmtN(selected.propina)}</b></span>
+                )}
+                <span className='text-base font-bold'>Total <span className='ml-1'>{fmtN(selected.total_neto)}</span></span>
+              </div>
             </div>
           )}
         </DialogContent>
@@ -395,7 +436,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
 
       {/* Confirm Anulación dialog */}
       <Dialog open={anularOpen} onOpenChange={setAnularOpen}>
-        <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
+        <DialogContent className='sm:max-w-md p-6'>
           <DialogHeader>
             <DialogTitle className='flex items-center gap-2 text-destructive'>
               <AlertTriangle className='h-5 w-5' /> Confirmar Anulación

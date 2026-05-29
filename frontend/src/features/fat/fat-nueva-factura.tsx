@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { useToast } from '@/hooks/use-toast'
+import { BuscarProductoModal } from './components/buscar-producto-modal'
 
 interface Props {
   noCia: string
@@ -62,6 +63,13 @@ interface Producto {
   existencia: number
 }
 
+interface EmpaqueOpcion {
+  unidad: string
+  descripcion: string
+  por_defecto: boolean
+  cant_por_emp: number
+}
+
 interface Linea {
   id: number
   almacen: string
@@ -74,6 +82,10 @@ interface Linea {
   monto: number
   porciento_impuesto: number
   itbis: boolean
+  // Empaques alternos del producto. >1 => UM editable como Select.
+  empaques: EmpaqueOpcion[]
+  precioBase: number      // precio para la unidad por defecto (ratio cant_por_emp=1)
+  cantPorEmpBase: number  // cant_por_emp de la unidad por defecto (normalmente 1)
 }
 
 const fmtN = (n: number) =>
@@ -165,13 +177,14 @@ export function NuevaFactura({ noCia, punto }: Props) {
   useEffect(() => {
     async function cargarDatos() {
       try {
-        const [docsRes, vendsRes, pagosRes, condsRes, ncfRes, listasRes] = await Promise.all([
+        const [docsRes, vendsRes, pagosRes, condsRes, ncfRes, listasRes, almRes] = await Promise.all([
           regalGeneralApi.fatListDocumentTypes(noCia, punto),
           regalGeneralApi.fatListVendedores(noCia),
           regalGeneralApi.fatListTiposPago(noCia, punto),
           regalGeneralApi.fatListCondicionesPago(),
           regalGeneralApi.fatNcf(noCia, punto),
           regalGeneralApi.fatListasPrecio(noCia, punto),
+          regalGeneralApi.invAlmacenes(noCia, punto),
         ])
         const filtrados = (docsRes.items || []).filter(
           (d: TipoDoc) => d.tipo_transaccion === 'F' || d.tipo_transaccion === 'O'
@@ -201,31 +214,26 @@ export function NuevaFactura({ noCia, punto }: Props) {
           setNoLista(first)
           setModalLista(first)
         }
+
+        // Almacenes reales del catálogo INV (no derivados del tipo de doc)
+        const almArr: Almacen[] = (almRes?.results ?? [])
+          .filter((a: any) => (a.activo ?? 'S') !== 'N')
+          .map((a: any) => ({
+            almacen: String(a.almacen ?? '').trim(),
+            descripcion: (a.descripcion ?? '').trim(),
+          }))
+          .filter((a: Almacen) => a.almacen)
+        setAlmacenes(almArr)
+        if (almArr.length > 0) {
+          setDefaultAlmacen(almArr[0].almacen)
+          setModalAlmacen(almArr[0].almacen)
+        }
       } catch {
         toast({ title: 'Error', description: 'Error cargando datos iniciales', variant: 'destructive' })
       }
     }
     cargarDatos()
   }, [noCia, punto])
-
-  // Almacenes from doc types
-  useEffect(() => {
-    if (tiposDoc.length > 0) {
-      const seen = new Set<string>()
-      const arr: Almacen[] = []
-      tiposDoc.forEach(d => {
-        if (d.almacen && !seen.has(d.almacen)) {
-          seen.add(d.almacen)
-          arr.push({ almacen: d.almacen })
-        }
-      })
-      setAlmacenes(arr)
-      if (arr.length > 0 && !defaultAlmacen) {
-        setDefaultAlmacen(arr[0].almacen)
-        setModalAlmacen(arr[0].almacen)
-      }
-    }
-  }, [tiposDoc])
 
   const handleTipoDocChange = (value: string) => {
     setTipoDoc(value)
@@ -354,6 +362,9 @@ export function NuevaFactura({ noCia, punto }: Props) {
       monto: 0,
       porciento_impuesto: 0,
       itbis: false,
+      empaques: [],
+      precioBase: 0,
+      cantPorEmpBase: 1,
     }])
     // Auto-open product search modal for the new line
     setCurrentLineaIdx(newIdx)
@@ -379,6 +390,44 @@ export function NuevaFactura({ noCia, punto }: Props) {
 
   const eliminarLinea = (idx: number) => setLineas(prev => prev.filter((_, i) => i !== idx))
 
+  // Carga empaques alternos y los aplica a la línea — define la UM por defecto
+  // y la base de precio para poder recalcular cuando se cambie de empaque.
+  const aplicarEmpaquesALinea = async (idx: number, noProdu: string, precioDefault: number) => {
+    try {
+      const res = await regalGeneralApi.fatProductoEmpaques(noProdu)
+      const emps = res.items || []
+      const porDefecto = emps.find(e => e.por_defecto) || emps[0]
+      const cantBase = porDefecto?.cant_por_emp && porDefecto.cant_por_emp > 0 ? porDefecto.cant_por_emp : 1
+      setLineas(prev => {
+        const arr = [...prev]
+        if (!arr[idx] || arr[idx].no_produ !== noProdu) return prev
+        const l = { ...arr[idx] }
+        l.empaques = emps
+        l.precioBase = precioDefault / cantBase
+        l.cantPorEmpBase = cantBase
+        if (porDefecto && (!l.emp || l.emp === '—')) l.emp = porDefecto.descripcion || porDefecto.unidad
+        arr[idx] = l
+        return arr
+      })
+    } catch { /* sin empaques => UM queda como estática */ }
+  }
+
+  // Cambiar UM en la línea: recalcula precio = precioBase * cant_por_emp del empaque elegido
+  const cambiarEmpaqueLinea = (idx: number, unidad: string) => {
+    setLineas(prev => {
+      const arr = [...prev]
+      const l = { ...arr[idx] }
+      const emp = l.empaques.find(e => e.unidad === unidad)
+      if (!emp) return prev
+      l.emp = emp.descripcion || emp.unidad
+      const cant = emp.cant_por_emp && emp.cant_por_emp > 0 ? emp.cant_por_emp : 1
+      l.precio = l.precioBase * cant
+      l.monto = l.cantidad * l.precio * (1 - l.porc_descuento / 100)
+      arr[idx] = l
+      return arr
+    })
+  }
+
   const buscarProductoPorCodigo = async (idx: number, codigo: string) => {
     if (!codigo) return
     try {
@@ -395,9 +444,13 @@ export function NuevaFactura({ noCia, punto }: Props) {
           l.itbis = p.porciento_impuesto > 0
           l.emp = p.unidad_empaque
           l.monto = l.cantidad * l.precio * (1 - l.porc_descuento / 100)
+          l.empaques = []
+          l.precioBase = p.precio
+          l.cantPorEmpBase = 1
           arr[idx] = l
           return arr
         })
+        aplicarEmpaquesALinea(idx, p.no_produ, p.precio)
       }
     } catch {
       toast({ title: 'Producto no encontrado', description: codigo, variant: 'destructive' })
@@ -434,10 +487,11 @@ export function NuevaFactura({ noCia, punto }: Props) {
 
   const seleccionarProducto = (p: Producto, cantidad?: number) => {
     if (currentLineaIdx === null) return
+    const idx = currentLineaIdx
     const qty = cantidad && cantidad > 0 ? cantidad : 1
     setLineas(prev => {
       const arr = [...prev]
-      const l = { ...arr[currentLineaIdx] }
+      const l = { ...arr[idx] }
       l.no_produ = p.no_produ
       l.descripcion = p.descri
       l.precio = p.precio
@@ -447,11 +501,15 @@ export function NuevaFactura({ noCia, punto }: Props) {
       l.cantidad = qty
       l.monto = qty * l.precio * (1 - l.porc_descuento / 100)
       if (modalAlmacen && modalAlmacen !== '__all__') l.almacen = modalAlmacen
-      arr[currentLineaIdx] = l
+      l.empaques = []
+      l.precioBase = p.precio
+      l.cantPorEmpBase = 1
+      arr[idx] = l
       return arr
     })
     setProductDialogOpen(false)
     setCurrentLineaIdx(null)
+    aplicarEmpaquesALinea(idx, p.no_produ, p.precio)
   }
 
   // ── Totals ─────────────────────────────────────────────────
@@ -799,7 +857,25 @@ export function NuevaFactura({ noCia, punto }: Props) {
                     </div>
                   </TableCell>
                   <TableCell className="p-1 text-center">
-                    <span className="text-xs font-medium text-blue-700 bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5">{linea.emp || '—'}</span>
+                    {linea.empaques.length > 1 ? (
+                      <Select
+                        value={(linea.empaques.find(e => (e.descripcion || e.unidad) === linea.emp)?.unidad) || linea.empaques[0].unidad}
+                        onValueChange={v => cambiarEmpaqueLinea(idx, v)}
+                      >
+                        <SelectTrigger className="h-7 text-xs px-2 w-auto min-w-[3.5rem] gap-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {linea.empaques.map(e => (
+                            <SelectItem key={e.unidad} value={e.unidad}>
+                              {(e.descripcion || e.unidad)}{e.cant_por_emp && e.cant_por_emp !== 1 ? ` × ${e.cant_por_emp}` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <span className="text-xs font-medium text-blue-700 bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5">{linea.emp || '—'}</span>
+                    )}
                   </TableCell>
                   <TableCell className="p-1">
                     <Input value={linea.descripcion} onChange={e => updateLinea(idx, 'descripcion', e.target.value)} className="h-7 text-sm" placeholder="Descripcion" />
@@ -931,128 +1007,45 @@ export function NuevaFactura({ noCia, punto }: Props) {
         </DialogContent>
       </Dialog>
 
-      {/* ── Product Search Modal ── */}
-      <Dialog open={productDialogOpen} onOpenChange={setProductDialogOpen}>
-        <DialogContent className="w-[60vw] h-[70vh] max-w-none sm:max-w-none flex flex-col p-0 gap-0 overflow-hidden">
-          <DialogHeader className="px-6 py-4 border-b shrink-0 bg-white">
-            <div className="flex items-center gap-4 flex-wrap">
-              <DialogTitle className="text-lg mr-4">Buscar Producto</DialogTitle>
-
-              {almacenes.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm whitespace-nowrap text-gray-600">Almacen:</Label>
-                  <Select
-                    value={modalAlmacen || '__all__'}
-                    onValueChange={v => {
-                      const alm = v === '__all__' ? '' : v
-                      setModalAlmacen(alm)
-                      if (productSearch) buscarProductos(productSearch, modalLista, alm, soloExistencia)
-                    }}
-                  >
-                    <SelectTrigger className="h-8 w-48"><SelectValue placeholder="Todos..." /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__all__">Todos</SelectItem>
-                      {almacenes.map(a => <SelectItem key={a.almacen} value={a.almacen}>{almacenLabel(a)}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              <div className="flex items-center gap-2">
-                <Label className="text-sm whitespace-nowrap text-gray-600">Lista Precio:</Label>
-                <Select value={modalLista} onValueChange={v => { setModalLista(v); if (productSearch) buscarProductos(productSearch, v, modalAlmacen, soloExistencia) }}>
-                  <SelectTrigger className="h-8 w-44"><SelectValue placeholder="Lista..." /></SelectTrigger>
-                  <SelectContent>
-                    {listas.length > 0
-                      ? listas.map(l => <SelectItem key={l.no_lista} value={String(l.no_lista)}>{listaLabel(l)}</SelectItem>)
-                      : <SelectItem value={noLista}>Lista {noLista}</SelectItem>}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="solo-existencia"
-                  checked={soloExistencia}
-                  onCheckedChange={v => {
-                    const val = v === true
-                    setSoloExistencia(val)
-                    if (productSearch) buscarProductos(productSearch, modalLista, modalAlmacen, val)
-                  }}
-                />
-                <Label htmlFor="solo-existencia" className="text-sm whitespace-nowrap text-gray-600 cursor-pointer">Solo con existencia</Label>
-              </div>
-            </div>
-          </DialogHeader>
-
-          <div className="px-6 py-3 border-b shrink-0 bg-gray-50">
-            <Input
-              value={productSearch}
-              onChange={e => { setProductSearch(e.target.value); buscarProductos(e.target.value, modalLista, modalAlmacen, soloExistencia) }}
-              placeholder="Buscar por codigo o descripcion del producto..."
-              autoFocus
-              className="text-base h-11"
-            />
-          </div>
-
-          <div className="flex-1 overflow-y-auto px-6 py-2">
-            <Table>
-              <TableHeader className="sticky top-0 bg-white z-10">
-                <TableRow>
-                  <TableHead className="w-32">No. Producto</TableHead>
-                  <TableHead>Descripcion</TableHead>
-                  <TableHead className="w-12 text-center">Emp</TableHead>
-                  <TableHead className="w-32 text-right">Precio</TableHead>
-                  <TableHead className="w-16 text-right">%ITBIS</TableHead>
-                  <TableHead className="w-32 text-right">Existencia</TableHead>
-                  <TableHead className="w-24 text-center">Cantidad</TableHead>
-                  <TableHead className="w-28 text-center">Accion</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {productResults.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center text-gray-400 py-12 text-base">
-                      {productSearch ? `No se encontraron productos para "${productSearch}"` : 'Ingrese un termino de busqueda'}
-                    </TableCell>
-                  </TableRow>
-                )}
-                {productResults.map(p => (
-                  <TableRow key={p.no_produ} className="hover:bg-blue-50 cursor-pointer" onDoubleClick={() => seleccionarProducto(p, modalCantidades[p.no_produ] ?? 1)}>
-                    <TableCell className="font-mono text-sm font-semibold">{p.no_produ}</TableCell>
-                    <TableCell className="text-sm">{p.descri}</TableCell>
-                    <TableCell className="text-center text-xs text-gray-500">{p.unidad_empaque || '—'}</TableCell>
-                    <TableCell className="text-right font-mono font-bold">{fmtN(p.precio)}</TableCell>
-                    <TableCell className="text-right text-sm">{p.porciento_impuesto > 0 ? `${p.porciento_impuesto}%` : '—'}</TableCell>
-                    <TableCell className="text-right font-mono text-sm">
-                      <span className={p.existencia <= 0 ? 'text-red-600 font-bold' : p.existencia < 5 ? 'text-amber-600 font-semibold' : 'text-green-700 font-medium'}>
-                        {fmtN(p.existencia)}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-center" onClick={e => e.stopPropagation()}>
-                      <Input
-                        type="number" min={0.001} step="0.001"
-                        value={modalCantidades[p.no_produ] ?? 1}
-                        onChange={e => setModalCantidades(prev => ({ ...prev, [p.no_produ]: parseFloat(e.target.value) || 1 }))}
-                        onClick={e => e.stopPropagation()}
-                        className="w-20 text-center h-8 mx-auto"
-                      />
-                    </TableCell>
-                    <TableCell className="text-center" onClick={e => e.stopPropagation()}>
-                      <Button size="sm" className="h-8 px-4" onClick={() => seleccionarProducto(p, modalCantidades[p.no_produ] ?? 1)}>Agregar</Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-
-          <div className="px-6 py-3 border-t shrink-0 bg-gray-50 flex items-center justify-between text-sm text-gray-500">
-            <span>{productResults.length > 0 ? `${productResults.length} producto${productResults.length !== 1 ? 's' : ''} encontrado${productResults.length !== 1 ? 's' : ''}` : 'Sin resultados'}</span>
-            <Button variant="outline" size="sm" onClick={() => setProductDialogOpen(false)}>Cerrar</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* ── Product Search Modal (componente compartido) ── */}
+      <BuscarProductoModal
+        open={productDialogOpen}
+        onClose={() => { setProductDialogOpen(false); setCurrentLineaIdx(null) }}
+        onSelect={(p, qty, alm) => {
+          // p.* viene del modal; alm es el almacén elegido en el modal.
+          // Reutilizamos la lógica original de seleccionarProducto, pero pasando
+          // explícitamente el almacén para no depender del estado interno del modal.
+          if (currentLineaIdx === null) return
+          const idx = currentLineaIdx
+          setLineas(prev => {
+            const arr = [...prev]
+            const l = { ...arr[idx] }
+            l.no_produ = p.no_produ
+            l.descripcion = p.descri
+            l.precio = p.precio
+            l.porciento_impuesto = p.porciento_impuesto
+            l.itbis = p.porciento_impuesto > 0
+            l.emp = p.unidad_empaque
+            l.cantidad = qty
+            l.monto = qty * l.precio * (1 - l.porc_descuento / 100)
+            if (alm) l.almacen = alm
+            l.empaques = []
+            l.precioBase = p.precio
+            l.cantPorEmpBase = 1
+            arr[idx] = l
+            return arr
+          })
+          setProductDialogOpen(false)
+          setCurrentLineaIdx(null)
+          aplicarEmpaquesALinea(idx, p.no_produ, p.precio)
+        }}
+        noCia={noCia}
+        punto={punto}
+        almacenes={almacenes}
+        listas={listas}
+        noLista={noLista}
+        defaultAlmacen={modalAlmacen || defaultAlmacen}
+      />
     </div>
   )
 }

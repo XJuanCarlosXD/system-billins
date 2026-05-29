@@ -414,6 +414,22 @@ class FatProductosView(APIView):
             return Response({'detail': str(e)}, status=500)
 
 
+# -- Empaques por producto (UM alternas) --------------------------------------
+
+class FatProductoEmpaquesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        no_produ = request.query_params.get('no_produ', '')
+        if not no_produ:
+            return Response({'items': []})
+        try:
+            items = fat_repo.list_empaques_producto(no_produ)
+            return Response({'items': items})
+        except Exception as e:
+            return Response({'detail': str(e)}, status=500)
+
+
 # -- Transportistas -----------------------------------------------------------
 
 class FatTransportistasView(APIView):
@@ -557,7 +573,8 @@ class FatCuadreCajaView(APIView):
             no_cuadre = request.query_params.get('no_cuadre', '')
             resumen = fat_repo.get_cuadre_caja_detalle(no_cia, punto, tipo_factura, desde, hasta, no_cuadre)
             historial = fat_repo.list_cuadre_caja(no_cia, punto, desde, hasta)
-            return Response({'resumen': resumen, 'historial': historial})
+            por_ncf = fat_repo.cuadre_caja_por_ncf(no_cia, punto, desde, hasta, tipo_factura, no_cuadre)
+            return Response({'resumen': resumen, 'historial': historial, 'por_ncf': por_ncf})
         except Exception as e:
             return Response({'detail': str(e)}, status=500)
 

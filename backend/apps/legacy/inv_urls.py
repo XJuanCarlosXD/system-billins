@@ -50,4 +50,11 @@ urlpatterns = [
 
     # Cierre - Entrada de Diario
     path('cierre/entrada-diario/pdf/', inv_views.inv_cierre_entrada_diario_pdf),
+
+    # Conteo Físico (FINV705)
+    path('conteo-fisico/pendiente/',  inv_views.inv_conteo_fisico_pendiente),
+    path('conteo-fisico/cargar/',     inv_views.inv_conteo_fisico_cargar),
+    path('conteo-fisico/aplicar/',    inv_views.inv_conteo_fisico_aplicar),
+    path('conteo-fisico/descartar/',  inv_views.inv_conteo_fisico_descartar),
+    path('conteo-fisico/historico/',  inv_views.inv_conteo_fisico_historico),
 ]

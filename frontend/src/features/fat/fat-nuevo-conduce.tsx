@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { regalGeneralApi } from '@/lib/regal-general-api'
+import { BuscarProductoModal } from './components/buscar-producto-modal'
 import { useToast } from '@/hooks/use-toast'
 
 interface Props {
@@ -129,22 +130,38 @@ export function NuevoConduce({ noCia, punto }: Props) {
   const clienteSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const productSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Catálogos para el modal de Buscar Producto
+  const [almacenes, setAlmacenes] = useState<Array<{ almacen: string; descripcion?: string }>>([])
+  const [listas, setListas] = useState<Array<{ no_lista: number | string; descripcion?: string; nombre?: string }>>([])
+
   useEffect(() => {
     async function cargarDatos() {
       try {
-        const [docsRes, vendsRes, pagosRes, listasRes] = await Promise.all([
+        const [docsRes, vendsRes, pagosRes, listasRes, almRes] = await Promise.all([
           regalGeneralApi.fatListDocumentTypes(noCia, punto),
           regalGeneralApi.fatListVendedores(noCia),
           regalGeneralApi.fatListTiposPago(noCia, punto),
           regalGeneralApi.fatListasPrecio(noCia, punto),
+          regalGeneralApi.invAlmacenes(noCia, punto),
         ])
         const conduces = (docsRes.items || []).filter((d: TipoDoc) => d.tipo_transaccion === 'C')
         setTiposDoc(conduces)
         setVendedores(vendsRes.items || [])
         setTiposPago(pagosRes.items || [])
-        if (listasRes.tipos && listasRes.tipos.length > 0) {
-          setNoLista(String(listasRes.tipos[0].no_lista))
-        }
+
+        const listasArr = (listasRes.tipos ?? listasRes.items ?? (Array.isArray(listasRes) ? listasRes : []))
+        setListas(listasArr)
+        if (listasArr.length > 0) setNoLista(String(listasArr[0].no_lista))
+
+        const almArr = (almRes?.results ?? [])
+          .filter((a: any) => (a.activo ?? 'S') !== 'N')
+          .map((a: any) => ({
+            almacen: String(a.almacen ?? '').trim(),
+            descripcion: (a.descripcion ?? '').trim(),
+          }))
+          .filter((a: any) => a.almacen)
+        setAlmacenes(almArr)
+        if (almArr.length > 0) setModalAlmacen(almArr[0].almacen)
       } catch {
         toast({ title: 'Error', description: 'Error cargando datos iniciales', variant: 'destructive' })
       }
@@ -885,121 +902,38 @@ export function NuevoConduce({ noCia, punto }: Props) {
         </DialogContent>
       </Dialog>
 
-      {/* ── Product Search Modal ── */}
-      <Dialog open={productDialogOpen} onOpenChange={setProductDialogOpen}>
-        <DialogContent className="w-[60vw] h-[70vh] max-w-none sm:max-w-none flex flex-col p-0 gap-0 overflow-hidden">
-          <DialogHeader className="px-6 py-4 border-b shrink-0 bg-white">
-            <div className="flex items-center gap-4 flex-wrap">
-              <DialogTitle className="text-lg mr-4">Buscar Producto</DialogTitle>
-
-              <div className="flex items-center gap-2">
-                <Label className="text-sm whitespace-nowrap text-gray-600">Almacen:</Label>
-                <Input
-                  value={modalAlmacen}
-                  onChange={e => {
-                    setModalAlmacen(e.target.value)
-                    if (productSearch) buscarProductos(productSearch, e.target.value, soloExistencia)
-                  }}
-                  placeholder="Todos"
-                  className="h-8 w-24"
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="solo-existencia-conduce"
-                  checked={soloExistencia}
-                  onCheckedChange={v => {
-                    const val = v === true
-                    setSoloExistencia(val)
-                    if (productSearch) buscarProductos(productSearch, modalAlmacen, val)
-                  }}
-                />
-                <Label htmlFor="solo-existencia-conduce" className="text-sm whitespace-nowrap text-gray-600 cursor-pointer">Solo con existencia</Label>
-              </div>
-            </div>
-          </DialogHeader>
-
-          <div className="px-6 py-3 border-b shrink-0 bg-gray-50">
-            <Input
-              value={productSearch}
-              onChange={e => {
-                setProductSearch(e.target.value)
-                buscarProductos(e.target.value, modalAlmacen, soloExistencia)
-              }}
-              placeholder="Buscar por codigo o descripcion del producto..."
-              autoFocus
-              className="text-base h-11"
-            />
-          </div>
-
-          <div className="flex-1 overflow-y-auto px-6 py-2">
-            <Table>
-              <TableHeader className="sticky top-0 bg-white z-10">
-                <TableRow>
-                  <TableHead className="w-28">No Prod</TableHead>
-                  <TableHead>Descripcion</TableHead>
-                  <TableHead className="w-16">UM</TableHead>
-                  <TableHead className="w-24 text-right">Precio</TableHead>
-                  <TableHead className="w-20 text-right">%ITBIS</TableHead>
-                  <TableHead className="w-24 text-right">Existencia</TableHead>
-                  <TableHead className="w-20 text-center">Cant.</TableHead>
-                  <TableHead className="w-20"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {productResults.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center text-gray-400 py-12">
-                      {buscandoProductos ? 'Buscando...' : 'Ingrese un termino de busqueda'}
-                    </TableCell>
-                  </TableRow>
-                )}
-                {productResults.map(p => (
-                  <TableRow key={p.no_produ} className="hover:bg-blue-50 cursor-pointer" onDoubleClick={() => seleccionarProducto(p, modalCantidades[p.no_produ] ?? 1)}>
-                    <TableCell className="font-mono text-sm font-semibold">{p.no_produ}</TableCell>
-                    <TableCell className="text-sm">{p.descri}</TableCell>
-                    <TableCell className="text-sm text-center">
-                      <span className="text-xs font-medium text-blue-700 bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5">{p.unidad_empaque || '—'}</span>
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-sm">{fmtN(p.precio)}</TableCell>
-                    <TableCell className="text-right text-sm">{p.porciento_impuesto}%</TableCell>
-                    <TableCell className="text-right font-mono text-sm">
-                      <span className={p.existencia <= 0 ? 'text-red-500 font-semibold' : p.existencia < 5 ? 'text-amber-600 font-semibold' : ''}>
-                        {fmtN(p.existencia)}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Input
-                        type="number"
-                        min={1}
-                        value={modalCantidades[p.no_produ] ?? 1}
-                        onChange={e => setModalCantidades(prev => ({ ...prev, [p.no_produ]: parseFloat(e.target.value) || 1 }))}
-                        className="w-16 text-center h-7 px-1 text-sm"
-                        onClick={e => e.stopPropagation()}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        size="sm"
-                        className="h-7 px-3 text-xs"
-                        onClick={() => seleccionarProducto(p, modalCantidades[p.no_produ] ?? 1)}
-                      >
-                        Agregar
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-
-          <div className="px-6 py-3 border-t shrink-0 bg-gray-50 flex items-center justify-between text-sm text-gray-500">
-            <span>{productResults.length > 0 ? `${productResults.length} producto${productResults.length !== 1 ? 's' : ''} encontrado${productResults.length !== 1 ? 's' : ''}` : ''}</span>
-            <span className="text-xs">Doble clic o "Agregar" para seleccionar</span>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* ── Product Search Modal (componente compartido) ── */}
+      <BuscarProductoModal
+        open={productDialogOpen}
+        onClose={() => { setProductDialogOpen(false); setCurrentLineaIdx(null) }}
+        onSelect={(p, qty, alm) => {
+          if (currentLineaIdx === null) return
+          const idx = currentLineaIdx
+          setLineas(prev => {
+            const arr = [...prev]
+            const l = { ...arr[idx] }
+            l.no_produ = p.no_produ
+            l.descripcion = p.descri
+            l.precio = p.precio
+            l.porciento_impuesto = p.porciento_impuesto
+            l.itbis = p.porciento_impuesto > 0
+            l.emp = p.unidad_empaque
+            l.cantidad = qty
+            l.monto = qty * l.precio * (1 - (l.porc_descuento ?? 0) / 100)
+            if (alm) l.almacen = alm
+            arr[idx] = l
+            return arr
+          })
+          setProductDialogOpen(false)
+          setCurrentLineaIdx(null)
+        }}
+        noCia={noCia}
+        punto={punto}
+        almacenes={almacenes}
+        listas={listas}
+        noLista={noLista}
+        defaultAlmacen={modalAlmacen}
+      />
     </div>
   )
 }

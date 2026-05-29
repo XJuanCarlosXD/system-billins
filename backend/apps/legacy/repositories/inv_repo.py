@@ -203,34 +203,117 @@ def list_existencias(
     almacen: str = '',
     no_produ: str = '',
     search: str = '',
+    grupo: str = '',
+    solo_con_existencia: bool = False,
 ) -> list[dict]:
-    """Existencias usando TINV_EPRODUCTO (tiene costo_actual y exist_actual por cia/punto/almacen)."""
+    """Existencias por (cia, punto, almacén, producto) replicando la lógica legada.
+
+    REGLA (verificada 2026-05-28 contra producto 00000002 en alm 01,02,03,06,53):
+
+    * Almacén con ``CTRL_EXIST_MIN='S'`` o ``CTRL_EXIST_MAX='S'`` → es un
+      almacén "controlado" (entra en el cierre mensual con conteo físico).
+      Fuente: ``TINV_EPRODUCTO.EXIST_ACTUAL`` (snapshot del último cierre).
+    * Almacén con ambos flags en ``'N'`` (consignación, custodios, etc.) →
+      no se cierra. Fuente: ``TINV_MOVIMIENTO`` sumando E − S (sin anulados).
+
+    Esto reproduce lo que muestra la "Consulta de Existencia de Producto en
+    Grupo" del legado.
+    """
     params: list = [no_cia]
-    where = ["e.no_cia = :1"]
+    where_universo = ["a.no_cia = :1"]
+    where_outer: list[str] = []
+    extra_mov_where: list[str] = []
 
     if punto:
         params.append(punto)
-        where.append(f"e.punto = :{len(params)}")
+        i = len(params)
+        where_universo.append(f"a.punto = :{i}")
+        extra_mov_where.append(f"m.punto = :{i}")
     if almacen:
         params.append(almacen)
-        where.append(f"e.almacen = :{len(params)}")
+        i = len(params)
+        where_universo.append(f"a.almacen = :{i}")
+        extra_mov_where.append(f"m.almacen = :{i}")
     if no_produ:
         params.append(no_produ)
-        where.append(f"e.no_produ = :{len(params)}")
+        i = len(params)
+        where_universo.append(f"e.no_produ = :{i}")
+        extra_mov_where.append(f"m.no_produ = :{i}")
+    if grupo:
+        params.append(grupo)
+        i = len(params)
+        where_outer.append(f"p.grupo_produ = :{i}")
     if search:
         params.append(f'%{search}%')
-        where.append(f"UPPER(p.descri) LIKE UPPER(:{len(params)})")
+        i = len(params)
+        where_outer.append(f"UPPER(p.descri) LIKE UPPER(:{i})")
 
+    # Universo de filas (cia, punto, almacen, no_produ) — unión de EPRODUCTO y
+    # MOVIMIENTO. Productos con alguna evidencia de stock o histórico aparecen.
+    extra_mov = (" AND " + " AND ".join(extra_mov_where)) if extra_mov_where else ""
+    mov_sum_expr = (
+        "SUM(CASE WHEN m.tipo_movi='E' THEN NVL(m.cantidad,0) "
+        "         WHEN m.tipo_movi='S' THEN -NVL(m.cantidad,0) ELSE 0 END)"
+    )
+    universo_sql = (
+        "SELECT a.no_cia, a.punto, a.almacen, e.no_produ "
+        "FROM INV.TINV_ALMACEN a "
+        "JOIN ("
+        "  SELECT no_cia, punto, almacen, no_produ FROM INV.TINV_EPRODUCTO "
+        "  UNION "
+        "  SELECT no_cia, punto, almacen, no_produ FROM INV.TINV_MOVIMIENTO "
+        "  WHERE NVL(st_anulado,'N')='N' "
+        ") e ON e.no_cia=a.no_cia AND e.punto=a.punto AND e.almacen=a.almacen "
+        f"WHERE {' AND '.join(where_universo)} "
+        "  AND NVL(a.activo,'S')='S' "
+    )
+
+    # CASE para decidir la fuente: EPRODUCTO si el almacén es controlado,
+    # MOVIMIENTOS si no. Usamos NVL para soportar filas faltantes en cualquier
+    # fuente sin caerse.
+    existencia_expr = (
+        "CASE WHEN NVL(a.ctrl_exist_min,'N')='S' OR NVL(a.ctrl_exist_max,'N')='S' "
+        "     THEN NVL(ep.exist_actual, 0) "
+        "     ELSE NVL(mov.existencia, 0) END"
+    )
+
+    having_existencia = (
+        f"AND ({existencia_expr}) > 0" if solo_con_existencia else ""
+    )
+
+    outer_where = " AND ".join(where_outer)
     sql = (
-        "SELECT e.no_produ, p.descri descripcion, e.almacen, a.descri almacen_desc, "
-        "NVL(e.exist_actual, 0) existencia, NVL(e.costo_actual, 0) costo_prom, "
-        "ROUND(NVL(e.exist_actual, 0) * NVL(e.costo_actual, 0), 2) valor, "
-        "NVL(e.exist_minima, 0) exist_minima, NVL(e.exist_maxima, 0) exist_maxima "
-        "FROM INV.TINV_EPRODUCTO e "
-        "JOIN INV.TINV_PRODUCTO p ON p.no_produ = e.no_produ "
-        "LEFT JOIN INV.TINV_ALMACEN a ON a.no_cia = e.no_cia AND a.almacen = e.almacen "
-        f"WHERE {' AND '.join(where)} "
-        "ORDER BY e.almacen, p.descri"
+        "SELECT u.no_cia, u.punto, u.no_produ, p.descri descripcion, "
+        "p.grupo_produ, p.linea, p.sub_linea, "
+        "g.descri AS grupo_descripcion, "
+        "u.almacen, a.descri almacen_desc, "
+        "a.ctrl_exist_min, a.ctrl_exist_max, "
+        # Origen del dato (debug-friendly):
+        "CASE WHEN NVL(a.ctrl_exist_min,'N')='S' OR NVL(a.ctrl_exist_max,'N')='S' "
+        "     THEN 'eproducto' ELSE 'movimientos' END AS fuente_existencia, "
+        f"{existencia_expr} AS existencia, "
+        "NVL(ep.costo_actual, 0) costo_prom, "
+        f"ROUND(({existencia_expr}) * NVL(ep.costo_actual, 0), 2) valor, "
+        "NVL(ep.exist_minima, 0) exist_minima, "
+        "NVL(ep.exist_maxima, 0) exist_maxima "
+        f"FROM ({universo_sql}) u "
+        "JOIN INV.TINV_ALMACEN a "
+        "  ON a.no_cia=u.no_cia AND a.punto=u.punto AND a.almacen=u.almacen "
+        "JOIN INV.TINV_PRODUCTO p ON p.no_produ = u.no_produ "
+        "LEFT JOIN INV.TINV_GRUPO_PRODU g ON g.no_grupo = p.grupo_produ "
+        "LEFT JOIN INV.TINV_EPRODUCTO ep "
+        "  ON ep.no_cia=u.no_cia AND ep.punto=u.punto "
+        "  AND ep.almacen=u.almacen AND ep.no_produ=u.no_produ "
+        "LEFT JOIN ("
+        f"  SELECT m.no_cia, m.punto, m.almacen, m.no_produ, {mov_sum_expr} AS existencia "
+        "  FROM INV.TINV_MOVIMIENTO m "
+        f"  WHERE m.no_cia=:1 AND NVL(m.st_anulado,'N')='N' {extra_mov} "
+        "  GROUP BY m.no_cia, m.punto, m.almacen, m.no_produ "
+        ") mov ON mov.no_cia=u.no_cia AND mov.punto=u.punto "
+        "  AND mov.almacen=u.almacen AND mov.no_produ=u.no_produ "
+        + (f"WHERE {outer_where} " if outer_where else "")
+        + (f"{'AND' if outer_where else 'WHERE'} 1=1 {having_existencia} " if solo_con_existencia else "")
+        + "ORDER BY u.punto, u.almacen, p.descri"
     )
     return client.fetch_dicts(sql, params)
 
@@ -368,21 +451,47 @@ def list_sublineas(no_cia: str = '01', linea: str = '') -> list[dict]:
 
 
 def get_existencia_producto(no_cia: str, no_produ: str) -> list[dict]:
-    """Existencia por almacén para un producto específico."""
-    return client.fetch_dicts(
-        "SELECT e.no_cia, e.punto, e.almacen, a.descri almacen_desc, "
-        "e.no_produ, p.descri descripcion, "
-        "NVL(e.exist_actual, 0) existencia, "
-        "NVL(e.costo_actual, 0) costo_actual, "
-        "ROUND(NVL(e.exist_actual, 0) * NVL(e.costo_actual, 0), 2) valor, "
-        "NVL(e.exist_minima, 0) exist_minima, NVL(e.exist_maxima, 0) exist_maxima "
-        "FROM INV.TINV_EPRODUCTO e "
-        "JOIN INV.TINV_PRODUCTO p ON p.no_produ = e.no_produ "
-        "LEFT JOIN INV.TINV_ALMACEN a ON a.no_cia = e.no_cia AND a.almacen = e.almacen "
-        "WHERE e.no_cia = :1 AND e.no_produ = :2 "
-        "ORDER BY e.almacen",
-        [no_cia, no_produ],
+    """Existencia por almacén para un producto específico, lógica híbrida del legado:
+
+    * Almacén controlado (ctrl_exist_min='S' o ctrl_exist_max='S') →
+      ``TINV_EPRODUCTO.EXIST_ACTUAL``.
+    * Almacén no controlado (ambos en 'N') → suma de ``TINV_MOVIMIENTO``
+      (E − S, ignorando anulados).
+    """
+    sql = (
+        "SELECT a.no_cia, a.punto, a.almacen, a.descri almacen_desc, "
+        "       :p_prod AS no_produ, p.descri descripcion, "
+        "       a.ctrl_exist_min, a.ctrl_exist_max, "
+        "       CASE WHEN NVL(a.ctrl_exist_min,'N')='S' OR NVL(a.ctrl_exist_max,'N')='S' "
+        "            THEN 'eproducto' ELSE 'movimientos' END AS fuente_existencia, "
+        "       CASE WHEN NVL(a.ctrl_exist_min,'N')='S' OR NVL(a.ctrl_exist_max,'N')='S' "
+        "            THEN NVL(ep.exist_actual, 0) "
+        "            ELSE NVL(mov.net, 0) END AS existencia, "
+        "       NVL(ep.costo_actual, 0) costo_actual, "
+        "       ROUND( (CASE WHEN NVL(a.ctrl_exist_min,'N')='S' OR NVL(a.ctrl_exist_max,'N')='S' "
+        "                    THEN NVL(ep.exist_actual,0) ELSE NVL(mov.net,0) END) "
+        "              * NVL(ep.costo_actual,0), 2) valor, "
+        "       NVL(ep.exist_minima, 0) exist_minima, "
+        "       NVL(ep.exist_maxima, 0) exist_maxima "
+        "FROM   INV.TINV_ALMACEN a "
+        "JOIN   INV.TINV_PRODUCTO p ON p.no_produ = :p_prod "
+        "LEFT JOIN INV.TINV_EPRODUCTO ep "
+        "       ON ep.no_cia=a.no_cia AND ep.punto=a.punto AND ep.almacen=a.almacen "
+        "       AND ep.no_produ = :p_prod "
+        "LEFT JOIN ("
+        "       SELECT no_cia, punto, almacen, "
+        "              SUM(CASE WHEN tipo_movi='E' THEN NVL(cantidad,0) "
+        "                       WHEN tipo_movi='S' THEN -NVL(cantidad,0) ELSE 0 END) AS net "
+        "       FROM INV.TINV_MOVIMIENTO "
+        "       WHERE no_cia=:p_cia AND no_produ=:p_prod AND NVL(st_anulado,'N')='N' "
+        "       GROUP BY no_cia, punto, almacen "
+        ") mov ON mov.no_cia=a.no_cia AND mov.punto=a.punto AND mov.almacen=a.almacen "
+        "WHERE a.no_cia = :p_cia AND NVL(a.activo,'S')='S' "
+        # Solo devolver almacenes que tengan o snapshot o movimientos de este producto
+        "  AND (ep.no_produ IS NOT NULL OR mov.net IS NOT NULL) "
+        "ORDER BY a.punto, a.almacen"
     )
+    return client.fetch_dicts(sql, {"p_cia": no_cia, "p_prod": no_produ})
 
 
 def list_consulta_documentos(
@@ -1101,3 +1210,357 @@ def list_entrada_diario(no_cia: str, punto: str, ano: str, mes: str,
                                           + float(r.get('monto') or 0), 2)
         rows = list(summary.values())
     return rows
+
+
+# =============================================================================
+# Conteo Físico (FINV705) — Ajuste Conteo Físico Vs. Existencia en Libro
+# =============================================================================
+#
+# Flujo legado replicado:
+#   1) Cargar conteo → INSERT TINV_CONTEO_FISICO (pendiente)
+#   2) Comparativo  → JOIN pendiente con EPRODUCTO.exist_actual
+#   3) Aplicar      → para cada fila pendiente:
+#        a) Calcular diferencia = conteo_fisico - exist_actual
+#        b) Si diferencia != 0: INSERT TINV_MOVIMIENTO con tipo_docu='AE' (entrada)
+#           o 'AS' (salida), tipo_movi='E'/'S', tipo_transaccion='J', servicio='I'.
+#           Cantidad = abs(diferencia). Costo = exist.costo_actual.
+#        c) UPDATE TINV_EPRODUCTO SET exist_actual = conteo_fisico
+#        d) INSERT TINV_CONTEO_FISICOH con fecha_ajuste = SYSDATE, exist_actual
+#           = conteo_fisico, usuario_ajusto = usuario.
+#        e) DELETE TINV_CONTEO_FISICO de esa fila.
+#      Todo en una transacción única con commit al final (rollback si algo
+#      falla, para no dejar movimientos sin ajuste de EPRODUCTO o viceversa).
+
+
+def cargar_conteo_fisico(rows: list[dict], usuario: str) -> dict:
+    """Inserta filas pendientes en TINV_CONTEO_FISICO.
+
+    Cada row debe traer: no_cia, punto, almacen, no_produ, conteo_fisico_uni,
+    conteo_fisico_cjs (opcional, default 0), contador (opcional), empaque
+    (opcional, default 1), cpe (opcional, default 1).
+    Si ya existe una fila pendiente para esa PK, se actualiza el conteo.
+    Devuelve {inserted, updated}.
+    """
+    if not rows:
+        return {"inserted": 0, "updated": 0}
+    inserted = 0
+    updated = 0
+    with client.connection() as conn:
+        cur = conn.cursor()
+        for r in rows:
+            no_cia   = (r.get('no_cia') or '').strip()
+            punto    = (r.get('punto') or '01').strip()
+            almacen  = (r.get('almacen') or '').strip()
+            no_produ = (r.get('no_produ') or '').strip().upper()
+            uni      = float(r.get('conteo_fisico_uni') or 0)
+            cjs      = float(r.get('conteo_fisico_cjs') or 0)
+            contador = (r.get('contador') or '')[:30]
+            empaque  = int(r.get('empaque') or 1)
+            cpe      = int(r.get('cpe') or 1)
+            if not (no_cia and almacen and no_produ):
+                continue
+            # Existe ya pendiente? PK = (no_cia, punto, almacen, no_produ)
+            cur.execute(
+                "SELECT 1 FROM INV.TINV_CONTEO_FISICO "
+                "WHERE no_cia=:1 AND punto=:2 AND almacen=:3 AND no_produ=:4",
+                [no_cia, punto, almacen, no_produ],
+            )
+            if cur.fetchone():
+                cur.execute(
+                    "UPDATE INV.TINV_CONTEO_FISICO SET "
+                    "  conteo_fisico_uni=:1, conteo_fisico_cjs=:2, "
+                    "  contador=:3, usuario=:4, fecha=SYSDATE, empaque=:5, cpe=:6 "
+                    "WHERE no_cia=:7 AND punto=:8 AND almacen=:9 AND no_produ=:10",
+                    [uni, cjs, contador, usuario[:30], empaque, cpe,
+                     no_cia, punto, almacen, no_produ],
+                )
+                updated += 1
+            else:
+                cur.execute(
+                    "INSERT INTO INV.TINV_CONTEO_FISICO("
+                    "  no_cia, punto, almacen, no_produ, "
+                    "  usuario, contador, fecha, "
+                    "  empaque, cpe, conteo_fisico_cjs, conteo_fisico_uni"
+                    ") VALUES("
+                    "  :1, :2, :3, :4, :5, :6, SYSDATE, :7, :8, :9, :10)",
+                    [no_cia, punto, almacen, no_produ,
+                     usuario[:30], contador, empaque, cpe, cjs, uni],
+                )
+                inserted += 1
+        conn.commit()
+    return {"inserted": inserted, "updated": updated}
+
+
+def comparativo_conteo_fisico(no_cia: str, punto: str = '',
+                                almacen: str = '', no_produ: str = '') -> list[dict]:
+    """Compara filas pendientes en TINV_CONTEO_FISICO vs EPRODUCTO.exist_actual.
+
+    Devuelve por fila: cia, punto, almacen, almacen_desc, no_produ, descripcion,
+    conteo_fisico (uni + cjs * empaque, según cpe), exist_libro, diferencia,
+    costo_actual, valor_diferencia, contador, fecha (del conteo).
+    """
+    if not no_cia:
+        return []
+    params: list = [no_cia]
+    where = ["c.no_cia = :1"]
+    if punto:
+        params.append(punto)
+        where.append(f"c.punto = :{len(params)}")
+    if almacen:
+        params.append(almacen)
+        where.append(f"c.almacen = :{len(params)}")
+    if no_produ:
+        params.append(no_produ.upper())
+        where.append(f"c.no_produ = :{len(params)}")
+    sql = (
+        "SELECT c.no_cia, c.punto, c.almacen, a.descri AS almacen_desc, "
+        "       c.no_produ, p.descri AS descripcion, "
+        "       c.contador, c.fecha, c.empaque, c.cpe, "
+        "       NVL(c.conteo_fisico_uni,0) AS conteo_fisico_uni, "
+        "       NVL(c.conteo_fisico_cjs,0) AS conteo_fisico_cjs, "
+        "       NVL(c.conteo_fisico_uni,0) + NVL(c.conteo_fisico_cjs,0) * NVL(c.cpe,1) AS conteo_total, "
+        "       NVL(ep.exist_actual,0) AS exist_libro, "
+        "       NVL(ep.costo_actual,0) AS costo_actual, "
+        "       (NVL(c.conteo_fisico_uni,0) + NVL(c.conteo_fisico_cjs,0) * NVL(c.cpe,1) "
+        "        - NVL(ep.exist_actual,0)) AS diferencia, "
+        "       ROUND((NVL(c.conteo_fisico_uni,0) + NVL(c.conteo_fisico_cjs,0) * NVL(c.cpe,1) "
+        "        - NVL(ep.exist_actual,0)) * NVL(ep.costo_actual,0), 2) AS valor_diferencia "
+        "FROM INV.TINV_CONTEO_FISICO c "
+        "JOIN INV.TINV_PRODUCTO p ON p.no_produ = c.no_produ "
+        "LEFT JOIN INV.TINV_ALMACEN a "
+        "  ON a.no_cia=c.no_cia AND a.punto=c.punto AND a.almacen=c.almacen "
+        "LEFT JOIN INV.TINV_EPRODUCTO ep "
+        "  ON ep.no_cia=c.no_cia AND ep.punto=c.punto "
+        "  AND ep.almacen=c.almacen AND ep.no_produ=c.no_produ "
+        f"WHERE {' AND '.join(where)} "
+        "ORDER BY c.almacen, c.no_produ"
+    )
+    return client.fetch_dicts(sql, params)
+
+
+def aplicar_conteo_fisico(no_cia: str, punto: str, usuario: str,
+                            almacen: str = '', no_produ: str = '') -> dict:
+    """Aplica los ajustes pendientes. Transaccional.
+
+    Devuelve {procesados, entradas_generadas, salidas_generadas, sin_cambio,
+    errores}.  Si ``almacen`` o ``no_produ`` se especifican, solo aplica esas
+    filas pendientes.
+    """
+    if not no_cia:
+        return {"procesados": 0, "entradas_generadas": 0, "salidas_generadas": 0,
+                "sin_cambio": 0, "errores": []}
+
+    # Filtros para la query de pendientes
+    params: list = [no_cia, punto]
+    where = ["c.no_cia=:1", "c.punto=:2"]
+    if almacen:
+        params.append(almacen)
+        where.append(f"c.almacen=:{len(params)}")
+    if no_produ:
+        params.append(no_produ.upper())
+        where.append(f"c.no_produ=:{len(params)}")
+
+    procesados = entradas = salidas = sin_cambio = 0
+    errores: list[str] = []
+
+    with client.connection() as conn:
+        cur = conn.cursor()
+        try:
+            # Lock pendientes y traer datos con EPRODUCTO
+            cur.execute(
+                "SELECT c.no_cia, c.punto, c.almacen, c.no_produ, "
+                "       NVL(c.conteo_fisico_uni,0) + NVL(c.conteo_fisico_cjs,0)*NVL(c.cpe,1) AS conteo_total, "
+                "       NVL(c.conteo_fisico_cjs,0) AS cjs, NVL(c.conteo_fisico_uni,0) AS uni, "
+                "       NVL(c.empaque,1) AS empaque, NVL(c.cpe,1) AS cpe, "
+                "       c.contador, c.usuario, "
+                "       NVL(ep.exist_actual,0) AS exist_libro, "
+                "       NVL(ep.costo_actual,0) AS costo_actual "
+                "FROM INV.TINV_CONTEO_FISICO c "
+                "LEFT JOIN INV.TINV_EPRODUCTO ep "
+                "  ON ep.no_cia=c.no_cia AND ep.punto=c.punto "
+                "  AND ep.almacen=c.almacen AND ep.no_produ=c.no_produ "
+                f"WHERE {' AND '.join(where)} FOR UPDATE OF c.no_cia",
+                params,
+            )
+            cols = [d[0].lower() for d in cur.description]
+            pendientes = [dict(zip(cols, row)) for row in cur.fetchall()]
+
+            for p in pendientes:
+                no_cia_r = p['no_cia']
+                punto_r = p['punto']
+                almacen_r = p['almacen']
+                no_produ_r = p['no_produ']
+                conteo = float(p['conteo_total'] or 0)
+                libro = float(p['exist_libro'] or 0)
+                diferencia = conteo - libro
+                costo = float(p['costo_actual'] or 0)
+                empaque = int(p['empaque'] or 1)
+                cpe = int(p['cpe'] or 1)
+
+                if abs(diferencia) > 0.0001:
+                    tipo_docu = 'AE' if diferencia > 0 else 'AS'
+                    tipo_movi = 'E' if diferencia > 0 else 'S'
+                    cantidad = abs(diferencia)
+                    # Tomar siguiente NO_DOCU desde TINV_SECUENCIA (FOR UPDATE para serializar)
+                    cur.execute(
+                        "SELECT NVL(prox_documento,1) AS prox FROM INV.TINV_SECUENCIA "
+                        "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 FOR UPDATE",
+                        [no_cia_r, punto_r, tipo_docu],
+                    )
+                    seq_row = cur.fetchone()
+                    if not seq_row:
+                        # No hay secuencia configurada — crear arrancando en 1
+                        cur.execute(
+                            "INSERT INTO INV.TINV_SECUENCIA(no_cia,punto,tipo_docu,prox_documento) "
+                            "VALUES(:1,:2,:3,1)",
+                            [no_cia_r, punto_r, tipo_docu],
+                        )
+                        prox = 1
+                    else:
+                        prox = int(seq_row[0] or 1)
+                    no_docu = str(prox).zfill(7)
+
+                    # INSERT en TINV_MOVIMIENTO (cumple todos los NOT NULL)
+                    cur.execute(
+                        "INSERT INTO INV.TINV_MOVIMIENTO("
+                        "  no_cia, punto, tipo_docu, no_docu, no_linea, "
+                        "  almacen, no_produ, tipo_movi, tipo_transaccion, servicio, "
+                        "  fecha, cantidad, precio, costo, "
+                        "  st_anulado, empaque, cpe, usuario, monto_neto, "
+                        "  no_localidad, fecha_sysdate, aumento_cxc"
+                        ") VALUES("
+                        "  :1, :2, :3, :4, 1, "
+                        "  :5, :6, :7, 'J', 'I', "
+                        "  SYSDATE, :8, :9, :9, "
+                        "  'N', :10, :11, :12, :13, "
+                        "  :1, SYSDATE, 0)",
+                        [no_cia_r, punto_r, tipo_docu, no_docu,
+                         almacen_r, no_produ_r, tipo_movi,
+                         cantidad, costo, empaque, cpe, usuario[:30],
+                         round(cantidad * costo, 2)],
+                    )
+                    # Avanzar secuencia
+                    cur.execute(
+                        "UPDATE INV.TINV_SECUENCIA SET prox_documento=:1 "
+                        "WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4",
+                        [prox + 1, no_cia_r, punto_r, tipo_docu],
+                    )
+                    if tipo_movi == 'E':
+                        entradas += 1
+                    else:
+                        salidas += 1
+                else:
+                    sin_cambio += 1
+
+                # UPDATE TINV_EPRODUCTO.exist_actual = conteo
+                # Si no existe la fila en EPRODUCTO, crearla.
+                cur.execute(
+                    "SELECT 1 FROM INV.TINV_EPRODUCTO "
+                    "WHERE no_cia=:1 AND punto=:2 AND almacen=:3 AND no_produ=:4",
+                    [no_cia_r, punto_r, almacen_r, no_produ_r],
+                )
+                if cur.fetchone():
+                    cur.execute(
+                        "UPDATE INV.TINV_EPRODUCTO SET exist_actual=:1 "
+                        "WHERE no_cia=:2 AND punto=:3 AND almacen=:4 AND no_produ=:5",
+                        [conteo, no_cia_r, punto_r, almacen_r, no_produ_r],
+                    )
+                else:
+                    cur.execute(
+                        "INSERT INTO INV.TINV_EPRODUCTO("
+                        "  no_cia, punto, almacen, no_produ, exist_actual, costo_actual, "
+                        "  exist_minima, exist_maxima) "
+                        "VALUES(:1,:2,:3,:4,:5,:6,0,0)",
+                        [no_cia_r, punto_r, almacen_r, no_produ_r, conteo, costo],
+                    )
+
+                # INSERT en historico
+                cur.execute(
+                    "INSERT INTO INV.TINV_CONTEO_FISICOH("
+                    "  no_cia, punto, almacen, no_produ, "
+                    "  usuario, contador, fecha, "
+                    "  conteo_fisico_cjs, conteo_fisico_uni, "
+                    "  usuario_ajusto, fecha_ajuste, "
+                    "  exist_actual, costo_actual, empaque, cpe"
+                    ") VALUES("
+                    "  :1, :2, :3, :4, :5, :6, SYSDATE, :7, :8, "
+                    "  :9, SYSDATE, :10, :11, :12, :13)",
+                    [no_cia_r, punto_r, almacen_r, no_produ_r,
+                     (p.get('usuario') or usuario)[:30], (p.get('contador') or '')[:30],
+                     float(p.get('cjs') or 0), float(p.get('uni') or 0),
+                     usuario[:30], conteo, costo, empaque, cpe],
+                )
+
+                # DELETE de pendiente
+                cur.execute(
+                    "DELETE FROM INV.TINV_CONTEO_FISICO "
+                    "WHERE no_cia=:1 AND punto=:2 AND almacen=:3 AND no_produ=:4",
+                    [no_cia_r, punto_r, almacen_r, no_produ_r],
+                )
+
+                procesados += 1
+
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            errores.append(str(e))
+
+    return {
+        "procesados": procesados,
+        "entradas_generadas": entradas,
+        "salidas_generadas": salidas,
+        "sin_cambio": sin_cambio,
+        "errores": errores,
+    }
+
+
+def historico_conteo_fisico(no_cia: str, no_produ: str = '', almacen: str = '',
+                              desde: str = '', hasta: str = '',
+                              page: int = 1, page_size: int = 50) -> dict:
+    """Pagina TINV_CONTEO_FISICOH con join a almacen + producto."""
+    if not no_cia:
+        return {"results": [], "count": 0, "page": page, "page_size": page_size}
+    params: list = [no_cia]
+    where = ["h.no_cia=:1"]
+    if no_produ:
+        params.append(no_produ.upper())
+        where.append(f"h.no_produ=:{len(params)}")
+    if almacen:
+        params.append(almacen)
+        where.append(f"h.almacen=:{len(params)}")
+    if desde:
+        params.append(desde)
+        where.append(f"TRUNC(h.fecha_ajuste) >= TO_DATE(:{len(params)},'YYYY-MM-DD')")
+    if hasta:
+        params.append(hasta)
+        where.append(f"TRUNC(h.fecha_ajuste) <= TO_DATE(:{len(params)},'YYYY-MM-DD')")
+    cnt_rows = client.fetch_dicts(
+        f"SELECT COUNT(*) AS n FROM INV.TINV_CONTEO_FISICOH h WHERE {' AND '.join(where)}",
+        params,
+    )
+    count = int(cnt_rows[0]['n']) if cnt_rows else 0
+    start = (page - 1) * page_size
+    end = start + page_size
+    params_paged = list(params) + [end, start]
+    sql = (
+        "SELECT * FROM ("
+        "  SELECT a.*, ROWNUM rn FROM ("
+        "    SELECT h.no_cia, h.punto, h.almacen, al.descri AS almacen_desc, "
+        "           h.no_produ, p.descri AS descripcion, "
+        "           h.contador, h.usuario, h.fecha AS fecha_conteo, "
+        "           h.usuario_ajusto, h.fecha_ajuste, "
+        "           NVL(h.conteo_fisico_uni,0) AS conteo_fisico_uni, "
+        "           NVL(h.conteo_fisico_cjs,0) AS conteo_fisico_cjs, "
+        "           NVL(h.exist_actual,0) AS exist_actual, "
+        "           NVL(h.costo_actual,0) AS costo_actual "
+        "    FROM INV.TINV_CONTEO_FISICOH h "
+        "    JOIN INV.TINV_PRODUCTO p ON p.no_produ = h.no_produ "
+        "    LEFT JOIN INV.TINV_ALMACEN al "
+        "      ON al.no_cia=h.no_cia AND al.punto=h.punto AND al.almacen=h.almacen "
+        f"    WHERE {' AND '.join(where)} "
+        "    ORDER BY h.fecha_ajuste DESC"
+        f"  ) a WHERE ROWNUM <= :{len(params_paged)-1}"
+        f") WHERE rn > :{len(params_paged)}"
+    )
+    rows = client.fetch_dicts(sql, params_paged)
+    return {"results": rows, "count": count, "page": page, "page_size": page_size}

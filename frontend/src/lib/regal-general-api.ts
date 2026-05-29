@@ -938,6 +938,30 @@ export const regalGeneralApi = {
     }>(`/fat/productos/?${p.toString()}`)
   },
 
+  // Existencia por almacén de un producto (calculada desde TINV_MOVIMIENTO E-S).
+  // Pega contra el mismo endpoint INV /inv/existencia/<no_produ>/ que usa
+  // la pantalla "Existencia por Producto", para tener un único cálculo.
+  invExistenciaProducto: (noCia: string, noProdu: string) => {
+    const p = new URLSearchParams({ no_cia: noCia })
+    return request<{
+      results: Array<{
+        no_cia: string; punto: string; almacen: string; almacen_desc: string
+        no_produ: string; descripcion: string
+        existencia: number; costo_actual: number; valor: number
+        exist_minima: number; exist_maxima: number
+      }>
+      count: number
+    }>(`/inv/existencia/${encodeURIComponent(noProdu)}/?${p.toString()}`)
+  },
+
+  // Empaques (unidades alternas) de un producto. Devuelve [] si TINV_EMPAQUE no tiene filas.
+  fatProductoEmpaques: (noProdu: string) => {
+    const p = new URLSearchParams({ no_produ: noProdu })
+    return request<{ items: Array<{ unidad: string; descripcion: string; por_defecto: boolean; cant_por_emp: number }> }>(
+      `/fat/producto-empaques/?${p.toString()}`,
+    )
+  },
+
   fatCrearFactura: (data: Record<string, any>) =>
     request<{ no_factura: string; tipo_factura: string; ncf: number | null; total_neto: number }>('/fat/facturas/', {
       method: 'POST', body: JSON.stringify(data),

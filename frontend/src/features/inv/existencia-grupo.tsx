@@ -55,11 +55,14 @@ function fmtInt(n?: number) {
   return n == null ? '—' : String(n)
 }
 
+// Sentinel para "Todos" — Radix Select prohíbe value='' (rompe la página).
+const ALL = '__all__'
+
 export function ExistenciaGrupo({ noCia }: Props) {
   const [grupos, setGrupos] = useState<Grupo[]>([])
   const [almacenes, setAlmacenes] = useState<Almacen[]>([])
-  const [grupoSel, setGrupoSel] = useState('')
-  const [almacenSel, setAlmacenSel] = useState('')
+  const [grupoSel, setGrupoSel] = useState<string>(ALL)
+  const [almacenSel, setAlmacenSel] = useState<string>(ALL)
   const [loadingCat, setLoadingCat] = useState(false)
   const [rows, setRows] = useState<GroupedRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -83,7 +86,7 @@ export function ExistenciaGrupo({ noCia }: Props) {
   }, [noCia])
 
   const grupoLabel = (g: Grupo) => {
-    const code = g.grupo ?? g.no_grupo ?? ''
+    const code = g.grupo_produ ?? g.grupo ?? g.no_grupo ?? ''
     const desc = g.descripcion ?? ''
     return desc ? `${code} — ${desc}` : code
   }
@@ -98,21 +101,22 @@ export function ExistenciaGrupo({ noCia }: Props) {
     setLoading(true)
     setConsulted(true)
     const qs = new URLSearchParams({ no_cia: noCia })
-    if (grupoSel) qs.set('grupo', grupoSel)
-    if (almacenSel) qs.set('almacen', almacenSel)
+    if (grupoSel && grupoSel !== ALL) qs.set('grupo', grupoSel)
+    if (almacenSel && almacenSel !== ALL) qs.set('almacen', almacenSel)
 
     fetch(`${API_BASE}/inv/existencia/?${qs.toString()}`, { credentials: 'include' })
       .then((r) => r.ok ? r.json() : Promise.reject(`HTTP ${r.status}`))
       .then((data) => {
         const items: ExistenciaRow[] = Array.isArray(data) ? data : (data.results ?? data.items ?? [])
 
-        // Aggregate by grupo + almacen in frontend
+        // Aggregate by grupo + almacen in frontend. El backend ya devuelve
+        // grupo_produ y grupo_descripcion (y filtra por grupo si está seleccionado).
         const map = new Map<string, GroupedRow>()
         for (const item of items) {
-          const g = item.grupo ?? item.no_grupo ?? '—'
+          const g = item.grupo_produ ?? item.grupo ?? item.no_grupo ?? '—'
           const a = item.almacen ?? '—'
           const key = `${g}||${a}`
-          const desc = item.nombre_grupo ?? item.descripcion ?? g
+          const desc = item.grupo_descripcion ?? item.nombre_grupo ?? item.descripcion ?? g
           if (!map.has(key)) {
             map.set(key, { grupo: g, nombre_grupo: desc, almacen: a, total_productos: 0, existencia_total: 0, valor_total: 0 })
           }
@@ -152,9 +156,9 @@ export function ExistenciaGrupo({ noCia }: Props) {
               <SelectValue placeholder={loadingCat ? 'Cargando...' : 'Todos los grupos'} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value=''>Todos los grupos</SelectItem>
+              <SelectItem value={ALL}>Todos los grupos</SelectItem>
               {grupos.map((g) => {
-                const code = g.grupo ?? g.no_grupo ?? ''
+                const code = g.grupo_produ ?? g.grupo ?? g.no_grupo ?? ''
                 return (
                   <SelectItem key={code} value={code}>
                     {grupoLabel(g)}
@@ -172,7 +176,7 @@ export function ExistenciaGrupo({ noCia }: Props) {
               <SelectValue placeholder={loadingCat ? 'Cargando...' : 'Todos los almacenes'} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value=''>Todos los almacenes</SelectItem>
+              <SelectItem value={ALL}>Todos los almacenes</SelectItem>
               {almacenes.map((a) => {
                 const code = a.almacen ?? a.no_almacen ?? ''
                 return (

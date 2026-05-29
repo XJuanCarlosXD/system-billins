@@ -138,20 +138,26 @@ def inv_lineas(request):
 @login_required
 @require_http_methods(["GET"])
 def inv_existencias(request):
-    """GET /api/inv/existencia/?no_cia=01&almacen=&no_produ=&search="""
+    """GET /api/inv/existencia/?no_cia=01&punto=&almacen=&no_produ=&grupo=&search=&solo_con_existencia="""
     try:
         no_cia = request.GET.get('no_cia', '01')
+        punto = request.GET.get('punto', '')
         almacen = request.GET.get('almacen', '')
         no_produ = request.GET.get('no_produ', '')
         search = request.GET.get('search', '')
+        grupo = request.GET.get('grupo', '')
+        solo_con_existencia = request.GET.get('solo_con_existencia', '').lower() in {'1','true','yes','y','s'}
         page = int(request.GET.get('page', 1))
         page_size = int(request.GET.get('page_size', 50))
 
         results = inv_repo.list_existencias(
             no_cia=no_cia,
+            punto=punto,
             almacen=almacen,
             no_produ=no_produ,
             search=search,
+            grupo=grupo,
+            solo_con_existencia=solo_con_existencia,
         )
         count = len(results)
         offset = (page - 1) * page_size
@@ -940,7 +946,7 @@ def _build_pdf_report(title: str, columns: list[str], rows: list[dict],
         for r in rows[:500]:
             row_data = []
             for c in columns:
-                val = r.get(c.upper(), r.get(c, ''))
+                val = r.get(c.lower(), r.get(c.upper(), ''))
                 if isinstance(val, float):
                     val = f"{val:,.2f}"
                 row_data.append(str(val or ''))
@@ -1101,5 +1107,115 @@ def inv_cierre_entrada_diario_pdf(request):
         resp = HttpResponse(pdf, content_type='application/pdf')
         resp['Content-Disposition'] = f'inline; filename="INV_EntradaDiario_{no_cia}_{ano}{mes}.pdf"'
         return resp
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+# =============================================================================
+# Conteo Físico — FINV705
+# =============================================================================
+
+@login_required
+@require_http_methods(["GET"])
+def inv_conteo_fisico_pendiente(request):
+    """GET /api/inv/conteo-fisico/pendiente/?no_cia=01&punto=&almacen=&no_produ=
+    Devuelve el comparativo de filas pendientes contra exist_actual del libro.
+    """
+    try:
+        no_cia = request.GET.get('no_cia', '01')
+        punto = request.GET.get('punto', '')
+        almacen = request.GET.get('almacen', '')
+        no_produ = request.GET.get('no_produ', '')
+        rows = inv_repo.comparativo_conteo_fisico(no_cia, punto, almacen, no_produ)
+        return JsonResponse({"results": rows, "count": len(rows)})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@csrf_exempt
+@login_required
+@require_http_methods(["POST"])
+def inv_conteo_fisico_cargar(request):
+    """POST /api/inv/conteo-fisico/cargar/
+    body: { rows: [ { no_cia, punto, almacen, no_produ, conteo_fisico_uni,
+                       conteo_fisico_cjs?, contador?, empaque?, cpe? }, ... ] }
+    """
+    try:
+        body = json.loads(request.body or b'{}')
+        rows = body.get('rows') or []
+        usuario = request.user.username if request.user.is_authenticated else 'API'
+        result = inv_repo.cargar_conteo_fisico(rows, usuario)
+        return JsonResponse(result)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@csrf_exempt
+@login_required
+@require_http_methods(["POST"])
+def inv_conteo_fisico_aplicar(request):
+    """POST /api/inv/conteo-fisico/aplicar/
+    body: { no_cia, punto, almacen?, no_produ? }
+    Aplica TODOS los pendientes (o filtrado a un almacen/produ). Devuelve el
+    resumen { procesados, entradas_generadas, salidas_generadas, sin_cambio, errores }.
+    """
+    try:
+        body = json.loads(request.body or b'{}')
+        no_cia = body.get('no_cia') or '01'
+        punto = body.get('punto') or '01'
+        almacen = body.get('almacen') or ''
+        no_produ = body.get('no_produ') or ''
+        usuario = request.user.username if request.user.is_authenticated else 'API'
+        result = inv_repo.aplicar_conteo_fisico(no_cia, punto, usuario, almacen, no_produ)
+        return JsonResponse(result)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@csrf_exempt
+@login_required
+@require_http_methods(["DELETE"])
+def inv_conteo_fisico_descartar(request):
+    """DELETE /api/inv/conteo-fisico/descartar/?no_cia&punto&almacen&no_produ
+    Borra una fila pendiente sin aplicar ajuste. Útil para corregir cargas malas.
+    """
+    try:
+        no_cia = request.GET.get('no_cia', '')
+        punto = request.GET.get('punto', '')
+        almacen = request.GET.get('almacen', '')
+        no_produ = request.GET.get('no_produ', '')
+        if not (no_cia and punto and almacen and no_produ):
+            return JsonResponse({"error": "Faltan parametros"}, status=400)
+        from apps.legacy import client as _c
+        with _c.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "DELETE FROM INV.TINV_CONTEO_FISICO "
+                "WHERE no_cia=:1 AND punto=:2 AND almacen=:3 AND no_produ=:4",
+                [no_cia, punto, almacen, no_produ.upper()],
+            )
+            n = cur.rowcount
+            conn.commit()
+        return JsonResponse({"deleted": n})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def inv_conteo_fisico_historico(request):
+    """GET /api/inv/conteo-fisico/historico/?no_cia&no_produ?&almacen?&desde?&hasta?&page&page_size"""
+    try:
+        no_cia = request.GET.get('no_cia', '01')
+        no_produ = request.GET.get('no_produ', '')
+        almacen = request.GET.get('almacen', '')
+        desde = request.GET.get('desde', '')
+        hasta = request.GET.get('hasta', '')
+        page = int(request.GET.get('page', 1))
+        page_size = int(request.GET.get('page_size', 50))
+        result = inv_repo.historico_conteo_fisico(
+            no_cia, no_produ=no_produ, almacen=almacen,
+            desde=desde, hasta=hasta, page=page, page_size=page_size)
+        return JsonResponse(result)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)

@@ -479,6 +479,56 @@ def get_cuadre_caja_detalle(no_cia: str, punto: str, tipo_factura: str,
              'total': float(r['total'] or 0)} for r in rows]
 
 
+# ── Cuadre de Caja · desglose por Tipo NCF (B01/B02/etc) ──────────────────────
+# El cuadre del sistema viejo necesita ver cuánto se vendió por cada tipo de
+# comprobante fiscal (Crédito Fiscal B01, Consumo B02, Notas de Crédito B04, etc.)
+# además del breakdown por forma de pago.
+
+def cuadre_caja_por_ncf(no_cia: str, punto: str, desde: str = '', hasta: str = '',
+                          tipo_factura: str = '', no_cuadre: str = '') -> list[dict]:
+    params: dict = {'p_cia': no_cia, 'p_pto': punto}
+    where = []
+    if no_cuadre:
+        params['p_cuadre'] = int(no_cuadre)
+        where.append("AND f.NO_CUADRE_CAJA = :p_cuadre")
+    else:
+        if tipo_factura:
+            params['p_tipo'] = tipo_factura.upper()
+            where.append("AND f.tipo_factura = :p_tipo")
+        if desde:
+            params['p_desde'] = desde
+            where.append("AND TRUNC(f.fecha) >= TO_DATE(:p_desde,'YYYY-MM-DD')")
+        if hasta:
+            params['p_hasta'] = hasta
+            where.append("AND TRUNC(f.fecha) <= TO_DATE(:p_hasta,'YYYY-MM-DD')")
+    extra = ' '.join(where)
+    sql = (
+        "SELECT NVL(f.tipo_ncf_fiscal,'—') AS tipo_ncf_fiscal, "
+        "       NVL(f.codigo_ncf,'—')       AS codigo_ncf, "
+        "       COUNT(*)                    AS cantidad, "
+        "       SUM(NVL(f.total_linea,0))   AS total_linea, "
+        "       SUM(NVL(f.descuento,0))     AS descuento, "
+        "       SUM(NVL(f.impuesto,0))      AS impuesto, "
+        "       SUM(NVL(f.total_neto,0))    AS total_neto "
+        "FROM   FAT.TFAT_FACTURA f "
+        "WHERE  f.no_cia = :p_cia AND f.punto = :p_pto "
+        "  AND  NVL(f.st_anulado,'N') = 'N' "
+        f"  {extra} "
+        "GROUP BY NVL(f.tipo_ncf_fiscal,'—'), NVL(f.codigo_ncf,'—') "
+        "ORDER BY NVL(f.tipo_ncf_fiscal,'—')"
+    )
+    rows = client.fetch_dicts(sql, params)
+    return [{
+        'tipo_ncf_fiscal': (r['tipo_ncf_fiscal'] or '').strip(),
+        'codigo_ncf':      (r['codigo_ncf'] or '').strip(),
+        'cantidad':        int(r['cantidad'] or 0),
+        'total_linea':     float(r['total_linea'] or 0),
+        'descuento':       float(r['descuento'] or 0),
+        'impuesto':        float(r['impuesto'] or 0),
+        'total_neto':      float(r['total_neto'] or 0),
+    } for r in rows]
+
+
 # ── Reporte Ventas por Producto ───────────────────────────────────────────────
 
 def rep_ventas_producto(no_cia: str, punto: str, desde: str, hasta: str,
@@ -1037,24 +1087,55 @@ def rep_analitica_mensual(no_cia: str, punto: str, ano: int) -> dict:
 def search_productos(no_cia, punto, no_lista="", search="", page=1, page_size=20, almacen="", solo_existencia=False):
     offset = (page - 1) * page_size
     end_row = offset + page_size
-    # Build existencia subquery — filter by almacen when provided
+    # Existencia híbrida (replica del legado, verificado 2026-05-28):
+    #  - almacén controlado (ctrl_exist_min='S' o ctrl_exist_max='S') → EPRODUCTO.exist_actual
+    #  - almacén no controlado (ambos 'N')                            → suma de movimientos (E - S)
+    # Cuando hay filtro de almacén, basta evaluar ese almacén.
+    # Cuando NO hay filtro, sumamos por todos los almacenes aplicando la regla por almacén.
     if almacen:
         exist_join = (
             "LEFT JOIN ("
-            "  SELECT NO_PRODU, SUM(EXIST_ACTUAL) AS existencia "
-            "  FROM INV.TINV_EXIST_ACTUAL "
-            "  WHERE NO_CIA = :no_cia_ex AND ALMACEN = :almacen_ex "
-            "  GROUP BY NO_PRODU"
-            ") ex ON ex.NO_PRODU = p.no_produ "
+            "  SELECT a.no_produ, SUM(a.existencia) AS existencia FROM ("
+            "    SELECT ep.no_produ, NVL(ep.exist_actual,0) AS existencia "
+            "    FROM INV.TINV_EPRODUCTO ep "
+            "    JOIN INV.TINV_ALMACEN al ON al.no_cia=ep.no_cia AND al.punto=ep.punto AND al.almacen=ep.almacen "
+            "    WHERE ep.no_cia=:no_cia_ex AND ep.almacen=:almacen_ex "
+            "      AND (NVL(al.ctrl_exist_min,'N')='S' OR NVL(al.ctrl_exist_max,'N')='S') "
+            "    UNION ALL "
+            "    SELECT m.no_produ, "
+            "           SUM(CASE WHEN m.tipo_movi='E' THEN NVL(m.cantidad,0) "
+            "                    WHEN m.tipo_movi='S' THEN -NVL(m.cantidad,0) ELSE 0 END) AS existencia "
+            "    FROM INV.TINV_MOVIMIENTO m "
+            "    JOIN INV.TINV_ALMACEN al ON al.no_cia=m.no_cia AND al.punto=m.punto AND al.almacen=m.almacen "
+            "    WHERE m.no_cia=:no_cia_ex AND m.almacen=:almacen_ex "
+            "      AND NVL(m.st_anulado,'N')='N' "
+            "      AND NVL(al.ctrl_exist_min,'N')='N' AND NVL(al.ctrl_exist_max,'N')='N' "
+            "    GROUP BY m.no_produ "
+            "  ) a "
+            "  GROUP BY a.no_produ"
+            ") ex ON ex.no_produ = p.no_produ "
         )
     else:
         exist_join = (
             "LEFT JOIN ("
-            "  SELECT NO_PRODU, SUM(EXIST_ACTUAL) AS existencia "
-            "  FROM INV.TINV_EXIST_ACTUAL "
-            "  WHERE NO_CIA = :no_cia_ex "
-            "  GROUP BY NO_PRODU"
-            ") ex ON ex.NO_PRODU = p.no_produ "
+            "  SELECT a.no_produ, SUM(a.existencia) AS existencia FROM ("
+            "    SELECT ep.no_produ, NVL(ep.exist_actual,0) AS existencia "
+            "    FROM INV.TINV_EPRODUCTO ep "
+            "    JOIN INV.TINV_ALMACEN al ON al.no_cia=ep.no_cia AND al.punto=ep.punto AND al.almacen=ep.almacen "
+            "    WHERE ep.no_cia=:no_cia_ex "
+            "      AND (NVL(al.ctrl_exist_min,'N')='S' OR NVL(al.ctrl_exist_max,'N')='S') "
+            "    UNION ALL "
+            "    SELECT m.no_produ, "
+            "           SUM(CASE WHEN m.tipo_movi='E' THEN NVL(m.cantidad,0) "
+            "                    WHEN m.tipo_movi='S' THEN -NVL(m.cantidad,0) ELSE 0 END) AS existencia "
+            "    FROM INV.TINV_MOVIMIENTO m "
+            "    JOIN INV.TINV_ALMACEN al ON al.no_cia=m.no_cia AND al.punto=m.punto AND al.almacen=m.almacen "
+            "    WHERE m.no_cia=:no_cia_ex AND NVL(m.st_anulado,'N')='N' "
+            "      AND NVL(al.ctrl_exist_min,'N')='N' AND NVL(al.ctrl_exist_max,'N')='N' "
+            "    GROUP BY m.no_produ "
+            "  ) a "
+            "  GROUP BY a.no_produ"
+            ") ex ON ex.no_produ = p.no_produ "
         )
     um_join = (
         "LEFT JOIN ("
@@ -1119,6 +1200,33 @@ def search_productos(no_cia, punto, no_lista="", search="", page=1, page_size=20
         "total": total, "page": page, "page_size": page_size,
         "total_pages": max(1, (total + page_size - 1) // page_size),
     }
+
+
+# -- Empaques (unidades) por producto -----------------------------------------
+# INV.TINV_EMPAQUE guarda las variantes de empaque por producto (UNIDAD,
+# POR_DEFECTO, CANT_POR_EMP, PRECIO/COSTO). En facturación necesitamos saber
+# si un producto tiene más de un empaque para dejar al usuario cambiar la UM.
+
+def list_empaques_producto(no_produ: str) -> list[dict]:
+    if not no_produ:
+        return []
+    rows = client.fetch_dicts(
+        "SELECT e.unidad, "
+        "       NVL(u.descri, e.unidad) AS descripcion, "
+        "       NVL(e.por_defecto, 'N') AS por_defecto, "
+        "       NVL(e.cant_por_emp, 1) AS cant_por_emp "
+        "FROM   INV.TINV_EMPAQUE e "
+        "LEFT JOIN INV.TINV_UNIDAD u ON u.unidad = e.unidad "
+        "WHERE  e.no_produ = :1 "
+        "ORDER BY NVL(e.por_defecto,'N') DESC, e.unidad",
+        [no_produ.strip().upper()],
+    )
+    return [{
+        "unidad": (r["unidad"] or "").strip(),
+        "descripcion": (r["descripcion"] or "").strip(),
+        "por_defecto": (r["por_defecto"] or "N") == "S",
+        "cant_por_emp": float(r["cant_por_emp"] or 1),
+    } for r in rows]
 
 
 # -- Crear Factura ------------------------------------------------------------
