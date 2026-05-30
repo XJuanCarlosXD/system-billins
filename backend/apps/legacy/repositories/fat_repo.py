@@ -523,30 +523,31 @@ def cuadre_caja_por_ncf(no_cia: str, punto: str, desde: str = '', hasta: str = '
             params['p_hasta'] = hasta
             where.append("AND TRUNC(f.fecha) <= TO_DATE(:p_hasta,'YYYY-MM-DD')")
     extra = ' '.join(where)
+    # Group by POSICIONES_FIJAS_NCF (the real DGI prefix: B01, B02, etc.)
+    # tipo_ncf_fiscal / codigo_ncf are legacy fields often empty; POSICIONES_FIJAS_NCF
+    # is the authoritative source per the schema standard.
     sql = (
-        "SELECT NVL(f.tipo_ncf_fiscal,'—') AS tipo_ncf_fiscal, "
-        "       NVL(f.codigo_ncf,'—')       AS codigo_ncf, "
-        "       COUNT(*)                    AS cantidad, "
-        "       SUM(NVL(f.total_linea,0))   AS total_linea, "
-        "       SUM(NVL(f.descuento,0))     AS descuento, "
-        "       SUM(NVL(f.impuesto,0))      AS impuesto, "
-        "       SUM(NVL(f.total_neto,0))    AS total_neto "
+        "SELECT NVL(f.posiciones_fijas_ncf,'—') AS ncf_tipo, "
+        "       COUNT(*)                         AS cantidad, "
+        "       SUM(NVL(f.total_linea,0))        AS total_linea, "
+        "       SUM(NVL(f.descuento,0))          AS descuento, "
+        "       SUM(NVL(f.impuesto,0))           AS impuesto, "
+        "       SUM(NVL(f.total_neto,0))         AS total_neto "
         "FROM   FAT.TFAT_FACTURA f "
         "WHERE  f.no_cia = :p_cia AND f.punto = :p_pto "
         "  AND  NVL(f.st_anulado,'N') = 'N' "
         f"  {extra} "
-        "GROUP BY NVL(f.tipo_ncf_fiscal,'—'), NVL(f.codigo_ncf,'—') "
-        "ORDER BY NVL(f.tipo_ncf_fiscal,'—')"
+        "GROUP BY NVL(f.posiciones_fijas_ncf,'—') "
+        "ORDER BY NVL(f.posiciones_fijas_ncf,'—')"
     )
     rows = client.fetch_dicts(sql, params)
     return [{
-        'tipo_ncf_fiscal': (r['tipo_ncf_fiscal'] or '').strip(),
-        'codigo_ncf':      (r['codigo_ncf'] or '').strip(),
-        'cantidad':        int(r['cantidad'] or 0),
-        'total_linea':     float(r['total_linea'] or 0),
-        'descuento':       float(r['descuento'] or 0),
-        'impuesto':        float(r['impuesto'] or 0),
-        'total_neto':      float(r['total_neto'] or 0),
+        'ncf_tipo':    (r['ncf_tipo'] or '').strip().upper(),
+        'cantidad':    int(r['cantidad'] or 0),
+        'total_linea': float(r['total_linea'] or 0),
+        'descuento':   float(r['descuento'] or 0),
+        'impuesto':    float(r['impuesto'] or 0),
+        'total_neto':  float(r['total_neto'] or 0),
     } for r in rows]
 
 

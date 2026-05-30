@@ -6,12 +6,12 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { buildReportMeta, downloadCsv } from './fat-export'
 
-interface Props { noCia: string; punto: string }
+interface Props { noCia: string; punto: string; mes?: number; ano?: number }
 
 type ResumenItem = { tipo_pago: string; forma_pago: string; cantidad: number; total: number }
 type HistorialItem = { no_cuadre_caja: number; fecha: string | null; usuario: string; total_monto: number }
 type NcfItem = {
-  tipo_ncf_fiscal: string; codigo_ncf: string; cantidad: number
+  ncf_tipo: string; cantidad: number
   total_linea: number; descuento: number; impuesto: number; total_neto: number
 }
 
@@ -21,24 +21,10 @@ const fmtN = (n: number) =>
   Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmtDate = (d: any) => d ? String(d).slice(0, 10) : '—'
 
-// Heurística simple para clasificar formas de pago como en el cuadre legado:
-// Efectivo / Cheque / Tarjeta / Transferencia / Cobro Crédito (RI) / Otras.
-function clasificarForma(tipo_pago: string, forma_pago: string): string {
-  const t = (tipo_pago || '').toUpperCase()
-  const f = (forma_pago || '').toUpperCase()
-  if (t.startsWith('C')) return 'COBRO CRÉDITO'        // 'C'||forma_pago (RI cobros CXC)
-  if (/EFEC|CASH|CONTAD/.test(f)) return 'EFECTIVO'
-  if (/CHEQ/.test(f))             return 'CHEQUE'
-  if (/TARJ|CRED.*DEB|VISA|MASTER/.test(f)) return 'TARJETA CRÉDITO/DÉBITO'
-  if (/TRANS|TRF|WIRE|ACH/.test(f)) return 'TRANSFERENCIA'
-  if (/BONO|CERT.*REGAL/.test(f)) return 'BONOS / CERTIFICADOS'
-  if (/PERMUT/.test(f))           return 'PERMUTA'
-  return 'OTRAS FORMAS DE PAGO'
-}
 
 // Etiqueta humana para B01/B02/B14/B15… si no la conocemos, devolvemos el código tal cual.
-function labelNcf(tipo_ncf_fiscal: string): string {
-  const t = (tipo_ncf_fiscal || '').toUpperCase()
+function labelNcf(ncf_tipo: string): string {
+  const t = (ncf_tipo || '').toUpperCase()
   const map: Record<string, string> = {
     'B01': 'B01 — Crédito Fiscal',
     'B02': 'B02 — Consumo',
@@ -65,18 +51,24 @@ async function fetchCuadre(noCia: string, punto: string, desde: string, hasta: s
   return res.json() as Promise<{ resumen: ResumenItem[]; historial: HistorialItem[]; por_ncf: NcfItem[] }>
 }
 
+const TODAY = new Date().toISOString().slice(0, 10)
+
 export function CuadreCajaFat({ noCia, punto }: Props) {
-  const [filterDesde, setFilterDesde] = useState('')
-  const [filterHasta, setFilterHasta] = useState('')
+  // E.2: fecha default = hoy
+  const [filterDesde, setFilterDesde] = useState(TODAY)
+  const [filterHasta, setFilterHasta] = useState(TODAY)
   const [filterTipo, setFilterTipo] = useState('')
-  const [aplicados, setAplicados] = useState({ desde: '', hasta: '', tipo: '' })
+  // E.3: historial bajo demanda — generado=false hasta que el usuario haga click en Generar
+  const [generado, setGenerado] = useState(false)
+  const [aplicados, setAplicados] = useState({ desde: TODAY, hasta: TODAY, tipo: '' })
   const [selectedFecha, setSelectedFecha] = useState<string | null>(null)
 
   // Historial: trae el rango filtrado (sin restricción de fecha por día).
+  // E.1/E.3: enabled requiere que el usuario haya presionado "Generar" explícitamente.
   const historialQ = useQuery({
     queryKey: ['fat-cuadre-historial', noCia, punto, aplicados.desde, aplicados.hasta, aplicados.tipo],
     queryFn: () => fetchCuadre(noCia, punto, aplicados.desde, aplicados.hasta, aplicados.tipo),
-    enabled: !!noCia,
+    enabled: !!noCia && generado,
     staleTime: 60_000,
     select: (d) => d.historial,
   })
@@ -94,28 +86,23 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
   const porNcf: NcfItem[] = detalleQ.data?.por_ncf ?? []
   const selected = historial.find((h) => h.fecha === selectedFecha) ?? null
 
-  // Agrupa formas de pago al estilo legado: Efectivo, Cheque, Tarjeta, Transferencia, Cobros, Otras.
-  const grupos: Array<{ clase: string; cantidad: number; total: number; items: ResumenItem[] }> = (() => {
-    const m = new Map<string, { clase: string; cantidad: number; total: number; items: ResumenItem[] }>()
-    for (const r of resumenPago) {
-      const clase = clasificarForma(r.tipo_pago, r.forma_pago)
-      const g = m.get(clase) ?? { clase, cantidad: 0, total: 0, items: [] }
-      g.cantidad += r.cantidad
-      g.total += r.total
-      g.items.push(r)
-      m.set(clase, g)
-    }
-    // Orden estable: efectivo primero, cobros crédito al final.
-    const orden = ['EFECTIVO','CHEQUE','TARJETA CRÉDITO/DÉBITO','TRANSFERENCIA','BONOS / CERTIFICADOS','PERMUTA','OTRAS FORMAS DE PAGO','COBRO CRÉDITO']
-    return Array.from(m.values()).sort((a, b) => orden.indexOf(a.clase) - orden.indexOf(b.clase))
-  })()
+  // E.5/E.6/E.7: lista cada tipo_pago/forma_pago directo del backend sin buckets.
+  // Cobros de crédito (tipo_pago starts with 'C') van al final; el resto alfabético por forma_pago.
+  const resumenOrdenado = [...resumenPago].sort((a, b) => {
+    const aCredit = a.tipo_pago.startsWith('C')
+    const bCredit = b.tipo_pago.startsWith('C')
+    if (aCredit !== bCredit) return aCredit ? 1 : -1
+    return (a.forma_pago || '').localeCompare(b.forma_pago || '', 'es')
+  })
 
-  const totalFormaPago = grupos.reduce((s, g) => s + g.total, 0)
+  const totalFormaPago = resumenPago.reduce((s, r) => s + r.total, 0)
   const totalPorNcf = porNcf.reduce((s, r) => s + r.total_neto, 0)
 
+  // E.3: Generar activa el historial por primera vez (o actualiza el rango).
   const applyFilters = () => {
     setSelectedFecha(null)
     setAplicados({ desde: filterDesde, hasta: filterHasta, tipo: filterTipo })
+    setGenerado(true)
   }
 
   const mesAno = (() => {
@@ -130,21 +117,19 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
     const rows: any[][] = []
     rows.push(['=== Resumen por Forma de Pago ==='])
     rows.push(['Tipo', 'Descripcion', 'Cantidad', 'Total RD'])
-    for (const g of grupos) {
-      for (const it of g.items) {
-        rows.push([g.clase, it.forma_pago, it.cantidad, Number(it.total ?? 0).toFixed(2)])
-      }
+    for (const it of resumenOrdenado) {
+      rows.push([it.tipo_pago, it.forma_pago, it.cantidad, Number(it.total ?? 0).toFixed(2)])
     }
     rows.push(['', '', 'TOTAL', totalFormaPago.toFixed(2)])
     rows.push([])
     rows.push(['=== Resumen por Tipo NCF ==='])
-    rows.push(['Tipo NCF', 'Codigo', 'Cantidad', 'Total Linea', 'Descuento', 'ITBIS', 'Total Neto'])
+    rows.push(['Tipo NCF', 'Cantidad', 'Total Linea', 'Descuento', 'ITBIS', 'Total Neto'])
     for (const r of porNcf) {
-      rows.push([r.tipo_ncf_fiscal, r.codigo_ncf, r.cantidad,
+      rows.push([r.ncf_tipo, r.cantidad,
         r.total_linea.toFixed(2), r.descuento.toFixed(2),
         r.impuesto.toFixed(2), r.total_neto.toFixed(2)])
     }
-    rows.push(['', '', 'TOTAL', '', '', '', totalPorNcf.toFixed(2)])
+    rows.push(['', 'TOTAL', '', '', '', totalPorNcf.toFixed(2)])
     downloadCsv(
       `cuadre-caja-${selectedFecha ?? 'general'}.csv`,
       [],  // sin header global, escribimos secciones nosotros
@@ -162,25 +147,16 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
     const titulo = `${cuadreNo}${fmtDate(selectedFecha)}`
     const usuario = selected?.usuario || ''
 
-    // Tabla forma de pago (grupos + sus detalles indentados).
-    const filasPago = grupos.map(g => {
-      const head = `<tr class="grp">
-        <td><b>${g.clase}</b></td><td></td>
-        <td class="r"><b>${g.cantidad}</b></td>
-        <td class="r"><b>${fmtN(g.total)}</b></td></tr>`
-      const detalles = g.items.length > 1
-        ? g.items.map(it => `<tr class="sub">
-            <td></td>
-            <td>${it.forma_pago}</td>
-            <td class="r">${it.cantidad}</td>
-            <td class="r">${fmtN(it.total)}</td></tr>`).join('')
-        : ''
-      return head + detalles
-    }).join('')
+    // Tabla forma de pago — una fila por item del backend, cobros de crédito al final.
+    const filasPago = resumenOrdenado.map(it => `<tr>
+      <td class="font-mono">${it.tipo_pago}</td>
+      <td>${it.forma_pago}</td>
+      <td class="r">${it.cantidad}</td>
+      <td class="r">${fmtN(it.total)}</td></tr>`).join('')
 
     const filasNcf = porNcf.map(r => `<tr>
-      <td>${r.tipo_ncf_fiscal || '—'}</td>
-      <td>${labelNcf(r.tipo_ncf_fiscal)}${r.codigo_ncf && r.codigo_ncf !== '—' ? ` <span class="muted">(${r.codigo_ncf})</span>` : ''}</td>
+      <td>${r.ncf_tipo || '—'}</td>
+      <td>${labelNcf(r.ncf_tipo)}</td>
       <td class="r">${r.cantidad}</td>
       <td class="r">${fmtN(r.total_linea)}</td>
       <td class="r">${fmtN(r.descuento)}</td>
@@ -365,32 +341,18 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
                 {!detalleQ.isLoading && selectedFecha === null && (
                   <TableRow><TableCell colSpan={4} className='py-10 text-center text-muted-foreground'>Haga clic en una fecha para ver el detalle.</TableCell></TableRow>
                 )}
-                {!detalleQ.isLoading && selectedFecha !== null && grupos.length === 0 && (
+                {!detalleQ.isLoading && selectedFecha !== null && resumenOrdenado.length === 0 && (
                   <TableRow><TableCell colSpan={4} className='py-6 text-center text-muted-foreground'>Sin movimientos.</TableCell></TableRow>
                 )}
-                {grupos.flatMap(g => {
-                  const head = (
-                    <TableRow key={`g-${g.clase}`} className='bg-blue-50/40 font-semibold'>
-                      <TableCell className='font-semibold'>{g.clase}</TableCell>
-                      <TableCell></TableCell>
-                      <TableCell className='text-right font-mono'>{g.cantidad}</TableCell>
-                      <TableCell className='text-right font-mono'>{fmtN(g.total)}</TableCell>
-                    </TableRow>
-                  )
-                  // Si la clase tiene varias formas distintas, mostrarlas indentadas
-                  const subs = g.items.length > 1
-                    ? g.items.map(it => (
-                        <TableRow key={`g-${g.clase}-${it.tipo_pago}`} className='text-muted-foreground'>
-                          <TableCell className='pl-6 text-xs font-mono'>{it.tipo_pago}</TableCell>
-                          <TableCell className='text-xs'>{it.forma_pago}</TableCell>
-                          <TableCell className='text-right font-mono text-xs'>{it.cantidad}</TableCell>
-                          <TableCell className='text-right font-mono text-xs'>{fmtN(it.total)}</TableCell>
-                        </TableRow>
-                      ))
-                    : []
-                  return [head, ...subs]
-                })}
-                {grupos.length > 0 && (
+                {resumenOrdenado.map(it => (
+                  <TableRow key={`${it.tipo_pago}-${it.forma_pago}`}>
+                    <TableCell className='font-mono text-sm'>{it.tipo_pago}</TableCell>
+                    <TableCell className='text-sm'>{it.forma_pago}</TableCell>
+                    <TableCell className='text-right font-mono'>{it.cantidad}</TableCell>
+                    <TableCell className='text-right font-mono'>{fmtN(it.total)}</TableCell>
+                  </TableRow>
+                ))}
+                {resumenOrdenado.length > 0 && (
                   <TableRow className='border-t-2 bg-muted/40 font-bold'>
                     <TableCell colSpan={3} className='text-right'>Total Ingresos</TableCell>
                     <TableCell className='text-right font-mono'>{fmtN(totalFormaPago)}</TableCell>
@@ -425,14 +387,9 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
                   <TableRow><TableCell colSpan={7} className='py-6 text-center text-muted-foreground'>Sin facturas en el período.</TableCell></TableRow>
                 )}
                 {porNcf.map((r) => (
-                  <TableRow key={`${r.tipo_ncf_fiscal}-${r.codigo_ncf}`}>
-                    <TableCell className='font-mono font-semibold'>{r.tipo_ncf_fiscal || '—'}</TableCell>
-                    <TableCell className='text-sm'>
-                      {labelNcf(r.tipo_ncf_fiscal)}
-                      {r.codigo_ncf && r.codigo_ncf !== '—' && (
-                        <span className='ml-2 text-xs text-muted-foreground'>({r.codigo_ncf})</span>
-                      )}
-                    </TableCell>
+                  <TableRow key={r.ncf_tipo}>
+                    <TableCell className='font-mono font-semibold'>{r.ncf_tipo || '—'}</TableCell>
+                    <TableCell className='text-sm'>{labelNcf(r.ncf_tipo)}</TableCell>
                     <TableCell className='text-right font-mono'>{r.cantidad}</TableCell>
                     <TableCell className='text-right font-mono'>{fmtN(r.total_linea)}</TableCell>
                     <TableCell className='text-right font-mono'>{fmtN(r.descuento)}</TableCell>
