@@ -650,7 +650,12 @@ class FatCuadreCajaView(APIView):
             resumen = fat_repo.get_cuadre_caja_detalle(no_cia, punto, tipo_factura, desde, hasta, no_cuadre)
             historial = fat_repo.list_cuadre_caja(no_cia, punto, desde, hasta)
             por_ncf = fat_repo.cuadre_caja_por_ncf(no_cia, punto, desde, hasta, tipo_factura, no_cuadre)
-            return Response({'resumen': resumen, 'historial': historial, 'por_ncf': por_ncf})
+            por_ncf_forma_pago = fat_repo.cuadre_caja_por_ncf_forma_pago(
+                no_cia, punto, desde, hasta, tipo_factura, no_cuadre)
+            return Response({
+                'resumen': resumen, 'historial': historial,
+                'por_ncf': por_ncf, 'por_ncf_forma_pago': por_ncf_forma_pago,
+            })
         except Exception as e:
             return Response({'detail': str(e)}, status=500)
 

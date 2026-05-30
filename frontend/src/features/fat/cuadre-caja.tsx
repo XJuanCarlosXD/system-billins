@@ -14,6 +14,10 @@ type NcfItem = {
   ncf_tipo: string; cantidad: number
   total_linea: number; descuento: number; impuesto: number; total_neto: number
 }
+type NcfFormaPagoItem = {
+  ncf_tipo: string; tipo_pago: string; forma_pago: string
+  cantidad: number; total: number
+}
 
 const API = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
 
@@ -48,23 +52,26 @@ async function fetchCuadre(noCia: string, punto: string, desde: string, hasta: s
   if (noCuadre) p.set('no_cuadre', noCuadre)
   const res = await fetch(`${API}/fat/cuadre-caja/?${p}`, { credentials: 'include' })
   if (!res.ok) throw new Error(await res.text())
-  return res.json() as Promise<{ resumen: ResumenItem[]; historial: HistorialItem[]; por_ncf: NcfItem[] }>
+  return res.json() as Promise<{
+    resumen: ResumenItem[]; historial: HistorialItem[];
+    por_ncf: NcfItem[]; por_ncf_forma_pago?: NcfFormaPagoItem[]
+  }>
 }
 
 const TODAY = new Date().toISOString().slice(0, 10)
 
 export function CuadreCajaFat({ noCia, punto }: Props) {
-  // E.2: fecha default = hoy
+  // Defaults: fecha = hoy. El resumen del día se carga directo al entrar a la
+  // vista (selectedFecha=TODAY, generado=true) — el usuario no tiene que dar
+  // click a Filtrar ni a una fila del historial para ver el cuadre.
   const [filterDesde, setFilterDesde] = useState(TODAY)
   const [filterHasta, setFilterHasta] = useState(TODAY)
   const [filterTipo, setFilterTipo] = useState('')
-  // E.3: historial bajo demanda — generado=false hasta que el usuario haga click en Generar
-  const [generado, setGenerado] = useState(false)
+  const [generado, setGenerado] = useState(true)
   const [aplicados, setAplicados] = useState({ desde: TODAY, hasta: TODAY, tipo: '' })
-  const [selectedFecha, setSelectedFecha] = useState<string | null>(null)
+  const [selectedFecha, setSelectedFecha] = useState<string | null>(TODAY)
 
-  // Historial: trae el rango filtrado (sin restricción de fecha por día).
-  // E.1/E.3: enabled requiere que el usuario haya presionado "Generar" explícitamente.
+  // Historial: lista por fecha del rango filtrado.
   const historialQ = useQuery({
     queryKey: ['fat-cuadre-historial', noCia, punto, aplicados.desde, aplicados.hasta, aplicados.tipo],
     queryFn: () => fetchCuadre(noCia, punto, aplicados.desde, aplicados.hasta, aplicados.tipo),
@@ -73,7 +80,7 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
     select: (d) => d.historial,
   })
 
-  // Detalle del día seleccionado: aquí pedimos resumen + por_ncf juntos.
+  // Detalle de la fecha seleccionada: resumen + por_ncf + matriz NCF×forma_pago.
   const detalleQ = useQuery({
     queryKey: ['fat-cuadre-detalle', noCia, punto, selectedFecha, aplicados.tipo],
     queryFn: () => fetchCuadre(noCia, punto, selectedFecha!, selectedFecha!, aplicados.tipo, ''),
@@ -84,6 +91,7 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
   const historial = historialQ.data ?? []
   const resumenPago: ResumenItem[] = detalleQ.data?.resumen ?? []
   const porNcf: NcfItem[] = detalleQ.data?.por_ncf ?? []
+  const porNcfFormaPago: NcfFormaPagoItem[] = detalleQ.data?.por_ncf_forma_pago ?? []
   const selected = historial.find((h) => h.fecha === selectedFecha) ?? null
 
   // E.5/E.6/E.7: lista cada tipo_pago/forma_pago directo del backend sin buckets.
@@ -97,6 +105,32 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
 
   const totalFormaPago = resumenPago.reduce((s, r) => s + r.total, 0)
   const totalPorNcf = porNcf.reduce((s, r) => s + r.total_neto, 0)
+
+  // Pivot NCF × forma_pago: filas = ncf_tipo, columnas = forma_pago, valores = total.
+  // Las columnas dinámicas son el conjunto de formas de pago presentes en la
+  // matriz (ordenadas alfabéticamente). Las filas conservan el orden por NCF tipo.
+  const ncfFormaPagoMatrix = (() => {
+    const formasSet = new Set<string>()
+    const filaMap = new Map<string, { ncf_tipo: string; total: number; porForma: Record<string, { cantidad: number; total: number }> }>()
+    for (const r of porNcfFormaPago) {
+      formasSet.add(r.forma_pago)
+      let fila = filaMap.get(r.ncf_tipo)
+      if (!fila) {
+        fila = { ncf_tipo: r.ncf_tipo, total: 0, porForma: {} }
+        filaMap.set(r.ncf_tipo, fila)
+      }
+      fila.porForma[r.forma_pago] = { cantidad: r.cantidad, total: r.total }
+      fila.total += r.total
+    }
+    const formas = [...formasSet].sort((a, b) => a.localeCompare(b, 'es'))
+    const filas = [...filaMap.values()].sort((a, b) => a.ncf_tipo.localeCompare(b.ncf_tipo))
+    const totalesCol: Record<string, number> = {}
+    for (const f of formas) {
+      totalesCol[f] = filas.reduce((s, fila) => s + (fila.porForma[f]?.total ?? 0), 0)
+    }
+    const totalMatrix = filas.reduce((s, f) => s + f.total, 0)
+    return { formas, filas, totalesCol, totalMatrix }
+  })()
 
   // E.3: Generar activa el historial por primera vez (o actualiza el rango).
   const applyFilters = () => {
@@ -163,6 +197,19 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
       <td class="r">${fmtN(r.impuesto)}</td>
       <td class="r"><b>${fmtN(r.total_neto)}</b></td></tr>`).join('')
 
+    // Matriz NCF × forma_pago para el PDF.
+    const { formas, filas: filasMx, totalesCol, totalMatrix } = ncfFormaPagoMatrix
+    const headMx = formas.map(f => `<th class="r">${f}</th>`).join('')
+    const cuerpoMx = filasMx.map(fila => {
+      const celdas = formas.map(f => {
+        const v = fila.porForma[f]?.total ?? 0
+        return `<td class="r">${v ? fmtN(v) : ''}</td>`
+      }).join('')
+      return `<tr><td><b>${fila.ncf_tipo || '—'}</b></td><td>${labelNcf(fila.ncf_tipo)}</td>${celdas}<td class="r"><b>${fmtN(fila.total)}</b></td></tr>`
+    }).join('')
+    const totalesMx = formas.map(f =>
+      `<td class="r"><b>${fmtN(totalesCol[f] ?? 0)}</b></td>`).join('')
+
     const win = window.open('', '_blank')!
     win.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/>
     <title>Cuadre de Caja</title>
@@ -227,6 +274,17 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
       <tfoot><tr><td colspan="6" class="r"><b>TOTAL</b></td>
         <td class="r"><b>${fmtN(totalPorNcf)}</b></td></tr></tfoot>
     </table>
+
+    ${formas.length ? `
+    <h3>NCF × Forma de Pago</h3>
+    <table>
+      <thead><tr>
+        <th>NCF</th><th>Descripción</th>${headMx}
+        <th class="r">Total RD</th>
+      </tr></thead>
+      <tbody>${cuerpoMx || `<tr><td colspan="${3 + formas.length}" style="text-align:center;color:#888">Sin movimientos.</td></tr>`}</tbody>
+      <tfoot><tr><td colspan="2" class="r"><b>TOTAL</b></td>${totalesMx}<td class="r"><b>${fmtN(totalMatrix)}</b></td></tr></tfoot>
+    </table>` : ''}
 
     <div class="firmas">
       <div class="firma">${usuario || '&nbsp;'}<div class="lbl">Cajero / Usuario</div></div>
@@ -406,6 +464,53 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
               </TableBody>
             </Table>
           </div>
+
+          {/* NCF × Forma de Pago — matriz pivot */}
+          {ncfFormaPagoMatrix.formas.length > 0 && (
+            <div className='rounded-md border'>
+              <div className='px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-blue-700'>
+                NCF × Forma de Pago
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className='w-16'>NCF</TableHead>
+                    <TableHead>Descripción</TableHead>
+                    {ncfFormaPagoMatrix.formas.map((f) => (
+                      <TableHead key={f} className='text-right'>{f}</TableHead>
+                    ))}
+                    <TableHead className='text-right'>Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {ncfFormaPagoMatrix.filas.map((fila) => (
+                    <TableRow key={fila.ncf_tipo}>
+                      <TableCell className='font-mono font-semibold'>{fila.ncf_tipo || '—'}</TableCell>
+                      <TableCell className='text-sm'>{labelNcf(fila.ncf_tipo)}</TableCell>
+                      {ncfFormaPagoMatrix.formas.map((f) => {
+                        const v = fila.porForma[f]?.total ?? 0
+                        return (
+                          <TableCell key={f} className='text-right font-mono'>
+                            {v ? fmtN(v) : <span className='text-muted-foreground/50'>—</span>}
+                          </TableCell>
+                        )
+                      })}
+                      <TableCell className='text-right font-mono font-semibold'>{fmtN(fila.total)}</TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className='border-t-2 bg-muted/40 font-bold'>
+                    <TableCell colSpan={2} className='text-right'>TOTAL</TableCell>
+                    {ncfFormaPagoMatrix.formas.map((f) => (
+                      <TableCell key={f} className='text-right font-mono'>
+                        {fmtN(ncfFormaPagoMatrix.totalesCol[f] ?? 0)}
+                      </TableCell>
+                    ))}
+                    <TableCell className='text-right font-mono'>{fmtN(ncfFormaPagoMatrix.totalMatrix)}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </div>
       </div>
     </section>

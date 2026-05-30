@@ -668,6 +668,60 @@ def cuadre_caja_por_ncf(no_cia: str, punto: str, desde: str = '', hasta: str = '
     } for r in rows]
 
 
+def cuadre_caja_por_ncf_forma_pago(no_cia: str, punto: str, desde: str = '',
+                                     hasta: str = '', tipo_factura: str = '',
+                                     no_cuadre: str = '') -> list[dict]:
+    """Desglose 2D: para cada tipo de NCF, monto por forma de pago.
+
+    El usuario quiere ver "de las facturas B02, cuánto en efectivo, cuánto en
+    cheque, cuánto en transferencia". Esto une TFAT_FACTURA (para el NCF) con
+    TFAT_FORMA_PAGO (rows = formas de pago aplicadas a esa factura).
+    """
+    params: dict = {'p_cia': no_cia, 'p_pto': punto}
+    where = []
+    if no_cuadre:
+        params['p_cuadre'] = int(no_cuadre)
+        where.append("AND f.NO_CUADRE_CAJA = :p_cuadre")
+    else:
+        if tipo_factura:
+            params['p_tipo'] = tipo_factura.upper()
+            where.append("AND f.tipo_factura = :p_tipo")
+        if desde:
+            params['p_desde'] = desde
+            where.append("AND TRUNC(f.fecha) >= TO_DATE(:p_desde,'YYYY-MM-DD')")
+        if hasta:
+            params['p_hasta'] = hasta
+            where.append("AND TRUNC(f.fecha) <= TO_DATE(:p_hasta,'YYYY-MM-DD')")
+    extra = ' '.join(where)
+    sql = (
+        "SELECT NVL(f.posiciones_fijas_ncf,'—') AS ncf_tipo, "
+        "       fp.tipo_pago                     AS tipo_pago, "
+        "       NVL(tp.descripcion, fp.tipo_pago) AS forma_pago, "
+        "       COUNT(*)                          AS cantidad, "
+        "       SUM(NVL(fp.monto,0))              AS total "
+        "FROM   FAT.TFAT_FACTURA f "
+        "JOIN   FAT.TFAT_FORMA_PAGO fp "
+        "  ON fp.no_cia=f.no_cia AND fp.punto=f.punto "
+        "  AND fp.tipo_factura=f.tipo_factura AND fp.no_factura=f.no_factura "
+        "LEFT JOIN FAT.TFAT_TIPO_PAGO tp "
+        "  ON tp.no_cia=fp.no_cia AND tp.tipo_pago=fp.tipo_pago "
+        "WHERE  f.no_cia=:p_cia AND f.punto=:p_pto "
+        "  AND  NVL(f.st_anulado,'N')='N' "
+        f"  {extra} "
+        "GROUP BY NVL(f.posiciones_fijas_ncf,'—'), fp.tipo_pago, "
+        "         NVL(tp.descripcion, fp.tipo_pago) "
+        "ORDER BY NVL(f.posiciones_fijas_ncf,'—'), fp.tipo_pago"
+    )
+    rows = client.fetch_dicts(sql, params)
+    return [{
+        'ncf_tipo':   (r['ncf_tipo'] or '').strip().upper(),
+        'tipo_pago':  (r['tipo_pago'] or '').strip(),
+        'forma_pago': (r['forma_pago'] or '').strip(),
+        'cantidad':   int(r['cantidad'] or 0),
+        'total':      float(r['total'] or 0),
+    } for r in rows]
+
+
 # ── Reporte Ventas por Producto ───────────────────────────────────────────────
 
 def rep_ventas_producto(no_cia: str, punto: str, desde: str, hasta: str,
