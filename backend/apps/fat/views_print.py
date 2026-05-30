@@ -20,7 +20,7 @@ from django.http import HttpResponse, JsonResponse
 from django.views.decorators.http import require_http_methods
 
 from apps.legacy.pdf_helpers import build_pdf_report
-from apps.legacy.repositories import fat_repo, inv_repo, cxc_repo
+from apps.legacy.repositories import fat_repo, inv_repo, cxc_repo, permissions_repo
 
 TIPOS_DOCUMENTO_SOPORTADOS = {'FC', 'FT'}
 
@@ -62,6 +62,10 @@ def fat_documento_pdf(request, tipo: str, no_factura: str):
 
     no_cia = request.GET.get('no_cia', '01')
     punto = request.GET.get('punto', '01')
+
+    perms = permissions_repo.get_for(request.user.username, 'fat', no_cia, punto)
+    if perms is None or not perms.activo:
+        return JsonResponse({'detail': 'sin acceso a FAT en esta empresa/punto'}, status=403)
 
     try:
         factura = fat_repo.get_factura(no_cia, punto, tipo, no_factura)
@@ -111,6 +115,92 @@ def fat_documento_pdf(request, tipo: str, no_factura: str):
     resp['Content-Disposition'] = (
         f'inline; filename="FAT_{tipo}_{no_factura}.pdf"'
     )
+    return resp
+
+
+@login_required
+@require_http_methods(["GET"])
+def fat_lista_facturas_pdf(request):
+    """GET /api/fat/reportes/listado/pdf/?no_cia=01&punto=01&desde=...&hasta=...&tipo=...&estado=...
+
+    Devuelve un PDF con el listado de facturas según los filtros activos.
+    """
+    try:
+        from reportlab.lib.pagesizes import letter  # probe
+    except ImportError:
+        return JsonResponse({"error": "reportlab no instalado"}, status=500)
+
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+
+    perms = permissions_repo.get_for(request.user.username, 'fat', no_cia, punto)
+    if perms is None or not perms.activo:
+        return JsonResponse({'detail': 'sin acceso a FAT en esta empresa/punto'}, status=403)
+
+    desde = request.GET.get('desde', '')
+    hasta = request.GET.get('hasta', '')
+    tipo = request.GET.get('tipo', '')
+    estado = request.GET.get('estado', '')
+
+    try:
+        result = fat_repo.list_facturas(
+            no_cia=no_cia, punto=punto,
+            fecha_desde=desde, fecha_hasta=hasta,
+            tipo=tipo, estado=estado,
+            page=1, page_size=10000,
+        )
+        items = result['items']
+    except Exception as e:
+        return JsonResponse({"error": f"Error consultando facturas: {e}"}, status=500)
+
+    cia = inv_repo.get_compania(no_cia) or {}
+    razon = (cia.get('descripcion') or no_cia).strip()
+
+    periodo = ''
+    if desde or hasta:
+        if desde and hasta:
+            periodo = f"{desde} a {hasta}"
+        elif desde:
+            periodo = f"Desde {desde}"
+        else:
+            periodo = f"Hasta {hasta}"
+
+    col_display = ['TIPO', 'NO_FACTURA', 'FECHA', 'CLIENTE', 'NCF', 'TOTAL']
+
+    rows_data = [{
+        'tipo': r['tipo_factura'],
+        'no_factura': f"{r['tipo_factura']}-{r['no_factura']}",
+        'fecha': r['fecha'] or '',
+        'cliente': r['nombre_cliente'],
+        'ncf': r.get('ncf_dgi') or '',
+        'total': r['total_neto'],
+    } for r in items]
+
+    header_extra = [f"<b>{razon}</b>"]
+    if periodo:
+        header_extra.append(f"<b>Período:</b> {periodo}")
+    filtros_desc = []
+    if tipo:
+        filtros_desc.append(f"Tipo: {tipo}")
+    if estado:
+        filtros_desc.append(f"Estado: {estado}")
+    if filtros_desc:
+        header_extra.append(f"<b>Filtros:</b> {' | '.join(filtros_desc)}")
+    header_extra.append(f"<b>Total registros:</b> {len(rows_data)}")
+
+    try:
+        pdf = build_pdf_report(
+            title=f"Listado de Facturas — {razon}",
+            columns=col_display,
+            rows=rows_data,
+            col_widths=None,
+            header_extra=header_extra,
+        )
+    except Exception as e:
+        return JsonResponse({"error": f"Error generando PDF: {e}"}, status=500)
+
+    resp = HttpResponse(pdf, content_type='application/pdf')
+    resp['Content-Disposition'] = 'inline; filename="listado_facturas.pdf"'
     return resp
 
 

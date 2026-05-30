@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   AlertCircle, CheckCircle2, Clock, FileSpreadsheet,
-  Printer, RefreshCw, Search, XCircle, ChevronLeft, ChevronRight, Eye, AlertTriangle,
+  Printer, RefreshCw, Search, XCircle, ChevronLeft, ChevronRight, Eye, AlertTriangle, FileText,
 } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { Badge } from '@/components/ui/badge'
@@ -150,6 +150,16 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
     printFacturas(meta, rows, filtros || undefined)
   }
 
+  const openListadoPdf = () => {
+    const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
+    const params = new URLSearchParams({ no_cia: noCia, punto })
+    if (filterDesde) params.set('desde', filterDesde)
+    if (filterHasta) params.set('hasta', filterHasta)
+    if (filterTipo) params.set('tipo', filterTipo)
+    if (filterEstado) params.set('estado', filterEstado)
+    window.open(`${API_BASE}/fat/reportes/listado/pdf/?${params.toString()}`, '_blank')
+  }
+
   const printDetail = async () => {
     if (!selected) return
     const meta = await buildReportMeta(noCia, punto, `${String(mes).padStart(2,'0')}-${ano}`)
@@ -187,6 +197,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
         </div>
         <div className='flex gap-2'>
           <Button variant='outline' size='sm' onClick={exportPdf}><Printer className='mr-2 h-4 w-4' /> PDF</Button>
+          <Button variant='outline' size='sm' onClick={openListadoPdf}><FileText className='mr-2 h-4 w-4' /> Imprimir PDF</Button>
           <Button variant='outline' size='sm' onClick={exportCsv}><FileSpreadsheet className='mr-2 h-4 w-4' /> Excel</Button>
           <Button variant='outline' size='sm' onClick={() => load(page)}><RefreshCw className='mr-2 h-4 w-4' /> Actualizar</Button>
         </div>

@@ -206,6 +206,7 @@ export interface FacturaRow {
   total_neto: number
   estado: string
   ncf?: number | null
+  ncf_dgi?: string | null
   codigo_ncf?: string
 }
 
@@ -220,9 +221,10 @@ export function printFacturas(meta: ReportMeta, rows: FacturaRow[], filtros?: st
     totDesc  += r.descuento  ?? 0
     totImp   += r.impuesto   ?? 0
     totNeto  += r.total_neto ?? 0
+    const numFactura = `${r.tipo_factura}-${r.no_factura}`
     return `<tr>
       <td class="c" style="width:28px">${r.tipo_factura}</td>
-      <td class="mo" style="width:62px">${r.no_factura}</td>
+      <td class="mo" style="width:62px">${numFactura}</td>
       <td class="c" style="width:62px">${r.fecha ?? ''}</td>
       <td>${r.nombre_cliente}</td>
       <td class="c" style="width:40px">${r.vendedor ?? ''}</td>
@@ -231,7 +233,7 @@ export function printFacturas(meta: ReportMeta, rows: FacturaRow[], filtros?: st
       <td class="r" style="width:56px">${fmtN(r.impuesto)}</td>
       <td class="r" style="width:68px">${fmtN(r.total_neto)}</td>
       <td class="c" style="width:52px">${ESTADO_LABEL[r.estado] ?? r.estado}</td>
-      <td class="mo" style="width:50px">${r.ncf ?? ''}</td>
+      <td class="mo" style="width:50px">${r.ncf_dgi ?? String(r.ncf ?? '')}</td>
     </tr>`
   }).join('')
 
@@ -306,7 +308,8 @@ export interface FacturaDetalle {
 }
 
 export function printFacturaDetalle(meta: ReportMeta, f: FacturaDetalle) {
-  const title = `Factura ${f.tipo_factura} ${f.no_factura}`
+  const numFactura = `${f.tipo_factura}-${f.no_factura}`
+  const title = `Factura ${numFactura}`
   const lineas = f.lineas.map((l) => `<tr>
     <td class="c" style="width:28px">${l.no_linea}</td>
     <td class="mo" style="width:70px">${l.no_produ}</td>
@@ -325,7 +328,7 @@ ${buildHeader(meta, 'Rfat202', title)}
   <tbody>
     <tr>
       <td style="width:80px"><strong>Tipo/No.</strong></td>
-      <td>${f.tipo_factura} ${f.no_factura}</td>
+      <td>${numFactura}</td>
       <td style="width:60px"><strong>Fecha</strong></td>
       <td>${f.fecha ?? ''}</td>
       <td style="width:60px"><strong>Estado</strong></td>

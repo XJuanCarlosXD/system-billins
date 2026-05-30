@@ -11,7 +11,7 @@ from .views import (
     FatCierresView, FatGenerarAsientosView, FatProximoNcfView, FatNcfUsadoView,
     DashboardVentasMesView,
 )
-from .views_print import fat_documento_pdf
+from .views_print import fat_documento_pdf, fat_lista_facturas_pdf
 
 urlpatterns = [
     path('fat/ncf/', FatNCFListView.as_view()),
@@ -45,5 +45,6 @@ urlpatterns = [
     path('fat/proximo-ncf/', FatProximoNcfView.as_view()),
     path('fat/ncf-usado/', FatNcfUsadoView.as_view()),
     path('fat/documentos/<str:tipo>/<str:no_factura>/pdf/', fat_documento_pdf),
+    path('fat/reportes/listado/pdf/', fat_lista_facturas_pdf),
     path('dashboard/ventas-mes/', DashboardVentasMesView.as_view()),
 ]

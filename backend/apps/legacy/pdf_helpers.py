@@ -19,6 +19,7 @@ def build_pdf_report(
     header_extra: list[str] | None = None,
     footer_extra: list[str] | None = None,
     page_size=None,
+    max_rows: int = 10000,
 ) -> bytes:
     """Construye un PDF simple con título + tabla.
 
@@ -53,7 +54,7 @@ def build_pdf_report(
     if rows:
         header_row = [c.upper() for c in columns]
         data = [header_row]
-        for r in rows[:500]:
+        for r in rows[:max_rows]:
             row_data = []
             for c in columns:
                 val = r.get(c.lower(), r.get(c.upper(), ''))
