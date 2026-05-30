@@ -824,14 +824,17 @@ export const regalGeneralApi = {
     return request<{ items?: Array<Record<string, any>>; detalle?: Array<Record<string, any>> }>(`/fat/cuadre-caja/?${p.toString()}`)
   },
 
-  fatRepVentas: (no_cia: string, punto: string, ano: number, mes: number) =>
-    request<{ items: Array<Record<string, any>> }>(`/fat/rep-ventas/?no_cia=${encodeURIComponent(no_cia)}&punto=${encodeURIComponent(punto)}&ano=${ano}&mes=${mes}`),
+  fatRepVentas: (no_cia: string, punto: string, desde: string, hasta: string) =>
+    request<{ items: Array<Record<string, any>>; total_neto: number; total_itbis: number; count: number }>(
+      `/fat/rep-ventas/?no_cia=${encodeURIComponent(no_cia)}&punto=${encodeURIComponent(punto)}&desde=${desde}&hasta=${hasta}`),
 
-  fatRep607: (no_cia: string, punto: string, ano: number, mes: number) =>
-    request<{ items: Array<Record<string, any>> }>(`/fat/rep-607/?no_cia=${encodeURIComponent(no_cia)}&punto=${encodeURIComponent(punto)}&ano=${ano}&mes=${mes}`),
+  fatRep607: (no_cia: string, punto: string, desde: string, hasta: string) =>
+    request<{ items: Array<Record<string, any>>; total_neto: number; total_itbis: number; count: number }>(
+      `/fat/rep-607/?no_cia=${encodeURIComponent(no_cia)}&punto=${encodeURIComponent(punto)}&desde=${desde}&hasta=${hasta}`),
 
-  fatRepNcfNulos: (no_cia: string, punto: string, ano: number, mes: number) =>
-    request<{ items: Array<Record<string, any>> }>(`/fat/rep-ncf-nulos/?no_cia=${encodeURIComponent(no_cia)}&punto=${encodeURIComponent(punto)}&ano=${ano}&mes=${mes}`),
+  fatRepNcfNulos: (no_cia: string, punto: string, desde: string, hasta: string) =>
+    request<{ items: Array<Record<string, any>>; count: number }>(
+      `/fat/rep-ncf-nulos/?no_cia=${encodeURIComponent(no_cia)}&punto=${encodeURIComponent(punto)}&desde=${desde}&hasta=${hasta}`),
 
 
   fatRepVentasVendedor: (noCia: string, punto: string, desde: string, hasta: string) =>

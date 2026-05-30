@@ -126,11 +126,11 @@ function renderView(view: string, ctx: { noCia: string; punto: string; ano: numb
     case 'cuadre-caja':
       return <CuadreCajaFat noCia={ctx.noCia} punto={ctx.punto} mes={ctx.mes} ano={ctx.ano} />
     case 'rep-ventas':
-      return <RepVentasProducto noCia={ctx.noCia} punto={ctx.punto} mes={ctx.mes} ano={ctx.ano} />
+      return <RepVentasProducto noCia={ctx.noCia} punto={ctx.punto} />
     case 'rep-607':
-      return <RepNcf607 noCia={ctx.noCia} punto={ctx.punto} mes={ctx.mes} ano={ctx.ano} />
+      return <RepNcf607 noCia={ctx.noCia} punto={ctx.punto} />
     case 'rep-ncf-nulos':
-      return <RepNcfNulos noCia={ctx.noCia} punto={ctx.punto} mes={ctx.mes} ano={ctx.ano} />
+      return <RepNcfNulos noCia={ctx.noCia} punto={ctx.punto} />
     case 'rep-ventas-vendedor':
       return <RepVentasVendedor noCia={ctx.noCia} punto={ctx.punto} mes={ctx.mes} ano={ctx.ano} />
     case 'rep-ventas-cliente':

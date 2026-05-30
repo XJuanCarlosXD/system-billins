@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
-import { Users, FileSpreadsheet, Printer } from 'lucide-react'
+import { useState } from 'react'
+import { Users, FileSpreadsheet, Printer, RefreshCw } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { buildReportMeta, downloadCsv } from './fat-export'
 
@@ -18,35 +19,39 @@ type VentaVendedor = {
 
 const fmtN = (n: number) => Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+function defaultDesde(ano: number, mes: number) { return `${ano}-${String(mes).padStart(2, '0')}-01` }
+function defaultHasta(ano: number, mes: number) {
+  const d = new Date(ano, mes, 0)
+  return `${ano}-${String(mes).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export function RepVentasVendedor({ noCia, punto, ano, mes }: Props) {
+  const [desde, setDesde] = useState(() => defaultDesde(ano, mes))
+  const [hasta, setHasta] = useState(() => defaultHasta(ano, mes))
   const [rows, setRows] = useState<VentaVendedor[]>([])
   const [loading, setLoading] = useState(false)
+  const [loaded, setLoaded] = useState(false)
 
   const load = () => {
-    if (!noCia) return
+    if (!noCia || !desde || !hasta) return
     setLoading(true)
-    const desde = `${ano}-${String(mes).padStart(2, '0')}-01`
-    const d = new Date(ano, mes, 0)
-    const hasta = `${ano}-${String(mes).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     regalGeneralApi.fatRepVentasVendedor(noCia, punto, desde, hasta)
-      .then((r) => setRows(r.items as VentaVendedor[]))
+      .then((r) => { setRows(r.items as VentaVendedor[]); setLoaded(true) })
       .catch(() => {})
       .finally(() => setLoading(false))
   }
-
-  useEffect(() => { load() }, [noCia, punto, ano, mes])
 
   const totalNeto = rows.reduce((s, r) => s + r.total_neto, 0)
   const totalItbis = rows.reduce((s, r) => s + r.total_itbis, 0)
   const totalBruto = rows.reduce((s, r) => s + r.total_bruto, 0)
   const totalFacts = rows.reduce((s, r) => s + r.facturas, 0)
 
-  const mesAno = `${String(mes).padStart(2, '0')}-${ano}`
+  const periodoLabel = `${desde} / ${hasta}`
 
   const exportCsv = async () => {
-    const meta = await buildReportMeta(noCia, punto, mesAno)
+    const meta = await buildReportMeta(noCia, punto, periodoLabel)
     downloadCsv(
-      `fat-ventas-vendedor-${ano}${String(mes).padStart(2, '0')}.csv`,
+      `fat-ventas-vendedor-${desde}-${hasta}.csv`,
       ['Vendedor', 'Nombre', 'Facturas', 'Total Neto', 'ITBIS', 'Total Bruto'],
       rows.map(r => [r.vendedor, r.nombre_vendedor, r.facturas, fmtN(r.total_neto), fmtN(r.total_itbis), fmtN(r.total_bruto)]),
       meta,
@@ -54,7 +59,7 @@ export function RepVentasVendedor({ noCia, punto, ano, mes }: Props) {
   }
 
   const exportPdf = async () => {
-    const meta = await buildReportMeta(noCia, punto, mesAno)
+    const meta = await buildReportMeta(noCia, punto, periodoLabel)
     const now = new Date()
     const fecha = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`
     const maxBruto = Math.max(...rows.map(r => r.total_bruto), 1)
@@ -94,7 +99,7 @@ export function RepVentasVendedor({ noCia, punto, ano, mes }: Props) {
         <div>Facturación</div>
         <div class="rep-code">RFAT302</div>
         <div>Ventas por Vendedor</div>
-        <div>${mesAno}</div>
+        <div>${periodoLabel}</div>
       </div>
     </div>
     <hr class="sep-double"/>
@@ -129,9 +134,25 @@ export function RepVentasVendedor({ noCia, punto, ano, mes }: Props) {
           <p className='text-sm text-muted-foreground'>RFAT302 — Empresa {noCia} · Punto {punto}</p>
         </div>
         <div className='flex gap-2'>
-          <Button variant='outline' size='sm' onClick={exportPdf}><Printer className='mr-1 h-4 w-4' /> PDF</Button>
-          <Button variant='outline' size='sm' onClick={exportCsv}><FileSpreadsheet className='mr-1 h-4 w-4' /> Excel</Button>
+          <Button variant='outline' size='sm' onClick={exportPdf} disabled={!loaded}><Printer className='mr-1 h-4 w-4' /> PDF</Button>
+          <Button variant='outline' size='sm' onClick={exportCsv} disabled={!loaded}><FileSpreadsheet className='mr-1 h-4 w-4' /> Excel</Button>
         </div>
+      </div>
+
+      {/* Filtros de fecha */}
+      <div className='flex flex-wrap items-end gap-3 rounded-md border bg-muted/30 p-3'>
+        <div className='flex flex-col gap-1'>
+          <label className='text-xs font-medium text-muted-foreground'>Desde</label>
+          <Input type='date' value={desde} onChange={(e) => setDesde(e.target.value)} className='h-8 w-36' />
+        </div>
+        <div className='flex flex-col gap-1'>
+          <label className='text-xs font-medium text-muted-foreground'>Hasta</label>
+          <Input type='date' value={hasta} onChange={(e) => setHasta(e.target.value)} className='h-8 w-36' />
+        </div>
+        <Button size='sm' onClick={load} disabled={loading}>
+          <RefreshCw className={`mr-1 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          {loading ? 'Cargando...' : 'Generar'}
+        </Button>
       </div>
 
       <Table>
@@ -148,7 +169,8 @@ export function RepVentasVendedor({ noCia, punto, ano, mes }: Props) {
         </TableHeader>
         <TableBody>
           {loading && <TableRow><TableCell colSpan={7} className='py-10 text-center text-muted-foreground'>Cargando...</TableCell></TableRow>}
-          {!loading && rows.length === 0 && <TableRow><TableCell colSpan={7} className='py-10 text-center text-muted-foreground'>Sin ventas para este período.</TableCell></TableRow>}
+          {!loading && !loaded && <TableRow><TableCell colSpan={7} className='py-10 text-center text-muted-foreground'>Seleccione el rango de fechas y presione Generar.</TableCell></TableRow>}
+          {!loading && loaded && rows.length === 0 && <TableRow><TableCell colSpan={7} className='py-10 text-center text-muted-foreground'>Sin ventas para este período.</TableCell></TableRow>}
           {rows.map((row) => (
             <TableRow key={row.vendedor}>
               <TableCell className='font-mono text-sm'>{row.vendedor}</TableCell>
