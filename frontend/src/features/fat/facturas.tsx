@@ -174,6 +174,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
       plazo_pago: selected.plazo_pago,
       codigo_ncf: selected.codigo_ncf,
       ncf: selected.ncf,
+      ncf_dgi: selected.ncf_dgi,
       nota: selected.nota,
       total_linea: selected.total_linea,
       descuento: selected.descuento,

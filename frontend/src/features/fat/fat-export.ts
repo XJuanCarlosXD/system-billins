@@ -297,6 +297,7 @@ export interface FacturaDetalle {
   plazo_pago?: number
   codigo_ncf?: string
   ncf?: number | null
+  ncf_dgi?: string | null
   nota?: string
   total_linea: number
   descuento: number
@@ -346,7 +347,7 @@ ${buildHeader(meta, 'Rfat202', title)}
       <td><strong>Plazo</strong></td>
       <td>${f.plazo_pago ? f.plazo_pago + ' d&iacute;as' : ''}</td>
       <td><strong>NCF</strong></td>
-      <td class="mo">${f.codigo_ncf ?? ''} ${f.ncf ?? ''}</td>
+      <td class="mo">${f.ncf_dgi ?? ''}</td>
     </tr>
   </tbody>
 </table>
