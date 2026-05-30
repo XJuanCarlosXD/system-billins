@@ -1551,3 +1551,17 @@ def get_condicion_pago_descripcion(no_condicion_pago: str) -> str:
         "WHERE no_condicion_pago = :1",
         [no_condicion_pago])
     return (row[0] or '').strip() if row else ''
+
+
+# ── Dashboard ─────────────────────────────────────────────────────────────────
+
+def ventas_dia_a_dia(no_cia: str, ano: int, mes: int) -> list[dict]:
+    """Suma de TOTAL_NETO por día para el mes indicado (facturas no anuladas)."""
+    rows = client.fetch_dicts(
+        "SELECT TO_CHAR(FECHA,'YYYY-MM-DD') AS DIA, SUM(TOTAL_NETO) AS TOTAL "
+        "FROM FAT.TFAT_FACTURA "
+        "WHERE NO_CIA=:1 AND EXTRACT(YEAR FROM FECHA)=:2 AND EXTRACT(MONTH FROM FECHA)=:3 "
+        "AND NVL(ST_ANULADO,'N')='N' "
+        "GROUP BY TO_CHAR(FECHA,'YYYY-MM-DD') ORDER BY DIA",
+        [no_cia, int(ano), int(mes)])
+    return [{'dia': r['dia'], 'total': float(r['total'] or 0)} for r in rows]

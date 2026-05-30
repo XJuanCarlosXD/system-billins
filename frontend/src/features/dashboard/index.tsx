@@ -21,8 +21,29 @@ import {
   Receipt,
   ShieldCheck,
   RefreshCw,
+  TrendingUp,
 } from 'lucide-react'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts'
 import { sigafApi, type Me, type NCFAlert } from '@/lib/sigaf-api'
+
+type VentaDia = { dia: string; total: number }
+
+const MES_NOMBRES = [
+  '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+]
+
+function fmtCurrency(v: number) {
+  return '$' + v.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
 
 function severityClass(s: 'critical' | 'warning' | 'ok') {
   if (s === 'critical') return 'bg-red-100 text-red-800 border-red-300 dark:bg-red-950 dark:text-red-200'
@@ -33,6 +54,7 @@ function severityClass(s: 'critical' | 'warning' | 'ok') {
 export function Dashboard() {
   const [me, setMe] = useState<Me | null>(null)
   const [alerts, setAlerts] = useState<NCFAlert[]>([])
+  const [ventas, setVentas] = useState<{ items: VentaDia[]; ano: number; mes: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -40,12 +62,18 @@ export function Dashboard() {
     setLoading(true)
     setError(null)
     try {
-      const [meRes, alertsRes] = await Promise.all([
-        sigafApi.me(),
-        sigafApi.fatNcfAlerts('low'),
-      ])
+      const meRes = await sigafApi.me()
       setMe(meRes)
+      const noCia =
+        meRes.companies.find((c) => c.activa)?.no_cia ||
+        meRes.companies[0]?.no_cia ||
+        '01'
+      const [alertsRes, ventasRes] = await Promise.all([
+        sigafApi.fatNcfAlerts('low'),
+        sigafApi.dashboardVentasMes(noCia).catch(() => null),
+      ])
       setAlerts(alertsRes.alerts)
+      setVentas(ventasRes)
     } catch (e: any) {
       setError(e.message ?? 'Error al cargar dashboard')
     } finally {
@@ -270,6 +298,70 @@ export function Dashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Ventas día a día del mes */}
+        <Card className='mt-4'>
+          <CardHeader>
+            <CardTitle className='flex items-center gap-2'>
+              <TrendingUp className='h-5 w-5 text-emerald-500' />
+              Ventas del mes
+              {ventas && (
+                <span className='text-sm font-normal text-muted-foreground'>
+                  — {MES_NOMBRES[ventas.mes]} {ventas.ano}
+                </span>
+              )}
+            </CardTitle>
+            <CardDescription>
+              Total neto diario del mes en curso (facturas no anuladas).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <Skeleton className='h-48 w-full' />
+            ) : !ventas || ventas.items.length === 0 ? (
+              <div className='flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center'>
+                Sin ventas registradas en el mes.
+              </div>
+            ) : (
+              <>
+                <div className='text-right text-sm text-muted-foreground mb-2'>
+                  Total mes:{' '}
+                  <span className='font-semibold text-foreground'>
+                    {fmtCurrency(ventas.items.reduce((a, b) => a + b.total, 0))}
+                  </span>
+                </div>
+                <ResponsiveContainer width='100%' height={220}>
+                  <BarChart
+                    data={ventas.items.map((d) => ({
+                      dia: d.dia.slice(8),
+                      total: d.total,
+                    }))}
+                    margin={{ top: 4, right: 8, left: 8, bottom: 4 }}
+                  >
+                    <CartesianGrid strokeDasharray='3 3' className='stroke-muted' />
+                    <XAxis
+                      dataKey='dia'
+                      tick={{ fontSize: 11 }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11 }}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(v) => '$' + (v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v)}
+                    />
+                    <Tooltip
+                      formatter={(value: number) => [fmtCurrency(value), 'Total']}
+                      labelFormatter={(label) => `Día ${label}`}
+                    />
+                    <Bar dataKey='total' fill='currentColor' radius={[4, 4, 0, 0]} className='fill-primary' />
+                  </BarChart>
+                </ResponsiveContainer>
+              </>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Mis accesos */}
         <Card className='mt-4'>

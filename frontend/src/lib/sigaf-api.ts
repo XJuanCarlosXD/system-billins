@@ -320,4 +320,9 @@ export const sigafApi = {
       `/admin/users/${encodeURIComponent(username)}/access/${modulo}/flags/`,
       { method: 'PATCH', body: JSON.stringify({ no_cia, punto, flag, value }) },
     ),
+
+  dashboardVentasMes: (no_cia = '01') =>
+    request<{ items: { dia: string; total: number }[]; ano: number; mes: number }>(
+      `/dashboard/ventas-mes/?no_cia=${encodeURIComponent(no_cia)}`,
+    ),
 }

@@ -855,6 +855,24 @@ class FatNcfUsadoView(APIView):
             return Response({'detail': str(e)}, status=500)
 
 
+class DashboardVentasMesView(APIView):
+    """Ventas día a día del mes en curso para el chart del dashboard."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from datetime import date
+        no_cia = request.query_params.get('no_cia', '01')
+        forbidden = _check_fat_access(request.user.username, no_cia, '01')
+        if forbidden:
+            return forbidden
+        try:
+            today = date.today()
+            items = fat_repo.ventas_dia_a_dia(no_cia, today.year, today.month)
+            return Response({'items': items, 'ano': today.year, 'mes': today.month})
+        except Exception as e:
+            return Response({'detail': str(e)}, status=500)
+
+
 class FatSearchView(APIView):
     permission_classes = [IsAuthenticated]
 
