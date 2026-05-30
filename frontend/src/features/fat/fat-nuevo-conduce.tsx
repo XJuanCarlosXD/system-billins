@@ -15,6 +15,8 @@ import { useToast } from '@/hooks/use-toast'
 interface Props {
   noCia: string
   punto: string
+  editId?: string
+  editTipo?: string
 }
 
 interface TipoDoc {
@@ -76,7 +78,7 @@ const fmtN = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2
 
 let lineaIdCounter = 1
 
-export function NuevoConduce({ noCia, punto }: Props) {
+export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
   const navigate = useNavigate()
   const { toast } = useToast()
 
@@ -125,6 +127,12 @@ export function NuevoConduce({ noCia, punto }: Props) {
 
   const [guardando, setGuardando] = useState(false)
 
+  // Edit mode state
+  const [modoEdicion, setModoEdicion] = useState(false)
+  const [noConduceEdit, setNoConduceEdit] = useState('')
+  const [ncfDgi, setNcfDgi] = useState('')
+  const [cargandoEdicion, setCargandoEdicion] = useState(false)
+
   const noClienteInputRef = useRef<HTMLInputElement>(null)
   const clienteModalInputRef = useRef<HTMLInputElement>(null)
   const clienteSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -168,6 +176,64 @@ export function NuevoConduce({ noCia, punto }: Props) {
     }
     cargarDatos()
   }, [noCia, punto])
+
+  // ── Load for edit mode ────────────────────────────────────
+  useEffect(() => {
+    if (!editId || !editTipo || !noCia) return
+    setCargandoEdicion(true)
+    regalGeneralApi.fatGetConduce(noCia, punto, editTipo, editId)
+      .then((d: any) => {
+        setModoEdicion(true)
+        setNoConduceEdit(d.no_conduce || '')
+        setNcfDgi(d.ncf_dgi || '')
+        // Populate header fields
+        if (d.tipo_conduce) setTipoDoc(d.tipo_conduce)
+        if (d.fecha) setFecha(d.fecha)
+        if (d.forma_pago) setFormaPago(d.forma_pago)
+        if (d.vendedor) setVendedor(d.vendedor)
+        if (d.clase) setClase(d.clase)
+        if (d.tipo_moneda) setTipoMoneda(d.tipo_moneda)
+        if (d.tasa_us) setTasa(d.tasa_us)
+        if (d.detalle) setDetalleNota(d.detalle)
+        // cant_bultos not in TFAT_CONDUCE schema
+        // Populate client
+        if (d.no_cliente) {
+          setNoCliente(String(d.no_cliente))
+          setNoClienteInput(String(d.no_cliente))
+          setClienteSeleccionado({
+            no_cliente: String(d.no_cliente),
+            nombre: d.nombre_cliente || '',
+          })
+        }
+        // Populate lines
+        if (d.lineas && Array.isArray(d.lineas)) {
+          const lineasCargadas: Linea[] = d.lineas
+            .filter((l: any) => l.st_anulado !== 'S')
+            .map((l: any) => ({
+              id: lineaIdCounter++,
+              lin: l.no_linea,
+              almacen: l.almacen || '',
+              cod_barra: '',
+              no_produ: l.no_produ || '',
+              emp: '',
+              descripcion: l.descripcion || '',
+              no_lista: noLista,
+              precio_lista: l.precio || 0,
+              precio: l.precio || 0,
+              cantidad: l.cantidad || 1,
+              porc_descuento: l.porc_descuento || 0,
+              monto: (l.cantidad || 1) * (l.precio || 0) * (1 - (l.porc_descuento || 0) / 100),
+              porciento_impuesto: l.porciento_impuesto || 0,
+              itbis: (l.porciento_impuesto || 0) > 0,
+            }))
+          setLineas(lineasCargadas)
+        }
+      })
+      .catch(() => {
+        toast({ title: 'Error', description: 'No se pudo cargar el conduce para edicion', variant: 'destructive' })
+      })
+      .finally(() => setCargandoEdicion(false))
+  }, [editId, editTipo, noCia])
 
   // ── Client ────────────────────────────────────────────────
   const cargarClientePorCodigo = async (codigo: string) => {
@@ -441,13 +507,23 @@ export function NuevoConduce({ noCia, punto }: Props) {
     <div className="p-4 space-y-4">
       {/* ── Header ── */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Nuevo Conduce</h1>
+        <div>
+          <h1 className="text-xl font-bold">
+            {modoEdicion ? `Editar Conduce ${editTipo}-${noConduceEdit}` : 'Nuevo Conduce'}
+          </h1>
+          {modoEdicion && ncfDgi && (
+            <p className="text-sm text-blue-700 font-mono mt-0.5">NCF: {ncfDgi}</p>
+          )}
+          {cargandoEdicion && (
+            <p className="text-sm text-muted-foreground mt-0.5">Cargando datos del conduce...</p>
+          )}
+        </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => navigate({ to: '/fat/conduces' as never })}>
             Cancelar
           </Button>
-          <Button onClick={guardar} disabled={guardando}>
-            {guardando ? 'Guardando...' : 'Guardar'}
+          <Button onClick={guardar} disabled={guardando || modoEdicion}>
+            {guardando ? 'Guardando...' : modoEdicion ? 'Solo lectura' : 'Guardar'}
           </Button>
         </div>
       </div>

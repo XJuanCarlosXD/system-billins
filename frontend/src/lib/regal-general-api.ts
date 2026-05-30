@@ -818,6 +818,9 @@ export const regalGeneralApi = {
     return request<{ items: Array<Record<string, any>>; total: number }>(`/fat/conduces/?${p.toString()}`)
   },
 
+  fatGetConduce: (no_cia: string, punto: string, tipo: string, no_conduce: string) =>
+    request<Record<string, any>>(`/fat/conduces/${encodeURIComponent(tipo)}/${encodeURIComponent(no_conduce)}/?no_cia=${encodeURIComponent(no_cia)}&punto=${encodeURIComponent(punto)}`),
+
   fatCuadreCaja: (no_cia: string, punto: string, ano: number, mes: number, no_cuadre = '') => {
     const p = new URLSearchParams({ no_cia, punto, ano: String(ano), mes: String(mes) })
     if (no_cuadre) p.set('no_cuadre', no_cuadre)

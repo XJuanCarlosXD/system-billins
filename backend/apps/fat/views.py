@@ -553,6 +553,25 @@ class FatConducesView(APIView):
             return Response({'detail': str(e)}, status=500)
 
 
+# -- Conduce Detail -----------------------------------------------------------
+
+class FatConduceDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, tipo: str, no_conduce: str):
+        no_cia = request.query_params.get('no_cia')
+        punto = request.query_params.get('punto', '01')
+        if not no_cia:
+            return Response({'detail': 'no_cia es requerido'}, status=400)
+        forbidden = _check_fat_access(request.user.username, no_cia, punto)
+        if forbidden:
+            return forbidden
+        conduce = fat_repo.get_conduce(no_cia, punto, tipo, no_conduce)
+        if conduce is None:
+            return Response({'detail': 'Conduce no encontrado'}, status=404)
+        return Response(conduce)
+
+
 # -- Cuadre de Caja -----------------------------------------------------------
 
 class FatCuadreCajaView(APIView):

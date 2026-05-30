@@ -388,6 +388,100 @@ def list_conduces(no_cia: str, punto: str, page: int = 1, page_size: int = 30,
     }
 
 
+def _build_conduce_lineas(lineas: list) -> list[dict]:
+    """Convierte filas de TFAT_CONDUCEL a dicts con porciento_impuesto derivado.
+
+    TFAT_CONDUCEL almacena el monto itbis pero no el porcentaje.
+    Se deriva: porc = itbis / (cantidad*precio - descuento) * 100.
+    """
+    result = []
+    for l in lineas:
+        cant = float(l['cantidad'] or 0)
+        prec = float(l['precio'] or 0)
+        desc = float(l['descuento'] or 0)
+        itbis_amt = float(l['itbis_monto'] or 0)
+        base = cant * prec - desc
+        porc_imp = round(itbis_amt / base * 100, 2) if base > 0 else 0.0
+        result.append({
+            'no_linea': int(l['no_linea'] or 0),
+            'almacen': l['almacen'] or '',
+            'no_produ': l['no_produ'] or '',
+            'descripcion': (l['descripcion'] or '').strip(),
+            'cantidad': cant,
+            'precio': prec,
+            'porc_descuento': float(l['porc_descuento'] or 0),
+            'descuento': desc,
+            'itbis': itbis_amt,
+            'st_anulado': l['st_anulado'] or 'N',
+            'porciento_impuesto': porc_imp,
+        })
+    return result
+
+
+def get_conduce(no_cia: str, punto: str, tipo_conduce: str, no_conduce: str) -> dict | None:
+    """Retorna el header + lineas de un conduce específico."""
+    rows = client.fetch_dicts(
+        "SELECT c.no_cia, c.punto, c.tipo_conduce, c.no_conduce, c.no_cliente, "
+        "cl.nombre AS nombre_cliente, c.fecha, c.vendedor, "
+        "NVL(c.total_linea,0) AS total_linea, NVL(c.descuento,0) AS descuento, "
+        "NVL(c.impuesto,0) AS impuesto, NVL(c.total_neto,0) AS total_neto, "
+        "NVL(c.st_anulado,'N') AS st_anulado, NVL(c.st_impresion,'N') AS st_impresion, "
+        "c.clase, c.tipo_factura, c.no_factura, c.detalle, "
+        "c.forma_pago, c.no_condicion_pago, c.tipo_moneda, NVL(c.tasa_us,57.5) AS tasa_us, "
+        "c.posiciones_fijas_ncf, c.ncf "
+        "FROM FAT.TFAT_CONDUCE c "
+        "LEFT JOIN CXC.TCXC_CLIENTE cl ON cl.no_cliente = c.no_cliente "
+        "WHERE c.no_cia=:1 AND c.punto=:2 AND c.tipo_conduce=:3 AND c.no_conduce=:4",
+        [no_cia, punto, tipo_conduce.strip().upper(), no_conduce.strip()])
+    if not rows:
+        return None
+    r = rows[0]
+    lineas = client.fetch_dicts(
+        "SELECT no_linea, almacen, no_produ, NVL(descripcion,'') AS descripcion, "
+        "NVL(cantidad,0) AS cantidad, NVL(precio,0) AS precio, "
+        "NVL(porc_descuento,0) AS porc_descuento, NVL(descuento,0) AS descuento, "
+        "NVL(itbis,0) AS itbis_monto, NVL(st_anulado,'N') AS st_anulado "
+        "FROM FAT.TFAT_CONDUCEL "
+        "WHERE no_cia=:1 AND punto=:2 AND tipo_conduce=:3 AND no_conduce=:4 ORDER BY no_linea",
+        [no_cia, punto, tipo_conduce.strip().upper(), no_conduce.strip()])
+    # NCF from the conduce itself; fallback to linked factura if missing
+    ncf_dgi = _compose_ncf_dgi(r['posiciones_fijas_ncf'], r['ncf'])
+    no_factura = (r['no_factura'] or '').strip()
+    tipo_factura = (r['tipo_factura'] or '').strip()
+    if not ncf_dgi and no_factura and tipo_factura:
+        fat_row = client.fetch_one(
+            "SELECT posiciones_fijas_ncf, ncf FROM FAT.TFAT_FACTURA "
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_factura=:3 AND no_factura=:4",
+            [no_cia, punto, tipo_factura, no_factura])
+        if fat_row:
+            ncf_dgi = _compose_ncf_dgi(fat_row[0], fat_row[1])
+    return {
+        'no_cia': r['no_cia'], 'punto': r['punto'],
+        'tipo_conduce': r['tipo_conduce'] or '',
+        'no_conduce': r['no_conduce'] or '',
+        'no_cliente': int(r['no_cliente'] or 0),
+        'nombre_cliente': (r['nombre_cliente'] or '').strip(),
+        'fecha': str(r['fecha'])[:10] if r['fecha'] else None,
+        'vendedor': r['vendedor'] or '',
+        'total_linea': float(r['total_linea'] or 0),
+        'descuento': float(r['descuento'] or 0),
+        'impuesto': float(r['impuesto'] or 0),
+        'total_neto': float(r['total_neto'] or 0),
+        'st_anulado': r['st_anulado'] or 'N',
+        'st_impresion': r['st_impresion'] or 'N',
+        'clase': r['clase'] or '',
+        'tipo_factura': tipo_factura,
+        'no_factura': no_factura,
+        'detalle': r['detalle'] or '',
+        'forma_pago': r['forma_pago'] or '',
+        'no_condicion_pago': r['no_condicion_pago'] or '',
+        'tipo_moneda': r['tipo_moneda'] or 'RD',
+        'tasa_us': float(r['tasa_us'] or 57.5),
+        'ncf_dgi': ncf_dgi,
+        'lineas': _build_conduce_lineas(lineas),
+    }
+
+
 # ── Cuadre de Caja ────────────────────────────────────────────────────────────
 
 def list_cuadre_caja(no_cia: str, punto: str, desde: str = '', hasta: str = '') -> list[dict]:
