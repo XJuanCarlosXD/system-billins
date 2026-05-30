@@ -1292,29 +1292,38 @@ def rep_analitica_mensual(no_cia: str, punto: str, ano: int) -> dict:
 def search_productos(no_cia, punto, no_lista="", search="", page=1, page_size=20, almacen="", solo_existencia=False):
     offset = (page - 1) * page_size
     end_row = offset + page_size
-    # Existencia: ÚNICAMENTE TINV_MOVIMIENTO (SUM E − S, ignorando anulados).
-    # Misma lógica que Rinv304 del legado. TINV_EPRODUCTO.exist_actual es un
-    # snapshot que puede quedar desfasado y fue eliminado de esta ruta.
+    # Existencia: TINV_MOVIMIENTO normalizada al empaque para_reporte (Rinv304).
+    # Se une TINV_EMPAQUE (para_reporte='S') para convertir cantidades en base
+    # (empaque=1) a unidades de reporte.  Se incluyen todos los movimientos
+    # (incluso anulados) igual que el PDF Rinv304; los AF cancelan los anulados.
+    # Misma lógica que get_existencia_producto en inv_repo.py.
+    _norm = (
+        "CASE WHEN m.empaque = emp.empaque THEN NVL(m.cantidad,0) "
+        "     WHEN NVL(emp.cpe,0) > 0 THEN NVL(m.cantidad,0) / emp.cpe "
+        "     ELSE NVL(m.cantidad,0) END"
+    )
     if almacen:
         exist_join = (
             "LEFT JOIN ("
-            "  SELECT no_produ, "
-            "         SUM(CASE WHEN tipo_movi='E' THEN NVL(cantidad,0) "
-            "                  WHEN tipo_movi='S' THEN -NVL(cantidad,0) ELSE 0 END) AS existencia "
-            "  FROM INV.TINV_MOVIMIENTO "
-            "  WHERE no_cia=:no_cia_ex AND almacen=:almacen_ex AND NVL(st_anulado,'N')='N' "
-            "  GROUP BY no_produ "
+            "  SELECT m.no_produ, "
+            f"         SUM(CASE WHEN m.tipo_movi='E' THEN {_norm} "
+            f"                  WHEN m.tipo_movi='S' THEN -({_norm}) ELSE 0 END) AS existencia "
+            "  FROM INV.TINV_MOVIMIENTO m "
+            "  JOIN INV.TINV_EMPAQUE emp ON emp.no_produ=m.no_produ AND emp.para_reporte='S' "
+            "  WHERE m.no_cia=:no_cia_ex AND m.almacen=:almacen_ex "
+            "  GROUP BY m.no_produ "
             ") ex ON ex.no_produ = p.no_produ "
         )
     else:
         exist_join = (
             "LEFT JOIN ("
-            "  SELECT no_produ, "
-            "         SUM(CASE WHEN tipo_movi='E' THEN NVL(cantidad,0) "
-            "                  WHEN tipo_movi='S' THEN -NVL(cantidad,0) ELSE 0 END) AS existencia "
-            "  FROM INV.TINV_MOVIMIENTO "
-            "  WHERE no_cia=:no_cia_ex AND NVL(st_anulado,'N')='N' "
-            "  GROUP BY no_produ "
+            "  SELECT m.no_produ, "
+            f"         SUM(CASE WHEN m.tipo_movi='E' THEN {_norm} "
+            f"                  WHEN m.tipo_movi='S' THEN -({_norm}) ELSE 0 END) AS existencia "
+            "  FROM INV.TINV_MOVIMIENTO m "
+            "  JOIN INV.TINV_EMPAQUE emp ON emp.no_produ=m.no_produ AND emp.para_reporte='S' "
+            "  WHERE m.no_cia=:no_cia_ex "
+            "  GROUP BY m.no_produ "
             ") ex ON ex.no_produ = p.no_produ "
         )
     um_join = (

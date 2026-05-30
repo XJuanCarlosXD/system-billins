@@ -11,6 +11,7 @@
 //  - búsqueda con debounce 300ms
 //  - select de almacén / lista / checkbox solo-con-existencia
 //  - cantidades por producto
+//  - botón "Ver movimientos" en el popover de existencia → abre MovimientosProductoModal
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -21,6 +22,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { regalGeneralApi } from '@/lib/regal-general-api'
+import { MovimientosProductoModal } from './movimientos-producto-modal'
 
 export interface BuscarProductoModalProducto {
   no_produ: string
@@ -84,6 +86,11 @@ export function BuscarProductoModal({
     loading: boolean; rows: ExistenciaPorAlmacen[]; error?: string
   }>>({})
 
+  // Estado para el modal de movimientos (Rinv304)
+  const [moviModal, setMoviModal] = useState<{
+    noProdu: string; descripcion: string; punto: string; almacen: string
+  } | null>(null)
+
   const cargarExistenciaProducto = useCallback(async (noProdu: string) => {
     if (existPorProduto[noProdu]?.rows || existPorProduto[noProdu]?.loading) return
     setExistPorProduto(prev => ({ ...prev, [noProdu]: { loading: true, rows: [] } }))
@@ -141,7 +148,26 @@ export function BuscarProductoModal({
     onSelect(p, qty, almacen && almacen !== '__all__' ? almacen : '')
   }
 
+  // Almacenes en formato requerido por MovimientosProductoModal
+  const almacenesParaMovi = almacenes.map(a => ({
+    almacen: a.almacen,
+    descripcion: a.descripcion,
+  }))
+
   return (
+    <>
+    {moviModal && (
+      <MovimientosProductoModal
+        open={!!moviModal}
+        onClose={() => setMoviModal(null)}
+        noCia={noCia}
+        noProdu={moviModal.noProdu}
+        descripcion={moviModal.descripcion}
+        almacenes={almacenesParaMovi}
+        defaultPunto={moviModal.punto}
+        defaultAlmacen={moviModal.almacen}
+      />
+    )}
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent className='w-[80vw] h-[70vh] max-w-none sm:max-w-none flex flex-col p-0 gap-0 overflow-hidden'>
         <DialogHeader className='px-6 py-4 border-b shrink-0 bg-white'>
@@ -314,6 +340,21 @@ export function BuscarProductoModal({
                             )
                           })()}
                         </div>
+                        {/* Enlace al reporte Rinv304 de movimientos */}
+                        <div className='px-3 py-2 border-t bg-gray-50'>
+                          <button
+                            type='button'
+                            className='text-xs text-blue-600 hover:text-blue-800 hover:underline w-full text-left'
+                            onClick={() => setMoviModal({
+                              noProdu: p.no_produ,
+                              descripcion: p.descri,
+                              punto: punto,
+                              almacen: almacen && almacen !== '__all__' ? almacen : '',
+                            })}
+                          >
+                            Ver movimientos (Rinv304) →
+                          </button>
+                        </div>
                       </PopoverContent>
                     </Popover>
                   </TableCell>
@@ -341,5 +382,6 @@ export function BuscarProductoModal({
         </div>
       </DialogContent>
     </Dialog>
+    </>
   )
 }

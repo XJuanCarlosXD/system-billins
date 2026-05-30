@@ -33,6 +33,9 @@ urlpatterns = [
     # Existencia por producto
     path('existencia/<str:no_produ>/', inv_views.inv_existencia_producto),
 
+    # Movimientos por producto (Rinv304-style, con balance corrido)
+    path('movimientos/<str:no_produ>/', inv_views.inv_movimientos_producto, name='inv_movimientos_producto'),
+
     # Documentos
     path('documentos/', inv_views.inv_consulta_documentos),
     path('documentos/<str:tipo_docu>/<str:no_docu>/', inv_views.inv_documento_detalle),

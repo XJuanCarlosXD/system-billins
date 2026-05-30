@@ -754,6 +754,30 @@ def inv_tdocu_detail(request, tipo_docu: str):
 
 @login_required
 @require_http_methods(["GET"])
+def inv_movimientos_producto(request, no_produ: str):
+    """GET /api/inv/movimientos/<no_produ>/?no_cia=01&punto=&almacen=&desde=&hasta=
+
+    Devuelve la lista de movimientos del producto con balance corrido,
+    equivalente al reporte Rinv304 del legado.  Cantidades normalizadas al
+    empaque para_reporte del producto (TINV_EMPAQUE.para_reporte='S').
+    """
+    try:
+        no_cia = request.GET.get('no_cia', '01')
+        punto = request.GET.get('punto', '')
+        almacen = request.GET.get('almacen', '')
+        desde = request.GET.get('desde', '')
+        hasta = request.GET.get('hasta', '')
+        data = inv_repo.get_movimientos_producto(
+            no_cia=no_cia, no_produ=no_produ,
+            punto=punto, almacen=almacen, desde=desde, hasta=hasta,
+        )
+        return JsonResponse(data)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
 def inv_existencia_producto(request, no_produ: str):
     """GET /api/inv/existencia/<no_produ>/?no_cia=01"""
     try:

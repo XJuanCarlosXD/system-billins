@@ -453,10 +453,21 @@ def list_sublineas(no_cia: str = '01', linea: str = '') -> list[dict]:
 def get_existencia_producto(no_cia: str, no_produ: str) -> list[dict]:
     """Existencia por almacén para un producto específico.
 
-    Usa ÚNICAMENTE TINV_MOVIMIENTO (SUM E − S, ignorando anulados), que es la
-    misma fuente que el reporte Rinv304 del legado.  TINV_EPRODUCTO.exist_actual
-    es un snapshot que puede quedar desfasado; sólo se toca para obtener
-    costo_actual, exist_minima y exist_maxima.
+    Usa ÚNICAMENTE TINV_MOVIMIENTO (SUM E − S), normalizada a unidades de
+    reporte mediante TINV_EMPAQUE (para_reporte='S').  Replica exactamente la
+    lógica del Rinv304 del legado:
+
+    - JOIN con TINV_EMPAQUE para obtener el empaque "para_reporte" del producto.
+    - Normalización: si m.empaque = ep_reporte.empaque la cantidad ya está en
+      unidades de reporte; en caso contrario se divide por ep_reporte.cpe.
+    - Se incluyen TODOS los movimientos (incluso st_anulado='S') porque el PDF
+      legado también los incluye: los movimientos anulados siempre tienen una
+      AF (anulación) que los cancela, por lo que el neto es el mismo.
+
+    TINV_EPRODUCTO.exist_actual se usa sólo para costo_actual, exist_minima y
+    exist_maxima (snapshot del último cierre, puede quedar desfasado).
+
+    Verificado 2026-05-30 contra producto 00000001 alm 01: bal = 2.000 (PDF).
     """
     sql = (
         "SELECT a.no_cia, a.punto, a.almacen, a.descri almacen_desc, "
@@ -472,22 +483,125 @@ def get_existencia_producto(no_cia: str, no_produ: str) -> list[dict]:
         "LEFT JOIN INV.TINV_EPRODUCTO ep "
         "       ON ep.no_cia=a.no_cia AND ep.punto=a.punto AND ep.almacen=a.almacen "
         "       AND ep.no_produ = :p_prod "
+        # Normalizar cantidad al empaque para_reporte del producto (como Rinv304):
+        # si m.empaque = emp.empaque => ya en unidades de reporte, usar cantidad
+        # si m.empaque != emp.empaque => convertir: cantidad / emp.cpe
         "LEFT JOIN ("
-        "       SELECT no_cia, punto, almacen, "
-        "              SUM(CASE WHEN tipo_movi='E' THEN NVL(cantidad,0) "
-        "                       WHEN tipo_movi='S' THEN -NVL(cantidad,0) ELSE 0 END) AS net "
-        "       FROM INV.TINV_MOVIMIENTO "
-        "       WHERE no_cia=:p_cia AND no_produ=:p_prod AND NVL(st_anulado,'N')='N' "
-        "       GROUP BY no_cia, punto, almacen "
+        "       SELECT m.no_cia, m.punto, m.almacen, "
+        "              ROUND(SUM(CASE WHEN m.tipo_movi='E' "
+        "                       THEN CASE WHEN m.empaque = emp.empaque THEN NVL(m.cantidad,0) "
+        "                                 WHEN NVL(emp.cpe,0) > 0 THEN NVL(m.cantidad,0) / emp.cpe "
+        "                                 ELSE NVL(m.cantidad,0) END "
+        "                       WHEN m.tipo_movi='S' "
+        "                       THEN -(CASE WHEN m.empaque = emp.empaque THEN NVL(m.cantidad,0) "
+        "                                   WHEN NVL(emp.cpe,0) > 0 THEN NVL(m.cantidad,0) / emp.cpe "
+        "                                   ELSE NVL(m.cantidad,0) END) "
+        "                       ELSE 0 END), 6) AS net "
+        "       FROM INV.TINV_MOVIMIENTO m "
+        "       JOIN INV.TINV_EMPAQUE emp "
+        "         ON emp.no_produ = m.no_produ AND emp.para_reporte = 'S' "
+        "       WHERE m.no_cia=:p_cia AND m.no_produ=:p_prod "
+        "       GROUP BY m.no_cia, m.punto, m.almacen "
         ") mov ON mov.no_cia=a.no_cia AND mov.punto=a.punto AND mov.almacen=a.almacen "
         "WHERE a.no_cia = :p_cia AND NVL(a.activo,'S')='S' "
         # Solo almacenes que tengan historial de movimientos para este producto
         "  AND mov.net IS NOT NULL "
-        # Y cuyo saldo neto no sea cero
-        "  AND NVL(mov.net, 0) != 0 "
+        # Saldo neto redondeado a 6 decimales para evitar ruido de punto flotante
+        "  AND ROUND(NVL(mov.net, 0), 6) != 0 "
         "ORDER BY a.punto, a.almacen"
     )
     return client.fetch_dicts(sql, {"p_cia": no_cia, "p_prod": no_produ})
+
+
+def get_movimientos_producto(
+    no_cia: str,
+    no_produ: str,
+    punto: str = '',
+    almacen: str = '',
+    desde: str = '',
+    hasta: str = '',
+) -> dict:
+    """Movimientos del producto con balance corrido — equivalente al Rinv304.
+
+    Normaliza las cantidades al empaque para_reporte (TINV_EMPAQUE.para_reporte='S')
+    igual que get_existencia_producto, e incluye TODOS los movimientos (incluso
+    st_anulado='S') para replicar fielmente el PDF Rinv304 del legado.
+
+    Returns dict con:
+      - no_produ: código del producto
+      - items: lista de movimientos con campos punto, almacen, tipo_docu, no_docu,
+               fecha, entrada, salida, balance (corrido), costo
+      - totales: { entradas, salidas, balance }
+    """
+    params: list = [no_cia, no_produ]
+    where = ["m.no_cia=:1", "m.no_produ=:2"]
+    if punto:
+        params.append(punto)
+        where.append(f"m.punto=:{len(params)}")
+    if almacen:
+        params.append(almacen)
+        where.append(f"m.almacen=:{len(params)}")
+    if desde:
+        params.append(desde)
+        where.append(f"m.fecha >= TO_DATE(:{len(params)},'YYYY-MM-DD')")
+    if hasta:
+        params.append(hasta)
+        where.append(f"m.fecha <= TO_DATE(:{len(params)},'YYYY-MM-DD') + 1 - 1/86400")
+
+    # Normalización idéntica a get_existencia_producto:
+    # CASE WHEN m.empaque = emp.empaque THEN m.cantidad  (ya en unidades de reporte)
+    #      WHEN emp.cpe > 0             THEN m.cantidad / emp.cpe
+    #      ELSE m.cantidad END
+    norm_expr = (
+        "CASE WHEN m.empaque = emp.empaque THEN NVL(m.cantidad,0) "
+        "     WHEN NVL(emp.cpe,0) > 0 THEN NVL(m.cantidad,0) / emp.cpe "
+        "     ELSE NVL(m.cantidad,0) END"
+    )
+
+    sql = (
+        "SELECT m.punto, m.almacen, m.tipo_docu, m.no_docu, "
+        "       TO_CHAR(m.fecha,'YYYY-MM-DD HH24:MI:SS') AS fecha_iso, "
+        "       m.tipo_movi, "
+        f"      {norm_expr} AS norm_qty, "
+        "       NVL(m.costo, 0) AS costo, "
+        "       NVL(m.st_anulado,'N') AS st_anulado "
+        "FROM INV.TINV_MOVIMIENTO m "
+        "JOIN INV.TINV_EMPAQUE emp "
+        "  ON emp.no_produ = m.no_produ AND emp.para_reporte = 'S' "
+        "WHERE " + " AND ".join(where) + " "
+        "ORDER BY m.fecha, m.no_docu"
+    )
+    rows = client.fetch_dicts(sql, params)
+    items = []
+    balance = 0.0
+    for r in rows:
+        qty = float(r['norm_qty'] or 0)
+        is_entrada = (r['tipo_movi'] or '').upper() == 'E'
+        delta = qty if is_entrada else -qty
+        balance += delta
+        items.append({
+            'punto': r['punto'],
+            'almacen': r['almacen'],
+            'tipo_docu': r['tipo_docu'],
+            'no_docu': r['no_docu'],
+            'fecha': r['fecha_iso'],
+            'entrada': round(qty, 4) if is_entrada else 0.0,
+            'salida': round(qty, 4) if not is_entrada else 0.0,
+            'balance': round(balance, 4),
+            'costo': float(r['costo'] or 0),
+            'st_anulado': r['st_anulado'],
+        })
+    total_e = sum(i['entrada'] for i in items)
+    total_s = sum(i['salida'] for i in items)
+    return {
+        'no_produ': no_produ,
+        'items': items,
+        'totales': {
+            'entradas': round(total_e, 4),
+            'salidas': round(total_s, 4),
+            'balance': round(total_e - total_s, 4),
+        },
+    }
 
 
 def list_consulta_documentos(

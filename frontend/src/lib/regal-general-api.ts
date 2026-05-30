@@ -968,6 +968,25 @@ export const regalGeneralApi = {
     }>(`/inv/existencia/${encodeURIComponent(noProdu)}/?${p.toString()}`)
   },
 
+  // Movimientos de un producto con balance corrido (equivalente al Rinv304 del legado).
+  // Cantidades normalizadas al empaque para_reporte del producto.
+  invMovimientosProducto: (noCia: string, noProdu: string, punto = '', almacen = '', desde = '', hasta = '') => {
+    const p = new URLSearchParams({ no_cia: noCia })
+    if (punto) p.set('punto', punto)
+    if (almacen) p.set('almacen', almacen)
+    if (desde) p.set('desde', desde)
+    if (hasta) p.set('hasta', hasta)
+    return request<{
+      no_produ: string
+      items: Array<{
+        punto: string; almacen: string; tipo_docu: string; no_docu: string
+        fecha: string; entrada: number; salida: number; balance: number
+        costo: number; st_anulado: string
+      }>
+      totales: { entradas: number; salidas: number; balance: number }
+    }>(`/inv/movimientos/${encodeURIComponent(noProdu)}/?${p.toString()}`)
+  },
+
   // Empaques (unidades alternas) de un producto. Devuelve [] si TINV_EMPAQUE no tiene filas.
   fatProductoEmpaques: (noProdu: string) => {
     const p = new URLSearchParams({ no_produ: noProdu })
