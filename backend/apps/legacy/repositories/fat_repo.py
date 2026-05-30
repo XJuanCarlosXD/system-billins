@@ -919,6 +919,43 @@ def list_condiciones_pago() -> list[dict]:
              'activa': r['activa'] == 'S'} for r in rows]
 
 
+def get_proximo_ncf(no_cia: str, codigo_ncf: str) -> dict:
+    """Devuelve el próximo NCF disponible para una serie + el NCF DGI compuesto.
+
+    Lee CNT.TCNT_NCF.PROX_NCF y POSICIONES_FIJAS para componer el NCF DGI.
+    fetch_one devuelve tuple, acceso por índice.
+    """
+    if not no_cia or not codigo_ncf:
+        return {}
+    row = client.fetch_one(
+        "SELECT PROX_NCF, POSICIONES_FIJAS, NCF_FINAL, DESCRIPCION "
+        "FROM CNT.TCNT_NCF WHERE NO_LOCALIDAD=:1 AND CODIGO_NCF=:2",
+        [no_cia, codigo_ncf.strip().upper()])
+    if not row:
+        return {}
+    prox = int(row[0] or 0)
+    pos = (row[1] or '').strip().upper()
+    final = int(row[2] or 0)
+    descripcion = (row[3] or '').strip()
+    return {
+        'codigo_ncf': codigo_ncf.strip().upper(),
+        'prox_ncf': prox,
+        'posiciones_fijas': pos,
+        'descripcion': descripcion,
+        'ncf_dgi_proximo': _compose_ncf_dgi(pos, prox),
+        'agotado': prox > final,
+    }
+
+
+def ncf_ya_usado(no_cia: str, ncf_num: int) -> bool:
+    """True si ese NCF ya está usado en alguna factura no anulada."""
+    row = client.fetch_one(
+        "SELECT COUNT(*) FROM FAT.TFAT_FACTURA "
+        "WHERE NO_CIA=:1 AND NCF=:2 AND NVL(ST_ANULADO,'N')='N'",
+        [no_cia, int(ncf_num)])
+    return bool(row and row[0] > 0)
+
+
 def search_invoices(no_cia: str, punto: str = '01', page: int = 1, page_size: int = 25,
                     search: str = '') -> dict:
     filters = ["f.no_cia = :no_cia", "f.punto = :punto"]

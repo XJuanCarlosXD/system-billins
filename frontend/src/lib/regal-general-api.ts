@@ -964,6 +964,21 @@ export const regalGeneralApi = {
     )
   },
 
+  fatProximoNcf: (no_cia: string, codigo_ncf: string) =>
+    request<{
+      codigo_ncf: string
+      prox_ncf: number
+      posiciones_fijas: string
+      descripcion: string
+      ncf_dgi_proximo: string
+      agotado: boolean
+    }>(`/fat/proximo-ncf/?no_cia=${encodeURIComponent(no_cia)}&codigo_ncf=${encodeURIComponent(codigo_ncf)}`),
+
+  fatNcfUsado: (no_cia: string, ncf: number) =>
+    request<{ usado: boolean }>(
+      `/fat/ncf-usado/?no_cia=${encodeURIComponent(no_cia)}&ncf=${encodeURIComponent(String(ncf))}`,
+    ),
+
   fatCrearFactura: (data: Record<string, any>) =>
     request<{ no_factura: string; tipo_factura: string; ncf: number | null; total_neto: number }>('/fat/facturas/', {
       method: 'POST', body: JSON.stringify(data),

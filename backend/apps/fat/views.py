@@ -811,6 +811,50 @@ class FatGenerarAsientosView(APIView):
             return Response({'detail': str(e)}, status=500)
 
 
+class FatProximoNcfView(APIView):
+    """Devuelve el próximo NCF disponible para una empresa + código NCF."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        no_cia = request.query_params.get('no_cia', '01')
+        codigo_ncf = request.query_params.get('codigo_ncf', '')
+        if not codigo_ncf:
+            return Response({'detail': 'codigo_ncf es requerido'}, status=400)
+        forbidden = _check_fat_access(request.user.username, no_cia, '01')
+        if forbidden:
+            return forbidden
+        try:
+            data = fat_repo.get_proximo_ncf(no_cia, codigo_ncf)
+            if not data:
+                return Response({'detail': 'Serie NCF no encontrada'}, status=404)
+            return Response(data)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=500)
+
+
+class FatNcfUsadoView(APIView):
+    """Comprueba si un número NCF (entero) ya fue usado en una empresa."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        no_cia = request.query_params.get('no_cia', '01')
+        ncf_raw = request.query_params.get('ncf', '')
+        if not ncf_raw:
+            return Response({'detail': 'ncf es requerido'}, status=400)
+        forbidden = _check_fat_access(request.user.username, no_cia, '01')
+        if forbidden:
+            return forbidden
+        try:
+            ncf_num = int(ncf_raw)
+        except ValueError:
+            return Response({'detail': 'ncf debe ser un entero'}, status=400)
+        try:
+            usado = fat_repo.ncf_ya_usado(no_cia, ncf_num)
+            return Response({'usado': usado})
+        except Exception as e:
+            return Response({'detail': str(e)}, status=500)
+
+
 class FatSearchView(APIView):
     permission_classes = [IsAuthenticated]
 

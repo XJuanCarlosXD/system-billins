@@ -8,7 +8,7 @@ from .views import (
     FatConducesView, FatCuadreCajaView,
     FatRepVentasView, FatRep607View, FatRepNcfNulosView,
     FatRepVentasVendedorView, FatRepVentasClienteView, FatRepAnaliticaView,
-    FatCierresView, FatGenerarAsientosView,
+    FatCierresView, FatGenerarAsientosView, FatProximoNcfView, FatNcfUsadoView,
 )
 from .views_print import fat_documento_pdf
 
@@ -41,5 +41,7 @@ urlpatterns = [
     path('fat/rep-analitica/', FatRepAnaliticaView.as_view()),
     path('fat/cierres/', FatCierresView.as_view()),
     path('fat/generar-asientos/', FatGenerarAsientosView.as_view()),
+    path('fat/proximo-ncf/', FatProximoNcfView.as_view()),
+    path('fat/ncf-usado/', FatNcfUsadoView.as_view()),
     path('fat/documentos/<str:tipo>/<str:no_factura>/pdf/', fat_documento_pdf),
 ]

@@ -41,6 +41,15 @@ interface NcfInfo {
   critical: boolean
 }
 
+interface ProximoNcf {
+  codigo_ncf: string
+  prox_ncf: number
+  posiciones_fijas: string
+  descripcion: string
+  ncf_dgi_proximo: string
+  agotado: boolean
+}
+
 interface Lista { no_lista: number | string; descripcion?: string; nombre?: string }
 interface Almacen { almacen: string; descripcion?: string }
 
@@ -121,6 +130,10 @@ export function NuevaFactura({ noCia, punto }: Props) {
   const [tasa, setTasa] = useState<number>(57.5)
   const [ncfInfo, setNcfInfo] = useState<NcfInfo | null>(null)
 
+  // NCF derivado del cliente
+  const [codigoNcfDeCliente, setCodigoNcfDeCliente] = useState<string>('')
+  const [proximoNcf, setProximoNcf] = useState<ProximoNcf | null>(null)
+
   // Client
   const [noClienteInput, setNoClienteInput] = useState('')
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null)
@@ -187,7 +200,9 @@ export function NuevaFactura({ noCia, punto }: Props) {
           regalGeneralApi.invAlmacenes(noCia, punto),
         ])
         const filtrados = (docsRes.items || []).filter(
-          (d: TipoDoc) => d.tipo_transaccion === 'F' || d.tipo_transaccion === 'O'
+          (d: TipoDoc) =>
+            (d.tipo_transaccion === 'F' || d.tipo_transaccion === 'O') &&
+            !/anular/i.test(d.descripcion)
         )
         setTiposDoc(filtrados)
         setVendedores(vendsRes.items || [])
@@ -317,6 +332,8 @@ export function NuevaFactura({ noCia, punto }: Props) {
     setNoClienteInput('')
     setDireccion('')
     setRnc('')
+    setCodigoNcfDeCliente('')
+    setProximoNcf(null)
     setTimeout(() => noClienteInputRef.current?.focus(), 50)
   }
 
@@ -346,6 +363,28 @@ export function NuevaFactura({ noCia, punto }: Props) {
     setClienteModalOpen(true)
     setTimeout(() => clienteModalInputRef.current?.focus(), 80)
   }
+
+  // ── Derivar tipo NCF del cliente y cargar próximo NCF ─────────
+  useEffect(() => {
+    let cancelled = false
+    if (!clienteSeleccionado) {
+      setCodigoNcfDeCliente('')
+      setProximoNcf(null)
+      return
+    }
+    // El campo codigo_ncf viene en el objeto cliente (fatListClientes lo incluye)
+    const codigoNcf = (clienteSeleccionado as any).codigo_ncf as string | undefined
+    if (!codigoNcf) {
+      setCodigoNcfDeCliente('')
+      setProximoNcf(null)
+      return
+    }
+    setCodigoNcfDeCliente(codigoNcf)
+    regalGeneralApi.fatProximoNcf(noCia, codigoNcf)
+      .then(data => { if (!cancelled) setProximoNcf(data) })
+      .catch(() => { if (!cancelled) setProximoNcf(null) })
+    return () => { cancelled = true }
+  }, [clienteSeleccionado, noCia])
 
   // ── Lines ──────────────────────────────────────────────────
   const agregarLinea = () => {
@@ -524,6 +563,19 @@ export function NuevaFactura({ noCia, punto }: Props) {
     if (!tipoDoc) { toast({ title: 'Validacion', description: 'Seleccione el Tipo de Documento', variant: 'destructive' }); return }
     if (!noCliente) { toast({ title: 'Validacion', description: 'Seleccione un cliente', variant: 'destructive' }); return }
     if (ncfInfo && ncfInfo.disponibles === 0) { toast({ title: 'Error NCF', description: 'NCF agotado', variant: 'destructive' }); return }
+    if (proximoNcf && proximoNcf.agotado) { toast({ title: 'Error NCF', description: `Serie ${proximoNcf.codigo_ncf} agotada — no hay NCF disponibles`, variant: 'destructive' }); return }
+    if (proximoNcf && !proximoNcf.agotado) {
+      try {
+        const { usado } = await regalGeneralApi.fatNcfUsado(noCia, proximoNcf.prox_ncf)
+        if (usado) {
+          toast({ title: 'NCF duplicado', description: 'El próximo NCF ya está usado. Refrescá el formulario.', variant: 'destructive' })
+          return
+        }
+      } catch (err) {
+        console.warn('[fatNcfUsado] check failed, proceeding:', err)
+        // If the check fails we let the backend enforce uniqueness; don't block submit.
+      }
+    }
     const lineasValidas = lineas.filter(l => l.no_produ && l.cantidad > 0)
     if (lineasValidas.length === 0) { toast({ title: 'Validacion', description: 'Agregue al menos una linea', variant: 'destructive' }); return }
     setGuardando(true)
@@ -709,6 +761,33 @@ export function NuevaFactura({ noCia, punto }: Props) {
           )}
         </div>
       </div>
+
+      {/* ── NCF derivado del cliente ── */}
+      {codigoNcfDeCliente && (
+        <div className="border rounded-lg p-4 bg-white space-y-1">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">NCF del Cliente</p>
+          <div className="flex flex-wrap items-center gap-6 text-sm">
+            <div>
+              <span className="block text-xs text-gray-500 uppercase font-medium mb-0.5">Tipo NCF</span>
+              <span className="font-mono font-semibold">{codigoNcfDeCliente}</span>
+            </div>
+            {proximoNcf && (
+              <>
+                <div>
+                  <span className="block text-xs text-gray-500 uppercase font-medium mb-0.5">Descripcion</span>
+                  <span>{proximoNcf.descripcion || codigoNcfDeCliente}</span>
+                </div>
+                <div>
+                  <span className="block text-xs text-gray-500 uppercase font-medium mb-0.5">Proximo NCF disponible</span>
+                  <span className={`font-mono font-bold text-lg tracking-widest ${proximoNcf.agotado ? 'text-red-600' : 'text-emerald-700'}`}>
+                    {proximoNcf.agotado ? 'AGOTADO' : proximoNcf.ncf_dgi_proximo}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Section 3: Commercial ── */}
       <div className="border rounded-lg p-4 space-y-3 bg-white">
