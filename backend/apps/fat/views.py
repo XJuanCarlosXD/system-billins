@@ -925,6 +925,23 @@ class FatNcfUsadoView(APIView):
             return Response({'detail': str(e)}, status=500)
 
 
+class FatProximoNoFacturaView(APIView):
+    """Devuelve el próximo no_factura para una serie tipo_docu en la empresa/punto."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        no_cia = request.query_params.get('no_cia', '01')
+        punto = request.query_params.get('punto', '01')
+        tipo_docu = request.query_params.get('tipo_docu', '')
+        if not tipo_docu:
+            return Response({'detail': 'tipo_docu es requerido'}, status=400)
+        forbidden = _check_fat_access(request.user.username, no_cia, punto)
+        if forbidden:
+            return forbidden
+        prox = fat_repo.get_proximo_no_factura(no_cia, punto, tipo_docu)
+        return Response({'tipo_docu': tipo_docu.upper(), 'prox_no_factura': prox})
+
+
 class DashboardVentasMesView(APIView):
     """Ventas día a día del mes en curso para el chart del dashboard."""
     permission_classes = [IsAuthenticated]

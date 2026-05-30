@@ -1684,3 +1684,21 @@ def ventas_dia_a_dia(no_cia: str, ano: int, mes: int) -> list[dict]:
         "GROUP BY TO_CHAR(FECHA,'YYYY-MM-DD') ORDER BY DIA",
         [no_cia, int(ano), int(mes)])
     return [{'dia': r['dia'], 'total': float(r['total'] or 0)} for r in rows]
+
+
+def get_proximo_no_factura(no_cia: str, punto: str, tipo_docu: str) -> int:
+    """Devuelve el próximo no_factura para la serie tipo_docu en la empresa/punto.
+
+    Usa FAT.TFAT_SECUENCIA.prox_documento (o prox_formulario como fallback),
+    que es el mismo contador que usa create_factura. Sin FOR UPDATE — solo lectura.
+    """
+    if not no_cia or not punto or not tipo_docu:
+        return 0
+    row = client.fetch_one(
+        "SELECT prox_documento, prox_formulario FROM FAT.TFAT_SECUENCIA "
+        "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3",
+        [no_cia, punto, tipo_docu.strip().upper()])
+    if not row:
+        return 0
+    val = row[0] if row[0] is not None else row[1]
+    return int(val or 0)

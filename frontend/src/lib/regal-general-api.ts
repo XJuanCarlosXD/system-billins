@@ -991,6 +991,11 @@ export const regalGeneralApi = {
       `/fat/ncf-usado/?no_cia=${encodeURIComponent(no_cia)}&ncf=${encodeURIComponent(String(ncf))}`,
     ),
 
+  fatProximoNoFactura: (no_cia: string, punto: string, tipo_docu: string) => {
+    const p = new URLSearchParams({ no_cia, punto, tipo_docu })
+    return request<{ tipo_docu: string; prox_no_factura: number }>(`/fat/proximo-no-factura/?${p}`)
+  },
+
   fatCrearFactura: (data: Record<string, any>) =>
     request<{ no_factura: string; tipo_factura: string; ncf: number | null; total_neto: number }>('/fat/facturas/', {
       method: 'POST', body: JSON.stringify(data),

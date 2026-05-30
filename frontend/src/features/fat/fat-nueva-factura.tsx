@@ -133,6 +133,7 @@ export function NuevaFactura({ noCia, punto }: Props) {
   // NCF derivado del cliente
   const [codigoNcfDeCliente, setCodigoNcfDeCliente] = useState<string>('')
   const [proximoNcf, setProximoNcf] = useState<ProximoNcf | null>(null)
+  const [proximoNoFactura, setProximoNoFactura] = useState<number | null>(null)
 
   // Client
   const [noClienteInput, setNoClienteInput] = useState('')
@@ -385,6 +386,17 @@ export function NuevaFactura({ noCia, punto }: Props) {
       .catch(() => { if (!cancelled) setProximoNcf(null) })
     return () => { cancelled = true }
   }, [clienteSeleccionado, noCia])
+
+  // ── Próximo no_factura (desde TFAT_SECUENCIA) ─────────────
+  useEffect(() => {
+    let cancelled = false
+    setProximoNoFactura(null)
+    if (!noCia || !punto || !tipoDoc) return
+    regalGeneralApi.fatProximoNoFactura(noCia, punto, tipoDoc)
+      .then(d => { if (!cancelled) setProximoNoFactura(d.prox_no_factura) })
+      .catch(() => { if (!cancelled) setProximoNoFactura(null) })
+    return () => { cancelled = true }
+  }, [noCia, punto, tipoDoc])
 
   // ── Lines ──────────────────────────────────────────────────
   const agregarLinea = () => {
@@ -733,7 +745,7 @@ export function NuevaFactura({ noCia, punto }: Props) {
 
           {/* Client info display */}
           {clienteSeleccionado ? (
-            <div className="flex-1 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2 flex items-center gap-6">
+            <div className="flex-1 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2 flex items-center gap-6 flex-wrap">
               <div className="min-w-0">
                 <span className="block text-xs text-emerald-600 font-medium">Nombre</span>
                 <span className="font-semibold text-emerald-900 truncate block">{clienteSeleccionado.nombre}</span>
@@ -745,12 +757,32 @@ export function NuevaFactura({ noCia, punto }: Props) {
                 </div>
               )}
               {direccion && (
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0">
                   <span className="block text-xs text-emerald-600 font-medium">Direccion</span>
                   <span className="text-emerald-700 text-sm truncate block">{direccion}</span>
                 </div>
               )}
-              <Button size="sm" variant="ghost" onClick={limpiarCliente} className="shrink-0 text-gray-400 hover:text-red-500">
+              {codigoNcfDeCliente && (
+                <div className="shrink-0">
+                  <span className="block text-xs text-emerald-600 font-medium">Tipo NCF</span>
+                  <span className="font-mono font-semibold text-emerald-900">{codigoNcfDeCliente}</span>
+                </div>
+              )}
+              {proximoNcf && (
+                <div className="shrink-0">
+                  <span className="block text-xs text-emerald-600 font-medium">Proximo NCF</span>
+                  <span className={`font-mono font-bold ${proximoNcf.agotado ? 'text-red-600' : 'text-emerald-800'}`}>
+                    {proximoNcf.agotado ? 'AGOTADO' : proximoNcf.ncf_dgi_proximo}
+                  </span>
+                </div>
+              )}
+              {tipoDoc && proximoNoFactura !== null && (
+                <div className="shrink-0">
+                  <span className="block text-xs text-emerald-600 font-medium">Proximo No. Factura</span>
+                  <span className="font-mono font-bold text-emerald-800">{tipoDoc}-{String(proximoNoFactura).padStart(8, '0')}</span>
+                </div>
+              )}
+              <Button size="sm" variant="ghost" onClick={limpiarCliente} className="shrink-0 text-gray-400 hover:text-red-500 ml-auto">
                 Cambiar
               </Button>
             </div>
@@ -761,33 +793,6 @@ export function NuevaFactura({ noCia, punto }: Props) {
           )}
         </div>
       </div>
-
-      {/* ── NCF derivado del cliente ── */}
-      {codigoNcfDeCliente && (
-        <div className="border rounded-lg p-4 bg-white space-y-1">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">NCF del Cliente</p>
-          <div className="flex flex-wrap items-center gap-6 text-sm">
-            <div>
-              <span className="block text-xs text-gray-500 uppercase font-medium mb-0.5">Tipo NCF</span>
-              <span className="font-mono font-semibold">{codigoNcfDeCliente}</span>
-            </div>
-            {proximoNcf && (
-              <>
-                <div>
-                  <span className="block text-xs text-gray-500 uppercase font-medium mb-0.5">Descripcion</span>
-                  <span>{proximoNcf.descripcion || codigoNcfDeCliente}</span>
-                </div>
-                <div>
-                  <span className="block text-xs text-gray-500 uppercase font-medium mb-0.5">Proximo NCF disponible</span>
-                  <span className={`font-mono font-bold text-lg tracking-widest ${proximoNcf.agotado ? 'text-red-600' : 'text-emerald-700'}`}>
-                    {proximoNcf.agotado ? 'AGOTADO' : proximoNcf.ncf_dgi_proximo}
-                  </span>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* ── Section 3: Commercial ── */}
       <div className="border rounded-lg p-4 space-y-3 bg-white">
