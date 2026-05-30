@@ -138,15 +138,26 @@ def list_periodos(no_cia: str):
     return {"puntos": puntos, "cierres": cierres, "rangos": rangos, "years": years}
 
 
-def list_ncf(no_cia: str):
-    rows = client.fetch_dicts(
-        """SELECT codigo_ncf, ncf_inicial, ncf_final, prox_ncf,
-                  ncf_manual, tipo_ncf_fiscal, cant_min_ncf, fecha_vencimiento,
-                  posiciones_fijas, descripcion
-           FROM CNT.TCNT_NCF
-           ORDER BY codigo_ncf""",
-        []
-    )
+def list_ncf(no_cia: str = ''):
+    if no_cia:
+        rows = client.fetch_dicts(
+            """SELECT codigo_ncf, ncf_inicial, ncf_final, prox_ncf,
+                      ncf_manual, tipo_ncf_fiscal, cant_min_ncf, fecha_vencimiento,
+                      posiciones_fijas, descripcion
+               FROM CNT.TCNT_NCF
+               WHERE no_localidad = :1
+               ORDER BY codigo_ncf""",
+            [no_cia]
+        )
+    else:
+        rows = client.fetch_dicts(
+            """SELECT codigo_ncf, ncf_inicial, ncf_final, prox_ncf,
+                      ncf_manual, tipo_ncf_fiscal, cant_min_ncf, fecha_vencimiento,
+                      posiciones_fijas, descripcion
+               FROM CNT.TCNT_NCF
+               ORDER BY codigo_ncf""",
+            []
+        )
     result = []
     for r in rows:
         disponibles = (r.get('ncf_final') or 0) - (r.get('prox_ncf') or 1) + 1
@@ -170,11 +181,11 @@ def update_ncf(no_cia: str, codigo_ncf: str, **kwargs):
             params.append(v)
     if not sets:
         return
-    params.append(codigo_ncf)
+    params.extend([no_cia, codigo_ncf])
     with client.connection() as conn:
         cur = conn.cursor()
         cur.execute(
-            f"UPDATE CNT.TCNT_NCF SET {','.join(sets)} WHERE codigo_ncf=:{len(params)}",
+            f"UPDATE CNT.TCNT_NCF SET {','.join(sets)} WHERE no_localidad=:{len(params)-1} AND codigo_ncf=:{len(params)}",
             params
         )
         conn.commit()
@@ -495,10 +506,11 @@ def create_ncf(
         cur = conn.cursor()
         cur.execute(
             """INSERT INTO CNT.TCNT_NCF
-               (codigo_ncf, ncf_inicial, ncf_final, prox_ncf, tipo_ncf_fiscal,
+               (no_localidad, codigo_ncf, ncf_inicial, ncf_final, prox_ncf, tipo_ncf_fiscal,
                 cant_min_ncf, fecha_vencimiento, ncf_manual)
-               VALUES (:1, :2, :3, :4, :5, :6, :7, :8)""",
+               VALUES (:1, :2, :3, :4, :5, :6, :7, :8, :9)""",
             [
+                str(no_cia).strip(),
                 str(codigo_ncf).strip(),
                 int(ncf_inicial),
                 int(ncf_final),
