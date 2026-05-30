@@ -451,26 +451,20 @@ def list_sublineas(no_cia: str = '01', linea: str = '') -> list[dict]:
 
 
 def get_existencia_producto(no_cia: str, no_produ: str) -> list[dict]:
-    """Existencia por almacén para un producto específico, lógica híbrida del legado:
+    """Existencia por almacén para un producto específico.
 
-    * Almacén controlado (ctrl_exist_min='S' o ctrl_exist_max='S') →
-      ``TINV_EPRODUCTO.EXIST_ACTUAL``.
-    * Almacén no controlado (ambos en 'N') → suma de ``TINV_MOVIMIENTO``
-      (E − S, ignorando anulados).
+    Usa ÚNICAMENTE TINV_MOVIMIENTO (SUM E − S, ignorando anulados), que es la
+    misma fuente que el reporte Rinv304 del legado.  TINV_EPRODUCTO.exist_actual
+    es un snapshot que puede quedar desfasado; sólo se toca para obtener
+    costo_actual, exist_minima y exist_maxima.
     """
     sql = (
         "SELECT a.no_cia, a.punto, a.almacen, a.descri almacen_desc, "
         "       :p_prod AS no_produ, p.descri descripcion, "
-        "       a.ctrl_exist_min, a.ctrl_exist_max, "
-        "       CASE WHEN NVL(a.ctrl_exist_min,'N')='S' OR NVL(a.ctrl_exist_max,'N')='S' "
-        "            THEN 'eproducto' ELSE 'movimientos' END AS fuente_existencia, "
-        "       CASE WHEN NVL(a.ctrl_exist_min,'N')='S' OR NVL(a.ctrl_exist_max,'N')='S' "
-        "            THEN NVL(ep.exist_actual, 0) "
-        "            ELSE NVL(mov.net, 0) END AS existencia, "
+        "       NVL(mov.net, 0) AS existencia, "
+        "       'movimientos' AS fuente_existencia, "
         "       NVL(ep.costo_actual, 0) costo_actual, "
-        "       ROUND( (CASE WHEN NVL(a.ctrl_exist_min,'N')='S' OR NVL(a.ctrl_exist_max,'N')='S' "
-        "                    THEN NVL(ep.exist_actual,0) ELSE NVL(mov.net,0) END) "
-        "              * NVL(ep.costo_actual,0), 2) valor, "
+        "       ROUND(NVL(mov.net, 0) * NVL(ep.costo_actual, 0), 2) valor, "
         "       NVL(ep.exist_minima, 0) exist_minima, "
         "       NVL(ep.exist_maxima, 0) exist_maxima "
         "FROM   INV.TINV_ALMACEN a "
@@ -487,8 +481,10 @@ def get_existencia_producto(no_cia: str, no_produ: str) -> list[dict]:
         "       GROUP BY no_cia, punto, almacen "
         ") mov ON mov.no_cia=a.no_cia AND mov.punto=a.punto AND mov.almacen=a.almacen "
         "WHERE a.no_cia = :p_cia AND NVL(a.activo,'S')='S' "
-        # Solo devolver almacenes que tengan o snapshot o movimientos de este producto
-        "  AND (ep.no_produ IS NOT NULL OR mov.net IS NOT NULL) "
+        # Solo almacenes que tengan historial de movimientos para este producto
+        "  AND mov.net IS NOT NULL "
+        # Y cuyo saldo neto no sea cero
+        "  AND NVL(mov.net, 0) != 0 "
         "ORDER BY a.punto, a.almacen"
     )
     return client.fetch_dicts(sql, {"p_cia": no_cia, "p_prod": no_produ})

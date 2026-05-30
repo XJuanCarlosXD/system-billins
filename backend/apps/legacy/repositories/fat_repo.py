@@ -1292,59 +1292,35 @@ def rep_analitica_mensual(no_cia: str, punto: str, ano: int) -> dict:
 def search_productos(no_cia, punto, no_lista="", search="", page=1, page_size=20, almacen="", solo_existencia=False):
     offset = (page - 1) * page_size
     end_row = offset + page_size
-    # Existencia híbrida (replica del legado, verificado 2026-05-28):
-    #  - almacén controlado (ctrl_exist_min='S' o ctrl_exist_max='S') → EPRODUCTO.exist_actual
-    #  - almacén no controlado (ambos 'N')                            → suma de movimientos (E - S)
-    # Cuando hay filtro de almacén, basta evaluar ese almacén.
-    # Cuando NO hay filtro, sumamos por todos los almacenes aplicando la regla por almacén.
+    # Existencia: ÚNICAMENTE TINV_MOVIMIENTO (SUM E − S, ignorando anulados).
+    # Misma lógica que Rinv304 del legado. TINV_EPRODUCTO.exist_actual es un
+    # snapshot que puede quedar desfasado y fue eliminado de esta ruta.
     if almacen:
         exist_join = (
             "LEFT JOIN ("
-            "  SELECT a.no_produ, SUM(a.existencia) AS existencia FROM ("
-            "    SELECT ep.no_produ, NVL(ep.exist_actual,0) AS existencia "
-            "    FROM INV.TINV_EPRODUCTO ep "
-            "    JOIN INV.TINV_ALMACEN al ON al.no_cia=ep.no_cia AND al.punto=ep.punto AND al.almacen=ep.almacen "
-            "    WHERE ep.no_cia=:no_cia_ex AND ep.almacen=:almacen_ex "
-            "      AND (NVL(al.ctrl_exist_min,'N')='S' OR NVL(al.ctrl_exist_max,'N')='S') "
-            "    UNION ALL "
-            "    SELECT m.no_produ, "
-            "           SUM(CASE WHEN m.tipo_movi='E' THEN NVL(m.cantidad,0) "
-            "                    WHEN m.tipo_movi='S' THEN -NVL(m.cantidad,0) ELSE 0 END) AS existencia "
-            "    FROM INV.TINV_MOVIMIENTO m "
-            "    JOIN INV.TINV_ALMACEN al ON al.no_cia=m.no_cia AND al.punto=m.punto AND al.almacen=m.almacen "
-            "    WHERE m.no_cia=:no_cia_ex AND m.almacen=:almacen_ex "
-            "      AND NVL(m.st_anulado,'N')='N' "
-            "      AND NVL(al.ctrl_exist_min,'N')='N' AND NVL(al.ctrl_exist_max,'N')='N' "
-            "    GROUP BY m.no_produ "
-            "  ) a "
-            "  GROUP BY a.no_produ"
+            "  SELECT no_produ, "
+            "         SUM(CASE WHEN tipo_movi='E' THEN NVL(cantidad,0) "
+            "                  WHEN tipo_movi='S' THEN -NVL(cantidad,0) ELSE 0 END) AS existencia "
+            "  FROM INV.TINV_MOVIMIENTO "
+            "  WHERE no_cia=:no_cia_ex AND almacen=:almacen_ex AND NVL(st_anulado,'N')='N' "
+            "  GROUP BY no_produ "
             ") ex ON ex.no_produ = p.no_produ "
         )
     else:
         exist_join = (
             "LEFT JOIN ("
-            "  SELECT a.no_produ, SUM(a.existencia) AS existencia FROM ("
-            "    SELECT ep.no_produ, NVL(ep.exist_actual,0) AS existencia "
-            "    FROM INV.TINV_EPRODUCTO ep "
-            "    JOIN INV.TINV_ALMACEN al ON al.no_cia=ep.no_cia AND al.punto=ep.punto AND al.almacen=ep.almacen "
-            "    WHERE ep.no_cia=:no_cia_ex "
-            "      AND (NVL(al.ctrl_exist_min,'N')='S' OR NVL(al.ctrl_exist_max,'N')='S') "
-            "    UNION ALL "
-            "    SELECT m.no_produ, "
-            "           SUM(CASE WHEN m.tipo_movi='E' THEN NVL(m.cantidad,0) "
-            "                    WHEN m.tipo_movi='S' THEN -NVL(m.cantidad,0) ELSE 0 END) AS existencia "
-            "    FROM INV.TINV_MOVIMIENTO m "
-            "    JOIN INV.TINV_ALMACEN al ON al.no_cia=m.no_cia AND al.punto=m.punto AND al.almacen=m.almacen "
-            "    WHERE m.no_cia=:no_cia_ex AND NVL(m.st_anulado,'N')='N' "
-            "      AND NVL(al.ctrl_exist_min,'N')='N' AND NVL(al.ctrl_exist_max,'N')='N' "
-            "    GROUP BY m.no_produ "
-            "  ) a "
-            "  GROUP BY a.no_produ"
+            "  SELECT no_produ, "
+            "         SUM(CASE WHEN tipo_movi='E' THEN NVL(cantidad,0) "
+            "                  WHEN tipo_movi='S' THEN -NVL(cantidad,0) ELSE 0 END) AS existencia "
+            "  FROM INV.TINV_MOVIMIENTO "
+            "  WHERE no_cia=:no_cia_ex AND NVL(st_anulado,'N')='N' "
+            "  GROUP BY no_produ "
             ") ex ON ex.no_produ = p.no_produ "
         )
     um_join = (
         "LEFT JOIN ("
-        "  SELECT e.NO_PRODU, NVL(u.DESCRI, e.UNIDAD) AS unidad_empaque "
+        "  SELECT e.NO_PRODU, NVL(u.DESCRI, e.UNIDAD) AS unidad_empaque, "
+        "         NVL(e.CPE, 1) AS cpe "
         "  FROM INV.TINV_EMPAQUE e "
         "  LEFT JOIN INV.TINV_UNIDAD u ON u.UNIDAD = e.UNIDAD "
         "  WHERE e.POR_DEFECTO = 'S'"
@@ -1360,7 +1336,8 @@ def search_productos(no_cia, punto, no_lista="", search="", page=1, page_size=20
     if no_lista:
         base_sql = (
             "SELECT " + select_cols +
-            ", NVL(lp.precio, 0) AS precio "
+            # precio = precio unitario × CPE (unidades por empaque por defecto)
+            ", ROUND(NVL(lp.precio, 0) * NVL(um.cpe, 1), 4) AS precio "
             "FROM INV.TINV_PRODUCTO p "
             "LEFT JOIN FAT.TFAT_LISTA_PRECIO lp "
             "  ON lp.no_produ = p.no_produ "
