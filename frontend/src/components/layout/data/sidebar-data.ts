@@ -70,7 +70,6 @@ export const sidebarData: SidebarData = {
                 { title: 'Condiciones de Pago', url: '/fat/condiciones' },
                 { title: 'Tipos de Pago en Caja', url: '/fat/tipos-pago' },
                 { title: 'Notas Pie de Factura', url: '/fat/notas' },
-                { title: 'Control de NCF', url: '/fat/ncf' },
               ],
             },
             {

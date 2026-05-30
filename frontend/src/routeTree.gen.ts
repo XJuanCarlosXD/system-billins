@@ -65,7 +65,6 @@ import { Route as AuthenticatedFatPuntosRouteImport } from './routes/_authentica
 import { Route as AuthenticatedFatNuevoConduceRouteImport } from './routes/_authenticated/fat/nuevo-conduce'
 import { Route as AuthenticatedFatNuevaFacturaRouteImport } from './routes/_authenticated/fat/nueva-factura'
 import { Route as AuthenticatedFatNotasRouteImport } from './routes/_authenticated/fat/notas'
-import { Route as AuthenticatedFatNcfRouteImport } from './routes/_authenticated/fat/ncf'
 import { Route as AuthenticatedFatListasPrecioRouteImport } from './routes/_authenticated/fat/listas-precio'
 import { Route as AuthenticatedFatGenerarAsientosRouteImport } from './routes/_authenticated/fat/generar-asientos'
 import { Route as AuthenticatedFatFacturasRouteImport } from './routes/_authenticated/fat/facturas'
@@ -428,11 +427,6 @@ const AuthenticatedFatNuevaFacturaRoute =
 const AuthenticatedFatNotasRoute = AuthenticatedFatNotasRouteImport.update({
   id: '/notas',
   path: '/notas',
-  getParentRoute: () => AuthenticatedFatRoute,
-} as any)
-const AuthenticatedFatNcfRoute = AuthenticatedFatNcfRouteImport.update({
-  id: '/ncf',
-  path: '/ncf',
   getParentRoute: () => AuthenticatedFatRoute,
 } as any)
 const AuthenticatedFatListasPrecioRoute =
@@ -909,7 +903,6 @@ export interface FileRoutesByFullPath {
   '/fat/facturas': typeof AuthenticatedFatFacturasRoute
   '/fat/generar-asientos': typeof AuthenticatedFatGenerarAsientosRoute
   '/fat/listas-precio': typeof AuthenticatedFatListasPrecioRoute
-  '/fat/ncf': typeof AuthenticatedFatNcfRoute
   '/fat/notas': typeof AuthenticatedFatNotasRoute
   '/fat/nueva-factura': typeof AuthenticatedFatNuevaFacturaRoute
   '/fat/nuevo-conduce': typeof AuthenticatedFatNuevoConduceRoute
@@ -1027,7 +1020,6 @@ export interface FileRoutesByTo {
   '/fat/facturas': typeof AuthenticatedFatFacturasRoute
   '/fat/generar-asientos': typeof AuthenticatedFatGenerarAsientosRoute
   '/fat/listas-precio': typeof AuthenticatedFatListasPrecioRoute
-  '/fat/ncf': typeof AuthenticatedFatNcfRoute
   '/fat/notas': typeof AuthenticatedFatNotasRoute
   '/fat/nueva-factura': typeof AuthenticatedFatNuevaFacturaRoute
   '/fat/nuevo-conduce': typeof AuthenticatedFatNuevoConduceRoute
@@ -1154,7 +1146,6 @@ export interface FileRoutesById {
   '/_authenticated/fat/facturas': typeof AuthenticatedFatFacturasRoute
   '/_authenticated/fat/generar-asientos': typeof AuthenticatedFatGenerarAsientosRoute
   '/_authenticated/fat/listas-precio': typeof AuthenticatedFatListasPrecioRoute
-  '/_authenticated/fat/ncf': typeof AuthenticatedFatNcfRoute
   '/_authenticated/fat/notas': typeof AuthenticatedFatNotasRoute
   '/_authenticated/fat/nueva-factura': typeof AuthenticatedFatNuevaFacturaRoute
   '/_authenticated/fat/nuevo-conduce': typeof AuthenticatedFatNuevoConduceRoute
@@ -1279,7 +1270,6 @@ export interface FileRouteTypes {
     | '/fat/facturas'
     | '/fat/generar-asientos'
     | '/fat/listas-precio'
-    | '/fat/ncf'
     | '/fat/notas'
     | '/fat/nueva-factura'
     | '/fat/nuevo-conduce'
@@ -1397,7 +1387,6 @@ export interface FileRouteTypes {
     | '/fat/facturas'
     | '/fat/generar-asientos'
     | '/fat/listas-precio'
-    | '/fat/ncf'
     | '/fat/notas'
     | '/fat/nueva-factura'
     | '/fat/nuevo-conduce'
@@ -1523,7 +1512,6 @@ export interface FileRouteTypes {
     | '/_authenticated/fat/facturas'
     | '/_authenticated/fat/generar-asientos'
     | '/_authenticated/fat/listas-precio'
-    | '/_authenticated/fat/ncf'
     | '/_authenticated/fat/notas'
     | '/_authenticated/fat/nueva-factura'
     | '/_authenticated/fat/nuevo-conduce'
@@ -1964,13 +1952,6 @@ declare module '@tanstack/react-router' {
       path: '/notas'
       fullPath: '/fat/notas'
       preLoaderRoute: typeof AuthenticatedFatNotasRouteImport
-      parentRoute: typeof AuthenticatedFatRoute
-    }
-    '/_authenticated/fat/ncf': {
-      id: '/_authenticated/fat/ncf'
-      path: '/ncf'
-      fullPath: '/fat/ncf'
-      preLoaderRoute: typeof AuthenticatedFatNcfRouteImport
       parentRoute: typeof AuthenticatedFatRoute
     }
     '/_authenticated/fat/listas-precio': {
@@ -2617,7 +2598,6 @@ interface AuthenticatedFatRouteChildren {
   AuthenticatedFatFacturasRoute: typeof AuthenticatedFatFacturasRoute
   AuthenticatedFatGenerarAsientosRoute: typeof AuthenticatedFatGenerarAsientosRoute
   AuthenticatedFatListasPrecioRoute: typeof AuthenticatedFatListasPrecioRoute
-  AuthenticatedFatNcfRoute: typeof AuthenticatedFatNcfRoute
   AuthenticatedFatNotasRoute: typeof AuthenticatedFatNotasRoute
   AuthenticatedFatNuevaFacturaRoute: typeof AuthenticatedFatNuevaFacturaRoute
   AuthenticatedFatNuevoConduceRoute: typeof AuthenticatedFatNuevoConduceRoute
@@ -2644,7 +2624,6 @@ const AuthenticatedFatRouteChildren: AuthenticatedFatRouteChildren = {
   AuthenticatedFatFacturasRoute: AuthenticatedFatFacturasRoute,
   AuthenticatedFatGenerarAsientosRoute: AuthenticatedFatGenerarAsientosRoute,
   AuthenticatedFatListasPrecioRoute: AuthenticatedFatListasPrecioRoute,
-  AuthenticatedFatNcfRoute: AuthenticatedFatNcfRoute,
   AuthenticatedFatNotasRoute: AuthenticatedFatNotasRoute,
   AuthenticatedFatNuevaFacturaRoute: AuthenticatedFatNuevaFacturaRoute,
   AuthenticatedFatNuevoConduceRoute: AuthenticatedFatNuevoConduceRoute,

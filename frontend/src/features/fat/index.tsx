@@ -11,7 +11,6 @@ import { useCompany } from '@/context/company-context'
 import { Facturas } from './facturas'
 import { TiposDocumentoFat } from './tdocu'
 import { CondicionesPago } from './condiciones-pago'
-import { ControlNcf } from './ncf-fat'
 import { Companias } from './companias'
 import { PuntosTrabajoFat } from './puntos'
 import { TiposPagoFat } from './tipos-pago'
@@ -157,8 +156,6 @@ function renderView(view: string, ctx: { noCia: string; punto: string; ano: numb
       return <TransportistasFat />
     case 'notas':
       return <NotasFat />
-    case 'ncf':
-      return <ControlNcf noCia={ctx.noCia} punto={ctx.punto} mes={ctx.mes} ano={ctx.ano} />
     default:
       return <Facturas noCia={ctx.noCia} punto={ctx.punto} mes={ctx.mes} ano={ctx.ano} />
   }

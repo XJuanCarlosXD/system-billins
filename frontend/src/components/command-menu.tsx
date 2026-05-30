@@ -29,7 +29,6 @@ const VIEW_KEYWORDS: Record<string, string> = {
   '/fat/puntos': 'puntos trabajo sucursales tiendas locales',
   '/fat/tdocu': 'tipos documentos facturas notas debito credito NCF',
   '/fat/condiciones': 'condiciones pago credito contado dias plazo',
-  '/fat/ncf': 'NCF comprobantes fiscales secuencias rangos control DGII',
   '/fat/tipos-pago': 'tipos pago caja efectivo tarjeta cheque transferencia',
   '/fat/listas-precio': 'listas precios tarifas productos articulos',
   '/fat/transportistas': 'transportistas conductores vehiculos despacho',
