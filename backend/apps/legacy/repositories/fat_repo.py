@@ -1290,42 +1290,19 @@ def rep_analitica_mensual(no_cia: str, punto: str, ano: int) -> dict:
 # -- Busqueda de Productos ----------------------------------------------------
 
 def search_productos(no_cia, punto, no_lista="", search="", page=1, page_size=20, almacen="", solo_existencia=False):
+    """Busqueda paginada de productos con existencia normalizada y precio.
+
+    PERF (2026-05-30): la existencia se computa DESPUES de paginar.
+    Antes el LEFT JOIN agregaba TINV_MOVIMIENTO entero (millones de filas) por
+    cada busqueda → CPU al 100%. Ahora: (1) lista+pagina productos (rapido,
+    usa indices por no_produ/descri); (2) UN solo query agrupa TINV_MOVIMIENTO
+    filtrado por IN (...) con los no_produ de la pagina (max page_size); (3)
+    filtra `solo_existencia` en memoria sobre la pagina.
+    Misma normalizacion que get_existencia_producto en inv_repo.py.
+    """
     offset = (page - 1) * page_size
     end_row = offset + page_size
-    # Existencia: TINV_MOVIMIENTO normalizada al empaque para_reporte (Rinv304).
-    # Se une TINV_EMPAQUE (para_reporte='S') para convertir cantidades en base
-    # (empaque=1) a unidades de reporte.  Se incluyen todos los movimientos
-    # (incluso anulados) igual que el PDF Rinv304; los AF cancelan los anulados.
-    # Misma lógica que get_existencia_producto en inv_repo.py.
-    _norm = (
-        "CASE WHEN m.empaque = emp.empaque THEN NVL(m.cantidad,0) "
-        "     WHEN NVL(emp.cpe,0) > 0 THEN NVL(m.cantidad,0) / emp.cpe "
-        "     ELSE NVL(m.cantidad,0) END"
-    )
-    if almacen:
-        exist_join = (
-            "LEFT JOIN ("
-            "  SELECT m.no_produ, "
-            f"         SUM(CASE WHEN m.tipo_movi='E' THEN {_norm} "
-            f"                  WHEN m.tipo_movi='S' THEN -({_norm}) ELSE 0 END) AS existencia "
-            "  FROM INV.TINV_MOVIMIENTO m "
-            "  JOIN INV.TINV_EMPAQUE emp ON emp.no_produ=m.no_produ AND emp.para_reporte='S' "
-            "  WHERE m.no_cia=:no_cia_ex AND m.almacen=:almacen_ex "
-            "  GROUP BY m.no_produ "
-            ") ex ON ex.no_produ = p.no_produ "
-        )
-    else:
-        exist_join = (
-            "LEFT JOIN ("
-            "  SELECT m.no_produ, "
-            f"         SUM(CASE WHEN m.tipo_movi='E' THEN {_norm} "
-            f"                  WHEN m.tipo_movi='S' THEN -({_norm}) ELSE 0 END) AS existencia "
-            "  FROM INV.TINV_MOVIMIENTO m "
-            "  JOIN INV.TINV_EMPAQUE emp ON emp.no_produ=m.no_produ AND emp.para_reporte='S' "
-            "  WHERE m.no_cia=:no_cia_ex "
-            "  GROUP BY m.no_produ "
-            ") ex ON ex.no_produ = p.no_produ "
-        )
+
     um_join = (
         "LEFT JOIN ("
         "  SELECT e.NO_PRODU, NVL(u.DESCRI, e.UNIDAD) AS unidad_empaque, "
@@ -1339,39 +1316,36 @@ def search_productos(no_cia, punto, no_lista="", search="", page=1, page_size=20
         "p.no_produ, NVL(p.descri, p.no_produ) AS descri, "
         "NVL(um.unidad_empaque, '') AS unidad_empaque, "
         "NVL(p.porciento_impuesto, 0) AS porciento_impuesto, "
-        "NVL(p.activo, 'S') AS activo, "
-        "NVL(ex.existencia, 0) AS existencia "
+        "NVL(p.activo, 'S') AS activo "
     )
     if no_lista:
         base_sql = (
             "SELECT " + select_cols +
-            # precio = precio unitario × CPE (unidades por empaque por defecto)
+            # precio = precio unitario × CPE (unidades del empaque por defecto)
             ", ROUND(NVL(lp.precio, 0) * NVL(um.cpe, 1), 4) AS precio "
             "FROM INV.TINV_PRODUCTO p "
             "LEFT JOIN FAT.TFAT_LISTA_PRECIO lp "
             "  ON lp.no_produ = p.no_produ "
             "  AND lp.no_cia = :no_cia AND lp.punto = :punto AND lp.no_lista = :no_lista "
-            + exist_join + um_join +
+            + um_join +
             "WHERE NVL(p.activo,'S') = 'S' "
         )
-        params = {"no_cia": no_cia, "punto": punto, "no_lista": no_lista, "no_cia_ex": no_cia}
+        params = {"no_cia": no_cia, "punto": punto, "no_lista": no_lista}
     else:
         base_sql = (
             "SELECT " + select_cols +
             ", 0 AS precio "
             "FROM INV.TINV_PRODUCTO p "
-            + exist_join + um_join +
+            + um_join +
             "WHERE NVL(p.activo,'S') = 'S' "
         )
-        params = {"no_cia_ex": no_cia}
-    if almacen:
-        params["almacen_ex"] = almacen
+        params = {}
     if search:
         base_sql += "AND (UPPER(p.no_produ) LIKE :srch OR UPPER(p.descri) LIKE :srch) "
         params["srch"] = "%{}%".format(search.upper())
-    if solo_existencia:
-        base_sql += "AND NVL(ex.existencia, 0) > 0 "
     base_sql += "ORDER BY p.no_produ"
+
+    # COUNT y paginacion rapidos (sin existencia).
     count_sql = "SELECT COUNT(*) FROM ({})".format(base_sql)
     total_row = client.fetch_one(count_sql, params)
     total = int(total_row[0]) if total_row else 0
@@ -1380,15 +1354,60 @@ def search_productos(no_cia, punto, no_lista="", search="", page=1, page_size=20
     paged_params = dict(params)
     paged_params["end_row"] = end_row
     paged_params["start_row"] = offset
-    paged_sql = "SELECT * FROM ( SELECT a.*, ROWNUM rn FROM ({}) a WHERE ROWNUM <= :end_row) WHERE rn > :start_row".format(base_sql)
+    paged_sql = (
+        "SELECT * FROM ( SELECT a.*, ROWNUM rn FROM ({}) a "
+        "WHERE ROWNUM <= :end_row) WHERE rn > :start_row"
+    ).format(base_sql)
     rows = client.fetch_dicts(paged_sql, paged_params)
+
+    # Existencia normalizada solo para los productos de la pagina (max page_size).
+    no_produs = [r["no_produ"] for r in rows if r.get("no_produ")]
+    exist_map: dict[str, float] = {}
+    if no_produs:
+        binds = {f"np{i}": v for i, v in enumerate(no_produs)}
+        in_list = ",".join(":{}".format(k) for k in binds.keys())
+        ex_params = {"no_cia_ex": no_cia, **binds}
+        almacen_filter = ""
+        if almacen:
+            almacen_filter = " AND m.almacen=:almacen_ex"
+            ex_params["almacen_ex"] = almacen
+        # Normalizacion por empaque: cantidad en base / CPE cuando difiere del
+        # empaque del reporte (TINV_EMPAQUE.para_reporte='S').
+        _norm = (
+            "CASE WHEN m.empaque = emp.empaque THEN NVL(m.cantidad,0) "
+            "     WHEN NVL(emp.cpe,0) > 0 THEN NVL(m.cantidad,0) / emp.cpe "
+            "     ELSE NVL(m.cantidad,0) END"
+        )
+        ex_sql = (
+            "SELECT m.no_produ, "
+            f"       SUM(CASE WHEN m.tipo_movi='E' THEN {_norm} "
+            f"                WHEN m.tipo_movi='S' THEN -({_norm}) "
+            "                ELSE 0 END) AS existencia "
+            "FROM INV.TINV_MOVIMIENTO m "
+            "JOIN INV.TINV_EMPAQUE emp "
+            "  ON emp.no_produ=m.no_produ AND emp.para_reporte='S' "
+            f"WHERE m.no_cia=:no_cia_ex AND m.no_produ IN ({in_list}){almacen_filter} "
+            "GROUP BY m.no_produ"
+        )
+        for r in client.fetch_dicts(ex_sql, ex_params):
+            exist_map[r["no_produ"]] = float(r["existencia"] or 0)
+
+    items = []
+    for r in rows:
+        ex = exist_map.get(r["no_produ"], 0.0)
+        if solo_existencia and ex <= 0:
+            continue
+        items.append({
+            "no_produ": r["no_produ"],
+            "descri": (r["descri"] or "").strip(),
+            "precio": float(r["precio"] or 0),
+            "porciento_impuesto": float(r["porciento_impuesto"] or 0),
+            "existencia": ex,
+            "unidad_empaque": (r["unidad_empaque"] or "").strip(),
+            "activo": r["activo"] == "S",
+        })
     return {
-        "items": [{"no_produ": r["no_produ"], "descri": (r["descri"] or "").strip(),
-                   "precio": float(r["precio"] or 0), "porciento_impuesto": float(r["porciento_impuesto"] or 0),
-                   "existencia": float(r["existencia"] or 0),
-                   "unidad_empaque": (r["unidad_empaque"] or "").strip(),
-                   "activo": r["activo"] == "S"} for r in rows],
-        "total": total, "page": page, "page_size": page_size,
+        "items": items, "total": total, "page": page, "page_size": page_size,
         "total_pages": max(1, (total + page_size - 1) // page_size),
     }
 
