@@ -84,6 +84,8 @@ export type NCFRange = {
   disponibles: number
   low_stock: boolean
   critical: boolean
+  posiciones_fijas?: string
+  descripcion?: string
 }
 
 export type DocumentType = {
@@ -109,6 +111,8 @@ export type NCFAlert = {
   empresa: string | null
   rnc: string | null
   codigo_ncf: string
+  posiciones_fijas?: string
+  descripcion?: string
   ncf_inicial: number
   ncf_final: number
   prox_ncf: number

@@ -22,7 +22,8 @@ type Factura = {
   no_cliente: number; nombre_cliente: string; fecha: string | null
   vendedor: string; total_linea: number; descuento: number
   impuesto: number; total_neto: number; estado: string
-  ncf: number | null; codigo_ncf: string; tipo_ncf_fiscal: string
+  ncf: number | null; posiciones_fijas_ncf?: string; ncf_dgi?: string
+  codigo_ncf: string; tipo_ncf_fiscal: string
   plazo_pago: number; forma_pago: string; st_anulado: string; st_impresion: string
 }
 
@@ -285,7 +286,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
                     {badge.label}
                   </Badge>
                 </TableCell>
-                <TableCell className='text-right font-mono'>{row.ncf ?? '—'}</TableCell>
+                <TableCell className='text-right font-mono'>{row.ncf_dgi || (row.ncf ?? '—')}</TableCell>
                 <TableCell>
                   <div className='flex items-center gap-1'>
                     <Button variant='ghost' size='icon' className='h-7 w-7' title='Ver detalle' onClick={(e) => { e.stopPropagation(); openDetail(row) }}>
@@ -345,7 +346,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
                 <div><span className='text-muted-foreground'>Vendedor:</span> {selected.vendedor || '—'}</div>
                 <div><span className='text-muted-foreground'>Forma pago:</span> {selected.forma_pago || '—'}</div>
                 <div><span className='text-muted-foreground'>Plazo:</span> {selected.plazo_pago ? `${selected.plazo_pago} días` : '—'}</div>
-                <div><span className='text-muted-foreground'>NCF:</span> <span className='font-mono'>{selected.codigo_ncf} {selected.ncf ?? ''}</span></div>
+                <div><span className='text-muted-foreground'>NCF:</span> <span className='font-mono'>{selected.ncf_dgi || `${selected.codigo_ncf} ${selected.ncf ?? ''}`}</span></div>
                 <div><span className='text-muted-foreground'>Estado:</span> <Badge variant={selected.st_anulado === 'S' ? 'destructive' : (ESTADO_BADGE[selected.estado]?.variant ?? 'outline')}>{selected.st_anulado === 'S' ? 'Anulada' : (ESTADO_BADGE[selected.estado]?.label ?? selected.estado)}</Badge></div>
                 <div><span className='text-muted-foreground'>Generado CNT:</span> {selected.st_generado_cnt === 'S' ? 'Sí' : 'No'}</div>
               </div>

@@ -78,6 +78,8 @@ class NCFRange:
     ncf_manual: bool
     ncf_opcional: bool
     cant_min_ncf: int
+    posiciones_fijas: str = ''
+    descripcion: str = ''
 
     @property
     def disponibles(self) -> int:

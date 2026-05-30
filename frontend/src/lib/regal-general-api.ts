@@ -80,6 +80,8 @@ export type NCFRange = {
   disponibles: number
   low_stock: boolean
   critical: boolean
+  posiciones_fijas?: string
+  descripcion?: string
 }
 
 export type DocumentType = {

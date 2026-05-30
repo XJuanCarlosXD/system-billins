@@ -117,6 +117,8 @@ export function NcfContabilidad({ noCia, punto, mes, ano }: Props) {
         <TableHeader>
           <TableRow>
             <TableHead>Codigo NCF</TableHead>
+            <TableHead>Tipo DGI</TableHead>
+            <TableHead>Descripcion</TableHead>
             <TableHead className='text-right'>Inicial</TableHead>
             <TableHead className='text-right'>Final</TableHead>
             <TableHead className='text-right'>Proximo</TableHead>
@@ -130,6 +132,8 @@ export function NcfContabilidad({ noCia, punto, mes, ano }: Props) {
           {pagedRows.map((row) => (
             <TableRow key={row.codigo_ncf}>
               <TableCell className='font-mono'>{row.codigo_ncf}</TableCell>
+              <TableCell className='font-mono font-semibold'>{row.posiciones_fijas || '—'}</TableCell>
+              <TableCell className='text-xs text-muted-foreground'>{row.descripcion || ''}</TableCell>
               <TableCell className='text-right font-mono'>{row.ncf_inicial}</TableCell>
               <TableCell className='text-right font-mono'>{row.ncf_final}</TableCell>
               <TableCell className='text-right font-mono'>{row.prox_ncf}</TableCell>
@@ -157,7 +161,7 @@ export function NcfContabilidad({ noCia, punto, mes, ano }: Props) {
           ))}
           {pagedRows.length === 0 && (
             <TableRow>
-              <TableCell colSpan={8} className='py-10 text-center text-muted-foreground'>
+              <TableCell colSpan={10} className='py-10 text-center text-muted-foreground'>
                 No hay secuencias NCF para ese filtro.
               </TableCell>
             </TableRow>

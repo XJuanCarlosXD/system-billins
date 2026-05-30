@@ -27,6 +27,8 @@ export interface FATFactura {
   plazo_pago: number;
   forma_pago: string;
   ncf?: number;
+  posiciones_fijas_ncf?: string;
+  ncf_dgi?: string;
   codigo_ncf?: string;
   tipo_ncf_fiscal?: string;
   cajero?: string;

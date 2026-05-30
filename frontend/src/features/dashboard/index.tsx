@@ -204,12 +204,17 @@ export function Dashboard() {
                     <div>
                       <div className='font-mono text-sm font-semibold'>
                         {a.codigo_ncf}{' '}
+                        {a.posiciones_fijas && (
+                          <span className='inline-block rounded bg-blue-100 px-1 text-xs text-blue-700 font-semibold mr-1'>
+                            {a.posiciones_fijas}
+                          </span>
+                        )}
                         <span className='text-xs opacity-70'>
                           (Empresa {a.no_cia})
                         </span>
                       </div>
                       <div className='text-xs opacity-80 truncate max-w-[280px]'>
-                        {a.empresa ?? '—'}
+                        {a.descripcion ? a.descripcion : (a.empresa ?? '—')}
                       </div>
                     </div>
                     <div className='text-right'>

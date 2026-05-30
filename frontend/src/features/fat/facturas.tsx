@@ -21,7 +21,8 @@ type Factura = {
   no_cliente: number; nombre_cliente: string; fecha: string | null
   vendedor: string; total_linea: number; descuento: number
   impuesto: number; total_neto: number; estado: string
-  ncf: number | null; codigo_ncf: string; tipo_ncf_fiscal: string
+  ncf: number | null; posiciones_fijas_ncf?: string; ncf_dgi?: string
+  codigo_ncf: string; tipo_ncf_fiscal: string
   plazo_pago: number; forma_pago: string; st_anulado: string; st_impresion: string
 }
 
@@ -273,7 +274,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
                     {badge.label}
                   </Badge>
                 </TableCell>
-                <TableCell className='text-right font-mono'>{row.ncf ?? '—'}</TableCell>
+                <TableCell className='text-right font-mono'>{row.ncf_dgi || (row.ncf ?? '—')}</TableCell>
                 <TableCell>
                   <Button variant='ghost' size='icon' className='h-7 w-7' onClick={(e) => { e.stopPropagation(); openDetail(row) }}>
                     <Eye className='h-3.5 w-3.5' />
@@ -316,9 +317,9 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
                   <Badge variant={ESTADO_BADGE[selected.estado]?.variant ?? 'outline'} className='gap-1'>
                     {ESTADO_BADGE[selected.estado]?.label ?? selected.estado}
                   </Badge>
-                  {selected.codigo_ncf && (
+                  {(selected.ncf_dgi || selected.codigo_ncf) && (
                     <span className='text-xs text-gray-600 bg-blue-50 border border-blue-100 rounded px-2 py-1 font-mono'>
-                      NCF: {selected.codigo_ncf} {selected.ncf ?? ''}
+                      NCF: {selected.ncf_dgi || `${selected.codigo_ncf} ${selected.ncf ?? ''}`}
                     </span>
                   )}
                   <span className='text-xs text-gray-500'>

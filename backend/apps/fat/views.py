@@ -94,7 +94,13 @@ class FatNCFAlertsView(APIView):
                 continue
             cia = empresas.get(r.no_cia)
             alerts.append({'no_cia': r.no_cia, 'empresa': cia.descripcion if cia else None,
-                           'codigo_ncf': r.codigo_ncf, 'disponibles': r.disponibles,
+                           'rnc': cia.rnc if cia else None,
+                           'codigo_ncf': r.codigo_ncf,
+                           'posiciones_fijas': r.posiciones_fijas,
+                           'descripcion': r.descripcion,
+                           'ncf_inicial': r.ncf_inicial, 'ncf_final': r.ncf_final,
+                           'prox_ncf': r.prox_ncf,
+                           'disponibles': r.disponibles,
                            'cant_min_ncf': r.cant_min_ncf, 'low_stock': r.low_stock,
                            'critical': r.critical,
                            'severity': 'critical' if r.critical else ('warning' if r.low_stock else 'ok')})

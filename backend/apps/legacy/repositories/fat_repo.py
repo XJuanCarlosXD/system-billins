@@ -4,6 +4,21 @@ from .. import client
 from ..dtos import NCFRange, DocumentType
 
 
+def _compose_ncf_dgi(posiciones: str | None, ncf_num) -> str:
+    """Compone el NCF DGI real: prefijo (B01..B15) + LPAD(NCF, 8, '0').
+
+    Devuelve '' si falta cualquiera de los dos datos.
+    """
+    p = (posiciones or '').strip().upper()
+    try:
+        n = int(ncf_num) if ncf_num else 0
+    except (TypeError, ValueError):
+        n = 0
+    if not p or n <= 0:
+        return ''
+    return f"{p}{n:08d}"
+
+
 # ── Tipos de Documento ───────────────────────────────────────────────────────
 
 def list_document_types(no_cia: str, only_active: bool = True) -> list[DocumentType]:
@@ -83,13 +98,16 @@ def list_ncf_ranges(no_cia: str, punto: str) -> list[NCFRange]:
     rows = client.fetch_dicts(
         "SELECT no_localidad, codigo_ncf, tipo_ncf_fiscal, ncf_inicial, ncf_final, prox_ncf, "
         "NVL(ncf_manual,'N') AS ncf_manual, NVL(ncf_opcional,'N') AS ncf_opcional, "
-        "NVL(cant_min_ncf,0) AS cant_min_ncf "
+        "NVL(cant_min_ncf,0) AS cant_min_ncf, "
+        "posiciones_fijas, descripcion "
         "FROM CNT.TCNT_NCF WHERE no_localidad=:1 ORDER BY codigo_ncf", [no_cia])
     return [NCFRange(no_cia=no_cia, punto=punto, codigo_ncf=r['codigo_ncf'],
                      tipo_ncf_fiscal=r['tipo_ncf_fiscal'] or '',
                      ncf_inicial=int(r['ncf_inicial'] or 0), ncf_final=int(r['ncf_final'] or 0),
                      prox_ncf=int(r['prox_ncf'] or 0), ncf_manual=(r['ncf_manual'] == 'S'),
-                     ncf_opcional=(r['ncf_opcional'] == 'S'), cant_min_ncf=int(r['cant_min_ncf'] or 0))
+                     ncf_opcional=(r['ncf_opcional'] == 'S'), cant_min_ncf=int(r['cant_min_ncf'] or 0),
+                     posiciones_fijas=(r['posiciones_fijas'] or '').strip().upper(),
+                     descripcion=(r['descripcion'] or '').strip())
             for r in rows]
 
 
@@ -125,12 +143,15 @@ def list_all_ncf_ranges() -> list[NCFRange]:
     rows = client.fetch_dicts(
         "SELECT no_localidad, codigo_ncf, tipo_ncf_fiscal, ncf_inicial, ncf_final, prox_ncf, "
         "NVL(ncf_manual,'N') AS ncf_manual, NVL(ncf_opcional,'N') AS ncf_opcional, "
-        "NVL(cant_min_ncf,0) AS cant_min_ncf FROM CNT.TCNT_NCF ORDER BY no_localidad, codigo_ncf")
+        "NVL(cant_min_ncf,0) AS cant_min_ncf, "
+        "posiciones_fijas, descripcion FROM CNT.TCNT_NCF ORDER BY no_localidad, codigo_ncf")
     return [NCFRange(no_cia=r['no_localidad'], punto='01', codigo_ncf=r['codigo_ncf'],
                      tipo_ncf_fiscal=r['tipo_ncf_fiscal'] or '',
                      ncf_inicial=int(r['ncf_inicial'] or 0), ncf_final=int(r['ncf_final'] or 0),
                      prox_ncf=int(r['prox_ncf'] or 0), ncf_manual=(r['ncf_manual'] == 'S'),
-                     ncf_opcional=(r['ncf_opcional'] == 'S'), cant_min_ncf=int(r['cant_min_ncf'] or 0))
+                     ncf_opcional=(r['ncf_opcional'] == 'S'), cant_min_ncf=int(r['cant_min_ncf'] or 0),
+                     posiciones_fijas=(r['posiciones_fijas'] or '').strip().upper(),
+                     descripcion=(r['descripcion'] or '').strip())
             for r in rows]
 
 
@@ -755,7 +776,7 @@ def list_facturas(no_cia: str, punto: str, page: int = 1, page_size: int = 30,
                 SELECT f.no_cia, f.punto, f.tipo_factura, f.no_factura, f.no_cliente,
                     c.nombre AS nombre_cliente, f.fecha, f.vendedor,
                     f.total_linea, f.descuento, f.impuesto, f.total_neto,
-                    f.estado, f.ncf, f.codigo_ncf, f.tipo_ncf_fiscal,
+                    f.estado, f.ncf, f.posiciones_fijas_ncf, f.codigo_ncf, f.tipo_ncf_fiscal,
                     f.plazo_pago, f.forma_pago_fat, f.st_anulado, f.st_impresion
                 FROM FAT.TFAT_FACTURA f
                 LEFT JOIN CXC.TCXC_CLIENTE c ON c.no_cliente = f.no_cliente
@@ -776,6 +797,8 @@ def list_facturas(no_cia: str, punto: str, page: int = 1, page_size: int = 30,
             'total_linea': float(r['total_linea'] or 0), 'descuento': float(r['descuento'] or 0),
             'impuesto': float(r['impuesto'] or 0), 'total_neto': float(r['total_neto'] or 0),
             'estado': r['estado'] or 'P', 'ncf': int(r['ncf']) if r['ncf'] else None,
+            'posiciones_fijas_ncf': (r['posiciones_fijas_ncf'] or '').strip().upper(),
+            'ncf_dgi': _compose_ncf_dgi(r['posiciones_fijas_ncf'], r['ncf']),
             'codigo_ncf': r['codigo_ncf'] or '', 'tipo_ncf_fiscal': r['tipo_ncf_fiscal'] or '',
             'plazo_pago': int(r['plazo_pago'] or 0), 'forma_pago': r['forma_pago_fat'] or '',
             'st_anulado': r['st_anulado'] or 'N', 'st_impresion': r['st_impresion'] or 'N',
@@ -819,6 +842,7 @@ def get_factura(no_cia: str, punto: str, tipo_factura: str, no_factura: str) -> 
         'propina': float(r['propina'] or 0), 'estado': r['estado'] or 'P',
         'ncf': int(r['ncf']) if r['ncf'] else None,
         'posiciones_fijas_ncf': (r['posiciones_fijas_ncf'] or '').strip().upper(),
+        'ncf_dgi': _compose_ncf_dgi(r['posiciones_fijas_ncf'], r['ncf']),
         'codigo_ncf': r['codigo_ncf'] or '',
         'tipo_ncf_fiscal': r['tipo_ncf_fiscal'] or '', 'plazo_pago': int(r['plazo_pago'] or 0),
         'forma_pago': r['forma_pago_fat'] or '', 'no_condicion_pago': r['no_condicion_pago'] or '',

@@ -141,7 +141,8 @@ def list_periodos(no_cia: str):
 def list_ncf(no_cia: str):
     rows = client.fetch_dicts(
         """SELECT codigo_ncf, ncf_inicial, ncf_final, prox_ncf,
-                  ncf_manual, tipo_ncf_fiscal, cant_min_ncf, fecha_vencimiento
+                  ncf_manual, tipo_ncf_fiscal, cant_min_ncf, fecha_vencimiento,
+                  posiciones_fijas, descripcion
            FROM CNT.TCNT_NCF
            ORDER BY codigo_ncf""",
         []
@@ -153,6 +154,8 @@ def list_ncf(no_cia: str):
         r['disponibles'] = disponibles
         r['low_stock'] = disponibles <= cant_min
         r['critical'] = disponibles <= max(cant_min // 2, 1)
+        r['posiciones_fijas'] = (r.get('posiciones_fijas') or '').strip().upper()
+        r['descripcion'] = (r.get('descripcion') or '').strip()
         result.append(r)
     return result
 
