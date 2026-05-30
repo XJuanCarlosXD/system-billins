@@ -878,7 +878,8 @@ def list_facturas(no_cia: str, punto: str, page: int = 1, page_size: int = 30,
     where = " AND ".join(filters)
     total_row = client.fetch_one(
         f"SELECT COUNT(*) FROM FAT.TFAT_FACTURA f "
-        f"LEFT JOIN CXC.TCXC_CLIENTE c ON c.no_cliente = f.no_cliente "
+        f"LEFT JOIN CXC.TCXC_CLIENTE c "
+        f"  ON c.no_cia = f.no_cia AND c.no_cliente = f.no_cliente "
         f"WHERE {where}", params)
     total = int(total_row[0]) if total_row else 0
     if total == 0:
@@ -897,7 +898,8 @@ def list_facturas(no_cia: str, punto: str, page: int = 1, page_size: int = 30,
                     f.estado, f.ncf, f.posiciones_fijas_ncf, f.codigo_ncf, f.tipo_ncf_fiscal,
                     f.plazo_pago, f.forma_pago_fat, f.st_anulado, f.st_impresion
                 FROM FAT.TFAT_FACTURA f
-                LEFT JOIN CXC.TCXC_CLIENTE c ON c.no_cliente = f.no_cliente
+                LEFT JOIN CXC.TCXC_CLIENTE c
+                  ON c.no_cia = f.no_cia AND c.no_cliente = f.no_cliente
                 WHERE {where}
                 ORDER BY f.fecha DESC, f.no_factura DESC
             ) a WHERE ROWNUM <= :end_row

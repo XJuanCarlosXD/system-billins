@@ -210,7 +210,7 @@ export interface FacturaRow {
   codigo_ncf?: string
 }
 
-const ESTADO_LABEL: Record<string, string> = { A: 'Autorizada', P: 'Pendiente', C: 'Cancelada' }
+const ESTADO_LABEL: Record<string, string> = { A: 'Autorizada', P: 'Pendiente', C: 'Cerrada' }
 
 export function printFacturas(meta: ReportMeta, rows: FacturaRow[], filtros?: string) {
   const title = 'Lista de Facturas'

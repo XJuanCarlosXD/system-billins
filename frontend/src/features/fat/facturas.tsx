@@ -38,14 +38,17 @@ type FacturaDetalle = Factura & {
   }>
 }
 
+// Estado de factura SIGAF: P=Pendiente, A=Autorizada, C=Cerrada (impresa /
+// finalizada). La anulacion se rastrea por st_anulado='S' aparte; C NO
+// significa anulada — eso era un error de mapeo.
 const ESTADO_BADGE: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   A: { label: 'Autorizada', variant: 'default' },
   P: { label: 'Pendiente',  variant: 'secondary' },
-  C: { label: 'Cancelada',  variant: 'destructive' },
+  C: { label: 'Cerrada',    variant: 'outline' },
 }
 
 const ESTADO_ICON: Record<string, typeof CheckCircle2> = {
-  A: CheckCircle2, P: Clock, C: XCircle,
+  A: CheckCircle2, P: Clock, C: CheckCircle2,
 }
 
 export function Facturas({ noCia, punto, mes, ano }: Props) {
@@ -186,7 +189,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
     })
   }
 
-  const isAnulada = selected?.st_anulado === 'S' || selected?.estado === 'C'
+  const isAnulada = selected?.st_anulado === 'S'
 
   return (
     <section className='space-y-4'>
@@ -229,7 +232,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
             <SelectItem value='_'>Todos los estados</SelectItem>
             <SelectItem value='A'>Autorizada</SelectItem>
             <SelectItem value='P'>Pendiente</SelectItem>
-            <SelectItem value='C'>Cancelada</SelectItem>
+            <SelectItem value='C'>Cerrada</SelectItem>
           </SelectContent>
         </Select>
         <Input type='date' value={filterDesde} onChange={(e) => setFilterDesde(e.target.value)} className='h-9' title='Fecha desde' />
@@ -268,8 +271,11 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
             <TableRow><TableCell colSpan={11} className='py-10 text-center text-muted-foreground'>No hay facturas con esos filtros.</TableCell></TableRow>
           )}
           {rows.map((row) => {
-            const badge = ESTADO_BADGE[row.estado] ?? { label: row.estado, variant: 'outline' as const }
-            const Icon = ESTADO_ICON[row.estado] ?? AlertCircle
+            const anulada = row.st_anulado === 'S'
+            const badge = anulada
+              ? { label: 'Anulada', variant: 'destructive' as const }
+              : (ESTADO_BADGE[row.estado] ?? { label: row.estado, variant: 'outline' as const })
+            const Icon = anulada ? XCircle : (ESTADO_ICON[row.estado] ?? AlertCircle)
             return (
               <TableRow key={`${row.tipo_factura}-${row.no_factura}`} className='cursor-pointer hover:bg-muted/50' onClick={() => openDetail(row)}>
                 <TableCell className='font-mono font-semibold'>{row.tipo_factura}</TableCell>

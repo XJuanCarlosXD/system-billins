@@ -57,13 +57,19 @@ export function FATFacturaDetail({
   }
 
   const getEstadoBadge = () => {
+    // En SIGAF legacy: P=Pendiente (sin autorizar), A=Autorizada (lista para
+    // imprimir), C=Cerrada (impresa/finalizada). La ANULACION va aparte via
+    // st_anulado='S'; estado='C' NO significa anulada.
+    if (factura.st_anulado === 'S') {
+      return <Badge variant='destructive'><XCircle className='h-3 w-3 mr-1' /> Anulada</Badge>
+    }
     switch (factura.estado) {
       case 'A':
         return <Badge><CheckCircle className='h-3 w-3 mr-1' /> Autorizada</Badge>
       case 'P':
         return <Badge variant='secondary'>Pendiente</Badge>
       case 'C':
-        return <Badge variant='destructive'><XCircle className='h-3 w-3 mr-1' /> Cancelada</Badge>
+        return <Badge variant='outline'><CheckCircle className='h-3 w-3 mr-1' /> Cerrada</Badge>
       default:
         return <Badge variant='outline'>Desconocido</Badge>
     }
