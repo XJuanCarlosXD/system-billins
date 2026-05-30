@@ -305,6 +305,29 @@ class FatCondicionesPagoView(APIView):
         items = fat_repo.list_condiciones_pago()
         return Response({'items': items})
 
+    def post(self, request):
+        no_condicion_pago = str(request.data.get('no_condicion_pago', '')).strip().upper()
+        if not no_condicion_pago:
+            return Response({'detail': 'no_condicion_pago requerido'}, status=400)
+        if len(no_condicion_pago) > 4:
+            return Response({'detail': 'no_condicion_pago no puede exceder 4 caracteres'}, status=400)
+        descripcion = request.data.get('descripcion')
+        if not descripcion:
+            return Response({'detail': 'no_condicion_pago y descripcion son requeridos'}, status=400)
+        try:
+            res = fat_repo.upsert_condicion_pago(
+                no_condicion_pago=no_condicion_pago,
+                descripcion=str(descripcion).strip(),
+                plazo_pago=int(request.data.get('plazo_pago', 0) or 0),
+                porciento=float(request.data.get('porciento', 0) or 0),
+                activa=_as_bool(request.data.get('activa'), True))
+            return Response(res, status=201)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=500)
+
+    def patch(self, request):
+        return self.post(request)
+
 
 # -- Companias FAT ------------------------------------------------------------
 
@@ -370,6 +393,34 @@ class FatTiposPagoView(APIView):
             return Response({'items': fat_repo.list_tipos_pago(no_cia, punto)})
         except Exception as e:
             return Response({'detail': str(e)}, status=500)
+
+    def post(self, request):
+        no_cia = request.data.get('no_cia')
+        punto = request.data.get('punto', '01')
+        tipo_pago = str(request.data.get('tipo_pago', '')).strip().upper()
+        if not tipo_pago:
+            return Response({'detail': 'tipo_pago requerido'}, status=400)
+        if len(tipo_pago) > 4:
+            return Response({'detail': 'tipo_pago no puede exceder 4 caracteres'}, status=400)
+        descripcion = request.data.get('descripcion')
+        if not all([no_cia, descripcion]):
+            return Response({'detail': 'no_cia, tipo_pago y descripcion son requeridos'}, status=400)
+        forbidden = _check_fat_access(request.user.username, str(no_cia).strip(), str(punto).strip())
+        if forbidden:
+            return forbidden
+        try:
+            res = fat_repo.upsert_tipo_pago(
+                no_cia=str(no_cia).strip(),
+                punto=str(punto).strip(),
+                tipo_pago=tipo_pago,
+                tipo_pago_fiscal=str(request.data.get('tipo_pago_fiscal', tipo_pago)).strip(),
+                descripcion=str(descripcion).strip())
+            return Response(res, status=201)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=500)
+
+    def patch(self, request):
+        return self.post(request)
 
 
 # -- Listas de Precio ---------------------------------------------------------

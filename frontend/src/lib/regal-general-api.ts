@@ -742,6 +742,9 @@ export const regalGeneralApi = {
       plazo_pago: number; porciento: number; activa: boolean
     }> }>('/fat/condiciones-pago/'),
 
+  fatUpsertCondicionPago: (data: Record<string, any>) =>
+    request<{ action: string }>('/fat/condiciones-pago/', { method: 'POST', body: JSON.stringify(data) }),
+
   fatListFacturas: (params: {
     no_cia: string; punto?: string; page?: number; page_size?: number
     search?: string; tipo?: string; estado?: string; desde?: string; hasta?: string
@@ -790,6 +793,9 @@ export const regalGeneralApi = {
 
   fatListTiposPago: (no_cia: string, punto: string) =>
     request<{ items: Array<Record<string, any>> }>(`/fat/tipos-pago/?no_cia=${encodeURIComponent(no_cia)}&punto=${encodeURIComponent(punto)}`),
+
+  fatUpsertTipoPago: (data: Record<string, any>) =>
+    request<{ action: string }>('/fat/tipos-pago/', { method: 'POST', body: JSON.stringify(data) }),
 
   fatListasPrecio: (no_cia: string, punto: string, no_lista = '') => {
     const p = new URLSearchParams({ no_cia, punto })

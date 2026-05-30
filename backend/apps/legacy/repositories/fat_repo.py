@@ -232,6 +232,29 @@ def list_tipos_pago(no_cia: str, punto: str) -> list[dict]:
              'descripcion': (r['descripcion'] or '').strip()} for r in rows]
 
 
+def upsert_tipo_pago(no_cia: str, punto: str, tipo_pago: str,
+                     tipo_pago_fiscal: str, descripcion: str) -> dict:
+    tp = str(tipo_pago).strip()
+    with client.cursor() as cur:
+        cur.execute(
+            "SELECT 1 FROM FAT.TFAT_TIPO_PAGO WHERE no_cia=:1 AND punto=:2 AND tipo_pago=:3",
+            [no_cia, punto, tp])
+        exists = cur.fetchone() is not None
+        if exists:
+            cur.execute(
+                "UPDATE FAT.TFAT_TIPO_PAGO SET tipo_pago_fiscal=:1, descripcion=:2 "
+                "WHERE no_cia=:3 AND punto=:4 AND tipo_pago=:5",
+                [str(tipo_pago_fiscal).strip(), str(descripcion).strip(), no_cia, punto, tp])
+        else:
+            cur.execute(
+                "INSERT INTO FAT.TFAT_TIPO_PAGO(no_cia,punto,tipo_pago,tipo_pago_fiscal,descripcion) "
+                "VALUES(:1,:2,:3,:4,:5)",
+                [no_cia, punto, tp, str(tipo_pago_fiscal).strip(), str(descripcion).strip()])
+        cur.connection.commit()
+    return {'no_cia': no_cia, 'punto': punto, 'tipo_pago': tp,
+            'action': 'updated' if exists else 'created'}
+
+
 # ── Tipos / Listas de Precio ──────────────────────────────────────────────────
 
 def list_tipos_lista_precio(no_cia: str) -> list[dict]:
@@ -1012,6 +1035,30 @@ def list_condiciones_pago() -> list[dict]:
              'descripcion': (r['descripcion'] or '').strip(),
              'plazo_pago': int(r['plazo_pago'] or 0), 'porciento': float(r['porciento'] or 0),
              'activa': r['activa'] == 'S'} for r in rows]
+
+
+def upsert_condicion_pago(no_condicion_pago: str, descripcion: str,
+                          plazo_pago: int = 0, porciento: float = 0.0,
+                          activa: bool = True) -> dict:
+    codigo = str(no_condicion_pago).strip().upper()
+    activa_flag = 'S' if activa else 'N'
+    with client.cursor() as cur:
+        cur.execute("SELECT 1 FROM FAT.TFAT_CONDICION_PAGO WHERE no_condicion_pago=:1", [codigo])
+        exists = cur.fetchone() is not None
+        if exists:
+            cur.execute(
+                "UPDATE FAT.TFAT_CONDICION_PAGO "
+                "SET descripcion=:1, plazo_pago=:2, porciento=:3, activa=:4 "
+                "WHERE no_condicion_pago=:5",
+                [descripcion, int(plazo_pago), float(porciento), activa_flag, codigo])
+        else:
+            cur.execute(
+                "INSERT INTO FAT.TFAT_CONDICION_PAGO"
+                "(no_condicion_pago, descripcion, plazo_pago, porciento, activa) "
+                "VALUES(:1,:2,:3,:4,:5)",
+                [codigo, descripcion, int(plazo_pago), float(porciento), activa_flag])
+        cur.connection.commit()
+    return {'no_condicion_pago': codigo, 'action': 'updated' if exists else 'created'}
 
 
 def get_proximo_ncf(no_cia: str, codigo_ncf: str) -> dict:

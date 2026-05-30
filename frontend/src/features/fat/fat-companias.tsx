@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Building2, FileSpreadsheet, Pencil, Printer, Save, X } from 'lucide-react'
+import { Building2, FileSpreadsheet, Pencil, Plus, Printer, Save, X } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -108,6 +108,9 @@ export function Companias({ noCia }: Props) {
         <div className='flex gap-2'>
           <Button variant='outline' size='sm' onClick={exportPdf}><Printer className='mr-1 h-4 w-4' /> PDF</Button>
           <Button variant='outline' size='sm' onClick={exportCsv}><FileSpreadsheet className='mr-1 h-4 w-4' /> Excel</Button>
+          <Button size='sm' onClick={() => { setForm(emptyForm); setCreating(true) }}>
+            <Plus className='mr-1 h-4 w-4' /> Nueva
+          </Button>
         </div>
       </div>
 
