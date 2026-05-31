@@ -96,6 +96,7 @@ export const sidebarData: SidebarData = {
                 { title: 'Ventas por Vendedor', url: '/fat/rep-ventas-vendedor' },
                 { title: 'Analitica de Ventas', url: '/fat/rep-analitica' },
                 { title: 'Facturas con RNC', url: '/fat/rep-facturas-rnc' },
+                { title: 'Margen bruto', url: '/fat/rep-margen-bruto' },
                 { title: 'NCF Form 607', url: '/fat/rep-607' },
                 { title: 'NCF Nulos', url: '/fat/rep-ncf-nulos' },
               ],

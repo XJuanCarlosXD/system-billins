@@ -865,6 +865,47 @@ class FatRepFacturasRncView(APIView):
             return Response({'detail': str(e)}, status=500)
 
 
+class FatRepMargenBrutoView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        no_cia = request.query_params.get('no_cia')
+        punto = request.query_params.get('punto', '01')
+        if not no_cia:
+            return Response({'detail': 'no_cia es requerido'}, status=400)
+        forbidden = _check_fat_access(request.user.username, no_cia, punto)
+        if forbidden:
+            return forbidden
+        try:
+            rows = fat_repo.rep_margen_bruto(
+                no_cia=no_cia, punto=punto,
+                desde=request.query_params.get('desde', ''),
+                hasta=request.query_params.get('hasta', ''),
+                tipo_docu=request.query_params.get('tipo_docu', 'T'),
+                agrupar=request.query_params.get('agrupar', 'producto'),
+                vendedor=request.query_params.get('vendedor', ''),
+                almacen=request.query_params.get('almacen', ''),
+                no_cliente=request.query_params.get('no_cliente', ''),
+                no_produ=request.query_params.get('no_produ', ''),
+                tipo_transaccion=request.query_params.get('tipo_transaccion', ''))
+            venta = sum(r['venta'] for r in rows)
+            costo = sum(r['costo'] for r in rows)
+            beneficio = sum(r['beneficio'] for r in rows)
+            margen_pct = round((beneficio / venta) * 100, 2) if venta else 0
+            return Response({
+                'items': rows,
+                'total_venta': venta,
+                'total_costo': costo,
+                'total_beneficio': beneficio,
+                'margen_pct': margen_pct,
+                'count': len(rows),
+            })
+        except ValueError:
+            return Response({'detail': 'no_cliente debe ser numerico'}, status=400)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=500)
+
+
 
 # -- Rep Ventas Vendedor -------------------------------------------------------
 

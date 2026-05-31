@@ -396,6 +396,96 @@ def fat_rep_facturas_rnc_pdf(request):
 
 @login_required
 @require_http_methods(["GET"])
+def fat_rep_margen_bruto_pdf(request):
+    """GET /api/fat/reportes/margen-bruto/pdf/?no_cia=01&punto=01&desde=YYYY-MM-DD&hasta=YYYY-MM-DD
+
+    Clone parcial de Rfat302/Ffat311: margen bruto por producto, cliente o factura.
+    """
+    try:
+        from reportlab.lib.pagesizes import letter  # probe
+    except ImportError:
+        return JsonResponse({"error": "reportlab no instalado"}, status=500)
+
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    desde = request.GET.get('desde', '')
+    hasta = request.GET.get('hasta', '')
+    tipo_docu = request.GET.get('tipo_docu', 'T')
+    agrupar = request.GET.get('agrupar', 'producto')
+
+    if not desde or not hasta:
+        return JsonResponse({"error": "desde y hasta son requeridos (YYYY-MM-DD)"}, status=400)
+
+    perms = permissions_repo.get_for(request.user.username, 'fat', no_cia, punto)
+    if perms is None or not perms.activo:
+        return JsonResponse({'detail': 'sin acceso a FAT en esta empresa/punto'}, status=403)
+
+    try:
+        rows = fat_repo.rep_margen_bruto(
+            no_cia=no_cia, punto=punto, desde=desde, hasta=hasta,
+            tipo_docu=tipo_docu, agrupar=agrupar,
+            vendedor=request.GET.get('vendedor', ''),
+            almacen=request.GET.get('almacen', ''),
+            no_cliente=request.GET.get('no_cliente', ''),
+            no_produ=request.GET.get('no_produ', ''),
+            tipo_transaccion=request.GET.get('tipo_transaccion', ''))
+    except ValueError:
+        return JsonResponse({"error": "no_cliente debe ser numerico"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": f"Error consultando margen bruto: {e}"}, status=500)
+
+    cia = inv_repo.get_compania(no_cia) or {}
+    razon = (cia.get('descripcion') or no_cia).strip()
+    rnc_empresa = (cia.get('rnc') or '').strip()
+    total_venta = sum(float(r.get('venta') or 0) for r in rows)
+    total_costo = sum(float(r.get('costo') or 0) for r in rows)
+    total_beneficio = sum(float(r.get('beneficio') or 0) for r in rows)
+    margen_pct = (total_beneficio / total_venta * 100) if total_venta else 0
+
+    col_display = ['CLAVE', 'DESCRIPCION', 'CANT', 'FACT', 'VENTA', 'COSTO', 'BENEFICIO', 'MARGEN']
+    rows_data = [{
+        'clave': r.get('clave') or '',
+        'descripcion': (r.get('descripcion') or '')[:36],
+        'cant': float(r.get('cantidad') or 0),
+        'fact': int(r.get('facturas') or 0),
+        'venta': float(r.get('venta') or 0),
+        'costo': float(r.get('costo') or 0),
+        'beneficio': float(r.get('beneficio') or 0),
+        'margen': f"{float(r.get('margen_pct') or 0):.2f}%",
+    } for r in rows]
+
+    header_extra = [
+        f"<b>{razon}</b>" + (f" &mdash; RNC: {rnc_empresa}" if rnc_empresa else ''),
+        f"<b>Rfat302 - Margen de Beneficio Bruto</b> &middot; Punto: {punto} &middot; Período: {desde} a {hasta}",
+        f"<b>Agrupado por:</b> {agrupar or 'producto'} &middot; <b>Tipo:</b> {tipo_docu or 'T'}",
+        f"<b>Total registros:</b> {len(rows_data)}",
+    ]
+    footer_extra = [
+        f"<b>Venta:</b> {total_venta:,.2f}",
+        f"<b>Costo:</b> {total_costo:,.2f}",
+        f"<b>Beneficio:</b> {total_beneficio:,.2f}",
+        f"<b>Margen:</b> {margen_pct:,.2f}%",
+    ]
+
+    try:
+        pdf = build_pdf_report(
+            title=f"Margen bruto &mdash; {razon}",
+            columns=col_display,
+            rows=rows_data,
+            col_widths=None,
+            header_extra=header_extra,
+            footer_extra=footer_extra,
+        )
+    except Exception as e:
+        return JsonResponse({"error": f"Error generando PDF: {e}"}, status=500)
+
+    resp = HttpResponse(pdf, content_type='application/pdf')
+    resp['Content-Disposition'] = f'inline; filename="margen_bruto_{agrupar}_{desde}_{hasta}.pdf"'
+    return resp
+
+
+@login_required
+@require_http_methods(["GET"])
 def fat_rep_607_pdf(request):
     """GET /api/fat/reportes/607/pdf/?no_cia=01&punto=01&desde=YYYY-MM-DD&hasta=YYYY-MM-DD
 

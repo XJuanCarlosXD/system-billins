@@ -7,6 +7,7 @@ from .views import (
     FatProductosView, FatProductoEmpaquesView, FatTransportistasView, FatNotasView,
     FatConducesView, FatConduceDetailView, FatCuadreCajaView,
     FatRepVentasView, FatRep607View, FatRepNcfNulosView, FatRepFacturasRncView,
+    FatRepMargenBrutoView,
     FatRepVentasVendedorView, FatRepVentasClienteView, FatRepAnaliticaView,
     FatCierresView, FatGenerarAsientosView, FatProximoNcfView, FatNcfUsadoView,
     FatProximoNoFacturaView, DashboardVentasMesView,
@@ -15,7 +16,7 @@ from .views_print import (
     fat_documento_pdf, fat_lista_facturas_pdf,
     fat_conduce_pdf, fat_lista_conduces_pdf,
     fat_lista_precio_pdf, fat_rep_607_pdf,
-    fat_rep_ncf_nulos_pdf, fat_rep_facturas_rnc_pdf,
+    fat_rep_ncf_nulos_pdf, fat_rep_facturas_rnc_pdf, fat_rep_margen_bruto_pdf,
 )
 
 urlpatterns = [
@@ -44,6 +45,7 @@ urlpatterns = [
     path('fat/rep-607/', FatRep607View.as_view()),
     path('fat/rep-ncf-nulos/', FatRepNcfNulosView.as_view()),
     path('fat/rep-facturas-rnc/', FatRepFacturasRncView.as_view()),
+    path('fat/rep-margen-bruto/', FatRepMargenBrutoView.as_view()),
     path('fat/rep-ventas-vendedor/', FatRepVentasVendedorView.as_view()),
     path('fat/rep-ventas-cliente/', FatRepVentasClienteView.as_view()),
     path('fat/rep-analitica/', FatRepAnaliticaView.as_view()),
@@ -60,5 +62,6 @@ urlpatterns = [
     path('fat/reportes/607/pdf/', fat_rep_607_pdf),
     path('fat/reportes/ncf-nulos/pdf/', fat_rep_ncf_nulos_pdf),
     path('fat/reportes/facturas-rnc/pdf/', fat_rep_facturas_rnc_pdf),
+    path('fat/reportes/margen-bruto/pdf/', fat_rep_margen_bruto_pdf),
     path('dashboard/ventas-mes/', DashboardVentasMesView.as_view()),
 ]

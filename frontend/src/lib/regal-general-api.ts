@@ -855,6 +855,15 @@ export const regalGeneralApi = {
     return request<{ items: Array<Record<string, any>>; total_neto: number; count: number }>(`/fat/rep-facturas-rnc/?${p.toString()}`)
   },
 
+  fatRepMargenBruto: (noCia: string, punto: string, desde: string, hasta: string, agrupar = 'producto', tipoDocu = 'T', vendedor = '', almacen = '', noCliente = '', noProdu = '') => {
+    const p = new URLSearchParams({ no_cia: noCia, punto, desde, hasta, agrupar, tipo_docu: tipoDocu })
+    if (vendedor) p.set('vendedor', vendedor)
+    if (almacen) p.set('almacen', almacen)
+    if (noCliente) p.set('no_cliente', noCliente)
+    if (noProdu) p.set('no_produ', noProdu)
+    return request<{ items: Array<Record<string, any>>; total_venta: number; total_costo: number; total_beneficio: number; margen_pct: number; count: number }>(`/fat/rep-margen-bruto/?${p.toString()}`)
+  },
+
 
   fatRepVentasVendedor: (noCia: string, punto: string, desde: string, hasta: string) =>
     request<{ items: Array<Record<string, any>>; total_neto: number; count: number }>(

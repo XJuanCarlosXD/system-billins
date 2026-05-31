@@ -1013,6 +1013,137 @@ def rep_facturas_rnc(no_cia: str, punto: str, desde: str, hasta: str,
     return items
 
 
+# -- Reporte Margen de Beneficio Bruto (Rfat302/Ffat311) ----------------------
+
+def rep_margen_bruto(no_cia: str, punto: str, desde: str, hasta: str,
+                     tipo_docu: str = 'T', agrupar: str = 'producto',
+                     vendedor: str = '', almacen: str = '',
+                     no_cliente: str = '', no_produ: str = '',
+                     tipo_transaccion: str = '') -> list[dict]:
+    """Reporte Rfat302-like de margen bruto por producto/cliente/factura."""
+    params: dict = {'no_cia': no_cia, 'punto': punto}
+    extra: list[str] = []
+
+    tipo = (tipo_docu or 'T').strip().upper()
+    if tipo in {'F', 'FC'}:
+        extra.append("AND f.tipo_factura = 'FC'")
+    elif tipo in {'O', 'FT'}:
+        extra.append("AND f.tipo_factura = 'FT'")
+
+    if desde:
+        params['desde'] = desde
+        extra.append("AND TRUNC(f.fecha) >= TO_DATE(:desde,'YYYY-MM-DD')")
+    if hasta:
+        params['hasta'] = hasta
+        extra.append("AND TRUNC(f.fecha) <= TO_DATE(:hasta,'YYYY-MM-DD')")
+    if vendedor:
+        params['vendedor'] = vendedor.strip().upper()
+        extra.append("AND f.vendedor = :vendedor")
+    if almacen:
+        params['almacen'] = almacen.strip()
+        extra.append("AND l.almacen = :almacen")
+    if no_cliente:
+        params['no_cliente'] = int(no_cliente)
+        extra.append("AND f.no_cliente = :no_cliente")
+    if no_produ:
+        params['no_produ'] = no_produ.strip()
+        extra.append("AND l.no_produ = :no_produ")
+    if tipo_transaccion:
+        params['tipo_transaccion'] = tipo_transaccion.strip().upper()
+        extra.append("AND f.tipo_transaccion = :tipo_transaccion")
+
+    agr = (agrupar or 'producto').strip().lower()
+    if agr not in {'producto', 'cliente', 'factura'}:
+        agr = 'producto'
+
+    if agr == 'cliente':
+        select_group = """
+               TO_CHAR(f.no_cliente) AS clave,
+               MAX(NVL(cl.nombre, TO_CHAR(f.no_cliente))) AS descripcion,
+               MAX(cl.rnc) AS rnc,
+               NULL AS no_produ,
+               NULL AS documento,
+               NULL AS fecha,
+               COUNT(DISTINCT f.tipo_factura || '-' || f.no_factura) AS facturas,
+        """
+        group_by = "f.no_cliente"
+        order_by = "venta DESC"
+    elif agr == 'factura':
+        select_group = """
+               f.tipo_factura || '-' || f.no_factura AS clave,
+               MAX(NVL(cl.nombre, TO_CHAR(f.no_cliente))) AS descripcion,
+               MAX(cl.rnc) AS rnc,
+               NULL AS no_produ,
+               f.tipo_factura || '-' || f.no_factura AS documento,
+               f.fecha AS fecha,
+               1 AS facturas,
+        """
+        group_by = "f.tipo_factura, f.no_factura, f.fecha"
+        order_by = "f.fecha, f.tipo_factura, f.no_factura"
+    else:
+        select_group = """
+               l.no_produ AS clave,
+               MAX(NVL(l.descripcion, p.descri)) AS descripcion,
+               NULL AS rnc,
+               l.no_produ AS no_produ,
+               NULL AS documento,
+               NULL AS fecha,
+               COUNT(DISTINCT f.tipo_factura || '-' || f.no_factura) AS facturas,
+        """
+        group_by = "l.no_produ"
+        order_by = "venta DESC"
+
+    extra_sql = " ".join(extra)
+    rows = client.fetch_dicts(
+        f"""
+        SELECT {select_group}
+               COUNT(*) AS lineas,
+               SUM(NVL(l.cantidad,0)) AS cantidad,
+               SUM(NVL(l.monto_neto,0)) AS venta,
+               SUM(NVL(l.costo,0) * NVL(l.cantidad,0)) AS costo,
+               SUM(NVL(l.monto_neto,0) - (NVL(l.costo,0) * NVL(l.cantidad,0))) AS beneficio,
+               CASE WHEN SUM(NVL(l.monto_neto,0)) = 0 THEN 0
+                    ELSE ROUND(
+                      (SUM(NVL(l.monto_neto,0) - (NVL(l.costo,0) * NVL(l.cantidad,0)))
+                       / SUM(NVL(l.monto_neto,0))) * 100, 2)
+               END AS margen_pct
+        FROM FAT.TFAT_FACTURA f
+        JOIN FAT.TFAT_FACTURAL l
+          ON l.no_cia=f.no_cia AND l.punto=f.punto
+         AND l.tipo_factura=f.tipo_factura AND l.no_factura=f.no_factura
+        LEFT JOIN INV.TINV_PRODUCTO p
+          ON p.no_produ=l.no_produ
+        LEFT JOIN CXC.TCXC_CLIENTE cl
+          ON cl.no_cia=f.no_cia AND cl.punto=f.punto
+         AND cl.no_cliente=f.no_cliente
+        WHERE f.no_cia=:no_cia AND f.punto=:punto
+          AND NVL(f.st_anulado,'N')='N'
+          AND NVL(l.st_anulado,'N')='N'
+          {extra_sql}
+        GROUP BY {group_by}
+        HAVING SUM(NVL(l.monto_neto,0)) <> 0
+        ORDER BY {order_by}
+        """,
+        params)
+
+    return [{
+        'agrupar': agr,
+        'clave': (r['clave'] or '').strip(),
+        'descripcion': (r['descripcion'] or '').strip(),
+        'rnc': (r['rnc'] or '').strip(),
+        'no_produ': (r['no_produ'] or '').strip(),
+        'documento': (r['documento'] or '').strip(),
+        'fecha': str(r['fecha'])[:10] if r['fecha'] else None,
+        'facturas': int(r['facturas'] or 0),
+        'lineas': int(r['lineas'] or 0),
+        'cantidad': float(r['cantidad'] or 0),
+        'venta': float(r['venta'] or 0),
+        'costo': float(r['costo'] or 0),
+        'beneficio': float(r['beneficio'] or 0),
+        'margen_pct': float(r['margen_pct'] or 0),
+    } for r in rows]
+
+
 def list_cierres(no_cia: str, punto: str) -> list[dict]:
     rows = client.fetch_dicts(
         "SELECT ano, mes, fecha_cierre, fecha_sysdate, usuario "
