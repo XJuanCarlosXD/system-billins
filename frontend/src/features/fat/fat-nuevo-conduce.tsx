@@ -467,37 +467,49 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
       return
     }
     setGuardando(true)
+    const payload = {
+      no_cia: noCia,
+      punto,
+      tipo_conduce: tipoDoc || 'CO',
+      no_cliente: noCliente,
+      fecha,
+      forma_pago: formaPago,
+      vendedor,
+      no_lista: noLista,
+      clase,
+      detalle: detalleNota,
+      cant_bultos: cantBultos,
+      tipo_moneda: tipoMoneda,
+      tasa_us: tasa,
+      ruta_entrega: rutaEntrega,
+      copiar_desde: copiarDesde,
+      lineas: lineasValidas.map(l => ({
+        no_produ: l.no_produ,
+        almacen: l.almacen,
+        descripcion: l.descripcion,
+        cantidad: l.cantidad,
+        precio: l.precio,
+        porc_descuento: l.porc_descuento,
+        porciento_impuesto: l.porciento_impuesto,
+      })),
+    }
     try {
-      const res = await regalGeneralApi.fatCrearConduce({
-        no_cia: noCia,
-        punto,
-        tipo_conduce: tipoDoc || 'CO',
-        no_cliente: noCliente,
-        fecha,
-        forma_pago: formaPago,
-        vendedor,
-        no_lista: noLista,
-        clase,
-        detalle: detalleNota,
-        cant_bultos: cantBultos,
-        tipo_moneda: tipoMoneda,
-        tasa_us: tasa,
-        ruta_entrega: rutaEntrega,
-        copiar_desde: copiarDesde,
-        lineas: lineasValidas.map(l => ({
-          no_produ: l.no_produ,
-          almacen: l.almacen,
-          descripcion: l.descripcion,
-          cantidad: l.cantidad,
-          precio: l.precio,
-          porc_descuento: l.porc_descuento,
-          porciento_impuesto: l.porciento_impuesto,
-        })),
-      })
-      toast({ title: 'Conduce creado', description: `Conduce ${res.no_conduce} creado exitosamente` })
+      if (modoEdicion && editTipo && editId) {
+        await regalGeneralApi.fatActualizarConduce(editTipo, editId, payload)
+        toast({ title: 'Conduce actualizado', description: `Conduce ${editTipo}-${editId} actualizado` })
+      } else {
+        const res = await regalGeneralApi.fatCrearConduce(payload)
+        toast({ title: 'Conduce creado', description: `Conduce ${res.no_conduce} creado exitosamente` })
+      }
       navigate({ to: '/fat/conduces' as never })
-    } catch {
-      toast({ title: 'Error', description: 'Error al guardar el conduce', variant: 'destructive' })
+    } catch (e: any) {
+      const detail = (e?.detail && (e.detail.detail || e.detail)) || ''
+      const msg = typeof detail === 'string' ? detail.trim() : ''
+      toast({
+        title: 'Error',
+        description: msg || (modoEdicion ? 'Error al actualizar el conduce' : 'Error al guardar el conduce'),
+        variant: 'destructive',
+      })
     } finally {
       setGuardando(false)
     }
@@ -522,8 +534,10 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
           <Button variant="outline" onClick={() => navigate({ to: '/fat/conduces' as never })}>
             Cancelar
           </Button>
-          <Button onClick={guardar} disabled={guardando || modoEdicion}>
-            {guardando ? 'Guardando...' : modoEdicion ? 'Solo lectura' : 'Guardar'}
+          <Button onClick={guardar} disabled={guardando || cargandoEdicion}>
+            {guardando
+              ? (modoEdicion ? 'Actualizando...' : 'Guardando...')
+              : modoEdicion ? 'Actualizar' : 'Guardar'}
           </Button>
         </div>
       </div>

@@ -220,6 +220,64 @@ def list_puntos_fat(no_cia: str) -> list[dict]:
     } for r in rows]
 
 
+def upsert_punto_fat(no_cia: str, punto: str, descripcion: str,
+                     max_descuento=None, activo: bool = True,
+                     ano_proceso: int = 0, mes_proceso: int = 0,
+                     mes_cierre: int = 0) -> dict:
+    """Crea o actualiza un Punto de Trabajo en FAT.TFAT_PUNTO.
+
+    Schema real: NO_CIA(2), PUNTO(2), DESCRIPCION(40) NOT NULL,
+    MAX_DESCUENTO NUM, ACTIVO(1) S/N, ANO_PROCESO/MES_PROCESO/MES_CIERRE NUM NOT NULL.
+    Columnas NOT NULL adicionales (ITBIS_EN_PRECIO, USAR_CONDICION_PAGO, RESERVAR,
+    CANTIDAD_COPIAS, USAR_PEDIDO_PUNTO_VENTA) tienen DEFAULT a nivel BD, por lo
+    que el INSERT puede omitirlas.
+    """
+    no_cia_s = str(no_cia).strip()
+    punto_s = str(punto).strip()
+    desc = str(descripcion or '').strip()
+    if not no_cia_s:
+        raise ValueError('no_cia es requerido')
+    if not punto_s:
+        raise ValueError('punto es requerido')
+    if len(no_cia_s) > 2:
+        raise ValueError('no_cia no puede exceder 2 caracteres')
+    if len(punto_s) > 2:
+        raise ValueError('punto no puede exceder 2 caracteres')
+    if not desc:
+        raise ValueError('descripcion es requerida')
+    if len(desc) > 40:
+        raise ValueError('descripcion no puede exceder 40 caracteres')
+    md = None if max_descuento is None or max_descuento == '' else float(max_descuento)
+    act = 'S' if (activo is True or str(activo).upper() in ('S', 'TRUE', '1')) else 'N'
+    ano = int(ano_proceso or 0)
+    mes = int(mes_proceso or 0)
+    mcie = int(mes_cierre or 0)
+    with client.cursor() as cur:
+        cur.execute(
+            "SELECT 1 FROM FAT.TFAT_PUNTO WHERE no_cia=:1 AND punto=:2",
+            [no_cia_s, punto_s])
+        exists = cur.fetchone() is not None
+        if exists:
+            cur.execute(
+                "UPDATE FAT.TFAT_PUNTO SET descripcion=:1, max_descuento=:2, "
+                "activo=:3, ano_proceso=:4, mes_proceso=:5, mes_cierre=:6 "
+                "WHERE no_cia=:7 AND punto=:8",
+                [desc, md, act, ano, mes, mcie, no_cia_s, punto_s])
+        else:
+            cur.execute(
+                "INSERT INTO FAT.TFAT_PUNTO("
+                "no_cia, punto, descripcion, max_descuento, activo, "
+                "ano_proceso, mes_proceso, mes_cierre) "
+                "VALUES(:1,:2,:3,:4,:5,:6,:7,:8)",
+                [no_cia_s, punto_s, desc, md, act, ano, mes, mcie])
+        cur.connection.commit()
+    return {'no_cia': no_cia_s, 'punto': punto_s,
+            'descripcion': desc,
+            'max_descuento': float(md or 0), 'activo': act == 'S',
+            'ano_proceso': ano, 'mes_proceso': mes, 'mes_cierre': mcie,
+            'action': 'updated' if exists else 'created'}
+
+
 # ── Tipos de Pago ─────────────────────────────────────────────────────────────
 
 def list_tipos_pago(no_cia: str, punto: str) -> list[dict]:
@@ -1354,45 +1412,43 @@ def search_productos(no_cia, punto, no_lista="", search="", page=1, page_size=20
     usa indices por no_produ/descri); (2) UN solo query agrupa TINV_MOVIMIENTO
     filtrado por IN (...) con los no_produ de la pagina (max page_size); (3)
     filtra `solo_existencia` en memoria sobre la pagina.
+
+    PERF (2026-05-31, Gap G1): el `um_join` (TINV_EMPAQUE+TINV_UNIDAD para
+    empaque por defecto) tambien se sacó del base_sql paginado. Antes el
+    plan hacía NESTED LOOPS OUTER + VIEW PUSHED PREDICATE contra TINV_EMPAQUE
+    (Cost 48); ahora el SQL paginado solo toca TINV_PRODUCTO+TFAT_LISTA_PRECIO
+    (Cost 2) y los datos de empaque se traen en un bulk WHERE no_produ IN
+    (...) con max page_size IDs (Cost 0 via INLIST ITERATOR + INDEX RANGE SCAN).
+    Mismo patrón que la existencia. El precio se recalcula como
+    `precio_base * NVL(cpe, 1)` en Python.
     Misma normalizacion que get_existencia_producto en inv_repo.py.
     """
     offset = (page - 1) * page_size
     end_row = offset + page_size
 
-    um_join = (
-        "LEFT JOIN ("
-        "  SELECT e.NO_PRODU, NVL(u.DESCRI, e.UNIDAD) AS unidad_empaque, "
-        "         NVL(e.CPE, 1) AS cpe "
-        "  FROM INV.TINV_EMPAQUE e "
-        "  LEFT JOIN INV.TINV_UNIDAD u ON u.UNIDAD = e.UNIDAD "
-        "  WHERE e.POR_DEFECTO = 'S'"
-        ") um ON um.NO_PRODU = p.no_produ "
-    )
     select_cols = (
         "p.no_produ, NVL(p.descri, p.no_produ) AS descri, "
-        "NVL(um.unidad_empaque, '') AS unidad_empaque, "
         "NVL(p.porciento_impuesto, 0) AS porciento_impuesto, "
         "NVL(p.activo, 'S') AS activo "
     )
     if no_lista:
+        # precio_base = lp.precio (sin multiplicar por CPE todavía; ese paso
+        # se hace en Python despues del bulk de empaques).
         base_sql = (
             "SELECT " + select_cols +
-            # precio = precio unitario × CPE (unidades del empaque por defecto)
-            ", ROUND(NVL(lp.precio, 0) * NVL(um.cpe, 1), 4) AS precio "
+            ", NVL(lp.precio, 0) AS precio_base "
             "FROM INV.TINV_PRODUCTO p "
             "LEFT JOIN FAT.TFAT_LISTA_PRECIO lp "
             "  ON lp.no_produ = p.no_produ "
             "  AND lp.no_cia = :no_cia AND lp.punto = :punto AND lp.no_lista = :no_lista "
-            + um_join +
             "WHERE NVL(p.activo,'S') = 'S' "
         )
         params = {"no_cia": no_cia, "punto": punto, "no_lista": no_lista}
     else:
         base_sql = (
             "SELECT " + select_cols +
-            ", 0 AS precio "
+            ", 0 AS precio_base "
             "FROM INV.TINV_PRODUCTO p "
-            + um_join +
             "WHERE NVL(p.activo,'S') = 'S' "
         )
         params = {}
@@ -1401,7 +1457,7 @@ def search_productos(no_cia, punto, no_lista="", search="", page=1, page_size=20
         params["srch"] = "%{}%".format(search.upper())
     base_sql += "ORDER BY p.no_produ"
 
-    # COUNT y paginacion rapidos (sin existencia).
+    # COUNT y paginacion rapidos (sin existencia ni empaque).
     count_sql = "SELECT COUNT(*) FROM ({})".format(base_sql)
     total_row = client.fetch_one(count_sql, params)
     total = int(total_row[0]) if total_row else 0
@@ -1416,8 +1472,28 @@ def search_productos(no_cia, punto, no_lista="", search="", page=1, page_size=20
     ).format(base_sql)
     rows = client.fetch_dicts(paged_sql, paged_params)
 
-    # Existencia normalizada solo para los productos de la pagina (max page_size).
     no_produs = [r["no_produ"] for r in rows if r.get("no_produ")]
+
+    # Bulk fetch del empaque por defecto (unidad + CPE) para los productos
+    # de la pagina. Patrón identico al de existencia.
+    empaque_map: dict[str, dict] = {}
+    if no_produs:
+        binds = {f"ep{i}": v for i, v in enumerate(no_produs)}
+        in_list = ",".join(":{}".format(k) for k in binds.keys())
+        emp_sql = (
+            "SELECT e.no_produ, NVL(u.descri, e.unidad) AS unidad_empaque, "
+            "       NVL(e.cpe, 1) AS cpe "
+            "FROM INV.TINV_EMPAQUE e "
+            "LEFT JOIN INV.TINV_UNIDAD u ON u.unidad = e.unidad "
+            f"WHERE e.por_defecto='S' AND e.no_produ IN ({in_list})"
+        )
+        for r in client.fetch_dicts(emp_sql, binds):
+            empaque_map[r["no_produ"]] = {
+                "unidad_empaque": (r["unidad_empaque"] or "").strip(),
+                "cpe": float(r["cpe"] or 1) or 1.0,
+            }
+
+    # Existencia normalizada solo para los productos de la pagina (max page_size).
     exist_map: dict[str, float] = {}
     if no_produs:
         binds = {f"np{i}": v for i, v in enumerate(no_produs)}
@@ -1450,16 +1526,21 @@ def search_productos(no_cia, punto, no_lista="", search="", page=1, page_size=20
 
     items = []
     for r in rows:
-        ex = exist_map.get(r["no_produ"], 0.0)
+        np = r["no_produ"]
+        ex = exist_map.get(np, 0.0)
         if solo_existencia and ex <= 0:
             continue
+        emp = empaque_map.get(np) or {"unidad_empaque": "", "cpe": 1.0}
+        precio_base = float(r["precio_base"] or 0)
+        # precio venta = precio unitario × CPE del empaque por defecto.
+        precio = round(precio_base * (emp["cpe"] or 1), 4)
         items.append({
-            "no_produ": r["no_produ"],
+            "no_produ": np,
             "descri": (r["descri"] or "").strip(),
-            "precio": float(r["precio"] or 0),
+            "precio": precio,
             "porciento_impuesto": float(r["porciento_impuesto"] or 0),
             "existencia": ex,
-            "unidad_empaque": (r["unidad_empaque"] or "").strip(),
+            "unidad_empaque": emp["unidad_empaque"],
             "activo": r["activo"] == "S",
         })
     return {
@@ -1723,6 +1804,154 @@ def create_conduce(no_cia, punto, tipo_conduce, no_cliente, fecha, vendedor,
             [no_conduce, no_cia, punto, tc])
         cur.connection.commit()
     return {"no_conduce": no_conduce, "tipo_conduce": tc, "clase": cl,
+            "total_neto": total_neto, "total_linea": total_linea,
+            "descuento": total_descuento, "impuesto": total_impuesto}
+
+
+# -- Actualizar Conduce / Cotizacion (Gap G2 2026-05-30) ----------------------
+
+def update_conduce(no_cia, punto, tipo_conduce, no_conduce, no_cliente, fecha,
+                   vendedor, clase, lineas, usuario, detalle=None,
+                   forma_pago=None, no_condicion_pago=None, tipo_moneda=None):
+    """Actualiza un conduce existente (encabezado + líneas) en una transacción.
+
+    Regla de editabilidad (Gap G2): el conduce NO debe estar autorizado
+    (AUTORIZADO='S'), ni anulado (ST_ANULADO='S'), ni ya facturado
+    (NO_FACTURA con valor). Si alguna condición se cumple, se lanza
+    ValueError para que la view responda 422.
+
+    Estructura:
+      1. SELECT FOR UPDATE del encabezado, validar reglas.
+      2. UPDATE FAT.TFAT_CONDUCE con totales recalculados.
+      3. DELETE FAT.TFAT_CONDUCEL del conduce.
+      4. INSERT línea por línea desde el parámetro `lineas` (lista de dicts
+         con la misma estructura que create_conduce: no_produ, almacen,
+         cantidad, precio, porc_descuento, porciento_impuesto, descripcion).
+      5. Commit explícito; en error rollback y reraise.
+    """
+    tc = tipo_conduce.strip().upper()
+    nc = no_conduce.strip()
+    cl = clase.strip().upper() if clase else "C"
+    if not lineas:
+        raise ValueError("Se requiere al menos una linea")
+    with client.cursor() as cur:
+        try:
+            cur.execute(
+                "SELECT NVL(AUTORIZADO,'N'), NVL(ST_ANULADO,'N'), NO_FACTURA "
+                "FROM FAT.TFAT_CONDUCE "
+                "WHERE no_cia=:1 AND punto=:2 AND tipo_conduce=:3 AND no_conduce=:4 "
+                "FOR UPDATE",
+                [no_cia, punto, tc, nc])
+            row = cur.fetchone()
+            if not row:
+                raise ValueError("Conduce no encontrado")
+            autorizado, st_anulado, no_factura = row[0], row[1], (row[2] or '').strip()
+            if autorizado == 'S':
+                raise ValueError("Conduce no editable: ya esta autorizado")
+            if st_anulado == 'S':
+                raise ValueError("Conduce no editable: esta anulado")
+            if no_factura:
+                raise ValueError(
+                    "Conduce no editable: ya esta facturado (factura {})".format(no_factura))
+
+            total_linea = 0.0
+            total_descuento = 0.0
+            total_impuesto = 0.0
+            lineas_calc = []
+            for idx, lin in enumerate(lineas, start=1):
+                cant = float(lin.get("cantidad", 0))
+                precio = float(lin.get("precio", 0))
+                porc_desc = float(lin.get("porc_descuento", 0))
+                porc_imp = float(lin.get("porciento_impuesto", 0))
+                subtotal = cant * precio
+                desc_monto = subtotal * porc_desc / 100.0
+                base = subtotal - desc_monto
+                imp_monto = base * porc_imp / 100.0
+                neto = base + imp_monto
+                total_linea += subtotal
+                total_descuento += desc_monto
+                total_impuesto += imp_monto
+                lineas_calc.append({
+                    "no_linea": idx,
+                    "no_produ": (lin.get("no_produ", "") or "").strip().upper(),
+                    "almacen": (lin.get("almacen", "") or "").strip(),
+                    "descripcion": (lin.get("descripcion", "") or "").strip(),
+                    "cantidad": cant, "precio": precio,
+                    "porc_descuento": porc_desc,
+                    "descuento": desc_monto,
+                    "porciento_impuesto": porc_imp,
+                    "impuesto": imp_monto, "monto_neto": neto,
+                })
+            total_neto = total_linea - total_descuento + total_impuesto
+
+            # Construir UPDATE dinámicamente con campos opcionales
+            set_clauses = [
+                "no_cliente=:1", "fecha=TO_DATE(:2,'YYYY-MM-DD')",
+                "vendedor=:3", "clase=:4",
+                "total_linea=:5", "descuento=:6", "impuesto=:7", "total_neto=:8",
+                "usuario_1=:9",
+            ]
+            params = [no_cliente, fecha, (vendedor or '').strip(), cl,
+                      total_linea, total_descuento, total_impuesto, total_neto,
+                      usuario]
+            next_bind = 10
+            if detalle is not None:
+                set_clauses.append("detalle=:{}".format(next_bind))
+                params.append((detalle or '').strip()); next_bind += 1
+            if forma_pago is not None:
+                set_clauses.append("forma_pago=:{}".format(next_bind))
+                params.append((forma_pago or '').strip()); next_bind += 1
+            if no_condicion_pago is not None:
+                set_clauses.append("no_condicion_pago=:{}".format(next_bind))
+                params.append((no_condicion_pago or '').strip()); next_bind += 1
+            if tipo_moneda is not None:
+                set_clauses.append("tipo_moneda=:{}".format(next_bind))
+                params.append((tipo_moneda or 'RD').strip()); next_bind += 1
+            params.extend([no_cia, punto, tc, nc])
+            where_start = next_bind
+            sql_update = (
+                "UPDATE FAT.TFAT_CONDUCE SET " + ", ".join(set_clauses) +
+                " WHERE no_cia=:{} AND punto=:{} AND tipo_conduce=:{} AND no_conduce=:{}".format(
+                    where_start, where_start + 1, where_start + 2, where_start + 3))
+            cur.execute(sql_update, params)
+
+            cur.execute(
+                "DELETE FROM FAT.TFAT_CONDUCEL "
+                "WHERE no_cia=:1 AND punto=:2 AND tipo_conduce=:3 AND no_conduce=:4",
+                [no_cia, punto, tc, nc])
+
+            for lin in lineas_calc:
+                # TFAT_CONDUCEL tiene varias columnas NOT NULL sin default:
+                # EMPAQUE, CPE, PRODU_OFERTA, PRODU_OFERTADO, CANTIDAD_FACTURADA.
+                # Se usan valores neutros tomados de la data legacy.
+                # CANTIDAD_FACTURADA=0 al editar: el conduce no puede estar
+                # facturado (regla NO_FACTURA IS NULL), así que no hay nada
+                # facturado todavía. Reportes que calculan pendientes
+                # (cantidad - cantidad_facturada) deben dar cantidad completa.
+                cur.execute(
+                    "INSERT INTO FAT.TFAT_CONDUCEL("
+                    "no_cia,punto,tipo_conduce,no_conduce,no_linea,"
+                    "almacen,no_produ,cantidad,precio,"
+                    "porc_descuento,descuento,itbis,descripcion,st_anulado,"
+                    "empaque,cpe,produ_oferta,produ_ofertado,"
+                    "cantidad_facturada,valor_facturado,cantidad_regalo,tipo_oferta"
+                    ") VALUES("
+                    ":1,:2,:3,:4,:5,:6,:7,:8,:9,:10,:11,:12,:13,'N',"
+                    "1,1,'N','N',"
+                    "0,0,0,'N'"
+                    ")",
+                    [no_cia, punto, tc, nc, lin["no_linea"],
+                     lin["almacen"], lin["no_produ"], lin["cantidad"], lin["precio"],
+                     lin["porc_descuento"], lin["descuento"],
+                     lin["impuesto"], lin["descripcion"]])
+            cur.connection.commit()
+        except Exception:
+            try:
+                cur.connection.rollback()
+            except Exception:
+                pass
+            raise
+    return {"no_conduce": nc, "tipo_conduce": tc, "clase": cl,
             "total_neto": total_neto, "total_linea": total_linea,
             "descuento": total_descuento, "impuesto": total_impuesto}
 

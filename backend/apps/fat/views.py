@@ -378,6 +378,43 @@ class FatPuntosView(APIView):
         except Exception as e:
             return Response({'detail': str(e)}, status=500)
 
+    def post(self, request):
+        no_cia = request.data.get('no_cia')
+        punto = request.data.get('punto')
+        descripcion = request.data.get('descripcion')
+        if not all([no_cia, punto, descripcion]):
+            return Response({'detail': 'no_cia, punto y descripcion son requeridos'},
+                            status=400)
+        no_cia_s = str(no_cia).strip()
+        punto_s = str(punto).strip().upper()
+        descripcion_s = str(descripcion).strip()
+        if len(punto_s) > 2:
+            return Response({'detail': 'punto no puede exceder 2 caracteres'}, status=400)
+        if len(descripcion_s) > 40:
+            return Response({'detail': 'descripcion no puede exceder 40 caracteres'},
+                            status=400)
+        forbidden = _check_fat_access(request.user.username, no_cia_s, punto_s)
+        if forbidden:
+            return forbidden
+        try:
+            res = fat_repo.upsert_punto_fat(
+                no_cia=no_cia_s,
+                punto=punto_s,
+                descripcion=descripcion_s,
+                max_descuento=request.data.get('max_descuento'),
+                activo=_as_bool(request.data.get('activo'), True),
+                ano_proceso=int(request.data.get('ano_proceso') or 0),
+                mes_proceso=int(request.data.get('mes_proceso') or 0),
+                mes_cierre=int(request.data.get('mes_cierre') or 0))
+            return Response(res, status=201 if res.get('action') == 'created' else 200)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=422)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=500)
+
+    def patch(self, request):
+        return self.post(request)
+
 
 # -- Tipos de Pago ------------------------------------------------------------
 
@@ -621,6 +658,56 @@ class FatConduceDetailView(APIView):
         if conduce is None:
             return Response({'detail': 'Conduce no encontrado'}, status=404)
         return Response(conduce)
+
+    def patch(self, request, tipo: str, no_conduce: str):
+        """Actualiza un conduce existente (Gap G2 2026-05-30).
+
+        Requiere AUTORIZADO!='S', ST_ANULADO!='S' y NO_FACTURA nulo.
+        Body JSON con: no_cia, punto, no_cliente, fecha, vendedor, clase,
+        lineas (lista). Opcionales: detalle, forma_pago, no_condicion_pago,
+        tipo_moneda.
+        """
+        no_cia = request.data.get('no_cia') or request.query_params.get('no_cia')
+        punto = request.data.get('punto') or request.query_params.get('punto', '01')
+        if not no_cia:
+            return Response({'detail': 'no_cia es requerido'}, status=400)
+        forbidden = _check_fat_access(
+            request.user.username, str(no_cia).strip(), str(punto).strip())
+        if forbidden:
+            return forbidden
+        no_cliente = request.data.get('no_cliente')
+        fecha = request.data.get('fecha')
+        vendedor = request.data.get('vendedor', '')
+        clase = request.data.get('clase', 'C')
+        lineas = request.data.get('lineas', [])
+        if no_cliente is None or not fecha:
+            return Response({'detail': 'no_cliente y fecha son requeridos'}, status=400)
+        if not lineas:
+            return Response({'detail': 'Se requiere al menos una linea'}, status=400)
+        try:
+            fat_repo.update_conduce(
+                no_cia=str(no_cia).strip(), punto=str(punto).strip(),
+                tipo_conduce=str(tipo).strip(),
+                no_conduce=str(no_conduce).strip(),
+                no_cliente=int(no_cliente),
+                fecha=str(fecha).strip(),
+                vendedor=str(vendedor).strip(),
+                clase=str(clase).strip(),
+                lineas=lineas,
+                usuario=request.user.username,
+                detalle=request.data.get('detalle'),
+                forma_pago=request.data.get('forma_pago'),
+                no_condicion_pago=request.data.get('no_condicion_pago'),
+                tipo_moneda=request.data.get('tipo_moneda'))
+        except ValueError as e:
+            # Regla de editabilidad o validación de input → 422
+            return Response({'detail': str(e)}, status=422)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=500)
+        conduce = fat_repo.get_conduce(
+            str(no_cia).strip(), str(punto).strip(),
+            str(tipo).strip(), str(no_conduce).strip())
+        return Response(conduce, status=200)
 
 
 # -- Cuadre de Caja -----------------------------------------------------------

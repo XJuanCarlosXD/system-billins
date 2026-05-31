@@ -791,6 +791,9 @@ export const regalGeneralApi = {
   fatListPuntos: (no_cia: string) =>
     request<{ items: Array<Record<string, any>> }>(`/fat/puntos/?no_cia=${encodeURIComponent(no_cia)}`),
 
+  fatUpsertPunto: (data: Record<string, any>, method: 'POST' | 'PATCH' = 'POST') =>
+    request<Record<string, any>>('/fat/puntos/', { method, body: JSON.stringify(data) }),
+
   fatListTiposPago: (no_cia: string, punto: string) =>
     request<{ items: Array<Record<string, any>> }>(`/fat/tipos-pago/?no_cia=${encodeURIComponent(no_cia)}&punto=${encodeURIComponent(punto)}`),
 
@@ -1028,6 +1031,11 @@ export const regalGeneralApi = {
   fatCrearConduce: (data: Record<string, any>) =>
     request<{ no_conduce: string; tipo_conduce: string; clase: string; total_neto: number }>('/fat/conduces/', {
       method: 'POST', body: JSON.stringify(data),
+    }),
+
+  fatActualizarConduce: (tipo: string, no_conduce: string, data: Record<string, any>) =>
+    request<Record<string, any>>(`/fat/conduces/${encodeURIComponent(tipo)}/${encodeURIComponent(no_conduce)}/`, {
+      method: 'PATCH', body: JSON.stringify(data),
     }),
 
   // --- CXP (Cuentas por Pagar) ---
