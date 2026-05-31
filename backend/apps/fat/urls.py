@@ -14,7 +14,7 @@ from .views import (
 from .views_print import (
     fat_documento_pdf, fat_lista_facturas_pdf,
     fat_conduce_pdf, fat_lista_conduces_pdf,
-    fat_lista_precio_pdf,
+    fat_lista_precio_pdf, fat_rep_607_pdf,
 )
 
 urlpatterns = [
@@ -55,5 +55,6 @@ urlpatterns = [
     path('fat/conduces/<str:tipo>/<str:no_conduce>/pdf/', fat_conduce_pdf),
     path('fat/reportes/listado-conduces/pdf/', fat_lista_conduces_pdf),
     path('fat/reportes/lista-precio/pdf/', fat_lista_precio_pdf),
+    path('fat/reportes/607/pdf/', fat_rep_607_pdf),
     path('dashboard/ventas-mes/', DashboardVentasMesView.as_view()),
 ]

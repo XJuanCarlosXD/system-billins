@@ -231,6 +231,99 @@ def fat_lista_facturas_pdf(request):
 
 @login_required
 @require_http_methods(["GET"])
+def fat_rep_607_pdf(request):
+    """GET /api/fat/reportes/607/pdf/?no_cia=01&punto=01&desde=YYYY-MM-DD&hasta=YYYY-MM-DD
+
+    Reporte 607 DGII (Formato compras/ventas mensuales). Lista NCF con cliente
+    RNC, fechas, total neto, ITBIS y total linea. Footer con totales.
+    """
+    try:
+        from reportlab.lib.pagesizes import letter  # probe
+    except ImportError:
+        return JsonResponse({"error": "reportlab no instalado"}, status=500)
+
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    desde = request.GET.get('desde', '')
+    hasta = request.GET.get('hasta', '')
+
+    if not desde or not hasta:
+        return JsonResponse({"error": "desde y hasta son requeridos (YYYY-MM-DD)"}, status=400)
+
+    perms = permissions_repo.get_for(request.user.username, 'fat', no_cia, punto)
+    if perms is None or not perms.activo:
+        return JsonResponse({'detail': 'sin acceso a FAT en esta empresa/punto'}, status=403)
+
+    try:
+        rows = fat_repo.rep_ncf_607(no_cia=no_cia, desde=desde, hasta=hasta)
+    except Exception as e:
+        return JsonResponse({"error": f"Error consultando 607: {e}"}, status=500)
+
+    cia = inv_repo.get_compania(no_cia) or {}
+    razon = (cia.get('descripcion') or no_cia).strip()
+    rnc_empresa = (cia.get('rnc') or '').strip()
+
+    total_neto = sum(float(r.get('total_neto') or 0) for r in rows)
+    total_itbis = sum(float(r.get('impuesto') or 0) for r in rows)
+    total_linea = sum(float(r.get('total_linea') or 0) for r in rows)
+
+    # Composite NCF DGI: posiciones + LPAD(NCF,8). Si la fila ya trae ncf_dgi,
+    # se respeta; sino se compone desde tipo_ncf_fiscal + ncf.
+    def _ncf_dgi_of(r: dict) -> str:
+        if r.get('ncf_dgi'):
+            return r['ncf_dgi']
+        prefix = (r.get('tipo_ncf_fiscal') or '').strip().upper()
+        n = r.get('ncf')
+        try:
+            n_int = int(n) if n is not None else 0
+        except (TypeError, ValueError):
+            n_int = 0
+        if prefix and n_int > 0:
+            return f"{prefix}{n_int:08d}"
+        return ''
+
+    col_display = ['RNC', 'CLIENTE', 'NCF', 'TIPO_NCF', 'FACTURA', 'FECHA', 'TOTAL_NETO', 'ITBIS']
+    rows_data = [{
+        'rnc': (r.get('rnc') or '').strip(),
+        'cliente': (r.get('nombre_cliente') or '')[:30],
+        'ncf': _ncf_dgi_of(r) or str(r.get('ncf') or ''),
+        'tipo_ncf': r.get('tipo_ncf_fiscal') or r.get('codigo_ncf') or '',
+        'factura': f"{r.get('tipo_factura', '')}-{r.get('no_factura', '')}",
+        'fecha': r.get('fecha') or '',
+        'total_neto': float(r.get('total_neto') or 0),
+        'itbis': float(r.get('impuesto') or 0),
+    } for r in rows]
+
+    header_extra = [
+        f"<b>{razon}</b>" + (f" — RNC: {rnc_empresa}" if rnc_empresa else ''),
+        f"<b>Reporte 607 DGII</b> &middot; Período: {desde} a {hasta}",
+        f"<b>Total registros:</b> {len(rows_data)}",
+    ]
+    footer_extra = [
+        f"<b>Total Neto:</b> {total_neto:,.2f}",
+        f"<b>Total ITBIS:</b> {total_itbis:,.2f}",
+        f"<b>Total Linea:</b> {total_linea:,.2f}",
+    ]
+
+    try:
+        pdf = build_pdf_report(
+            title=f"NCF 607 — {razon}",
+            columns=col_display,
+            rows=rows_data,
+            col_widths=None,
+            header_extra=header_extra,
+            footer_extra=footer_extra,
+        )
+    except Exception as e:
+        return JsonResponse({"error": f"Error generando PDF: {e}"}, status=500)
+
+    resp = HttpResponse(pdf, content_type='application/pdf')
+    resp['Content-Disposition'] = f'inline; filename="ncf_607_{desde}_{hasta}.pdf"'
+    return resp
+
+
+@login_required
+@require_http_methods(["GET"])
 def fat_lista_precio_pdf(request):
     """GET /api/fat/reportes/lista-precio/pdf/?no_cia=01&punto=01&no_lista=1[&no_produ_desde=&no_produ_hasta=]
 
