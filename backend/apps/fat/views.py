@@ -483,6 +483,65 @@ class FatListasPrecioView(APIView):
         except Exception as e:
             return Response({'detail': str(e)}, status=500)
 
+    def post(self, request):
+        no_cia = request.data.get('no_cia')
+        punto = request.data.get('punto', '01')
+        if not no_cia:
+            return Response({'detail': 'no_cia es requerido'}, status=400)
+        forbidden = _check_fat_access(request.user.username, str(no_cia).strip(), str(punto).strip())
+        if forbidden:
+            return forbidden
+        kind = str(request.data.get('kind') or request.data.get('tipo') or '').strip().lower()
+        no_produ = request.data.get('no_produ')
+        try:
+            if kind == 'detalle' or no_produ:
+                res = fat_repo.upsert_lista_precio_detalle(
+                    no_cia=str(no_cia).strip(),
+                    punto=str(punto).strip(),
+                    no_lista=str(request.data.get('no_lista', '')).strip(),
+                    no_produ=str(no_produ or '').strip(),
+                    precio=request.data.get('precio', 0),
+                    activo=_as_bool(request.data.get('activo'), True),
+                    nota=request.data.get('nota', ''))
+            else:
+                res = fat_repo.upsert_tipo_lista_precio(
+                    no_cia=str(no_cia).strip(),
+                    no_lista=str(request.data.get('no_lista', '')).strip(),
+                    descripcion=str(request.data.get('descripcion', '')).strip(),
+                    activa=_as_bool(request.data.get('activa'), True),
+                    tipo_moneda=str(request.data.get('tipo_moneda', 'RD')).strip())
+            return Response(res, status=201 if res.get('action') == 'created' else 200)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=422)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=500)
+
+    def patch(self, request):
+        return self.post(request)
+
+    def delete(self, request):
+        no_cia = request.data.get('no_cia') or request.query_params.get('no_cia')
+        punto = request.data.get('punto') or request.query_params.get('punto', '01')
+        no_lista = request.data.get('no_lista') or request.query_params.get('no_lista', '')
+        no_produ = request.data.get('no_produ') or request.query_params.get('no_produ', '')
+        if not no_cia:
+            return Response({'detail': 'no_cia es requerido'}, status=400)
+        forbidden = _check_fat_access(request.user.username, str(no_cia).strip(), str(punto).strip())
+        if forbidden:
+            return forbidden
+        try:
+            if no_produ:
+                res = fat_repo.delete_lista_precio_detalle(
+                    str(no_cia).strip(), str(punto).strip(), str(no_lista).strip(), str(no_produ).strip())
+            else:
+                res = fat_repo.delete_tipo_lista_precio(
+                    str(no_cia).strip(), str(punto).strip(), str(no_lista).strip())
+            return Response(res)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=422)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=500)
+
 
 # -- Productos ----------------------------------------------------------------
 

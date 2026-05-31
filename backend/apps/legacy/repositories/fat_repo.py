@@ -357,6 +357,117 @@ def list_lista_precio_detalle(no_cia: str, punto: str, no_lista: str,
 
 
 # ── Transportistas ────────────────────────────────────────────────────────────
+def _normalize_no_produ(no_produ: str) -> str:
+    value = (no_produ or '').strip().upper()
+    return value.zfill(8) if value.isdigit() and len(value) < 8 else value
+
+
+def upsert_tipo_lista_precio(no_cia: str, no_lista: str, descripcion: str,
+                             activa=True, tipo_moneda: str = 'RD') -> dict:
+    nl = (no_lista or '').strip().upper()
+    if not nl:
+        raise ValueError("no_lista requerido")
+    if len(nl) > 2:
+        raise ValueError("no_lista no puede exceder 2 caracteres")
+    desc = (descripcion or '').strip()
+    if not desc:
+        raise ValueError("descripcion requerida")
+    moneda = (tipo_moneda or 'RD').strip().upper()
+    activo = 'S' if activa else 'N'
+    with client.cursor() as cur:
+        cur.execute(
+            "SELECT 1 FROM FAT.TFAT_TIPO_PRECIO WHERE no_cia=:1 AND no_lista=:2",
+            [no_cia, nl])
+        exists = cur.fetchone() is not None
+        if exists:
+            cur.execute(
+                "UPDATE FAT.TFAT_TIPO_PRECIO "
+                "SET descripcion=:1, activa=:2, tipo_moneda=:3 "
+                "WHERE no_cia=:4 AND no_lista=:5",
+                [desc, activo, moneda, no_cia, nl])
+        else:
+            cur.execute(
+                "INSERT INTO FAT.TFAT_TIPO_PRECIO(no_cia,no_lista,descripcion,activa,tipo_moneda) "
+                "VALUES(:1,:2,:3,:4,:5)",
+                [no_cia, nl, desc, activo, moneda])
+        cur.connection.commit()
+    return {'no_cia': no_cia, 'no_lista': nl, 'action': 'updated' if exists else 'created'}
+
+
+def delete_tipo_lista_precio(no_cia: str, punto: str, no_lista: str) -> dict:
+    nl = (no_lista or '').strip().upper()
+    with client.cursor() as cur:
+        cur.execute(
+            "SELECT COUNT(*) FROM FAT.TFAT_LISTA_PRECIO "
+            "WHERE no_cia=:1 AND punto=:2 AND no_lista=:3",
+            [no_cia, punto, nl])
+        detalle_count = int(cur.fetchone()[0] or 0)
+        if detalle_count:
+            raise ValueError("No se puede eliminar una lista con productos; elimine el detalle primero")
+        cur.execute(
+            "DELETE FROM FAT.TFAT_TIPO_PRECIO WHERE no_cia=:1 AND no_lista=:2",
+            [no_cia, nl])
+        deleted = cur.rowcount or 0
+        cur.connection.commit()
+    return {'no_cia': no_cia, 'no_lista': nl, 'deleted': int(deleted)}
+
+
+def upsert_lista_precio_detalle(no_cia: str, punto: str, no_lista: str,
+                                no_produ: str, precio, activo=True,
+                                nota: str = '') -> dict:
+    nl = (no_lista or '').strip().upper()
+    np = _normalize_no_produ(no_produ)
+    if not all([nl, np]):
+        raise ValueError("no_lista y no_produ son requeridos")
+    precio_f = float(precio or 0)
+    if precio_f < 0:
+        raise ValueError("precio debe ser mayor o igual a cero")
+    activo_s = 'S' if activo else 'N'
+    nota_s = (nota or '').strip()
+    with client.cursor() as cur:
+        cur.execute(
+            "SELECT 1 FROM FAT.TFAT_TIPO_PRECIO WHERE no_cia=:1 AND no_lista=:2",
+            [no_cia, nl])
+        if cur.fetchone() is None:
+            raise ValueError("Lista de precio no existe")
+        cur.execute("SELECT 1 FROM INV.TINV_PRODUCTO WHERE no_produ=:1", [np])
+        if cur.fetchone() is None:
+            raise ValueError("Producto no existe")
+        cur.execute(
+            "SELECT 1 FROM FAT.TFAT_LISTA_PRECIO "
+            "WHERE no_cia=:1 AND punto=:2 AND no_lista=:3 AND no_produ=:4",
+            [no_cia, punto, nl, np])
+        exists = cur.fetchone() is not None
+        if exists:
+            cur.execute(
+                "UPDATE FAT.TFAT_LISTA_PRECIO "
+                "SET precio=:1, activo=:2, nota=:3 "
+                "WHERE no_cia=:4 AND punto=:5 AND no_lista=:6 AND no_produ=:7",
+                [precio_f, activo_s, nota_s, no_cia, punto, nl, np])
+        else:
+            cur.execute(
+                "INSERT INTO FAT.TFAT_LISTA_PRECIO(no_cia,punto,no_lista,no_produ,precio,activo,nota) "
+                "VALUES(:1,:2,:3,:4,:5,:6,:7)",
+                [no_cia, punto, nl, np, precio_f, activo_s, nota_s])
+        cur.connection.commit()
+    return {'no_cia': no_cia, 'punto': punto, 'no_lista': nl, 'no_produ': np,
+            'action': 'updated' if exists else 'created'}
+
+
+def delete_lista_precio_detalle(no_cia: str, punto: str, no_lista: str,
+                                no_produ: str) -> dict:
+    nl = (no_lista or '').strip().upper()
+    np = _normalize_no_produ(no_produ)
+    with client.cursor() as cur:
+        cur.execute(
+            "DELETE FROM FAT.TFAT_LISTA_PRECIO "
+            "WHERE no_cia=:1 AND punto=:2 AND no_lista=:3 AND no_produ=:4",
+            [no_cia, punto, nl, np])
+        deleted = cur.rowcount or 0
+        cur.connection.commit()
+    return {'no_cia': no_cia, 'punto': punto, 'no_lista': nl,
+            'no_produ': np, 'deleted': int(deleted)}
+
 
 def list_transportistas() -> list[dict]:
     rows = client.fetch_dicts(

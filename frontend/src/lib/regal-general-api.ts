@@ -806,6 +806,12 @@ export const regalGeneralApi = {
     return request<{ tipos?: Array<Record<string, any>>; detalle?: Array<Record<string, any>> }>(`/fat/listas-precio/?${p.toString()}`)
   },
 
+  fatUpsertListaPrecio: (data: Record<string, any>) =>
+    request<Record<string, any>>('/fat/listas-precio/', { method: 'POST', body: JSON.stringify(data) }),
+
+  fatDeleteListaPrecio: (data: Record<string, any>) =>
+    request<Record<string, any>>('/fat/listas-precio/', { method: 'DELETE', body: JSON.stringify(data) }),
+
   fatListTransportistas: () =>
     request<{ items: Array<Record<string, any>> }>('/fat/transportistas/'),
 
