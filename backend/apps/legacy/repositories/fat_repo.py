@@ -325,15 +325,32 @@ def list_tipos_lista_precio(no_cia: str) -> list[dict]:
              'activa': r['activa'] == 'S', 'tipo_moneda': r['tipo_moneda']} for r in rows]
 
 
-def list_lista_precio_detalle(no_cia: str, punto: str, no_lista: str) -> list[dict]:
+def list_lista_precio_detalle(no_cia: str, punto: str, no_lista: str,
+                              no_produ_desde: str = '',
+                              no_produ_hasta: str = '') -> list[dict]:
+    """Detalle de una lista de precio.
+
+    Alineado con Rfat333 (Ffat310): filtros opcionales por rango de
+    producto (no_produ_desde, no_produ_hasta) con LPAD(8,'0') como el
+    legado. Ordena por no_produ ascendente.
+    """
+    filters = ["lp.no_cia=:no_cia", "lp.punto=:punto", "lp.no_lista=:no_lista"]
+    params: dict = {'no_cia': no_cia, 'punto': punto, 'no_lista': no_lista}
+    if no_produ_desde:
+        filters.append("lp.no_produ >= LPAD(:p_desde,8,'0')")
+        params['p_desde'] = no_produ_desde.strip()
+    if no_produ_hasta:
+        filters.append("lp.no_produ <= LPAD(:p_hasta,8,'0')")
+        params['p_hasta'] = no_produ_hasta.strip()
+    where = " AND ".join(filters)
     rows = client.fetch_dicts(
-        "SELECT lp.no_cia, lp.punto, lp.no_lista, lp.no_produ, lp.precio, "
-        "NVL(lp.activo,'S') AS activo, lp.nota, "
-        "NVL(p.descri, lp.no_produ) AS descripcion "
-        "FROM FAT.TFAT_LISTA_PRECIO lp "
-        "LEFT JOIN INV.TINV_PRODUCTO p ON p.no_produ = lp.no_produ "
-        "WHERE lp.no_cia=:1 AND lp.punto=:2 AND lp.no_lista=:3 ORDER BY lp.no_produ",
-        [no_cia, punto, no_lista])
+        f"SELECT lp.no_cia, lp.punto, lp.no_lista, lp.no_produ, lp.precio, "
+        f"NVL(lp.activo,'S') AS activo, lp.nota, "
+        f"NVL(p.descri, lp.no_produ) AS descripcion "
+        f"FROM FAT.TFAT_LISTA_PRECIO lp "
+        f"LEFT JOIN INV.TINV_PRODUCTO p ON p.no_produ = lp.no_produ "
+        f"WHERE {where} ORDER BY lp.no_produ",
+        params)
     return [{'no_produ': r['no_produ'], 'descripcion': (r['descripcion'] or '').strip(),
              'precio': float(r['precio'] or 0), 'activo': r['activo'] == 'S',
              'nota': r['nota'] or ''} for r in rows]

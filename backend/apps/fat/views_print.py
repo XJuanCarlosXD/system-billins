@@ -224,6 +224,88 @@ def fat_lista_facturas_pdf(request):
 
 @login_required
 @require_http_methods(["GET"])
+def fat_lista_precio_pdf(request):
+    """GET /api/fat/reportes/lista-precio/pdf/?no_cia=01&punto=01&no_lista=1[&no_produ_desde=&no_produ_hasta=]
+
+    Clone de Rfat333 (Ffat310). Lista productos y precios de una lista
+    especifica con filtro opcional por rango de producto (LPAD 8 como legado).
+    """
+    try:
+        from reportlab.lib.pagesizes import letter  # probe
+    except ImportError:
+        return JsonResponse({"error": "reportlab no instalado"}, status=500)
+
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    no_lista = (request.GET.get('no_lista') or '').strip()
+    no_produ_desde = (request.GET.get('no_produ_desde') or '').strip()
+    no_produ_hasta = (request.GET.get('no_produ_hasta') or '').strip()
+
+    if not no_lista:
+        return JsonResponse({"error": "no_lista es requerido"}, status=400)
+
+    perms = permissions_repo.get_for(request.user.username, 'fat', no_cia, punto)
+    if perms is None or not perms.activo:
+        return JsonResponse({'detail': 'sin acceso a FAT en esta empresa/punto'}, status=403)
+
+    try:
+        items = fat_repo.list_lista_precio_detalle(
+            no_cia, punto, no_lista,
+            no_produ_desde=no_produ_desde,
+            no_produ_hasta=no_produ_hasta,
+        )
+    except Exception as e:
+        return JsonResponse({"error": f"Error consultando lista de precio: {e}"}, status=500)
+
+    # Lookup descripcion de la lista
+    tipos = fat_repo.list_tipos_lista_precio(no_cia)
+    lista_info = next((t for t in tipos if str(t['no_lista']) == str(no_lista)), None)
+    descripcion_lista = (lista_info or {}).get('descripcion', '')
+    tipo_moneda = (lista_info or {}).get('tipo_moneda', 'RD')
+
+    cia = inv_repo.get_compania(no_cia) or {}
+    razon = (cia.get('descripcion') or no_cia).strip()
+
+    col_display = ['NO_PRODU', 'DESCRIPCION', 'PRECIO', 'ACTIVA', 'NOTA']
+    rows_data = [{
+        'no_produ': r['no_produ'],
+        'descripcion': (r['descripcion'] or '')[:60],
+        'precio': r['precio'],
+        'activa': 'S' if r['activo'] else 'N',
+        'nota': (r.get('nota') or '')[:30],
+    } for r in items]
+
+    header_extra = [
+        f"<b>{razon}</b>",
+        f"<b>Lista de Precio:</b> {no_lista} — {descripcion_lista or '(sin descripción)'} ({tipo_moneda})",
+    ]
+    filtros = []
+    if no_produ_desde:
+        filtros.append(f"Desde producto: {no_produ_desde.rjust(8,'0')}")
+    if no_produ_hasta:
+        filtros.append(f"Hasta producto: {no_produ_hasta.rjust(8,'0')}")
+    if filtros:
+        header_extra.append(f"<b>Filtros:</b> {' | '.join(filtros)}")
+    header_extra.append(f"<b>Total productos:</b> {len(rows_data)}")
+
+    try:
+        pdf = build_pdf_report(
+            title=f"Listado Lista de Precio {no_lista} — {razon}",
+            columns=col_display,
+            rows=rows_data,
+            col_widths=None,
+            header_extra=header_extra,
+        )
+    except Exception as e:
+        return JsonResponse({"error": f"Error generando PDF: {e}"}, status=500)
+
+    resp = HttpResponse(pdf, content_type='application/pdf')
+    resp['Content-Disposition'] = f'inline; filename="lista_precio_{no_lista}.pdf"'
+    return resp
+
+
+@login_required
+@require_http_methods(["GET"])
 def fat_conduce_pdf(request, tipo: str, no_conduce: str):
     """GET /api/fat/conduces/<tipo>/<no_conduce>/pdf/?no_cia=01&punto=01
 

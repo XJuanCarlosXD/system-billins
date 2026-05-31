@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FileSpreadsheet, List, Printer } from 'lucide-react'
+import { FileSpreadsheet, FileText, List, Printer } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -51,6 +51,13 @@ export function ListasPrecioFat({ noCia, punto }: Props) {
     )
   }
 
+  const openListadoPdf = () => {
+    if (!selectedLista) return
+    const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
+    const qs = new URLSearchParams({ no_cia: noCia, punto, no_lista: selectedLista }).toString()
+    window.open(`${API_BASE}/fat/reportes/lista-precio/pdf/?${qs}`, '_blank')
+  }
+
   const exportPdf = async () => {
     const lista = tipos.find((t) => t.no_lista === selectedLista)
     const meta = await buildReportMeta(noCia, punto, '')
@@ -81,6 +88,7 @@ export function ListasPrecioFat({ noCia, punto }: Props) {
         </div>
         <div className='flex gap-2'>
           <Button variant='outline' size='sm' onClick={exportPdf} disabled={!selectedLista}><Printer className='mr-1 h-4 w-4' /> PDF</Button>
+          <Button variant='outline' size='sm' onClick={openListadoPdf} disabled={!selectedLista}><FileText className='mr-1 h-4 w-4' /> Imprimir PDF</Button>
           <Button variant='outline' size='sm' onClick={exportCsv} disabled={!selectedLista}><FileSpreadsheet className='mr-1 h-4 w-4' /> Excel</Button>
         </div>
       </div>
