@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileSpreadsheet, Printer, XCircle, RefreshCw } from 'lucide-react'
+import { FileSpreadsheet, FileText, Printer, XCircle, RefreshCw } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -75,6 +75,13 @@ export function RepNcfNulos({ noCia, punto }: Props) {
     win.document.close(); win.print()
   }
 
+  const openListadoPdf = () => {
+    if (!desde || !hasta) return
+    const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
+    const qs = new URLSearchParams({ no_cia: noCia, punto, desde, hasta }).toString()
+    window.open(`${API_BASE}/fat/reportes/ncf-nulos/pdf/?${qs}`, '_blank')
+  }
+
   return (
     <section className='space-y-4'>
       <div className='flex flex-wrap items-center justify-between gap-3'>
@@ -86,6 +93,7 @@ export function RepNcfNulos({ noCia, punto }: Props) {
         </div>
         <div className='flex gap-2'>
           <Button variant='outline' size='sm' onClick={exportPdf} disabled={!loaded}><Printer className='mr-1 h-4 w-4' /> PDF</Button>
+          <Button variant='outline' size='sm' onClick={openListadoPdf} disabled={!loaded}><FileText className='mr-1 h-4 w-4' /> Imprimir PDF</Button>
           <Button variant='outline' size='sm' onClick={exportCsv} disabled={!loaded}><FileSpreadsheet className='mr-1 h-4 w-4' /> Excel</Button>
         </div>
       </div>

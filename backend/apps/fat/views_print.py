@@ -231,6 +231,93 @@ def fat_lista_facturas_pdf(request):
 
 @login_required
 @require_http_methods(["GET"])
+def fat_rep_ncf_nulos_pdf(request):
+    """GET /api/fat/reportes/ncf-nulos/pdf/?no_cia=01&punto=01&desde=YYYY-MM-DD&hasta=YYYY-MM-DD
+
+    Reporte NCF nulos/anulados — compliance fiscal.
+    """
+    try:
+        from reportlab.lib.pagesizes import letter  # probe
+    except ImportError:
+        return JsonResponse({"error": "reportlab no instalado"}, status=500)
+
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    desde = request.GET.get('desde', '')
+    hasta = request.GET.get('hasta', '')
+
+    if not desde or not hasta:
+        return JsonResponse({"error": "desde y hasta son requeridos (YYYY-MM-DD)"}, status=400)
+
+    perms = permissions_repo.get_for(request.user.username, 'fat', no_cia, punto)
+    if perms is None or not perms.activo:
+        return JsonResponse({'detail': 'sin acceso a FAT en esta empresa/punto'}, status=403)
+
+    try:
+        rows = fat_repo.rep_ncf_nulos(no_cia=no_cia, desde=desde, hasta=hasta)
+    except Exception as e:
+        return JsonResponse({"error": f"Error consultando NCF nulos: {e}"}, status=500)
+
+    cia = inv_repo.get_compania(no_cia) or {}
+    razon = (cia.get('descripcion') or no_cia).strip()
+    rnc_empresa = (cia.get('rnc') or '').strip()
+
+    def _date_str(v) -> str:
+        return str(v)[:10] if v else ''
+
+    def _ncf_dgi_of(r: dict) -> str:
+        ncf = r.get('ncf')
+        if not ncf:
+            return ''
+        prefix = (
+            r.get('tipo_ncf_fiscal')
+            or r.get('tipo_ncf')
+            or r.get('codigo_ncf')
+            or ''
+        ).strip().upper()
+        try:
+            n_int = int(ncf)
+        except (TypeError, ValueError):
+            return str(ncf)
+        if prefix.startswith('B') and len(prefix) == 3:
+            return f"{prefix}{n_int:08d}"
+        return str(ncf)
+
+    col_display = ['NCF', 'TIPO_NCF', 'F_DESDE', 'F_HASTA', 'MOTIVO', 'F_ANULACION', 'FACTURA']
+    rows_data = [{
+        'ncf': _ncf_dgi_of(r),
+        'tipo_ncf': r.get('tipo_ncf_fiscal') or r.get('tipo_ncf') or r.get('codigo_ncf') or '',
+        'f_desde': _date_str(r.get('fecha_desde')),
+        'f_hasta': _date_str(r.get('fecha_hasta')),
+        'motivo': (r.get('motivo_anulacion') or '')[:40],
+        'f_anulacion': _date_str(r.get('fecha_anulacion')),
+        'factura': f"{r.get('tipo_factura', '')}-{r.get('no_factura', '')}".strip('-'),
+    } for r in rows]
+
+    header_extra = [
+        f"<b>{razon}</b>" + (f" — RNC: {rnc_empresa}" if rnc_empresa else ''),
+        f"<b>NCF Nulos / Anulados</b> &middot; Período: {desde} a {hasta}",
+        f"<b>Total registros:</b> {len(rows_data)}",
+    ]
+
+    try:
+        pdf = build_pdf_report(
+            title=f"NCF Nulos — {razon}",
+            columns=col_display,
+            rows=rows_data,
+            col_widths=None,
+            header_extra=header_extra,
+        )
+    except Exception as e:
+        return JsonResponse({"error": f"Error generando PDF: {e}"}, status=500)
+
+    resp = HttpResponse(pdf, content_type='application/pdf')
+    resp['Content-Disposition'] = f'inline; filename="ncf_nulos_{desde}_{hasta}.pdf"'
+    return resp
+
+
+@login_required
+@require_http_methods(["GET"])
 def fat_rep_607_pdf(request):
     """GET /api/fat/reportes/607/pdf/?no_cia=01&punto=01&desde=YYYY-MM-DD&hasta=YYYY-MM-DD
 
