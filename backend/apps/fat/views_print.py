@@ -141,12 +141,15 @@ def fat_lista_facturas_pdf(request):
     hasta = request.GET.get('hasta', '')
     tipo = request.GET.get('tipo', '')
     estado = request.GET.get('estado', '')
+    vendedor = request.GET.get('vendedor', '')
+    no_cliente = request.GET.get('no_cliente', '')
 
     try:
         result = fat_repo.list_facturas(
             no_cia=no_cia, punto=punto,
             fecha_desde=desde, fecha_hasta=hasta,
             tipo=tipo, estado=estado,
+            vendedor=vendedor, no_cliente=no_cliente,
             page=1, page_size=10000,
         )
         items = result['items']
@@ -165,28 +168,43 @@ def fat_lista_facturas_pdf(request):
         else:
             periodo = f"Hasta {hasta}"
 
-    col_display = ['TIPO', 'NO_FACTURA', 'FECHA', 'CLIENTE', 'NCF', 'TOTAL']
+    # Alineado con Rfat321: composite documento PUNTO-TIPO-NO, vendedor visible,
+    # no_cliente con LPAD(5), anulados muestran 0.00 en TOTAL.
+    col_display = ['DOCUMENTO', 'FECHA', 'VENDEDOR', 'NO_CLIENTE', 'CLIENTE', 'NCF', 'TOTAL']
 
-    rows_data = [{
-        'tipo': r['tipo_factura'],
-        'no_factura': f"{r['tipo_factura']}-{r['no_factura']}",
-        'fecha': r['fecha'] or '',
-        'cliente': r['nombre_cliente'],
-        'ncf': r.get('ncf_dgi') or '',
-        'total': r['total_neto'],
-    } for r in items]
+    rows_data = []
+    total_general = 0.0
+    for r in items:
+        es_anulado = (r.get('st_anulado') or 'N') == 'S'
+        total_efectivo = 0.0 if es_anulado else float(r.get('total_neto') or 0)
+        total_general += total_efectivo
+        rows_data.append({
+            'documento': f"{r['punto']}-{r['tipo_factura']}-{r['no_factura']}",
+            'fecha': r['fecha'] or '',
+            'vendedor': r['vendedor'] or '',
+            'no_cliente': str(r['no_cliente']).rjust(5, '0'),
+            'cliente': (r.get('nombre_cliente') or '') + (' (ANULADA)' if es_anulado else ''),
+            'ncf': r.get('ncf_dgi') or '',
+            'total': total_efectivo,
+        })
+
+    # Mapeo de codigos legado: F=Credito, O=Contado, T=Todos
+    tipo_label_legado = {'F': 'Credito (F)', 'O': 'Contado (O)', 'T': 'Todos'}
+    tipo_display = tipo_label_legado.get(tipo.upper(), tipo) if tipo else 'Todos'
 
     header_extra = [f"<b>{razon}</b>"]
     if periodo:
         header_extra.append(f"<b>Período:</b> {periodo}")
-    filtros_desc = []
-    if tipo:
-        filtros_desc.append(f"Tipo: {tipo}")
+    filtros_desc = [f"Tipo: {tipo_display}"]
+    if vendedor:
+        filtros_desc.append(f"Vendedor: {vendedor}")
+    if no_cliente:
+        filtros_desc.append(f"Cliente: {no_cliente.rjust(5,'0')}")
     if estado:
         filtros_desc.append(f"Estado: {estado}")
-    if filtros_desc:
-        header_extra.append(f"<b>Filtros:</b> {' | '.join(filtros_desc)}")
+    header_extra.append(f"<b>Filtros:</b> {' | '.join(filtros_desc)}")
     header_extra.append(f"<b>Total registros:</b> {len(rows_data)}")
+    header_extra.append(f"<b>Total neto (excluyendo anuladas):</b> {total_general:,.2f}")
 
     try:
         pdf = build_pdf_report(

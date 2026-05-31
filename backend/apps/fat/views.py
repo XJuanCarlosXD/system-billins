@@ -177,7 +177,9 @@ class FatFacturasView(APIView):
                 tipo=request.query_params.get('tipo', ''),
                 estado=request.query_params.get('estado', ''),
                 fecha_desde=request.query_params.get('desde', ''),
-                fecha_hasta=request.query_params.get('hasta', ''))
+                fecha_hasta=request.query_params.get('hasta', ''),
+                vendedor=request.query_params.get('vendedor', ''),
+                no_cliente=request.query_params.get('no_cliente', ''))
             return Response(result)
         except Exception as e:
             return Response({'detail': str(e)}, status=500)

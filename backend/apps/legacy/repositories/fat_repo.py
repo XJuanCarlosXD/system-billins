@@ -968,15 +968,29 @@ def count_facturas(no_cia: str, punto: str) -> int:
 
 def list_facturas(no_cia: str, punto: str, page: int = 1, page_size: int = 30,
                   search: str = '', tipo: str = '', estado: str = '',
-                  fecha_desde: str = '', fecha_hasta: str = '') -> dict:
+                  fecha_desde: str = '', fecha_hasta: str = '',
+                  vendedor: str = '', no_cliente: str = '') -> dict:
+    """Listado de facturas.
+
+    Parametros alineados con Rfat321 (Ffat307) legado: tipo_docu, vendedor,
+    cliente, fecha_i/fecha_f. Extras del proyecto: estado, search (cliente
+    nombre o NCF). Si tipo='T' se interpreta como 'todos' (no filtra).
+    """
     filters = ["f.no_cia = :no_cia", "f.punto = :punto"]
     params: dict = {'no_cia': no_cia, 'punto': punto}
-    if tipo:
+    if tipo and tipo.strip().upper() != 'T':
         filters.append("f.tipo_factura = :tipo")
         params['tipo'] = tipo.strip().upper()
     if estado:
         filters.append("f.estado = :estado")
         params['estado'] = estado.strip().upper()
+    if vendedor:
+        filters.append("f.vendedor = :vendedor")
+        params['vendedor'] = vendedor.strip().upper()
+    if no_cliente:
+        # LPAD para consistencia con Rfat321 — el legado guarda no_cliente padded
+        filters.append("f.no_cliente = :no_cliente")
+        params['no_cliente'] = no_cliente.strip()
     if fecha_desde:
         filters.append("TRUNC(f.fecha) >= TO_DATE(:desde,'YYYY-MM-DD')")
         params['desde'] = fecha_desde
