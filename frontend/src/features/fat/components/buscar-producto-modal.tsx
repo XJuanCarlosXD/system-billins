@@ -12,7 +12,8 @@
 //  - select de almacén / lista / checkbox solo-con-existencia
 //  - cantidades por producto
 //  - botón "Ver movimientos" en el popover de existencia → abre MovimientosProductoModal
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -20,6 +21,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { MovimientosProductoModal } from './movimientos-producto-modal'
@@ -74,12 +76,13 @@ export function BuscarProductoModal({
   noCia, punto, almacenes, listas, noLista, defaultAlmacen = '',
 }: Props) {
   const [search, setSearch] = useState('')
-  const [results, setResults] = useState<BuscarProductoModalProducto[]>([])
+  // debouncedSearch = key efectiva para react-query. Se actualiza 300ms despues
+  // del ultimo cambio de search, evitando un request por tecla.
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [cantidades, setCantidades] = useState<Record<string, number>>({})
   const [almacen, setAlmacen] = useState(defaultAlmacen)
   const [lista, setLista] = useState(noLista)
   const [soloExistencia, setSoloExistencia] = useState(true)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Cache de existencia por almacén por producto (lazy: solo carga al abrir popover).
   const [existPorProduto, setExistPorProduto] = useState<Record<string, {
@@ -117,7 +120,7 @@ export function BuscarProductoModal({
   useEffect(() => {
     if (open) {
       setSearch('')
-      setResults([])
+      setDebouncedSearch('')
       setCantidades({})
       setAlmacen(defaultAlmacen)
       setLista(noLista)
@@ -125,23 +128,40 @@ export function BuscarProductoModal({
     }
   }, [open, defaultAlmacen, noLista])
 
-  const buscar = useCallback(
-    (q: string, lst: string, alm: string, soloExist: boolean) => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-      if (!q) { setResults([]); return }
-      debounceRef.current = setTimeout(async () => {
-        try {
-          const res = await regalGeneralApi.fatSearchProductos(
-            noCia, punto, lst || noLista, q, 1, 100,
-            alm && alm !== '__all__' ? alm : undefined,
-            soloExist,
-          )
-          setResults(res.items || [])
-        } catch { setResults([]) }
-      }, 300)
-    },
-    [noCia, punto, noLista],
-  )
+  // Debounce 300ms: el input actualiza `search` inmediato (UX) y este efecto
+  // propaga a `debouncedSearch`, que es la key de react-query.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300)
+    return () => clearTimeout(t)
+  }, [search])
+
+  const almacenEfectivo = almacen && almacen !== '__all__' ? almacen : ''
+  const listaEfectiva = lista || noLista
+
+  // react-query: cache 30s entre busquedas identicas, retry 1, mantiene
+  // resultados previos durante una nueva busqueda para evitar flicker.
+  const productosQ = useQuery({
+    queryKey: [
+      'fat', 'search-productos',
+      noCia, punto, listaEfectiva, debouncedSearch,
+      almacenEfectivo, soloExistencia,
+    ],
+    queryFn: () => regalGeneralApi.fatSearchProductos(
+      noCia, punto, listaEfectiva, debouncedSearch, 1, 100,
+      almacenEfectivo || undefined,
+      soloExistencia,
+    ),
+    enabled: open && !!debouncedSearch,
+    staleTime: 30_000,
+    retry: 1,
+    placeholderData: keepPreviousData,
+  })
+
+  const results: BuscarProductoModalProducto[] = productosQ.data?.items ?? []
+  const isLoading = productosQ.isFetching && !productosQ.data
+  const errorMsg = productosQ.isError
+    ? `No pudimos cargar los productos (la consulta tardó demasiado o el servidor respondió con un error). Verifica conexión a Oracle, reintenta o filtra con una búsqueda más específica.`
+    : null
 
   const handleSelect = (p: BuscarProductoModalProducto) => {
     const qty = cantidades[p.no_produ] && cantidades[p.no_produ] > 0 ? cantidades[p.no_produ] : 1
@@ -180,9 +200,7 @@ export function BuscarProductoModal({
                 <Select
                   value={almacen || '__all__'}
                   onValueChange={(v) => {
-                    const alm = v === '__all__' ? '' : v
-                    setAlmacen(alm)
-                    if (search) buscar(search, lista, alm, soloExistencia)
+                    setAlmacen(v === '__all__' ? '' : v)
                   }}
                 >
                   <SelectTrigger className='h-8 w-56'><SelectValue placeholder='Todos...' /></SelectTrigger>
@@ -200,7 +218,7 @@ export function BuscarProductoModal({
               <Label className='text-sm whitespace-nowrap text-gray-600'>Lista Precio:</Label>
               <Select
                 value={lista}
-                onValueChange={(v) => { setLista(v); if (search) buscar(search, v, almacen, soloExistencia) }}
+                onValueChange={(v) => setLista(v)}
               >
                 <SelectTrigger className='h-8 w-44'><SelectValue placeholder='Lista...' /></SelectTrigger>
                 <SelectContent>
@@ -215,11 +233,7 @@ export function BuscarProductoModal({
               <Checkbox
                 id='solo-existencia-modal'
                 checked={soloExistencia}
-                onCheckedChange={(v) => {
-                  const val = v === true
-                  setSoloExistencia(val)
-                  if (search) buscar(search, lista, almacen, val)
-                }}
+                onCheckedChange={(v) => setSoloExistencia(v === true)}
               />
               <Label htmlFor='solo-existencia-modal' className='text-sm whitespace-nowrap text-gray-600 cursor-pointer'>
                 Solo con existencia
@@ -231,7 +245,7 @@ export function BuscarProductoModal({
         <div className='px-6 py-3 border-b shrink-0 bg-gray-50'>
           <Input
             value={search}
-            onChange={(e) => { setSearch(e.target.value); buscar(e.target.value, lista, almacen, soloExistencia) }}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder='Buscar por código o descripción del producto…'
             autoFocus
             className='text-base h-11'
@@ -253,10 +267,40 @@ export function BuscarProductoModal({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {results.length === 0 && (
+              {isLoading && (
+                <>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <TableRow key={`sk-${i}`}>
+                      <TableCell><Skeleton className='h-4 w-24' /></TableCell>
+                      <TableCell><Skeleton className='h-4 w-full' /></TableCell>
+                      <TableCell><Skeleton className='h-4 w-10 mx-auto' /></TableCell>
+                      <TableCell><Skeleton className='h-4 w-20 ml-auto' /></TableCell>
+                      <TableCell><Skeleton className='h-4 w-12 ml-auto' /></TableCell>
+                      <TableCell><Skeleton className='h-4 w-16 ml-auto' /></TableCell>
+                      <TableCell><Skeleton className='h-7 w-20 mx-auto' /></TableCell>
+                      <TableCell><Skeleton className='h-7 w-20 mx-auto' /></TableCell>
+                    </TableRow>
+                  ))}
+                </>
+              )}
+              {!isLoading && errorMsg && (
+                <TableRow>
+                  <TableCell colSpan={8} className='py-10'>
+                    <div className='max-w-md mx-auto text-center space-y-3'>
+                      <p className='text-sm text-red-600 font-medium'>{errorMsg}</p>
+                      <Button size='sm' variant='outline' onClick={() => productosQ.refetch()}>
+                        Reintentar
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoading && !errorMsg && results.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={8} className='text-center text-gray-400 py-12 text-base'>
-                    {search ? `No se encontraron productos para "${search}"` : 'Ingrese un término de búsqueda'}
+                    {debouncedSearch
+                      ? `No se encontraron productos para "${debouncedSearch}"`
+                      : 'Ingrese un término de búsqueda'}
                   </TableCell>
                 </TableRow>
               )}
