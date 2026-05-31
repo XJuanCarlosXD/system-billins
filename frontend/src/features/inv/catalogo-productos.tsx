@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react'
-import { Search, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, X, ChevronLeft, ChevronRight, History } from 'lucide-react'
 import { useCompany } from '@/context/company-context'
+import { regalGeneralApi } from '@/lib/regal-general-api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
+import {
+  MovimientosProductoModal,
+  type MovimientosProductoModalAlmacen,
+} from '@/features/fat/components/movimientos-producto-modal'
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
 
@@ -42,7 +47,7 @@ async function apiFetch<T>(path: string): Promise<T> {
 }
 
 export function CatalogoProductos() {
-  const { selectedCompany } = useCompany()
+  const { selectedCompany, selectedPoint } = useCompany()
 
   const [search, setSearch] = useState('')
   const [grupo, setGrupo] = useState('__all__')
@@ -57,8 +62,10 @@ export function CatalogoProductos() {
 
   const [grupos, setGrupos] = useState<any[]>([])
   const [lineas, setLineas] = useState<any[]>([])
+  const [almacenes, setAlmacenes] = useState<MovimientosProductoModalAlmacen[]>([])
 
   const [selected, setSelected] = useState<Producto | null>(null)
+  const [moviProdu, setMoviProdu] = useState<{ no_produ: string; descripcion: string } | null>(null)
 
   // Load catalogues once
   useEffect(() => {
@@ -76,7 +83,17 @@ export function CatalogoProductos() {
         setLineas(items)
       })
       .catch(() => setLineas([]))
-  }, [selectedCompany])
+
+    regalGeneralApi.invAlmacenes(selectedCompany, selectedPoint || undefined)
+      .then((data: any) => {
+        const items = (data?.results ?? []).map((a: any) => ({
+          almacen: String(a.almacen ?? '').trim(),
+          descripcion: (a.descripcion ?? '').trim(),
+        })).filter((a: MovimientosProductoModalAlmacen) => a.almacen)
+        setAlmacenes(items)
+      })
+      .catch(() => setAlmacenes([]))
+  }, [selectedCompany, selectedPoint])
 
   // Load products
   useEffect(() => {
@@ -265,10 +282,23 @@ export function CatalogoProductos() {
         <Dialog open onOpenChange={() => setSelected(null)}>
           <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
             <DialogHeader>
-              <DialogTitle className='flex items-center gap-2'>
-                <span className='font-mono text-base'>{selected.no_produ}</span>
-                {selected.activo === 'N' && <Badge variant='secondary'>Inactivo</Badge>}
-              </DialogTitle>
+              <div className='flex items-center justify-between gap-2 pr-6'>
+                <DialogTitle className='flex items-center gap-2'>
+                  <span className='font-mono text-base'>{selected.no_produ}</span>
+                  {selected.activo === 'N' && <Badge variant='secondary'>Inactivo</Badge>}
+                </DialogTitle>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  className='gap-1.5'
+                  onClick={() => setMoviProdu({
+                    no_produ: selected.no_produ,
+                    descripcion: selected.descripcion || '',
+                  })}
+                >
+                  <History className='h-3.5 w-3.5' /> Ver movimientos
+                </Button>
+              </div>
             </DialogHeader>
             <div className='space-y-3 text-sm'>
               <p className='font-medium'>{selected.descripcion}</p>
@@ -299,6 +329,19 @@ export function CatalogoProductos() {
             </div>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* Movimientos del producto (Rinv304) */}
+      {moviProdu && selectedCompany && (
+        <MovimientosProductoModal
+          open={!!moviProdu}
+          onClose={() => setMoviProdu(null)}
+          noCia={selectedCompany}
+          noProdu={moviProdu.no_produ}
+          descripcion={moviProdu.descripcion}
+          almacenes={almacenes}
+          defaultPunto={selectedPoint || ''}
+        />
       )}
     </div>
   )
