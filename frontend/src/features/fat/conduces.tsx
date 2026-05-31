@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { Eye, FileSpreadsheet, PackageOpen, Pencil, Printer, Search } from 'lucide-react'
+import { Eye, FileSpreadsheet, FileText, PackageOpen, Pencil, Printer, Search } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -106,6 +106,29 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
     win.document.close(); win.print()
   }
 
+  const openListadoPdf = () => {
+    const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
+    const params = new URLSearchParams({ no_cia: noCia, punto })
+    // periodo basado en ano/mes (primer dia al ultimo dia del mes)
+    const desde = `${ano}-${String(mes).padStart(2, '0')}-01`
+    const lastDay = new Date(ano, mes, 0).getDate()
+    const hasta = `${ano}-${String(mes).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+    params.set('desde', desde)
+    params.set('hasta', hasta)
+    if (tipo && tipo !== 'ALL') params.set('tipo', tipo)
+    if (search) params.set('search', search)
+    window.open(`${API_BASE}/fat/reportes/listado-conduces/pdf/?${params.toString()}`, '_blank')
+  }
+
+  const openConducePdf = (c: { tipo_conduce: string; no_conduce: string }) => {
+    const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
+    const qs = new URLSearchParams({ no_cia: noCia, punto }).toString()
+    window.open(
+      `${API_BASE}/fat/conduces/${encodeURIComponent(c.tipo_conduce)}/${encodeURIComponent(c.no_conduce)}/pdf/?${qs}`,
+      '_blank',
+    )
+  }
+
   const totalPages = Math.ceil(total / pageSize)
 
   return (
@@ -119,6 +142,7 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
         </div>
         <div className='flex gap-2'>
           <Button variant='outline' size='sm' onClick={exportPdf}><Printer className='mr-1 h-4 w-4' /> PDF</Button>
+          <Button variant='outline' size='sm' onClick={openListadoPdf}><FileText className='mr-1 h-4 w-4' /> Imprimir PDF</Button>
           <Button variant='outline' size='sm' onClick={exportCsv}><FileSpreadsheet className='mr-1 h-4 w-4' /> Excel</Button>
         </div>
       </div>
@@ -224,6 +248,19 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
                   </>
                 )}
               </div>
+              {selected && (
+                <Button
+                  size='sm'
+                  variant='outline'
+                  className='gap-1 shrink-0'
+                  onClick={() => openConducePdf({
+                    tipo_conduce: selected.tipo_conduce,
+                    no_conduce: selected.no_conduce,
+                  })}
+                >
+                  <FileText className='h-3.5 w-3.5' /> Imprimir PDF
+                </Button>
+              )}
               {selected && selected.st_anulado !== 'S' && (
                 <Button
                   size='sm'

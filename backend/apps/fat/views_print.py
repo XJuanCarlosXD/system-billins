@@ -204,6 +204,257 @@ def fat_lista_facturas_pdf(request):
     return resp
 
 
+@login_required
+@require_http_methods(["GET"])
+def fat_conduce_pdf(request, tipo: str, no_conduce: str):
+    """GET /api/fat/conduces/<tipo>/<no_conduce>/pdf/?no_cia=01&punto=01
+
+    Devuelve el PDF de un conduce/cotizacion para impresion. NCF es opcional
+    (los conduces solo tienen NCF si ya fueron facturados).
+    """
+    try:
+        from reportlab.lib.pagesizes import letter  # probe
+    except ImportError:
+        return JsonResponse({"error": "reportlab no instalado"}, status=500)
+
+    tipo_s = (tipo or '').strip().upper()
+    no_conduce_s = (no_conduce or '').strip()
+
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+
+    perms = permissions_repo.get_for(request.user.username, 'fat', no_cia, punto)
+    if perms is None or not perms.activo:
+        return JsonResponse({'detail': 'sin acceso a FAT en esta empresa/punto'}, status=403)
+
+    try:
+        conduce = fat_repo.get_conduce(no_cia, punto, tipo_s, no_conduce_s)
+    except Exception as e:
+        return JsonResponse({"error": f"Error consultando conduce: {e}"}, status=500)
+
+    if conduce is None:
+        return JsonResponse({"error": "Conduce no encontrado"}, status=404)
+
+    cia = inv_repo.get_compania(no_cia) or {}
+    razon_social = (cia.get('descripcion') or no_cia).strip()
+
+    no_cliente_str = str(conduce.get('no_cliente') or '')
+    cliente = cxc_repo.get_cliente(no_cia, no_cliente_str) or {}
+    rnc_cliente = (cliente.get('rnc') or '').strip()
+    direccion_cliente = (cliente.get('direccion') or '').strip()
+
+    nombre_vendedor = fat_repo.get_vendedor_nombre(no_cia, conduce.get('vendedor', ''))
+    descripcion_cond_pago = fat_repo.get_condicion_pago_descripcion(
+        conduce.get('no_condicion_pago', ''))
+
+    try:
+        pdf_bytes = _render_conduce_pdf(
+            conduce=conduce,
+            razon_social=razon_social,
+            rnc_cliente=rnc_cliente,
+            direccion_cliente=direccion_cliente,
+            nombre_vendedor=nombre_vendedor,
+            descripcion_cond_pago=descripcion_cond_pago,
+        )
+    except Exception as e:
+        return JsonResponse({"error": f"Error generando PDF: {e}"}, status=500)
+
+    resp = HttpResponse(pdf_bytes, content_type='application/pdf')
+    resp['Content-Disposition'] = (
+        f'inline; filename="FAT_CONDUCE_{tipo_s}_{no_conduce_s}.pdf"'
+    )
+    return resp
+
+
+@login_required
+@require_http_methods(["GET"])
+def fat_lista_conduces_pdf(request):
+    """GET /api/fat/reportes/listado-conduces/pdf/?no_cia=01&punto=01&desde=...&hasta=...&tipo=...
+
+    Devuelve un PDF con el listado de conduces/cotizaciones segun los filtros.
+    """
+    try:
+        from reportlab.lib.pagesizes import letter  # probe
+    except ImportError:
+        return JsonResponse({"error": "reportlab no instalado"}, status=500)
+
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+
+    perms = permissions_repo.get_for(request.user.username, 'fat', no_cia, punto)
+    if perms is None or not perms.activo:
+        return JsonResponse({'detail': 'sin acceso a FAT en esta empresa/punto'}, status=403)
+
+    desde = request.GET.get('desde', '')
+    hasta = request.GET.get('hasta', '')
+    tipo = request.GET.get('tipo', '')
+    estado = request.GET.get('estado', '')
+    search = request.GET.get('search', '')
+
+    try:
+        result = fat_repo.list_conduces(
+            no_cia=no_cia, punto=punto,
+            fecha_desde=desde, fecha_hasta=hasta,
+            tipo=tipo, estado=estado, search=search,
+            page=1, page_size=10000,
+        )
+        items = result.get('items', [])
+    except Exception as e:
+        return JsonResponse({"error": f"Error consultando conduces: {e}"}, status=500)
+
+    cia = inv_repo.get_compania(no_cia) or {}
+    razon = (cia.get('descripcion') or no_cia).strip()
+
+    periodo = ''
+    if desde or hasta:
+        if desde and hasta:
+            periodo = f"{desde} a {hasta}"
+        elif desde:
+            periodo = f"Desde {desde}"
+        else:
+            periodo = f"Hasta {hasta}"
+
+    col_display = ['TIPO', 'NO_CONDUCE', 'FECHA', 'CLIENTE', 'FACTURA', 'TOTAL']
+
+    rows_data = [{
+        'tipo': r.get('tipo_conduce', ''),
+        'no_conduce': f"{r.get('tipo_conduce', '')}-{r.get('no_conduce', '')}",
+        'fecha': r.get('fecha') or '',
+        'cliente': r.get('nombre_cliente', ''),
+        'factura': (
+            f"{(r.get('tipo_factura') or '').strip()}-{(r.get('no_factura') or '').strip()}"
+            if (r.get('no_factura') or '').strip() else ''
+        ),
+        'total': r.get('total_neto', 0),
+    } for r in items]
+
+    header_extra = [f"<b>{razon}</b>"]
+    if periodo:
+        header_extra.append(f"<b>Período:</b> {periodo}")
+    filtros_desc = []
+    if tipo:
+        filtros_desc.append(f"Tipo: {tipo}")
+    if estado:
+        filtros_desc.append(f"Estado: {estado}")
+    if search:
+        filtros_desc.append(f"Búsqueda: {search}")
+    if filtros_desc:
+        header_extra.append(f"<b>Filtros:</b> {' | '.join(filtros_desc)}")
+    header_extra.append(f"<b>Total registros:</b> {len(rows_data)}")
+
+    try:
+        pdf = build_pdf_report(
+            title=f"Listado de Conduces/Cotizaciones — {razon}",
+            columns=col_display,
+            rows=rows_data,
+            col_widths=None,
+            header_extra=header_extra,
+        )
+    except Exception as e:
+        return JsonResponse({"error": f"Error generando PDF: {e}"}, status=500)
+
+    resp = HttpResponse(pdf, content_type='application/pdf')
+    resp['Content-Disposition'] = 'inline; filename="listado_conduces.pdf"'
+    return resp
+
+
+def _render_conduce_pdf(*, conduce, razon_social, rnc_cliente, direccion_cliente,
+                        nombre_vendedor, descripcion_cond_pago) -> bytes:
+    """Renderiza el PDF de un conduce/cotizacion (similar a factura)."""
+    from reportlab.lib.pagesizes import letter
+
+    tipo = conduce.get('tipo_conduce', '')
+    no_conduce = conduce.get('no_conduce', '')
+    clase = (conduce.get('clase') or '').strip().upper()
+    clase_label = {'C': 'Conduce', 'O': 'Cotización', 'P': 'Pedido'}.get(clase, clase or 'Documento')
+
+    fecha = conduce.get('fecha', '') or ''
+    fecha_display = (
+        f"{fecha[8:10]}/{fecha[5:7]}/{fecha[:4]}" if fecha and len(fecha) >= 10 else fecha
+    )
+
+    nombre_cliente = (conduce.get('nombre_cliente') or '').strip() or '(sin nombre)'
+    vendedor_codigo = (conduce.get('vendedor') or '').strip()
+    vendedor_display = (
+        f"{vendedor_codigo} — {nombre_vendedor}" if nombre_vendedor else vendedor_codigo
+    )
+    cond_pago_display = descripcion_cond_pago or 'N/A'
+
+    # NCF DGI (opcional en conduces)
+    ncf_dgi = (conduce.get('ncf_dgi') or '').strip()
+    if ncf_dgi:
+        ncf_display = f"<b>NCF:</b> {ncf_dgi}"
+    else:
+        ncf_display = "<b>NCF:</b> (pendiente facturación)"
+
+    # Factura vinculada (si aplica)
+    no_factura = (conduce.get('no_factura') or '').strip()
+    tipo_factura = (conduce.get('tipo_factura') or '').strip()
+    factura_display = (
+        f"<b>Factura vinculada:</b> {tipo_factura}-{no_factura}"
+        if no_factura else ''
+    )
+
+    header_extra = [
+        f"<b>{razon_social}</b>",
+        f"<b>Cliente:</b> {nombre_cliente}",
+        f"<b>RNC/Cédula:</b> {rnc_cliente or 'N/A'}",
+        f"<b>Dirección:</b> {direccion_cliente or 'N/A'}",
+        f"<b>Fecha:</b> {fecha_display}  <b>Vendedor:</b> {vendedor_display or 'N/A'}",
+        f"<b>Condición de pago:</b> {cond_pago_display}",
+        ncf_display,
+    ]
+    if factura_display:
+        header_extra.append(factura_display)
+
+    # Lineas (no anuladas) — usa los campos derivados por _build_conduce_lineas
+    lineas = [
+        {
+            'linea': l.get('no_linea'),
+            'codigo': l.get('no_produ'),
+            'descripcion': l.get('descripcion'),
+            'cant': l.get('cantidad'),
+            'precio': l.get('precio'),
+            'dscto': l.get('descuento'),
+            'itbis': l.get('itbis'),
+            'total': (
+                float(l.get('cantidad') or 0) * float(l.get('precio') or 0)
+                - float(l.get('descuento') or 0) + float(l.get('itbis') or 0)
+            ),
+        }
+        for l in conduce.get('lineas', [])
+        if (l.get('st_anulado') or 'N') == 'N'
+    ]
+
+    columns = ['LINEA', 'CODIGO', 'DESCRIPCION', 'CANT', 'PRECIO', 'DSCTO', 'ITBIS', 'TOTAL']
+
+    subtotal = float(conduce.get('total_linea') or 0)
+    descuento_total = float(conduce.get('descuento') or 0)
+    impuesto_total = float(conduce.get('impuesto') or 0)
+    total_general = float(conduce.get('total_neto') or 0)
+
+    footer_extra = [
+        f"<b>Subtotal:</b> {subtotal:,.2f}",
+        f"<b>Descuento:</b> {descuento_total:,.2f}",
+        f"<b>ITBIS:</b> {impuesto_total:,.2f}",
+        f"<b>TOTAL:</b> {total_general:,.2f}",
+    ]
+
+    detalle = (conduce.get('detalle') or '').strip()
+    if detalle:
+        footer_extra.append(f"<i>Nota:</i> {detalle}")
+
+    return build_pdf_report(
+        title=f"{clase_label} {tipo}-{no_conduce}",
+        columns=columns,
+        rows=lineas,
+        col_widths=None,
+        header_extra=header_extra,
+        footer_extra=footer_extra,
+        page_size=letter,
+    )
+
+
 def _render_factura_pdf(*, factura, razon_social, rnc_cliente, direccion_cliente,
                          nombre_vendedor, descripcion_cond_pago, tipo_ncf) -> bytes:
     """Arma header_extra + footer_extra y llama a build_pdf_report."""
