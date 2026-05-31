@@ -848,6 +848,13 @@ export const regalGeneralApi = {
     request<{ items: Array<Record<string, any>>; count: number }>(
       `/fat/rep-ncf-nulos/?no_cia=${encodeURIComponent(no_cia)}&punto=${encodeURIComponent(punto)}&desde=${desde}&hasta=${hasta}`),
 
+  fatRepFacturasRnc: (noCia: string, punto: string, desde: string, hasta: string, tipoDocu = 'T', rnc = '', noCliente = '') => {
+    const p = new URLSearchParams({ no_cia: noCia, punto, desde, hasta, tipo_docu: tipoDocu })
+    if (rnc) p.set('rnc', rnc)
+    if (noCliente) p.set('no_cliente', noCliente)
+    return request<{ items: Array<Record<string, any>>; total_neto: number; count: number }>(`/fat/rep-facturas-rnc/?${p.toString()}`)
+  },
+
 
   fatRepVentasVendedor: (noCia: string, punto: string, desde: string, hasta: string) =>
     request<{ items: Array<Record<string, any>>; total_neto: number; count: number }>(

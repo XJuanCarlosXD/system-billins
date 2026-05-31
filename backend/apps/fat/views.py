@@ -837,6 +837,34 @@ class FatRepNcfNulosView(APIView):
             return Response({'detail': str(e)}, status=500)
 
 
+class FatRepFacturasRncView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        no_cia = request.query_params.get('no_cia')
+        punto = request.query_params.get('punto', '01')
+        if not no_cia:
+            return Response({'detail': 'no_cia es requerido'}, status=400)
+        forbidden = _check_fat_access(request.user.username, no_cia, punto)
+        if forbidden:
+            return forbidden
+        try:
+            rows = fat_repo.rep_facturas_rnc(
+                no_cia=no_cia, punto=punto,
+                desde=request.query_params.get('desde', ''),
+                hasta=request.query_params.get('hasta', ''),
+                tipo_docu=request.query_params.get('tipo_docu', 'T'),
+                rnc=request.query_params.get('rnc', ''),
+                no_cliente=request.query_params.get('no_cliente', ''))
+            return Response({'items': rows,
+                             'total_neto': sum(r['total_neto'] for r in rows),
+                             'count': len(rows)})
+        except ValueError:
+            return Response({'detail': 'no_cliente debe ser numerico'}, status=400)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=500)
+
+
 
 # -- Rep Ventas Vendedor -------------------------------------------------------
 

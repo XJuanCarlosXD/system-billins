@@ -906,6 +906,113 @@ def rep_ncf_nulos(no_cia: str, desde: str, hasta: str) -> list[dict]:
 
 # ── Cierres ────────────────────────────────────────────────────────────────────
 
+# -- Reporte Facturas con RNC (Rfat328) ---------------------------------------
+
+def rep_facturas_rnc(no_cia: str, punto: str, desde: str, hasta: str,
+                     tipo_docu: str = 'T', rnc: str = '',
+                     no_cliente: str = '') -> list[dict]:
+    """Listado Rfat328-like de facturas con RNC y referencias CXC."""
+    params: dict = {'no_cia': no_cia, 'punto': punto}
+    extra: list[str] = []
+
+    tipo = (tipo_docu or 'T').strip().upper()
+    if tipo in {'F', 'FC'}:
+        extra.append("AND f.tipo_factura = 'FC'")
+    elif tipo in {'O', 'FT'}:
+        extra.append("AND f.tipo_factura = 'FT'")
+
+    if desde:
+        params['desde'] = desde
+        extra.append("AND TRUNC(f.fecha) >= TO_DATE(:desde,'YYYY-MM-DD')")
+    if hasta:
+        params['hasta'] = hasta
+        extra.append("AND TRUNC(f.fecha) <= TO_DATE(:hasta,'YYYY-MM-DD')")
+    if rnc:
+        params['rnc'] = f"%{rnc.strip()}%"
+        extra.append("AND UPPER(NVL(n.rnc, cl.rnc)) LIKE UPPER(:rnc)")
+    if no_cliente:
+        params['no_cliente'] = int(no_cliente)
+        extra.append("AND f.no_cliente = :no_cliente")
+
+    rows = client.fetch_dicts(
+        f"""
+        SELECT f.punto, f.tipo_factura, f.no_factura, f.no_cliente,
+               f.fecha, f.vendedor, NVL(f.st_anulado,'N') AS st_anulado,
+               NVL(f.total_neto,0) AS total_neto,
+               NVL(n.nombre, cl.nombre) AS nombre,
+               NVL(n.rnc, cl.rnc) AS rnc,
+               NVL(d.posiciones_fijas_ncf, f.posiciones_fijas_ncf) AS pref_ncf,
+               NVL(d.ncf, f.ncf) AS ncf,
+               d.tipo_docu AS cxc_tipo_docu,
+               d.no_docu AS cxc_no_docu,
+               refs.referencias_cxc
+        FROM FAT.TFAT_FACTURA f
+        LEFT JOIN FAT.TFAT_NOMBRE n
+          ON n.no_cia=f.no_cia AND n.punto=f.punto
+         AND n.tipo_factura=f.tipo_factura AND n.no_factura=f.no_factura
+        LEFT JOIN CXC.TCXC_CLIENTE cl
+          ON cl.no_cia=f.no_cia AND cl.punto=f.punto
+         AND cl.no_cliente=f.no_cliente
+        LEFT JOIN CXC.TCXC_DOCUMENTO d
+          ON d.no_cia=f.no_cia AND d.punto=f.punto
+         AND d.tipo_docu=f.tipo_factura AND d.no_docu=f.no_factura
+        LEFT JOIN (
+          SELECT no_cia, punto, tipo_refe, no_refe,
+                 LISTAGG(tipo_docu || '-' || no_docu, ', ')
+                   WITHIN GROUP (ORDER BY tipo_docu, no_docu) AS referencias_cxc
+          FROM CXC.TCXC_REFEDOCU
+          GROUP BY no_cia, punto, tipo_refe, no_refe
+        ) refs
+          ON refs.no_cia=f.no_cia AND refs.punto=f.punto
+         AND refs.tipo_refe=f.tipo_factura AND refs.no_refe=f.no_factura
+        WHERE f.no_cia=:no_cia AND f.punto=:punto
+          {' '.join(extra)}
+        ORDER BY f.fecha, f.tipo_factura, f.no_factura
+        """,
+        params)
+
+    def _ncf_dgi(prefix, ncf_num) -> str:
+        prefix_s = (prefix or '').strip().upper()
+        if not ncf_num:
+            return ''
+        try:
+            n_int = int(ncf_num)
+        except (TypeError, ValueError):
+            return str(ncf_num)
+        if prefix_s.startswith('B') and len(prefix_s) == 3:
+            return f"{prefix_s}{n_int:08d}"
+        return str(ncf_num)
+
+    items = []
+    for r in rows:
+        no_cliente_val = r['no_cliente']
+        total = 0.0 if (r['st_anulado'] or 'N') == 'S' else float(r['total_neto'] or 0)
+        cxc_documento = ''
+        if r.get('cxc_tipo_docu') and r.get('cxc_no_docu'):
+            cxc_documento = f"{r['cxc_tipo_docu']}-{r['cxc_no_docu']}"
+        referencias_cxc = (r['referencias_cxc'] or '').strip()
+        if not referencias_cxc.strip(' -,'):
+            referencias_cxc = ''
+        items.append({
+            'documento': f"{r['punto']}-{r['tipo_factura']}-{r['no_factura']}",
+            'punto': r['punto'] or '',
+            'tipo_factura': r['tipo_factura'] or '',
+            'no_factura': r['no_factura'] or '',
+            'fecha': str(r['fecha'])[:10] if r['fecha'] else None,
+            'no_cliente': int(no_cliente_val) if no_cliente_val is not None else None,
+            'no_cliente_fmt': str(int(no_cliente_val)).zfill(5) if no_cliente_val is not None else '',
+            'vendedor': (r['vendedor'] or '').strip(),
+            'nombre': (r['nombre'] or '').strip(),
+            'rnc': (r['rnc'] or '').strip(),
+            'ncf': _ncf_dgi(r['pref_ncf'], r['ncf']),
+            'cxc_documento': cxc_documento,
+            'referencias_cxc': referencias_cxc,
+            'st_anulado': r['st_anulado'] or 'N',
+            'total_neto': total,
+        })
+    return items
+
+
 def list_cierres(no_cia: str, punto: str) -> list[dict]:
     rows = client.fetch_dicts(
         "SELECT ano, mes, fecha_cierre, fecha_sysdate, usuario "

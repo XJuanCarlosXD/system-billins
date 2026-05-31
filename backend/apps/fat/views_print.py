@@ -318,6 +318,84 @@ def fat_rep_ncf_nulos_pdf(request):
 
 @login_required
 @require_http_methods(["GET"])
+def fat_rep_facturas_rnc_pdf(request):
+    """GET /api/fat/reportes/facturas-rnc/pdf/?no_cia=01&punto=01&desde=YYYY-MM-DD&hasta=YYYY-MM-DD
+
+    Clone parcial de Rfat328: facturas con RNC, NCF y referencias CXC.
+    """
+    try:
+        from reportlab.lib.pagesizes import letter  # probe
+    except ImportError:
+        return JsonResponse({"error": "reportlab no instalado"}, status=500)
+
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    desde = request.GET.get('desde', '')
+    hasta = request.GET.get('hasta', '')
+    tipo_docu = request.GET.get('tipo_docu', 'T')
+    rnc = request.GET.get('rnc', '')
+    no_cliente = request.GET.get('no_cliente', '')
+
+    if not desde or not hasta:
+        return JsonResponse({"error": "desde y hasta son requeridos (YYYY-MM-DD)"}, status=400)
+
+    perms = permissions_repo.get_for(request.user.username, 'fat', no_cia, punto)
+    if perms is None or not perms.activo:
+        return JsonResponse({'detail': 'sin acceso a FAT en esta empresa/punto'}, status=403)
+
+    try:
+        rows = fat_repo.rep_facturas_rnc(
+            no_cia=no_cia, punto=punto, desde=desde, hasta=hasta,
+            tipo_docu=tipo_docu, rnc=rnc, no_cliente=no_cliente)
+    except ValueError:
+        return JsonResponse({"error": "no_cliente debe ser numerico"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": f"Error consultando facturas con RNC: {e}"}, status=500)
+
+    cia = inv_repo.get_compania(no_cia) or {}
+    razon = (cia.get('descripcion') or no_cia).strip()
+    rnc_empresa = (cia.get('rnc') or '').strip()
+    total_neto = sum(float(r.get('total_neto') or 0) for r in rows)
+
+    col_display = ['DOCUMENTO', 'FECHA', 'NO_CLIENTE', 'RNC', 'NOMBRE', 'NCF', 'REF_CXC', 'TOTAL']
+    rows_data = [{
+        'documento': r.get('documento', ''),
+        'fecha': r.get('fecha') or '',
+        'no_cliente': r.get('no_cliente_fmt') or '',
+        'rnc': r.get('rnc') or '',
+        'nombre': (r.get('nombre') or '')[:32],
+        'ncf': r.get('ncf') or '',
+        'ref_cxc': r.get('referencias_cxc') or r.get('cxc_documento') or '',
+        'total': float(r.get('total_neto') or 0),
+    } for r in rows]
+
+    header_extra = [
+        f"<b>{razon}</b>" + (f" — RNC: {rnc_empresa}" if rnc_empresa else ''),
+        f"<b>Rfat328 - Facturas con RNC</b> &middot; Punto: {punto} &middot; Período: {desde} a {hasta}",
+        f"<b>Tipo:</b> {tipo_docu or 'T'}" + (f" &middot; <b>RNC:</b> {rnc}" if rnc else ''),
+        f"<b>Total registros:</b> {len(rows_data)}",
+    ]
+    footer_extra = [f"<b>Total Neto:</b> {total_neto:,.2f}"]
+
+    try:
+        pdf = build_pdf_report(
+            title=f"Facturas con RNC — {razon}",
+            columns=col_display,
+            rows=rows_data,
+            col_widths=None,
+            header_extra=header_extra,
+            footer_extra=footer_extra,
+        )
+    except Exception as e:
+        return JsonResponse({"error": f"Error generando PDF: {e}"}, status=500)
+
+    resp = HttpResponse(pdf, content_type='application/pdf')
+    resp['Content-Disposition'] = f'inline; filename="facturas_rnc_{desde}_{hasta}.pdf"'
+    return resp
+
+
+@login_required
+@require_http_methods(["GET"])
 def fat_rep_607_pdf(request):
     """GET /api/fat/reportes/607/pdf/?no_cia=01&punto=01&desde=YYYY-MM-DD&hasta=YYYY-MM-DD
 

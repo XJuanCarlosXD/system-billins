@@ -59,6 +59,7 @@ import { Route as AuthenticatedFatRepVentasVendedorRouteImport } from './routes/
 import { Route as AuthenticatedFatRepVentasClienteRouteImport } from './routes/_authenticated/fat/rep-ventas-cliente'
 import { Route as AuthenticatedFatRepVentasRouteImport } from './routes/_authenticated/fat/rep-ventas'
 import { Route as AuthenticatedFatRepNcfNulosRouteImport } from './routes/_authenticated/fat/rep-ncf-nulos'
+import { Route as AuthenticatedFatRepFacturasRncRouteImport } from './routes/_authenticated/fat/rep-facturas-rnc'
 import { Route as AuthenticatedFatRepAnaliticaRouteImport } from './routes/_authenticated/fat/rep-analitica'
 import { Route as AuthenticatedFatRep607RouteImport } from './routes/_authenticated/fat/rep-607'
 import { Route as AuthenticatedFatPuntosRouteImport } from './routes/_authenticated/fat/puntos'
@@ -394,6 +395,12 @@ const AuthenticatedFatRepNcfNulosRoute =
   AuthenticatedFatRepNcfNulosRouteImport.update({
     id: '/rep-ncf-nulos',
     path: '/rep-ncf-nulos',
+    getParentRoute: () => AuthenticatedFatRoute,
+  } as any)
+const AuthenticatedFatRepFacturasRncRoute =
+  AuthenticatedFatRepFacturasRncRouteImport.update({
+    id: '/rep-facturas-rnc',
+    path: '/rep-facturas-rnc',
     getParentRoute: () => AuthenticatedFatRoute,
   } as any)
 const AuthenticatedFatRepAnaliticaRoute =
@@ -909,6 +916,7 @@ export interface FileRoutesByFullPath {
   '/fat/puntos': typeof AuthenticatedFatPuntosRoute
   '/fat/rep-607': typeof AuthenticatedFatRep607Route
   '/fat/rep-analitica': typeof AuthenticatedFatRepAnaliticaRoute
+  '/fat/rep-facturas-rnc': typeof AuthenticatedFatRepFacturasRncRoute
   '/fat/rep-ncf-nulos': typeof AuthenticatedFatRepNcfNulosRoute
   '/fat/rep-ventas': typeof AuthenticatedFatRepVentasRoute
   '/fat/rep-ventas-cliente': typeof AuthenticatedFatRepVentasClienteRoute
@@ -1026,6 +1034,7 @@ export interface FileRoutesByTo {
   '/fat/puntos': typeof AuthenticatedFatPuntosRoute
   '/fat/rep-607': typeof AuthenticatedFatRep607Route
   '/fat/rep-analitica': typeof AuthenticatedFatRepAnaliticaRoute
+  '/fat/rep-facturas-rnc': typeof AuthenticatedFatRepFacturasRncRoute
   '/fat/rep-ncf-nulos': typeof AuthenticatedFatRepNcfNulosRoute
   '/fat/rep-ventas': typeof AuthenticatedFatRepVentasRoute
   '/fat/rep-ventas-cliente': typeof AuthenticatedFatRepVentasClienteRoute
@@ -1152,6 +1161,7 @@ export interface FileRoutesById {
   '/_authenticated/fat/puntos': typeof AuthenticatedFatPuntosRoute
   '/_authenticated/fat/rep-607': typeof AuthenticatedFatRep607Route
   '/_authenticated/fat/rep-analitica': typeof AuthenticatedFatRepAnaliticaRoute
+  '/_authenticated/fat/rep-facturas-rnc': typeof AuthenticatedFatRepFacturasRncRoute
   '/_authenticated/fat/rep-ncf-nulos': typeof AuthenticatedFatRepNcfNulosRoute
   '/_authenticated/fat/rep-ventas': typeof AuthenticatedFatRepVentasRoute
   '/_authenticated/fat/rep-ventas-cliente': typeof AuthenticatedFatRepVentasClienteRoute
@@ -1276,6 +1286,7 @@ export interface FileRouteTypes {
     | '/fat/puntos'
     | '/fat/rep-607'
     | '/fat/rep-analitica'
+    | '/fat/rep-facturas-rnc'
     | '/fat/rep-ncf-nulos'
     | '/fat/rep-ventas'
     | '/fat/rep-ventas-cliente'
@@ -1393,6 +1404,7 @@ export interface FileRouteTypes {
     | '/fat/puntos'
     | '/fat/rep-607'
     | '/fat/rep-analitica'
+    | '/fat/rep-facturas-rnc'
     | '/fat/rep-ncf-nulos'
     | '/fat/rep-ventas'
     | '/fat/rep-ventas-cliente'
@@ -1518,6 +1530,7 @@ export interface FileRouteTypes {
     | '/_authenticated/fat/puntos'
     | '/_authenticated/fat/rep-607'
     | '/_authenticated/fat/rep-analitica'
+    | '/_authenticated/fat/rep-facturas-rnc'
     | '/_authenticated/fat/rep-ncf-nulos'
     | '/_authenticated/fat/rep-ventas'
     | '/_authenticated/fat/rep-ventas-cliente'
@@ -1910,6 +1923,13 @@ declare module '@tanstack/react-router' {
       path: '/rep-ncf-nulos'
       fullPath: '/fat/rep-ncf-nulos'
       preLoaderRoute: typeof AuthenticatedFatRepNcfNulosRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/rep-facturas-rnc': {
+      id: '/_authenticated/fat/rep-facturas-rnc'
+      path: '/rep-facturas-rnc'
+      fullPath: '/fat/rep-facturas-rnc'
+      preLoaderRoute: typeof AuthenticatedFatRepFacturasRncRouteImport
       parentRoute: typeof AuthenticatedFatRoute
     }
     '/_authenticated/fat/rep-analitica': {
@@ -2604,6 +2624,7 @@ interface AuthenticatedFatRouteChildren {
   AuthenticatedFatPuntosRoute: typeof AuthenticatedFatPuntosRoute
   AuthenticatedFatRep607Route: typeof AuthenticatedFatRep607Route
   AuthenticatedFatRepAnaliticaRoute: typeof AuthenticatedFatRepAnaliticaRoute
+  AuthenticatedFatRepFacturasRncRoute: typeof AuthenticatedFatRepFacturasRncRoute
   AuthenticatedFatRepNcfNulosRoute: typeof AuthenticatedFatRepNcfNulosRoute
   AuthenticatedFatRepVentasRoute: typeof AuthenticatedFatRepVentasRoute
   AuthenticatedFatRepVentasClienteRoute: typeof AuthenticatedFatRepVentasClienteRoute
@@ -2630,6 +2651,7 @@ const AuthenticatedFatRouteChildren: AuthenticatedFatRouteChildren = {
   AuthenticatedFatPuntosRoute: AuthenticatedFatPuntosRoute,
   AuthenticatedFatRep607Route: AuthenticatedFatRep607Route,
   AuthenticatedFatRepAnaliticaRoute: AuthenticatedFatRepAnaliticaRoute,
+  AuthenticatedFatRepFacturasRncRoute: AuthenticatedFatRepFacturasRncRoute,
   AuthenticatedFatRepNcfNulosRoute: AuthenticatedFatRepNcfNulosRoute,
   AuthenticatedFatRepVentasRoute: AuthenticatedFatRepVentasRoute,
   AuthenticatedFatRepVentasClienteRoute: AuthenticatedFatRepVentasClienteRoute,
