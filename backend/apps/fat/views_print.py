@@ -143,6 +143,7 @@ def fat_lista_facturas_pdf(request):
     estado = request.GET.get('estado', '')
     vendedor = request.GET.get('vendedor', '')
     no_cliente = request.GET.get('no_cliente', '')
+    con_ventas_exentas = request.GET.get('con_ventas_exentas', 'A')
 
     try:
         result = fat_repo.list_facturas(
@@ -150,6 +151,7 @@ def fat_lista_facturas_pdf(request):
             fecha_desde=desde, fecha_hasta=hasta,
             tipo=tipo, estado=estado,
             vendedor=vendedor, no_cliente=no_cliente,
+            con_ventas_exentas=con_ventas_exentas,
             page=1, page_size=10000,
         )
         items = result['items']
@@ -202,6 +204,11 @@ def fat_lista_facturas_pdf(request):
         filtros_desc.append(f"Cliente: {no_cliente.rjust(5,'0')}")
     if estado:
         filtros_desc.append(f"Estado: {estado}")
+    cve_upper = (con_ventas_exentas or 'A').upper()
+    if cve_upper == 'S':
+        filtros_desc.append("Solo exentas (ITBIS=0)")
+    elif cve_upper == 'N':
+        filtros_desc.append("Solo gravadas (ITBIS!=0)")
     header_extra.append(f"<b>Filtros:</b> {' | '.join(filtros_desc)}")
     header_extra.append(f"<b>Total registros:</b> {len(rows_data)}")
     header_extra.append(f"<b>Total neto (excluyendo anuladas):</b> {total_general:,.2f}")

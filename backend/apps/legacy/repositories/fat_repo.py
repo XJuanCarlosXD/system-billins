@@ -986,12 +986,18 @@ def count_facturas(no_cia: str, punto: str) -> int:
 def list_facturas(no_cia: str, punto: str, page: int = 1, page_size: int = 30,
                   search: str = '', tipo: str = '', estado: str = '',
                   fecha_desde: str = '', fecha_hasta: str = '',
-                  vendedor: str = '', no_cliente: str = '') -> dict:
+                  vendedor: str = '', no_cliente: str = '',
+                  con_ventas_exentas: str = 'A') -> dict:
     """Listado de facturas.
 
     Parametros alineados con Rfat321 (Ffat307) legado: tipo_docu, vendedor,
     cliente, fecha_i/fecha_f. Extras del proyecto: estado, search (cliente
     nombre o NCF). Si tipo='T' se interpreta como 'todos' (no filtra).
+
+    con_ventas_exentas (alineado con Rfat319):
+      'S' -> solo facturas con impuesto = 0 (exentas)
+      'N' -> solo facturas con impuesto != 0 (gravadas)
+      'A' -> todas (default)
     """
     filters = ["f.no_cia = :no_cia", "f.punto = :punto"]
     params: dict = {'no_cia': no_cia, 'punto': punto}
@@ -1008,6 +1014,11 @@ def list_facturas(no_cia: str, punto: str, page: int = 1, page_size: int = 30,
         # LPAD para consistencia con Rfat321 — el legado guarda no_cliente padded
         filters.append("f.no_cliente = :no_cliente")
         params['no_cliente'] = no_cliente.strip()
+    cve = (con_ventas_exentas or 'A').strip().upper()
+    if cve == 'S':
+        filters.append("NVL(f.impuesto,0) = 0")
+    elif cve == 'N':
+        filters.append("NVL(f.impuesto,0) != 0")
     if fecha_desde:
         filters.append("TRUNC(f.fecha) >= TO_DATE(:desde,'YYYY-MM-DD')")
         params['desde'] = fecha_desde
