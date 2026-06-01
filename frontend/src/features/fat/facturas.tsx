@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { buildReportMeta, downloadCsv, fmtN, printFacturaDetalle, printFacturas } from './fat-export'
+import { buildReportMeta, downloadCsv, fmtN, printFacturas } from './fat-export'
 
 interface Props { noCia: string; punto: string; mes: number; ano: number }
 
@@ -163,30 +163,14 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
     window.open(`${API_BASE}/fat/reportes/listado/pdf/?${params.toString()}`, '_blank')
   }
 
-  const printDetail = async () => {
+  const printDetail = () => {
     if (!selected) return
-    const meta = await buildReportMeta(noCia, punto, `${String(mes).padStart(2,'0')}-${ano}`)
-    printFacturaDetalle(meta, {
-      tipo_factura: selected.tipo_factura,
-      no_factura: selected.no_factura,
-      fecha: selected.fecha,
-      no_cliente: selected.no_cliente,
-      nombre_cliente: selected.nombre_cliente,
-      vendedor: selected.vendedor,
-      forma_pago: selected.forma_pago,
-      plazo_pago: selected.plazo_pago,
-      codigo_ncf: selected.codigo_ncf,
-      ncf: selected.ncf,
-      ncf_dgi: selected.ncf_dgi,
-      nota: selected.nota,
-      total_linea: selected.total_linea,
-      descuento: selected.descuento,
-      impuesto: selected.impuesto,
-      propina: selected.propina,
-      total_neto: selected.total_neto,
-      estado: selected.estado,
-      lineas: selected.lineas,
-    })
+    const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
+    const params = new URLSearchParams({ no_cia: noCia, punto })
+    window.open(
+      `${API_BASE}/fat/documentos/${encodeURIComponent(selected.tipo_factura)}/${encodeURIComponent(selected.no_factura)}/pdf/?${params.toString()}`,
+      '_blank'
+    )
   }
 
   const isAnulada = selected?.st_anulado === 'S'

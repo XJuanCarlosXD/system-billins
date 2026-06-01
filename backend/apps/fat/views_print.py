@@ -99,7 +99,7 @@ def fat_documento_pdf(request, tipo: str, no_factura: str):
         factura.get('no_condicion_pago', ''))
 
     try:
-        pdf_bytes = _render_factura_pdf(
+        pdf_bytes = _render_factura_pdf_moderno(
             factura=factura,
             razon_social=razon_social,
             rnc_cliente=rnc_cliente,
@@ -998,3 +998,354 @@ def _render_factura_pdf(*, factura, razon_social, rnc_cliente, direccion_cliente
         footer_extra=footer_extra,
         page_size=letter,  # portrait
     )
+
+
+def _render_factura_pdf_moderno(*, factura, razon_social, rnc_cliente, direccion_cliente,
+                                nombre_vendedor, descripcion_cond_pago, tipo_ncf) -> bytes:
+    """Renderiza factura A4 con bloques de informacion del formulario legacy."""
+    import io
+    from html import escape
+
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        KeepTogether,
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
+
+    tipo = (factura.get('tipo_factura') or '').strip().upper()
+    no_factura = (factura.get('no_factura') or '').strip()
+    documento_label = {'FC': 'Factura Credito', 'FT': 'Factura Contado'}.get(tipo, 'Factura')
+    fecha = factura.get('fecha', '') or ''
+    fecha_display = (
+        f"{fecha[8:10]}/{fecha[5:7]}/{fecha[:4]}" if fecha and len(fecha) >= 10 else fecha
+    )
+
+    posiciones = (factura.get('posiciones_fijas_ncf') or '').strip().upper()
+    ncf_num = factura.get('ncf')
+    codigo_ncf = f"{posiciones}{int(ncf_num):08d}" if posiciones and ncf_num else ''
+    ncf_descripcion = NCF_DESCRIPCION.get(tipo_ncf, '')
+    ncf_label = codigo_ncf or '(sin NCF asignado)'
+    tipo_ncf_label = (
+        f"{tipo_ncf} - {ncf_descripcion}" if tipo_ncf and ncf_descripcion else (tipo_ncf or 'N/A')
+    )
+
+    nombre_cliente = (factura.get('nombre_cliente') or '').strip() or '(sin nombre)'
+    vendedor_codigo = (factura.get('vendedor') or '').strip()
+    vendedor_display = f"{vendedor_codigo} - {nombre_vendedor}" if nombre_vendedor else vendedor_codigo
+    cond_pago_display = descripcion_cond_pago or 'N/A'
+    estado = (factura.get('estado') or '').strip() or 'P'
+    anulada = (factura.get('st_anulado') or 'N') == 'S'
+
+    def text(value) -> str:
+        return escape(str(value if value is not None else '').strip())
+
+    def money(value) -> str:
+        return f"{float(value or 0):,.2f}"
+
+    def qty(value) -> str:
+        amount = float(value or 0)
+        if amount.is_integer():
+            return f"{amount:,.0f}"
+        return f"{amount:,.2f}"
+
+    subtotal = float(factura.get('total_linea') or 0)
+    descuento_total = float(factura.get('descuento') or 0)
+    impuesto_total = float(factura.get('impuesto') or 0)
+    propina_total = float(factura.get('propina') or 0)
+    total_general = float(factura.get('total_neto') or 0)
+
+    buffer = io.BytesIO()
+    doc_pdf = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=14 * mm,
+        rightMargin=14 * mm,
+        topMargin=12 * mm,
+        bottomMargin=14 * mm,
+    )
+    width = doc_pdf.width
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(
+        name='FacturaTitle',
+        parent=styles['Heading1'],
+        fontName='Helvetica-Bold',
+        fontSize=18,
+        leading=20,
+        textColor=colors.HexColor('#0F172A'),
+        spaceAfter=4,
+    ))
+    styles.add(ParagraphStyle(
+        name='FacturaSubtitle',
+        parent=styles['Normal'],
+        fontSize=8.5,
+        leading=11,
+        textColor=colors.HexColor('#475569'),
+    ))
+    styles.add(ParagraphStyle(
+        name='Small',
+        parent=styles['Normal'],
+        fontSize=7.5,
+        leading=9,
+        textColor=colors.HexColor('#334155'),
+    ))
+    styles.add(ParagraphStyle(name='SmallRight', parent=styles['Small'], alignment=TA_RIGHT))
+    styles.add(ParagraphStyle(name='SmallCenter', parent=styles['Small'], alignment=TA_CENTER))
+    styles.add(ParagraphStyle(
+        name='DocNumber',
+        parent=styles['Normal'],
+        alignment=TA_RIGHT,
+        fontName='Helvetica-Bold',
+        fontSize=16,
+        leading=18,
+        textColor=colors.white,
+    ))
+    styles.add(ParagraphStyle(
+        name='TotalLabel',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=8,
+        leading=10,
+        textColor=colors.HexColor('#334155'),
+    ))
+    styles.add(ParagraphStyle(
+        name='TotalValue',
+        parent=styles['Normal'],
+        alignment=TA_RIGHT,
+        fontName='Helvetica-Bold',
+        fontSize=8,
+        leading=10,
+        textColor=colors.HexColor('#0F172A'),
+    ))
+    styles.add(ParagraphStyle(
+        name='GrandTotalValue',
+        parent=styles['Normal'],
+        alignment=TA_RIGHT,
+        fontName='Helvetica-Bold',
+        fontSize=13,
+        leading=15,
+        textColor=colors.HexColor('#0F172A'),
+    ))
+
+    def label_value(label: str, value) -> Paragraph:
+        value_text = text(value) or 'N/A'
+        return Paragraph(f"<b>{text(label)}:</b> {value_text}", styles['Small'])
+
+    def draw_footer(canvas, doc):
+        canvas.saveState()
+        page_w, _ = A4
+        canvas.setFont('Helvetica', 7)
+        canvas.setFillColor(colors.HexColor('#64748B'))
+        canvas.drawString(doc.leftMargin, 8 * mm, f"SIGAFT - {documento_label} {tipo}-{no_factura}")
+        canvas.drawRightString(page_w - doc.rightMargin, 8 * mm, f"Pagina {doc.page}")
+        if anulada:
+            canvas.setFont('Helvetica-Bold', 54)
+            canvas.setFillColor(colors.Color(0.85, 0.15, 0.15, alpha=0.10))
+            canvas.translate(page_w / 2, 150 * mm)
+            canvas.rotate(34)
+            canvas.drawCentredString(0, 0, 'ANULADA')
+        canvas.restoreState()
+
+    doc_card = Table(
+        [[
+            Paragraph(f"{text(documento_label)}<br/><font size='8'>Documento fiscal</font>", styles['DocNumber']),
+            Paragraph(f"{text(tipo)}-{text(no_factura)}", styles['DocNumber']),
+        ]],
+        colWidths=[38 * mm, 54 * mm],
+        rowHeights=[20 * mm],
+    )
+    doc_card.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#0F172A')),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 10),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+        ('BOX', (0, 0), (-1, -1), 0.6, colors.HexColor('#0F172A')),
+    ]))
+
+    header = Table(
+        [[
+            [
+                Paragraph(text(razon_social or 'Empresa'), styles['FacturaTitle']),
+                Paragraph('Sistema de Facturacion', styles['FacturaSubtitle']),
+                Paragraph(
+                    f"Empresa {text(factura.get('no_cia'))} - Punto {text(factura.get('punto'))}",
+                    styles['FacturaSubtitle'],
+                ),
+            ],
+            doc_card,
+        ]],
+        colWidths=[width - 94 * mm, 94 * mm],
+    )
+    header.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+    ]))
+
+    cliente_rows = [
+        [label_value('Cliente', nombre_cliente), label_value('No. Cliente', factura.get('no_cliente'))],
+        [label_value('RNC/Cedula', rnc_cliente or 'N/A'), label_value('Fecha', fecha_display or 'N/A')],
+        [label_value('Direccion', direccion_cliente or 'N/A'), label_value('Condicion', cond_pago_display)],
+        [label_value('Vendedor', vendedor_display or 'N/A'), label_value('Plazo', f"{factura.get('plazo_pago') or 0} dias")],
+    ]
+    cliente_panel = Table(cliente_rows, colWidths=[width * 0.62, width * 0.38])
+    cliente_panel.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F8FAFC')),
+        ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#E2E8F0')),
+        ('LEFTPADDING', (0, 0), (-1, -1), 7),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 7),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    ]))
+
+    fiscal_panel = Table(
+        [[
+            label_value('NCF', ncf_label),
+            label_value('Tipo NCF', tipo_ncf_label),
+            label_value('Estado', 'Anulada' if anulada else estado),
+            label_value('Forma Pago', factura.get('forma_pago') or 'N/A'),
+        ]],
+        colWidths=[width * 0.30, width * 0.28, width * 0.20, width * 0.22],
+    )
+    fiscal_panel.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#EFF6FF')),
+        ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#BFDBFE')),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#DBEAFE')),
+        ('LEFTPADDING', (0, 0), (-1, -1), 7),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 7),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]))
+
+    line_data = [[
+        Paragraph('Ln', styles['SmallCenter']),
+        Paragraph('Codigo', styles['Small']),
+        Paragraph('Descripcion', styles['Small']),
+        Paragraph('Cant.', styles['SmallRight']),
+        Paragraph('Precio', styles['SmallRight']),
+        Paragraph('% Desc.', styles['SmallRight']),
+        Paragraph('ITBIS', styles['SmallRight']),
+        Paragraph('Total', styles['SmallRight']),
+    ]]
+    active_lineas = [
+        l for l in factura.get('lineas', [])
+        if (l.get('st_anulado') or 'N') == 'N'
+    ]
+    for linea in active_lineas:
+        regalia = float(linea.get('cantidad_regalia') or 0)
+        desc = text(linea.get('descripcion') or '')
+        if regalia:
+            desc = f"{desc}<br/><font color='#64748B'>Regalia: {qty(regalia)}</font>"
+        line_data.append([
+            Paragraph(text(linea.get('no_linea')), styles['SmallCenter']),
+            Paragraph(text(linea.get('no_produ')), styles['Small']),
+            Paragraph(desc, styles['Small']),
+            Paragraph(qty(linea.get('cantidad')), styles['SmallRight']),
+            Paragraph(money(linea.get('precio')), styles['SmallRight']),
+            Paragraph(money(linea.get('descuento')), styles['SmallRight']),
+            Paragraph(money(linea.get('impuesto')), styles['SmallRight']),
+            Paragraph(money(linea.get('monto_neto')), styles['SmallRight']),
+        ])
+    if not active_lineas:
+        line_data.append([
+            '',
+            '',
+            Paragraph('Sin lineas facturadas.', styles['Small']),
+            '',
+            '',
+            '',
+            '',
+            '',
+        ])
+
+    line_table = Table(
+        line_data,
+        colWidths=[8 * mm, 22 * mm, width - 130 * mm, 17 * mm, 21 * mm, 18 * mm, 20 * mm, 24 * mm],
+        repeatRows=1,
+    )
+    line_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1E293B')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8FAFC')]),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#CBD5E1')),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ]))
+
+    nota = (factura.get('nota') or factura.get('detalle') or '').strip()
+    nota_panel = Table(
+        [[Paragraph('<b>Nota / detalle:</b> ' + (text(nota) if nota else 'N/A'), styles['Small'])]],
+        colWidths=[width - 84 * mm],
+    )
+    nota_panel.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#FFF7ED')),
+        ('BOX', (0, 0), (-1, -1), 0.4, colors.HexColor('#FDBA74')),
+        ('LEFTPADDING', (0, 0), (-1, -1), 7),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 7),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+
+    total_rows = [
+        [Paragraph('Subtotal', styles['TotalLabel']), Paragraph(money(subtotal), styles['TotalValue'])],
+        [Paragraph('Descuento', styles['TotalLabel']), Paragraph(money(descuento_total), styles['TotalValue'])],
+        [Paragraph('ITBIS', styles['TotalLabel']), Paragraph(money(impuesto_total), styles['TotalValue'])],
+    ]
+    if propina_total:
+        total_rows.append([Paragraph('Propina', styles['TotalLabel']), Paragraph(money(propina_total), styles['TotalValue'])])
+    total_rows.append([
+        Paragraph('Total Neto', styles['TotalLabel']),
+        Paragraph(money(total_general), styles['GrandTotalValue']),
+    ])
+    totals = Table(total_rows, colWidths=[36 * mm, 42 * mm])
+    totals.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -2), colors.HexColor('#F8FAFC')),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#E0F2FE')),
+        ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#E2E8F0')),
+        ('LEFTPADDING', (0, 0), (-1, -1), 7),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 7),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+
+    footer_table = Table([[nota_panel, totals]], colWidths=[width - 82 * mm, 82 * mm])
+    footer_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+    ]))
+
+    elements = [
+        header,
+        Spacer(1, 4 * mm),
+        cliente_panel,
+        Spacer(1, 2 * mm),
+        fiscal_panel,
+        Spacer(1, 4 * mm),
+        line_table,
+        Spacer(1, 4 * mm),
+        KeepTogether(footer_table),
+        Spacer(1, 4 * mm),
+        Paragraph(
+            'Documento generado desde Consulta de Facturas. Replica campos operativos del formulario legacy FAT.',
+            styles['FacturaSubtitle'],
+        ),
+    ]
+
+    doc_pdf.build(elements, onFirstPage=draw_footer, onLaterPages=draw_footer)
+    buffer.seek(0)
+    return buffer.read()
