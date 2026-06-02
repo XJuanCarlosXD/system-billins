@@ -85,7 +85,15 @@ def fat_documento_pdf(request, tipo: str, no_factura: str):
             status=422)
 
     # ── Resolver lookups (código → descripción) ──────────────────────────────
-    cia = inv_repo.get_compania(no_cia) or {}
+    try:
+        cia = next(
+            (c for c in fat_repo.list_companias_fat() if str(c.get('no_cia')).strip() == no_cia),
+            None,
+        ) or {}
+    except Exception:
+        cia = {}
+    if not cia:
+        cia = inv_repo.get_compania(no_cia) or {}
     razon_social = (cia.get('descripcion') or no_cia).strip()
 
     # no_cliente viene como int desde get_factura; get_cliente espera str
@@ -97,15 +105,28 @@ def fat_documento_pdf(request, tipo: str, no_factura: str):
     nombre_vendedor = fat_repo.get_vendedor_nombre(no_cia, factura.get('vendedor', ''))
     descripcion_cond_pago = fat_repo.get_condicion_pago_descripcion(
         factura.get('no_condicion_pago', ''))
+    forma_pago_display = (factura.get('forma_pago') or '').strip()
+    try:
+        tipos_pago = fat_repo.list_tipos_pago(no_cia, punto)
+        tipo_pago = next(
+            (p for p in tipos_pago if str(p.get('tipo_pago')).strip() == forma_pago_display),
+            None,
+        )
+        if tipo_pago and tipo_pago.get('descripcion'):
+            forma_pago_display = tipo_pago['descripcion']
+    except Exception:
+        pass
 
     try:
         pdf_bytes = _render_factura_pdf_moderno(
             factura=factura,
+            cia=cia,
             razon_social=razon_social,
             rnc_cliente=rnc_cliente,
             direccion_cliente=direccion_cliente,
             nombre_vendedor=nombre_vendedor,
             descripcion_cond_pago=descripcion_cond_pago,
+            forma_pago_display=forma_pago_display,
             tipo_ncf=tipo_ncf,
         )
     except Exception as e:
@@ -1000,8 +1021,9 @@ def _render_factura_pdf(*, factura, razon_social, rnc_cliente, direccion_cliente
     )
 
 
-def _render_factura_pdf_moderno(*, factura, razon_social, rnc_cliente, direccion_cliente,
-                                nombre_vendedor, descripcion_cond_pago, tipo_ncf) -> bytes:
+def _render_factura_pdf_moderno(*, factura, cia, razon_social, rnc_cliente, direccion_cliente,
+                                nombre_vendedor, descripcion_cond_pago, forma_pago_display,
+                                tipo_ncf) -> bytes:
     """Renderiza factura A4 con bloques de informacion del formulario legacy."""
     import io
     from html import escape
@@ -1041,8 +1063,13 @@ def _render_factura_pdf_moderno(*, factura, razon_social, rnc_cliente, direccion
     vendedor_codigo = (factura.get('vendedor') or '').strip()
     vendedor_display = f"{vendedor_codigo} - {nombre_vendedor}" if nombre_vendedor else vendedor_codigo
     cond_pago_display = descripcion_cond_pago or 'N/A'
+    forma_pago_display = (forma_pago_display or factura.get('forma_pago') or 'N/A').strip()
     estado = (factura.get('estado') or '').strip() or 'P'
     anulada = (factura.get('st_anulado') or 'N') == 'S'
+    impresion_label = 'REIMPRESA' if (factura.get('st_impresion') or 'N') == 'S' else 'IMPRESA'
+    cia_direccion = (cia.get('direccion') or '').strip()
+    cia_rnc = (cia.get('rnc') or '').strip()
+    cia_telefono = (cia.get('telefono') or '').strip()
 
     def text(value) -> str:
         return escape(str(value if value is not None else '').strip())
@@ -1099,12 +1126,29 @@ def _render_factura_pdf_moderno(*, factura, razon_social, rnc_cliente, direccion
     styles.add(ParagraphStyle(name='SmallRight', parent=styles['Small'], alignment=TA_RIGHT))
     styles.add(ParagraphStyle(name='SmallCenter', parent=styles['Small'], alignment=TA_CENTER))
     styles.add(ParagraphStyle(
+        name='TableHead',
+        parent=styles['Small'],
+        fontName='Helvetica-Bold',
+        textColor=colors.white,
+    ))
+    styles.add(ParagraphStyle(name='TableHeadRight', parent=styles['TableHead'], alignment=TA_RIGHT))
+    styles.add(ParagraphStyle(name='TableHeadCenter', parent=styles['TableHead'], alignment=TA_CENTER))
+    styles.add(ParagraphStyle(
+        name='DocTitle',
+        parent=styles['Normal'],
+        alignment=TA_RIGHT,
+        fontName='Helvetica-Bold',
+        fontSize=10,
+        leading=11,
+        textColor=colors.white,
+    ))
+    styles.add(ParagraphStyle(
         name='DocNumber',
         parent=styles['Normal'],
         alignment=TA_RIGHT,
         fontName='Helvetica-Bold',
-        fontSize=16,
-        leading=18,
+        fontSize=15,
+        leading=16,
         textColor=colors.white,
     ))
     styles.add(ParagraphStyle(
@@ -1155,10 +1199,13 @@ def _render_factura_pdf_moderno(*, factura, razon_social, rnc_cliente, direccion
 
     doc_card = Table(
         [[
-            Paragraph(f"{text(documento_label)}<br/><font size='8'>Documento fiscal</font>", styles['DocNumber']),
-            Paragraph(f"{text(tipo)}-{text(no_factura)}", styles['DocNumber']),
+            Paragraph(f"{text(documento_label)}<br/><font size='7'>{impresion_label}</font>", styles['DocTitle']),
+            Paragraph(
+                f"{text(tipo)}-{text(no_factura)}<br/><font size='7'>NCF: {text(ncf_label)}</font>",
+                styles['DocNumber'],
+            ),
         ]],
-        colWidths=[38 * mm, 54 * mm],
+        colWidths=[34 * mm, 58 * mm],
         rowHeights=[20 * mm],
     )
     doc_card.setStyle(TableStyle([
@@ -1173,9 +1220,15 @@ def _render_factura_pdf_moderno(*, factura, razon_social, rnc_cliente, direccion
         [[
             [
                 Paragraph(text(razon_social or 'Empresa'), styles['FacturaTitle']),
-                Paragraph('Sistema de Facturacion', styles['FacturaSubtitle']),
+                Paragraph(text(cia_direccion) or 'Direccion no registrada', styles['FacturaSubtitle']),
                 Paragraph(
-                    f"Empresa {text(factura.get('no_cia'))} - Punto {text(factura.get('punto'))}",
+                    ' | '.join(
+                        part for part in [
+                            f"RNC: {text(cia_rnc)}" if cia_rnc else '',
+                            f"Tel.: {text(cia_telefono)}" if cia_telefono else '',
+                        ]
+                        if part
+                    ) or 'RNC/telefono no registrados',
                     styles['FacturaSubtitle'],
                 ),
             ],
@@ -1208,12 +1261,12 @@ def _render_factura_pdf_moderno(*, factura, razon_social, rnc_cliente, direccion
 
     fiscal_panel = Table(
         [[
-            label_value('NCF', ncf_label),
             label_value('Tipo NCF', tipo_ncf_label),
-            label_value('Estado', 'Anulada' if anulada else estado),
-            label_value('Forma Pago', factura.get('forma_pago') or 'N/A'),
+            label_value('Estado', 'Anulada' if anulada else impresion_label),
+            label_value('Forma Pago', forma_pago_display),
+            label_value('Fecha', fecha_display or 'N/A'),
         ]],
-        colWidths=[width * 0.30, width * 0.28, width * 0.20, width * 0.22],
+        colWidths=[width * 0.30, width * 0.22, width * 0.30, width * 0.18],
     )
     fiscal_panel.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#EFF6FF')),
@@ -1226,14 +1279,14 @@ def _render_factura_pdf_moderno(*, factura, razon_social, rnc_cliente, direccion
     ]))
 
     line_data = [[
-        Paragraph('Ln', styles['SmallCenter']),
-        Paragraph('Codigo', styles['Small']),
-        Paragraph('Descripcion', styles['Small']),
-        Paragraph('Cant.', styles['SmallRight']),
-        Paragraph('Precio', styles['SmallRight']),
-        Paragraph('% Desc.', styles['SmallRight']),
-        Paragraph('ITBIS', styles['SmallRight']),
-        Paragraph('Total', styles['SmallRight']),
+        Paragraph('Ln', styles['TableHeadCenter']),
+        Paragraph('Codigo', styles['TableHead']),
+        Paragraph('Descripcion', styles['TableHead']),
+        Paragraph('Cant.', styles['TableHeadRight']),
+        Paragraph('Precio', styles['TableHeadRight']),
+        Paragraph('% Desc.', styles['TableHeadRight']),
+        Paragraph('ITBIS', styles['TableHeadRight']),
+        Paragraph('Total', styles['TableHeadRight']),
     ]]
     active_lineas = [
         l for l in factura.get('lineas', [])
