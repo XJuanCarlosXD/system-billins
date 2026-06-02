@@ -17,6 +17,7 @@ from .views_print import (
     fat_conduce_pdf, fat_lista_conduces_pdf,
     fat_lista_precio_pdf, fat_rep_607_pdf,
     fat_rep_ncf_nulos_pdf, fat_rep_facturas_rnc_pdf, fat_rep_margen_bruto_pdf,
+    fat_cuadre_caja_pdf, fat_rep_ventas_productos_pdf,
 )
 
 urlpatterns = [
@@ -63,5 +64,7 @@ urlpatterns = [
     path('fat/reportes/ncf-nulos/pdf/', fat_rep_ncf_nulos_pdf),
     path('fat/reportes/facturas-rnc/pdf/', fat_rep_facturas_rnc_pdf),
     path('fat/reportes/margen-bruto/pdf/', fat_rep_margen_bruto_pdf),
+    path('fat/reportes/cuadre-caja/pdf/', fat_cuadre_caja_pdf),
+    path('fat/reportes/ventas-productos/pdf/', fat_rep_ventas_productos_pdf),
     path('dashboard/ventas-mes/', DashboardVentasMesView.as_view()),
 ]

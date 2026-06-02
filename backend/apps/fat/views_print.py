@@ -188,68 +188,105 @@ def fat_lista_facturas_pdf(request):
     except Exception as e:
         return JsonResponse({"error": f"Error consultando facturas: {e}"}, status=500)
 
-    cia = inv_repo.get_compania(no_cia) or {}
-    razon = (cia.get('descripcion') or no_cia).strip()
+    try:
+        cia = next(
+            (c for c in fat_repo.list_companias_fat() if str(c.get('no_cia')).strip() == no_cia),
+            None,
+        ) or {}
+    except Exception:
+        cia = {}
+    if not cia:
+        cia = inv_repo.get_compania(no_cia) or {}
 
     periodo = ''
-    if desde or hasta:
-        if desde and hasta:
-            periodo = f"{desde} a {hasta}"
-        elif desde:
-            periodo = f"Desde {desde}"
-        else:
-            periodo = f"Hasta {hasta}"
+    if desde and hasta:
+        periodo = f"Periodo: {desde} a {hasta}"
+    elif desde:
+        periodo = f"Periodo: desde {desde}"
+    elif hasta:
+        periodo = f"Periodo: hasta {hasta}"
 
-    # Alineado con Rfat321: composite documento PUNTO-TIPO-NO, vendedor visible,
-    # no_cliente con LPAD(5), anulados muestran 0.00 en TOTAL.
-    col_display = ['DOCUMENTO', 'FECHA', 'VENDEDOR', 'NO_CLIENTE', 'CLIENTE', 'NCF', 'TOTAL']
+    tipo_label_legado = {'F': 'Credito (F)', 'O': 'Contado (O)', 'T': 'Todos'}
+    tipo_display = tipo_label_legado.get(tipo.upper(), tipo) if tipo else 'Todos'
+    filtros = [f"Tipo: {tipo_display}"]
+    if vendedor:
+        filtros.append(f"Vendedor: {vendedor}")
+    if no_cliente:
+        filtros.append(f"Cliente: {no_cliente.rjust(5, '0')}")
+    if estado:
+        filtros.append(f"Estado: {estado}")
+    cve_upper = (con_ventas_exentas or 'A').upper()
+    if cve_upper == 'S':
+        filtros.append("Solo exentas (ITBIS=0)")
+    elif cve_upper == 'N':
+        filtros.append("Solo gravadas (ITBIS!=0)")
+
+    # Ordenar por cliente para agrupar (Rfat201 style)
+    items_sorted = sorted(items, key=lambda r: (
+        str(r.get('no_cliente') or '').rjust(5, '0'),
+        r.get('fecha') or '',
+        str(r.get('no_factura') or ''),
+    ))
 
     rows_data = []
     total_general = 0.0
-    for r in items:
+    total_itbis = 0.0
+    total_desc = 0.0
+    for r in items_sorted:
         es_anulado = (r.get('st_anulado') or 'N') == 'S'
         total_efectivo = 0.0 if es_anulado else float(r.get('total_neto') or 0)
+        itbis_efectivo = 0.0 if es_anulado else float(r.get('impuesto') or 0)
+        desc_efectivo = 0.0 if es_anulado else float(r.get('descuento') or 0)
         total_general += total_efectivo
+        total_itbis += itbis_efectivo
+        total_desc += desc_efectivo
+        nombre = (r.get('nombre_cliente') or '').strip()
+        if es_anulado:
+            nombre = f"{nombre} (ANULADA)" if nombre else "(ANULADA)"
         rows_data.append({
-            'documento': f"{r['punto']}-{r['tipo_factura']}-{r['no_factura']}",
-            'fecha': r['fecha'] or '',
-            'vendedor': r['vendedor'] or '',
-            'no_cliente': str(r['no_cliente']).rjust(5, '0'),
-            'cliente': (r.get('nombre_cliente') or '') + (' (ANULADA)' if es_anulado else ''),
+            'cliente_label': f"{str(r.get('no_cliente') or '').rjust(5, '0')} {nombre}",
+            'documento': f"{r.get('punto') or ''}-{r.get('tipo_factura') or ''}-{str(r.get('no_factura') or '').rjust(7,'0')}",
+            'vendedor': r.get('vendedor') or '',
+            'fecha': r.get('fecha') or '',
             'ncf': r.get('ncf_dgi') or '',
+            'descuento': desc_efectivo,
+            'itbis': itbis_efectivo,
             'total': total_efectivo,
         })
 
-    # Mapeo de codigos legado: F=Credito, O=Contado, T=Todos
-    tipo_label_legado = {'F': 'Credito (F)', 'O': 'Contado (O)', 'T': 'Todos'}
-    tipo_display = tipo_label_legado.get(tipo.upper(), tipo) if tipo else 'Todos'
+    columns = [
+        {'key': 'cliente_label', 'label': 'Cliente', 'align': 'left', 'width': 50},
+        {'key': 'documento', 'label': 'Documento', 'align': 'left', 'width': 28},
+        {'key': 'vendedor', 'label': 'Vend.', 'align': 'center', 'width': 14},
+        {'key': 'fecha', 'label': 'Fecha', 'align': 'center', 'width': 22},
+        {'key': 'ncf', 'label': 'NCF', 'align': 'left', 'width': 30},
+        {'key': 'descuento', 'label': 'Descuento', 'align': 'right', 'format': 'money', 'width': 20},
+        {'key': 'itbis', 'label': 'ITBIS', 'align': 'right', 'format': 'money', 'width': 20},
+        {'key': 'total', 'label': 'Val. Neto', 'align': 'right', 'format': 'money', 'width': 22},
+    ]
 
-    header_extra = [f"<b>{razon}</b>"]
-    if periodo:
-        header_extra.append(f"<b>Período:</b> {periodo}")
-    filtros_desc = [f"Tipo: {tipo_display}"]
-    if vendedor:
-        filtros_desc.append(f"Vendedor: {vendedor}")
-    if no_cliente:
-        filtros_desc.append(f"Cliente: {no_cliente.rjust(5,'0')}")
-    if estado:
-        filtros_desc.append(f"Estado: {estado}")
-    cve_upper = (con_ventas_exentas or 'A').upper()
-    if cve_upper == 'S':
-        filtros_desc.append("Solo exentas (ITBIS=0)")
-    elif cve_upper == 'N':
-        filtros_desc.append("Solo gravadas (ITBIS!=0)")
-    header_extra.append(f"<b>Filtros:</b> {' | '.join(filtros_desc)}")
-    header_extra.append(f"<b>Total registros:</b> {len(rows_data)}")
-    header_extra.append(f"<b>Total neto (excluyendo anuladas):</b> {total_general:,.2f}")
+    totals_row = {
+        'cliente_label': f"Total general ({len(rows_data)} docs)",
+        'descuento': total_desc,
+        'itbis': total_itbis,
+        'total': total_general,
+    }
 
     try:
-        pdf = build_pdf_report(
-            title=f"Listado de Facturas — {razon}",
-            columns=col_display,
-            rows=rows_data,
-            col_widths=None,
-            header_extra=header_extra,
+        pdf = _render_modern_report_pdf(
+            report_id='Rfat201',
+            title='Reporte de Documentos Diario',
+            cia=cia,
+            subtitle_lines=[s for s in [periodo, ' | '.join(filtros),
+                                        'Doc. Nulos y Activos (anuladas en 0.00)'] if s],
+            sections=[{
+                'columns': columns,
+                'rows': rows_data,
+                'group_by': 'cliente_label',
+                'totals_row': totals_row,
+            }],
+            impreso_por=getattr(request.user, 'username', '') or '',
+            orientation='landscape',
         )
     except Exception as e:
         return JsonResponse({"error": f"Error generando PDF: {e}"}, status=500)
@@ -313,30 +350,49 @@ def fat_rep_ncf_nulos_pdf(request):
             return f"{prefix}{n_int:08d}"
         return str(ncf)
 
-    col_display = ['NCF', 'TIPO_NCF', 'F_DESDE', 'F_HASTA', 'MOTIVO', 'F_ANULACION', 'FACTURA']
     rows_data = [{
+        'documento': f"{r.get('punto') or '01'}-{r.get('tipo_factura') or ''}-{str(r.get('no_factura') or '').rjust(7,'0')}",
+        'nombre_cliente': (r.get('nombre_cliente') or '').strip(),
+        'tipo_anul': r.get('tipo_anula_dgii') or r.get('tipo_anula') or '',
         'ncf': _ncf_dgi_of(r),
-        'tipo_ncf': r.get('tipo_ncf_fiscal') or r.get('tipo_ncf') or r.get('codigo_ncf') or '',
-        'f_desde': _date_str(r.get('fecha_desde')),
-        'f_hasta': _date_str(r.get('fecha_hasta')),
-        'motivo': (r.get('motivo_anulacion') or '')[:40],
-        'f_anulacion': _date_str(r.get('fecha_anulacion')),
-        'factura': f"{r.get('tipo_factura', '')}-{r.get('no_factura', '')}".strip('-'),
+        'fecha': _date_str(r.get('fecha_anulacion') or r.get('fecha')),
+        'detalle': (r.get('motivo_anulacion') or '')[:60],
     } for r in rows]
 
-    header_extra = [
-        f"<b>{razon}</b>" + (f" — RNC: {rnc_empresa}" if rnc_empresa else ''),
-        f"<b>NCF Nulos / Anulados</b> &middot; Período: {desde} a {hasta}",
-        f"<b>Total registros:</b> {len(rows_data)}",
+    columns = [
+        {'key': 'documento', 'label': 'Documento', 'align': 'left', 'width': 38},
+        {'key': 'nombre_cliente', 'label': 'Nombre Cliente', 'align': 'left', 'width': 70},
+        {'key': 'tipo_anul', 'label': 'Tipo Anul.', 'align': 'center', 'width': 22},
+        {'key': 'ncf', 'label': 'NCF', 'align': 'left', 'width': 30},
+        {'key': 'fecha', 'label': 'Fecha', 'align': 'center', 'width': 22},
+        {'key': 'detalle', 'label': 'Detalle de Anulacion', 'align': 'left', 'width': 80},
     ]
 
     try:
-        pdf = build_pdf_report(
-            title=f"NCF Nulos — {razon}",
-            columns=col_display,
-            rows=rows_data,
-            col_widths=None,
-            header_extra=header_extra,
+        try:
+            cia_full = next(
+                (c for c in fat_repo.list_companias_fat() if str(c.get('no_cia')).strip() == no_cia),
+                None,
+            ) or {}
+        except Exception:
+            cia_full = {}
+        if not cia_full:
+            cia_full = cia
+        pdf = _render_modern_report_pdf(
+            report_id='Rfat321',
+            title='Documentos Con NCF Anulados',
+            cia=cia_full,
+            subtitle_lines=[
+                f"Periodo: {desde} a {hasta}",
+                f"Total documentos: {len(rows_data)}",
+            ],
+            sections=[{
+                'columns': columns,
+                'rows': rows_data,
+                'totals_row': {'documento': f"Cantidad Documentos: {len(rows_data)}"},
+            }],
+            impreso_por=getattr(request.user, 'username', '') or '',
+            orientation='landscape',
         )
     except Exception as e:
         return JsonResponse({"error": f"Error generando PDF: {e}"}, status=500)
@@ -648,38 +704,52 @@ def fat_lista_precio_pdf(request):
     descripcion_lista = (lista_info or {}).get('descripcion', '')
     tipo_moneda = (lista_info or {}).get('tipo_moneda', 'RD')
 
-    cia = inv_repo.get_compania(no_cia) or {}
-    razon = (cia.get('descripcion') or no_cia).strip()
+    try:
+        cia = next(
+            (c for c in fat_repo.list_companias_fat() if str(c.get('no_cia')).strip() == no_cia),
+            None,
+        ) or {}
+    except Exception:
+        cia = {}
+    if not cia:
+        cia = inv_repo.get_compania(no_cia) or {}
 
-    col_display = ['NO_PRODU', 'DESCRIPCION', 'PRECIO', 'ACTIVA', 'NOTA']
     rows_data = [{
         'no_produ': r['no_produ'],
-        'descripcion': (r['descripcion'] or '')[:60],
+        'descripcion': (r['descripcion'] or '')[:80],
         'precio': r['precio'],
-        'activa': 'S' if r['activo'] else 'N',
+        'activa': 'Si' if r['activo'] else 'No',
         'nota': (r.get('nota') or '')[:30],
     } for r in items]
 
-    header_extra = [
-        f"<b>{razon}</b>",
-        f"<b>Lista de Precio:</b> {no_lista} — {descripcion_lista or '(sin descripción)'} ({tipo_moneda})",
+    columns = [
+        {'key': 'no_produ', 'label': 'No. Producto', 'align': 'left', 'width': 24},
+        {'key': 'descripcion', 'label': 'Descripcion', 'align': 'left', 'width': 90},
+        {'key': 'precio', 'label': 'Precio', 'align': 'right', 'format': 'money', 'width': 28},
+        {'key': 'activa', 'label': 'Activa', 'align': 'center', 'width': 18},
+        {'key': 'nota', 'label': 'Nota', 'align': 'left', 'width': 40},
     ]
-    filtros = []
+
+    filtros_list = [f"Lista {no_lista} - {descripcion_lista or '(sin descripcion)'} ({tipo_moneda})"]
     if no_produ_desde:
-        filtros.append(f"Desde producto: {no_produ_desde.rjust(8,'0')}")
+        filtros_list.append(f"Desde: {no_produ_desde.rjust(8,'0')}")
     if no_produ_hasta:
-        filtros.append(f"Hasta producto: {no_produ_hasta.rjust(8,'0')}")
-    if filtros:
-        header_extra.append(f"<b>Filtros:</b> {' | '.join(filtros)}")
-    header_extra.append(f"<b>Total productos:</b> {len(rows_data)}")
+        filtros_list.append(f"Hasta: {no_produ_hasta.rjust(8,'0')}")
+    filtros_list.append(f"Total productos: {len(rows_data)}")
 
     try:
-        pdf = build_pdf_report(
-            title=f"Listado Lista de Precio {no_lista} — {razon}",
-            columns=col_display,
-            rows=rows_data,
-            col_widths=None,
-            header_extra=header_extra,
+        pdf = _render_modern_report_pdf(
+            report_id='Rfat333',
+            title='Listado Lista de Precio',
+            cia=cia,
+            subtitle_lines=filtros_list,
+            sections=[{
+                'columns': columns,
+                'rows': rows_data,
+                'totals_row': {'no_produ': f"Total ({len(rows_data)})"},
+            }],
+            impreso_por=getattr(request.user, 'username', '') or '',
+            orientation='portrait',
         )
     except Exception as e:
         return JsonResponse({"error": f"Error generando PDF: {e}"}, status=500)
@@ -1879,3 +1949,507 @@ def _render_conduce_pdf_moderno(*, conduce, cia, razon_social, nombre_cliente,
     doc_pdf.build(elements, onFirstPage=draw_footer, onLaterPages=draw_footer)
     buffer.seek(0)
     return buffer.read()
+
+
+# -- Reportes en estilo factura moderna (compartido para todos los listados) --
+
+def _render_modern_report_pdf(*, report_id: str, title: str, cia,
+                              subtitle_lines: list[str],
+                              sections: list[dict],
+                              signature_labels: list[str] = None,
+                              impreso_por: str = '',
+                              orientation: str = 'portrait') -> bytes:
+    """Helper unificado para listados/reportes con el estilo factura moderna.
+
+    `sections` es una lista de bloques `{title, columns, rows, totals_row?, group_by?}`.
+    `columns`: lista de dict {key, label, align?: 'left'|'right'|'center', width?: mm}.
+    `rows`: lista de dict con los valores por `key`. Para subtotales/totales por
+    grupo, set `group_by` = key — el helper inserta filas resumen.
+    """
+    import io
+    from datetime import datetime
+    from html import escape
+
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
+    )
+
+    cia_descripcion = (cia.get('descripcion') or 'Empresa').strip()
+    cia_direccion = (cia.get('direccion') or '').strip()
+    cia_rnc = (cia.get('rnc') or '').strip()
+    cia_telefono = (cia.get('telefono') or '').strip()
+
+    page_size = landscape(A4) if orientation == 'landscape' else A4
+    buffer = io.BytesIO()
+    doc_pdf = SimpleDocTemplate(
+        buffer, pagesize=page_size,
+        leftMargin=12 * mm, rightMargin=12 * mm,
+        topMargin=12 * mm, bottomMargin=16 * mm,
+    )
+    width = doc_pdf.width
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name='RpTitle', parent=styles['Heading1'],
+        fontName='Helvetica-Bold', fontSize=18, leading=20,
+        textColor=colors.HexColor('#0F172A'), spaceAfter=4))
+    styles.add(ParagraphStyle(name='RpSub', parent=styles['Normal'],
+        fontSize=8.5, leading=11, textColor=colors.HexColor('#475569')))
+    styles.add(ParagraphStyle(name='RpSmall', parent=styles['Normal'],
+        fontSize=7.5, leading=9, textColor=colors.HexColor('#334155')))
+    styles.add(ParagraphStyle(name='RpSmallR', parent=styles['RpSmall'], alignment=TA_RIGHT))
+    styles.add(ParagraphStyle(name='RpSmallC', parent=styles['RpSmall'], alignment=TA_CENTER))
+    styles.add(ParagraphStyle(name='RpHead', parent=styles['RpSmall'],
+        fontName='Helvetica-Bold', textColor=colors.white))
+    styles.add(ParagraphStyle(name='RpHeadR', parent=styles['RpHead'], alignment=TA_RIGHT))
+    styles.add(ParagraphStyle(name='RpHeadC', parent=styles['RpHead'], alignment=TA_CENTER))
+    styles.add(ParagraphStyle(name='RpDocTitle', parent=styles['Normal'],
+        alignment=TA_RIGHT, fontName='Helvetica-Bold', fontSize=10, leading=11,
+        textColor=colors.white))
+    styles.add(ParagraphStyle(name='RpDocNumber', parent=styles['Normal'],
+        alignment=TA_RIGHT, fontName='Helvetica-Bold', fontSize=14, leading=15,
+        textColor=colors.white))
+    styles.add(ParagraphStyle(name='RpSecTitle', parent=styles['Heading2'],
+        fontName='Helvetica-Bold', fontSize=11, leading=13,
+        textColor=colors.HexColor('#0F172A'), spaceAfter=4))
+
+    def text(value) -> str:
+        return escape(str(value if value is not None else '').strip())
+
+    def fmt_cell(value, fmt: str) -> str:
+        if value is None or value == '':
+            return ''
+        if fmt == 'money':
+            try:
+                return f"{float(value):,.2f}"
+            except Exception:
+                return str(value)
+        if fmt == 'qty':
+            try:
+                amt = float(value)
+                return f"{amt:,.0f}" if amt.is_integer() else f"{amt:,.2f}"
+            except Exception:
+                return str(value)
+        if fmt == 'pct':
+            try:
+                return f"{float(value):.2f}"
+            except Exception:
+                return str(value)
+        return str(value)
+
+    def style_for(align: str, head: bool = False) -> ParagraphStyle:
+        if head:
+            return {'right': styles['RpHeadR'], 'center': styles['RpHeadC']}.get(align, styles['RpHead'])
+        return {'right': styles['RpSmallR'], 'center': styles['RpSmallC']}.get(align, styles['RpSmall'])
+
+    def draw_footer(canvas, doc):
+        canvas.saveState()
+        page_w, _ = page_size
+        canvas.setFont('Helvetica', 7)
+        canvas.setFillColor(colors.HexColor('#64748B'))
+        canvas.drawRightString(page_w - doc.rightMargin, 8 * mm, f"Pagina {doc.page}")
+        if impreso_por:
+            stamp = f"Impreso por: {impreso_por}  -  {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+            canvas.drawString(doc.leftMargin, 8 * mm, stamp)
+        if report_id:
+            canvas.drawCentredString(page_w / 2, 8 * mm, f"Ref: {report_id}")
+        canvas.restoreState()
+
+    doc_card = Table(
+        [[
+            Paragraph(text(title), styles['RpDocTitle']),
+            Paragraph(f"{text(report_id)}<br/>"
+                      f"<font size='7'>{datetime.now().strftime('%d/%m/%Y %H:%M')}</font>",
+                      styles['RpDocNumber']),
+        ]],
+        colWidths=[60 * mm, 40 * mm], rowHeights=[20 * mm],
+    )
+    doc_card.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#0F172A')),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 10),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+        ('BOX', (0, 0), (-1, -1), 0.6, colors.HexColor('#0F172A')),
+    ]))
+    header = Table(
+        [[
+            [
+                Paragraph(text(cia_descripcion), styles['RpTitle']),
+                Paragraph(text(cia_direccion) or 'Direccion no registrada', styles['RpSub']),
+                Paragraph(' | '.join(p for p in [
+                    f"RNC: {text(cia_rnc)}" if cia_rnc else '',
+                    f"Tel.: {text(cia_telefono)}" if cia_telefono else '',
+                ] if p) or 'RNC/telefono no registrados', styles['RpSub']),
+            ],
+            doc_card,
+        ]],
+        colWidths=[width - 102 * mm, 102 * mm],
+    )
+    header.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+    ]))
+
+    elements = [header, Spacer(1, 2 * mm)]
+    if subtitle_lines:
+        subtitle_panel = Table(
+            [[Paragraph(' &nbsp; • &nbsp; '.join(text(s) for s in subtitle_lines if s),
+                        styles['RpSmall'])]],
+            colWidths=[width],
+        )
+        subtitle_panel.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F8FAFC')),
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ]))
+        elements += [subtitle_panel, Spacer(1, 3 * mm)]
+
+    for section in sections:
+        sec_title = section.get('title') or ''
+        columns = section.get('columns', [])
+        rows = section.get('rows', [])
+        totals_row = section.get('totals_row')
+        group_by = section.get('group_by')
+
+        if sec_title:
+            elements.append(Paragraph(text(sec_title), styles['RpSecTitle']))
+
+        header_cells = [
+            Paragraph(text(c.get('label') or c['key']), style_for(c.get('align', 'left'), head=True))
+            for c in columns
+        ]
+        table_data = [header_cells]
+
+        def push_row(row, is_group_total=False):
+            cells = []
+            for c in columns:
+                v = row.get(c['key'])
+                txt = fmt_cell(v, c.get('format', ''))
+                cells.append(Paragraph(text(txt), style_for(c.get('align', 'left'))))
+            table_data.append(cells)
+            if is_group_total:
+                section.setdefault('_subtotal_indices', []).append(len(table_data) - 1)
+
+        if group_by and rows:
+            current_group = None
+            group_buf = []
+            agg = {c['key']: 0.0 for c in columns if c.get('format') in ('money', 'qty')}
+            agg_count = 0
+
+            def flush_group():
+                nonlocal agg_count
+                if group_buf:
+                    for r in group_buf:
+                        push_row(r)
+                    subtotal_row = {c['key']: '' for c in columns}
+                    subtotal_row[group_by] = f"Subtotal {current_group} ({agg_count})"
+                    for k, v in agg.items():
+                        if v:
+                            subtotal_row[k] = v
+                    push_row(subtotal_row, is_group_total=True)
+                agg_count = 0
+                for k in agg:
+                    agg[k] = 0.0
+
+            for r in rows:
+                key_val = r.get(group_by) or ''
+                if current_group is not None and key_val != current_group:
+                    flush_group()
+                    group_buf = []
+                current_group = key_val
+                group_buf.append(r)
+                agg_count += 1
+                for k in agg:
+                    try:
+                        agg[k] += float(r.get(k) or 0)
+                    except Exception:
+                        pass
+            flush_group()
+        else:
+            for r in rows:
+                push_row(r)
+
+        if not rows:
+            empty = [''] * len(columns)
+            empty[0] = Paragraph('Sin registros para los filtros seleccionados.', styles['RpSmall'])
+            table_data.append(empty)
+
+        if totals_row:
+            cells = []
+            for c in columns:
+                v = totals_row.get(c['key'], '')
+                txt = fmt_cell(v, c.get('format', ''))
+                style = style_for(c.get('align', 'left'))
+                cells.append(Paragraph(f"<b>{text(txt)}</b>", style))
+            table_data.append(cells)
+
+        widths_explicit = [c.get('width') for c in columns]
+        if all(w is not None for w in widths_explicit):
+            col_widths = [w * mm for w in widths_explicit]
+        else:
+            col_widths = [width / len(columns)] * len(columns)
+
+        table = Table(table_data, colWidths=col_widths, repeatRows=1)
+        table_style = [
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1E293B')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8FAFC')]),
+            ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#CBD5E1')),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]
+        for idx in section.get('_subtotal_indices', []):
+            table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.HexColor('#E0F2FE')))
+            table_style.append(('FONTNAME', (0, idx), (-1, idx), 'Helvetica-Bold'))
+        if totals_row:
+            last = len(table_data) - 1
+            table_style.append(('BACKGROUND', (0, last), (-1, last), colors.HexColor('#0EA5E9')))
+            table_style.append(('TEXTCOLOR', (0, last), (-1, last), colors.white))
+        table.setStyle(TableStyle(table_style))
+        elements.append(table)
+        elements.append(Spacer(1, 4 * mm))
+
+    if signature_labels:
+        col_w = (width - 4 * mm) / len(signature_labels)
+        signature_row1 = [Paragraph('____________________________', styles['RpSmallC'])
+                          for _ in signature_labels]
+        signature_row2 = [Paragraph(f'<b>{text(l)}</b>', styles['RpSmallC'])
+                          for l in signature_labels]
+        signature_table = Table([signature_row1, signature_row2],
+                                colWidths=[col_w] * len(signature_labels))
+        signature_table.setStyle(TableStyle([
+            ('TOPPADDING', (0, 0), (-1, -1), 2),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        elements += [Spacer(1, 6 * mm), KeepTogether(signature_table)]
+
+    doc_pdf.build(elements, onFirstPage=draw_footer, onLaterPages=draw_footer)
+    buffer.seek(0)
+    return buffer.read()
+
+
+@login_required
+@require_http_methods(["GET"])
+def fat_cuadre_caja_pdf(request):
+    """GET /api/fat/reportes/cuadre-caja/pdf/?no_cia=01&punto=01&desde=...&hasta=...
+
+    Reporte Rfat237 modernizado: resumen por forma de pago, por NCF tipo y por
+    NCF x forma de pago. Firmas Cajero/Supervisor.
+    """
+    try:
+        from reportlab.lib.pagesizes import letter  # probe
+    except ImportError:
+        return JsonResponse({"error": "reportlab no instalado"}, status=500)
+
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    desde = request.GET.get('desde', '')
+    hasta = request.GET.get('hasta', '')
+    tipo_factura = request.GET.get('tipo', '')
+    no_cuadre = request.GET.get('no_cuadre', '')
+
+    perms = permissions_repo.get_for(request.user.username, 'fat', no_cia, punto)
+    if perms is None or not perms.activo:
+        return JsonResponse({'detail': 'sin acceso a FAT en esta empresa/punto'}, status=403)
+
+    try:
+        resumen = fat_repo.get_cuadre_caja_detalle(no_cia, punto, tipo_factura, desde, hasta, no_cuadre)
+        por_ncf = fat_repo.cuadre_caja_por_ncf(no_cia, punto, desde, hasta, tipo_factura, no_cuadre)
+        por_ncf_forma_pago = fat_repo.cuadre_caja_por_ncf_forma_pago(
+            no_cia, punto, desde, hasta, tipo_factura, no_cuadre)
+    except Exception as e:
+        return JsonResponse({"error": f"Error consultando cuadre: {e}"}, status=500)
+
+    try:
+        cia = next(
+            (c for c in fat_repo.list_companias_fat() if str(c.get('no_cia')).strip() == no_cia),
+            None,
+        ) or {}
+    except Exception:
+        cia = {}
+    if not cia:
+        cia = inv_repo.get_compania(no_cia) or {}
+
+    periodo = (f"Periodo: {desde} a {hasta}" if desde and hasta
+               else (f"Periodo: desde {desde}" if desde else (f"Periodo: hasta {hasta}" if hasta else 'Acumulado')))
+
+    total_general = sum(float(r.get('total') or 0) for r in resumen)
+
+    section_resumen = {
+        'title': 'Resumen por Forma de Pago',
+        'columns': [
+            {'key': 'tipo_pago', 'label': 'Cod.', 'align': 'center', 'width': 20},
+            {'key': 'forma_pago', 'label': 'Tipo Pago', 'align': 'left', 'width': 80},
+            {'key': 'cantidad', 'label': 'Cantidad', 'align': 'right', 'format': 'qty', 'width': 30},
+            {'key': 'total', 'label': 'Monto', 'align': 'right', 'format': 'money', 'width': 56},
+        ],
+        'rows': resumen,
+        'totals_row': {
+            'forma_pago': 'Total Ingresos',
+            'cantidad': sum(int(r.get('cantidad') or 0) for r in resumen),
+            'total': total_general,
+        },
+    }
+
+    section_ncf = {
+        'title': 'Resumen por Tipo de NCF',
+        'columns': [
+            {'key': 'ncf_tipo', 'label': 'Tipo NCF', 'align': 'center', 'width': 22},
+            {'key': 'cantidad', 'label': 'Cantidad', 'align': 'right', 'format': 'qty', 'width': 24},
+            {'key': 'total_linea', 'label': 'Subtotal', 'align': 'right', 'format': 'money', 'width': 36},
+            {'key': 'descuento', 'label': 'Descuento', 'align': 'right', 'format': 'money', 'width': 32},
+            {'key': 'impuesto', 'label': 'ITBIS', 'align': 'right', 'format': 'money', 'width': 32},
+            {'key': 'total_neto', 'label': 'Total Neto', 'align': 'right', 'format': 'money', 'width': 40},
+        ],
+        'rows': por_ncf,
+        'totals_row': {
+            'ncf_tipo': 'Total',
+            'cantidad': sum(int(r.get('cantidad') or 0) for r in por_ncf),
+            'total_linea': sum(float(r.get('total_linea') or 0) for r in por_ncf),
+            'descuento': sum(float(r.get('descuento') or 0) for r in por_ncf),
+            'impuesto': sum(float(r.get('impuesto') or 0) for r in por_ncf),
+            'total_neto': sum(float(r.get('total_neto') or 0) for r in por_ncf),
+        },
+    }
+
+    section_ncf_fp = {
+        'title': 'Desglose Tipo NCF x Forma de Pago',
+        'columns': [
+            {'key': 'ncf_tipo', 'label': 'Tipo NCF', 'align': 'center', 'width': 22},
+            {'key': 'tipo_pago', 'label': 'Cod.', 'align': 'center', 'width': 16},
+            {'key': 'forma_pago', 'label': 'Forma de Pago', 'align': 'left', 'width': 60},
+            {'key': 'cantidad', 'label': 'Cantidad', 'align': 'right', 'format': 'qty', 'width': 24},
+            {'key': 'total', 'label': 'Monto', 'align': 'right', 'format': 'money', 'width': 40},
+        ],
+        'rows': por_ncf_forma_pago,
+        'group_by': 'ncf_tipo',
+    }
+
+    try:
+        pdf = _render_modern_report_pdf(
+            report_id='Rfat237',
+            title='Listado Cuadre de Caja',
+            cia=cia,
+            subtitle_lines=[periodo, f"Tipo: {tipo_factura or 'Todos'}"],
+            sections=[section_resumen, section_ncf, section_ncf_fp],
+            signature_labels=['Cajero/Usuario', 'Supervisor/Encargado'],
+            impreso_por=getattr(request.user, 'username', '') or '',
+            orientation='portrait',
+        )
+    except Exception as e:
+        return JsonResponse({"error": f"Error generando PDF: {e}"}, status=500)
+
+    resp = HttpResponse(pdf, content_type='application/pdf')
+    resp['Content-Disposition'] = 'inline; filename="cuadre_caja.pdf"'
+    return resp
+
+
+@login_required
+@require_http_methods(["GET"])
+def fat_rep_ventas_productos_pdf(request):
+    """GET /api/fat/reportes/ventas-productos/pdf/?no_cia=01&punto=01&desde=...&hasta=...
+
+    Rfat326 modernizado: ventas por producto con costo/beneficio bruto.
+    """
+    try:
+        from reportlab.lib.pagesizes import letter  # probe
+    except ImportError:
+        return JsonResponse({"error": "reportlab no instalado"}, status=500)
+
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    desde = request.GET.get('desde', '')
+    hasta = request.GET.get('hasta', '')
+
+    if not desde or not hasta:
+        return JsonResponse({"error": "desde y hasta son requeridos (YYYY-MM-DD)"}, status=400)
+
+    perms = permissions_repo.get_for(request.user.username, 'fat', no_cia, punto)
+    if perms is None or not perms.activo:
+        return JsonResponse({'detail': 'sin acceso a FAT en esta empresa/punto'}, status=403)
+
+    try:
+        rows = fat_repo.rep_margen_bruto(
+            no_cia=no_cia, punto=punto, desde=desde, hasta=hasta, agrupar='producto')
+        if not isinstance(rows, list):
+            rows = rows.get('items', [])
+    except Exception as e:
+        return JsonResponse({"error": f"Error consultando ventas: {e}"}, status=500)
+
+    try:
+        cia = next(
+            (c for c in fat_repo.list_companias_fat() if str(c.get('no_cia')).strip() == no_cia),
+            None,
+        ) or {}
+    except Exception:
+        cia = {}
+    if not cia:
+        cia = inv_repo.get_compania(no_cia) or {}
+
+    total_venta = sum(float(r.get('venta_neta') or r.get('ventas_neta') or r.get('total') or 0) for r in rows)
+    total_costo = sum(float(r.get('valor_costo') or r.get('costo') or 0) for r in rows)
+    total_benef = total_venta - total_costo
+
+    rows_data = []
+    for r in rows:
+        venta = float(r.get('venta_neta') or r.get('ventas_neta') or r.get('total') or 0)
+        costo = float(r.get('valor_costo') or r.get('costo') or 0)
+        benef = venta - costo
+        pct_bruto = (benef / venta * 100) if venta else 0
+        rows_data.append({
+            'codigo': r.get('no_produ') or r.get('codigo') or '',
+            'descripcion': r.get('descripcion') or r.get('producto') or '',
+            'cantidad': float(r.get('cantidad') or 0),
+            'venta_neta': venta,
+            'valor_costo': costo,
+            'beneficio_bruto': benef,
+            'pct_bruto': pct_bruto,
+        })
+
+    columns = [
+        {'key': 'codigo', 'label': 'Codigo', 'align': 'left', 'width': 24},
+        {'key': 'descripcion', 'label': 'Producto', 'align': 'left', 'width': 80},
+        {'key': 'cantidad', 'label': 'Cant Neta', 'align': 'right', 'format': 'qty', 'width': 26},
+        {'key': 'venta_neta', 'label': 'Venta Neta', 'align': 'right', 'format': 'money', 'width': 32},
+        {'key': 'valor_costo', 'label': 'Valor Costo', 'align': 'right', 'format': 'money', 'width': 32},
+        {'key': 'beneficio_bruto', 'label': 'Benef Bruto', 'align': 'right', 'format': 'money', 'width': 32},
+        {'key': 'pct_bruto', 'label': '% Bruto', 'align': 'right', 'format': 'pct', 'width': 22},
+    ]
+
+    try:
+        pdf = _render_modern_report_pdf(
+            report_id='Rfat326',
+            title='Ventas por Productos / MBB',
+            cia=cia,
+            subtitle_lines=[f"Periodo: {desde} a {hasta}", f"Total productos: {len(rows_data)}"],
+            sections=[{
+                'columns': columns,
+                'rows': rows_data,
+                'totals_row': {
+                    'descripcion': f"Total general ({len(rows_data)})",
+                    'venta_neta': total_venta,
+                    'valor_costo': total_costo,
+                    'beneficio_bruto': total_benef,
+                    'pct_bruto': (total_benef / total_venta * 100) if total_venta else 0,
+                },
+            }],
+            impreso_por=getattr(request.user, 'username', '') or '',
+            orientation='landscape',
+        )
+    except Exception as e:
+        return JsonResponse({"error": f"Error generando PDF: {e}"}, status=500)
+
+    resp = HttpResponse(pdf, content_type='application/pdf')
+    resp['Content-Disposition'] = f'inline; filename="ventas_productos_{desde}_{hasta}.pdf"'
+    return resp
