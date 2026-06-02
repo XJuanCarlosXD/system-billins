@@ -823,89 +823,123 @@ def inv_documento_detalle(request, tipo_docu: str, no_docu: str):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+_INV_TIPO_DOCU_LABEL = {
+    'AE': 'Ajuste de Entrada',
+    'AS': 'Ajuste de Salida',
+    'DC': 'Devolucion de Compra',
+    'DV': 'Devolucion',
+    'EA': 'Entrada de Almacen',
+    'EC': 'Entrada de Compra',
+    'EP': 'Entrada de Produccion',
+    'SA': 'Salida de Almacen',
+    'SP': 'Salida de Produccion',
+    'TA': 'Transferencia de Almacen',
+}
+
+
 @login_required
 @require_http_methods(["GET"])
 def inv_documento_pdf(request, tipo_docu: str, no_docu: str):
-    """GET /api/inv/documentos/<tipo_docu>/<no_docu>/pdf/?no_cia=01"""
+    """GET /api/inv/documentos/<tipo_docu>/<no_docu>/pdf/?no_cia=01
+
+    Documento individual de inventario en estilo factura moderna. Soporta los
+    10 tipos legacy (AE, AS, DC, DV, EA, EC, EP, SA, SP, TA) con el rotulo del
+    documento + 3 firmas (Realizado/Autorizado/Recibido).
+    """
+    from apps.fat.views_print import _render_modern_report_pdf
     no_cia = request.GET.get('no_cia', '01')
+    tipo_s = (tipo_docu or '').strip().upper()
+    no_docu_s = (no_docu or '').strip()
+
     try:
-        doc = inv_repo.get_documento_detalle(no_cia=no_cia, tipo_docu=tipo_docu, no_docu=no_docu)
+        doc = inv_repo.get_documento_detalle(no_cia=no_cia, tipo_docu=tipo_s, no_docu=no_docu_s)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
 
     if not doc:
         return JsonResponse({"error": "Documento no encontrado"}, status=404)
 
+    header = doc.get('header', {}) or {}
+    lines = doc.get('lines', []) or []
+
+    documento_label = _INV_TIPO_DOCU_LABEL.get(tipo_s, f"Documento {tipo_s}")
+    tipo_movi = (header.get('TIPO_MOVI') or header.get('tipo_movi') or '').strip().upper()
+    tipo_movi_label = {'E': 'Entrada', 'S': 'Salida'}.get(tipo_movi, tipo_movi or 'N/A')
+
+    fecha_raw = str(header.get('FECHA') or header.get('fecha') or '')
+    fecha = fecha_raw[:10] if len(fecha_raw) >= 10 else fecha_raw
+    fecha_display = (
+        f"{fecha[8:10]}/{fecha[5:7]}/{fecha[:4]}" if len(fecha) == 10 else fecha
+    )
+    almacen = str(header.get('ALMACEN') or header.get('almacen') or '').strip()
+    punto = str(header.get('PUNTO') or header.get('punto') or '01').strip()
+    usuario = str(header.get('USUARIO') or header.get('usuario') or '').strip()
+    nota = (header.get('NOTA') or header.get('nota') or '').strip()
+    total_doc = float(header.get('TOTAL') or header.get('total') or 0)
+
+    rows_data = []
+    for ln in lines[:500]:
+        cant = float(ln.get('CANTIDAD', ln.get('cantidad', 0)) or 0)
+        costo = float(ln.get('COSTO', ln.get('costo', 0)) or 0)
+        monto = float(ln.get('MONTO_NETO', ln.get('monto_neto', 0)) or 0)
+        if not monto:
+            monto = round(cant * costo, 2)
+        rows_data.append({
+            'no_linea': ln.get('NO_LINEA', ln.get('no_linea', '')),
+            'no_produ': ln.get('NO_PRODU', ln.get('no_produ', '')),
+            'descripcion': str(ln.get('DESCRIPCION', ln.get('descripcion', '')) or '')[:80],
+            'cantidad': cant,
+            'costo': costo,
+            'monto_neto': monto,
+        })
+
+    columns = [
+        {'key': 'no_linea', 'label': 'Ln', 'align': 'center', 'width': 10},
+        {'key': 'no_produ', 'label': 'Codigo', 'align': 'left', 'width': 22},
+        {'key': 'descripcion', 'label': 'Descripcion', 'align': 'left', 'width': 72},
+        {'key': 'cantidad', 'label': 'Cantidad', 'align': 'right', 'format': 'qty', 'width': 22},
+        {'key': 'costo', 'label': 'Costo', 'align': 'right', 'format': 'money', 'width': 24},
+        {'key': 'monto_neto', 'label': 'Monto Neto', 'align': 'right', 'format': 'money', 'width': 32},
+    ]
+
+    subtitle = [
+        f"Tipo Movimiento: {tipo_movi_label}",
+        f"Almacen: {almacen or 'N/A'}",
+        f"Punto: {punto}",
+        f"Fecha: {fecha_display or 'N/A'}",
+    ]
+    if usuario:
+        subtitle.append(f"Usuario: {usuario}")
+    if nota:
+        subtitle.append(f"Nota: {nota[:60]}")
+    subtitle.append(f"Total documento: {total_doc:,.2f}")
+
     try:
-        from reportlab.lib.pagesizes import letter
-        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-        from reportlab.lib.styles import getSampleStyleSheet
-        from reportlab.lib import colors
-        from reportlab.lib.units import inch
-
-        buffer = io.BytesIO()
-        doc_pdf = SimpleDocTemplate(buffer, pagesize=letter,
-                                    leftMargin=0.75*inch, rightMargin=0.75*inch,
-                                    topMargin=0.75*inch, bottomMargin=0.75*inch)
-        styles = getSampleStyleSheet()
-        elements = []
-
-        header = doc.get('header', {})
-        elements.append(Paragraph(
-            f"Documento Inventario: {tipo_docu} #{no_docu}", styles['Title']
-        ))
-        elements.append(Spacer(1, 8))
-
-        info_data = [
-            ['Empresa:', str(header.get('no_cia', no_cia)),
-             'Fecha:', str(header.get('fecha', ''))],
-            ['Almacén:', str(header.get('almacen', '')),
-             'Tipo Mov:', str(header.get('tipo_movi', ''))],
-            ['Punto:', str(header.get('punto', '')),
-             'Total:', str(round(float(header.get('total', 0) or 0), 2))],
-        ]
-        info_table = Table(info_data, colWidths=[1.2*inch, 2*inch, 1.2*inch, 2*inch])
-        info_table.setStyle(TableStyle([
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
-        ]))
-        elements.append(info_table)
-        elements.append(Spacer(1, 12))
-
-        lines = doc.get('lines', [])
-        if lines:
-            col_keys = ['no_linea', 'no_produ', 'descripcion', 'cantidad', 'costo', 'monto_neto']
-            col_labels = ['Línea', 'Código', 'Descripción', 'Cantidad', 'Costo', 'Monto']
-            # normalise keys (Oracle returns uppercase)
-            def _get(row, key):
-                return str(row.get(key.upper(), row.get(key, '')) or '')
-
-            data = [col_labels]
-            for row in lines[:100]:
-                data.append([_get(row, k) for k in col_keys])
-
-            t = Table(data, colWidths=[0.5*inch, 1*inch, 2.5*inch, 0.8*inch, 0.8*inch, 0.9*inch])
-            t.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 8),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#DCE6F1')]),
-                ('GRID', (0, 0), (-1, -1), 0.4, colors.grey),
-                ('ALIGN', (3, 0), (-1, -1), 'RIGHT'),
-            ]))
-            elements.append(t)
-
-        doc_pdf.build(elements)
-        buffer.seek(0)
-        response = HttpResponse(buffer.read(), content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="INV_{tipo_docu}_{no_docu}.pdf"'
-        return response
-    except ImportError:
-        return JsonResponse({"error": "reportlab no instalado en el servidor"}, status=500)
+        cia_full = _get_cia_full(no_cia)
+        pdf = _render_modern_report_pdf(
+            report_id=f"{tipo_s}-{no_docu_s}",
+            title=f"{documento_label}",
+            cia=cia_full,
+            subtitle_lines=subtitle,
+            sections=[{
+                'columns': columns,
+                'rows': rows_data,
+                'totals_row': {
+                    'descripcion': f"Total documento ({len(rows_data)} lineas)",
+                    'cantidad': sum(r['cantidad'] for r in rows_data),
+                    'monto_neto': sum(r['monto_neto'] for r in rows_data) or total_doc,
+                },
+            }],
+            signature_labels=['Realizado por', 'Autorizado por', 'Recibido por'],
+            impreso_por=getattr(request.user, 'username', '') or '',
+            orientation='portrait',
+        )
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="INV_{tipo_s}_{no_docu_s}.pdf"'
+    return response
 
 
 @login_required
@@ -950,21 +984,64 @@ def inv_valorizacion(request):
 # ─── REPORT PDFs ──────────────────────────────────────────────────────────────
 
 
+def _get_cia_full(no_cia: str) -> dict:
+    """Devuelve compania con descripcion/direccion/rnc/telefono (TFAT_CIAS preferred)."""
+    try:
+        from apps.legacy.repositories import fat_repo as _fat_repo
+        cia = next(
+            (c for c in _fat_repo.list_companias_fat() if str(c.get('no_cia')).strip() == no_cia),
+            None,
+        ) or {}
+    except Exception:
+        cia = {}
+    if not cia:
+        cia = inv_repo.get_compania(no_cia) or {}
+    return cia
+
+
 @login_required
 @require_http_methods(["GET"])
 def inv_reporte_existencia_pdf(request):
     """GET /api/inv/reportes/existencia/pdf/?no_cia=01&almacen="""
-    try:
-        from reportlab.lib.pagesizes import letter  # noqa: probe import
-    except ImportError:
-        return JsonResponse({"error": "reportlab no instalado"}, status=500)
+    from apps.fat.views_print import _render_modern_report_pdf
     try:
         no_cia = request.GET.get('no_cia', '01')
         almacen = request.GET.get('almacen', '')
         punto = request.GET.get('punto', '')
         rows = inv_repo.list_existencias(no_cia=no_cia, almacen=almacen, punto=punto)
-        cols = ['ALMACEN', 'NO_PRODU', 'DESCRIPCION', 'EXISTENCIA', 'COSTO_PROM', 'VALOR']
-        pdf = build_pdf_report(f"Reporte de Existencias — Empresa {no_cia}", cols, rows)
+        rows_data = [{
+            'almacen_label': f"{(r.get('almacen') or '').strip()} {(r.get('almacen_desc') or '').strip()}".strip(),
+            'almacen': (r.get('almacen') or '').strip(),
+            'no_produ': r.get('no_produ', ''),
+            'descripcion': (r.get('descripcion') or '')[:80],
+            'existencia': float(r.get('existencia') or 0),
+            'costo_prom': float(r.get('costo_prom') or r.get('costo_actual') or 0),
+            'valor': float(r.get('valor') or 0),
+        } for r in rows]
+        rows_data.sort(key=lambda r: (r['almacen'], r['no_produ']))
+        total_valor = sum(r['valor'] for r in rows_data)
+        columns = [
+            {'key': 'almacen_label', 'label': 'Almacen', 'align': 'left', 'width': 50},
+            {'key': 'no_produ', 'label': 'No. Producto', 'align': 'left', 'width': 24},
+            {'key': 'descripcion', 'label': 'Descripcion', 'align': 'left', 'width': 80},
+            {'key': 'existencia', 'label': 'Existencia', 'align': 'right', 'format': 'qty', 'width': 24},
+            {'key': 'costo_prom', 'label': 'Costo Prom', 'align': 'right', 'format': 'money', 'width': 26},
+            {'key': 'valor', 'label': 'Valor', 'align': 'right', 'format': 'money', 'width': 34},
+        ]
+        subtitle = [f"Total productos: {len(rows_data)}"]
+        if almacen:
+            subtitle.append(f"Almacen filtrado: {almacen}")
+        pdf = _render_modern_report_pdf(
+            report_id='Rinv301', title='Existencia de Inventario',
+            cia=_get_cia_full(no_cia), subtitle_lines=subtitle,
+            sections=[{
+                'columns': columns, 'rows': rows_data, 'group_by': 'almacen_label',
+                'totals_row': {'almacen_label': f"Total general ({len(rows_data)})",
+                               'valor': total_valor},
+            }],
+            impreso_por=getattr(request.user, 'username', '') or '',
+            orientation='landscape',
+        )
         resp = HttpResponse(pdf, content_type='application/pdf')
         resp['Content-Disposition'] = f'inline; filename="INV_Existencias_{no_cia}.pdf"'
         return resp
@@ -976,10 +1053,7 @@ def inv_reporte_existencia_pdf(request):
 @require_http_methods(["GET"])
 def inv_reporte_movimientos_pdf(request):
     """GET /api/inv/reportes/movimientos/pdf/?no_cia=01&desde=&hasta=&tipo_docu="""
-    try:
-        from reportlab.lib.pagesizes import letter  # noqa: probe import
-    except ImportError:
-        return JsonResponse({"error": "reportlab no instalado"}, status=500)
+    from apps.fat.views_print import _render_modern_report_pdf
     try:
         no_cia = request.GET.get('no_cia', '01')
         almacen = request.GET.get('almacen', '')
@@ -987,12 +1061,58 @@ def inv_reporte_movimientos_pdf(request):
         desde = request.GET.get('desde', '')
         hasta = request.GET.get('hasta', '')
         rows = inv_repo.list_movimientos(
-            no_cia=no_cia, almacen=almacen, tipo=tipo,
-            desde=desde, hasta=hasta,
+            no_cia=no_cia, almacen=almacen, tipo=tipo, desde=desde, hasta=hasta,
         )
-        cols = ['FECHA', 'TIPO_DOCU', 'NO_DOCU', 'ALMACEN', 'NO_PRODU',
-                'DESCRIPCION', 'TIPO_MOVI', 'CANTIDAD', 'COSTO', 'MONTO_NETO']
-        pdf = build_pdf_report(f"Reporte de Movimientos — Empresa {no_cia}", cols, rows)
+        rows_data = [{
+            'tipo_docu': (r.get('tipo_docu') or '').strip(),
+            'fecha': str(r.get('fecha') or '')[:10],
+            'no_docu': r.get('no_docu') or '',
+            'almacen': (r.get('almacen') or '').strip(),
+            'no_produ': r.get('no_produ', ''),
+            'descripcion': (r.get('descripcion') or '')[:60],
+            'tipo_movi': r.get('tipo_movi') or '',
+            'cantidad': float(r.get('cantidad') or 0),
+            'costo': float(r.get('costo') or 0),
+            'monto_neto': float(r.get('monto_neto') or 0),
+        } for r in rows]
+        rows_data.sort(key=lambda r: (r['tipo_docu'], r['fecha'], r['no_docu']))
+        total_neto = sum(r['monto_neto'] for r in rows_data)
+        columns = [
+            {'key': 'tipo_docu', 'label': 'Tipo', 'align': 'center', 'width': 14},
+            {'key': 'no_docu', 'label': 'No. Doc', 'align': 'left', 'width': 22},
+            {'key': 'fecha', 'label': 'Fecha', 'align': 'center', 'width': 22},
+            {'key': 'almacen', 'label': 'Alm.', 'align': 'center', 'width': 14},
+            {'key': 'no_produ', 'label': 'Producto', 'align': 'left', 'width': 22},
+            {'key': 'descripcion', 'label': 'Descripcion', 'align': 'left', 'width': 60},
+            {'key': 'tipo_movi', 'label': 'E/S', 'align': 'center', 'width': 12},
+            {'key': 'cantidad', 'label': 'Cantidad', 'align': 'right', 'format': 'qty', 'width': 22},
+            {'key': 'costo', 'label': 'Costo', 'align': 'right', 'format': 'money', 'width': 22},
+            {'key': 'monto_neto', 'label': 'Monto Neto', 'align': 'right', 'format': 'money', 'width': 28},
+        ]
+        subtitle = []
+        if desde and hasta:
+            subtitle.append(f"Periodo: {desde} a {hasta}")
+        elif desde:
+            subtitle.append(f"Desde: {desde}")
+        elif hasta:
+            subtitle.append(f"Hasta: {hasta}")
+        if tipo:
+            subtitle.append(f"Tipo Docu: {tipo}")
+        if almacen:
+            subtitle.append(f"Almacen: {almacen}")
+        subtitle.append(f"Total movimientos: {len(rows_data)}")
+        pdf = _render_modern_report_pdf(
+            report_id='Rinv305', title='Reporte de Movimientos',
+            cia=_get_cia_full(no_cia), subtitle_lines=subtitle,
+            sections=[{
+                'columns': columns, 'rows': rows_data, 'group_by': 'tipo_docu',
+                'totals_row': {'tipo_docu': 'Total general',
+                               'monto_neto': total_neto,
+                               'cantidad': sum(r['cantidad'] for r in rows_data)},
+            }],
+            impreso_por=getattr(request.user, 'username', '') or '',
+            orientation='landscape',
+        )
         resp = HttpResponse(pdf, content_type='application/pdf')
         resp['Content-Disposition'] = f'inline; filename="INV_Movimientos_{no_cia}.pdf"'
         return resp
@@ -1004,10 +1124,7 @@ def inv_reporte_movimientos_pdf(request):
 @require_http_methods(["GET"])
 def inv_reporte_kardex_pdf(request):
     """GET /api/inv/reportes/kardex/pdf/?no_cia=01&no_produ=X&almacen=&desde=&hasta="""
-    try:
-        from reportlab.lib.pagesizes import letter  # noqa: probe import
-    except ImportError:
-        return JsonResponse({"error": "reportlab no instalado"}, status=500)
+    from apps.fat.views_print import _render_modern_report_pdf
     try:
         no_cia = request.GET.get('no_cia', '01')
         no_produ = request.GET.get('no_produ', '')
@@ -1015,14 +1132,43 @@ def inv_reporte_kardex_pdf(request):
         desde = request.GET.get('desde', '')
         hasta = request.GET.get('hasta', '')
         if not no_produ:
-            return JsonResponse({"error": "Parámetro no_produ requerido"}, status=400)
+            return JsonResponse({"error": "Parametro no_produ requerido"}, status=400)
         rows = inv_repo.list_kardex(
-            no_cia=no_cia, no_produ=no_produ,
-            almacen=almacen, desde=desde, hasta=hasta,
+            no_cia=no_cia, no_produ=no_produ, almacen=almacen, desde=desde, hasta=hasta,
         )
-        cols = ['FECHA', 'TIPO_DOCU', 'NO_DOCU', 'ALMACEN',
-                'TIPO_MOVI', 'CANTIDAD', 'COSTO', 'SALDO']
-        pdf = build_pdf_report(f"Kardex — {no_produ} — Empresa {no_cia}", cols, rows)
+        rows_data = [{
+            'fecha': str(r.get('fecha') or '')[:10],
+            'tipo_docu': (r.get('tipo_docu') or '').strip(),
+            'no_docu': r.get('no_docu') or '',
+            'almacen': (r.get('almacen') or '').strip(),
+            'tipo_movi': r.get('tipo_movi') or '',
+            'cantidad': float(r.get('cantidad') or 0),
+            'costo': float(r.get('costo') or 0),
+            'saldo': float(r.get('saldo') or 0),
+        } for r in rows]
+        columns = [
+            {'key': 'fecha', 'label': 'Fecha', 'align': 'center', 'width': 24},
+            {'key': 'tipo_docu', 'label': 'Tipo', 'align': 'center', 'width': 16},
+            {'key': 'no_docu', 'label': 'No. Docu', 'align': 'left', 'width': 26},
+            {'key': 'almacen', 'label': 'Almacen', 'align': 'center', 'width': 16},
+            {'key': 'tipo_movi', 'label': 'E/S', 'align': 'center', 'width': 12},
+            {'key': 'cantidad', 'label': 'Cantidad', 'align': 'right', 'format': 'qty', 'width': 24},
+            {'key': 'costo', 'label': 'Costo', 'align': 'right', 'format': 'money', 'width': 24},
+            {'key': 'saldo', 'label': 'Saldo', 'align': 'right', 'format': 'qty', 'width': 24},
+        ]
+        subtitle = [f"Producto: {no_produ}"]
+        if almacen:
+            subtitle.append(f"Almacen: {almacen}")
+        if desde and hasta:
+            subtitle.append(f"Periodo: {desde} a {hasta}")
+        subtitle.append(f"Total movimientos: {len(rows_data)}")
+        pdf = _render_modern_report_pdf(
+            report_id='Rinv304', title='Kardex de Producto',
+            cia=_get_cia_full(no_cia), subtitle_lines=subtitle,
+            sections=[{'columns': columns, 'rows': rows_data}],
+            impreso_por=getattr(request.user, 'username', '') or '',
+            orientation='landscape',
+        )
         resp = HttpResponse(pdf, content_type='application/pdf')
         resp['Content-Disposition'] = f'inline; filename="INV_Kardex_{no_produ}.pdf"'
         return resp
@@ -1034,17 +1180,44 @@ def inv_reporte_kardex_pdf(request):
 @require_http_methods(["GET"])
 def inv_reporte_valorizacion_pdf(request):
     """GET /api/inv/reportes/valorizacion/pdf/?no_cia=01&almacen="""
-    try:
-        from reportlab.lib.pagesizes import letter  # noqa: probe import
-    except ImportError:
-        return JsonResponse({"error": "reportlab no instalado"}, status=500)
+    from apps.fat.views_print import _render_modern_report_pdf
     try:
         no_cia = request.GET.get('no_cia', '01')
         almacen = request.GET.get('almacen', '')
         rows = inv_repo.get_valoracion_inventario(no_cia=no_cia, almacen=almacen)
-        cols = ['ALMACEN', 'ALMACEN_DESC', 'NO_PRODU', 'DESCRIPCION',
-                'EXISTENCIA', 'COSTO_ACTUAL', 'VALOR']
-        pdf = build_pdf_report(f"Valoración de Inventario — Empresa {no_cia}", cols, rows)
+        rows_data = [{
+            'almacen_label': f"{(r.get('almacen') or '').strip()} {(r.get('almacen_desc') or '').strip()}".strip(),
+            'almacen': (r.get('almacen') or '').strip(),
+            'no_produ': r.get('no_produ', ''),
+            'descripcion': (r.get('descripcion') or '')[:80],
+            'existencia': float(r.get('existencia') or 0),
+            'costo_actual': float(r.get('costo_actual') or 0),
+            'valor': float(r.get('valor') or 0),
+        } for r in rows]
+        rows_data.sort(key=lambda r: (r['almacen'], r['no_produ']))
+        total_valor = sum(r['valor'] for r in rows_data)
+        columns = [
+            {'key': 'almacen_label', 'label': 'Almacen', 'align': 'left', 'width': 50},
+            {'key': 'no_produ', 'label': 'No. Producto', 'align': 'left', 'width': 24},
+            {'key': 'descripcion', 'label': 'Descripcion', 'align': 'left', 'width': 80},
+            {'key': 'existencia', 'label': 'Existencia', 'align': 'right', 'format': 'qty', 'width': 24},
+            {'key': 'costo_actual', 'label': 'Costo Actual', 'align': 'right', 'format': 'money', 'width': 28},
+            {'key': 'valor', 'label': 'Valor', 'align': 'right', 'format': 'money', 'width': 34},
+        ]
+        subtitle = [f"Total productos: {len(rows_data)}", f"Valor total: {total_valor:,.2f}"]
+        if almacen:
+            subtitle.append(f"Almacen filtrado: {almacen}")
+        pdf = _render_modern_report_pdf(
+            report_id='Rinv315', title='Valoracion de Inventario',
+            cia=_get_cia_full(no_cia), subtitle_lines=subtitle,
+            sections=[{
+                'columns': columns, 'rows': rows_data, 'group_by': 'almacen_label',
+                'totals_row': {'almacen_label': f"Total general ({len(rows_data)})",
+                               'valor': total_valor},
+            }],
+            impreso_por=getattr(request.user, 'username', '') or '',
+            orientation='landscape',
+        )
         resp = HttpResponse(pdf, content_type='application/pdf')
         resp['Content-Disposition'] = f'inline; filename="INV_Valorizacion_{no_cia}.pdf"'
         return resp
