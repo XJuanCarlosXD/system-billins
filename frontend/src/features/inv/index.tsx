@@ -825,7 +825,7 @@ export function InvPage() {
   const search = route.useSearch()
   const navigate = route.useNavigate()
   const { selectedCompany, selectedPoint } = useCompany()
-  const activeSection = search.section as SectionKey
+  const activeSection: SectionKey = (search.section as SectionKey) || 'configuracion'
   const [activeView, setActiveView] = useState<ViewKey>(
     (search.view as ViewKey) || actionsBySection[activeSection][0].key,
   )

@@ -705,10 +705,10 @@ def list_kardex(
         where.append(f"m.almacen = :{len(params)}")
     if desde:
         params.append(desde)
-        where.append(f"m.fecha >= TO_DATE(:{len(params)}, 'YYYY-MM-DD')")
+        where.append(f"TRUNC(m.fecha) >= TO_DATE(:{len(params)}, 'YYYY-MM-DD')")
     if hasta:
         params.append(hasta)
-        where.append(f"m.fecha <= TO_DATE(:{len(params)}, 'YYYY-MM-DD')")
+        where.append(f"TRUNC(m.fecha) <= TO_DATE(:{len(params)}, 'YYYY-MM-DD')")
 
     sql = (
         "SELECT tipo_docu, no_docu, no_linea, almacen, fecha, "

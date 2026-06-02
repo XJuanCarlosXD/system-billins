@@ -327,6 +327,63 @@ export function NuevaFactura({ noCia, punto }: Props) {
     setClienteSearch('')
   }
 
+  // ── Cotización / Pedido — autoload líneas + cliente ─────────
+  const cargarCotizacion = async (no: string) => {
+    const num = no.trim()
+    if (!num) return
+    // Prueba CT (cotización) primero, luego CO (conduce)
+    let cot: Record<string, any> | null = null
+    for (const tipo of ['CT', 'CO'] as const) {
+      try {
+        cot = await regalGeneralApi.fatGetConduce(noCia, punto, tipo, num)
+        if (cot && cot.no_conduce) break
+        cot = null
+      } catch { /* siguiente tipo */ }
+    }
+    if (!cot) {
+      toast({ title: 'Cotización/Conduce no encontrado', description: `Numero: ${num}`, variant: 'destructive' })
+      return
+    }
+    // Cliente: buscar y aplicar
+    if (cot.no_cliente) {
+      try {
+        const res = await regalGeneralApi.fatListClientes(noCia, String(cot.no_cliente), 1, 5)
+        const c = (res.items || []).find(x => String(x.no_cliente) === String(cot!.no_cliente))
+        if (c) aplicarCliente(c)
+      } catch { /* sin cliente — el usuario lo carga */ }
+    }
+    if (cot.vendedor) setVendedor(cot.vendedor)
+    if (cot.detalle) setDetalle(cot.detalle)
+    // Líneas
+    const lineasCot = (cot.lineas || []) as Array<Record<string, any>>
+    if (lineasCot.length === 0) return
+    const nuevas: Linea[] = lineasCot.map(l => ({
+      id: lineaIdCounter++,
+      almacen: String(l.almacen || defaultAlmacen),
+      no_produ: String(l.no_produ || ''),
+      emp: '—',
+      descripcion: String(l.descripcion || ''),
+      cantidad: Number(l.cantidad || 0),
+      precio: Number(l.precio || 0),
+      porc_descuento: Number(l.porc_descuento || 0),
+      monto: Number(l.cantidad || 0) * Number(l.precio || 0) * (1 - Number(l.porc_descuento || 0) / 100),
+      porciento_impuesto: Number(l.porciento_impuesto || 0),
+      itbis: Number(l.porciento_impuesto || 0) > 0,
+      empaques: [],
+      precioBase: Number(l.precio || 0),
+      cantPorEmpBase: 1,
+    }))
+    setLineas(nuevas)
+    // Aplicar empaques en background por cada línea
+    nuevas.forEach((l, idx) => {
+      if (l.no_produ) aplicarEmpaquesALinea(idx, l.no_produ, l.precio)
+    })
+    toast({
+      title: `${cot.tipo_conduce} ${cot.no_conduce} cargado`,
+      description: `${lineasCot.length} línea(s) — Cliente ${cot.no_cliente} ${cot.nombre_cliente || ''}`,
+    })
+  }
+
   const limpiarCliente = () => {
     setClienteSeleccionado(null)
     setNoCliente('')
@@ -639,7 +696,13 @@ export function NuevaFactura({ noCia, punto }: Props) {
         <div className="grid grid-cols-6 gap-3">
           <div className="space-y-1">
             <Label>Cotizacion/Pedido</Label>
-            <Input value={noCotizacion} onChange={e => setNoCotizacion(e.target.value)} placeholder="Opcional" />
+            <Input
+              value={noCotizacion}
+              onChange={e => setNoCotizacion(e.target.value)}
+              onBlur={e => cargarCotizacion(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') cargarCotizacion(noCotizacion) }}
+              placeholder="No. cotización o conduce"
+            />
           </div>
           <div className="space-y-1 col-span-2">
             <Label>Tipo Documento <span className="text-red-500">*</span></Label>

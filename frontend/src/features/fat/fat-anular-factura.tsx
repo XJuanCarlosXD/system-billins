@@ -42,7 +42,8 @@ interface FacturaData {
   lineas: FacturaLinea[]
 }
 
-const fmtN = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const fmtN = (n: number | null | undefined) =>
+  (Number(n ?? 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 const mesAnioActual = () => {
   const d = new Date()

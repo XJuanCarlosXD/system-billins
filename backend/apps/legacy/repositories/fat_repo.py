@@ -780,7 +780,8 @@ def get_cuadre_caja_detalle(no_cia: str, punto: str, tipo_factura: str,
         f"  JOIN FAT.TFAT_FACTURA f ON f.no_cia=fp.no_cia AND f.punto=fp.punto "
         f"    AND f.tipo_factura=fp.tipo_factura AND f.no_factura=fp.no_factura "
         f"  LEFT JOIN FAT.TFAT_TIPO_PAGO tp ON tp.no_cia=fp.no_cia AND tp.tipo_pago=fp.tipo_pago "
-        f"  WHERE fp.no_cia=:p_cia AND fp.punto=:p_pto {extra_fat} "
+        f"  WHERE fp.no_cia=:p_cia AND fp.punto=:p_pto "
+        f"    AND NVL(f.st_anulado,'N')='N' {extra_fat} "
         f"  GROUP BY fp.tipo_pago, NVL(tp.descripcion, fp.tipo_pago) "
         # ── Cobros CXC: recibos de ingreso aplicados a facturas a crédito ──
         f"  UNION ALL "
@@ -1993,15 +1994,31 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
         afecta_cxc = (tdocu_row[2] or "N") if tdocu_row else "N"
         ncf_val = None
         tipo_ncf_fiscal = ""
+        posiciones_fijas_ncf = ""
         if codigo_ncf_doc:
             cur.execute(
-                "SELECT prox_ncf, tipo_ncf_fiscal FROM CNT.TCNT_NCF "
+                "SELECT prox_ncf, tipo_ncf_fiscal, posiciones_fijas, ncf_final FROM CNT.TCNT_NCF "
                 "WHERE no_localidad=:1 AND codigo_ncf=:2 FOR UPDATE",
                 [no_cia, codigo_ncf_doc])
             ncf_row = cur.fetchone()
             if ncf_row:
                 ncf_val = int(ncf_row[0] or 0)
                 tipo_ncf_fiscal = (ncf_row[1] or "").strip()
+                posiciones_fijas_ncf = (ncf_row[2] or "").strip().upper()
+                ncf_final = int(ncf_row[3] or 0)
+                # Auto-fix: si prox_ncf ya está usado en una factura activa,
+                # saltar al siguiente disponible. Evita duplicados que se generan
+                # cuando se libera un NCF de una factura intermedia.
+                while ncf_val and ncf_val <= ncf_final:
+                    cur.execute(
+                        "SELECT 1 FROM FAT.TFAT_FACTURA "
+                        "WHERE no_cia=:1 AND codigo_ncf=:2 AND ncf=:3 "
+                        "  AND NVL(st_anulado,'N')<>'S' AND ROWNUM<=1",
+                        [no_cia, codigo_ncf_doc, ncf_val])
+                    if cur.fetchone():
+                        ncf_val += 1
+                    else:
+                        break
         total_linea = 0.0
         total_descuento = 0.0
         total_impuesto = 0.0
@@ -2019,19 +2036,40 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
             total_linea += subtotal
             total_descuento += desc_monto
             total_impuesto += imp_monto
+            no_produ_norm = lin.get("no_produ", "").strip().upper()
+            almacen_norm = lin.get("almacen", "").strip()
+            cur.execute(
+                "SELECT NVL(ep.costo_actual,0) FROM INV.TINV_EPRODUCTO ep "
+                "WHERE ep.no_cia=:1 AND ep.punto=:2 AND ep.almacen=:3 AND ep.no_produ=:4",
+                [no_cia, punto, almacen_norm, no_produ_norm])
+            row_ep = cur.fetchone()
+            costo_unit = float(row_ep[0] or 0) if row_ep else 0.0
+            cur.execute(
+                "SELECT empaque, NVL(cpe,1) FROM INV.TINV_EMPAQUE "
+                "WHERE no_produ=:1 "
+                "ORDER BY CASE WHEN NVL(por_defecto,'N')='S' THEN 0 ELSE 1 END, empaque",
+                [no_produ_norm])
+            row_emp = cur.fetchone()
+            if row_emp:
+                empaque_unit = int(row_emp[0] or 1)
+                cpe_unit = float(row_emp[1] or 1)
+            else:
+                empaque_unit = 1
+                cpe_unit = 1.0
             lineas_calc.append({"no_linea": idx,
-                "no_produ": lin.get("no_produ", "").strip().upper(),
-                "almacen": lin.get("almacen", "").strip(),
+                "no_produ": no_produ_norm,
+                "almacen": almacen_norm,
                 "descripcion": lin.get("descripcion", "").strip(),
                 "cantidad": cant, "precio": precio, "porc_descuento": porc_desc,
                 "descuento": desc_monto, "porciento_impuesto": porc_imp,
-                "impuesto": imp_monto, "monto_neto": neto})
+                "impuesto": imp_monto, "monto_neto": neto,
+                "costo": costo_unit, "empaque": empaque_unit, "cpe": cpe_unit})
         total_neto = total_linea - total_descuento + total_impuesto
         cur.execute(
             "INSERT INTO FAT.TFAT_FACTURA("
             "no_cia,punto,tipo_factura,no_factura,no_cliente,fecha,vendedor,"
             "total_linea,descuento,impuesto,total_neto,estado,"
-            "ncf,codigo_ncf,tipo_ncf_fiscal,"
+            "ncf,codigo_ncf,tipo_ncf_fiscal,posiciones_fijas_ncf,"
             "st_anulado,st_impresion,st_generado_cnt,"
             "usuario,nota,no_formulario,tipo_transaccion,"
             "tasa_us,porc_impuesto,no_condicion_pago,tipo_moneda,"
@@ -2039,32 +2077,53 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
             ") VALUES("
             ":1,:2,:3,:4,:5,TO_DATE(:6,'YYYY-MM-DD'),:7,"
             ":8,:9,:10,:11,'A',"
-            ":12,:13,:14,"
+            ":12,:13,:14,:15,"
             "'N','N','N',"
-            ":15,:16,:17,:18,"
+            ":16,:17,:18,:19,"
             "57.5,18,'','RD',"
-            "0,0,:19,:20,SYSDATE"
+            "0,0,:20,:21,SYSDATE"
             ")",
             [no_cia, punto, tf, new_no_factura, no_cliente, fecha, vendedor,
              total_linea, total_descuento, total_impuesto, total_neto,
-             ncf_val, codigo_ncf_doc, tipo_ncf_fiscal,
+             ncf_val, codigo_ncf_doc, tipo_ncf_fiscal, posiciones_fijas_ncf,
              usuario, nota, str(prox_formulario), tipo_transaccion,
              afecta_cxc, fp])
         for lin in lineas_calc:
             cur.execute(
                 "INSERT INTO FAT.TFAT_FACTURAL("
                 "no_cia,punto,tipo_factura,no_factura,no_linea,"
-                "almacen,no_produ,cantidad,precio,"
+                "almacen,no_produ,cantidad,precio,costo,empaque,cpe,"
                 "porc_descuento,descuento,porciento_impuesto,impuesto,monto_neto,"
                 "descripcion,st_anulado,cantidad_regalia"
                 ") VALUES("
-                ":1,:2,:3,:4,:5,:6,:7,:8,:9,:10,:11,:12,:13,:14,:15,'N',0"
+                ":1,:2,:3,:4,:5,:6,:7,:8,:9,:10,:11,:12,:13,:14,:15,:16,:17,:18,'N',0"
                 ")",
                 [no_cia, punto, tf, new_no_factura, lin["no_linea"],
                  lin["almacen"], lin["no_produ"], lin["cantidad"], lin["precio"],
+                 lin["costo"], lin["empaque"], lin["cpe"],
                  lin["porc_descuento"], lin["descuento"],
                  lin["porciento_impuesto"], lin["impuesto"], lin["monto_neto"],
                  lin["descripcion"]])
+            # Movimiento de inventario: salida por la cantidad facturada.
+            # Sin esto la existencia (calculada desde TINV_MOVIMIENTO) no baja.
+            cur.execute(
+                "INSERT INTO INV.TINV_MOVIMIENTO("
+                "  no_cia, punto, tipo_docu, no_docu, no_linea,"
+                "  almacen, no_produ, tipo_movi, tipo_transaccion, servicio,"
+                "  fecha, cantidad, precio, costo,"
+                "  st_anulado, empaque, cpe, usuario, monto_neto,"
+                "  no_localidad, fecha_sysdate, aumento_cxc"
+                ") VALUES("
+                "  :1, :2, :3, :4, :5,"
+                "  :6, :7, 'S', :8, 'I',"
+                "  TO_DATE(:9,'YYYY-MM-DD'), :10, :11, :12,"
+                "  'N', :13, :14, :15, :16,"
+                "  :1, SYSDATE, 0)",
+                [no_cia, punto, tf, new_no_factura, lin["no_linea"],
+                 lin["almacen"], lin["no_produ"], tipo_transaccion,
+                 fecha, lin["cantidad"], lin["precio"], lin["costo"],
+                 lin["empaque"], lin["cpe"], usuario[:30],
+                 round(lin["cantidad"] * lin["costo"], 2)])
         if fp:
             cur.execute(
                 "INSERT INTO FAT.TFAT_FORMA_PAGO("
@@ -2077,10 +2136,12 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
             "WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4",
             [new_no_factura, no_cia, punto, tf])
         if ncf_val is not None and codigo_ncf_doc:
+            # Avanza prox_ncf al siguiente del NCF efectivamente emitido
+            # (puede haber saltado por colisiones).
             cur.execute(
-                "UPDATE CNT.TCNT_NCF SET prox_ncf=prox_ncf+1 "
-                "WHERE no_localidad=:1 AND codigo_ncf=:2",
-                [no_cia, codigo_ncf_doc])
+                "UPDATE CNT.TCNT_NCF SET prox_ncf=:1 "
+                "WHERE no_localidad=:2 AND codigo_ncf=:3",
+                [ncf_val + 1, no_cia, codigo_ncf_doc])
         cur.connection.commit()
     return {"no_factura": new_no_factura, "tipo_factura": tf, "ncf": ncf_val,
             "total_neto": total_neto, "total_linea": total_linea,
@@ -2102,18 +2163,80 @@ def anular_factura(no_cia, punto, tipo_factura, no_factura, usuario, motivo="", 
             raise ValueError("Factura {}/{} no encontrada".format(tf, nf))
         codigo_ncf_fact, ncf_num = row[0], row[1]
         cur.execute(
-            "UPDATE FAT.TFAT_FACTURA SET st_anulado='S', tipo_anula=:1, tipo_anula_dgii=:2 "
-            "WHERE no_cia=:3 AND punto=:4 AND tipo_factura=:5 AND no_factura=:6",
-            [motivo[:20] if motivo else "", tipo_anula_dgii or "", no_cia, punto, tf, nf])
+            "UPDATE FAT.TFAT_FACTURA SET st_anulado='S', tipo_anula_dgii=:1 "
+            "WHERE no_cia=:2 AND punto=:3 AND tipo_factura=:4 AND no_factura=:5",
+            [(tipo_anula_dgii or "")[:2], no_cia, punto, tf, nf])
         cur.execute(
             "UPDATE FAT.TFAT_FACTURAL SET st_anulado='S' "
             "WHERE no_cia=:1 AND punto=:2 AND tipo_factura=:3 AND no_factura=:4",
             [no_cia, punto, tf, nf])
+        # Marca los movimientos originales como anulados (consistente con legacy)
+        cur.execute(
+            "UPDATE INV.TINV_MOVIMIENTO SET st_anulado='S' "
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+            [no_cia, punto, tf, nf])
+        # Crea movimientos AF (entrada) que compensan la salida original.
+        # get_existencia_producto suma TODOS los movimientos (anulados o no),
+        # por eso la devolucion al stock se hace mediante esta entrada inversa.
+        cur.execute(
+            "SELECT no_linea, almacen, no_produ, cantidad, precio, costo, "
+            "       empaque, cpe, tipo_transaccion "
+            "FROM INV.TINV_MOVIMIENTO "
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4 "
+            "ORDER BY no_linea",
+            [no_cia, punto, tf, nf])
+        movs_orig = cur.fetchall()
+        if movs_orig:
+            cur.execute(
+                "SELECT prox_documento FROM FAT.TFAT_SECUENCIA "
+                "WHERE no_cia=:1 AND punto=:2 AND tipo_docu='AF' FOR UPDATE",
+                [no_cia, punto])
+            seq_af = cur.fetchone()
+            if not seq_af:
+                cur.execute(
+                    "INSERT INTO FAT.TFAT_SECUENCIA(no_cia,punto,tipo_docu,prox_documento) "
+                    "VALUES(:1,:2,'AF',1)",
+                    [no_cia, punto])
+                no_af = "0000001"
+                next_af = 2
+            else:
+                no_af = str(int(seq_af[0] or 1)).zfill(7)
+                next_af = int(seq_af[0] or 1) + 1
+            for m in movs_orig:
+                no_linea, almacen_m, no_produ_m, cant_m, precio_m, costo_m, empaque_m, cpe_m, tr_m = m
+                cur.execute(
+                    "INSERT INTO INV.TINV_MOVIMIENTO("
+                    "  no_cia, punto, tipo_docu, no_docu, no_linea,"
+                    "  almacen, no_produ, tipo_movi, tipo_transaccion, servicio,"
+                    "  fecha, cantidad, precio, costo,"
+                    "  st_anulado, empaque, cpe, usuario, monto_neto,"
+                    "  no_localidad, fecha_sysdate, aumento_cxc,"
+                    "  tipo_refe, no_refe"
+                    ") VALUES("
+                    "  :1, :2, 'AF', :3, :4,"
+                    "  :5, :6, 'E', :7, 'I',"
+                    "  SYSDATE, :8, :9, :10,"
+                    "  'N', :11, :12, :13, :14,"
+                    "  :15, SYSDATE, 0,"
+                    "  :16, :17)",
+                    [no_cia, punto, no_af, no_linea,
+                     almacen_m, no_produ_m, tr_m or 'A',
+                     cant_m, precio_m or 0, costo_m or 0,
+                     empaque_m, cpe_m, usuario[:30],
+                     round((cant_m or 0) * (costo_m or 0), 2),
+                     no_cia, tf, nf])
+            cur.execute(
+                "UPDATE FAT.TFAT_SECUENCIA SET prox_documento=:1 "
+                "WHERE no_cia=:2 AND punto=:3 AND tipo_docu='AF'",
+                [next_af, no_cia, punto])
         if liberar_ncf and codigo_ncf_fact and ncf_num:
+            # Solo decrementa prox_ncf si el NCF anulado es el último emitido,
+            # para evitar reasignar un NCF ya usado por otra factura activa.
             cur.execute(
                 "UPDATE CNT.TCNT_NCF SET PROX_NCF = PROX_NCF - 1 "
-                "WHERE NO_LOCALIDAD=:1 AND CODIGO_NCF=:2 AND PROX_NCF > NCF_INICIAL",
-                [no_cia, codigo_ncf_fact])
+                "WHERE NO_LOCALIDAD=:1 AND CODIGO_NCF=:2 "
+                "  AND PROX_NCF = :3 AND PROX_NCF > NCF_INICIAL",
+                [no_cia, codigo_ncf_fact, int(ncf_num) + 1])
         cur.connection.commit()
     return {"no_factura": nf, "tipo_factura": tf, "anulado": True, "motivo": motivo, "libero_ncf": liberar_ncf}
 
@@ -2124,6 +2247,8 @@ def create_conduce(no_cia, punto, tipo_conduce, no_cliente, fecha, vendedor,
                    clase, no_lista, lineas, usuario):
     tc = tipo_conduce.strip().upper()
     cl = clase.strip().upper() if clase else "C"
+    # En el sistema legado conduces y cotizaciones NO mueven inventario;
+    # el movimiento se aplica al facturar (FT/FC).
     with client.cursor() as cur:
         cur.execute(
             "SELECT prox_documento FROM FAT.TFAT_SECUENCIA "
@@ -2150,13 +2275,30 @@ def create_conduce(no_cia, punto, tipo_conduce, no_cliente, fecha, vendedor,
             total_linea += subtotal
             total_descuento += desc_monto
             total_impuesto += imp_monto
+            no_produ_norm = lin.get("no_produ", "").strip().upper()
+            almacen_norm = lin.get("almacen", "").strip()
+            cur.execute(
+                "SELECT NVL(ep.costo_actual,0) FROM INV.TINV_EPRODUCTO ep "
+                "WHERE ep.no_cia=:1 AND ep.punto=:2 AND ep.almacen=:3 AND ep.no_produ=:4",
+                [no_cia, punto, almacen_norm, no_produ_norm])
+            row_ep = cur.fetchone()
+            costo_unit = float(row_ep[0] or 0) if row_ep else 0.0
+            cur.execute(
+                "SELECT empaque, NVL(cpe,1) FROM INV.TINV_EMPAQUE "
+                "WHERE no_produ=:1 "
+                "ORDER BY CASE WHEN NVL(por_defecto,'N')='S' THEN 0 ELSE 1 END, empaque",
+                [no_produ_norm])
+            row_emp = cur.fetchone()
+            empaque_unit = int(row_emp[0] or 1) if row_emp else 1
+            cpe_unit = float(row_emp[1] or 1) if row_emp else 1.0
             lineas_calc.append({"no_linea": idx,
-                "no_produ": lin.get("no_produ", "").strip().upper(),
-                "almacen": lin.get("almacen", "").strip(),
+                "no_produ": no_produ_norm,
+                "almacen": almacen_norm,
                 "descripcion": lin.get("descripcion", "").strip(),
                 "cantidad": cant, "precio": precio, "porc_descuento": porc_desc,
                 "descuento": desc_monto, "porciento_impuesto": porc_imp,
-                "impuesto": imp_monto, "monto_neto": neto})
+                "impuesto": imp_monto, "monto_neto": neto,
+                "costo": costo_unit, "empaque": empaque_unit, "cpe": cpe_unit})
         total_neto = total_linea - total_descuento + total_impuesto
         cur.execute(
             "INSERT INTO FAT.TFAT_CONDUCE("
@@ -2164,12 +2306,14 @@ def create_conduce(no_cia, punto, tipo_conduce, no_cliente, fecha, vendedor,
             "fecha,vendedor,clase,"
             "total_linea,descuento,impuesto,total_neto,"
             "st_anulado,st_impresion,tipo_factura,no_factura,"
-            "no_condicion_pago,tipo_moneda,tasa_us,creado_por"
+            "no_condicion_pago,tipo_moneda,tasa_us,creado_por,"
+            "forma_pago,autorizado,procesado,txt_generado"
             ") VALUES("
             ":1,:2,:3,:4,:5,TO_DATE(:6,'YYYY-MM-DD'),:7,:8,"
             ":9,:10,:11,:12,"
             "'N','N','','',"
-            "'',:13,57.5,:14"
+            "'',:13,57.5,:14,"
+            "'1','N','N','N'"
             ")",
             [no_cia, punto, tc, no_conduce, no_cliente,
              fecha, vendedor, cl,
@@ -2179,13 +2323,17 @@ def create_conduce(no_cia, punto, tipo_conduce, no_cliente, fecha, vendedor,
             cur.execute(
                 "INSERT INTO FAT.TFAT_CONDUCEL("
                 "no_cia,punto,tipo_conduce,no_conduce,no_linea,"
-                "almacen,no_produ,cantidad,precio,"
-                "porc_descuento,descuento,itbis,descripcion,st_anulado"
+                "almacen,no_produ,cantidad,precio,empaque,cpe,"
+                "porc_descuento,descuento,itbis,descripcion,st_anulado,"
+                "produ_oferta,produ_ofertado,cantidad_regalo,"
+                "cantidad_facturada,valor_facturado,tipo_oferta"
                 ") VALUES("
-                ":1,:2,:3,:4,:5,:6,:7,:8,:9,:10,:11,:12,:13,'N'"
+                ":1,:2,:3,:4,:5,:6,:7,:8,:9,:10,:11,:12,:13,:14,:15,'N',"
+                "'N','N',0,0,0,'N'"
                 ")",
                 [no_cia, punto, tc, no_conduce, lin["no_linea"],
                  lin["almacen"], lin["no_produ"], lin["cantidad"], lin["precio"],
+                 lin["empaque"], lin["cpe"],
                  lin["porc_descuento"], lin["descuento"],
                  lin["impuesto"], lin["descripcion"]])
         cur.execute(
