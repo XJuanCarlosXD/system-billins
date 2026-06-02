@@ -42,6 +42,15 @@ NCF_DESCRIPCION = {
 }
 
 
+def _signature_footer_line() -> str:
+    return (
+        "<br/><br/><br/>"
+        "<b>Recibido por:</b> ____________________________"
+        "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
+        "<b>Entregado por:</b> ____________________________"
+    )
+
+
 @login_required
 @require_http_methods(["GET"])
 def fat_documento_pdf(request, tipo: str, no_factura: str):
@@ -919,6 +928,7 @@ def _render_conduce_pdf(*, conduce, razon_social, rnc_cliente, direccion_cliente
     detalle = (conduce.get('detalle') or '').strip()
     if detalle:
         footer_extra.append(f"<i>Nota:</i> {detalle}")
+    footer_extra.append(_signature_footer_line())
 
     return build_pdf_report(
         title=f"{clase_label} {tipo}-{no_conduce}",
@@ -1187,7 +1197,6 @@ def _render_factura_pdf_moderno(*, factura, cia, razon_social, rnc_cliente, dire
         page_w, _ = A4
         canvas.setFont('Helvetica', 7)
         canvas.setFillColor(colors.HexColor('#64748B'))
-        canvas.drawString(doc.leftMargin, 8 * mm, f"SIGAFT - {documento_label} {tipo}-{no_factura}")
         canvas.drawRightString(page_w - doc.rightMargin, 8 * mm, f"Pagina {doc.page}")
         if anulada:
             canvas.setFont('Helvetica-Bold', 54)
@@ -1382,6 +1391,27 @@ def _render_factura_pdf_moderno(*, factura, cia, razon_social, rnc_cliente, dire
         ('RIGHTPADDING', (0, 0), (-1, -1), 0),
     ]))
 
+    signature_table = Table(
+        [
+            [
+                Paragraph('____________________________', styles['SmallCenter']),
+                '',
+                Paragraph('____________________________', styles['SmallCenter']),
+            ],
+            [
+                Paragraph('Recibido por', styles['SmallCenter']),
+                '',
+                Paragraph('Entregado por', styles['SmallCenter']),
+            ],
+        ],
+        colWidths=[70 * mm, width - 140 * mm, 70 * mm],
+    )
+    signature_table.setStyle(TableStyle([
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+
     elements = [
         header,
         Spacer(1, 4 * mm),
@@ -1393,10 +1423,7 @@ def _render_factura_pdf_moderno(*, factura, cia, razon_social, rnc_cliente, dire
         Spacer(1, 4 * mm),
         KeepTogether(footer_table),
         Spacer(1, 4 * mm),
-        Paragraph(
-            'Documento generado desde Consulta de Facturas. Replica campos operativos del formulario legacy FAT.',
-            styles['FacturaSubtitle'],
-        ),
+        KeepTogether(signature_table),
     ]
 
     doc_pdf.build(elements, onFirstPage=draw_footer, onLaterPages=draw_footer)
