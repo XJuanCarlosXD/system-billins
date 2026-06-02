@@ -174,9 +174,40 @@ def inv_existencias(request):
 
 
 @login_required
-@require_http_methods(["GET"])
+@require_http_methods(["GET", "POST"])
 def inv_movimientos(request):
-    """GET /api/inv/movimientos/?no_cia=01&almacen=&no_produ=&desde=&hasta=&tipo="""
+    """GET /api/inv/movimientos/?no_cia=01&almacen=&no_produ=&desde=&hasta=&tipo=
+
+    POST /api/inv/movimientos/  -> crea documento de inventario (EA, SA, EC,
+    DC, DV, EP, SP, TA, AE, AS). Body JSON:
+        {no_cia, punto, tipo_docu, fecha, almacen, almacen_destino?,
+         cuenta?, departamento?, detalle:[{no_produ, almacen?, cantidad,
+         costo?, precio?}, ...]}
+    """
+    if request.method == 'POST':
+        try:
+            payload = json.loads(request.body.decode('utf-8') or '{}')
+        except Exception:
+            return JsonResponse({"error": "JSON invalido"}, status=400)
+        try:
+            res = inv_repo.create_movimiento_documento(
+                no_cia=str(payload.get('no_cia', '01')).strip(),
+                punto=str(payload.get('punto', '01')).strip(),
+                tipo_docu=str(payload.get('tipo_docu', '')).strip().upper(),
+                fecha=str(payload.get('fecha', '')).strip()[:10],
+                almacen=str(payload.get('almacen', '')).strip(),
+                almacen_destino=str(payload.get('almacen_destino', '')).strip(),
+                lineas=payload.get('detalle') or payload.get('lineas') or [],
+                usuario=getattr(request.user, 'username', '') or 'API',
+                cuenta_contable=str(payload.get('cuenta', '')).strip(),
+                departamento=str(payload.get('departamento', '')).strip(),
+            )
+        except ValueError as e:
+            return JsonResponse({"error": str(e)}, status=400)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+        return JsonResponse({"data": res}, status=201)
+
     try:
         no_cia = request.GET.get('no_cia', '01')
         almacen = request.GET.get('almacen', '')
@@ -821,6 +852,34 @@ def inv_documento_detalle(request, tipo_docu: str, no_docu: str):
         return JsonResponse({"data": _jsonify(doc)})
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def inv_reversar_documento(request):
+    """POST /api/inv/movimientos/reversar/
+
+    Body JSON: {no_cia, punto, tipo_docu, no_docu, motivo?}
+    Marca el documento como anulado y crea movimiento AF compensatorio.
+    """
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except Exception:
+        return JsonResponse({"error": "JSON invalido"}, status=400)
+    try:
+        res = inv_repo.reversar_documento_inv(
+            no_cia=str(payload.get('no_cia', '01')).strip(),
+            punto=str(payload.get('punto', '01')).strip(),
+            tipo_docu=str(payload.get('tipo_docu', '')).strip().upper(),
+            no_docu=str(payload.get('no_docu', '')).strip(),
+            motivo=str(payload.get('motivo', '')).strip(),
+            usuario=getattr(request.user, 'username', '') or 'API',
+        )
+    except ValueError as e:
+        return JsonResponse({"error": str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+    return JsonResponse({"data": res})
 
 
 _INV_TIPO_DOCU_LABEL = {

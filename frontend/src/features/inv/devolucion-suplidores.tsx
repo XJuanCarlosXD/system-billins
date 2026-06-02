@@ -8,10 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { EntityPickerModal } from '@/components/shared/entity-picker-modal'
+import { regalGeneralApi } from '@/lib/regal-general-api'
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
 
-const ENDPOINT_READY = false
+const ENDPOINT_READY = true
 
 interface Props {
   noCia: string
@@ -64,6 +66,8 @@ export function DevolucionSuplidores({ noCia, punto }: Props) {
 
   // Proveedor
   const [proveedor, setProveedor] = useState('')
+  const [proveedorNombre, setProveedorNombre] = useState('')
+  const [provModalOpen, setProvModalOpen] = useState(false)
   const [ncf, setNcf] = useState('')
   const [docOriginal, setDocOriginal] = useState('')
 
@@ -145,12 +149,9 @@ export function DevolucionSuplidores({ noCia, punto }: Props) {
     const payload = {
       no_cia: noCia,
       punto,
+      tipo_docu: 'DC',
       fecha,
       almacen: almacenHeader,
-      proveedor,
-      ncf,
-      doc_afectar: docOriginal,
-      pct_itbis: parseFloat(pctItbis) || 0,
       detalle: validRows.map((r) => ({
         no_produ: r.noProdu,
         almacen: r.almacen || almacenHeader,
@@ -161,10 +162,11 @@ export function DevolucionSuplidores({ noCia, punto }: Props) {
 
     setSaving(true)
     try {
-      const res = await fetch(`${API_BASE}/inv/devoluciones/proveedor/`, {
+      const csrf = (document.cookie.split('; ').find(c => c.startsWith('csrftoken=')) || '').split('=')[1] || ''
+      const res = await fetch(`${API_BASE}/inv/movimientos/`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
         body: JSON.stringify(payload),
       })
       if (!res.ok) {
@@ -235,8 +237,26 @@ export function DevolucionSuplidores({ noCia, punto }: Props) {
           <CardContent>
             <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4'>
               <div className='space-y-1 col-span-2'>
-                <Label htmlFor='ds-proveedor'>Proveedor</Label>
-                <Input id='ds-proveedor' className='h-9' placeholder='Código o nombre del proveedor' value={proveedor} onChange={(e) => setProveedor(e.target.value)} />
+                <Label>Proveedor</Label>
+                <div className='flex gap-2'>
+                  <Input
+                    id='ds-proveedor'
+                    className='h-9 font-mono w-28'
+                    placeholder='Código'
+                    value={proveedor}
+                    readOnly
+                    onClick={() => setProvModalOpen(true)}
+                  />
+                  <Input
+                    className='h-9 flex-1 bg-gray-50'
+                    placeholder='Click la lupa para buscar'
+                    value={proveedorNombre}
+                    readOnly
+                  />
+                  <Button type='button' variant='outline' size='icon' className='h-9 w-9 shrink-0' onClick={() => setProvModalOpen(true)}>
+                    <Search className='h-4 w-4' />
+                  </Button>
+                </div>
               </div>
 
               <div className='space-y-1'>
@@ -422,6 +442,28 @@ export function DevolucionSuplidores({ noCia, punto }: Props) {
           </Tooltip>
         </div>
       </section>
+
+      <EntityPickerModal<any>
+        open={provModalOpen}
+        onClose={() => setProvModalOpen(false)}
+        title='Buscar Proveedor'
+        placeholder='Buscar por código o nombre del proveedor...'
+        fetcher={async (q) => {
+          const list = await regalGeneralApi.cxpListProveedores({ search: q })
+          return Array.isArray(list) ? list.slice(0, 100) : []
+        }}
+        columns={[
+          { key: 'no_proveedor', label: 'Código', width: '110px' },
+          { key: 'nombre', label: 'Nombre' },
+          { key: 'rnc', label: 'RNC', width: '140px' },
+          { key: 'telefono', label: 'Teléfono', width: '140px' },
+        ]}
+        getKey={(p) => p.no_proveedor}
+        onSelect={(p) => {
+          setProveedor(String(p.no_proveedor || ''))
+          setProveedorNombre((p.nombre || '').trim())
+        }}
+      />
     </TooltipProvider>
   )
 }

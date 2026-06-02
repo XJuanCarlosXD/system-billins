@@ -11,7 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
 
-const ENDPOINT_READY = false
+const ENDPOINT_READY = true
 
 interface Props {
   noCia: string
@@ -133,22 +133,24 @@ export function TransferenciaMercancia({ noCia, punto }: Props) {
     const payload = {
       no_cia: noCia,
       punto,
+      tipo_docu: 'TA',
       fecha,
-      almacen_origen: almacenOrigen,
+      almacen: almacenOrigen,
       almacen_destino: almacenDestino,
-      observaciones,
       detalle: validRows.map((r) => ({
         no_produ: r.noProdu,
+        almacen: almacenOrigen,
         cantidad: parseFloat(r.cantidad) || 0,
       })),
     }
 
     setSaving(true)
     try {
-      const res = await fetch(`${API_BASE}/inv/transferencias/`, {
+      const csrf = (document.cookie.split('; ').find(c => c.startsWith('csrftoken=')) || '').split('=')[1] || ''
+      const res = await fetch(`${API_BASE}/inv/movimientos/`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
         body: JSON.stringify(payload),
       })
       if (!res.ok) {

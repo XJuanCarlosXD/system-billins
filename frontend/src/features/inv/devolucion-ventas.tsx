@@ -8,10 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { EntityPickerModal } from '@/components/shared/entity-picker-modal'
+import { regalGeneralApi } from '@/lib/regal-general-api'
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
 
-const ENDPOINT_READY = false
+const ENDPOINT_READY = true
 
 interface Props {
   noCia: string
@@ -64,7 +66,11 @@ export function DevolucionVentas({ noCia, punto }: Props) {
 
   // Cliente
   const [cliente, setCliente] = useState('')
+  const [clienteNombre, setClienteNombre] = useState('')
+  const [cliModalOpen, setCliModalOpen] = useState(false)
   const [vendedor, setVendedor] = useState('')
+  const [vendedorNombre, setVendedorNombre] = useState('')
+  const [vendModalOpen, setVendModalOpen] = useState(false)
   const [docOriginal, setDocOriginal] = useState('')
   const [ncf, setNcf] = useState('')
 
@@ -146,13 +152,9 @@ export function DevolucionVentas({ noCia, punto }: Props) {
     const payload = {
       no_cia: noCia,
       punto,
+      tipo_docu: 'DV',
       fecha,
       almacen: almacenHeader,
-      cliente,
-      vendedor,
-      doc_original: docOriginal,
-      ncf,
-      pct_itbis: parseFloat(pctItbis) || 0,
       detalle: validRows.map((r) => ({
         no_produ: r.noProdu,
         almacen: r.almacen || almacenHeader,
@@ -163,10 +165,11 @@ export function DevolucionVentas({ noCia, punto }: Props) {
 
     setSaving(true)
     try {
-      const res = await fetch(`${API_BASE}/inv/devoluciones/venta/`, {
+      const csrf = (document.cookie.split('; ').find(c => c.startsWith('csrftoken=')) || '').split('=')[1] || ''
+      const res = await fetch(`${API_BASE}/inv/movimientos/`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
         body: JSON.stringify(payload),
       })
       if (!res.ok) {
@@ -242,13 +245,25 @@ export function DevolucionVentas({ noCia, punto }: Props) {
           <CardContent>
             <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4'>
               <div className='space-y-1 col-span-2'>
-                <Label htmlFor='dv-cliente'>Cliente</Label>
-                <Input id='dv-cliente' className='h-9' placeholder='Nombre o código del cliente' value={cliente} onChange={(e) => setCliente(e.target.value)} />
+                <Label>Cliente</Label>
+                <div className='flex gap-2'>
+                  <Input id='dv-cliente' className='h-9 font-mono w-28' placeholder='Código' value={cliente} readOnly onClick={() => setCliModalOpen(true)} />
+                  <Input className='h-9 flex-1 bg-gray-50' placeholder='Click la lupa para buscar' value={clienteNombre} readOnly />
+                  <Button type='button' variant='outline' size='icon' className='h-9 w-9 shrink-0' onClick={() => setCliModalOpen(true)}>
+                    <Search className='h-4 w-4' />
+                  </Button>
+                </div>
               </div>
 
               <div className='space-y-1'>
-                <Label htmlFor='dv-vendedor'>Vendedor</Label>
-                <Input id='dv-vendedor' className='h-9' placeholder='Código del vendedor' value={vendedor} onChange={(e) => setVendedor(e.target.value)} />
+                <Label>Vendedor</Label>
+                <div className='flex gap-2'>
+                  <Input id='dv-vendedor' className='h-9 font-mono w-16' placeholder='Cód' value={vendedor} readOnly onClick={() => setVendModalOpen(true)} />
+                  <Input className='h-9 flex-1 bg-gray-50' placeholder='Click para buscar' value={vendedorNombre} readOnly />
+                  <Button type='button' variant='outline' size='icon' className='h-9 w-9 shrink-0' onClick={() => setVendModalOpen(true)}>
+                    <Search className='h-4 w-4' />
+                  </Button>
+                </div>
               </div>
 
               <div className='space-y-1'>
@@ -429,6 +444,57 @@ export function DevolucionVentas({ noCia, punto }: Props) {
           </Tooltip>
         </div>
       </section>
+
+      <EntityPickerModal<any>
+        open={cliModalOpen}
+        onClose={() => setCliModalOpen(false)}
+        title='Buscar Cliente'
+        placeholder='Buscar por código, nombre o RNC...'
+        fetcher={async (q) => {
+          const res = await regalGeneralApi.fatListClientes(noCia, q, 1, 50)
+          return res.items || []
+        }}
+        columns={[
+          { key: 'no_cliente', label: 'Código', width: '110px',
+            render: (c: any) => String(c.no_cliente || '').padStart(7, '0') },
+          { key: 'nombre', label: 'Nombre' },
+          { key: 'rnc', label: 'RNC/Cédula', width: '140px',
+            render: (c: any) => c.rnc || c.cedula || '—' },
+          { key: 'direccion', label: 'Dirección', width: '220px' },
+        ]}
+        getKey={(c) => c.no_cliente}
+        onSelect={(c) => {
+          setCliente(String(c.no_cliente || ''))
+          setClienteNombre((c.nombre || '').trim())
+        }}
+      />
+
+      <EntityPickerModal<any>
+        open={vendModalOpen}
+        onClose={() => setVendModalOpen(false)}
+        title='Buscar Vendedor'
+        placeholder='Buscar por código o nombre del vendedor...'
+        minChars={1}
+        fetcher={async (q) => {
+          const r = await fetch(`${API_BASE}/fat/vendedores/?no_cia=${noCia}`, { credentials: 'include' })
+          if (!r.ok) return []
+          const j = await r.json()
+          const items = j.items || j.results || []
+          const term = q.toLowerCase()
+          return items.filter((v: any) =>
+            !term || String(v.vendedor || '').toLowerCase().includes(term) ||
+            String(v.nombre || '').toLowerCase().includes(term))
+        }}
+        columns={[
+          { key: 'vendedor', label: 'Código', width: '110px' },
+          { key: 'nombre', label: 'Nombre' },
+        ]}
+        getKey={(v) => v.vendedor}
+        onSelect={(v) => {
+          setVendedor(String(v.vendedor || ''))
+          setVendedorNombre((v.nombre || '').trim())
+        }}
+      />
     </TooltipProvider>
   )
 }

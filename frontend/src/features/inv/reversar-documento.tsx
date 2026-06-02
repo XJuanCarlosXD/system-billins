@@ -77,15 +77,11 @@ export function ReverarDocumento({ noCia, punto }: Props) {
     setLoadingDoc(true)
     setDocInfo(null)
     try {
-      const qs = new URLSearchParams({
-        no_cia: noCia,
-        mes,
-        anio,
-        punto: puntoTrabajo,
-        tipo_docu: tipoDocuOrig,
-        no_documento: noDocumento,
-      })
-      const res = await fetch(`${API_BASE}/inv/movimientos/detalle/?${qs.toString()}`, { credentials: 'include' })
+      const noDocuPad = String(noDocumento).padStart(7, '0')
+      const res = await fetch(
+        `${API_BASE}/inv/documentos/${encodeURIComponent(tipoDocuOrig)}/${noDocuPad}/?no_cia=${noCia}&punto=${puntoTrabajo}`,
+        { credentials: 'include' },
+      )
       if (!res.ok) {
         if (res.status === 404) {
           toast.error('Documento no encontrado')
@@ -113,21 +109,16 @@ export function ReverarDocumento({ noCia, punto }: Props) {
     try {
       const payload = {
         no_cia: noCia,
-        mes,
-        anio,
         punto: puntoTrabajo,
-        tipo_docu_orig: tipoDocuOrig,
-        no_documento: noDocumento,
-        tipo_doc_rev: tipoDocRev,
-        tipo_movi_rev: tipoMoviRev,
-        fecha_nueva: fechaNueva,
-        nuevo_documento: nuevoDocumento,
+        tipo_docu: tipoDocuOrig,
+        no_docu: noDocumento,
         motivo,
       }
-      const res = await fetch(`${API_BASE}/inv/reversar/`, {
+      const csrf = (document.cookie.split('; ').find(c => c.startsWith('csrftoken=')) || '').split('=')[1] || ''
+      const res = await fetch(`${API_BASE}/inv/movimientos/reversar/`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
         body: JSON.stringify(payload),
       })
       if (!res.ok) {
@@ -151,7 +142,7 @@ export function ReverarDocumento({ noCia, punto }: Props) {
     }
   }
 
-  const isEndpointReady = false // POST /api/inv/reversar/ — en construcción
+  const isEndpointReady = true // POST /api/inv/movimientos/reversar/
 
   return (
     <>

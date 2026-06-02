@@ -1674,3 +1674,246 @@ def historico_conteo_fisico(no_cia: str, no_produ: str = '', almacen: str = '',
     )
     rows = client.fetch_dicts(sql, params_paged)
     return {"results": rows, "count": count, "page": page, "page_size": page_size}
+
+
+# ─── Movimientos de Inventario (procesos diarios) ────────────────────────────
+# Soporta los tipos operativos del legado: EA, SA, EC, DC, DV, EP, SP, TA, AE,
+# AS. Cada inserción persiste una fila en INV.TINV_MOVIMIENTO con todos los
+# NOT NULL cubiertos (empaque/cpe se resuelven contra INV.TINV_EMPAQUE) y
+# avanza la secuencia INV.TINV_SECUENCIA. NO toca contabilidad: cada documento
+# queda disponible para que el cierre/generación contable lo procese aparte.
+
+def _next_inv_seq(cur, no_cia: str, punto: str, tipo_docu: str) -> str:
+    """Obtiene y avanza la secuencia INV para el tipo_docu. Devuelve no_docu(7).
+
+    Resuelve el caso en que TINV_SECUENCIA queda atras del valor maximo real
+    en TINV_MOVIMIENTO (frecuente en datos migrados): se usa el max(prox, real+1).
+    """
+    cur.execute(
+        "SELECT NVL(prox_documento, 1) FROM INV.TINV_SECUENCIA "
+        "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 FOR UPDATE",
+        [no_cia, punto, tipo_docu])
+    row = cur.fetchone()
+    if not row:
+        cur.execute(
+            "INSERT INTO INV.TINV_SECUENCIA(no_cia,punto,tipo_docu,prox_documento) "
+            "VALUES(:1,:2,:3,1)",
+            [no_cia, punto, tipo_docu])
+        prox = 1
+    else:
+        prox = int(row[0] or 1)
+    # Defensivo: si en TINV_MOVIMIENTO ya existe no_docu >= prox, saltamos al max+1
+    cur.execute(
+        "SELECT NVL(MAX(TO_NUMBER(no_docu)), 0) FROM INV.TINV_MOVIMIENTO "
+        "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 "
+        "  AND REGEXP_LIKE(no_docu, '^[0-9]+$')",
+        [no_cia, punto, tipo_docu])
+    max_row = cur.fetchone()
+    real_max = int(max_row[0] or 0) if max_row else 0
+    if real_max >= prox:
+        prox = real_max + 1
+    cur.execute(
+        "UPDATE INV.TINV_SECUENCIA SET prox_documento=:1 "
+        "WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4",
+        [prox + 1, no_cia, punto, tipo_docu])
+    return str(prox).zfill(7)
+
+
+def _empaque_cpe(cur, no_produ: str) -> tuple[int, int]:
+    """Empaque/CPE por defecto desde TINV_EMPAQUE."""
+    cur.execute(
+        "SELECT empaque, NVL(cpe, 1) FROM INV.TINV_EMPAQUE "
+        "WHERE no_produ=:1 "
+        "ORDER BY CASE WHEN NVL(por_defecto,'N')='S' THEN 0 ELSE 1 END, empaque",
+        [no_produ])
+    row = cur.fetchone()
+    if row:
+        return int(row[0] or 1), int(row[1] or 1)
+    return 1, 1
+
+
+def _tipo_movi_for(cur, tipo_docu: str) -> tuple[str, str]:
+    """Devuelve (tipo_movi, tipo_transaccion) leyendo TINV_TDOCU."""
+    cur.execute(
+        "SELECT tipo_movi, tipo_transaccion FROM INV.TINV_TDOCU WHERE tipo_docu=:1",
+        [tipo_docu])
+    row = cur.fetchone()
+    if not row:
+        raise ValueError(f"Tipo de documento '{tipo_docu}' no esta configurado en INV.TINV_TDOCU")
+    return (row[0] or 'E').strip().upper(), (row[1] or 'J').strip().upper()
+
+
+def _insert_movimiento(cur, *, no_cia, punto, tipo_docu, no_docu, no_linea,
+                       almacen, no_produ, tipo_movi, tipo_transaccion,
+                       fecha, cantidad, precio, costo, empaque, cpe,
+                       usuario, tipo_refe='', no_refe=''):
+    """INSERT directo a INV.TINV_MOVIMIENTO con todos los NOT NULL cubiertos."""
+    cur.execute(
+        "INSERT INTO INV.TINV_MOVIMIENTO("
+        "  no_cia, punto, tipo_docu, no_docu, no_linea,"
+        "  almacen, no_produ, tipo_movi, tipo_transaccion, servicio,"
+        "  fecha, cantidad, precio, costo,"
+        "  st_anulado, empaque, cpe, usuario, monto_neto,"
+        "  no_localidad, fecha_sysdate, aumento_cxc,"
+        "  tipo_refe, no_refe"
+        ") VALUES("
+        "  :1, :2, :3, :4, :5,"
+        "  :6, :7, :8, :9, 'I',"
+        "  TO_DATE(:10,'YYYY-MM-DD'), :11, :12, :13,"
+        "  'N', :14, :15, :16, :17,"
+        "  :18, SYSDATE, 0,"
+        "  :19, :20)",
+        [no_cia, punto, tipo_docu, no_docu, no_linea,
+         almacen, no_produ, tipo_movi, tipo_transaccion,
+         fecha, cantidad, precio, costo,
+         empaque, cpe, (usuario or '')[:30],
+         round((cantidad or 0) * (costo or 0), 2),
+         no_cia, tipo_refe, no_refe])
+
+
+def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
+                                 fecha: str, almacen: str, lineas: list[dict],
+                                 almacen_destino: str = '', usuario: str = 'API',
+                                 cuenta_contable: str = '', departamento: str = '') -> dict:
+    """Crea un documento de inventario con N lineas.
+
+    Soporta los 10 tipos del legado:
+    - EA, EC, EP, DV, AE: entradas (tipo_movi='E')
+    - SA, SP, DC, AS: salidas (tipo_movi='S')
+    - TA: transferencia (1 salida del almacen origen + 1 entrada al destino)
+
+    `lineas` lista de dicts {no_produ, cantidad, costo (opcional), precio (opcional)}.
+    Si `costo` no se provee, se lee TINV_EPRODUCTO.costo_actual del almacen.
+    """
+    tipo_docu = (tipo_docu or '').strip().upper()
+    if not tipo_docu:
+        raise ValueError("tipo_docu requerido")
+    if not lineas:
+        raise ValueError("Se requiere al menos una linea de detalle")
+
+    with client.cursor() as cur:
+        tipo_movi_cfg, tipo_transaccion = _tipo_movi_for(cur, tipo_docu)
+        es_transferencia = tipo_docu == 'TA'
+        if es_transferencia and not almacen_destino:
+            raise ValueError("Transferencia requiere almacen_destino")
+        # En transferencias la primera linea es SALIDA del almacen origen,
+        # y la contraparte es ENTRADA al almacen destino.
+        tipo_movi = 'S' if es_transferencia else tipo_movi_cfg
+
+        no_docu = _next_inv_seq(cur, no_cia, punto, tipo_docu)
+        creadas = 0
+        for idx, lin in enumerate(lineas, start=1):
+            no_produ = (lin.get('no_produ') or '').strip().upper()
+            if not no_produ:
+                raise ValueError(f"Linea {idx}: no_produ requerido")
+            almacen_origen = (lin.get('almacen') or almacen or '').strip()
+            if not almacen_origen:
+                raise ValueError(f"Linea {idx}: almacen requerido")
+            cantidad = float(lin.get('cantidad') or 0)
+            if cantidad <= 0:
+                raise ValueError(f"Linea {idx}: cantidad debe ser > 0")
+            precio = float(lin.get('precio') or lin.get('costo') or 0)
+            costo_in = lin.get('costo')
+            if costo_in in (None, '', 0):
+                cur.execute(
+                    "SELECT NVL(costo_actual, 0) FROM INV.TINV_EPRODUCTO "
+                    "WHERE no_cia=:1 AND punto=:2 AND almacen=:3 AND no_produ=:4",
+                    [no_cia, punto, almacen_origen, no_produ])
+                ep_row = cur.fetchone()
+                costo = float(ep_row[0]) if ep_row else 0.0
+            else:
+                costo = float(costo_in)
+            if not precio:
+                precio = costo
+            empaque, cpe = _empaque_cpe(cur, no_produ)
+
+            _insert_movimiento(
+                cur, no_cia=no_cia, punto=punto, tipo_docu=tipo_docu,
+                no_docu=no_docu, no_linea=idx,
+                almacen=almacen_origen, no_produ=no_produ,
+                tipo_movi=tipo_movi, tipo_transaccion=tipo_transaccion,
+                fecha=fecha, cantidad=cantidad, precio=precio, costo=costo,
+                empaque=empaque, cpe=cpe, usuario=usuario)
+            creadas += 1
+
+            if es_transferencia:
+                # Movimiento contraparte de entrada al almacen destino.
+                # NO_LINEA es NUMBER(3) -> usamos offset 500 para evitar colision.
+                if idx > 499:
+                    raise ValueError("Transferencia con mas de 499 lineas no soportada")
+                _insert_movimiento(
+                    cur, no_cia=no_cia, punto=punto, tipo_docu=tipo_docu,
+                    no_docu=no_docu, no_linea=idx + 500,
+                    almacen=(lin.get('almacen_destino') or almacen_destino).strip(),
+                    no_produ=no_produ,
+                    tipo_movi='E', tipo_transaccion=tipo_transaccion,
+                    fecha=fecha, cantidad=cantidad, precio=precio, costo=costo,
+                    empaque=empaque, cpe=cpe, usuario=usuario,
+                    tipo_refe=tipo_docu, no_refe=no_docu)
+                creadas += 1
+        cur.connection.commit()
+
+    return {
+        'no_cia': no_cia, 'punto': punto, 'tipo_docu': tipo_docu,
+        'no_docu': no_docu, 'lineas_creadas': creadas,
+        'tipo_movi': tipo_movi, 'fecha': fecha,
+    }
+
+
+def reversar_documento_inv(*, no_cia: str, punto: str, tipo_docu: str,
+                            no_docu: str, motivo: str = '',
+                            usuario: str = 'API') -> dict:
+    """Reversa un documento INV creando movimiento(s) AF que compensan.
+
+    Patron legacy: el movimiento original conserva sus datos pero se marca
+    st_anulado='S'; se inserta un movimiento AF con tipo_movi opuesto y los
+    campos tipo_refe / no_refe apuntan al documento original. La existencia
+    (sum(E)-sum(S) sobre st_anulado!='S' + AF entries) refleja la reversion.
+    """
+    tipo_docu = (tipo_docu or '').strip().upper()
+    no_docu = (no_docu or '').strip()
+    # Acepta el numero con o sin padding — la columna NO_DOCU es VARCHAR2(7) y
+    # legacy guarda con LPAD(0,7). Si entran solo digitos los normalizamos.
+    if no_docu.isdigit():
+        no_docu = no_docu.zfill(7)
+    with client.cursor() as cur:
+        cur.execute(
+            "SELECT no_linea, almacen, no_produ, cantidad, precio, costo,"
+            "       tipo_movi, tipo_transaccion, empaque, cpe, "
+            "       NVL(st_anulado,'N') "
+            "FROM INV.TINV_MOVIMIENTO "
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4 "
+            "ORDER BY no_linea FOR UPDATE",
+            [no_cia, punto, tipo_docu, no_docu])
+        rows = cur.fetchall()
+        if not rows:
+            raise ValueError(f"Documento {tipo_docu}-{no_docu} no encontrado")
+        if all((r[10] or 'N') == 'S' for r in rows):
+            raise ValueError(f"Documento {tipo_docu}-{no_docu} ya esta anulado")
+
+        cur.execute(
+            "UPDATE INV.TINV_MOVIMIENTO SET st_anulado='S' "
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+            [no_cia, punto, tipo_docu, no_docu])
+
+        no_af = _next_inv_seq(cur, no_cia, punto, 'AF')
+        for r in rows:
+            no_linea, almacen_o, no_produ_o, cant, precio, costo, tm, tr, emp, cpe, _ = r
+            tipo_opuesto = 'E' if (tm or '').upper() == 'S' else 'S'
+            _insert_movimiento(
+                cur, no_cia=no_cia, punto=punto, tipo_docu='AF', no_docu=no_af,
+                no_linea=no_linea, almacen=almacen_o, no_produ=no_produ_o,
+                tipo_movi=tipo_opuesto, tipo_transaccion=tr or 'J',
+                fecha=__import__('datetime').date.today().isoformat(),
+                cantidad=float(cant or 0), precio=float(precio or 0),
+                costo=float(costo or 0),
+                empaque=int(emp or 1), cpe=int(cpe or 1),
+                usuario=usuario, tipo_refe=tipo_docu, no_refe=no_docu)
+        cur.connection.commit()
+
+    return {
+        'tipo_docu': tipo_docu, 'no_docu': no_docu,
+        'tipo_anula': 'AF', 'no_anula': no_af, 'motivo': motivo,
+        'lineas_reversadas': len(rows),
+    }
+

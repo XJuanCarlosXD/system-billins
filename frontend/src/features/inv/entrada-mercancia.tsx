@@ -188,10 +188,11 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
 
     setSaving(true)
     try {
+      const csrf = (document.cookie.split('; ').find(c => c.startsWith('csrftoken=')) || '').split('=')[1] || ''
       const res = await fetch(`${API_BASE}/inv/movimientos/`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
         body: JSON.stringify(payload),
       })
       if (!res.ok) {

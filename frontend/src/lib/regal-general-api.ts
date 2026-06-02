@@ -9,16 +9,39 @@ export class ApiError extends Error {
   }
 }
 
+function readCsrfToken(): string {
+  if (typeof document === 'undefined') return ''
+  const match = document.cookie.split('; ').find(c => c.startsWith('csrftoken='))
+  return match ? match.split('=')[1] : ''
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const method = (init.method || 'GET').toUpperCase()
+  const csrfHeader = method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS'
+    ? { 'X-CSRFToken': readCsrfToken() }
+    : {}
   const res = await fetch(`${API_BASE}${path}`, {
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...(init.headers || {}) },
+    headers: { 'Content-Type': 'application/json', ...csrfHeader, ...(init.headers || {}) },
     ...init,
   })
   const text = await res.text()
   const body = text ? JSON.parse(text) : null
   if (!res.ok) throw new ApiError(res.status, body)
   return body as T
+}
+
+/**
+ * Helper genérico para POST con CSRF token. Usado por componentes que hacen
+ * fetch directo en vez de pasar por `request` (e.g., los procesos INV).
+ */
+export async function postJsonWithCsrf(url: string, payload: unknown): Promise<Response> {
+  return fetch(url, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': readCsrfToken() },
+    body: JSON.stringify(payload),
+  })
 }
 
 // ---- DTOs ----
