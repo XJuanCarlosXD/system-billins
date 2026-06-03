@@ -224,7 +224,7 @@ export function BuscarProductoModal({
                 <SelectContent>
                   {listas.length > 0
                     ? listas.map((l) => <SelectItem key={l.no_lista} value={String(l.no_lista)}>{listaLabel(l)}</SelectItem>)
-                    : <SelectItem value={noLista}>Lista {noLista}</SelectItem>}
+                    : <SelectItem value={noLista || '__none__'}>{noLista ? `Lista ${noLista}` : 'Sin lista'}</SelectItem>}
                 </SelectContent>
               </Select>
             </div>

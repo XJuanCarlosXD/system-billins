@@ -8,8 +8,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { BuscarProductoModal } from '@/features/fat/components/buscar-producto-modal'
+import { regalGeneralApi } from '@/lib/regal-general-api'
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
+
+interface EmpaqueOpt {
+  empaque: number
+  unidad: string
+  descripcion?: string
+  cant_por_emp: number
+  por_defecto: boolean
+}
 
 interface Props {
   noCia: string
@@ -40,6 +50,9 @@ interface ProductoRow {
   cantidad: string
   costo: string
   almacen: string
+  empaque?: string  // unidad (UND, FUNDA, CAJA, etc.)
+  empaques: EmpaqueOpt[]
+  costoBase: number  // costo de la unidad detallada (cant_por_emp=1)
 }
 
 interface ProductoResult {
@@ -55,7 +68,8 @@ interface ProductoResult {
 let rowIdCounter = 1
 
 function newRow(almacen = ''): ProductoRow {
-  return { id: rowIdCounter++, noProdu: '', nombre: '', cantidad: '', costo: '', almacen }
+  return { id: rowIdCounter++, noProdu: '', nombre: '', cantidad: '', costo: '',
+           almacen, empaque: 'UND', empaques: [], costoBase: 0 }
 }
 
 async function apiFetch<T>(path: string): Promise<T> {
@@ -84,11 +98,15 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
   // Grid
   const [rows, setRows] = useState<ProductoRow[]>([newRow()])
 
-  // Product search
+  // Product search (legacy inline, conservado para compatibilidad)
   const [searchIdx, setSearchIdx] = useState<number | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState<ProductoResult[]>([])
   const [searching, setSearching] = useState(false)
+
+  // Modal de buscar producto (preferido, mismo estilo que FAT)
+  const [productModalOpen, setProductModalOpen] = useState(false)
+  const [productModalForIdx, setProductModalForIdx] = useState<number | null>(null)
 
   const [saving, setSaving] = useState(false)
 
@@ -135,8 +153,49 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
     setRows((prev) => prev.map((r, i) => i === idx ? { ...r, ...patch } : r))
   }
 
+  // Carga los empaques de un producto (FUNDA, CAJA, DETALLADO, etc.) para
+  // que el usuario pueda cambiar la UM en la grilla.
+  const cargarEmpaques = useCallback(async (idx: number, noProdu: string, costoBase: number) => {
+    try {
+      const r = await regalGeneralApi.fatProductoEmpaques(noProdu)
+      const items = (r.items || []) as Array<{ unidad: string; descripcion?: string; por_defecto?: boolean; cant_por_emp?: number; empaque?: number }>
+      const emps: EmpaqueOpt[] = items.map((e, i) => ({
+        empaque: e.empaque ?? i + 1,
+        unidad: (e.unidad || 'UND').trim() || 'UND',
+        descripcion: e.descripcion || e.unidad,
+        cant_por_emp: e.cant_por_emp && e.cant_por_emp > 0 ? e.cant_por_emp : 1,
+        por_defecto: !!e.por_defecto,
+      }))
+      const def = emps.find(e => e.por_defecto) || emps[0]
+      setRows(prev => {
+        const arr = [...prev]
+        if (!arr[idx] || arr[idx].noProdu !== noProdu) return prev
+        const empaque = def ? (def.descripcion || def.unidad) : 'UND'
+        const factor = def?.cant_por_emp || 1
+        arr[idx] = {
+          ...arr[idx],
+          empaques: emps,
+          empaque,
+          costoBase,
+          costo: (costoBase * factor).toFixed(4),
+        }
+        return arr
+      })
+    } catch { /* sin empaques => UM queda como UND */ }
+  }, [])
+
+  const openProductModal = (idx: number) => {
+    setProductModalForIdx(idx)
+    setProductModalOpen(true)
+  }
+
   const addRow = () => {
-    setRows((prev) => [...prev, newRow(almacenHeader)])
+    setRows((prev) => {
+      const next = [...prev, newRow(almacenHeader)]
+      // Abre modal automáticamente para la nueva fila
+      setTimeout(() => openProductModal(next.length - 1), 0)
+      return next
+    })
   }
 
   const removeRow = (idx: number) => {
@@ -151,6 +210,25 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
     setSearchIdx(null)
     setSearchTerm('')
     setSearchResults([])
+    cargarEmpaques(idx, code, parseFloat(costo) || 0)
+  }
+
+  // Cambia la unidad de empaque elegida y recalcula costo = costoBase * cant_por_emp
+  const cambiarEmpaque = (idx: number, unidad: string) => {
+    setRows(prev => {
+      const arr = [...prev]
+      const row = arr[idx]
+      if (!row) return prev
+      const emp = row.empaques.find(e => (e.descripcion || e.unidad) === unidad || e.unidad === unidad)
+      if (!emp) return prev
+      const factor = emp.cant_por_emp || 1
+      arr[idx] = {
+        ...row,
+        empaque: emp.descripcion || emp.unidad,
+        costo: (row.costoBase * factor).toFixed(4),
+      }
+      return arr
+    })
   }
 
   // Computed totals
@@ -178,12 +256,18 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
       cuenta,
       departamento,
       tipo_mov: tipoMov,
-      detalle: validRows.map((r) => ({
-        no_produ: r.noProdu,
-        almacen: r.almacen || almacenHeader,
-        cantidad: parseFloat(r.cantidad) || 0,
-        costo: parseFloat(r.costo) || 0,
-      })),
+      detalle: validRows.map((r) => {
+        const emp = r.empaques.find(e => (e.descripcion || e.unidad) === r.empaque || e.unidad === r.empaque)
+        return {
+          no_produ: r.noProdu,
+          almacen: r.almacen || almacenHeader,
+          cantidad: parseFloat(r.cantidad) || 0,
+          costo: parseFloat(r.costo) || 0,
+          empaque: emp?.empaque,
+          cpe: emp?.cant_por_emp,
+          unidad: r.empaque,
+        }
+      }),
     }
 
     setSaving(true)
@@ -327,6 +411,7 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
                     <TableHead className='w-[130px]'>No. Producto</TableHead>
                     <TableHead className='min-w-[200px]'>Nombre / Descripción</TableHead>
                     <TableHead className='w-[120px]'>Almacén</TableHead>
+                    <TableHead className='w-[110px]'>UM</TableHead>
                     <TableHead className='w-[110px] text-right'>Cantidad</TableHead>
                     <TableHead className='w-[120px] text-right'>Costo Unit.</TableHead>
                     <TableHead className='w-[120px] text-right'>Total</TableHead>
@@ -366,7 +451,14 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
                                 }, 200)
                               }}
                             />
-                            <Search className='absolute right-2 top-2 h-3.5 w-3.5 text-muted-foreground pointer-events-none' />
+                            <button
+                              type='button'
+                              className='absolute right-1 top-1 h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground'
+                              title='Buscar producto'
+                              onClick={() => openProductModal(idx)}
+                            >
+                              <Search className='h-3.5 w-3.5' />
+                            </button>
                             {isSearching && searchResults.length > 0 && (
                               <div className='absolute z-50 top-full left-0 mt-1 w-[280px] rounded-md border bg-popover shadow-md text-xs'>
                                 {searching && (
@@ -423,6 +515,25 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
                         </TableCell>
 
                         <TableCell className='py-1 px-2'>
+                          {row.empaques.length > 0 ? (
+                            <Select value={row.empaque || 'UND'} onValueChange={(v) => cambiarEmpaque(idx, v)}>
+                              <SelectTrigger className='h-8 text-xs'>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {row.empaques.map((e) => (
+                                  <SelectItem key={e.unidad} value={e.descripcion || e.unidad} className='text-xs'>
+                                    {(e.descripcion || e.unidad)}{e.cant_por_emp > 1 ? ` (×${e.cant_por_emp})` : ''}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span className='text-xs text-muted-foreground'>{row.empaque || '—'}</span>
+                          )}
+                        </TableCell>
+
+                        <TableCell className='py-1 px-2'>
                           <Input
                             className='h-8 text-xs text-right tabular-nums'
                             type='number'
@@ -466,7 +577,7 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
                 </TableBody>
                 <TableFooter>
                   <TableRow>
-                    <TableCell colSpan={3} className='text-xs font-medium text-right pr-4'>
+                    <TableCell colSpan={4} className='text-xs font-medium text-right pr-4'>
                       Totales:
                     </TableCell>
                     <TableCell className='text-right font-mono text-xs font-semibold tabular-nums'>
@@ -504,6 +615,41 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
           </Tooltip>
         </div>
       </section>
+
+      <BuscarProductoModal
+        open={productModalOpen}
+        onClose={() => { setProductModalOpen(false); setProductModalForIdx(null) }}
+        noCia={noCia}
+        punto={punto}
+        almacenes={almacenes as any}
+        listas={[]}
+        noLista={''}
+        defaultAlmacen={almacenHeader}
+        onSelect={(p, qty, alm) => {
+          if (productModalForIdx == null) return
+          const idx = productModalForIdx
+          // Costo base = costo_actual del producto (FAT lo expone como precio en busqueda
+          // a falta de costo en el modal; usamos lookup directo a /api/inv/existencia/<no_produ>/
+          // para obtener el costo real del almacen elegido).
+          const baseQty = qty && qty > 0 ? qty : 1
+          updateRow(idx, {
+            noProdu: p.no_produ,
+            nombre: p.descri,
+            almacen: alm || almacenHeader,
+            cantidad: String(baseQty),
+          })
+          // Lookup costo del almacen
+          fetch(`${API_BASE}/inv/existencia/${encodeURIComponent(p.no_produ)}/?no_cia=${encodeURIComponent(noCia)}&punto=${encodeURIComponent(punto)}`, { credentials: 'include' })
+            .then(r => r.json())
+            .then(j => {
+              const r = (j.results || []).find((x: any) => x.almacen === (alm || almacenHeader)) || (j.results || [])[0]
+              const costoBase = Number(r?.costo_actual || 0)
+              cargarEmpaques(idx, p.no_produ, costoBase)
+            })
+            .catch(() => cargarEmpaques(idx, p.no_produ, 0))
+          setProductModalOpen(false); setProductModalForIdx(null)
+        }}
+      />
     </TooltipProvider>
   )
 }
