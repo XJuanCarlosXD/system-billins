@@ -655,37 +655,178 @@ def list_consulta_documentos(
 
 
 def get_documento_detalle(no_cia: str, tipo_docu: str, no_docu: str) -> dict | None:
-    """Header y líneas de un documento de inventario."""
-    # Lines from TINV_MOVIMIENTO
+    """Header (TINV_RME) + líneas (TINV_MOVIMIENTO) de un documento de inventario.
+
+    Header rico desde TINV_RME con JOINs a proveedor / cliente / vendedor /
+    localidad / tipo_docu para paridad con los forms Finv201..Finv214 del
+    legado. Si no hay header en TINV_RME, intenta reconstruir uno mínimo desde
+    TINV_MOVIMIENTO (compat con datos viejos sin header).
+    """
+    # Header from TINV_RME with lookups
+    header_rows = client.fetch_dicts(
+        "SELECT h.no_cia, h.punto, h.tipo_docu, h.no_docu, "
+        "       TO_CHAR(h.fecha,'YYYY-MM-DD') fecha, "
+        "       TO_CHAR(h.fecha_sysdate,'YYYY-MM-DD HH24:MI') fecha_sysdate, "
+        "       h.no_cliente, h.vendedor, h.afecta_cxc, h.no_proveedor, "
+        "       h.tipo_refe, h.no_refe, h.tasa_us, h.porc_impuesto, "
+        "       h.impuesto, h.descuento, h.total_linea, h.total_neto, "
+        "       h.estado, h.usuario, h.conduce, h.st_generado_cnt, "
+        "       h.st_impresion, h.st_anulado, h.tipo_transaccion, h.tipo_movi, "
+        "       h.detalle, h.no_localidad, h.no_componente, h.no_depto, "
+        "       h.orden_produccion, h.posiciones_fijas_ncf, h.ncf, "
+        "       h.tipo_docu_devuelto, h.no_docu_devuelto, h.nota, "
+        "       h.valor_bienes, h.valor_servicio, h.isc, h.otros_impuestos, "
+        "       h.propina, h.zona, h.entregado, "
+        "       TO_CHAR(h.fecha_entrega,'YYYY-MM-DD') fecha_entrega, "
+        "       h.usuario_entrego, h.no_motivo, "
+        "       h.granulometria, h.viscosidad, h.peso1, h.peso2, "
+        "       h.no_orden_ot, h.tipo_orden_op, h.con_restock_almacen, "
+        "       h.tipo_docu_rev, h.no_docu_rev, "
+        "       td.descri td_descri, td.tipo_movi td_tipo_movi, "
+        "       td.tipo_transaccion td_tipo_transaccion, "
+        "       p.nombre prov_nombre, p.rnc prov_rnc, "
+        "       c.nombre cli_nombre, c.rnc cli_rnc, c.direccion cli_direccion, "
+        "       v.nombre vend_nombre, "
+        "       loc.descripcion loc_descripcion, "
+        "       CASE WHEN h.posiciones_fijas_ncf IS NOT NULL AND h.ncf IS NOT NULL "
+        "            THEN h.posiciones_fijas_ncf || LPAD(TO_CHAR(h.ncf),8,'0') "
+        "            ELSE NULL END ncf_dgi "
+        "FROM INV.TINV_RME h "
+        "LEFT JOIN INV.TINV_TDOCU td ON td.tipo_docu = h.tipo_docu "
+        "LEFT JOIN CXP.TCXP_DPROVEEDOR p ON p.no_proveedor = h.no_proveedor "
+        "LEFT JOIN CXC.TCXC_CLIENTE c ON c.no_cia = h.no_cia AND c.punto = h.punto AND c.no_cliente = h.no_cliente "
+        "LEFT JOIN CXC.TCXC_VENDEDOR v ON v.no_cia = h.no_cia AND v.vendedor = h.vendedor "
+        "LEFT JOIN CNT.TCNT_LOCALIDADES loc ON loc.no_localidad = h.no_localidad "
+        "WHERE h.no_cia = :1 AND h.tipo_docu = :2 AND h.no_docu = :3 "
+        "AND ROWNUM <= 1",
+        [no_cia, tipo_docu, no_docu],
+    )
+
+    # Lines from TINV_MOVIMIENTO with empaque/unidad info
     lines = client.fetch_dicts(
         "SELECT m.no_linea, m.almacen, m.no_produ, p.descri descripcion, "
-        "m.tipo_movi, m.tipo_transaccion, "
+        "m.tipo_movi, m.tipo_transaccion, m.empaque, "
+        "NVL(m.cpe, 1) cpe, NVL(u.descri, '') unidad, "
         "NVL(m.cantidad, 0) cantidad, NVL(m.costo, 0) costo, "
         "NVL(m.precio, 0) precio, NVL(m.monto_neto, 0) monto_neto, "
-        "TO_CHAR(m.fecha, 'YYYY-MM-DD') fecha, m.punto "
+        "NVL(m.impuesto, 0) impuesto, NVL(m.descuento, 0) descuento, "
+        "TO_CHAR(m.fecha, 'YYYY-MM-DD') fecha, m.punto, m.no_lote, "
+        "m.tipo_refe ref_tipo, m.no_refe ref_no "
         "FROM INV.TINV_MOVIMIENTO m "
         "LEFT JOIN INV.TINV_PRODUCTO p ON p.no_produ = m.no_produ "
+        "LEFT JOIN INV.TINV_EMPAQUE e ON e.no_produ = m.no_produ AND e.empaque = m.empaque "
+        "LEFT JOIN INV.TINV_UNIDAD u ON u.unidad = e.unidad "
         "WHERE m.no_cia = :1 AND m.tipo_docu = :2 AND m.no_docu = :3 "
         "ORDER BY m.no_linea",
         [no_cia, tipo_docu, no_docu],
     )
-    if not lines:
+
+    if not lines and not header_rows:
         return None
-    first = lines[0]
-    header = {
-        'no_cia': no_cia,
-        'tipo_docu': tipo_docu,
-        'no_docu': no_docu,
-        'fecha': first.get('FECHA', first.get('fecha', '')),
-        'almacen': first.get('ALMACEN', first.get('almacen', '')),
-        'punto': first.get('PUNTO', first.get('punto', '')),
-        'tipo_movi': first.get('TIPO_MOVI', first.get('tipo_movi', '')),
-        'tipo_transaccion': first.get('TIPO_TRANSACCION', first.get('tipo_transaccion', '')),
-        'total': sum(
-            float(r.get('MONTO_NETO', r.get('monto_neto', 0)) or 0)
-            for r in lines
-        ),
-    }
+
+    if header_rows:
+        h = header_rows[0]
+        # Normalize keys (oracledb returns lowercase)
+        def g(k, d=None):
+            return h.get(k.lower(), h.get(k.upper(), d))
+        header = {
+            'no_cia': g('no_cia', no_cia),
+            'punto': g('punto', ''),
+            'tipo_docu': g('tipo_docu', tipo_docu),
+            'no_docu': g('no_docu', no_docu),
+            'tipo_docu_descri': g('td_descri', ''),
+            'fecha': g('fecha', ''),
+            'fecha_sysdate': g('fecha_sysdate', ''),
+            'tipo_movi': g('tipo_movi', ''),
+            'tipo_transaccion': g('tipo_transaccion', ''),
+            'estado': g('estado', ''),
+            'st_anulado': g('st_anulado', 'N'),
+            'st_impresion': g('st_impresion', 'N'),
+            'st_generado_cnt': g('st_generado_cnt', 'N'),
+            'usuario': g('usuario', ''),
+            'conduce': g('conduce', ''),
+            'afecta_cxc': g('afecta_cxc', 'N'),
+            # Proveedor
+            'no_proveedor': g('no_proveedor', ''),
+            'proveedor_nombre': g('prov_nombre', ''),
+            'proveedor_rnc': g('prov_rnc', ''),
+            # Cliente
+            'no_cliente': g('no_cliente', ''),
+            'cliente_nombre': g('cli_nombre', ''),
+            'cliente_rnc': g('cli_rnc', ''),
+            'cliente_direccion': g('cli_direccion', ''),
+            # Vendedor
+            'vendedor': g('vendedor', ''),
+            'vendedor_nombre': g('vend_nombre', ''),
+            # Localidad / contabilidad
+            'no_localidad': g('no_localidad', ''),
+            'localidad_descripcion': g('loc_descripcion', ''),
+            'no_componente': g('no_componente', ''),
+            'no_depto': g('no_depto', ''),
+            # Referencia / devolución / reverso
+            'tipo_refe': g('tipo_refe', ''),
+            'no_refe': g('no_refe', ''),
+            'tipo_docu_devuelto': g('tipo_docu_devuelto', ''),
+            'no_docu_devuelto': g('no_docu_devuelto', ''),
+            'tipo_docu_rev': g('tipo_docu_rev', ''),
+            'no_docu_rev': g('no_docu_rev', ''),
+            'no_motivo': g('no_motivo', ''),
+            # NCF
+            'posiciones_fijas_ncf': g('posiciones_fijas_ncf', ''),
+            'ncf': g('ncf', ''),
+            'ncf_dgi': g('ncf_dgi', ''),
+            # Totales
+            'tasa_us': float(g('tasa_us', 0) or 0),
+            'porc_impuesto': float(g('porc_impuesto', 0) or 0),
+            'impuesto': float(g('impuesto', 0) or 0),
+            'descuento': float(g('descuento', 0) or 0),
+            'total_linea': float(g('total_linea', 0) or 0),
+            'total_neto': float(g('total_neto', 0) or 0),
+            'valor_bienes': float(g('valor_bienes', 0) or 0),
+            'valor_servicio': float(g('valor_servicio', 0) or 0),
+            'isc': float(g('isc', 0) or 0),
+            'otros_impuestos': float(g('otros_impuestos', 0) or 0),
+            'propina': float(g('propina', 0) or 0),
+            # Detalle / nota
+            'detalle': g('detalle', ''),
+            'nota': g('nota', ''),
+            # Otros
+            'zona': g('zona', ''),
+            'entregado': g('entregado', 'N'),
+            'fecha_entrega': g('fecha_entrega', ''),
+            'usuario_entrego': g('usuario_entrego', ''),
+            'orden_produccion': g('orden_produccion', ''),
+            'no_orden_ot': g('no_orden_ot', ''),
+            'tipo_orden_op': g('tipo_orden_op', ''),
+            'con_restock_almacen': g('con_restock_almacen', 'N'),
+            # Producción (Finv204): granulometría, viscosidad, pesos
+            'granulometria': float(g('granulometria', 0) or 0),
+            'viscosidad': float(g('viscosidad', 0) or 0),
+            'peso1': float(g('peso1', 0) or 0),
+            'peso2': float(g('peso2', 0) or 0),
+            # Compat con código viejo
+            'almacen': lines[0].get('almacen', lines[0].get('ALMACEN', '')) if lines else '',
+            'total': float(g('total_neto', 0) or 0)
+                or sum(float(r.get('monto_neto', r.get('MONTO_NETO', 0)) or 0) for r in lines),
+        }
+    else:
+        # Sin header en TINV_RME - reconstruir mínimo desde primera línea
+        first = lines[0]
+        header = {
+            'no_cia': no_cia,
+            'tipo_docu': tipo_docu,
+            'no_docu': no_docu,
+            'fecha': first.get('FECHA', first.get('fecha', '')),
+            'almacen': first.get('ALMACEN', first.get('almacen', '')),
+            'punto': first.get('PUNTO', first.get('punto', '')),
+            'tipo_movi': first.get('TIPO_MOVI', first.get('tipo_movi', '')),
+            'tipo_transaccion': first.get('TIPO_TRANSACCION', first.get('tipo_transaccion', '')),
+            'st_anulado': 'N',
+            'total': sum(
+                float(r.get('MONTO_NETO', r.get('monto_neto', 0)) or 0)
+                for r in lines
+            ),
+        }
     return {'header': header, 'lines': lines}
 
 

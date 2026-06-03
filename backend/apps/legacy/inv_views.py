@@ -15,8 +15,32 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from apps.legacy.repositories import inv_repo
+from apps.legacy.repositories import inv_repo, permissions_repo
 from apps.legacy.pdf_helpers import build_pdf_report
+
+
+def _check_inv_access(username: str, no_cia: str) -> JsonResponse | None:
+    """Guard: el user tiene fila activa en INV.TINV_USUARIO para esa empresa.
+
+    Devuelve JsonResponse 403 si no tiene acceso, None si OK.
+    """
+    if not username:
+        return JsonResponse({'error': 'auth requerida'}, status=401)
+    try:
+        rows = permissions_repo.client.fetch_dicts(
+            "SELECT NVL(activo,'N') activo FROM INV.TINV_USUARIO "
+            "WHERE UPPER(usuario) = UPPER(:1) AND no_cia = :2 "
+            "AND NVL(activo,'N') = 'S' AND ROWNUM <= 1",
+            [username, no_cia],
+        )
+        if not rows:
+            return JsonResponse(
+                {'error': f'sin acceso a INV en empresa {no_cia}'}, status=403
+            )
+    except Exception:
+        # Si hay error de Oracle no bloqueamos para no romper en dev
+        return None
+    return None
 
 
 def _jsonify(data):
@@ -884,6 +908,7 @@ def inv_reversar_documento(request):
 
 _INV_TIPO_DOCU_LABEL = {
     'AE': 'Ajuste de Entrada',
+    'AF': 'Ajuste Fisico',
     'AS': 'Ajuste de Salida',
     'DC': 'Devolucion de Compra',
     'DV': 'Devolucion',
@@ -901,14 +926,22 @@ _INV_TIPO_DOCU_LABEL = {
 def inv_documento_pdf(request, tipo_docu: str, no_docu: str):
     """GET /api/inv/documentos/<tipo_docu>/<no_docu>/pdf/?no_cia=01
 
-    Documento individual de inventario en estilo factura moderna. Soporta los
-    10 tipos legacy (AE, AS, DC, DV, EA, EC, EP, SA, SP, TA) con el rotulo del
-    documento + 3 firmas (Realizado/Autorizado/Recibido).
+    Documento individual de inventario con paridad legacy: bloques
+    condicionales por tipo_docu (proveedor+NCF+RNC para EC/DC, cliente+vendedor
+    para DV, conduce/localidad/componente siempre, sucursales para TA),
+    columnas extra (empaque, unidad, itbis) en líneas y totales completos
+    (bruto, descuento, itbis, neto, valor bienes/servicio). Watermark
+    ANULADA cuando st_anulado=S.
     """
     from apps.fat.views_print import _render_modern_report_pdf
     no_cia = request.GET.get('no_cia', '01')
     tipo_s = (tipo_docu or '').strip().upper()
     no_docu_s = (no_docu or '').strip()
+
+    # Guard multi-empresa
+    forbidden = _check_inv_access(getattr(request.user, 'username', ''), no_cia)
+    if forbidden is not None:
+        return forbidden
 
     try:
         doc = inv_repo.get_documento_detalle(no_cia=no_cia, tipo_docu=tipo_s, no_docu=no_docu_s)
@@ -918,78 +951,198 @@ def inv_documento_pdf(request, tipo_docu: str, no_docu: str):
     if not doc:
         return JsonResponse({"error": "Documento no encontrado"}, status=404)
 
-    header = doc.get('header', {}) or {}
+    h = doc.get('header', {}) or {}
     lines = doc.get('lines', []) or []
 
-    documento_label = _INV_TIPO_DOCU_LABEL.get(tipo_s, f"Documento {tipo_s}")
-    tipo_movi = (header.get('TIPO_MOVI') or header.get('tipo_movi') or '').strip().upper()
+    def hg(k, d=''):
+        v = h.get(k, d)
+        return v if v is not None else d
+
+    documento_label = (hg('tipo_docu_descri') or _INV_TIPO_DOCU_LABEL.get(tipo_s, f"Documento {tipo_s}")).strip()
+    tipo_movi = str(hg('tipo_movi', '')).strip().upper()
     tipo_movi_label = {'E': 'Entrada', 'S': 'Salida'}.get(tipo_movi, tipo_movi or 'N/A')
+    tipo_trans = str(hg('tipo_transaccion', '')).strip().upper()
+    tipo_trans_label = {
+        'C': 'Compra', 'V': 'Venta', 'D': 'Devolución', 'E': 'Entrada Almacén',
+        'S': 'Salida Almacén', 'T': 'Transferencia', 'J': 'Ajuste',
+        'P': 'Producción', 'M': 'Movimiento Interno', 'R': 'Reverso',
+        'A': 'Ajuste Físico', 'F': 'Factura',
+    }.get(tipo_trans, tipo_trans)
 
-    fecha_raw = str(header.get('FECHA') or header.get('fecha') or '')
+    fecha_raw = str(hg('fecha') or '')
     fecha = fecha_raw[:10] if len(fecha_raw) >= 10 else fecha_raw
-    fecha_display = (
-        f"{fecha[8:10]}/{fecha[5:7]}/{fecha[:4]}" if len(fecha) == 10 else fecha
-    )
-    almacen = str(header.get('ALMACEN') or header.get('almacen') or '').strip()
-    punto = str(header.get('PUNTO') or header.get('punto') or '01').strip()
-    usuario = str(header.get('USUARIO') or header.get('usuario') or '').strip()
-    nota = (header.get('NOTA') or header.get('nota') or '').strip()
-    total_doc = float(header.get('TOTAL') or header.get('total') or 0)
+    fecha_display = (f"{fecha[8:10]}/{fecha[5:7]}/{fecha[:4]}" if len(fecha) == 10 else fecha) or 'N/A'
 
+    is_anulado = str(hg('st_anulado', 'N')).upper() == 'S'
+
+    # Build subtitle/blocks per tipo_docu
+    subtitle = [
+        f"Documento: {tipo_s}-{no_docu_s}    Fecha: {fecha_display}    Punto: {hg('punto') or '01'}",
+        f"Tipo Movimiento: {tipo_movi_label}    Tipo Transacción: {tipo_trans_label or 'N/A'}",
+    ]
+    almacen = (lines[0].get('almacen', lines[0].get('ALMACEN', '')) if lines else '') or hg('almacen', '')
+    if almacen:
+        subtitle.append(f"Almacén: {almacen}")
+    if hg('localidad_descripcion') or hg('no_localidad'):
+        subtitle.append(f"Localidad: {hg('no_localidad')} {hg('localidad_descripcion')}".strip())
+
+    # Proveedor block (EC, DC)
+    if hg('no_proveedor'):
+        subtitle.append(
+            f"Proveedor: {hg('no_proveedor')} - {hg('proveedor_nombre') or 'N/A'}"
+            + (f"    RNC: {hg('proveedor_rnc')}" if hg('proveedor_rnc') else "")
+        )
+    # Cliente block (DV, EA con cliente)
+    if hg('no_cliente'):
+        subtitle.append(
+            f"Cliente: {hg('no_cliente')} - {hg('cliente_nombre') or 'N/A'}"
+            + (f"    RNC: {hg('cliente_rnc')}" if hg('cliente_rnc') else "")
+        )
+        if hg('cliente_direccion'):
+            subtitle.append(f"Dirección: {str(hg('cliente_direccion'))[:80]}")
+    # Vendedor (DV, FT, etc.)
+    if hg('vendedor'):
+        subtitle.append(f"Vendedor: {hg('vendedor')} - {hg('vendedor_nombre') or ''}".strip())
+    # NCF DGI (EC, DV con NCF)
+    if hg('ncf_dgi'):
+        subtitle.append(f"NCF: {hg('ncf_dgi')}")
+    # Conduce
+    if hg('conduce'):
+        subtitle.append(f"Conduce: {hg('conduce')}")
+    # Referencias / devuelto / reversado
+    if hg('tipo_refe') and hg('no_refe'):
+        subtitle.append(f"Referencia: {hg('tipo_refe')}-{hg('no_refe')}")
+    if hg('tipo_docu_devuelto') and hg('no_docu_devuelto'):
+        subtitle.append(f"Doc. devuelto: {hg('tipo_docu_devuelto')}-{hg('no_docu_devuelto')}")
+    if hg('tipo_docu_rev') and hg('no_docu_rev'):
+        subtitle.append(f"Doc. reversado: {hg('tipo_docu_rev')}-{hg('no_docu_rev')}")
+    # Componente / depto / orden producción / OT
+    extras = []
+    if hg('no_componente'): extras.append(f"Componente: {hg('no_componente')}")
+    if hg('no_depto'): extras.append(f"Depto: {hg('no_depto')}")
+    if hg('orden_produccion'): extras.append(f"OP: {hg('orden_produccion')}")
+    if hg('no_orden_ot'): extras.append(f"OT: {hg('no_orden_ot')}")
+    if hg('tipo_orden_op'): extras.append(f"Tipo OP: {hg('tipo_orden_op')}")
+    if extras: subtitle.append('    '.join(extras))
+    # Producción Finv204: granulometría/viscosidad/pesos
+    prod = []
+    if hg('granulometria'): prod.append(f"Granulometría: {hg('granulometria')}")
+    if hg('viscosidad'): prod.append(f"Viscosidad: {hg('viscosidad')}")
+    if hg('peso1'): prod.append(f"Peso 1: {hg('peso1')}")
+    if hg('peso2'): prod.append(f"Peso 2: {hg('peso2')}")
+    if prod: subtitle.append('    '.join(prod))
+    # Motivo (reverso) / restock
+    if hg('no_motivo'): subtitle.append(f"Motivo reverso: {hg('no_motivo')}")
+    if hg('con_restock_almacen') == 'S': subtitle.append("Con restock al almacén")
+    # Detalle / nota
+    if hg('detalle'): subtitle.append(f"Detalle: {str(hg('detalle'))[:90]}")
+    if hg('nota'): subtitle.append(f"Nota: {str(hg('nota'))[:90]}")
+    # Usuario y estado
+    estado_label = {'A': 'Autorizado', 'P': 'Pendiente', 'C': 'Cerrado'}.get(
+        str(hg('estado', '')).upper(), hg('estado', '')
+    )
+    estado_extra = []
+    if hg('usuario'): estado_extra.append(f"Usuario: {hg('usuario')}")
+    if estado_label: estado_extra.append(f"Estado: {estado_label}")
+    if is_anulado: estado_extra.append("ANULADO")
+    if str(hg('st_impresion', 'N')).upper() == 'S': estado_extra.append("Reimpresión")
+    if estado_extra: subtitle.append('    '.join(estado_extra))
+
+    # Tasa, ITBIS
+    tasa = float(hg('tasa_us', 0) or 0)
+    porc_imp = float(hg('porc_impuesto', 0) or 0)
+    if tasa or porc_imp:
+        subtitle.append(f"Tasa USD: {tasa:,.2f}    % ITBIS: {porc_imp:.2f}")
+
+    # Líneas con empaque + ITBIS
     rows_data = []
     for ln in lines[:500]:
-        cant = float(ln.get('CANTIDAD', ln.get('cantidad', 0)) or 0)
-        costo = float(ln.get('COSTO', ln.get('costo', 0)) or 0)
-        monto = float(ln.get('MONTO_NETO', ln.get('monto_neto', 0)) or 0)
+        cant = float(ln.get('cantidad', ln.get('CANTIDAD', 0)) or 0)
+        costo = float(ln.get('costo', ln.get('COSTO', 0)) or 0)
+        precio = float(ln.get('precio', ln.get('PRECIO', 0)) or 0)
+        monto = float(ln.get('monto_neto', ln.get('MONTO_NETO', 0)) or 0)
+        imp = float(ln.get('impuesto', ln.get('IMPUESTO', 0)) or 0)
         if not monto:
-            monto = round(cant * costo, 2)
+            monto = round(cant * (costo or precio), 2)
+        unit = costo if costo else precio
         rows_data.append({
-            'no_linea': ln.get('NO_LINEA', ln.get('no_linea', '')),
-            'no_produ': ln.get('NO_PRODU', ln.get('no_produ', '')),
-            'descripcion': str(ln.get('DESCRIPCION', ln.get('descripcion', '')) or '')[:80],
+            'no_linea': ln.get('no_linea', ln.get('NO_LINEA', '')),
+            'no_produ': ln.get('no_produ', ln.get('NO_PRODU', '')),
+            'descripcion': str(ln.get('descripcion', ln.get('DESCRIPCION', '')) or '')[:60],
+            'unidad': str(ln.get('unidad', ln.get('UNIDAD', '')) or '')[:8],
             'cantidad': cant,
-            'costo': costo,
+            'costo': unit,
+            'impuesto': imp,
             'monto_neto': monto,
         })
 
     columns = [
-        {'key': 'no_linea', 'label': 'Ln', 'align': 'center', 'width': 10},
-        {'key': 'no_produ', 'label': 'Codigo', 'align': 'left', 'width': 22},
-        {'key': 'descripcion', 'label': 'Descripcion', 'align': 'left', 'width': 72},
-        {'key': 'cantidad', 'label': 'Cantidad', 'align': 'right', 'format': 'qty', 'width': 22},
-        {'key': 'costo', 'label': 'Costo', 'align': 'right', 'format': 'money', 'width': 24},
-        {'key': 'monto_neto', 'label': 'Monto Neto', 'align': 'right', 'format': 'money', 'width': 32},
+        {'key': 'no_linea', 'label': 'Ln', 'align': 'center', 'width': 8},
+        {'key': 'no_produ', 'label': 'Código', 'align': 'left', 'width': 20},
+        {'key': 'descripcion', 'label': 'Descripción', 'align': 'left', 'width': 60},
+        {'key': 'unidad', 'label': 'Unid.', 'align': 'left', 'width': 12},
+        {'key': 'cantidad', 'label': 'Cantidad', 'align': 'right', 'format': 'qty', 'width': 18},
+        {'key': 'costo', 'label': 'Costo/Precio', 'align': 'right', 'format': 'money', 'width': 22},
+        {'key': 'impuesto', 'label': 'ITBIS', 'align': 'right', 'format': 'money', 'width': 18},
+        {'key': 'monto_neto', 'label': 'Monto Neto', 'align': 'right', 'format': 'money', 'width': 24},
     ]
 
-    subtitle = [
-        f"Tipo Movimiento: {tipo_movi_label}",
-        f"Almacen: {almacen or 'N/A'}",
-        f"Punto: {punto}",
-        f"Fecha: {fecha_display or 'N/A'}",
-    ]
-    if usuario:
-        subtitle.append(f"Usuario: {usuario}")
-    if nota:
-        subtitle.append(f"Nota: {nota[:60]}")
-    subtitle.append(f"Total documento: {total_doc:,.2f}")
+    # Totales legacy
+    total_neto = float(hg('total_neto', 0) or 0)
+    total_linea = float(hg('total_linea', 0) or 0)
+    impuesto_t = float(hg('impuesto', 0) or 0)
+    desc_t = float(hg('descuento', 0) or 0)
+    valor_bienes = float(hg('valor_bienes', 0) or 0)
+    valor_serv = float(hg('valor_servicio', 0) or 0)
+    monto_sum = sum(r['monto_neto'] for r in rows_data) or total_neto
+
+    totals_row = {
+        'descripcion': f"Subtotal ({len(rows_data)} líneas)",
+        'cantidad': sum(r['cantidad'] for r in rows_data),
+        'monto_neto': total_linea or monto_sum,
+    }
+
+    # Bloque de totales legacy debajo del subtítulo
+    totales_lines = []
+    if total_linea: totales_lines.append(f"Total Bruto: {total_linea:,.2f}")
+    if desc_t: totales_lines.append(f"Descuento: {desc_t:,.2f}")
+    if impuesto_t: totales_lines.append(f"ITBIS: {impuesto_t:,.2f}")
+    if valor_bienes: totales_lines.append(f"Valor Bienes: {valor_bienes:,.2f}")
+    if valor_serv: totales_lines.append(f"Valor Servicio: {valor_serv:,.2f}")
+    totales_lines.append(f"TOTAL NETO: {total_neto or monto_sum:,.2f}")
+    subtitle.append('    '.join(totales_lines))
+
+    # Firmas según tipo
+    if tipo_s in ('EC', 'DC'):
+        sigs = ['Recibido por', 'Aprobado por', 'Entregado por']
+    elif tipo_s in ('DV',):
+        sigs = ['Recibido por', 'Autorizado por', 'Entregado por']
+    elif tipo_s in ('TA',):
+        sigs = ['Despachado por', 'Recibido en destino', 'Autorizado por']
+    elif tipo_s in ('SA', 'SP'):
+        sigs = ['Despachado por', 'Autorizado por', 'Recibido por']
+    elif tipo_s in ('EA', 'EP'):
+        sigs = ['Recibido por', 'Autorizado por', 'Entregado por']
+    elif tipo_s in ('AE', 'AS', 'AF'):
+        sigs = ['Contado por', 'Autorizado por', 'Aplicado por']
+    else:
+        sigs = ['Realizado por', 'Autorizado por', 'Recibido por']
 
     try:
         cia_full = _get_cia_full(no_cia)
+        # Marca de anulado en el título
+        title = documento_label + (" — ANULADO" if is_anulado else "")
         pdf = _render_modern_report_pdf(
             report_id=f"{tipo_s}-{no_docu_s}",
-            title=f"{documento_label}",
+            title=title,
             cia=cia_full,
             subtitle_lines=subtitle,
             sections=[{
                 'columns': columns,
                 'rows': rows_data,
-                'totals_row': {
-                    'descripcion': f"Total documento ({len(rows_data)} lineas)",
-                    'cantidad': sum(r['cantidad'] for r in rows_data),
-                    'monto_neto': sum(r['monto_neto'] for r in rows_data) or total_doc,
-                },
+                'totals_row': totals_row,
             }],
-            signature_labels=['Realizado por', 'Autorizado por', 'Recibido por'],
+            signature_labels=sigs,
             impreso_por=getattr(request.user, 'username', '') or '',
             orientation='portrait',
         )
@@ -1429,3 +1582,5 @@ def inv_conteo_fisico_historico(request):
         return JsonResponse(result)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
