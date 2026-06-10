@@ -1,177 +1,109 @@
-import { z } from 'zod'
-import { useFieldArray, useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { Link } from '@tanstack/react-router'
-import { showSubmittedData } from '@/lib/show-submitted-data'
-import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
-
-const profileFormSchema = z.object({
-  username: z
-    .string('Please enter your username.')
-    .min(2, 'Username must be at least 2 characters.')
-    .max(30, 'Username must not be longer than 30 characters.'),
-  email: z.email({
-    error: (iss) =>
-      iss.input === undefined
-        ? 'Please select an email to display.'
-        : undefined,
-  }),
-  bio: z.string().max(160).min(4),
-  urls: z
-    .array(
-      z.object({
-        value: z.url('Please enter a valid URL.'),
-      })
-    )
-    .optional(),
-})
-
-type ProfileFormValues = z.infer<typeof profileFormSchema>
-
-// This can come from your database or API.
-const defaultValues: Partial<ProfileFormValues> = {
-  bio: 'I own a computer.',
-  urls: [
-    { value: 'https://shadcn.com' },
-    { value: 'http://twitter.com/shadcn' },
-  ],
-}
+import { useMe } from '@/hooks/use-me'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { ShieldCheck, User, Building2, LayoutGrid } from 'lucide-react'
 
 export function ProfileForm() {
-  const form = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileFormSchema),
-    defaultValues,
-    mode: 'onChange',
-  })
+  const { data: me, isLoading, isError } = useMe()
 
-  const { fields, append } = useFieldArray({
-    name: 'urls',
-    control: form.control,
-  })
+  if (isLoading) {
+    return (
+      <div className='space-y-3'>
+        <Skeleton className='h-20 w-full' />
+        <Skeleton className='h-32 w-full' />
+      </div>
+    )
+  }
+
+  if (isError || !me) {
+    return (
+      <div className='rounded border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive'>
+        No se pudo cargar el perfil del usuario.
+      </div>
+    )
+  }
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit((data) => showSubmittedData(data))}
-        className='space-y-8'
-      >
-        <FormField
-          control={form.control}
-          name='username'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Username</FormLabel>
-              <FormControl>
-                <Input placeholder='shadcn' {...field} />
-              </FormControl>
-              <FormDescription>
-                This is your public display name. It can be your real name or a
-                pseudonym. You can only change this once every 30 days.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
+    <div className='space-y-4'>
+      <Card>
+        <CardHeader className='pb-2'>
+          <CardTitle className='flex items-center gap-2 text-base'>
+            <User className='h-4 w-4' /> Identidad
+          </CardTitle>
+        </CardHeader>
+        <CardContent className='space-y-2 text-sm'>
+          <div className='flex items-center justify-between'>
+            <span className='text-muted-foreground'>Usuario</span>
+            <span className='font-mono font-medium'>{me.username}</span>
+          </div>
+          <div className='flex items-center justify-between'>
+            <span className='text-muted-foreground'>Rol</span>
+            {me.is_admin ? (
+              <Badge className='gap-1'>
+                <ShieldCheck className='h-3 w-3' />
+                Administrador
+              </Badge>
+            ) : (
+              <Badge variant='secondary'>Usuario</Badge>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className='pb-2'>
+          <CardTitle className='flex items-center gap-2 text-base'>
+            <Building2 className='h-4 w-4' />
+            Empresas autorizadas
+            <Badge variant='outline'>{me.companies.length}</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {me.companies.length === 0 ? (
+            <p className='text-sm text-muted-foreground'>Sin empresas asignadas.</p>
+          ) : (
+            <ul className='space-y-1 text-sm'>
+              {me.companies.map((c: any) => (
+                <li
+                  key={c.no_cia}
+                  className='flex items-center justify-between rounded border px-2 py-1.5'
+                >
+                  <span className='font-medium'>{c.descripcion ?? c.no_cia}</span>
+                  <span className='font-mono text-xs text-muted-foreground'>{c.no_cia}</span>
+                </li>
+              ))}
+            </ul>
           )}
-        />
-        <FormField
-          control={form.control}
-          name='email'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder='Select a verified email to display' />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value='m@example.com'>m@example.com</SelectItem>
-                  <SelectItem value='m@google.com'>m@google.com</SelectItem>
-                  <SelectItem value='m@support.com'>m@support.com</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormDescription>
-                You can manage verified email addresses in your{' '}
-                <Link to='/'>email settings</Link>.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className='pb-2'>
+          <CardTitle className='flex items-center gap-2 text-base'>
+            <LayoutGrid className='h-4 w-4' />
+            Módulos con acceso
+            <Badge variant='outline'>{me.modules.length}</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {me.modules.length === 0 ? (
+            <p className='text-sm text-muted-foreground'>Sin módulos asignados.</p>
+          ) : (
+            <div className='flex flex-wrap gap-1.5'>
+              {[...new Set(me.modules.map((m: any) => m.modulo))].map((mod: any) => (
+                <Badge key={mod} variant='secondary' className='uppercase'>
+                  {mod}
+                </Badge>
+              ))}
+            </div>
           )}
-        />
-        <FormField
-          control={form.control}
-          name='bio'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Bio</FormLabel>
-              <FormControl>
-                <Textarea
-                  placeholder='Tell us a little bit about yourself'
-                  className='resize-none'
-                  {...field}
-                />
-              </FormControl>
-              <FormDescription>
-                You can <span>@mention</span> other users and organizations to
-                link to them.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <div>
-          {fields.map((field, index) => (
-            <FormField
-              control={form.control}
-              key={field.id}
-              name={`urls.${index}.value`}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className={cn(index !== 0 && 'sr-only')}>
-                    URLs
-                  </FormLabel>
-                  <FormDescription className={cn(index !== 0 && 'sr-only')}>
-                    Add links to your website, blog, or social media profiles.
-                  </FormDescription>
-                  <FormControl className={cn(index !== 0 && 'mt-1.5')}>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          ))}
-          <Button
-            type='button'
-            variant='outline'
-            size='sm'
-            className='mt-2'
-            onClick={() => append({ value: '' })}
-          >
-            Add URL
-          </Button>
-        </div>
-        <Button type='submit'>Update profile</Button>
-      </form>
-    </Form>
+        </CardContent>
+      </Card>
+
+      <p className='text-xs text-muted-foreground'>
+        Para modificar empresas, puntos o módulos asignados, contacta al administrador.
+      </p>
+    </div>
   )
 }

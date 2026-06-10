@@ -88,7 +88,7 @@ export function UserAuthForm({
               <FormLabel>Usuario</FormLabel>
               <FormControl>
                 <Input
-                  placeholder='JCABREU'
+                  placeholder='USUARIO'
                   autoCapitalize='characters'
                   autoComplete='username'
                   {...field}

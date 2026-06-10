@@ -494,7 +494,7 @@ export const sidebarData: SidebarData = {
           icon: BookOpen,
         },
         {
-          title: 'Documentacion',
+          title: 'Manuales del Sistema',
           url: '/docs',
           icon: BookOpen,
         },

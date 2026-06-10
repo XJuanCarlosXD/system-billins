@@ -4,6 +4,7 @@ import {
   Printer, RefreshCw, Search, XCircle, ChevronLeft, ChevronRight, Eye, AlertTriangle, FileText,
 } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
+import { useCurrentUsername } from '@/hooks/use-me'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -52,6 +53,7 @@ const ESTADO_ICON: Record<string, typeof CheckCircle2> = {
 }
 
 export function Facturas({ noCia, punto, mes, ano }: Props) {
+  const currentUser = useCurrentUsername()
   const [rows, setRows] = useState<Factura[]>([])
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
@@ -116,7 +118,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
         punto,
         tipo_factura: selected.tipo_factura,
         no_factura: selected.no_factura,
-        usuario: 'JCABREU',
+        usuario: currentUser,
         motivo: motivo.trim(),
       })
       setAnularOpen(false)

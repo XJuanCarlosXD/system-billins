@@ -1,18 +1,9 @@
+import { useState } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
-import { CaretSortIcon, CheckIcon } from '@radix-ui/react-icons'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { showSubmittedData } from '@/lib/show-submitted-data'
-import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command'
 import {
   Form,
   FormControl,
@@ -23,151 +14,164 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
-import { DatePicker } from '@/components/date-picker'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Eye, EyeOff, KeyRound, UserCircle } from 'lucide-react'
+import { useMe } from '@/hooks/use-me'
+import { regalGeneralApi } from '@/lib/regal-general-api'
 
-const languages = [
-  { label: 'English', value: 'en' },
-  { label: 'French', value: 'fr' },
-  { label: 'German', value: 'de' },
-  { label: 'Spanish', value: 'es' },
-  { label: 'Portuguese', value: 'pt' },
-  { label: 'Russian', value: 'ru' },
-  { label: 'Japanese', value: 'ja' },
-  { label: 'Korean', value: 'ko' },
-  { label: 'Chinese', value: 'zh' },
-] as const
-
-const accountFormSchema = z.object({
-  name: z
-    .string()
-    .min(1, 'Please enter your name.')
-    .min(2, 'Name must be at least 2 characters.')
-    .max(30, 'Name must not be longer than 30 characters.'),
-  dob: z.date('Please select your date of birth.'),
-  language: z.string('Please select a language.'),
-})
-
-type AccountFormValues = z.infer<typeof accountFormSchema>
-
-// This can come from your database or API.
-const defaultValues: Partial<AccountFormValues> = {
-  name: '',
-}
-
-export function AccountForm() {
-  const form = useForm<AccountFormValues>({
-    resolver: zodResolver(accountFormSchema),
-    defaultValues,
+const schema = z
+  .object({
+    current_password: z.string().min(1, 'Ingresa tu contraseña actual.'),
+    new_password: z.string().min(6, 'Mínimo 6 caracteres.'),
+    confirm_password: z.string().min(1, 'Repite la nueva contraseña.'),
+  })
+  .refine((d) => d.new_password === d.confirm_password, {
+    path: ['confirm_password'],
+    message: 'Las contraseñas no coinciden.',
   })
 
-  function onSubmit(data: AccountFormValues) {
-    showSubmittedData(data)
+type FormValues = z.infer<typeof schema>
+
+export function AccountForm() {
+  const { data: me, isLoading } = useMe()
+  const [submitting, setSubmitting] = useState(false)
+  const [showCur, setShowCur] = useState(false)
+  const [showNew, setShowNew] = useState(false)
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      current_password: '',
+      new_password: '',
+      confirm_password: '',
+    },
+  })
+
+  async function onSubmit(values: FormValues) {
+    setSubmitting(true)
+    try {
+      const res = await regalGeneralApi.changeOwnPassword(
+        values.current_password,
+        values.new_password,
+        values.confirm_password
+      )
+      toast.success(res.detail || 'Contraseña actualizada.')
+      form.reset()
+    } catch (e: any) {
+      const msg = e?.body?.detail ?? e?.message ?? 'No se pudo cambiar la contraseña.'
+      toast.error(typeof msg === 'string' ? msg : 'Error al cambiar contraseña.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-8'>
-        <FormField
-          control={form.control}
-          name='name'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Name</FormLabel>
-              <FormControl>
-                <Input placeholder='Your name' {...field} />
-              </FormControl>
-              <FormDescription>
-                This is the name that will be displayed on your profile and in
-                emails.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
+    <div className='space-y-4'>
+      <Card>
+        <CardHeader className='pb-2'>
+          <CardTitle className='flex items-center gap-2 text-base'>
+            <UserCircle className='h-4 w-4' /> Sesión actual
+          </CardTitle>
+        </CardHeader>
+        <CardContent className='text-sm'>
+          {isLoading ? (
+            <Skeleton className='h-6 w-40' />
+          ) : (
+            <div className='flex items-center justify-between'>
+              <span className='text-muted-foreground'>Usuario conectado</span>
+              <span className='font-mono font-medium'>{me?.username ?? '—'}</span>
+            </div>
           )}
-        />
-        <FormField
-          control={form.control}
-          name='dob'
-          render={({ field }) => (
-            <FormItem className='flex flex-col'>
-              <FormLabel>Date of birth</FormLabel>
-              <DatePicker selected={field.value} onSelect={field.onChange} />
-              <FormDescription>
-                Your date of birth is used to calculate your age.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name='language'
-          render={({ field }) => (
-            <FormItem className='flex flex-col'>
-              <FormLabel>Language</FormLabel>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <FormControl>
-                    <Button
-                      variant='outline'
-                      role='combobox'
-                      className={cn(
-                        'w-50 justify-between',
-                        !field.value && 'text-muted-foreground'
-                      )}
-                    >
-                      {field.value
-                        ? languages.find(
-                            (language) => language.value === field.value
-                          )?.label
-                        : 'Select language'}
-                      <CaretSortIcon className='ms-2 h-4 w-4 shrink-0 opacity-50' />
-                    </Button>
-                  </FormControl>
-                </PopoverTrigger>
-                <PopoverContent className='w-50 p-0'>
-                  <Command>
-                    <CommandInput placeholder='Search language...' />
-                    <CommandEmpty>No language found.</CommandEmpty>
-                    <CommandGroup>
-                      <CommandList>
-                        {languages.map((language) => (
-                          <CommandItem
-                            value={language.label}
-                            key={language.value}
-                            onSelect={() => {
-                              form.setValue('language', language.value)
-                            }}
-                          >
-                            <CheckIcon
-                              className={cn(
-                                'size-4',
-                                language.value === field.value
-                                  ? 'opacity-100'
-                                  : 'opacity-0'
-                              )}
-                            />
-                            {language.label}
-                          </CommandItem>
-                        ))}
-                      </CommandList>
-                    </CommandGroup>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-              <FormDescription>
-                This is the language that will be used in the dashboard.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <Button type='submit'>Update account</Button>
-      </form>
-    </Form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className='pb-2'>
+          <CardTitle className='flex items-center gap-2 text-base'>
+            <KeyRound className='h-4 w-4' /> Cambiar contraseña
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-4'>
+              <FormField
+                control={form.control}
+                name='current_password'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Contraseña actual</FormLabel>
+                    <FormControl>
+                      <div className='relative'>
+                        <Input
+                          type={showCur ? 'text' : 'password'}
+                          autoComplete='current-password'
+                          {...field}
+                        />
+                        <button
+                          type='button'
+                          onClick={() => setShowCur((s) => !s)}
+                          className='absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground'
+                          tabIndex={-1}
+                          aria-label='Mostrar/ocultar'
+                        >
+                          {showCur ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
+                        </button>
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='new_password'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nueva contraseña</FormLabel>
+                    <FormControl>
+                      <div className='relative'>
+                        <Input
+                          type={showNew ? 'text' : 'password'}
+                          autoComplete='new-password'
+                          {...field}
+                        />
+                        <button
+                          type='button'
+                          onClick={() => setShowNew((s) => !s)}
+                          className='absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground'
+                          tabIndex={-1}
+                          aria-label='Mostrar/ocultar'
+                        >
+                          {showNew ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
+                        </button>
+                      </div>
+                    </FormControl>
+                    <FormDescription>Mínimo 6 caracteres.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='confirm_password'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Confirmar contraseña</FormLabel>
+                    <FormControl>
+                      <Input type='password' autoComplete='new-password' {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type='submit' disabled={submitting}>
+                {submitting ? 'Actualizando…' : 'Cambiar contraseña'}
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

@@ -117,7 +117,7 @@ export function OdcUsuarios() {
             <div className="space-y-3">
               <div>
                 <Label>Usuario Oracle <span className="text-destructive">*</span></Label>
-                <Input value={form.usuario} disabled={editing} onChange={(e) => setForm({ ...form, usuario: e.target.value.toUpperCase() })} placeholder="JCABREU" />
+                <Input value={form.usuario} disabled={editing} onChange={(e) => setForm({ ...form, usuario: e.target.value.toUpperCase() })} placeholder="USUARIO" />
                 <p className="text-xs text-muted-foreground mt-1">Debe coincidir con el usuario en mayúsculas en TCSC.</p>
               </div>
               <div className="grid grid-cols-3 gap-2 pt-1">

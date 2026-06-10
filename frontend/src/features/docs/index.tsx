@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { BookOpen, FileText, Search } from 'lucide-react'
+import { BookOpen, ChevronLeft, ChevronRight, FileText, Search } from 'lucide-react'
 import { renderMarkdown } from './md'
 import { sigafApi, ApiError, type DocItem, type DocFull } from '@/lib/sigaf-api-docs'
 
@@ -22,6 +22,8 @@ export function DocsPage() {
   const [loadingList, setLoadingList] = useState(false)
   const [loadingDoc, setLoadingDoc] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 12
 
   async function loadList(query: string) {
     setLoadingList(true)
@@ -56,18 +58,23 @@ export function DocsPage() {
     }
   }
 
-  useEffect(() => { loadList(debouncedQ) /* eslint-disable-next-line */ }, [debouncedQ])
+  useEffect(() => { loadList(debouncedQ); setPage(1) /* eslint-disable-next-line */ }, [debouncedQ])
   useEffect(() => {
     if (activeSlug) loadDoc(activeSlug)
   }, [activeSlug])
 
   const html = useMemo(() => (doc?.content ? renderMarkdown(doc.content) : ''), [doc?.content])
+  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE))
+  const pagedItems = useMemo(
+    () => items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [items, page]
+  )
 
   return (
     <>
       <Header>
         <h2 className='text-lg font-semibold me-auto flex items-center gap-2'>
-          <BookOpen className='h-5 w-5' /> Documentación
+          <BookOpen className='h-5 w-5' /> Manuales del Sistema
         </h2>
         <ThemeSwitch />
         <ProfileDropdown />
@@ -77,7 +84,7 @@ export function DocsPage() {
           <div className='relative w-full max-w-md'>
             <Search className='absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
             <Input
-              placeholder='Buscar en la documentación...'
+              placeholder='Buscar en los manuales...'
               value={q}
               onChange={(e) => setQ(e.target.value)}
               className='ps-8'
@@ -110,7 +117,7 @@ export function DocsPage() {
                   {!loadingList && items.length === 0 && (
                     <div className='text-xs text-muted-foreground p-2'>Sin resultados</div>
                   )}
-                  {items.map((it) => (
+                  {pagedItems.map((it) => (
                     <button
                       key={it.slug}
                       onClick={() => setActiveSlug(it.slug)}
@@ -132,6 +139,29 @@ export function DocsPage() {
                 </div>
               </ScrollArea>
             </CardContent>
+            {items.length > PAGE_SIZE && (
+              <div className='flex items-center justify-between gap-2 border-t p-2 text-xs'>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  <ChevronLeft className='h-3 w-3' /> Atrás
+                </Button>
+                <span className='text-muted-foreground'>
+                  {page} / {totalPages}
+                </span>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Sig. <ChevronRight className='h-3 w-3' />
+                </Button>
+              </div>
+            )}
           </Card>
 
           <Card className='h-[calc(100vh-220px)]'>

@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { useToast } from '@/hooks/use-toast'
+import { useCurrentUsername } from '@/hooks/use-me'
 
 interface Props {
   noCia: string
@@ -56,6 +57,7 @@ const mesAnioActual = () => {
 
 export function AnularFactura({ noCia, punto }: Props) {
   const { toast } = useToast()
+  const currentUser = useCurrentUsername()
 
   const [tiposDoc, setTiposDoc] = useState<TipoDoc[]>([])
   const [tipoDoc, setTipoDoc] = useState('')
@@ -131,7 +133,7 @@ export function AnularFactura({ noCia, punto }: Props) {
         punto,
         tipo_factura: tipoDoc,
         no_factura: noDoc.trim().toUpperCase(),
-        usuario: 'JCABREU',
+        usuario: currentUser,
         motivo: motivo.trim(),
         liberar_ncf: liberarNcf,
       })

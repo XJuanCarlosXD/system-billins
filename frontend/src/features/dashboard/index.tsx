@@ -64,7 +64,7 @@ export function Dashboard() {
     try {
       const [meRes, alertsRes, ventasRes] = await Promise.all([
         sigafApi.me(),
-        sigafApi.fatNcfAlerts('low'),
+        sigafApi.fatNcfAlerts('low').catch(() => ({ alerts: [] })),
         sigafApi.dashboardVentasMes('01').catch(() => null),
       ])
       setMe(meRes)
@@ -99,11 +99,21 @@ export function Dashboard() {
       <Main>
         <div className='mb-4 flex items-center justify-between'>
           <div>
-            <h1 className='text-2xl font-bold tracking-tight'>
+            <h1 className='flex items-center gap-2 text-2xl font-bold tracking-tight'>
               Bienvenido{me ? `, ${me.username}` : ''}
+              {me?.is_admin ? (
+                <Badge className='gap-1 align-middle'>
+                  <ShieldCheck className='h-3 w-3' />
+                  Administrador
+                </Badge>
+              ) : me ? (
+                <Badge variant='secondary' className='align-middle'>Usuario</Badge>
+              ) : null}
             </h1>
             <p className='text-sm text-muted-foreground'>
-              Datos en tiempo real desde Oracle 11g (legacy SIGAFPLUS).
+              {me?.is_admin
+                ? 'Vista global del sistema — alertas, empresas, módulos.'
+                : 'Tu panel personalizado según los módulos a los que tienes acceso.'}
             </p>
           </div>
           <Button variant='outline' onClick={load} disabled={loading}>
@@ -160,43 +170,48 @@ export function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-              <CardTitle className='text-sm font-medium'>NCF críticos</CardTitle>
-              <AlertTriangle className='h-4 w-4 text-red-500' />
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <Skeleton className='h-8 w-12' />
-              ) : (
-                <>
-                  <div className='text-2xl font-bold text-red-600'>{criticas}</div>
-                  <p className='text-xs text-muted-foreground'>≤25% del rango disponible</p>
-                </>
-              )}
-            </CardContent>
-          </Card>
+          {me?.is_admin && (
+            <>
+              <Card>
+                <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+                  <CardTitle className='text-sm font-medium'>NCF críticos</CardTitle>
+                  <AlertTriangle className='h-4 w-4 text-red-500' />
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <Skeleton className='h-8 w-12' />
+                  ) : (
+                    <>
+                      <div className='text-2xl font-bold text-red-600'>{criticas}</div>
+                      <p className='text-xs text-muted-foreground'>≤25% del rango disponible</p>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-              <CardTitle className='text-sm font-medium'>NCF en aviso</CardTitle>
-              <AlertTriangle className='h-4 w-4 text-amber-500' />
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <Skeleton className='h-8 w-12' />
-              ) : (
-                <>
-                  <div className='text-2xl font-bold text-amber-600'>{warnings}</div>
-                  <p className='text-xs text-muted-foreground'>≤ mínimo configurado</p>
-                </>
-              )}
-            </CardContent>
-          </Card>
+              <Card>
+                <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+                  <CardTitle className='text-sm font-medium'>NCF en aviso</CardTitle>
+                  <AlertTriangle className='h-4 w-4 text-amber-500' />
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <Skeleton className='h-8 w-12' />
+                  ) : (
+                    <>
+                      <div className='text-2xl font-bold text-amber-600'>{warnings}</div>
+                      <p className='text-xs text-muted-foreground'>≤ mínimo configurado</p>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          )}
         </div>
 
-        {/* Alertas NCF */}
-        <div className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
+        {/* Alertas NCF (solo admin) */}
+        <div className={me?.is_admin ? 'grid grid-cols-1 gap-4 lg:grid-cols-2' : 'grid grid-cols-1 gap-4'}>
+          {me?.is_admin && (
           <Card className='lg:col-span-1'>
             <CardHeader>
               <CardTitle className='flex items-center gap-2'>
@@ -254,6 +269,7 @@ export function Dashboard() {
               )}
             </CardContent>
           </Card>
+          )}
 
           {/* Empresas */}
           <Card className='lg:col-span-1'>
