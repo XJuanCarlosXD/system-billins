@@ -115,9 +115,39 @@ def chc_cheque_anular(request):
 @require_http_methods(['POST'])
 def chc_cheque_entregar(request):
     data = json.loads(request.body)
-    chc_repo.marcar_entregado(data['no_cia'], _norm_punto(data['punto']),
-                              data['tipo_docu'], data['no_docu'], request.user.username)
+    chc_repo.marcar_entregado(
+        data['no_cia'], _norm_punto(data['punto']),
+        data['tipo_docu'], data['no_docu'],
+        request.user.username,
+        entregado_a=(data.get('entregado_a') or '').strip().upper() or None,
+        cedula=(data.get('cedula') or '').strip() or None,
+        fecha_entrega=data.get('fecha_entrega') or None,
+    )
     return JsonResponse({'ok': True})
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def chc_cheque_solicitar(request):
+    data = json.loads(request.body)
+    try:
+        out = chc_repo.solicitar_cheque(
+            no_cia=data['no_cia'],
+            punto=_norm_punto(data['punto']),
+            cuenta_banco=data['cuenta_banco'],
+            tipo_docu=data.get('tipo_docu') or 'SO',
+            beneficiario=data['beneficiario'],
+            valor_original=float(data['valor_original']),
+            fecha_cheque=data.get('fecha_cheque') or None,
+            no_proveedor=(data.get('no_proveedor') or '').strip() or None,
+            moneda_cuenta=data.get('moneda_cuenta') or None,
+            detalle1=data.get('detalle1') or None,
+            usuario=request.user.username,
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse(out, status=201)
 
 
 @login_required

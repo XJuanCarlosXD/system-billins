@@ -9,6 +9,7 @@ urlpatterns = [
     path('cuentas/saldo/', chc_views.chc_cuenta_saldo),
     path('cheques/', chc_views.chc_cheques),
     path('cheques/<str:no_cia>/<str:punto>/<str:tipo_docu>/<str:no_docu>/', chc_views.chc_cheque),
+    path('cheques/solicitar/', chc_views.chc_cheque_solicitar),
     path('cheques/anular/', chc_views.chc_cheque_anular),
     path('cheques/entregar/', chc_views.chc_cheque_entregar),
     path('cheques/conciliar/', chc_views.chc_cheque_conciliar),

@@ -169,12 +169,143 @@ def anular_cheque(no_cia: str, punto: str, tipo_docu: str, no_docu: str,
 
 
 def marcar_entregado(no_cia: str, punto: str, tipo_docu: str, no_docu: str,
-                     usuario: str) -> None:
-    client.execute(
-        "UPDATE CHC.TCHC_CHEQUE SET entregado='S' "
-        " WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
-        [no_cia, punto, tipo_docu, no_docu],
+                     usuario: str, entregado_a: str | None = None,
+                     cedula: str | None = None,
+                     fecha_entrega: str | None = None) -> None:
+    """Marca entregado='S' y opcionalmente registra a quien y cuando.
+
+    fecha_entrega en formato 'YYYY-MM-DD' (string) — si None usa SYSDATE."""
+    if fecha_entrega:
+        client.execute(
+            "UPDATE CHC.TCHC_CHEQUE SET entregado='S', entregado_por=:1, "
+            "       entregado_a=NVL(:2, entregado_a), cedula=NVL(:3, cedula), "
+            "       fecha_entrega=TO_DATE(:4,'YYYY-MM-DD') "
+            " WHERE no_cia=:5 AND punto=:6 AND tipo_docu=:7 AND no_docu=:8",
+            [usuario, entregado_a, cedula, fecha_entrega,
+             no_cia, punto, tipo_docu, no_docu],
+        )
+    else:
+        client.execute(
+            "UPDATE CHC.TCHC_CHEQUE SET entregado='S', entregado_por=:1, "
+            "       entregado_a=NVL(:2, entregado_a), cedula=NVL(:3, cedula), "
+            "       fecha_entrega=SYSDATE "
+            " WHERE no_cia=:4 AND punto=:5 AND tipo_docu=:6 AND no_docu=:7",
+            [usuario, entregado_a, cedula, no_cia, punto, tipo_docu, no_docu],
+        )
+
+
+# ---- Crear solicitud de cheque / depósito / movimiento ----
+def _next_no_docu(no_cia: str, punto: str, tipo_docu: str) -> str:
+    """Reserva el siguiente correlativo en TCHC_SECUENCIA y lo devuelve con LPAD(7).
+
+    Si no existe la fila, la crea con ult_docu=1.
+    """
+    row = client.fetch_one(
+        "SELECT NVL(ult_docu,0) ult_docu FROM CHC.TCHC_SECUENCIA "
+        " WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 FOR UPDATE",
+        [no_cia, punto, tipo_docu],
     )
+    if row is None:
+        client.execute(
+            "INSERT INTO CHC.TCHC_SECUENCIA (no_cia, punto, tipo_docu, ult_docu) "
+            "VALUES (:1,:2,:3,1)",
+            [no_cia, punto, tipo_docu],
+        )
+        return str(1).zfill(7)
+    nxt = int(row['ult_docu']) + 1
+    client.execute(
+        "UPDATE CHC.TCHC_SECUENCIA SET ult_docu=:1 "
+        " WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4",
+        [nxt, no_cia, punto, tipo_docu],
+    )
+    return str(nxt).zfill(7)
+
+
+def solicitar_cheque(no_cia: str, punto: str, cuenta_banco: str,
+                     tipo_docu: str, beneficiario: str,
+                     valor_original: float, fecha_cheque: str | None,
+                     usuario: str,
+                     no_proveedor: str | None = None,
+                     moneda_cuenta: str | None = None,
+                     detalle1: str | None = None) -> dict:
+    """Crea un movimiento en TCHC_CHEQUE.
+
+    - Lee TCHC_TDOCU para resolver tipo_movi, tipo_transaccion.
+    - Lee TCHC_BCUENTA para moneda y validar que la cuenta existe.
+    - Reserva no_docu desde TCHC_SECUENCIA.
+    - Inserta status='A', st_nulo='A', resto en defaults seguros.
+    - Si la cuenta es del cheque (tipo_movi='C'), suma en che_por_entregar.
+
+    fecha_cheque: 'YYYY-MM-DD' o None (usa SYSDATE).
+    """
+    tdocu = client.fetch_one(
+        "SELECT tipo_movi, tipo_transaccion FROM CHC.TCHC_TDOCU "
+        " WHERE tipo_docu=:1 AND NVL(activo,'S')='S'",
+        [tipo_docu],
+    )
+    if not tdocu:
+        raise ValueError(f"Tipo de documento '{tipo_docu}' inactivo o no existe en TCHC_TDOCU")
+
+    bcuenta = client.fetch_one(
+        "SELECT moneda, NVL(activa,'S') activa FROM CHC.TCHC_BCUENTA "
+        " WHERE no_cia=:1 AND punto=:2 AND cuenta_banco=:3",
+        [no_cia, punto, cuenta_banco],
+    )
+    if not bcuenta:
+        raise ValueError(f"Cuenta {cuenta_banco} no existe en empresa {no_cia} punto {punto}")
+    if bcuenta['activa'] != 'S':
+        raise ValueError(f"Cuenta {cuenta_banco} está inactiva")
+
+    moneda = moneda_cuenta or bcuenta['moneda'] or 'P'
+    no_docu = _next_no_docu(no_cia, punto, tipo_docu)
+    valor = float(valor_original)
+    if valor <= 0:
+        raise ValueError("El valor debe ser mayor que cero")
+
+    client.execute(
+        "INSERT INTO CHC.TCHC_CHEQUE ("
+        "  no_cia, punto, tipo_docu, no_docu, cuenta_banco, no_proveedor, "
+        "  tipo_movi, tipo_transaccion, fecha_solicitud, fecha_cheque, "
+        "  beneficiario, status, st_impresion, st_nulo, "
+        "  autorizado, conciliado, entregado, retenido, que_es, deposito_tc, "
+        "  debito, credito, valor_original, saldo, usuario, moneda_cuenta, "
+        "  pago, st_generado_cnt, detalle1, estado_encf, fecha_sysdate"
+        ") VALUES ("
+        "  :1, :2, :3, :4, :5, :6, "
+        "  :7, :8, SYSDATE, "
+        "  CASE WHEN :9 IS NULL THEN SYSDATE ELSE TO_DATE(:9,'YYYY-MM-DD') END, "
+        "  :10, 'A', 'N', 'A', "
+        "  'N', 'N', 'N', 'N', 'S', 'N', "
+        "  :11, :11, :11, :11, :12, :13, "
+        "  'N', 'N', :14, 0, SYSDATE"
+        ")",
+        [no_cia, punto, tipo_docu, no_docu, cuenta_banco, no_proveedor,
+         tdocu['tipo_movi'], tdocu['tipo_transaccion'],
+         fecha_cheque,
+         beneficiario.upper().strip(),
+         valor,
+         usuario, moneda,
+         (detalle1 or '').strip() or None],
+    )
+
+    # Si es egreso (tipo_movi='C': crédito a banco) actualiza cheques por entregar.
+    if tdocu['tipo_movi'] == 'C':
+        client.execute(
+            "UPDATE CHC.TCHC_BCUENTA SET che_por_entregar = NVL(che_por_entregar,0) + :1 "
+            " WHERE no_cia=:2 AND punto=:3 AND cuenta_banco=:4",
+            [valor, no_cia, punto, cuenta_banco],
+        )
+
+    return {
+        'no_cia': no_cia,
+        'punto': punto,
+        'tipo_docu': tipo_docu,
+        'no_docu': no_docu,
+        'tipo_movi': tdocu['tipo_movi'],
+        'tipo_transaccion': tdocu['tipo_transaccion'],
+        'moneda_cuenta': moneda,
+        'valor_original': valor,
+    }
 
 
 def marcar_conciliado(no_cia: str, punto: str, tipo_docu: str, no_docu: str) -> None:

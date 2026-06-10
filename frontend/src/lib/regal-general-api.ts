@@ -1414,8 +1414,18 @@ export const regalGeneralApi = {
   chcListTiposDocu: () => request<any[]>('/chc/tipos-docu/'),
   chcAnularCheque: (data: { no_cia: string; punto: string; tipo_docu: string; no_docu: string; motivo?: string }) =>
     request<any>('/chc/cheques/anular/', { method: 'POST', body: JSON.stringify(data) }),
-  chcEntregarCheque: (data: { no_cia: string; punto: string; tipo_docu: string; no_docu: string }) =>
+  chcEntregarCheque: (data: {
+    no_cia: string; punto: string; tipo_docu: string; no_docu: string
+    entregado_a?: string; cedula?: string; fecha_entrega?: string
+  }) =>
     request<any>('/chc/cheques/entregar/', { method: 'POST', body: JSON.stringify(data) }),
+  chcSolicitarCheque: (data: {
+    no_cia: string; punto: string; cuenta_banco: string
+    tipo_docu?: string; beneficiario: string; valor_original: number
+    fecha_cheque?: string; no_proveedor?: string
+    moneda_cuenta?: string; detalle1?: string
+  }) =>
+    request<any>('/chc/cheques/solicitar/', { method: 'POST', body: JSON.stringify(data) }),
   chcConciliarCheque: (data: { no_cia: string; punto: string; tipo_docu: string; no_docu: string }) =>
     request<any>('/chc/cheques/conciliar/', { method: 'POST', body: JSON.stringify(data) }),
   chcListCierres: (params: { no_cia: string; punto?: string; cuenta_banco?: string }) => {
