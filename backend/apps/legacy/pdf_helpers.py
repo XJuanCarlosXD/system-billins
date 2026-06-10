@@ -9,6 +9,25 @@ from __future__ import annotations
 
 import io
 
+from .logo_helpers import get_logo_path
+
+
+def _logo_flowable(no_cia: str | None, width: float, height: float):
+    """Devuelve un Image flowable para el logo de la empresa, o None si no hay.
+
+    `width` / `height` son el tamaño máximo (kind='proportional' respeta el aspect ratio).
+    """
+    if not no_cia:
+        return None
+    path = get_logo_path(no_cia)
+    if not path:
+        return None
+    try:
+        from reportlab.platypus import Image
+        return Image(str(path), width=width, height=height, kind='proportional')
+    except Exception:
+        return None
+
 
 def build_pdf_report(
     title: str,
@@ -20,6 +39,7 @@ def build_pdf_report(
     footer_extra: list[str] | None = None,
     page_size=None,
     max_rows: int = 10000,
+    no_cia: str | None = None,
 ) -> bytes:
     """Construye un PDF simple con título + tabla.
 
@@ -29,6 +49,8 @@ def build_pdf_report(
       registros" (o en su lugar si rows está vacío).
     - `page_size`: por defecto `landscape(letter)` (listados). Para documentos
       portrait (facturas) pasar `letter`.
+    - `no_cia`: si se pasa y la empresa tiene logo subido (POST /api/cnt/cia-header/),
+      se inserta el logo a la izquierda del titulo.
     """
     from reportlab.lib.pagesizes import letter, landscape
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -44,7 +66,28 @@ def build_pdf_report(
                                 leftMargin=0.5*inch, rightMargin=0.5*inch,
                                 topMargin=0.5*inch, bottomMargin=0.5*inch)
     styles = getSampleStyleSheet()
-    elements = [Paragraph(title, styles['Title']), Spacer(1, 8)]
+    elements: list = []
+
+    # Logo + titulo en una fila si hay logo, sino titulo solo.
+    logo = _logo_flowable(no_cia, width=1.0*inch, height=0.6*inch)
+    if logo is not None:
+        # Tabla 2 cols sin bordes: logo a la izquierda, titulo a la derecha.
+        title_para = Paragraph(title, styles['Title'])
+        title_table = Table(
+            [[logo, title_para]],
+            colWidths=[1.1*inch, None],
+        )
+        title_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ]))
+        elements.append(title_table)
+    else:
+        elements.append(Paragraph(title, styles['Title']))
+    elements.append(Spacer(1, 8))
 
     if header_extra:
         for line in header_extra:

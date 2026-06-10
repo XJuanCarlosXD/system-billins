@@ -27,31 +27,8 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { sigafApi, type Company, ApiError } from '@/lib/sigaf-api'
+import { regalGeneralApi } from '@/lib/regal-general-api'
 import { useCompany } from '@/context/company-context'
-
-type LocalOverrides = Record<
-  string,
-  { displayName?: string; logoDataUrl?: string | null }
->
-
-const STORAGE_KEY = 'zentory:empresa-overrides'
-
-function loadOverrides(): LocalOverrides {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? (JSON.parse(raw) as LocalOverrides) : {}
-  } catch {
-    return {}
-  }
-}
-
-function saveOverrides(o: LocalOverrides) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(o))
-  } catch {
-    /* quota or disabled */
-  }
-}
 
 function initials(name: string): string {
   return name
@@ -76,11 +53,13 @@ export function EmpresasPage() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [overrides, setOverrides] = useState<LocalOverrides>(() => loadOverrides())
+  // bust por empresa para invalidar caché de imagen tras upload/delete
+  const [logoBust, setLogoBust] = useState<Record<string, number>>({})
 
   const [editing, setEditing] = useState<Company | null>(null)
-  const [editName, setEditName] = useState('')
-  const [editLogo, setEditLogo] = useState<string | null>(null)
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
@@ -101,61 +80,75 @@ export function EmpresasPage() {
   }, [])
 
   function openEdit(c: Company) {
-    const ov = overrides[c.no_cia] ?? {}
     setEditing(c)
-    setEditName(ov.displayName ?? c.descripcion)
-    setEditLogo(ov.logoDataUrl ?? null)
+    setPendingFile(null)
+    setPreview(null)
   }
 
   function closeEdit() {
     setEditing(null)
-    setEditName('')
-    setEditLogo(null)
+    setPendingFile(null)
+    setPreview(null)
   }
 
   function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 512 * 1024) {
-      toast.error('Logo muy grande. Máx 500 KB.')
+    if (file.size > 1024 * 1024) {
+      toast.error('Logo muy grande. Máx 1 MB.')
       return
     }
+    setPendingFile(file)
     const reader = new FileReader()
-    reader.onload = () => setEditLogo(typeof reader.result === 'string' ? reader.result : null)
+    reader.onload = () => setPreview(typeof reader.result === 'string' ? reader.result : null)
     reader.readAsDataURL(file)
   }
 
-  function removeLogo() {
-    setEditLogo(null)
-    if (fileInputRef.current) fileInputRef.current.value = ''
+  async function saveEdit() {
+    if (!editing || !pendingFile) {
+      toast.info('Selecciona una imagen para subir.')
+      return
+    }
+    setSaving(true)
+    try {
+      await regalGeneralApi.cntUploadCiaLogo(editing.no_cia, pendingFile)
+      toast.success(`Logo de ${editing.no_cia} actualizado.`)
+      setLogoBust((b) => ({ ...b, [editing.no_cia]: Date.now() }))
+      closeEdit()
+    } catch (e: any) {
+      const msg = e?.detail?.error ?? e?.message ?? 'Error subiendo logo'
+      toast.error(typeof msg === 'string' ? msg : 'Error subiendo logo')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  function saveEdit() {
+  async function removeLogo() {
     if (!editing) return
-    const next: LocalOverrides = {
-      ...overrides,
-      [editing.no_cia]: {
-        displayName: editName !== editing.descripcion ? editName : undefined,
-        logoDataUrl: editLogo,
-      },
+    if (!confirm(`¿Eliminar el logo de ${editing.descripcion}?`)) return
+    setSaving(true)
+    try {
+      await regalGeneralApi.cntDeleteCiaLogo(editing.no_cia)
+      toast.success('Logo eliminado.')
+      setLogoBust((b) => ({ ...b, [editing.no_cia]: Date.now() }))
+      setPreview(null)
+      setPendingFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    } catch (e: any) {
+      const msg = e?.detail?.error ?? e?.message ?? 'Error eliminando logo'
+      toast.error(typeof msg === 'string' ? msg : 'Error eliminando logo')
+    } finally {
+      setSaving(false)
     }
-    setOverrides(next)
-    saveOverrides(next)
-    toast.success('Personalización guardada localmente.')
-    closeEdit()
   }
 
   const cards = useMemo(
     () =>
-      companies.map((c) => {
-        const ov = overrides[c.no_cia] ?? {}
-        return {
-          ...c,
-          _displayName: ov.displayName ?? c.descripcion,
-          _logo: ov.logoDataUrl ?? null,
-        }
-      }),
-    [companies, overrides],
+      companies.map((c) => ({
+        ...c,
+        _logoUrl: regalGeneralApi.cntCiaLogoUrl(c.no_cia, logoBust[c.no_cia] ?? 'init'),
+      })),
+    [companies, logoBust],
   )
 
   return (
@@ -170,7 +163,7 @@ export function EmpresasPage() {
       <Main>
         <div className='mb-4 flex items-center justify-between'>
           <p className='text-sm text-muted-foreground'>
-            {companies.length} empresa(s) registrada(s) — haz click para seleccionar, o usa el ícono ⚙️ para personalizar logo y nombre visible.
+            {companies.length} empresa(s) registrada(s) — click para seleccionar, ⚙️ para subir/cambiar logo. Los logos aparecen también en los PDFs (facturas, conduces y reportes).
           </p>
         </div>
 
@@ -195,7 +188,6 @@ export function EmpresasPage() {
                     isSelected ? 'ring-2 ring-primary' : ''
                   }`}
                 >
-                  {/* Banner con gradient o logo */}
                   <div
                     role='button'
                     tabIndex={0}
@@ -204,23 +196,24 @@ export function EmpresasPage() {
                       if (e.key === 'Enter' || e.key === ' ') setSelectedCompany(c.no_cia)
                     }}
                     className='relative flex h-28 cursor-pointer items-end overflow-hidden'
-                    style={!c._logo ? { background: gradientFor(c.no_cia) } : undefined}
+                    style={{ background: gradientFor(c.no_cia) }}
                   >
-                    {c._logo ? (
-                      <img
-                        src={c._logo}
-                        alt={c._displayName}
-                        className='absolute inset-0 h-full w-full object-cover'
-                      />
-                    ) : (
-                      <span className='absolute right-3 top-3 text-3xl font-bold text-white/30 mix-blend-overlay'>
-                        {initials(c._displayName || c.no_cia)}
-                      </span>
-                    )}
-                    {/* Overlay para legibilidad si hay logo */}
-                    {c._logo && (
-                      <div className='absolute inset-0 bg-gradient-to-t from-black/60 via-transparent' />
-                    )}
+                    {/* Intento de logo desde backend — onError oculta y deja gradient + iniciales */}
+                    <img
+                      src={c._logoUrl}
+                      alt={c.descripcion}
+                      className='absolute inset-0 h-full w-full object-cover'
+                      onError={(e) => {
+                        ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                      }}
+                      onLoad={(e) => {
+                        ;(e.currentTarget as HTMLImageElement).style.display = 'block'
+                      }}
+                    />
+                    {/* Iniciales fallback (debajo de la imagen) */}
+                    <span className='absolute right-3 top-3 text-3xl font-bold text-white/30 mix-blend-overlay'>
+                      {initials(c.descripcion || c.no_cia)}
+                    </span>
                     {isSelected && (
                       <Badge className='absolute right-2 top-2 z-10 gap-1 shadow'>
                         <CheckCircle2 className='h-3 w-3' /> Activa
@@ -234,7 +227,7 @@ export function EmpresasPage() {
                         e.stopPropagation()
                         openEdit(c)
                       }}
-                      title='Personalizar nombre y logo'
+                      title='Subir / cambiar logo'
                     >
                       <Settings className='h-4 w-4' />
                     </Button>
@@ -243,7 +236,7 @@ export function EmpresasPage() {
                   <CardContent className='space-y-2 p-4'>
                     <div className='flex items-start justify-between gap-2'>
                       <div className='min-w-0'>
-                        <p className='truncate font-semibold leading-tight'>{c._displayName}</p>
+                        <p className='truncate font-semibold leading-tight'>{c.descripcion}</p>
                         <p className='font-mono text-[11px] text-muted-foreground'>
                           # {c.no_cia}
                         </p>
@@ -271,13 +264,13 @@ export function EmpresasPage() {
           </div>
         )}
 
-        {/* Dialog edit */}
+        {/* Dialog edit logo */}
         <Dialog open={!!editing} onOpenChange={(o) => !o && closeEdit()}>
           <DialogContent className='sm:max-w-md'>
             <DialogHeader>
-              <DialogTitle>Personalizar empresa</DialogTitle>
+              <DialogTitle>Logo de empresa</DialogTitle>
               <DialogDescription>
-                Estos cambios son visuales y se guardan en tu navegador. Para cambiar el nombre oficial o el RNC, contacta al administrador.
+                El logo se guarda en el servidor y se usa en los PDFs (facturas, conduces y reportes). Para cambiar el nombre o el RNC, edita la empresa en su configuración por módulo.
               </DialogDescription>
             </DialogHeader>
             {editing && (
@@ -295,34 +288,33 @@ export function EmpresasPage() {
                 </div>
 
                 <div>
-                  <Label htmlFor='display-name'>Nombre visible</Label>
-                  <Input
-                    id='display-name'
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    placeholder={editing.descripcion}
-                  />
-                </div>
-
-                <div>
-                  <Label>Logo</Label>
+                  <Label>Imagen</Label>
                   <div className='mt-1 flex items-center gap-3'>
-                    <div className='flex h-16 w-16 items-center justify-center overflow-hidden rounded border bg-muted'>
-                      {editLogo ? (
-                        <img
-                          src={editLogo}
-                          alt='Logo preview'
-                          className='h-full w-full object-cover'
-                        />
+                    <div className='flex h-20 w-20 items-center justify-center overflow-hidden rounded border bg-muted'>
+                      {preview ? (
+                        <img src={preview} alt='preview' className='h-full w-full object-cover' />
                       ) : (
-                        <ImageIcon className='h-6 w-6 text-muted-foreground' />
+                        <img
+                          src={regalGeneralApi.cntCiaLogoUrl(editing.no_cia, logoBust[editing.no_cia] ?? 'init')}
+                          alt='actual'
+                          className='h-full w-full object-cover'
+                          onError={(e) => {
+                            const t = e.currentTarget as HTMLImageElement
+                            t.replaceWith(
+                              Object.assign(document.createElement('div'), {
+                                innerHTML: '',
+                                className: 'flex h-full w-full items-center justify-center',
+                              }),
+                            )
+                          }}
+                        />
                       )}
                     </div>
                     <div className='flex flex-col gap-1'>
                       <input
                         ref={fileInputRef}
                         type='file'
-                        accept='image/*'
+                        accept='image/png,image/jpeg,image/jpg,image/gif,image/webp'
                         onChange={onPickFile}
                         className='hidden'
                       />
@@ -331,33 +323,35 @@ export function EmpresasPage() {
                         variant='outline'
                         size='sm'
                         onClick={() => fileInputRef.current?.click()}
+                        disabled={saving}
                       >
                         <Upload className='me-1 h-3.5 w-3.5' /> Subir imagen
                       </Button>
-                      {editLogo && (
-                        <Button
-                          type='button'
-                          variant='ghost'
-                          size='sm'
-                          onClick={removeLogo}
-                          className='text-destructive'
-                        >
-                          <Trash2 className='me-1 h-3.5 w-3.5' /> Quitar
-                        </Button>
-                      )}
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='sm'
+                        onClick={removeLogo}
+                        disabled={saving}
+                        className='text-destructive'
+                      >
+                        <Trash2 className='me-1 h-3.5 w-3.5' /> Quitar actual
+                      </Button>
                     </div>
                   </div>
                   <p className='mt-1 text-[11px] text-muted-foreground'>
-                    PNG/JPG/SVG. Máximo 500 KB.
+                    PNG / JPG / GIF / WEBP. Máximo 1 MB.
                   </p>
                 </div>
               </div>
             )}
             <DialogFooter>
-              <Button variant='outline' onClick={closeEdit}>
+              <Button variant='outline' onClick={closeEdit} disabled={saving}>
                 Cancelar
               </Button>
-              <Button onClick={saveEdit}>Guardar</Button>
+              <Button onClick={saveEdit} disabled={saving || !pendingFile}>
+                {saving ? 'Guardando…' : 'Guardar logo'}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

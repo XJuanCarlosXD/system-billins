@@ -471,6 +471,7 @@ def fat_rep_facturas_rnc_pdf(request):
             col_widths=None,
             header_extra=header_extra,
             footer_extra=footer_extra,
+            no_cia=no_cia,
         )
     except Exception as e:
         return JsonResponse({"error": f"Error generando PDF: {e}"}, status=500)
@@ -561,6 +562,7 @@ def fat_rep_margen_bruto_pdf(request):
             col_widths=None,
             header_extra=header_extra,
             footer_extra=footer_extra,
+            no_cia=no_cia,
         )
     except Exception as e:
         return JsonResponse({"error": f"Error generando PDF: {e}"}, status=500)
@@ -654,6 +656,7 @@ def fat_rep_607_pdf(request):
             col_widths=None,
             header_extra=header_extra,
             footer_extra=footer_extra,
+            no_cia=no_cia,
         )
     except Exception as e:
         return JsonResponse({"error": f"Error generando PDF: {e}"}, status=500)
@@ -916,6 +919,7 @@ def fat_lista_conduces_pdf(request):
             rows=rows_data,
             col_widths=None,
             header_extra=header_extra,
+            no_cia=no_cia,
         )
     except Exception as e:
         return JsonResponse({"error": f"Error generando PDF: {e}"}, status=500)
@@ -1307,24 +1311,50 @@ def _render_factura_pdf_moderno(*, factura, cia, razon_social, rnc_cliente, dire
         ('BOX', (0, 0), (-1, -1), 0.6, colors.HexColor('#0F172A')),
     ]))
 
+    # Logo empresa (si esta subido via /api/cnt/cia-header/)
+    from apps.legacy.logo_helpers import get_logo_path
+    _logo_path = get_logo_path((cia or {}).get('no_cia') or factura.get('no_cia'))
+    _logo_img = None
+    if _logo_path:
+        try:
+            from reportlab.platypus import Image as _Img
+            _logo_img = _Img(str(_logo_path), width=22 * mm, height=22 * mm, kind='proportional')
+        except Exception:
+            _logo_img = None
+
+    _company_block = [
+        Paragraph(text(razon_social or 'Empresa'), styles['FacturaTitle']),
+        Paragraph(text(cia_direccion) or 'Direccion no registrada', styles['FacturaSubtitle']),
+        Paragraph(
+            ' | '.join(
+                part for part in [
+                    f"RNC: {text(cia_rnc)}" if cia_rnc else '',
+                    f"Tel.: {text(cia_telefono)}" if cia_telefono else '',
+                ]
+                if part
+            ) or 'RNC/telefono no registrados',
+            styles['FacturaSubtitle'],
+        ),
+    ]
+
+    if _logo_img is not None:
+        _company_cell = Table(
+            [[_logo_img, _company_block]],
+            colWidths=[24 * mm, None],
+        )
+        _company_cell.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (0, 0), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ]))
+        _left_col = _company_cell
+    else:
+        _left_col = _company_block
+
     header = Table(
-        [[
-            [
-                Paragraph(text(razon_social or 'Empresa'), styles['FacturaTitle']),
-                Paragraph(text(cia_direccion) or 'Direccion no registrada', styles['FacturaSubtitle']),
-                Paragraph(
-                    ' | '.join(
-                        part for part in [
-                            f"RNC: {text(cia_rnc)}" if cia_rnc else '',
-                            f"Tel.: {text(cia_telefono)}" if cia_telefono else '',
-                        ]
-                        if part
-                    ) or 'RNC/telefono no registrados',
-                    styles['FacturaSubtitle'],
-                ),
-            ],
-            doc_card,
-        ]],
+        [[_left_col, doc_card]],
         colWidths=[width - 94 * mm, 94 * mm],
     )
     header.setStyle(TableStyle([
@@ -1740,18 +1770,44 @@ def _render_conduce_pdf_moderno(*, conduce, cia, razon_social, nombre_cliente,
         ('BOX', (0, 0), (-1, -1), 0.6, colors.HexColor('#0F172A')),
     ]))
 
+    # Logo empresa (si esta subido via /api/cnt/cia-header/)
+    from apps.legacy.logo_helpers import get_logo_path
+    _logo_path = get_logo_path((cia or {}).get('no_cia') or conduce.get('no_cia'))
+    _logo_img = None
+    if _logo_path:
+        try:
+            from reportlab.platypus import Image as _Img
+            _logo_img = _Img(str(_logo_path), width=22 * mm, height=22 * mm, kind='proportional')
+        except Exception:
+            _logo_img = None
+
+    _company_block = [
+        Paragraph(text(razon_social or 'Empresa'), styles['FtTitle']),
+        Paragraph(text(cia_direccion) or 'Direccion no registrada', styles['FtSub']),
+        Paragraph(' | '.join(p for p in [
+            f"RNC: {text(cia_rnc)}" if cia_rnc else '',
+            f"Tel.: {text(cia_telefono)}" if cia_telefono else '',
+        ] if p) or 'RNC/telefono no registrados', styles['FtSub']),
+    ]
+
+    if _logo_img is not None:
+        _company_cell = Table(
+            [[_logo_img, _company_block]],
+            colWidths=[24 * mm, None],
+        )
+        _company_cell.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (0, 0), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ]))
+        _left_col = _company_cell
+    else:
+        _left_col = _company_block
+
     header = Table(
-        [[
-            [
-                Paragraph(text(razon_social or 'Empresa'), styles['FtTitle']),
-                Paragraph(text(cia_direccion) or 'Direccion no registrada', styles['FtSub']),
-                Paragraph(' | '.join(p for p in [
-                    f"RNC: {text(cia_rnc)}" if cia_rnc else '',
-                    f"Tel.: {text(cia_telefono)}" if cia_telefono else '',
-                ] if p) or 'RNC/telefono no registrados', styles['FtSub']),
-            ],
-            doc_card,
-        ]],
+        [[_left_col, doc_card]],
         colWidths=[width - 94 * mm, 94 * mm],
     )
     header.setStyle(TableStyle([
@@ -2075,18 +2131,44 @@ def _render_modern_report_pdf(*, report_id: str, title: str, cia,
         ('RIGHTPADDING', (0, 0), (-1, -1), 10),
         ('BOX', (0, 0), (-1, -1), 0.6, colors.HexColor('#0F172A')),
     ]))
+    # Logo empresa (si esta subido via /api/cnt/cia-header/)
+    from apps.legacy.logo_helpers import get_logo_path
+    _logo_path = get_logo_path((cia or {}).get('no_cia'))
+    _logo_img = None
+    if _logo_path:
+        try:
+            from reportlab.platypus import Image as _Img
+            _logo_img = _Img(str(_logo_path), width=22 * mm, height=22 * mm, kind='proportional')
+        except Exception:
+            _logo_img = None
+
+    _company_block = [
+        Paragraph(text(cia_descripcion), styles['RpTitle']),
+        Paragraph(text(cia_direccion) or 'Direccion no registrada', styles['RpSub']),
+        Paragraph(' | '.join(p for p in [
+            f"RNC: {text(cia_rnc)}" if cia_rnc else '',
+            f"Tel.: {text(cia_telefono)}" if cia_telefono else '',
+        ] if p) or 'RNC/telefono no registrados', styles['RpSub']),
+    ]
+
+    if _logo_img is not None:
+        _company_cell = Table(
+            [[_logo_img, _company_block]],
+            colWidths=[24 * mm, None],
+        )
+        _company_cell.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (0, 0), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ]))
+        _left_col = _company_cell
+    else:
+        _left_col = _company_block
+
     header = Table(
-        [[
-            [
-                Paragraph(text(cia_descripcion), styles['RpTitle']),
-                Paragraph(text(cia_direccion) or 'Direccion no registrada', styles['RpSub']),
-                Paragraph(' | '.join(p for p in [
-                    f"RNC: {text(cia_rnc)}" if cia_rnc else '',
-                    f"Tel.: {text(cia_telefono)}" if cia_telefono else '',
-                ] if p) or 'RNC/telefono no registrados', styles['RpSub']),
-            ],
-            doc_card,
-        ]],
+        [[_left_col, doc_card]],
         colWidths=[width - 102 * mm, 102 * mm],
     )
     header.setStyle(TableStyle([

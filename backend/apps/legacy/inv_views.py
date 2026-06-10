@@ -1543,7 +1543,7 @@ def inv_cierre_entrada_diario_pdf(request):
             cols = ['FECHA', 'TIPO_DOCU', 'NO_DOCU', 'ALMACEN', 'NO_PRODU',
                     'TIPO_MOVI', 'CANTIDAD', 'COSTO', 'MONTO']
         titulo = f"Entrada de Diario {'Detallado' if tipo == 'detallado' else 'Resumido'} — {mes}/{ano} — Cia {no_cia}"
-        pdf = build_pdf_report(titulo, cols, rows)
+        pdf = build_pdf_report(titulo, cols, rows, no_cia=no_cia)
         resp = HttpResponse(pdf, content_type='application/pdf')
         resp['Content-Disposition'] = f'inline; filename="INV_EntradaDiario_{no_cia}_{ano}{mes}.pdf"'
         return resp

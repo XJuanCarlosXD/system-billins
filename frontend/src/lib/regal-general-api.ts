@@ -281,6 +281,36 @@ export const regalGeneralApi = {
       `/cnt/cia-header/?no_cia=${encodeURIComponent(no_cia)}`,
     ),
 
+  // Logo URL publica (sin auth) — usar con cache-buster opcional
+  cntCiaLogoUrl: (no_cia: string, cacheBust?: string | number) => {
+    const base = `${API_BASE}/cnt/cia-logo/${encodeURIComponent(no_cia)}/`
+    return cacheBust ? `${base}?t=${encodeURIComponent(cacheBust)}` : base
+  },
+
+  // Subir logo de empresa (multipart). file debe ser PNG/JPG/JPEG/GIF/WEBP/SVG.
+  cntUploadCiaLogo: async (no_cia: string, file: File) => {
+    const form = new FormData()
+    form.append('no_cia', no_cia)
+    form.append('logo', file)
+    const res = await fetch(`${API_BASE}/cnt/cia-header/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-CSRFToken': readCsrfToken() },
+      body: form,
+    })
+    const text = await res.text()
+    const body = text ? JSON.parse(text) : null
+    if (!res.ok) throw new ApiError(res.status, body)
+    return body as { logo_url: string }
+  },
+
+  // Eliminar logo de empresa
+  cntDeleteCiaLogo: (no_cia: string) =>
+    request<{ ok: boolean }>(`/cnt/cia-header/`, {
+      method: 'DELETE',
+      body: JSON.stringify({ no_cia }),
+    }),
+
   cntCentrosCosto: (no_cia: string) =>
     request<Array<Record<string, any>>>(`/cnt/centros-costo/?no_cia=${encodeURIComponent(no_cia)}`),
 
