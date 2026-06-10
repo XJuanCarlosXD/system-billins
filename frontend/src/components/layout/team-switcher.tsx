@@ -17,6 +17,45 @@ import {
 import { regalGeneralApi, type Company } from '@/lib/regal-general-api'
 import { useCompany } from '@/context/company-context'
 
+function CompanyLogoBadge({
+  no_cia,
+  size = 'lg',
+}: {
+  no_cia: string
+  size?: 'lg' | 'sm'
+}) {
+  const [hasLogo, setHasLogo] = useState(true)
+  const dim = size === 'lg' ? 'size-8' : 'size-6'
+  const text = size === 'lg' ? 'text-xs' : 'text-[10px]'
+  const rounded = size === 'lg' ? 'rounded-lg' : 'rounded-sm'
+  if (!no_cia) {
+    return (
+      <div
+        className={`flex aspect-square ${dim} items-center justify-center ${rounded} bg-sidebar-primary font-bold ${text} text-sidebar-primary-foreground`}
+      >
+        —
+      </div>
+    )
+  }
+  if (hasLogo) {
+    return (
+      <img
+        src={regalGeneralApi.cntCiaLogoUrl(no_cia)}
+        alt={no_cia}
+        className={`aspect-square ${dim} ${rounded} object-cover ring-1 ring-black/5 dark:ring-white/10`}
+        onError={() => setHasLogo(false)}
+      />
+    )
+  }
+  return (
+    <div
+      className={`flex aspect-square ${dim} items-center justify-center ${rounded} bg-sidebar-primary font-bold ${text} text-sidebar-primary-foreground`}
+    >
+      {no_cia}
+    </div>
+  )
+}
+
 type TeamSwitcherProps = {
   teams?: {
     name: string
@@ -67,9 +106,7 @@ export function TeamSwitcher({ teams }: TeamSwitcherProps) {
               size='lg'
               className='data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground'
             >
-              <div className='flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground font-bold text-xs'>
-                {activeCompany?.no_cia || '—'}
-              </div>
+              <CompanyLogoBadge no_cia={activeCompany?.no_cia || ''} size='lg' />
               <div className='grid flex-1 text-start text-sm leading-tight'>
                 <span className='truncate font-semibold'>
                   {activeCompany?.descripcion || defaultTeam.name}
@@ -103,9 +140,7 @@ export function TeamSwitcher({ teams }: TeamSwitcherProps) {
                     }}
                     className='gap-2 p-2'
                   >
-                    <div className='flex size-6 items-center justify-center rounded-sm border bg-sidebar-primary text-sidebar-primary-foreground font-bold text-xs'>
-                      {company.no_cia}
-                    </div>
+                    <CompanyLogoBadge no_cia={company.no_cia} size='sm' />
                     <div className='flex-1'>
                       <div className='text-sm font-medium'>{company.no_cia}</div>
                       <div className='text-xs text-muted-foreground'>{company.descripcion.slice(0, 20)}</div>

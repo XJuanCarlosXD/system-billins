@@ -13,6 +13,7 @@ import {
   CommandSeparator,
 } from '@/components/ui/command'
 import { sidebarData } from './layout/data/sidebar-data'
+import { settingsCatalog } from '@/features/settings/data/settings-catalog'
 import { ScrollArea } from './ui/scroll-area'
 import type { NavGroup, NavSubItem } from './layout/types'
 
@@ -162,7 +163,35 @@ function flattenNav(groups: NavGroup[]): FlatItem[] {
   return result
 }
 
-const ALL_ITEMS = flattenNav(sidebarData.navGroups)
+function flattenSettings(): FlatItem[] {
+  const out: FlatItem[] = []
+  for (const cat of settingsCatalog) {
+    for (const group of cat.groups) {
+      for (const it of group.items) {
+        out.push({
+          id: `settings-${it.slug}`,
+          module: 'Configuración',
+          category: `${cat.title} · ${group.title}`,
+          title: it.title,
+          url: '/settings/$slug',
+          search: { slug: it.slug },
+          keywords: [
+            it.description ?? '',
+            ...(it.keywords ?? []),
+            cat.title,
+            group.title,
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase(),
+        })
+      }
+    }
+  }
+  return out
+}
+
+const ALL_ITEMS = [...flattenNav(sidebarData.navGroups), ...flattenSettings()]
 
 function groupByModule(items: FlatItem[]): Map<string, FlatItem[]> {
   const map = new Map<string, FlatItem[]>()

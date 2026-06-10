@@ -2,23 +2,21 @@ import { cn } from '@/lib/utils'
 
 type MainProps = React.HTMLAttributes<HTMLElement> & {
   fixed?: boolean
+  /** @deprecated — el ancho ahora es siempre full por defecto. Acepta el prop para no romper consumidores existentes. */
   fluid?: boolean
   ref?: React.Ref<HTMLElement>
 }
 
-export function Main({ fixed, className, fluid, ...props }: MainProps) {
+export function Main({ fixed, className, ...props }: MainProps) {
   return (
     <main
       data-layout={fixed ? 'fixed' : 'auto'}
       className={cn(
-        'px-4 py-6',
-
-        // If layout is fixed, make the main container flex and grow
+        // Antes habia un max-w-7xl en pantallas grandes que dejaba un
+        // wasteland en monitores anchos (sobre todo /settings). Ahora todas
+        // las vistas usan el ancho disponible del SidebarInset.
+        'w-full px-4 py-6',
         fixed && 'flex grow flex-col overflow-hidden',
-
-        // If layout is not fluid, set the max-width
-        !fluid &&
-          '@7xl/content:mx-auto @7xl/content:w-full @7xl/content:max-w-7xl',
         className
       )}
       {...props}
