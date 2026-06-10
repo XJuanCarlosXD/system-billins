@@ -1,3 +1,3 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { SdnVolante } from '@/features/sdn/sdn-stubs'
+import { SdnVolante } from '@/features/sdn/sdn-volante'
 export const Route = createFileRoute('/_authenticated/sdn/volante')({ component: SdnVolante })

@@ -1,4 +1,5 @@
 """Nómina (SDN) — vistas HTTP."""
+import json
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
@@ -121,6 +122,104 @@ def sdn_vacaciones(request):
         limit=int(request.GET.get('limit', 200)),
     )
     return JsonResponse(rows, safe=False)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def sdn_nomina_crear(request):
+    data = json.loads(request.body)
+    try:
+        out = sdn_repo.crear_nomina(
+            no_cia=data['no_cia'],
+            punto=_norm_punto(data['punto']),
+            data=data,
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse(out, status=201)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def sdn_nomina_actualizar(request):
+    data = json.loads(request.body)
+    try:
+        out = sdn_repo.actualizar_nomina(
+            no_cia=data['no_cia'],
+            punto=_norm_punto(data['punto']),
+            nomina=(data['nomina'] or '').upper(),
+            data=data,
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse(out)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def sdn_nomina_anular(request):
+    data = json.loads(request.body)
+    try:
+        sdn_repo.anular_nomina(
+            no_cia=data['no_cia'],
+            punto=_norm_punto(data['punto']),
+            nomina=(data['nomina'] or '').upper(),
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse({'ok': True})
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def sdn_nomina_calcular(request):
+    data = json.loads(request.body)
+    try:
+        out = sdn_repo.calcular_nomina(
+            no_cia=data['no_cia'],
+            punto=_norm_punto(data['punto']),
+            nomina=(data['nomina'] or '').upper(),
+            usuario=request.user.username,
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse(out)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def sdn_nomina_reabrir(request):
+    data = json.loads(request.body)
+    try:
+        out = sdn_repo.reabrir_nomina(
+            no_cia=data['no_cia'],
+            punto=_norm_punto(data['punto']),
+            nomina=(data['nomina'] or '').upper(),
+            usuario=request.user.username,
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse(out)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
+def sdn_nomina_volante(request):
+    try:
+        out = sdn_repo.volante_nomina(
+            no_cia=request.GET.get('no_cia', ''),
+            punto=_norm_punto(request.GET.get('punto', '')),
+            nomina=(request.GET.get('nomina') or '').upper(),
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse(out)
 
 
 @login_required

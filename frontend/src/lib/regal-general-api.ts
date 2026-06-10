@@ -1476,6 +1476,20 @@ export const regalGeneralApi = {
     ).toString()
     return request<any[]>(`/sdn/vacaciones/?${qs}`)
   },
+  sdnGetVolante: (params: { no_cia: string; punto: string; nomina: string }) => {
+    const qs = new URLSearchParams(params as any).toString()
+    return request<any>(`/sdn/nominas/volante/?${qs}`)
+  },
+  sdnCrearNomina: (data: Record<string, unknown>) =>
+    request<any>('/sdn/nominas/crear/', { method: 'POST', body: JSON.stringify(data) }),
+  sdnActualizarNomina: (data: Record<string, unknown>) =>
+    request<any>('/sdn/nominas/actualizar/', { method: 'POST', body: JSON.stringify(data) }),
+  sdnAnularNomina: (data: { no_cia: string; punto: string; nomina: string }) =>
+    request<any>('/sdn/nominas/anular/', { method: 'POST', body: JSON.stringify(data) }),
+  sdnCalcularNomina: (data: { no_cia: string; punto: string; nomina: string }) =>
+    request<any>('/sdn/nominas/calcular/', { method: 'POST', body: JSON.stringify(data) }),
+  sdnReabrirNomina: (data: { no_cia: string; punto: string; nomina: string }) =>
+    request<any>('/sdn/nominas/reabrir/', { method: 'POST', body: JSON.stringify(data) }),
   sdnRepResumenEmpleados: (noCia: string) => request<any>(`/sdn/rep-empleados/?no_cia=${noCia}`),
   sdnRepNominasResumen: (noCia: string, ano?: number) => {
     const qs = new URLSearchParams({ no_cia: noCia, ...(ano && { ano: String(ano) }) }).toString()
