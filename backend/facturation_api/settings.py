@@ -114,11 +114,23 @@ CORS_ALLOWED_ORIGIN_REGEXES = env.list(
 CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS + [
     'https://*.netlify.app',
+    'https://grupo-abregonza.hopto.org:8443',
 ]
 
-# El frontend manda peticiones autenticadas con cookies; en dev relajamos CSRF
-# para sesiones cross-origin. Esto solo aplica con DEBUG=1.
-SESSION_COOKIE_SAMESITE = 'Lax'
-SESSION_COOKIE_SECURE = False
-CSRF_COOKIE_SAMESITE = 'Lax'
-CSRF_COOKIE_SECURE = False
+# Backend detras de Caddy/proxy HTTPS publico (PUBLIC_HTTPS=1):
+#   - confiar en X-Forwarded-Proto
+#   - cookies cross-site requieren SameSite=None + Secure=True
+# En dev local (sin proxy) PUBLIC_HTTPS no se setea y caen a defaults laxos.
+PUBLIC_HTTPS = env.bool('PUBLIC_HTTPS', default=False)
+if PUBLIC_HTTPS:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    USE_X_FORWARDED_HOST = True
+    SESSION_COOKIE_SAMESITE = 'None'
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SAMESITE = 'None'
+    CSRF_COOKIE_SECURE = True
+else:
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SAMESITE = 'Lax'
+    CSRF_COOKIE_SECURE = False
