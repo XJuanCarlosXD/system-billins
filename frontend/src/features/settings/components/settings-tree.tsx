@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -16,11 +16,6 @@ type SettingsTreeProps = {
   query?: string
 }
 
-const categoryHasMatch = (cat: SettingsCategory, q: string) =>
-  cat.groups.some((g) =>
-    g.items.some((it: SettingsItem) => itemMatchesQuery(it, cat.title, g.title, q))
-  )
-
 export function SettingsTree({
   categories,
   activeSlug,
@@ -28,6 +23,39 @@ export function SettingsTree({
   query,
 }: SettingsTreeProps) {
   const needle = (query ?? '').trim()
+
+  // Pre-calcula que categorias tienen match para la query — antes esto se
+  // recorria por cada render del nodo (triple-loop O(cats × groups × items))
+  // disparado en cada keystroke. Ahora memoizado por [categories, needle].
+  const matchByCat = useMemo(() => {
+    const m: Record<string, boolean> = {}
+    for (const c of categories) {
+      let hit = false
+      outer: for (const g of c.groups) {
+        for (const it of g.items) {
+          if (itemMatchesQuery(it, c.title, g.title, needle)) {
+            hit = true
+            break outer
+          }
+        }
+      }
+      m[c.id] = hit
+    }
+    return m
+  }, [categories, needle])
+
+  // Items visibles por (categoria, grupo) — memoizado tambien.
+  const visibleItemsByGroup = useMemo(() => {
+    const m: Record<string, SettingsItem[]> = {}
+    for (const c of categories) {
+      for (const g of c.groups) {
+        m[`${c.id}|${g.title}`] = g.items.filter((it) =>
+          itemMatchesQuery(it, c.title, g.title, needle),
+        )
+      }
+    }
+    return m
+  }, [categories, needle])
 
   const [openCats, setOpenCats] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {}
@@ -47,12 +75,16 @@ export function SettingsTree({
     if (!activeSlug) return
     setOpenCats((prev) => {
       const next = { ...prev }
+      let changed = false
       for (const c of categories) {
         for (const g of c.groups) {
-          if (g.items.some((it) => it.slug === activeSlug)) next[c.id] = true
+          if (g.items.some((it) => it.slug === activeSlug) && !prev[c.id]) {
+            next[c.id] = true
+            changed = true
+          }
         }
       }
-      return next
+      return changed ? next : prev
     })
   }, [activeSlug, categories])
 
@@ -60,10 +92,16 @@ export function SettingsTree({
     if (!needle) return
     setOpenCats((prev) => {
       const next = { ...prev }
-      for (const c of categories) if (categoryHasMatch(c, needle)) next[c.id] = true
-      return next
+      let changed = false
+      for (const c of categories) {
+        if (matchByCat[c.id] && !prev[c.id]) {
+          next[c.id] = true
+          changed = true
+        }
+      }
+      return changed ? next : prev
     })
-  }, [needle, categories])
+  }, [needle, categories, matchByCat])
 
   const toggleCat = (id: string) =>
     setOpenCats((p) => ({ ...p, [id]: !p[id] }))
@@ -74,7 +112,7 @@ export function SettingsTree({
         {categories.map((cat) => {
           const Icon = cat.icon
           const open = !!openCats[cat.id]
-          const matches = categoryHasMatch(cat, needle)
+          const matches = matchByCat[cat.id]
           if (needle && !matches) return null
           return (
             <div key={cat.id} className='select-none'>
@@ -95,9 +133,7 @@ export function SettingsTree({
               {open && (
                 <div className='flex flex-col'>
                   {cat.groups.map((g) => {
-                    const visibleItems = g.items.filter((it) =>
-                      itemMatchesQuery(it, cat.title, g.title, needle)
-                    )
+                    const visibleItems = visibleItemsByGroup[`${cat.id}|${g.title}`] || []
                     if (visibleItems.length === 0) return null
                     return (
                       <div key={g.title}>

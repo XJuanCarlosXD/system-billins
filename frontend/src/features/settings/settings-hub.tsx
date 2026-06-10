@@ -10,12 +10,14 @@ import { ThemeSwitch } from '@/components/theme-switch'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
+import { useDebounce } from '@/hooks/use-debounce'
 import {
   settingsCatalog,
   findContext,
   findSettingsItem,
 } from './data/settings-catalog'
 import { SettingsTree } from './components/settings-tree'
+import { PanelErrorBoundary } from './components/panel-error-boundary'
 
 const DEFAULT_SLUG = 'profile'
 
@@ -38,16 +40,16 @@ export function SettingsHub() {
     return new URL(window.location.href).searchParams.get('q') ?? ''
   })()
   const [query, setQuery] = useState(initialQ)
+  // El tree filtra por debouncedQuery — antes filtraba con cada keystroke,
+  // disparando re-renders pesados a 60Hz.
+  const debouncedQuery = useDebounce(query, 200)
 
   useEffect(() => {
-    const id = setTimeout(() => {
-      const url = new URL(window.location.href)
-      if (query) url.searchParams.set('q', query)
-      else url.searchParams.delete('q')
-      window.history.replaceState(null, '', url.toString())
-    }, 150)
-    return () => clearTimeout(id)
-  }, [query])
+    const url = new URL(window.location.href)
+    if (debouncedQuery) url.searchParams.set('q', debouncedQuery)
+    else url.searchParams.delete('q')
+    window.history.replaceState(null, '', url.toString())
+  }, [debouncedQuery])
 
   const handleSelect = (slug: string) => {
     navigate({
@@ -108,7 +110,7 @@ export function SettingsHub() {
               categories={settingsCatalog}
               activeSlug={active.slug}
               onSelect={handleSelect}
-              query={query}
+              query={debouncedQuery}
             />
           </aside>
 
@@ -123,7 +125,9 @@ export function SettingsHub() {
               key={active.slug}
               className='mt-3 flex-1 overflow-auto rounded-md border bg-card p-4'
             >
-              {active.render()}
+              <PanelErrorBoundary resetKey={active.slug}>
+                {active.render()}
+              </PanelErrorBoundary>
             </div>
           </section>
         </div>

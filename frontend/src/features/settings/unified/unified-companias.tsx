@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useCompany } from '@/context/company-context'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -12,31 +13,36 @@ import { AccCias } from '@/features/acc/acc-cias'
 import { SdnCias } from '@/features/sdn/sdn-simple-tables'
 import { AcfCias } from '@/features/acf/acf-simple-tables'
 
-const COMPANIAS_QUERY_KEYS = [
-  'fat-companias',
-  'cxc-cias',
-  'cxp-cias',
-  'odc-cias',
-  'inv-companias',
-  'chc-cias',
-  'acc-cias',
-  'sdn-cias',
-  'acf-cias',
-  'cnt-companias',
-]
+// Mapa tab → queryKey base de ese módulo. Antes invalidabamos LOS 10 query
+// keys en cada cambio de tab → network storm contra Oracle. Ahora solo
+// invalidamos el query del tab al que estamos entrando.
+const TAB_TO_QUERY_KEY: Record<string, string> = {
+  fat: 'fat-companias',
+  cxc: 'cxc-cias',
+  cxp: 'cxp-cias',
+  odc: 'odc-cias',
+  inv: 'inv-companias',
+  chc: 'chc-cias',
+  acc: 'acc-cias',
+  sdn: 'sdn-cias',
+  acf: 'acf-cias',
+  cnt: 'cnt-companias',
+}
 
 export function UnifiedCompanias() {
   const { selectedCompany } = useCompany()
   const qc = useQueryClient()
+  const [active, setActive] = useState('fat')
   const noCia = selectedCompany ?? ''
 
-  // Refresh all module queries when user switches tabs — keeps data coherent.
-  const onValueChange = () => {
-    for (const k of COMPANIAS_QUERY_KEYS) qc.invalidateQueries({ queryKey: [k] })
+  const onValueChange = (next: string) => {
+    setActive(next)
+    const k = TAB_TO_QUERY_KEY[next]
+    if (k) qc.invalidateQueries({ queryKey: [k] })
   }
 
   return (
-    <Tabs defaultValue='fat' onValueChange={onValueChange} className='flex h-full flex-col'>
+    <Tabs value={active} onValueChange={onValueChange} className='flex h-full flex-col'>
       <TabsList className='w-full justify-start overflow-x-auto'>
         <TabsTrigger value='fat'>Facturación</TabsTrigger>
         <TabsTrigger value='cxc'>Cuentas por Cobrar</TabsTrigger>
@@ -50,16 +56,20 @@ export function UnifiedCompanias() {
         <TabsTrigger value='cnt'>Contabilidad</TabsTrigger>
       </TabsList>
       <div className='mt-3 flex-1 overflow-auto'>
-        <TabsContent value='fat'><FatCompanias noCia={noCia} /></TabsContent>
-        <TabsContent value='cxc'><CxcCias noCia={noCia} /></TabsContent>
-        <TabsContent value='cxp'><CxpCias noCia={noCia} /></TabsContent>
-        <TabsContent value='odc'><OdcCias /></TabsContent>
-        <TabsContent value='inv'><CompaniasInv /></TabsContent>
-        <TabsContent value='chc'><ChcCias /></TabsContent>
-        <TabsContent value='acc'><AccCias /></TabsContent>
-        <TabsContent value='sdn'><SdnCias /></TabsContent>
-        <TabsContent value='acf'><AcfCias /></TabsContent>
-        <TabsContent value='cnt'><CntCompanias noCia={noCia} /></TabsContent>
+        {/* Render condicional por tab — antes los 10 TabsContent estaban
+            en el DOM al mismo tiempo (Radix sin forceMount monta solo el
+            activo pero el JSX igual era pesado de procesar). Asi solo
+            evaluamos JSX del tab activo. */}
+        {active === 'fat' && <TabsContent value='fat'><FatCompanias noCia={noCia} /></TabsContent>}
+        {active === 'cxc' && <TabsContent value='cxc'><CxcCias noCia={noCia} /></TabsContent>}
+        {active === 'cxp' && <TabsContent value='cxp'><CxpCias noCia={noCia} /></TabsContent>}
+        {active === 'odc' && <TabsContent value='odc'><OdcCias /></TabsContent>}
+        {active === 'inv' && <TabsContent value='inv'><CompaniasInv /></TabsContent>}
+        {active === 'chc' && <TabsContent value='chc'><ChcCias /></TabsContent>}
+        {active === 'acc' && <TabsContent value='acc'><AccCias /></TabsContent>}
+        {active === 'sdn' && <TabsContent value='sdn'><SdnCias /></TabsContent>}
+        {active === 'acf' && <TabsContent value='acf'><AcfCias /></TabsContent>}
+        {active === 'cnt' && <TabsContent value='cnt'><CntCompanias noCia={noCia} /></TabsContent>}
       </div>
     </Tabs>
   )

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useCompany } from '@/context/company-context'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -10,28 +11,31 @@ import { ChcPuntos } from '@/features/chc/chc-puntos'
 import { AccPuntos } from '@/features/acc/acc-puntos'
 import { AcfPuntos } from '@/features/acf/acf-simple-tables'
 
-const PUNTOS_QUERY_KEYS = [
-  'fat-puntos',
-  'cxc-puntos',
-  'cxp-puntos',
-  'odc-puntos',
-  'inv-puntos',
-  'chc-puntos',
-  'acc-puntos',
-  'acf-puntos',
-]
+const TAB_TO_QUERY_KEY: Record<string, string> = {
+  fat: 'fat-puntos',
+  cxc: 'cxc-puntos',
+  cxp: 'cxp-puntos',
+  odc: 'odc-puntos',
+  inv: 'inv-puntos',
+  chc: 'chc-puntos',
+  acc: 'acc-puntos',
+  acf: 'acf-puntos',
+}
 
 export function UnifiedPuntos() {
   const { selectedCompany } = useCompany()
   const qc = useQueryClient()
+  const [active, setActive] = useState('fat')
   const noCia = selectedCompany ?? ''
 
-  const onValueChange = () => {
-    for (const k of PUNTOS_QUERY_KEYS) qc.invalidateQueries({ queryKey: [k] })
+  const onValueChange = (next: string) => {
+    setActive(next)
+    const k = TAB_TO_QUERY_KEY[next]
+    if (k) qc.invalidateQueries({ queryKey: [k] })
   }
 
   return (
-    <Tabs defaultValue='fat' onValueChange={onValueChange} className='flex h-full flex-col'>
+    <Tabs value={active} onValueChange={onValueChange} className='flex h-full flex-col'>
       <TabsList className='w-full justify-start overflow-x-auto'>
         <TabsTrigger value='fat'>Facturación</TabsTrigger>
         <TabsTrigger value='cxc'>Cuentas por Cobrar</TabsTrigger>
@@ -43,14 +47,14 @@ export function UnifiedPuntos() {
         <TabsTrigger value='acf'>Activos Fijos</TabsTrigger>
       </TabsList>
       <div className='mt-3 flex-1 overflow-auto'>
-        <TabsContent value='fat'><PuntosTrabajoFat noCia={noCia} /></TabsContent>
-        <TabsContent value='cxc'><CxcPuntos noCia={noCia} /></TabsContent>
-        <TabsContent value='cxp'><CxpPuntos noCia={noCia} /></TabsContent>
-        <TabsContent value='odc'><OdcPuntos /></TabsContent>
-        <TabsContent value='inv'><PuntosTrabajoInv noCia={noCia} /></TabsContent>
-        <TabsContent value='chc'><ChcPuntos /></TabsContent>
-        <TabsContent value='acc'><AccPuntos /></TabsContent>
-        <TabsContent value='acf'><AcfPuntos /></TabsContent>
+        {active === 'fat' && <TabsContent value='fat'><PuntosTrabajoFat noCia={noCia} /></TabsContent>}
+        {active === 'cxc' && <TabsContent value='cxc'><CxcPuntos noCia={noCia} /></TabsContent>}
+        {active === 'cxp' && <TabsContent value='cxp'><CxpPuntos noCia={noCia} /></TabsContent>}
+        {active === 'odc' && <TabsContent value='odc'><OdcPuntos /></TabsContent>}
+        {active === 'inv' && <TabsContent value='inv'><PuntosTrabajoInv noCia={noCia} /></TabsContent>}
+        {active === 'chc' && <TabsContent value='chc'><ChcPuntos /></TabsContent>}
+        {active === 'acc' && <TabsContent value='acc'><AccPuntos /></TabsContent>}
+        {active === 'acf' && <TabsContent value='acf'><AcfPuntos /></TabsContent>}
       </div>
     </Tabs>
   )
