@@ -1,17 +1,35 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import { regalGeneralApi } from '@/lib/regal-general-api'
+import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { regalGeneralApi } from '@/lib/regal-general-api'
 import { BuscarProductoModal } from './components/buscar-producto-modal'
 import { empaqueLabel } from './utils/empaque-label'
-import { useToast } from '@/hooks/use-toast'
 
 interface EmpaqueOpcion {
   empaque?: number
@@ -84,11 +102,15 @@ interface Linea {
   porciento_impuesto: number
   itbis: boolean
   empaques: EmpaqueOpcion[]
-  precioBase: number      // precio para la unidad base (cant_por_emp=1)
-  cantPorEmpBase: number  // cant_por_emp del empaque por defecto
+  precioBase: number // precio para la unidad base (cant_por_emp=1)
+  cantPorEmpBase: number // cant_por_emp del empaque por defecto
 }
 
-const fmtN = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const fmtN = (n: number) =>
+  n.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
 
 let lineaIdCounter = 1
 
@@ -108,11 +130,12 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
   const [formaPago, setFormaPago] = useState('')
   const [noCliente, setNoCliente] = useState('')
   const [noClienteInput, setNoClienteInput] = useState('')
-  const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null)
+  const [clienteSeleccionado, setClienteSeleccionado] =
+    useState<Cliente | null>(null)
   const [cargandoCliente, setCargandoCliente] = useState(false)
   const [clase, setClase] = useState('CO')
   const [tipoMoneda, setTipoMoneda] = useState('RD')
-  const [tasa, setTasa] = useState<number>(57.50)
+  const [tasa, setTasa] = useState<number>(57.5)
   const [direccion, setDireccion] = useState('')
   const [ciudad, setCiudad] = useState('')
   const [detalleNota, setDetalleNota] = useState('')
@@ -134,7 +157,9 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
   const [productSearch, setProductSearch] = useState('')
   const [productResults, setProductResults] = useState<Producto[]>([])
   const [currentLineaIdx, setCurrentLineaIdx] = useState<number | null>(null)
-  const [modalCantidades, setModalCantidades] = useState<Record<string, number>>({})
+  const [modalCantidades, setModalCantidades] = useState<
+    Record<string, number>
+  >({})
   const [modalAlmacen, setModalAlmacen] = useState('')
   const [soloExistencia, setSoloExistencia] = useState(true)
   const [buscandoProductos, setBuscandoProductos] = useState(false)
@@ -153,25 +178,35 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
   const productSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Catálogos para el modal de Buscar Producto
-  const [almacenes, setAlmacenes] = useState<Array<{ almacen: string; descripcion?: string }>>([])
-  const [listas, setListas] = useState<Array<{ no_lista: number | string; descripcion?: string; nombre?: string }>>([])
+  const [almacenes, setAlmacenes] = useState<
+    Array<{ almacen: string; descripcion?: string }>
+  >([])
+  const [listas, setListas] = useState<
+    Array<{ no_lista: number | string; descripcion?: string; nombre?: string }>
+  >([])
 
   useEffect(() => {
     async function cargarDatos() {
       try {
-        const [docsRes, vendsRes, pagosRes, listasRes, almRes] = await Promise.all([
-          regalGeneralApi.fatListDocumentTypes(noCia, punto),
-          regalGeneralApi.fatListVendedores(noCia),
-          regalGeneralApi.fatListTiposPago(noCia, punto),
-          regalGeneralApi.fatListasPrecio(noCia, punto),
-          regalGeneralApi.invAlmacenes(noCia, punto),
-        ])
-        const conduces = (docsRes.items || []).filter((d: TipoDoc) => d.tipo_transaccion === 'C')
+        const [docsRes, vendsRes, pagosRes, listasRes, almRes] =
+          await Promise.all([
+            regalGeneralApi.fatListDocumentTypes(noCia, punto),
+            regalGeneralApi.fatListVendedores(noCia),
+            regalGeneralApi.fatListTiposPago(noCia, punto),
+            regalGeneralApi.fatListasPrecio(noCia, punto),
+            regalGeneralApi.invAlmacenes(noCia, punto),
+          ])
+        const conduces = (docsRes.items || []).filter(
+          (d: TipoDoc) => d.tipo_transaccion === 'C'
+        )
         setTiposDoc(conduces)
         setVendedores(vendsRes.items || [])
         setTiposPago(pagosRes.items || [])
 
-        const listasArr = (listasRes.tipos ?? listasRes.items ?? (Array.isArray(listasRes) ? listasRes : []))
+        const listasArr =
+          listasRes.tipos ??
+          listasRes.items ??
+          (Array.isArray(listasRes) ? listasRes : [])
         setListas(listasArr)
         if (listasArr.length > 0) setNoLista(String(listasArr[0].no_lista))
 
@@ -185,7 +220,11 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
         setAlmacenes(almArr)
         if (almArr.length > 0) setModalAlmacen(almArr[0].almacen)
       } catch {
-        toast({ title: 'Error', description: 'Error cargando datos iniciales', variant: 'destructive' })
+        toast({
+          title: 'Error',
+          description: 'Error cargando datos iniciales',
+          variant: 'destructive',
+        })
       }
     }
     cargarDatos()
@@ -195,7 +234,8 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
   useEffect(() => {
     if (!editId || !editTipo || !noCia) return
     setCargandoEdicion(true)
-    regalGeneralApi.fatGetConduce(noCia, punto, editTipo, editId)
+    regalGeneralApi
+      .fatGetConduce(noCia, punto, editTipo, editId)
       .then((d: any) => {
         setModoEdicion(true)
         setNoConduceEdit(d.no_conduce || '')
@@ -236,7 +276,10 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
               precio: l.precio || 0,
               cantidad: l.cantidad || 1,
               porc_descuento: l.porc_descuento || 0,
-              monto: (l.cantidad || 1) * (l.precio || 0) * (1 - (l.porc_descuento || 0) / 100),
+              monto:
+                (l.cantidad || 1) *
+                (l.precio || 0) *
+                (1 - (l.porc_descuento || 0) / 100),
               porciento_impuesto: l.porciento_impuesto || 0,
               itbis: (l.porciento_impuesto || 0) > 0,
               empaques: [],
@@ -247,7 +290,11 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
         }
       })
       .catch(() => {
-        toast({ title: 'Error', description: 'No se pudo cargar el conduce para edicion', variant: 'destructive' })
+        toast({
+          title: 'Error',
+          description: 'No se pudo cargar el conduce para edicion',
+          variant: 'destructive',
+        })
       })
       .finally(() => setCargandoEdicion(false))
   }, [editId, editTipo, noCia])
@@ -260,7 +307,7 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
     try {
       const res = await regalGeneralApi.fatListClientes(noCia, cod, 1, 5)
       const items: Cliente[] = res.items || []
-      const exact = items.find(c => String(c.no_cliente).trim() === cod)
+      const exact = items.find((c) => String(c.no_cliente).trim() === cod)
       const match = exact ?? (items.length === 1 ? items[0] : null)
       if (match) {
         aplicarCliente(match)
@@ -269,10 +316,18 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
         setClienteSearch(cod)
         setClienteModalOpen(true)
       } else {
-        toast({ title: 'Cliente no encontrado', description: `Codigo: ${cod}`, variant: 'destructive' })
+        toast({
+          title: 'Cliente no encontrado',
+          description: `Codigo: ${cod}`,
+          variant: 'destructive',
+        })
       }
     } catch {
-      toast({ title: 'Error', description: 'No se pudo cargar el cliente', variant: 'destructive' })
+      toast({
+        title: 'Error',
+        description: 'No se pudo cargar el cliente',
+        variant: 'destructive',
+      })
     } finally {
       setCargandoCliente(false)
     }
@@ -302,7 +357,10 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
   const buscarClientesModal = useCallback(
     (q: string) => {
       if (clienteSearchRef.current) clearTimeout(clienteSearchRef.current)
-      if (!q || q.length < 2) { setClienteResults([]); return }
+      if (!q || q.length < 2) {
+        setClienteResults([])
+        return
+      }
       setBuscandoClientes(true)
       clienteSearchRef.current = setTimeout(async () => {
         try {
@@ -327,7 +385,7 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
 
   // ── Lines ────────────────────────────────────────────────
   const agregarLinea = () => {
-    const td = tiposDoc.find(d => d.tipo_docu === tipoDoc)
+    const td = tiposDoc.find((d) => d.tipo_docu === tipoDoc)
     const lin = lineas.length + 1
     const nuevaLinea: Linea = {
       id: lineaIdCounter++,
@@ -349,7 +407,7 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
       precioBase: 0,
       cantPorEmpBase: 1,
     }
-    setLineas(prev => {
+    setLineas((prev) => {
       const next = [...prev, nuevaLinea]
       // auto-open product search for new line
       const newIdx = next.length - 1
@@ -365,12 +423,17 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
     })
   }
 
-  const updateLinea = (idx: number, field: keyof Linea, value: string | number | boolean) => {
-    setLineas(prev => {
+  const updateLinea = (
+    idx: number,
+    field: keyof Linea,
+    value: string | number | boolean
+  ) => {
+    setLineas((prev) => {
       const arr = [...prev]
       const linea = { ...arr[idx], [field]: value }
       if (['cantidad', 'precio', 'porc_descuento'].includes(field as string)) {
-        linea.monto = linea.cantidad * linea.precio * (1 - linea.porc_descuento / 100)
+        linea.monto =
+          linea.cantidad * linea.precio * (1 - linea.porc_descuento / 100)
       }
       arr[idx] = linea
       return arr
@@ -378,23 +441,28 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
   }
 
   const eliminarLinea = (idx: number) => {
-    setLineas(prev =>
-      prev
-        .filter((_, i) => i !== idx)
-        .map((l, i) => ({ ...l, lin: i + 1 }))
+    setLineas((prev) =>
+      prev.filter((_, i) => i !== idx).map((l, i) => ({ ...l, lin: i + 1 }))
     )
   }
 
   // Carga empaques alternos del producto y los aplica a la línea — define la
   // UM por defecto y la base de precio para poder recalcular cuando se cambie.
-  const cargarEmpaquesLinea = async (idx: number, noProdu: string, precio: number) => {
+  const cargarEmpaquesLinea = async (
+    idx: number,
+    noProdu: string,
+    precio: number
+  ) => {
     try {
       const res = await regalGeneralApi.fatProductoEmpaques(noProdu)
       const emps: EmpaqueOpcion[] = (res.items || []) as any[]
-      const porDefecto = emps.find(e => e.por_defecto) || emps[0]
-      const cantBase = porDefecto?.cant_por_emp && porDefecto.cant_por_emp > 0 ? porDefecto.cant_por_emp : 1
+      const porDefecto = emps.find((e) => e.por_defecto) || emps[0]
+      const cantBase =
+        porDefecto?.cant_por_emp && porDefecto.cant_por_emp > 0
+          ? porDefecto.cant_por_emp
+          : 1
       const precioBase = cantBase > 0 ? precio / cantBase : precio
-      setLineas(prev => {
+      setLineas((prev) => {
         const arr = [...prev]
         if (!arr[idx] || arr[idx].no_produ !== noProdu) return prev
         const linea = { ...arr[idx] }
@@ -405,20 +473,24 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
         arr[idx] = linea
         return arr
       })
-    } catch { /* sin empaques => UM queda estática */ }
+    } catch {
+      /* sin empaques => UM queda estática */
+    }
   }
 
   // Cambia la UM de la línea: recalcula precio = precioBase * cant_por_emp
   const cambiarEmpaqueLinea = (idx: number, unidad: string) => {
-    setLineas(prev => {
+    setLineas((prev) => {
       const arr = [...prev]
       const linea = { ...arr[idx] }
-      const emp = linea.empaques.find(e => e.unidad === unidad)
+      const emp = linea.empaques.find((e) => e.unidad === unidad)
       if (!emp) return prev
-      const cant = emp.cant_por_emp && emp.cant_por_emp > 0 ? emp.cant_por_emp : 1
+      const cant =
+        emp.cant_por_emp && emp.cant_por_emp > 0 ? emp.cant_por_emp : 1
       linea.emp = emp.descripcion || emp.unidad
       linea.precio = parseFloat((linea.precioBase * cant).toFixed(4))
-      linea.monto = linea.cantidad * linea.precio * (1 - linea.porc_descuento / 100)
+      linea.monto =
+        linea.cantidad * linea.precio * (1 - linea.porc_descuento / 100)
       arr[idx] = linea
       return arr
     })
@@ -427,10 +499,17 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
   const buscarProductoPorCodigo = async (idx: number, codigo: string) => {
     if (!codigo) return
     try {
-      const res = await regalGeneralApi.fatSearchProductos(noCia, punto, noLista, codigo, 1, 1)
+      const res = await regalGeneralApi.fatSearchProductos(
+        noCia,
+        punto,
+        noLista,
+        codigo,
+        1,
+        1
+      )
       if (res.items && res.items.length > 0) {
         const p = res.items[0]
-        setLineas(prev => {
+        setLineas((prev) => {
           const arr = [...prev]
           const linea = { ...arr[idx] }
           linea.no_produ = p.no_produ
@@ -443,14 +522,19 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
           linea.porciento_impuesto = p.porciento_impuesto
           linea.itbis = p.porciento_impuesto > 0
           linea.emp = p.unidad_empaque
-          linea.monto = linea.cantidad * linea.precio * (1 - linea.porc_descuento / 100)
+          linea.monto =
+            linea.cantidad * linea.precio * (1 - linea.porc_descuento / 100)
           arr[idx] = linea
           return arr
         })
         cargarEmpaquesLinea(idx, p.no_produ, p.precio)
       }
     } catch {
-      toast({ title: 'Error', description: 'Producto no encontrado', variant: 'destructive' })
+      toast({
+        title: 'Error',
+        description: 'Producto no encontrado',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -470,7 +554,12 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
       productSearchRef.current = setTimeout(async () => {
         try {
           const res = await regalGeneralApi.fatSearchProductos(
-            noCia, punto, noLista, search, 1, 50,
+            noCia,
+            punto,
+            noLista,
+            search,
+            1,
+            50,
             alm ?? modalAlmacen,
             soloExist ?? soloExistencia
           )
@@ -488,7 +577,7 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
   const seleccionarProducto = (p: Producto, cantidad?: number) => {
     if (currentLineaIdx === null) return
     const qty = cantidad && cantidad > 0 ? cantidad : 1
-    setLineas(prev => {
+    setLineas((prev) => {
       const arr = [...prev]
       const linea = { ...arr[currentLineaIdx] }
       linea.no_produ = p.no_produ
@@ -508,25 +597,42 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
   }
 
   // ── Totals ───────────────────────────────────────────────
-  const cantProd = lineas.filter(l => l.no_produ).length
+  const cantProd = lineas.filter((l) => l.no_produ).length
   const subTotal = lineas.reduce((s, l) => s + l.cantidad * l.precio, 0)
-  const totalDesc = lineas.reduce((s, l) => s + l.cantidad * l.precio * (l.porc_descuento / 100), 0)
-  const totalItbis = lineas.filter(l => l.itbis).reduce((s, l) => s + l.monto * (l.porciento_impuesto / 100), 0)
+  const totalDesc = lineas.reduce(
+    (s, l) => s + l.cantidad * l.precio * (l.porc_descuento / 100),
+    0
+  )
+  const totalItbis = lineas
+    .filter((l) => l.itbis)
+    .reduce((s, l) => s + l.monto * (l.porciento_impuesto / 100), 0)
   const totalConduce = lineas.reduce((s, l) => s + l.monto, 0) + totalItbis
 
   // ── Save ─────────────────────────────────────────────────
   const guardar = async () => {
     if (!tipoDoc && tiposDoc.length > 0) {
-      toast({ title: 'Validacion', description: 'Debe seleccionar el Tipo de Documento', variant: 'destructive' })
+      toast({
+        title: 'Validacion',
+        description: 'Debe seleccionar el Tipo de Documento',
+        variant: 'destructive',
+      })
       return
     }
     if (!noCliente) {
-      toast({ title: 'Validacion', description: 'Debe seleccionar un cliente', variant: 'destructive' })
+      toast({
+        title: 'Validacion',
+        description: 'Debe seleccionar un cliente',
+        variant: 'destructive',
+      })
       return
     }
-    const lineasValidas = lineas.filter(l => l.no_produ && l.cantidad > 0)
+    const lineasValidas = lineas.filter((l) => l.no_produ && l.cantidad > 0)
     if (lineasValidas.length === 0) {
-      toast({ title: 'Validacion', description: 'Debe agregar al menos una linea valida', variant: 'destructive' })
+      toast({
+        title: 'Validacion',
+        description: 'Debe agregar al menos una linea valida',
+        variant: 'destructive',
+      })
       return
     }
     setGuardando(true)
@@ -546,7 +652,7 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
       tasa_us: tasa,
       ruta_entrega: rutaEntrega,
       copiar_desde: copiarDesde,
-      lineas: lineasValidas.map(l => ({
+      lineas: lineasValidas.map((l) => ({
         no_produ: l.no_produ,
         almacen: l.almacen,
         descripcion: l.descripcion,
@@ -559,10 +665,16 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
     try {
       if (modoEdicion && editTipo && editId) {
         await regalGeneralApi.fatActualizarConduce(editTipo, editId, payload)
-        toast({ title: 'Conduce actualizado', description: `Conduce ${editTipo}-${editId} actualizado` })
+        toast({
+          title: 'Conduce actualizado',
+          description: `Conduce ${editTipo}-${editId} actualizado`,
+        })
       } else {
         const res = await regalGeneralApi.fatCrearConduce(payload)
-        toast({ title: 'Conduce creado', description: `Conduce ${res.no_conduce} creado exitosamente` })
+        toast({
+          title: 'Conduce creado',
+          description: `Conduce ${res.no_conduce} creado exitosamente`,
+        })
       }
       navigate({ to: '/fat/conduces' as never })
     } catch (e: any) {
@@ -570,7 +682,11 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
       const msg = typeof detail === 'string' ? detail.trim() : ''
       toast({
         title: 'Error',
-        description: msg || (modoEdicion ? 'Error al actualizar el conduce' : 'Error al guardar el conduce'),
+        description:
+          msg ||
+          (modoEdicion
+            ? 'Error al actualizar el conduce'
+            : 'Error al guardar el conduce'),
         variant: 'destructive',
       })
     } finally {
@@ -579,55 +695,68 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
   }
 
   return (
-    <div className="p-4 space-y-4">
+    <div className='space-y-4 p-4'>
       {/* ── Header ── */}
-      <div className="flex items-center justify-between">
+      <div className='flex items-center justify-between'>
         <div>
-          <h1 className="text-xl font-bold">
-            {modoEdicion ? `Editar Conduce ${editTipo}-${noConduceEdit}` : 'Nuevo Conduce'}
+          <h1 className='text-xl font-bold'>
+            {modoEdicion
+              ? `Editar Conduce ${editTipo}-${noConduceEdit}`
+              : 'Nuevo Conduce'}
           </h1>
           {modoEdicion && ncfDgi && (
-            <p className="text-sm text-blue-700 font-mono mt-0.5">NCF: {ncfDgi}</p>
+            <p className='mt-0.5 font-mono text-sm text-blue-700'>
+              NCF: {ncfDgi}
+            </p>
           )}
           {cargandoEdicion && (
-            <p className="text-sm text-muted-foreground mt-0.5">Cargando datos del conduce...</p>
+            <p className='mt-0.5 text-sm text-muted-foreground'>
+              Cargando datos del conduce...
+            </p>
           )}
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => navigate({ to: '/fat/conduces' as never })}>
+        <div className='flex gap-2'>
+          <Button
+            variant='outline'
+            onClick={() => navigate({ to: '/fat/conduces' as never })}
+          >
             Cancelar
           </Button>
           <Button onClick={guardar} disabled={guardando || cargandoEdicion}>
             {guardando
-              ? (modoEdicion ? 'Actualizando...' : 'Guardando...')
-              : modoEdicion ? 'Actualizar' : 'Guardar'}
+              ? modoEdicion
+                ? 'Actualizando...'
+                : 'Guardando...'
+              : modoEdicion
+                ? 'Actualizar'
+                : 'Guardar'}
           </Button>
         </div>
       </div>
 
       {/* ── Section 1: Header fields ── */}
-      <div className="border rounded-md p-4 space-y-3">
-        <div className="grid grid-cols-6 gap-3 items-end">
-          <div className="space-y-1">
+      <div className='space-y-3 rounded-md border p-4'>
+        <div className='grid grid-cols-6 items-end gap-3'>
+          <div className='space-y-1'>
             <Label>Tipo Pedido/Cot.</Label>
             <Select value={tipoPedido} onValueChange={setTipoPedido}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="CO">CO - Conduce</SelectItem>
-                <SelectItem value="CT">CT - Cotizacion</SelectItem>
+                <SelectItem value='CO'>CO - Conduce</SelectItem>
+                <SelectItem value='CT'>CT - Cotizacion</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1">
+          <div className='space-y-1'>
             <Label>Tipo Documento</Label>
             <Select value={tipoDoc} onValueChange={setTipoDoc}>
               <SelectTrigger>
-                <SelectValue placeholder="Seleccionar..." />
+                <SelectValue placeholder='Seleccionar...' />
               </SelectTrigger>
               <SelectContent>
-                {tiposDoc.map(d => (
+                {tiposDoc.map((d) => (
                   <SelectItem key={d.tipo_docu} value={d.tipo_docu}>
                     {d.tipo_docu} - {d.descripcion}
                   </SelectItem>
@@ -635,27 +764,31 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1">
+          <div className='space-y-1'>
             <Label>Cant. Bultos</Label>
             <Input
-              type="number"
+              type='number'
               value={cantBultos}
-              onChange={e => setCantBultos(parseInt(e.target.value) || 0)}
+              onChange={(e) => setCantBultos(parseInt(e.target.value) || 0)}
               min={0}
             />
           </div>
-          <div className="space-y-1">
+          <div className='space-y-1'>
             <Label>Fecha</Label>
-            <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
+            <Input
+              type='date'
+              value={fecha}
+              onChange={(e) => setFecha(e.target.value)}
+            />
           </div>
-          <div className="space-y-1">
+          <div className='space-y-1'>
             <Label>Forma Pago</Label>
             <Select value={formaPago} onValueChange={setFormaPago}>
               <SelectTrigger>
-                <SelectValue placeholder="Seleccionar..." />
+                <SelectValue placeholder='Seleccionar...' />
               </SelectTrigger>
               <SelectContent>
-                {tiposPago.map(p => (
+                {tiposPago.map((p) => (
                   <SelectItem key={p.tipo_pago} value={p.tipo_pago}>
                     {p.descripcion}
                   </SelectItem>
@@ -663,120 +796,158 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-end">
-            <Button variant="outline" disabled className="w-full text-gray-400">
+          <div className='flex items-end'>
+            <Button variant='outline' disabled className='w-full text-gray-400'>
               Anular
             </Button>
           </div>
         </div>
 
         {/* ── Section 2: Client ── */}
-        <div className="border rounded-lg p-3 space-y-2 bg-gray-50">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-            Cliente <span className="text-red-500 font-normal normal-case">* requerido</span>
+        <div className='space-y-2 rounded-lg border bg-background p-3'>
+          <p className='text-xs font-semibold tracking-wider text-gray-400 uppercase'>
+            Cliente{' '}
+            <span className='font-normal text-red-500 normal-case'>
+              * requerido
+            </span>
           </p>
-          <div className="flex items-end gap-2">
+          <div className='flex items-end gap-2'>
             {/* Code input */}
-            <div className="space-y-1 w-36">
+            <div className='w-36 space-y-1'>
               <Label>Codigo</Label>
               <Input
                 ref={noClienteInputRef}
                 value={noClienteInput}
-                onChange={e => { setNoClienteInput(e.target.value); if (clienteSeleccionado) limpiarCliente() }}
-                onBlur={e => cargarClientePorCodigo(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') cargarClientePorCodigo(noClienteInput) }}
-                placeholder="Cod. cliente"
+                onChange={(e) => {
+                  setNoClienteInput(e.target.value)
+                  if (clienteSeleccionado) limpiarCliente()
+                }}
+                onBlur={(e) => cargarClientePorCodigo(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') cargarClientePorCodigo(noClienteInput)
+                }}
+                placeholder='Cod. cliente'
                 disabled={cargandoCliente}
               />
             </div>
 
             {/* Magnifier button */}
             <Button
-              variant="outline"
+              variant='outline'
               onClick={abrirClienteModal}
-              className="h-10 px-3"
-              title="Buscar cliente"
-              type="button"
+              className='h-10 px-3'
+              title='Buscar cliente'
+              type='button'
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              <svg
+                xmlns='http://www.w3.org/2000/svg'
+                width='16'
+                height='16'
+                viewBox='0 0 24 24'
+                fill='none'
+                stroke='currentColor'
+                strokeWidth='2'
+                strokeLinecap='round'
+                strokeLinejoin='round'
+              >
+                <circle cx='11' cy='11' r='8' />
+                <line x1='21' y1='21' x2='16.65' y2='16.65' />
               </svg>
             </Button>
 
             {/* Client info display */}
             {clienteSeleccionado ? (
-              <div className="flex-1 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2 flex items-center gap-6">
-                <div className="min-w-0">
-                  <span className="block text-xs text-emerald-600 font-medium">Nombre</span>
-                  <span className="font-semibold text-emerald-900 truncate block">{clienteSeleccionado.nombre}</span>
+              <div className='flex flex-1 items-center gap-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2'>
+                <div className='min-w-0'>
+                  <span className='block text-xs font-medium text-emerald-600'>
+                    Nombre
+                  </span>
+                  <span className='block truncate font-semibold text-emerald-900'>
+                    {clienteSeleccionado.nombre}
+                  </span>
                 </div>
                 {(clienteSeleccionado.rnc || clienteSeleccionado.cedula) && (
-                  <div className="shrink-0">
-                    <span className="block text-xs text-emerald-600 font-medium">RNC / Cedula</span>
-                    <span className="font-mono text-emerald-800 text-sm">{clienteSeleccionado.rnc || clienteSeleccionado.cedula}</span>
+                  <div className='shrink-0'>
+                    <span className='block text-xs font-medium text-emerald-600'>
+                      RNC / Cedula
+                    </span>
+                    <span className='font-mono text-sm text-emerald-800'>
+                      {clienteSeleccionado.rnc || clienteSeleccionado.cedula}
+                    </span>
                   </div>
                 )}
                 {direccion && (
-                  <div className="min-w-0 flex-1">
-                    <span className="block text-xs text-emerald-600 font-medium">Direccion</span>
-                    <span className="text-emerald-700 text-sm truncate block">{direccion}</span>
+                  <div className='min-w-0 flex-1'>
+                    <span className='block text-xs font-medium text-emerald-600'>
+                      Direccion
+                    </span>
+                    <span className='block truncate text-sm text-emerald-700'>
+                      {direccion}
+                    </span>
                   </div>
                 )}
-                <Button variant="ghost" size="sm" className="h-7 px-2 text-gray-400 hover:text-red-500 shrink-0" onClick={limpiarCliente}>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  className='h-7 shrink-0 px-2 text-gray-400 hover:text-red-500'
+                  onClick={limpiarCliente}
+                >
                   ×
                 </Button>
               </div>
             ) : (
-              <div className="flex-1 rounded-lg px-4 py-2 border border-dashed border-gray-300 text-sm text-gray-400 flex items-center">
-                {cargandoCliente ? 'Cargando cliente...' : 'Ingrese el codigo o use la lupa para buscar'}
+              <div className='flex flex-1 items-center rounded-lg border border-dashed border-gray-300 px-4 py-2 text-sm text-gray-400'>
+                {cargandoCliente
+                  ? 'Cargando cliente...'
+                  : 'Ingrese el codigo o use la lupa para buscar'}
               </div>
             )}
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-3">
-          <div className="space-y-1">
+        <div className='grid grid-cols-4 gap-3'>
+          <div className='space-y-1'>
             <Label>Clase</Label>
             <Select value={clase} onValueChange={setClase}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="CO">Conduce</SelectItem>
-                <SelectItem value="CT">Cotizacion</SelectItem>
-                <SelectItem value="PF">PreFactura</SelectItem>
+                <SelectItem value='CO'>Conduce</SelectItem>
+                <SelectItem value='CT'>Cotizacion</SelectItem>
+                <SelectItem value='PF'>PreFactura</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1">
+          <div className='space-y-1'>
             <Label>Tipo Moneda</Label>
             <Select value={tipoMoneda} onValueChange={setTipoMoneda}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="RD">RD - Peso Dominicano</SelectItem>
-                <SelectItem value="US">US - Dolar Americano</SelectItem>
+                <SelectItem value='RD'>RD - Peso Dominicano</SelectItem>
+                <SelectItem value='US'>US - Dolar Americano</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1">
+          <div className='space-y-1'>
             <Label>Tasa</Label>
             <Input
-              type="number"
+              type='number'
               value={tasa}
-              onChange={e => setTasa(parseFloat(e.target.value) || 0)}
-              step="0.01"
+              onChange={(e) => setTasa(parseFloat(e.target.value) || 0)}
+              step='0.01'
             />
           </div>
-          <div className="space-y-1">
+          <div className='space-y-1'>
             <Label>Vendedor</Label>
             <Select value={vendedor} onValueChange={setVendedor}>
               <SelectTrigger>
-                <SelectValue placeholder="Seleccionar..." />
+                <SelectValue placeholder='Seleccionar...' />
               </SelectTrigger>
               <SelectContent>
-                {vendedores.map(v => (
+                {vendedores.map((v) => (
                   <SelectItem key={v.vendedor} value={v.vendedor}>
                     {v.nombre}
                   </SelectItem>
@@ -786,196 +957,289 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
+        <div className='grid grid-cols-2 gap-3'>
+          <div className='space-y-1'>
             <Label>Direccion</Label>
-            <Input value={direccion} onChange={e => setDireccion(e.target.value)} className="bg-gray-50" />
+            <Input
+              value={direccion}
+              onChange={(e) => setDireccion(e.target.value)}
+              className='bg-background'
+            />
           </div>
-          <div className="space-y-1">
+          <div className='space-y-1'>
             <Label>Ciudad</Label>
-            <Input value={ciudad} onChange={e => setCiudad(e.target.value)} className="bg-gray-50" />
+            <Input
+              value={ciudad}
+              onChange={(e) => setCiudad(e.target.value)}
+              className='bg-background'
+            />
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
-          <div className="space-y-1">
+        <div className='grid grid-cols-3 gap-3'>
+          <div className='space-y-1'>
             <Label>Copiar desde</Label>
-            <Input value={copiarDesde} onChange={e => setCopiarDesde(e.target.value)} placeholder="Ref. opcional" />
+            <Input
+              value={copiarDesde}
+              onChange={(e) => setCopiarDesde(e.target.value)}
+              placeholder='Ref. opcional'
+            />
           </div>
-          <div className="space-y-1">
+          <div className='space-y-1'>
             <Label>Ruta Entrega</Label>
-            <Input value={rutaEntrega} onChange={e => setRutaEntrega(e.target.value)} />
+            <Input
+              value={rutaEntrega}
+              onChange={(e) => setRutaEntrega(e.target.value)}
+            />
           </div>
-          <div className="space-y-1">
+          <div className='space-y-1'>
             <Label>Localidad</Label>
-            <Input value={localidad} onChange={e => setLocalidad(e.target.value)} className="bg-gray-50" readOnly />
+            <Input
+              value={localidad}
+              onChange={(e) => setLocalidad(e.target.value)}
+              className='bg-background'
+              readOnly
+            />
           </div>
         </div>
 
-        <div className="space-y-1">
+        <div className='space-y-1'>
           <Label>Detalle / Nota</Label>
           <Textarea
             value={detalleNota}
-            onChange={e => setDetalleNota(e.target.value)}
+            onChange={(e) => setDetalleNota(e.target.value)}
             rows={2}
-            className="resize-none"
+            className='resize-none'
           />
         </div>
       </div>
 
       {/* ── Section 3: Lines ── */}
-      <div className="border rounded-md p-3 space-y-2">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold">Lineas de Detalle</h2>
-          <Button size="sm" variant="outline" onClick={agregarLinea}>
+      <div className='space-y-2 rounded-md border p-3'>
+        <div className='flex items-center justify-between'>
+          <h2 className='font-semibold'>Lineas de Detalle</h2>
+          <Button size='sm' variant='outline' onClick={agregarLinea}>
             + Agregar Linea
           </Button>
         </div>
-        <div className="overflow-x-auto">
+        <div className='overflow-x-auto'>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-10">Lin</TableHead>
-                <TableHead className="w-16">Alm</TableHead>
-                <TableHead className="w-28">No Produ</TableHead>
-                <TableHead className="w-14">UM</TableHead>
-                <TableHead className="min-w-40">Nombre Producto</TableHead>
-                <TableHead className="w-24 text-right">Precio</TableHead>
-                <TableHead className="w-32 text-center">Cantidad</TableHead>
-                <TableHead className="w-16">%Desc</TableHead>
-                <TableHead className="w-24 text-right">Monto</TableHead>
-                <TableHead className="w-16 text-center">Itbis?</TableHead>
-                <TableHead className="w-8"></TableHead>
+                <TableHead className='w-10'>Lin</TableHead>
+                <TableHead className='w-16'>Alm</TableHead>
+                <TableHead className='w-28'>No Produ</TableHead>
+                <TableHead className='w-14'>UM</TableHead>
+                <TableHead className='min-w-40'>Nombre Producto</TableHead>
+                <TableHead className='w-24 text-right'>Precio</TableHead>
+                <TableHead className='w-32 text-center'>Cantidad</TableHead>
+                <TableHead className='w-16'>%Desc</TableHead>
+                <TableHead className='w-24 text-right'>Monto</TableHead>
+                <TableHead className='w-16 text-center'>Itbis?</TableHead>
+                <TableHead className='w-8'></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {lineas.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center text-gray-400 py-10">
+                  <TableCell
+                    colSpan={11}
+                    className='py-10 text-center text-gray-400'
+                  >
                     No hay lineas. Haga clic en "+ Agregar Linea".
                   </TableCell>
                 </TableRow>
               )}
               {lineas.map((linea, idx) => (
-                <TableRow key={linea.id} className="hover:bg-gray-50">
-                  <TableCell className="p-1 text-sm font-mono text-center">{linea.lin}</TableCell>
-                  <TableCell className="p-1">
+                <TableRow key={linea.id} className='hover:bg-background'>
+                  <TableCell className='p-1 text-center font-mono text-sm'>
+                    {linea.lin}
+                  </TableCell>
+                  <TableCell className='p-1'>
                     <Input
                       value={linea.almacen}
-                      onChange={e => updateLinea(idx, 'almacen', e.target.value)}
+                      onChange={(e) =>
+                        updateLinea(idx, 'almacen', e.target.value)
+                      }
                       maxLength={6}
-                      className="h-7 text-sm w-14"
-                      placeholder="Alm."
+                      className='h-7 w-14 text-sm'
+                      placeholder='Alm.'
                     />
                   </TableCell>
-                  <TableCell className="p-1">
-                    <div className="flex gap-1 items-center">
+                  <TableCell className='p-1'>
+                    <div className='flex items-center gap-1'>
                       <Input
                         value={linea.no_produ}
-                        onChange={e => updateLinea(idx, 'no_produ', e.target.value)}
-                        onBlur={e => buscarProductoPorCodigo(idx, e.target.value)}
-                        className="h-7 text-xs w-20 font-mono"
-                        placeholder="Codigo"
+                        onChange={(e) =>
+                          updateLinea(idx, 'no_produ', e.target.value)
+                        }
+                        onBlur={(e) =>
+                          buscarProductoPorCodigo(idx, e.target.value)
+                        }
+                        className='h-7 w-20 font-mono text-xs'
+                        placeholder='Codigo'
                       />
                       <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 px-2 text-xs shrink-0"
+                        size='sm'
+                        variant='outline'
+                        className='h-7 shrink-0 px-2 text-xs'
                         onClick={() => abrirBusquedaProducto(idx)}
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        <svg
+                          xmlns='http://www.w3.org/2000/svg'
+                          width='12'
+                          height='12'
+                          viewBox='0 0 24 24'
+                          fill='none'
+                          stroke='currentColor'
+                          strokeWidth='2'
+                          strokeLinecap='round'
+                          strokeLinejoin='round'
+                        >
+                          <circle cx='11' cy='11' r='8' />
+                          <line x1='21' y1='21' x2='16.65' y2='16.65' />
                         </svg>
                       </Button>
                     </div>
                   </TableCell>
-                  <TableCell className="p-1 text-center">
+                  <TableCell className='p-1 text-center'>
                     {linea.empaques.length > 1 ? (
                       <Select
-                        value={(linea.empaques.find(e => (e.descripcion || e.unidad) === linea.emp)?.unidad) || linea.empaques[0].unidad}
-                        onValueChange={v => cambiarEmpaqueLinea(idx, v)}
+                        value={
+                          linea.empaques.find(
+                            (e) => (e.descripcion || e.unidad) === linea.emp
+                          )?.unidad || linea.empaques[0].unidad
+                        }
+                        onValueChange={(v) => cambiarEmpaqueLinea(idx, v)}
                       >
-                        <SelectTrigger className="h-7 text-xs px-2 w-auto min-w-[3.5rem] gap-1">
+                        <SelectTrigger className='h-7 w-auto min-w-[3.5rem] gap-1 px-2 text-xs'>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {linea.empaques.map(e => (
-                            <SelectItem key={`${e.empaque ?? e.unidad}`} value={e.unidad}>
+                          {linea.empaques.map((e) => (
+                            <SelectItem
+                              key={`${e.empaque ?? e.unidad}`}
+                              value={e.unidad}
+                            >
                               {empaqueLabel(e)}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     ) : (
-                      <span className="text-xs font-medium text-blue-700 bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5">{linea.emp || '—'}</span>
+                      <span className='rounded border border-blue-100 bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-700'>
+                        {linea.emp || '—'}
+                      </span>
                     )}
                   </TableCell>
-                  <TableCell className="p-1">
+                  <TableCell className='p-1'>
                     <Input
                       value={linea.descripcion}
-                      onChange={e => updateLinea(idx, 'descripcion', e.target.value)}
-                      className="h-7 text-sm"
-                      placeholder="Descripcion"
+                      onChange={(e) =>
+                        updateLinea(idx, 'descripcion', e.target.value)
+                      }
+                      className='h-7 text-sm'
+                      placeholder='Descripcion'
                     />
                   </TableCell>
-                  <TableCell className="p-1">
+                  <TableCell className='p-1'>
                     <Input
-                      type="number"
+                      type='number'
                       value={linea.precio}
-                      onChange={e => updateLinea(idx, 'precio', parseFloat(e.target.value) || 0)}
-                      className="h-7 text-sm text-right w-24"
+                      onChange={(e) =>
+                        updateLinea(
+                          idx,
+                          'precio',
+                          parseFloat(e.target.value) || 0
+                        )
+                      }
+                      className='h-7 w-24 text-right text-sm'
                       min={0}
-                      step="0.01"
+                      step='0.01'
                     />
                   </TableCell>
-                  <TableCell className="p-1">
-                    <div className="flex items-center gap-0.5 justify-center">
+                  <TableCell className='p-1'>
+                    <div className='flex items-center justify-center gap-0.5'>
                       <Button
-                        type="button" variant="outline" size="icon" className="h-7 w-7 shrink-0"
-                        onClick={() => updateLinea(idx, 'cantidad', Math.max(1, linea.cantidad - 1))}
-                      >−</Button>
+                        type='button'
+                        variant='outline'
+                        size='icon'
+                        className='h-7 w-7 shrink-0'
+                        onClick={() =>
+                          updateLinea(
+                            idx,
+                            'cantidad',
+                            Math.max(1, linea.cantidad - 1)
+                          )
+                        }
+                      >
+                        −
+                      </Button>
                       <Input
-                        type="number"
+                        type='number'
                         value={linea.cantidad}
                         min={1}
-                        onChange={e => updateLinea(idx, 'cantidad', Math.max(1, parseFloat(e.target.value) || 1))}
-                        className="h-7 text-sm text-center w-14 px-1"
+                        onChange={(e) =>
+                          updateLinea(
+                            idx,
+                            'cantidad',
+                            Math.max(1, parseFloat(e.target.value) || 1)
+                          )
+                        }
+                        className='h-7 w-14 px-1 text-center text-sm'
                       />
                       <Button
-                        type="button" variant="outline" size="icon" className="h-7 w-7 shrink-0"
-                        onClick={() => updateLinea(idx, 'cantidad', linea.cantidad + 1)}
-                      >+</Button>
+                        type='button'
+                        variant='outline'
+                        size='icon'
+                        className='h-7 w-7 shrink-0'
+                        onClick={() =>
+                          updateLinea(idx, 'cantidad', linea.cantidad + 1)
+                        }
+                      >
+                        +
+                      </Button>
                     </div>
                   </TableCell>
-                  <TableCell className="p-1">
+                  <TableCell className='p-1'>
                     <Input
-                      type="number"
+                      type='number'
                       value={linea.porc_descuento}
-                      onChange={e =>
-                        updateLinea(idx, 'porc_descuento', parseFloat(e.target.value) || 0)
+                      onChange={(e) =>
+                        updateLinea(
+                          idx,
+                          'porc_descuento',
+                          parseFloat(e.target.value) || 0
+                        )
                       }
-                      className="h-7 text-sm text-right w-14"
+                      className='h-7 w-14 text-right text-sm'
                       min={0}
                       max={100}
                     />
                   </TableCell>
-                  <TableCell className="p-1 text-right font-mono text-sm pr-3 font-medium">{fmtN(linea.monto)}</TableCell>
-                  <TableCell className="p-1 text-center">
-                    <div className="flex flex-col items-center gap-0.5">
+                  <TableCell className='p-1 pr-3 text-right font-mono text-sm font-medium'>
+                    {fmtN(linea.monto)}
+                  </TableCell>
+                  <TableCell className='p-1 text-center'>
+                    <div className='flex flex-col items-center gap-0.5'>
                       <Checkbox
                         checked={linea.itbis}
-                        onCheckedChange={v => updateLinea(idx, 'itbis', v === true)}
+                        onCheckedChange={(v) =>
+                          updateLinea(idx, 'itbis', v === true)
+                        }
                       />
                       {linea.itbis && linea.porciento_impuesto > 0 && (
-                        <span className="text-xs text-gray-400">{linea.porciento_impuesto}%</span>
+                        <span className='text-xs text-gray-400'>
+                          {linea.porciento_impuesto}%
+                        </span>
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="p-1">
+                  <TableCell className='p-1'>
                     <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                      size='sm'
+                      variant='ghost'
+                      className='h-7 w-7 p-0 text-red-400 hover:bg-red-50 hover:text-red-600'
                       onClick={() => eliminarLinea(idx)}
                     >
                       ×
@@ -988,29 +1252,29 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
         </div>
 
         {lineas.length > 0 && (
-          <div className="flex justify-end border-t pt-3">
-            <div className="w-72 space-y-1.5 text-sm">
-              <div className="flex justify-between text-gray-600">
+          <div className='flex justify-end border-t pt-3'>
+            <div className='w-72 space-y-1.5 text-sm'>
+              <div className='flex justify-between text-gray-600'>
                 <span>Cant. Prod.:</span>
-                <span className="font-mono">{cantProd}</span>
+                <span className='font-mono'>{cantProd}</span>
               </div>
-              <div className="flex justify-between text-gray-600">
+              <div className='flex justify-between text-gray-600'>
                 <span>Sub Total:</span>
-                <span className="font-mono">{fmtN(subTotal)}</span>
+                <span className='font-mono'>{fmtN(subTotal)}</span>
               </div>
               {totalDesc > 0 && (
-                <div className="flex justify-between text-red-600">
+                <div className='flex justify-between text-red-600'>
                   <span>Descuento:</span>
-                  <span className="font-mono">({fmtN(totalDesc)})</span>
+                  <span className='font-mono'>({fmtN(totalDesc)})</span>
                 </div>
               )}
-              <div className="flex justify-between text-gray-600">
+              <div className='flex justify-between text-gray-600'>
                 <span>ITBIS:</span>
-                <span className="font-mono">{fmtN(totalItbis)}</span>
+                <span className='font-mono'>{fmtN(totalItbis)}</span>
               </div>
-              <div className="flex justify-between font-bold text-lg border-t pt-2 mt-1">
+              <div className='mt-1 flex justify-between border-t pt-2 text-lg font-bold'>
                 <span>Total Conduce:</span>
-                <span className="font-mono">{fmtN(totalConduce)}</span>
+                <span className='font-mono'>{fmtN(totalConduce)}</span>
               </div>
             </div>
           </div>
@@ -1019,56 +1283,88 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
 
       {/* ── Cliente Modal ── */}
       <Dialog open={clienteModalOpen} onOpenChange={setClienteModalOpen}>
-        <DialogContent className="w-[60vw] h-[70vh] max-w-none sm:max-w-none flex flex-col p-0 gap-0 overflow-hidden">
-          <DialogHeader className="px-6 py-4 border-b shrink-0">
+        <DialogContent className='flex h-[70vh] w-[60vw] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none'>
+          <DialogHeader className='shrink-0 border-b px-6 py-4'>
             <DialogTitle>Buscar Cliente</DialogTitle>
           </DialogHeader>
-          <div className="px-6 py-3 border-b shrink-0 bg-gray-50">
+          <div className='shrink-0 border-b bg-background px-6 py-3'>
             <Input
               ref={clienteModalInputRef}
               value={clienteSearch}
-              onChange={e => { setClienteSearch(e.target.value); buscarClientesModal(e.target.value) }}
-              placeholder="Buscar por nombre, codigo o RNC..."
-              className="text-base h-11"
+              onChange={(e) => {
+                setClienteSearch(e.target.value)
+                buscarClientesModal(e.target.value)
+              }}
+              placeholder='Buscar por nombre, codigo o RNC...'
+              className='h-11 text-base'
               autoFocus
             />
           </div>
-          <div className="flex-1 overflow-y-auto px-6 py-2">
+          <div className='flex-1 overflow-y-auto px-6 py-2'>
             <Table>
-              <TableHeader className="sticky top-0 bg-white z-10">
+              <TableHeader className='sticky top-0 z-10 bg-background'>
                 <TableRow>
-                  <TableHead className="w-32">Codigo</TableHead>
+                  <TableHead className='w-32'>Codigo</TableHead>
                   <TableHead>Nombre</TableHead>
-                  <TableHead className="w-36">RNC / Cedula</TableHead>
-                  <TableHead className="w-64">Direccion</TableHead>
-                  <TableHead className="w-24 text-center">Accion</TableHead>
+                  <TableHead className='w-36'>RNC / Cedula</TableHead>
+                  <TableHead className='w-64'>Direccion</TableHead>
+                  <TableHead className='w-24 text-center'>Accion</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {clienteResults.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-gray-400 py-12">
-                      {buscandoClientes ? 'Buscando...' : clienteSearch.length >= 2 ? 'No se encontraron clientes' : 'Escriba al menos 2 caracteres para buscar'}
+                    <TableCell
+                      colSpan={5}
+                      className='py-12 text-center text-gray-400'
+                    >
+                      {buscandoClientes
+                        ? 'Buscando...'
+                        : clienteSearch.length >= 2
+                          ? 'No se encontraron clientes'
+                          : 'Escriba al menos 2 caracteres para buscar'}
                     </TableCell>
                   </TableRow>
                 )}
-                {clienteResults.map(c => (
-                  <TableRow key={c.no_cliente} className="hover:bg-blue-50 cursor-pointer" onDoubleClick={() => aplicarCliente(c)}>
-                    <TableCell className="font-mono font-semibold">{c.no_cliente}</TableCell>
-                    <TableCell className="font-medium">{c.nombre}</TableCell>
-                    <TableCell className="font-mono text-sm">{c.rnc || c.cedula || '—'}</TableCell>
-                    <TableCell className="text-sm text-gray-600 truncate max-w-xs">{c.direccion || '—'}</TableCell>
-                    <TableCell className="text-center">
-                      <Button size="sm" className="h-7 px-3" onClick={() => aplicarCliente(c)}>Seleccionar</Button>
+                {clienteResults.map((c) => (
+                  <TableRow
+                    key={c.no_cliente}
+                    className='cursor-pointer hover:bg-blue-50'
+                    onDoubleClick={() => aplicarCliente(c)}
+                  >
+                    <TableCell className='font-mono font-semibold'>
+                      {c.no_cliente}
+                    </TableCell>
+                    <TableCell className='font-medium'>{c.nombre}</TableCell>
+                    <TableCell className='font-mono text-sm'>
+                      {c.rnc || c.cedula || '—'}
+                    </TableCell>
+                    <TableCell className='max-w-xs truncate text-sm text-gray-600'>
+                      {c.direccion || '—'}
+                    </TableCell>
+                    <TableCell className='text-center'>
+                      <Button
+                        size='sm'
+                        className='h-7 px-3'
+                        onClick={() => aplicarCliente(c)}
+                      >
+                        Seleccionar
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
-          <div className="px-6 py-3 border-t shrink-0 bg-gray-50 flex items-center justify-between text-sm text-gray-500">
-            <span>{clienteResults.length > 0 ? `${clienteResults.length} cliente${clienteResults.length !== 1 ? 's' : ''} encontrado${clienteResults.length !== 1 ? 's' : ''}` : ''}</span>
-            <span className="text-xs">Doble clic o "Seleccionar" para cargar el cliente</span>
+          <div className='flex shrink-0 items-center justify-between border-t bg-background px-6 py-3 text-sm text-gray-500'>
+            <span>
+              {clienteResults.length > 0
+                ? `${clienteResults.length} cliente${clienteResults.length !== 1 ? 's' : ''} encontrado${clienteResults.length !== 1 ? 's' : ''}`
+                : ''}
+            </span>
+            <span className='text-xs'>
+              Doble clic o "Seleccionar" para cargar el cliente
+            </span>
           </div>
         </DialogContent>
       </Dialog>
@@ -1076,11 +1372,14 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
       {/* ── Product Search Modal (componente compartido) ── */}
       <BuscarProductoModal
         open={productDialogOpen}
-        onClose={() => { setProductDialogOpen(false); setCurrentLineaIdx(null) }}
+        onClose={() => {
+          setProductDialogOpen(false)
+          setCurrentLineaIdx(null)
+        }}
         onSelect={(p, qty, alm) => {
           if (currentLineaIdx === null) return
           const idx = currentLineaIdx
-          setLineas(prev => {
+          setLineas((prev) => {
             const arr = [...prev]
             const l = { ...arr[idx] }
             l.no_produ = p.no_produ

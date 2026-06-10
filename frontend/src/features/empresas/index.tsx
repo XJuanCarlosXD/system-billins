@@ -1,21 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Header } from '@/components/layout/header'
-import { Main } from '@/components/layout/main'
-import { ProfileDropdown } from '@/components/profile-dropdown'
-import { ThemeSwitch } from '@/components/theme-switch'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from '@/components/ui/dialog'
 import {
   Loader2,
   Building2,
@@ -26,9 +9,26 @@ import {
   Image as ImageIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { sigafApi, type Company, ApiError } from '@/lib/sigaf-api'
 import { regalGeneralApi } from '@/lib/regal-general-api'
+import { sigafApi, type Company, ApiError } from '@/lib/sigaf-api'
 import { useCompany } from '@/context/company-context'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Header } from '@/components/layout/header'
+import { Main } from '@/components/layout/main'
+import { ProfileDropdown } from '@/components/profile-dropdown'
+import { ThemeSwitch } from '@/components/theme-switch'
 
 function initials(name: string): string {
   return name
@@ -61,7 +61,9 @@ export function EmpresasPage() {
   const [preview, setPreview] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   // hayLogoExistente[no_cia] = true cuando GET de la imagen carga ok, false si 404
-  const [hayLogoExistente, setHayLogoExistente] = useState<Record<string, boolean>>({})
+  const [hayLogoExistente, setHayLogoExistente] = useState<
+    Record<string, boolean>
+  >({})
   // imgError[no_cia] = true para esconder <img> en el card cuando falla
   const [imgError, setImgError] = useState<Record<string, boolean>>({})
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -74,7 +76,8 @@ export function EmpresasPage() {
         const res = await sigafApi.adminListCompanies()
         setCompanies(res.companies)
       } catch (e) {
-        const msg = e instanceof ApiError ? e.detail?.detail || 'Error' : 'Error de red'
+        const msg =
+          e instanceof ApiError ? e.detail?.detail || 'Error' : 'Error de red'
         setError(msg)
       } finally {
         setLoading(false)
@@ -104,7 +107,8 @@ export function EmpresasPage() {
     }
     setPendingFile(file)
     const reader = new FileReader()
-    reader.onload = () => setPreview(typeof reader.result === 'string' ? reader.result : null)
+    reader.onload = () =>
+      setPreview(typeof reader.result === 'string' ? reader.result : null)
     reader.readAsDataURL(file)
   }
 
@@ -154,9 +158,12 @@ export function EmpresasPage() {
     () =>
       companies.map((c) => ({
         ...c,
-        _logoUrl: regalGeneralApi.cntCiaLogoUrl(c.no_cia, logoBust[c.no_cia] ?? 'init'),
+        _logoUrl: regalGeneralApi.cntCiaLogoUrl(
+          c.no_cia,
+          logoBust[c.no_cia] ?? 'init'
+        ),
       })),
-    [companies, logoBust],
+    [companies, logoBust]
   )
 
   return (
@@ -171,7 +178,9 @@ export function EmpresasPage() {
       <Main>
         <div className='mb-4 flex items-center justify-between'>
           <p className='text-sm text-muted-foreground'>
-            {companies.length} empresa(s) registrada(s) — click para seleccionar, ⚙️ para subir/cambiar logo. Los logos aparecen también en los PDFs (facturas, conduces y reportes).
+            {companies.length} empresa(s) registrada(s) — click para
+            seleccionar, ⚙️ para subir/cambiar logo. Los logos aparecen también
+            en los PDFs (facturas, conduces y reportes).
           </p>
         </div>
 
@@ -201,9 +210,10 @@ export function EmpresasPage() {
                     tabIndex={0}
                     onClick={() => setSelectedCompany(c.no_cia)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') setSelectedCompany(c.no_cia)
+                      if (e.key === 'Enter' || e.key === ' ')
+                        setSelectedCompany(c.no_cia)
                     }}
-                    className='relative flex h-28 cursor-pointer items-end overflow-hidden'
+                    className='relative flex h-28 cursor-pointer items-end overflow-hidden sm:h-56'
                     style={{ background: gradientFor(c.no_cia) }}
                   >
                     {/* Logo backend — si falla mostramos iniciales sobre el gradient */}
@@ -213,22 +223,24 @@ export function EmpresasPage() {
                         src={c._logoUrl}
                         alt={c.descripcion}
                         className='absolute inset-0 h-full w-full object-cover'
-                        onError={() => setImgError((m) => ({ ...m, [c.no_cia]: true }))}
+                        onError={() =>
+                          setImgError((m) => ({ ...m, [c.no_cia]: true }))
+                        }
                       />
                     ) : (
-                      <span className='absolute right-3 top-3 text-3xl font-bold text-white/30 mix-blend-overlay'>
+                      <span className='absolute top-3 right-3 text-3xl font-bold text-white/30 mix-blend-overlay'>
                         {initials(c.descripcion || c.no_cia)}
                       </span>
                     )}
                     {isSelected && (
-                      <Badge className='absolute right-2 top-2 z-10 gap-1 shadow'>
+                      <Badge className='absolute top-2 right-2 z-10 gap-1 shadow'>
                         <CheckCircle2 className='h-3 w-3' /> Activa
                       </Badge>
                     )}
                     <Button
                       variant='secondary'
                       size='icon'
-                      className='absolute left-2 top-2 z-10 h-8 w-8 opacity-0 shadow-md transition-opacity group-hover:opacity-100'
+                      className='absolute top-2 left-2 z-10 h-8 w-8 opacity-0 shadow-md transition-opacity group-hover:opacity-100'
                       onClick={(e) => {
                         e.stopPropagation()
                         openEdit(c)
@@ -242,7 +254,9 @@ export function EmpresasPage() {
                   <CardContent className='space-y-2 p-4'>
                     <div className='flex items-start justify-between gap-2'>
                       <div className='min-w-0'>
-                        <p className='truncate font-semibold leading-tight'>{c.descripcion}</p>
+                        <p className='truncate leading-tight font-semibold'>
+                          {c.descripcion}
+                        </p>
                         <p className='font-mono text-[11px] text-muted-foreground'>
                           # {c.no_cia}
                         </p>
@@ -276,13 +290,17 @@ export function EmpresasPage() {
             <DialogHeader>
               <DialogTitle>Logo de empresa</DialogTitle>
               <DialogDescription>
-                El logo se guarda en el servidor y se usa en los PDFs (facturas, conduces y reportes). Para cambiar el nombre o el RNC, edita la empresa en su configuración por módulo.
+                El logo se guarda en el servidor y se usa en los PDFs (facturas,
+                conduces y reportes). Para cambiar el nombre o el RNC, edita la
+                empresa en su configuración por módulo.
               </DialogDescription>
             </DialogHeader>
             {editing && (
               <div className='space-y-4'>
                 <div>
-                  <Label className='text-xs text-muted-foreground'>Empresa</Label>
+                  <Label className='text-xs text-muted-foreground'>
+                    Empresa
+                  </Label>
                   <div className='mt-1 flex items-center gap-2'>
                     <code className='rounded bg-muted px-2 py-0.5 font-mono text-xs'>
                       {editing.no_cia}
@@ -298,18 +316,31 @@ export function EmpresasPage() {
                   <div className='mt-1 flex items-center gap-3'>
                     <div className='flex h-20 w-20 items-center justify-center overflow-hidden rounded border bg-muted'>
                       {preview ? (
-                        <img src={preview} alt='preview' className='h-full w-full object-cover' />
+                        <img
+                          src={preview}
+                          alt='preview'
+                          className='h-full w-full object-cover'
+                        />
                       ) : hayLogoExistente[editing.no_cia] !== false ? (
                         <img
                           key={`${editing.no_cia}-${logoBust[editing.no_cia] ?? 'init'}`}
-                          src={regalGeneralApi.cntCiaLogoUrl(editing.no_cia, logoBust[editing.no_cia] ?? 'init')}
+                          src={regalGeneralApi.cntCiaLogoUrl(
+                            editing.no_cia,
+                            logoBust[editing.no_cia] ?? 'init'
+                          )}
                           alt='actual'
                           className='h-full w-full object-cover'
                           onLoad={() =>
-                            setHayLogoExistente((m) => ({ ...m, [editing.no_cia]: true }))
+                            setHayLogoExistente((m) => ({
+                              ...m,
+                              [editing.no_cia]: true,
+                            }))
                           }
                           onError={() =>
-                            setHayLogoExistente((m) => ({ ...m, [editing.no_cia]: false }))
+                            setHayLogoExistente((m) => ({
+                              ...m,
+                              [editing.no_cia]: false,
+                            }))
                           }
                         />
                       ) : (

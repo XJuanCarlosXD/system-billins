@@ -72,7 +72,10 @@ export const sidebarData: SidebarData = {
               title: 'Consultas',
               items: [
                 { title: 'Consulta de Facturas', url: '/fat/facturas' },
-                { title: 'Pedidos / Cotizaciones / Conduces', url: '/fat/conduces' },
+                {
+                  title: 'Pedidos / Cotizaciones / Conduces',
+                  url: '/fat/conduces',
+                },
               ],
             },
             {
@@ -80,7 +83,10 @@ export const sidebarData: SidebarData = {
               items: [
                 { title: 'Ventas por Producto', url: '/fat/rep-ventas' },
                 { title: 'Ventas por Cliente', url: '/fat/rep-ventas-cliente' },
-                { title: 'Ventas por Vendedor', url: '/fat/rep-ventas-vendedor' },
+                {
+                  title: 'Ventas por Vendedor',
+                  url: '/fat/rep-ventas-vendedor',
+                },
                 { title: 'Analitica de Ventas', url: '/fat/rep-analitica' },
                 { title: 'Facturas con RNC', url: '/fat/rep-facturas-rnc' },
                 { title: 'Margen bruto', url: '/fat/rep-margen-bruto' },
@@ -91,7 +97,10 @@ export const sidebarData: SidebarData = {
             {
               title: 'Cierres',
               items: [
-                { title: 'Generar Asiento a Contabilidad', url: '/fat/generar-asientos' },
+                {
+                  title: 'Generar Asiento a Contabilidad',
+                  url: '/fat/generar-asientos',
+                },
                 { title: 'Cierre Mensual', url: '/fat/cierre-mensual' },
               ],
             },
@@ -105,14 +114,23 @@ export const sidebarData: SidebarData = {
               title: 'Clientes',
               items: [
                 { title: 'Clientes', url: '/cxc/clientes' },
-                { title: 'Asignacion Cliente a Ruta', url: '/cxc/cliente-ruta' },
+                {
+                  title: 'Asignacion Cliente a Ruta',
+                  url: '/cxc/cliente-ruta',
+                },
               ],
             },
             {
               title: 'Documentos',
               items: [
-                { title: 'Entrada de Transacciones', url: '/cxc/transacciones' },
-                { title: 'Consulta / Impresion de Documentos', url: '/cxc/documentos' },
+                {
+                  title: 'Entrada de Transacciones',
+                  url: '/cxc/transacciones',
+                },
+                {
+                  title: 'Consulta / Impresion de Documentos',
+                  url: '/cxc/documentos',
+                },
               ],
             },
             {
@@ -128,7 +146,10 @@ export const sidebarData: SidebarData = {
               title: 'Consultas',
               items: [
                 { title: 'Estado de Cuenta', url: '/cxc/estado-cuenta' },
-                { title: 'Balance de Clientes (Envejecimiento)', url: '/cxc/balance' },
+                {
+                  title: 'Balance de Clientes (Envejecimiento)',
+                  url: '/cxc/balance',
+                },
                 { title: 'Historico de Pagos', url: '/cxc/historico' },
                 { title: 'Libro de Ventas', url: '/cxc/libro-ventas' },
               ],
@@ -136,17 +157,32 @@ export const sidebarData: SidebarData = {
             {
               title: 'Reportes',
               items: [
-                { title: 'Envejecimiento de Cartera', url: '/cxc/rep-envejecimiento' },
-                { title: 'Cobros por Vendedor', url: '/cxc/rep-cobros-vendedor' },
-                { title: 'Comisiones por Vendedor', url: '/cxc/rep-comisiones' },
+                {
+                  title: 'Envejecimiento de Cartera',
+                  url: '/cxc/rep-envejecimiento',
+                },
+                {
+                  title: 'Cobros por Vendedor',
+                  url: '/cxc/rep-cobros-vendedor',
+                },
+                {
+                  title: 'Comisiones por Vendedor',
+                  url: '/cxc/rep-comisiones',
+                },
                 { title: 'NCF Emitidos por Periodo', url: '/cxc/rep-ncf' },
               ],
             },
             {
               title: 'Cierre',
               items: [
-                { title: 'Imprimir Asiento Contable', url: '/cxc/asiento-contable' },
-                { title: 'Generar Asiento al Mayor', url: '/cxc/generar-asiento' },
+                {
+                  title: 'Imprimir Asiento Contable',
+                  url: '/cxc/asiento-contable',
+                },
+                {
+                  title: 'Generar Asiento al Mayor',
+                  url: '/cxc/generar-asiento',
+                },
                 { title: 'Cierre de CxC', url: '/cxc/cierre' },
               ],
             },
@@ -158,15 +194,19 @@ export const sidebarData: SidebarData = {
           items: [
             {
               title: 'Proveedores',
-              items: [
-                { title: 'Proveedores', url: '/cxp/proveedores' },
-              ],
+              items: [{ title: 'Proveedores', url: '/cxp/proveedores' }],
             },
             {
               title: 'Documentos',
               items: [
-                { title: 'Entrada de Documentos DR/CR', url: '/cxp/entrada-documentos' },
-                { title: 'Consulta / Impresion de Documentos', url: '/cxp/documentos' },
+                {
+                  title: 'Entrada de Documentos DR/CR',
+                  url: '/cxp/entrada-documentos',
+                },
+                {
+                  title: 'Consulta / Impresion de Documentos',
+                  url: '/cxp/documentos',
+                },
                 { title: 'Cuentas por Pagar', url: '/cxp/cuentas' },
                 { title: 'Movimientos de Proveedor', url: '/cxp/movimientos' },
               ],
@@ -176,20 +216,29 @@ export const sidebarData: SidebarData = {
               items: [
                 { title: 'Reversar Documento', url: '/cxp/reversar' },
                 { title: 'Liberar Debito', url: '/cxp/liberar-debito' },
-                { title: 'Bloquear / Desbloquear Pago', url: '/cxp/bloquear-pago' },
+                {
+                  title: 'Bloquear / Desbloquear Pago',
+                  url: '/cxp/bloquear-pago',
+                },
               ],
             },
             {
               title: 'Consultas',
               items: [
                 { title: 'Antiguedad de Saldos', url: '/cxp/envejecimiento' },
-                { title: 'Movimientos de Proveedores', url: '/cxp/rep-movimientos' },
+                {
+                  title: 'Movimientos de Proveedores',
+                  url: '/cxp/rep-movimientos',
+                },
               ],
             },
             {
               title: 'Reportes',
               items: [
-                { title: 'Alfabetico de Proveedores', url: '/cxp/rep-alfabetico' },
+                {
+                  title: 'Alfabetico de Proveedores',
+                  url: '/cxp/rep-alfabetico',
+                },
                 { title: 'Mayor Auxiliar CxP', url: '/cxp/rep-mayor' },
                 { title: 'ITBIS Compras Locales 606', url: '/cxp/rep-606' },
                 { title: 'Retenciones Proveedores 607', url: '/cxp/rep-607' },
@@ -200,8 +249,14 @@ export const sidebarData: SidebarData = {
             {
               title: 'Cierre',
               items: [
-                { title: 'Imprimir Asiento Contable', url: '/cxp/asiento-contable' },
-                { title: 'Generar Asiento a Contabilidad', url: '/cxp/generar-asiento' },
+                {
+                  title: 'Imprimir Asiento Contable',
+                  url: '/cxp/asiento-contable',
+                },
+                {
+                  title: 'Generar Asiento a Contabilidad',
+                  url: '/cxp/generar-asiento',
+                },
                 { title: 'Cierre Mensual', url: '/cxp/cierre' },
               ],
             },
@@ -215,7 +270,10 @@ export const sidebarData: SidebarData = {
               title: 'Procesos',
               items: [
                 { title: 'Entrada de Orden', url: '/odc/nueva-orden' },
-                { title: 'Entrada de Requisicion', url: '/odc/nueva-requisicion' },
+                {
+                  title: 'Entrada de Requisicion',
+                  url: '/odc/nueva-requisicion',
+                },
                 { title: 'Autorizar Ordenes', url: '/odc/autorizar' },
                 { title: 'Recibir Mercancia', url: '/odc/recibir' },
                 { title: 'Anular Orden / Requisicion', url: '/odc/anular' },
@@ -225,7 +283,10 @@ export const sidebarData: SidebarData = {
               title: 'Consultas',
               items: [
                 { title: 'Consulta de Ordenes', url: '/odc/ordenes' },
-                { title: 'Consulta de Requisiciones', url: '/odc/requisiciones' },
+                {
+                  title: 'Consulta de Requisiciones',
+                  url: '/odc/requisiciones',
+                },
               ],
             },
             {
@@ -245,48 +306,151 @@ export const sidebarData: SidebarData = {
             {
               title: 'Procesos',
               items: [
-                { title: 'Entrada de Compras', url: '/inv', search: { section: 'procesos', view: 'entrada-compras' } },
-                { title: 'Entrada Mercancía Almacén', url: '/inv', search: { section: 'procesos', view: 'entrada-mercancia' } },
-                { title: 'Salida de Mercancía', url: '/inv', search: { section: 'procesos', view: 'salida-mercancia' } },
-                { title: 'Transferencia de Mercancía', url: '/inv', search: { section: 'procesos', view: 'transferencia-mercancia' } },
-                { title: 'Devolución a Suplidores', url: '/inv', search: { section: 'procesos', view: 'devolucion-suplidores' } },
-                { title: 'Devolución de Ventas', url: '/inv', search: { section: 'procesos', view: 'devolucion-ventas' } },
-                { title: 'Reversar Documento', url: '/inv', search: { section: 'procesos', view: 'reversar-documento' } },
-                { title: 'Impresión de Documentos', url: '/inv', search: { section: 'procesos', view: 'impresion-documentos' } },
+                {
+                  title: 'Entrada de Compras',
+                  url: '/inv',
+                  search: { section: 'procesos', view: 'entrada-compras' },
+                },
+                {
+                  title: 'Entrada Mercancía Almacén',
+                  url: '/inv',
+                  search: { section: 'procesos', view: 'entrada-mercancia' },
+                },
+                {
+                  title: 'Salida de Mercancía',
+                  url: '/inv',
+                  search: { section: 'procesos', view: 'salida-mercancia' },
+                },
+                {
+                  title: 'Transferencia de Mercancía',
+                  url: '/inv',
+                  search: {
+                    section: 'procesos',
+                    view: 'transferencia-mercancia',
+                  },
+                },
+                {
+                  title: 'Devolución a Suplidores',
+                  url: '/inv',
+                  search: {
+                    section: 'procesos',
+                    view: 'devolucion-suplidores',
+                  },
+                },
+                {
+                  title: 'Devolución de Ventas',
+                  url: '/inv',
+                  search: { section: 'procesos', view: 'devolucion-ventas' },
+                },
+                {
+                  title: 'Reversar Documento',
+                  url: '/inv',
+                  search: { section: 'procesos', view: 'reversar-documento' },
+                },
+                {
+                  title: 'Impresión de Documentos',
+                  url: '/inv',
+                  search: { section: 'procesos', view: 'impresion-documentos' },
+                },
               ],
             },
             {
               title: 'Consultas',
               items: [
-                { title: 'Consulta de Documentos', url: '/inv', search: { section: 'consultas', view: 'consulta-documentos' } },
-                { title: 'Existencia de Producto', url: '/inv', search: { section: 'consultas', view: 'existencia-producto' } },
-                { title: 'Existencia en Grupo', url: '/inv', search: { section: 'consultas', view: 'existencia-grupo' } },
+                {
+                  title: 'Consulta de Documentos',
+                  url: '/inv',
+                  search: { section: 'consultas', view: 'consulta-documentos' },
+                },
+                {
+                  title: 'Existencia de Producto',
+                  url: '/inv',
+                  search: { section: 'consultas', view: 'existencia-producto' },
+                },
+                {
+                  title: 'Existencia en Grupo',
+                  url: '/inv',
+                  search: { section: 'consultas', view: 'existencia-grupo' },
+                },
               ],
             },
             {
               title: 'Reportes',
               items: [
-                { title: 'Existencia', url: '/inv', search: { section: 'reportes', view: 'reporte-existencia' } },
-                { title: 'Movimientos', url: '/inv', search: { section: 'reportes', view: 'reporte-movimientos' } },
-                { title: 'Líneas y Sublíneas', url: '/inv', search: { section: 'reportes', view: 'lineas-sublineas' } },
+                {
+                  title: 'Existencia',
+                  url: '/inv',
+                  search: { section: 'reportes', view: 'reporte-existencia' },
+                },
+                {
+                  title: 'Movimientos',
+                  url: '/inv',
+                  search: { section: 'reportes', view: 'reporte-movimientos' },
+                },
+                {
+                  title: 'Líneas y Sublíneas',
+                  url: '/inv',
+                  search: { section: 'reportes', view: 'lineas-sublineas' },
+                },
               ],
             },
             {
               title: 'Conteo Físico',
               items: [
-                { title: 'Reportes CF', url: '/inv', search: { section: 'conteo-fisico', view: 'reportes-cf' } },
-                { title: 'Cargar CF desde Excel', url: '/inv', search: { section: 'conteo-fisico', view: 'cargar-cf-excel' } },
-                { title: 'Entrada CF Manual', url: '/inv', search: { section: 'conteo-fisico', view: 'entrada-cf-manual' } },
-                { title: 'Comparativo Físico vs Teórico', url: '/inv', search: { section: 'conteo-fisico', view: 'comparativo-fisico' } },
-                { title: 'Ajuste de Inventario por CF', url: '/inv', search: { section: 'conteo-fisico', view: 'ajuste-inventario-cf' } },
+                {
+                  title: 'Reportes CF',
+                  url: '/inv',
+                  search: { section: 'conteo-fisico', view: 'reportes-cf' },
+                },
+                {
+                  title: 'Cargar CF desde Excel',
+                  url: '/inv',
+                  search: { section: 'conteo-fisico', view: 'cargar-cf-excel' },
+                },
+                {
+                  title: 'Entrada CF Manual',
+                  url: '/inv',
+                  search: {
+                    section: 'conteo-fisico',
+                    view: 'entrada-cf-manual',
+                  },
+                },
+                {
+                  title: 'Comparativo Físico vs Teórico',
+                  url: '/inv',
+                  search: {
+                    section: 'conteo-fisico',
+                    view: 'comparativo-fisico',
+                  },
+                },
+                {
+                  title: 'Ajuste de Inventario por CF',
+                  url: '/inv',
+                  search: {
+                    section: 'conteo-fisico',
+                    view: 'ajuste-inventario-cf',
+                  },
+                },
               ],
             },
             {
               title: 'Cierre',
               items: [
-                { title: 'Entrada de Diario', url: '/inv', search: { section: 'cierre', view: 'entrada-diario' } },
-                { title: 'Generar Asiento a Contabilidad', url: '/inv', search: { section: 'cierre', view: 'generar-asiento' } },
-                { title: 'Cierre Mensual', url: '/inv', search: { section: 'cierre', view: 'cierre-mensual' } },
+                {
+                  title: 'Entrada de Diario',
+                  url: '/inv',
+                  search: { section: 'cierre', view: 'entrada-diario' },
+                },
+                {
+                  title: 'Generar Asiento a Contabilidad',
+                  url: '/inv',
+                  search: { section: 'cierre', view: 'generar-asiento' },
+                },
+                {
+                  title: 'Cierre Mensual',
+                  url: '/inv',
+                  search: { section: 'cierre', view: 'cierre-mensual' },
+                },
               ],
             },
           ],
@@ -318,14 +482,15 @@ export const sidebarData: SidebarData = {
                 { title: 'Movimiento de Cuenta', url: '/chc/rep-movimientos' },
                 { title: 'Balance de Cuentas', url: '/chc/rep-balance' },
                 { title: 'Libro Diario Cheques', url: '/chc/rep-diario' },
-                { title: 'Disponibilidad Bancaria', url: '/chc/rep-disponibilidad' },
+                {
+                  title: 'Disponibilidad Bancaria',
+                  url: '/chc/rep-disponibilidad',
+                },
               ],
             },
             {
               title: 'Cierre',
-              items: [
-                { title: 'Cierre Conciliacion', url: '/chc/cierres' },
-              ],
+              items: [{ title: 'Cierre Conciliacion', url: '/chc/cierres' }],
             },
           ],
         },
@@ -374,9 +539,7 @@ export const sidebarData: SidebarData = {
           items: [
             {
               title: 'Mantenimiento',
-              items: [
-                { title: 'Empleados', url: '/sdn/empleados' },
-              ],
+              items: [{ title: 'Empleados', url: '/sdn/empleados' }],
             },
             {
               title: 'Procesos',
@@ -411,9 +574,7 @@ export const sidebarData: SidebarData = {
           items: [
             {
               title: 'Mantenimiento',
-              items: [
-                { title: 'Activos Fijos', url: '/acf/activos' },
-              ],
+              items: [{ title: 'Activos Fijos', url: '/acf/activos' }],
             },
             {
               title: 'Procesos',
@@ -425,15 +586,11 @@ export const sidebarData: SidebarData = {
             },
             {
               title: 'Reportes',
-              items: [
-                { title: 'Resumen / Por grupo', url: '/acf/reportes' },
-              ],
+              items: [{ title: 'Resumen / Por grupo', url: '/acf/reportes' }],
             },
             {
               title: 'Cierre',
-              items: [
-                { title: 'Cierre Mensual', url: '/acf/cierre' },
-              ],
+              items: [{ title: 'Cierre Mensual', url: '/acf/cierre' }],
             },
           ],
         },
@@ -444,33 +601,81 @@ export const sidebarData: SidebarData = {
             {
               title: 'Procesos',
               items: [
-                { title: 'Entrada de diario', url: '/cnt', search: { section: 'procesos', view: 'asientos' } },
-                { title: 'Verificacion de asientos', url: '/cnt', search: { section: 'procesos', view: 'verificacion' } },
-                { title: 'Autorizar asientos', url: '/cnt', search: { section: 'procesos', view: 'autorizar' } },
-                { title: 'Procesos meses anteriores', url: '/cnt', search: { section: 'procesos', view: 'autorizar-anterior' } },
-                { title: 'Presupuesto', url: '/cnt', search: { section: 'procesos', view: 'presupuesto' } },
+                {
+                  title: 'Entrada de diario',
+                  url: '/cnt',
+                  search: { section: 'procesos', view: 'asientos' },
+                },
+                {
+                  title: 'Verificacion de asientos',
+                  url: '/cnt',
+                  search: { section: 'procesos', view: 'verificacion' },
+                },
+                {
+                  title: 'Autorizar asientos',
+                  url: '/cnt',
+                  search: { section: 'procesos', view: 'autorizar' },
+                },
+                {
+                  title: 'Procesos meses anteriores',
+                  url: '/cnt',
+                  search: { section: 'procesos', view: 'autorizar-anterior' },
+                },
+                {
+                  title: 'Presupuesto',
+                  url: '/cnt',
+                  search: { section: 'procesos', view: 'presupuesto' },
+                },
               ],
             },
             {
               title: 'Consultas',
               items: [
-                { title: 'Consulta de asientos', url: '/cnt', search: { section: 'consultas', view: 'consulta-asientos' } },
-                { title: 'Movimientos de cuentas', url: '/cnt', search: { section: 'consultas', view: 'movimientos' } },
+                {
+                  title: 'Consulta de asientos',
+                  url: '/cnt',
+                  search: { section: 'consultas', view: 'consulta-asientos' },
+                },
+                {
+                  title: 'Movimientos de cuentas',
+                  url: '/cnt',
+                  search: { section: 'consultas', view: 'movimientos' },
+                },
               ],
             },
             {
               title: 'Reportes',
               items: [
-                { title: 'Balance de comprobacion', url: '/cnt', search: { section: 'reportes', view: 'balance' } },
-                { title: 'Mayor general', url: '/cnt', search: { section: 'reportes', view: 'mayor' } },
-                { title: 'Estados financieros', url: '/cnt', search: { section: 'reportes', view: 'estados' } },
+                {
+                  title: 'Balance de comprobacion',
+                  url: '/cnt',
+                  search: { section: 'reportes', view: 'balance' },
+                },
+                {
+                  title: 'Mayor general',
+                  url: '/cnt',
+                  search: { section: 'reportes', view: 'mayor' },
+                },
+                {
+                  title: 'Estados financieros',
+                  url: '/cnt',
+                  search: { section: 'reportes', view: 'estados' },
+                },
               ],
             },
             {
               title: 'Cierres',
               items: [
-                { title: 'Cierres contables', url: '/cnt', search: { section: 'cierres', view: 'cierres' } },
-                { title: 'Cierre mensual', url: '/cnt', search: { section: 'cierres', view: 'cierre-mensual' } },
+                {
+                  title: 'Cierres contables',
+                  url: '/cnt',
+                  search: { section: 'cierres', view: 'cierres' },
+                },
+                {
+                  title: 'Cierre mensual',
+                  url: '/cnt',
+                  search: { section: 'cierres', view: 'cierre-mensual' },
+                },
               ],
             },
           ],
@@ -483,19 +688,11 @@ export const sidebarData: SidebarData = {
         {
           title: 'Permisos',
           icon: ShieldCheck,
-          items: [
-            { title: 'Usuarios', url: '/sistema/usuarios' },
-            { title: 'Matriz de accesos', url: '/sistema/permisos' },
-          ],
+          url: '/sistema/usuarios',
         },
         {
           title: 'Manuales',
           url: '/man',
-          icon: BookOpen,
-        },
-        {
-          title: 'Manuales del Sistema',
-          url: '/docs',
           icon: BookOpen,
         },
         {

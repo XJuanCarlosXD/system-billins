@@ -12,10 +12,10 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command'
-import { sidebarData } from './layout/data/sidebar-data'
 import { settingsCatalog } from '@/features/settings/data/settings-catalog'
-import { ScrollArea } from './ui/scroll-area'
+import { sidebarData } from './layout/data/sidebar-data'
 import type { NavGroup, NavSubItem } from './layout/types'
+import { ScrollArea } from './ui/scroll-area'
 
 // Per-view keywords/descriptions for intelligent search
 const VIEW_KEYWORDS: Record<string, string> = {
@@ -67,7 +67,8 @@ const VIEW_KEYWORDS: Record<string, string> = {
   '/cxc/balance': 'balance clientes aging envejecimiento cartera 30 60 90 dias',
   '/cxc/historico': 'historico pagos cobros cliente transacciones anteriores',
   '/cxc/libro-ventas': 'libro ventas registro DGII NCF facturacion',
-  '/cxc/rep-envejecimiento': 'envejecimiento cartera aging vencimiento deuda dias cobrar',
+  '/cxc/rep-envejecimiento':
+    'envejecimiento cartera aging vencimiento deuda dias cobrar',
   '/cxc/rep-cobros-vendedor': 'cobros vendedor recaudacion efectividad',
   '/cxc/rep-comisiones': 'comisiones vendedores calculo porciento incentivo',
   '/cxc/rep-ncf': 'NCF emitidos comprobantes fiscales reporte DGII',
@@ -92,9 +93,11 @@ const VIEW_KEYWORDS: Record<string, string> = {
   'cnt-cierre-mensual': 'cierre mensual contabilidad periodo',
   'cnt-cierres': 'historial cierres periodos cerrados',
   'cnt-grupos-sucursal': 'grupos contables sucursal cuentas rangos',
-  'cnt-verificar-asientos': 'verificar asientos aprobar pendientes autorizacion',
+  'cnt-verificar-asientos':
+    'verificar asientos aprobar pendientes autorizacion',
   'cnt-presupuesto': 'presupuesto anual cuentas meses proyeccion gasto ingreso',
-  'cnt-estado-resultados': 'estado resultados ingresos gastos utilidad perdida PyG',
+  'cnt-estado-resultados':
+    'estado resultados ingresos gastos utilidad perdida PyG',
 }
 
 interface FlatItem {
@@ -142,7 +145,9 @@ function flattenNav(groups: NavGroup[]): FlatItem[] {
             for (const leaf of sub.items) {
               if (leaf.url) {
                 const url = leaf.url as string
-                const searchKey = leaf.search?.view ? `${item.title.split(' ')[0].toLowerCase()}-${leaf.search.view}` : url
+                const searchKey = leaf.search?.view
+                  ? `${item.title.split(' ')[0].toLowerCase()}-${leaf.search.view}`
+                  : url
                 result.push({
                   id: `${item.title}-${sub.title}-${url}-${String(leaf.search?.view ?? '')}`,
                   module: item.title,
@@ -150,7 +155,8 @@ function flattenNav(groups: NavGroup[]): FlatItem[] {
                   title: leaf.title,
                   url,
                   search: leaf.search,
-                  keywords: VIEW_KEYWORDS[url] ?? VIEW_KEYWORDS[searchKey] ?? '',
+                  keywords:
+                    VIEW_KEYWORDS[url] ?? VIEW_KEYWORDS[searchKey] ?? '',
                 })
               }
             }
@@ -233,8 +239,7 @@ export function CommandMenu() {
 
   const filtered = React.useMemo(() => {
     if (!query.trim()) return ALL_ITEMS
-    return ALL_ITEMS
-      .map((item) => ({ item, s: score(item, query) }))
+    return ALL_ITEMS.map((item) => ({ item, s: score(item, query) }))
       .filter(({ s }) => s > 0)
       .sort((a, b) => b.s - a.s)
       .map(({ item }) => item)
@@ -255,6 +260,7 @@ export function CommandMenu() {
     <CommandDialog
       modal
       open={open}
+      className='w-full'
       onOpenChange={(v) => {
         setOpen(v)
         if (!v) setQuery('')
@@ -266,7 +272,7 @@ export function CommandMenu() {
         onValueChange={setQuery}
       />
       <CommandList>
-        <ScrollArea type='hover' className='h-80 pe-1'>
+        <ScrollArea type='hover' className='h-full pe-1'>
           <CommandEmpty>No se encontraron resultados.</CommandEmpty>
 
           {Array.from(grouped.entries()).map(([module, items]) => (
@@ -277,23 +283,26 @@ export function CommandMenu() {
                   value={item.id}
                   onSelect={() =>
                     runCommand(() =>
-                      navigate({ to: item.url as any, search: item.search as any })
+                      navigate({
+                        to: item.url as any,
+                        search: item.search as any,
+                      })
                     )
                   }
                 >
-                  <span className='flex items-center gap-1 min-w-0 flex-1'>
+                  <span className='flex min-w-0 flex-1 items-center gap-1'>
                     {item.category && (
                       <>
-                        <span className='text-muted-foreground text-xs shrink-0'>
+                        <span className='shrink-0 text-xs text-muted-foreground'>
                           {item.category}
                         </span>
-                        <ChevronRight className='h-3 w-3 text-muted-foreground/60 shrink-0' />
+                        <ChevronRight className='h-3 w-3 shrink-0 text-muted-foreground/60' />
                       </>
                     )}
                     <span className='truncate'>{item.title}</span>
                   </span>
                   {item.keywords && query.trim() && (
-                    <span className='text-xs text-muted-foreground/50 truncate max-w-32 hidden md:block'>
+                    <span className='hidden max-w-32 truncate text-xs text-muted-foreground/50 md:block'>
                       {item.keywords.split(' ').slice(0, 3).join(' ')}
                     </span>
                   )}

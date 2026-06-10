@@ -45,8 +45,17 @@ const docTypes: DocType[] = [
     label: 'Factura de venta',
     prefix: 'FT / FC',
     icon: Receipt,
-    description: 'Factura tipo F (contado) y C (crédito) emitida desde FAT — Nueva Factura.',
-    defaultColumns: ['Código', 'Descripción', 'Cant.', 'Precio', 'Desc.', 'ITBIS', 'Total'],
+    description:
+      'Factura tipo F (contado) y C (crédito) emitida desde FAT — Nueva Factura.',
+    defaultColumns: [
+      'Código',
+      'Descripción',
+      'Cant.',
+      'Precio',
+      'Desc.',
+      'ITBIS',
+      'Total',
+    ],
     hasNcf: true,
   },
   {
@@ -55,7 +64,14 @@ const docTypes: DocType[] = [
     prefix: 'CT',
     icon: ScrollText,
     description: 'Cotización al cliente, sin afectar inventario.',
-    defaultColumns: ['Código', 'Descripción', 'Cant.', 'Precio', 'Desc.', 'Total'],
+    defaultColumns: [
+      'Código',
+      'Descripción',
+      'Cant.',
+      'Precio',
+      'Desc.',
+      'Total',
+    ],
     hasNcf: false,
   },
   {
@@ -63,7 +79,8 @@ const docTypes: DocType[] = [
     label: 'Conduce',
     prefix: 'CO',
     icon: ClipboardList,
-    description: 'Documento de despacho — afecta inventario pero no facturación.',
+    description:
+      'Documento de despacho — afecta inventario pero no facturación.',
     defaultColumns: ['Código', 'Descripción', 'Cant.', 'UM'],
     hasNcf: false,
   },
@@ -152,8 +169,8 @@ export function PdfTemplatesEditor() {
     () => docTypes.find((d) => d.id === activeId)!,
     [activeId]
   )
-  const [templates, setTemplates] = useState<Record<string, Template>>(
-    () => Object.fromEntries(docTypes.map((d) => [d.id, defaultTemplate(d)]))
+  const [templates, setTemplates] = useState<Record<string, Template>>(() =>
+    Object.fromEntries(docTypes.map((d) => [d.id, defaultTemplate(d)]))
   )
   const tpl = templates[active.id]
   const update = (patch: Partial<Template>) =>
@@ -171,7 +188,9 @@ export function PdfTemplatesEditor() {
     }))
 
   const onSave = () => {
-    toast.success(`Plantilla "${active.label}" guardada (mock — backend pendiente)`)
+    toast.success(
+      `Plantilla "${active.label}" guardada (mock — backend pendiente)`
+    )
   }
 
   return (
@@ -179,8 +198,9 @@ export function PdfTemplatesEditor() {
       <div>
         <h3 className='text-base font-semibold'>Plantillas PDF</h3>
         <p className='text-sm text-muted-foreground'>
-          Personaliza cabecera, logo, columnas del detalle y leyenda fiscal para cada documento que el sistema imprime.
-          Equivale a editar los reportes Oracle <i>Rfat / Rcxc / Rchc / Rcnt</i> sin tocar código.
+          Personaliza cabecera, logo, columnas del detalle y leyenda fiscal para
+          cada documento que el sistema imprime. Equivale a editar los reportes
+          Oracle <i>Rfat / Rcxc / Rchc / Rcnt</i> sin tocar código.
           <span className='ml-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900'>
             Beta — Guardado mock, backend pendiente
           </span>
@@ -189,7 +209,7 @@ export function PdfTemplatesEditor() {
 
       <div className='grid grid-cols-1 gap-4 lg:grid-cols-[260px_1fr]'>
         <div className='space-y-1'>
-          <Label className='text-xs uppercase tracking-wide text-muted-foreground'>
+          <Label className='text-xs tracking-wide text-muted-foreground uppercase'>
             Tipo de documento
           </Label>
           <div className='flex flex-col gap-1 rounded-md border bg-card p-1'>
@@ -235,7 +255,7 @@ export function PdfTemplatesEditor() {
             </CardHeader>
             <CardContent className='space-y-6'>
               <section className='space-y-3'>
-                <h4 className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
+                <h4 className='text-xs font-semibold tracking-wide text-muted-foreground uppercase'>
                   Cabecera de la empresa
                 </h4>
                 <div className='grid gap-3 sm:grid-cols-2'>
@@ -314,12 +334,15 @@ export function PdfTemplatesEditor() {
               <Separator />
 
               <section className='space-y-3'>
-                <h4 className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
+                <h4 className='text-xs font-semibold tracking-wide text-muted-foreground uppercase'>
                   Columnas del detalle
                 </h4>
                 <div className='grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4'>
                   {Object.entries(tpl.columns).map(([col, on]) => (
-                    <label key={col} className='flex items-center gap-2 rounded-md border p-2 text-sm'>
+                    <label
+                      key={col}
+                      className='flex items-center gap-2 rounded-md border p-2 text-sm'
+                    >
                       <Checkbox
                         checked={on}
                         onCheckedChange={(v) => toggleCol(col, !!v)}
@@ -333,7 +356,7 @@ export function PdfTemplatesEditor() {
               <Separator />
 
               <section className='space-y-3'>
-                <h4 className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
+                <h4 className='text-xs font-semibold tracking-wide text-muted-foreground uppercase'>
                   Pie de página
                 </h4>
                 <label className='flex items-center gap-2 text-sm'>
@@ -355,7 +378,7 @@ export function PdfTemplatesEditor() {
               <Separator />
 
               <section className='space-y-3'>
-                <h4 className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
+                <h4 className='text-xs font-semibold tracking-wide text-muted-foreground uppercase'>
                   Layout
                 </h4>
                 <div className='grid gap-3 sm:grid-cols-3'>
@@ -385,7 +408,9 @@ export function PdfTemplatesEditor() {
                       min={0}
                       max={50}
                       value={tpl.marginTop}
-                      onChange={(e) => update({ marginTop: Number(e.target.value) })}
+                      onChange={(e) =>
+                        update({ marginTop: Number(e.target.value) })
+                      }
                     />
                   </div>
                   <div className='space-y-1'>
@@ -396,7 +421,9 @@ export function PdfTemplatesEditor() {
                       min={0}
                       max={50}
                       value={tpl.marginBottom}
-                      onChange={(e) => update({ marginBottom: Number(e.target.value) })}
+                      onChange={(e) =>
+                        update({ marginBottom: Number(e.target.value) })
+                      }
                     />
                   </div>
                   <div className='space-y-1'>
@@ -406,12 +433,16 @@ export function PdfTemplatesEditor() {
                         id='color'
                         type='color'
                         value={tpl.primaryColor}
-                        onChange={(e) => update({ primaryColor: e.target.value })}
+                        onChange={(e) =>
+                          update({ primaryColor: e.target.value })
+                        }
                         className='h-9 w-12 p-1'
                       />
                       <Input
                         value={tpl.primaryColor}
-                        onChange={(e) => update({ primaryColor: e.target.value })}
+                        onChange={(e) =>
+                          update({ primaryColor: e.target.value })
+                        }
                         className='font-mono'
                       />
                     </div>
@@ -425,12 +456,13 @@ export function PdfTemplatesEditor() {
             <CardHeader className='pb-2'>
               <CardTitle className='text-sm'>Vista previa</CardTitle>
               <CardDescription>
-                Representación simplificada de la cabecera y primeras líneas del PDF.
+                Representación simplificada de la cabecera y primeras líneas del
+                PDF.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div
-                className='rounded-md border bg-white p-6 text-sm text-black shadow-sm'
+                className='rounded-md border bg-background p-6 text-sm text-black shadow-sm'
                 style={{ borderColor: tpl.primaryColor }}
               >
                 <div
@@ -458,7 +490,9 @@ export function PdfTemplatesEditor() {
                       {tpl.razonSocial}
                     </div>
                     {tpl.showRnc && (
-                      <div className='font-mono text-[11px]'>RNC: {tpl.rnc}</div>
+                      <div className='font-mono text-[11px]'>
+                        RNC: {tpl.rnc}
+                      </div>
                     )}
                     <div className='text-[11px]'>{tpl.direccion}</div>
                     <div className='text-[11px]'>Tel: {tpl.telefono}</div>
@@ -511,7 +545,7 @@ export function PdfTemplatesEditor() {
                 </table>
 
                 {tpl.showFooter && (
-                  <div className='mt-6 text-center text-[10px] italic text-gray-600'>
+                  <div className='mt-6 text-center text-[10px] text-gray-600 italic'>
                     {tpl.footerText}
                   </div>
                 )}

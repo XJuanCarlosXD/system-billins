@@ -19,13 +19,23 @@ import { UserAuthForm } from './components/user-auth-form'
 const MODULES = [
   { Icon: Receipt, label: 'Facturación', from: '#3b82f6', to: '#06b6d4' },
   { Icon: Boxes, label: 'Inventario', from: '#10b981', to: '#22c55e' },
-  { Icon: CreditCard, label: 'Cuentas por Cobrar', from: '#f59e0b', to: '#f97316' },
+  {
+    Icon: CreditCard,
+    label: 'Cuentas por Cobrar',
+    from: '#f59e0b',
+    to: '#f97316',
+  },
   { Icon: Wallet, label: 'Cuentas por Pagar', from: '#ef4444', to: '#ec4899' },
   { Icon: BookOpen, label: 'Contabilidad', from: '#8b5cf6', to: '#6366f1' },
   { Icon: Banknote, label: 'Bancos / Cheques', from: '#14b8a6', to: '#06b6d4' },
   { Icon: Coins, label: 'Caja Chica', from: '#eab308', to: '#f59e0b' },
   { Icon: Building2, label: 'Activos Fijos', from: '#6366f1', to: '#8b5cf6' },
-  { Icon: ShoppingCart, label: 'Órdenes de Compra', from: '#06b6d4', to: '#3b82f6' },
+  {
+    Icon: ShoppingCart,
+    label: 'Órdenes de Compra',
+    from: '#06b6d4',
+    to: '#3b82f6',
+  },
   { Icon: Users, label: 'Nómina', from: '#ec4899', to: '#f43f5e' },
   { Icon: Wrench, label: 'Mantenimiento', from: '#64748b', to: '#475569' },
 ]
@@ -58,7 +68,7 @@ export function SignIn() {
 
       {/* Halos de color que flotan */}
       <motion.div
-        className='pointer-events-none absolute -left-32 -top-32 h-[420px] w-[420px] rounded-full bg-blue-400/30 blur-3xl dark:bg-blue-500/20'
+        className='pointer-events-none absolute -top-32 -left-32 h-[420px] w-[420px] rounded-full bg-blue-400/30 blur-3xl dark:bg-blue-500/20'
         animate={{ x: [0, 40, -20, 0], y: [0, 30, -10, 0] }}
         transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
       />
@@ -112,7 +122,7 @@ export function SignIn() {
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         className='relative z-10 w-full max-w-md'
       >
-        <Card className='border-white/40 bg-white/85 shadow-2xl shadow-blue-500/10 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/80'>
+        <Card className='border-white/40 bg-background/85 shadow-2xl shadow-blue-500/10 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/80'>
           <CardContent className='space-y-6 p-8'>
             <motion.div
               initial={{ opacity: 0, y: -8 }}

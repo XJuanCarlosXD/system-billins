@@ -7,12 +7,12 @@ import {
   SidebarRail,
   useSidebar,
 } from '@/components/ui/sidebar'
+import { Search } from '@/components/search'
 // import { AppTitle } from './app-title'
 import { sidebarData } from './data/sidebar-data'
 import { NavGroup } from './nav-group'
 import { NavUser } from './nav-user'
 import { TeamSwitcher } from './team-switcher'
-import { Search } from '@/components/search'
 
 function SidebarSearch() {
   const { state } = useSidebar()
@@ -30,7 +30,9 @@ export function AppSidebar() {
     <Sidebar collapsible={collapsible} variant={variant}>
       <SidebarHeader>
         <TeamSwitcher teams={sidebarData.teams} />
-        <SidebarSearch />
+        <div>
+          <SidebarSearch />
+        </div>
       </SidebarHeader>
       <SidebarContent>
         {sidebarData.navGroups.map((props) => (

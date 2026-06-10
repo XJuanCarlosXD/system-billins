@@ -1,23 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { Search as SearchIcon, Settings as SettingsIcon, X } from 'lucide-react'
-import { Header } from '@/components/layout/header'
-import { Main } from '@/components/layout/main'
-import { ConfigDrawer } from '@/components/config-drawer'
-import { ProfileDropdown } from '@/components/profile-dropdown'
-import { Search } from '@/components/search'
-import { ThemeSwitch } from '@/components/theme-switch'
+import { useDebounce } from '@/hooks/use-debounce'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
-import { useDebounce } from '@/hooks/use-debounce'
+import { ConfigDrawer } from '@/components/config-drawer'
+import { Header } from '@/components/layout/header'
+import { Main } from '@/components/layout/main'
+import { ProfileDropdown } from '@/components/profile-dropdown'
+import { Search } from '@/components/search'
+import { ThemeSwitch } from '@/components/theme-switch'
+import { PanelErrorBoundary } from './components/panel-error-boundary'
+import { SettingsTree } from './components/settings-tree'
 import {
   settingsCatalog,
   findContext,
   findSettingsItem,
 } from './data/settings-catalog'
-import { SettingsTree } from './components/settings-tree'
-import { PanelErrorBoundary } from './components/panel-error-boundary'
 
 const DEFAULT_SLUG = 'profile'
 
@@ -61,11 +61,12 @@ export function SettingsHub() {
 
   return (
     <>
-      <Header>
-        <Search className='me-auto' />
-        <ThemeSwitch />
-        <ConfigDrawer />
-        <ProfileDropdown />
+      <Header className='w-full'>
+        <div className='flex w-full justify-end gap-4'>
+          <ThemeSwitch />
+          <ConfigDrawer />
+          <ProfileDropdown />
+        </div>
       </Header>
 
       <Main fixed>
@@ -118,7 +119,9 @@ export function SettingsHub() {
             <div>
               <h2 className='text-lg font-semibold'>{active.title}</h2>
               {active.description && (
-                <p className='text-sm text-muted-foreground'>{active.description}</p>
+                <p className='text-sm text-muted-foreground'>
+                  {active.description}
+                </p>
               )}
             </div>
             <div

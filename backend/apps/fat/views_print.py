@@ -1195,15 +1195,16 @@ def _render_factura_pdf_moderno(*, factura, cia, razon_social, rnc_cliente, dire
         bottomMargin=14 * mm,
     )
     width = doc_pdf.width
+    doc_card_width = 82 * mm
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle(
         name='FacturaTitle',
         parent=styles['Heading1'],
         fontName='Helvetica-Bold',
-        fontSize=18,
-        leading=20,
+        fontSize=15,
+        leading=17,
         textColor=colors.HexColor('#0F172A'),
-        spaceAfter=4,
+        spaceAfter=3,
     ))
     styles.add(ParagraphStyle(
         name='FacturaSubtitle',
@@ -1300,14 +1301,14 @@ def _render_factura_pdf_moderno(*, factura, cia, razon_social, rnc_cliente, dire
                 styles['DocNumber'],
             ),
         ]],
-        colWidths=[34 * mm, 58 * mm],
-        rowHeights=[20 * mm],
+        colWidths=[28 * mm, doc_card_width - 28 * mm],
+        rowHeights=[18 * mm],
     )
     doc_card.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#0F172A')),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 10),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+        ('LEFTPADDING', (0, 0), (-1, -1), 7),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 7),
         ('BOX', (0, 0), (-1, -1), 0.6, colors.HexColor('#0F172A')),
     ]))
 
@@ -1355,11 +1356,13 @@ def _render_factura_pdf_moderno(*, factura, cia, razon_social, rnc_cliente, dire
 
     header = Table(
         [[_left_col, doc_card]],
-        colWidths=[width - 94 * mm, 94 * mm],
+        colWidths=[width - doc_card_width - 4 * mm, doc_card_width],
     )
     header.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
     ]))
 
     cliente_rows = [

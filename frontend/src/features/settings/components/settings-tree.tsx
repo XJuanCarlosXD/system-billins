@@ -50,7 +50,7 @@ export function SettingsTree({
     for (const c of categories) {
       for (const g of c.groups) {
         m[`${c.id}|${g.title}`] = g.items.filter((it) =>
-          itemMatchesQuery(it, c.title, g.title, needle),
+          itemMatchesQuery(it, c.title, g.title, needle)
         )
       }
     }
@@ -103,8 +103,7 @@ export function SettingsTree({
     })
   }, [needle, categories, matchByCat])
 
-  const toggleCat = (id: string) =>
-    setOpenCats((p) => ({ ...p, [id]: !p[id] }))
+  const toggleCat = (id: string) => setOpenCats((p) => ({ ...p, [id]: !p[id] }))
 
   return (
     <ScrollArea className='h-full'>
@@ -123,22 +122,23 @@ export function SettingsTree({
               >
                 <ChevronRight
                   className={cn(
-                    'h-3.5 w-3.5 shrink-0 transition-transform text-muted-foreground',
+                    'h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform',
                     open && 'rotate-90'
                   )}
                 />
                 <Icon className='h-3.5 w-3.5 shrink-0 text-muted-foreground' />
-                <span className='truncate'>{cat.title}</span>
+                <span className='text-md truncate'>{cat.title}</span>
               </Button>
               {open && (
                 <div className='flex flex-col'>
                   {cat.groups.map((g) => {
-                    const visibleItems = visibleItemsByGroup[`${cat.id}|${g.title}`] || []
+                    const visibleItems =
+                      visibleItemsByGroup[`${cat.id}|${g.title}`] || []
                     if (visibleItems.length === 0) return null
                     return (
                       <div key={g.title}>
                         {cat.groups.length > 1 && (
-                          <div className='mt-1 ps-7 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground'>
+                          <div className='mt-1 ps-7 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase'>
                             {g.title}
                           </div>
                         )}
