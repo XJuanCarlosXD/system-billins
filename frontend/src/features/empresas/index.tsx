@@ -60,6 +60,10 @@ export function EmpresasPage() {
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  // hayLogoExistente[no_cia] = true cuando GET de la imagen carga ok, false si 404
+  const [hayLogoExistente, setHayLogoExistente] = useState<Record<string, boolean>>({})
+  // imgError[no_cia] = true para esconder <img> en el card cuando falla
+  const [imgError, setImgError] = useState<Record<string, boolean>>({})
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
@@ -114,6 +118,8 @@ export function EmpresasPage() {
       await regalGeneralApi.cntUploadCiaLogo(editing.no_cia, pendingFile)
       toast.success(`Logo de ${editing.no_cia} actualizado.`)
       setLogoBust((b) => ({ ...b, [editing.no_cia]: Date.now() }))
+      setImgError((m) => ({ ...m, [editing.no_cia]: false }))
+      setHayLogoExistente((m) => ({ ...m, [editing.no_cia]: true }))
       closeEdit()
     } catch (e: any) {
       const msg = e?.detail?.error ?? e?.message ?? 'Error subiendo logo'
@@ -131,6 +137,8 @@ export function EmpresasPage() {
       await regalGeneralApi.cntDeleteCiaLogo(editing.no_cia)
       toast.success('Logo eliminado.')
       setLogoBust((b) => ({ ...b, [editing.no_cia]: Date.now() }))
+      setImgError((m) => ({ ...m, [editing.no_cia]: true }))
+      setHayLogoExistente((m) => ({ ...m, [editing.no_cia]: false }))
       setPreview(null)
       setPendingFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -198,22 +206,20 @@ export function EmpresasPage() {
                     className='relative flex h-28 cursor-pointer items-end overflow-hidden'
                     style={{ background: gradientFor(c.no_cia) }}
                   >
-                    {/* Intento de logo desde backend — onError oculta y deja gradient + iniciales */}
-                    <img
-                      src={c._logoUrl}
-                      alt={c.descripcion}
-                      className='absolute inset-0 h-full w-full object-cover'
-                      onError={(e) => {
-                        ;(e.currentTarget as HTMLImageElement).style.display = 'none'
-                      }}
-                      onLoad={(e) => {
-                        ;(e.currentTarget as HTMLImageElement).style.display = 'block'
-                      }}
-                    />
-                    {/* Iniciales fallback (debajo de la imagen) */}
-                    <span className='absolute right-3 top-3 text-3xl font-bold text-white/30 mix-blend-overlay'>
-                      {initials(c.descripcion || c.no_cia)}
-                    </span>
+                    {/* Logo backend — si falla mostramos iniciales sobre el gradient */}
+                    {!imgError[c.no_cia] ? (
+                      <img
+                        key={c._logoUrl}
+                        src={c._logoUrl}
+                        alt={c.descripcion}
+                        className='absolute inset-0 h-full w-full object-cover'
+                        onError={() => setImgError((m) => ({ ...m, [c.no_cia]: true }))}
+                      />
+                    ) : (
+                      <span className='absolute right-3 top-3 text-3xl font-bold text-white/30 mix-blend-overlay'>
+                        {initials(c.descripcion || c.no_cia)}
+                      </span>
+                    )}
                     {isSelected && (
                       <Badge className='absolute right-2 top-2 z-10 gap-1 shadow'>
                         <CheckCircle2 className='h-3 w-3' /> Activa
@@ -293,21 +299,21 @@ export function EmpresasPage() {
                     <div className='flex h-20 w-20 items-center justify-center overflow-hidden rounded border bg-muted'>
                       {preview ? (
                         <img src={preview} alt='preview' className='h-full w-full object-cover' />
-                      ) : (
+                      ) : hayLogoExistente[editing.no_cia] !== false ? (
                         <img
+                          key={`${editing.no_cia}-${logoBust[editing.no_cia] ?? 'init'}`}
                           src={regalGeneralApi.cntCiaLogoUrl(editing.no_cia, logoBust[editing.no_cia] ?? 'init')}
                           alt='actual'
                           className='h-full w-full object-cover'
-                          onError={(e) => {
-                            const t = e.currentTarget as HTMLImageElement
-                            t.replaceWith(
-                              Object.assign(document.createElement('div'), {
-                                innerHTML: '',
-                                className: 'flex h-full w-full items-center justify-center',
-                              }),
-                            )
-                          }}
+                          onLoad={() =>
+                            setHayLogoExistente((m) => ({ ...m, [editing.no_cia]: true }))
+                          }
+                          onError={() =>
+                            setHayLogoExistente((m) => ({ ...m, [editing.no_cia]: false }))
+                          }
                         />
+                      ) : (
+                        <ImageIcon className='h-6 w-6 text-muted-foreground' />
                       )}
                     </div>
                     <div className='flex flex-col gap-1'>
