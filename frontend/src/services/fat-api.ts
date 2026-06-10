@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://10.0.0.99:8000/api/fat';
+const API_BASE_URL = ((import.meta as any).env?.VITE_API_BASE_URL || '/api') + '/fat';
 
 // Tipos
 export interface FATFactura {

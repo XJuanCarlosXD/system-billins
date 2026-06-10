@@ -107,8 +107,14 @@ CORS_ALLOWED_ORIGINS = env.list(
     'CORS_ALLOWED_ORIGINS',
     default=['http://localhost:5173', 'http://127.0.0.1:5173'],
 )
+CORS_ALLOWED_ORIGIN_REGEXES = env.list(
+    'CORS_ALLOWED_ORIGIN_REGEXES',
+    default=[r'^https://.*\.netlify\.app$'],
+)
 CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS + [
+    'https://*.netlify.app',
+]
 
 # El frontend manda peticiones autenticadas con cookies; en dev relajamos CSRF
 # para sesiones cross-origin. Esto solo aplica con DEBUG=1.
