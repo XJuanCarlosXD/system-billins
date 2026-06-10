@@ -18,12 +18,118 @@ from __future__ import annotations
 from .. import client
 
 
-def count_productos() -> int:
+def count_productos(search: str = '', grupo: str = '', linea: str = '') -> int:
+    params: list = []
+    where = ["1=1"]
+    if search:
+        params.append(f'%{search}%')
+        params.append(f'%{search}%')
+        where.append("(UPPER(descri) LIKE UPPER(:1) OR UPPER(no_produ) LIKE UPPER(:2))")
+    if grupo:
+        params.append(grupo)
+        where.append(f"grupo_produ = :{len(params)}")
+    if linea:
+        params.append(linea)
+        where.append(f"linea = :{len(params)}")
     row = client.fetch_one(
-        "SELECT COUNT(*) FROM INV.TINV_PRODUCTO",
-        [],
+        f"SELECT COUNT(*) FROM INV.TINV_PRODUCTO WHERE {' AND '.join(where)}",
+        params,
     )
     return int(row[0]) if row else 0
+
+
+def create_producto(payload: dict, usuario: str = '') -> dict:
+    """Crea un producto con campos mínimos. El resto se rellena con defaults
+    sensatos para que cumpla los NOT NULL del schema legado.
+
+    Campos del payload:
+      no_produ (str, requerido)
+      descripcion (str, requerido)
+      grupo_produ (str, requerido)
+      linea (str, requerido)
+      sub_linea (str, requerido)
+      grupo_contable (str, requerido)
+      tiene_impuesto (str 'S'|'N', def='S')
+      porciento_impuesto (num, def=18 si tiene_impuesto)
+      costo (num, def=0)  -> costo_mercado_rd
+      servicio (str 'I'|'S'|'K'|'C', def='I')
+      activo (str 'S'|'N', def='S')
+      marca (str, opc)
+      referencia (str, opc)
+      no_proveedor (str, opc)
+    """
+    no_produ = (payload.get('no_produ') or '').strip().upper()
+    descri = (payload.get('descripcion') or '').strip()
+    grupo_produ = (payload.get('grupo_produ') or '').strip()
+    linea = (payload.get('linea') or '').strip()
+    sub_linea = (payload.get('sub_linea') or '').strip()
+    grupo_contable = (payload.get('grupo_contable') or '').strip()
+
+    if not no_produ:
+        raise ValueError("no_produ es requerido")
+    if not descri:
+        raise ValueError("descripcion es requerida")
+    if not grupo_produ:
+        raise ValueError("grupo_produ es requerido")
+    if not linea:
+        raise ValueError("linea es requerida")
+    if not sub_linea:
+        raise ValueError("sub_linea es requerida")
+    if not grupo_contable:
+        raise ValueError("grupo_contable es requerido")
+
+    # Existencia previa
+    if client.fetch_one(
+        "SELECT 1 FROM INV.TINV_PRODUCTO WHERE no_produ = :1",
+        [no_produ],
+    ):
+        raise ValueError(f"Ya existe un producto con código {no_produ}")
+
+    tiene_imp = str(payload.get('tiene_impuesto') or 'S').upper()[:1]
+    porc_imp = float(payload.get('porciento_impuesto') or (18 if tiene_imp == 'S' else 0))
+    costo = float(payload.get('costo') or 0)
+    servicio = str(payload.get('servicio') or 'I').upper()[:1]
+    activo = str(payload.get('activo') or 'S').upper()[:1]
+    marca = (payload.get('marca') or '')[:60] or None
+    referencia = (payload.get('referencia') or '')[:30] or None
+    no_proveedor = (payload.get('no_proveedor') or '')[:6] or None
+
+    with client.cursor() as cur:
+        cur.execute(
+            "INSERT INTO INV.TINV_PRODUCTO ("
+            "  NO_PRODU, DESCRI, LINEA, SUB_LINEA, GRUPO_PRODU, "
+            "  TIENE_IMPUESTO, PORCIENTO_IMPUESTO, COSTO_MERCADO_RD, "
+            "  ACTIVO, INDI_LOTE, FECHA, USUARIO, GRUPO_CONTABLE, "
+            "  PERMITE_DESC, SERVICIO, SIMPLE, DESPACHAR_VENCIDO, "
+            "  EN_PORCIONES, OFERTA, USA_ENVASE_RETORNABLE, IMPORTADO, "
+            "  USA_SERIE, CONTROLAR_EXIST_SERIE, EDITABLE, "
+            "  MARCA, REFERENCIA, NO_PROVEEDOR "
+            ") VALUES ("
+            "  :no_produ, :descri, :linea, :sub_linea, :grupo_produ, "
+            "  :tiene_imp, :porc_imp, :costo, "
+            "  :activo, 'N', SYSDATE, :usuario, :grupo_contable, "
+            "  'S', :servicio, 'S', 'N', "
+            "  'N', 'N', 'N', 'L', "
+            "  'N', 'N', 'S', "
+            "  :marca, :referencia, :no_proveedor"
+            ")",
+            {
+                'no_produ': no_produ, 'descri': descri, 'linea': linea,
+                'sub_linea': sub_linea, 'grupo_produ': grupo_produ,
+                'tiene_imp': tiene_imp, 'porc_imp': porc_imp, 'costo': costo,
+                'activo': activo, 'usuario': (usuario or 'API')[:30],
+                'grupo_contable': grupo_contable, 'servicio': servicio,
+                'marca': marca, 'referencia': referencia,
+                'no_proveedor': no_proveedor,
+            },
+        )
+    return {
+        'no_produ': no_produ, 'descripcion': descri, 'linea': linea,
+        'sub_linea': sub_linea, 'grupo_produ': grupo_produ,
+        'grupo_contable': grupo_contable, 'activo': activo,
+        'servicio': servicio, 'tiene_impuesto': tiene_imp,
+        'porciento_impuesto': porc_imp, 'costo': costo,
+    }
 
 
 # ─── ALMACENES — CRUD ─────────────────────────────────────────────────────────
@@ -170,10 +276,26 @@ def list_productos(
     rn_min_pos = len(params)
 
     sql = (
-        f"SELECT no_produ, descri descripcion, linea, sub_linea, grupo_produ, activo "
+        f"SELECT no_produ, descripcion, linea, desc_linea, sub_linea, "
+        f"       grupo_produ, desc_grupo, activo, costo, precio, itbis, "
+        f"       unidad, empaque, tiene_impuesto, servicio "
         f"FROM ("
-        f"  SELECT p.no_produ, p.descri, p.linea, p.sub_linea, p.grupo_produ, p.activo, ROWNUM rn "
+        f"  SELECT p.no_produ, p.descri descripcion, "
+        f"         p.linea, l.descri desc_linea, "
+        f"         p.sub_linea, "
+        f"         p.grupo_produ, g.descri desc_grupo, "
+        f"         p.activo, p.tiene_impuesto, p.porciento_impuesto itbis, "
+        f"         NVL(p.costo_mercado_rd, p.costo_mercado) costo, "
+        f"         NULL precio, "
+        f"         p.servicio, "
+        f"         NVL(u.descri, e.unidad) unidad, "
+        f"         e.empaque, "
+        f"         ROWNUM rn "
         f"  FROM INV.TINV_PRODUCTO p "
+        f"  LEFT JOIN INV.TINV_LINEA l ON l.linea = p.linea "
+        f"  LEFT JOIN INV.TINV_GRUPO_PRODU g ON g.no_grupo = p.grupo_produ "
+        f"  LEFT JOIN INV.TINV_EMPAQUE e ON e.no_produ = p.no_produ AND e.por_defecto = 'S' "
+        f"  LEFT JOIN INV.TINV_UNIDAD u ON u.unidad = e.unidad "
         f"  WHERE {where_clause} "
         f"  AND ROWNUM <= :{rn_max_pos} "
         f"  ORDER BY p.descri"
@@ -636,20 +758,36 @@ def list_consulta_documentos(
     params.append(limit)
     # Oracle 11g ROWNUM pagination pattern (triple-wrap with ORDER BY in innermost)
     sql = (
-        f"SELECT tipo_docu, no_docu, punto, almacen, fecha, tipo_movi, tipo_transaccion, lineas, total "
+        f"SELECT q.tipo_docu, q.no_docu, q.punto, q.almacen, q.fecha, "
+        f"       q.tipo_movi, q.tipo_transaccion, q.lineas, q.total, "
+        f"       q.estado, q.st_anulado, "
+        f"       td.descri desc_tipo_docu, "
+        f"       al.descri desc_almacen, "
+        f"       pt.descripcion desc_punto "
         f"FROM ("
         f"  SELECT t2.*, ROWNUM rn "
         f"  FROM ("
         f"    SELECT m.tipo_docu, m.no_docu, m.punto, m.almacen, "
         f"    TO_CHAR(MIN(m.fecha), 'YYYY-MM-DD') fecha, "
         f"    MIN(m.tipo_movi) tipo_movi, MIN(m.tipo_transaccion) tipo_transaccion, "
-        f"    COUNT(*) lineas, SUM(NVL(m.monto_neto, 0)) total "
+        f"    COUNT(*) lineas, SUM(NVL(m.monto_neto, 0)) total, "
+        f"    MIN(NVL((SELECT h.estado FROM INV.TINV_RME h "
+        f"             WHERE h.no_cia = m.no_cia AND h.punto = m.punto "
+        f"             AND h.tipo_docu = m.tipo_docu AND h.no_docu = m.no_docu "
+        f"             AND ROWNUM <= 1), 'A')) estado, "
+        f"    MIN(NVL((SELECT h.st_anulado FROM INV.TINV_RME h "
+        f"             WHERE h.no_cia = m.no_cia AND h.punto = m.punto "
+        f"             AND h.tipo_docu = m.tipo_docu AND h.no_docu = m.no_docu "
+        f"             AND ROWNUM <= 1), 'N')) st_anulado "
         f"    FROM INV.TINV_MOVIMIENTO m "
         f"    WHERE {' AND '.join(where)} "
-        f"    GROUP BY m.tipo_docu, m.no_docu, m.punto, m.almacen "
+        f"    GROUP BY m.no_cia, m.tipo_docu, m.no_docu, m.punto, m.almacen "
         f"    ORDER BY MIN(m.fecha) DESC, m.tipo_docu, m.no_docu"
         f"  ) t2 WHERE ROWNUM <= :{len(params)}"
-        f")"
+        f") q "
+        f"LEFT JOIN INV.TINV_TDOCU   td ON td.tipo_docu = q.tipo_docu "
+        f"LEFT JOIN INV.TINV_ALMACEN al ON al.no_cia = :1 AND al.punto = q.punto AND al.almacen = q.almacen "
+        f"LEFT JOIN INV.TINV_PUNTO   pt ON pt.no_cia = :1 AND pt.punto = q.punto"
     )
     return client.fetch_dicts(sql, params)
 
@@ -688,6 +826,7 @@ def get_documento_detalle(no_cia: str, tipo_docu: str, no_docu: str) -> dict | N
         "       c.nombre cli_nombre, c.rnc cli_rnc, c.direccion cli_direccion, "
         "       v.nombre vend_nombre, "
         "       loc.descripcion loc_descripcion, "
+        "       pt.descripcion punto_descripcion, "
         "       CASE WHEN h.posiciones_fijas_ncf IS NOT NULL AND h.ncf IS NOT NULL "
         "            THEN h.posiciones_fijas_ncf || LPAD(TO_CHAR(h.ncf),8,'0') "
         "            ELSE NULL END ncf_dgi "
@@ -697,6 +836,7 @@ def get_documento_detalle(no_cia: str, tipo_docu: str, no_docu: str) -> dict | N
         "LEFT JOIN CXC.TCXC_CLIENTE c ON c.no_cia = h.no_cia AND c.punto = h.punto AND c.no_cliente = h.no_cliente "
         "LEFT JOIN CXC.TCXC_VENDEDOR v ON v.no_cia = h.no_cia AND v.vendedor = h.vendedor "
         "LEFT JOIN CNT.TCNT_LOCALIDADES loc ON loc.no_localidad = h.no_localidad "
+        "LEFT JOIN INV.TINV_PUNTO pt ON pt.no_cia = h.no_cia AND pt.punto = h.punto "
         "WHERE h.no_cia = :1 AND h.tipo_docu = :2 AND h.no_docu = :3 "
         "AND ROWNUM <= 1",
         [no_cia, tipo_docu, no_docu],
@@ -761,6 +901,7 @@ def get_documento_detalle(no_cia: str, tipo_docu: str, no_docu: str) -> dict | N
             # Localidad / contabilidad
             'no_localidad': g('no_localidad', ''),
             'localidad_descripcion': g('loc_descripcion', ''),
+            'punto_descripcion': g('punto_descripcion', ''),
             'no_componente': g('no_componente', ''),
             'no_depto': g('no_depto', ''),
             # Referencia / devolución / reverso
@@ -827,6 +968,37 @@ def get_documento_detalle(no_cia: str, tipo_docu: str, no_docu: str) -> dict | N
                 for r in lines
             ),
         }
+
+    # Resolver descripción de almacén (desde el almacén del header o primera línea)
+    alm_code = header.get('almacen') or ''
+    pt_code = header.get('punto') or ''
+    if alm_code and pt_code and not header.get('almacen_descripcion'):
+        alm_rows = client.fetch_dicts(
+            "SELECT descri FROM INV.TINV_ALMACEN "
+            "WHERE no_cia = :1 AND punto = :2 AND almacen = :3 AND ROWNUM <= 1",
+            [no_cia, pt_code, alm_code],
+        )
+        if alm_rows:
+            header['almacen_descripcion'] = (
+                alm_rows[0].get('descri') or alm_rows[0].get('DESCRI') or ''
+            )
+        else:
+            header['almacen_descripcion'] = ''
+    else:
+        header.setdefault('almacen_descripcion', '')
+
+    # Fallback descripción de punto si vino sin header en TINV_RME
+    if pt_code and not header.get('punto_descripcion'):
+        pt_rows = client.fetch_dicts(
+            "SELECT descripcion FROM INV.TINV_PUNTO "
+            "WHERE no_cia = :1 AND punto = :2 AND ROWNUM <= 1",
+            [no_cia, pt_code],
+        )
+        if pt_rows:
+            header['punto_descripcion'] = (
+                pt_rows[0].get('descripcion') or pt_rows[0].get('DESCRIPCION') or ''
+            )
+
     return {'header': header, 'lines': lines}
 
 

@@ -173,6 +173,81 @@ def cxp_ciudades(request):
 @login_required
 @csrf_exempt
 @require_http_methods(['GET'])
+def cxp_rep_cuadre(request):
+    """GET ?no_cia=&punto=&mes=&ano= → cuadre contable por cuenta del periodo."""
+    no_cia = request.GET.get('no_cia', '')
+    punto  = _norm_punto(request.GET.get('punto', ''))
+    mes    = request.GET.get('mes', '')
+    ano    = request.GET.get('ano', '')
+    if not no_cia or not punto or not mes or not ano:
+        return JsonResponse({'error': 'no_cia, punto, mes, ano son requeridos'}, status=400)
+    try:
+        result = cxp_repo.rep_cuadre(no_cia, punto, int(mes), int(ano))
+        return JsonResponse(result)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
+def cxp_rep_retenciones(request):
+    """GET ?no_cia=&punto=&ano=&no_proveedor= → certificado retenciones por proveedor."""
+    no_cia = request.GET.get('no_cia', '')
+    punto  = _norm_punto(request.GET.get('punto', ''))
+    ano    = request.GET.get('ano', '')
+    no_proveedor = request.GET.get('no_proveedor', '')
+    if not no_cia or not punto or not ano:
+        return JsonResponse({'error': 'no_cia, punto, ano son requeridos'}, status=400)
+    try:
+        result = cxp_repo.rep_retenciones(no_cia, punto, int(ano), no_proveedor)
+        return JsonResponse(result)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET', 'POST', 'PATCH', 'DELETE'])
+def cxp_usuarios(request):
+    """
+    GET    ?no_cia=&punto= → lista accesos al modulo CxP
+    POST   {no_cia, punto, usuario, ...flags S/N} → crea
+    PATCH  {no_cia, punto, usuario, ...flags S/N} → actualiza (upsert)
+    DELETE ?no_cia=&punto=&usuario= → elimina acceso
+    """
+    if request.method == 'GET':
+        no_cia = request.GET.get('no_cia', '')
+        punto  = _norm_punto(request.GET.get('punto', ''))
+        rows   = cxp_repo.list_usuarios(no_cia, punto)
+        return JsonResponse(rows, safe=False)
+    if request.method == 'DELETE':
+        no_cia  = request.GET.get('no_cia', '')
+        punto   = _norm_punto(request.GET.get('punto', ''))
+        usuario = request.GET.get('usuario', '')
+        try:
+            result = cxp_repo.delete_usuario(no_cia, punto, usuario)
+            return JsonResponse(result)
+        except ValueError as e:
+            return JsonResponse({'error': str(e)}, status=400)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    # POST / PATCH → upsert
+    try:
+        data = json.loads(request.body or '{}')
+        if 'punto' in data:
+            data['punto'] = _norm_punto(data.get('punto', ''))
+        result = cxp_repo.upsert_usuario(data)
+        return JsonResponse(result, status=201 if result.get('action') == 'created' else 200)
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
 def cxp_barrios(request):
     ciudad = request.GET.get('ciudad', '')
     rows = cxp_repo.list_barrios(ciudad)

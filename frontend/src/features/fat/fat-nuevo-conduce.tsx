@@ -10,7 +10,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { BuscarProductoModal } from './components/buscar-producto-modal'
+import { empaqueLabel } from './utils/empaque-label'
 import { useToast } from '@/hooks/use-toast'
+
+interface EmpaqueOpcion {
+  empaque?: number
+  unidad: string
+  descripcion: string
+  referencia?: string
+  por_defecto: boolean
+  cant_por_emp: number
+  permite_fraccion?: boolean
+}
 
 interface Props {
   noCia: string
@@ -72,6 +83,9 @@ interface Linea {
   monto: number
   porciento_impuesto: number
   itbis: boolean
+  empaques: EmpaqueOpcion[]
+  precioBase: number      // precio para la unidad base (cant_por_emp=1)
+  cantPorEmpBase: number  // cant_por_emp del empaque por defecto
 }
 
 const fmtN = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -225,6 +239,9 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
               monto: (l.cantidad || 1) * (l.precio || 0) * (1 - (l.porc_descuento || 0) / 100),
               porciento_impuesto: l.porciento_impuesto || 0,
               itbis: (l.porciento_impuesto || 0) > 0,
+              empaques: [],
+              precioBase: l.precio || 0,
+              cantPorEmpBase: 1,
             }))
           setLineas(lineasCargadas)
         }
@@ -328,6 +345,9 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
       monto: 0,
       porciento_impuesto: 0,
       itbis: false,
+      empaques: [],
+      precioBase: 0,
+      cantPorEmpBase: 1,
     }
     setLineas(prev => {
       const next = [...prev, nuevaLinea]
@@ -365,6 +385,45 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
     )
   }
 
+  // Carga empaques alternos del producto y los aplica a la línea — define la
+  // UM por defecto y la base de precio para poder recalcular cuando se cambie.
+  const cargarEmpaquesLinea = async (idx: number, noProdu: string, precio: number) => {
+    try {
+      const res = await regalGeneralApi.fatProductoEmpaques(noProdu)
+      const emps: EmpaqueOpcion[] = (res.items || []) as any[]
+      const porDefecto = emps.find(e => e.por_defecto) || emps[0]
+      const cantBase = porDefecto?.cant_por_emp && porDefecto.cant_por_emp > 0 ? porDefecto.cant_por_emp : 1
+      const precioBase = cantBase > 0 ? precio / cantBase : precio
+      setLineas(prev => {
+        const arr = [...prev]
+        if (!arr[idx] || arr[idx].no_produ !== noProdu) return prev
+        const linea = { ...arr[idx] }
+        linea.empaques = emps
+        linea.precioBase = precioBase
+        linea.cantPorEmpBase = cantBase
+        if (porDefecto) linea.emp = porDefecto.descripcion || porDefecto.unidad
+        arr[idx] = linea
+        return arr
+      })
+    } catch { /* sin empaques => UM queda estática */ }
+  }
+
+  // Cambia la UM de la línea: recalcula precio = precioBase * cant_por_emp
+  const cambiarEmpaqueLinea = (idx: number, unidad: string) => {
+    setLineas(prev => {
+      const arr = [...prev]
+      const linea = { ...arr[idx] }
+      const emp = linea.empaques.find(e => e.unidad === unidad)
+      if (!emp) return prev
+      const cant = emp.cant_por_emp && emp.cant_por_emp > 0 ? emp.cant_por_emp : 1
+      linea.emp = emp.descripcion || emp.unidad
+      linea.precio = parseFloat((linea.precioBase * cant).toFixed(4))
+      linea.monto = linea.cantidad * linea.precio * (1 - linea.porc_descuento / 100)
+      arr[idx] = linea
+      return arr
+    })
+  }
+
   const buscarProductoPorCodigo = async (idx: number, codigo: string) => {
     if (!codigo) return
     try {
@@ -378,6 +437,9 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
           linea.descripcion = p.descri
           linea.precio = p.precio
           linea.precio_lista = p.precio
+          linea.precioBase = p.precio
+          linea.cantPorEmpBase = 1
+          linea.empaques = []
           linea.porciento_impuesto = p.porciento_impuesto
           linea.itbis = p.porciento_impuesto > 0
           linea.emp = p.unidad_empaque
@@ -385,6 +447,7 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
           arr[idx] = linea
           return arr
         })
+        cargarEmpaquesLinea(idx, p.no_produ, p.precio)
       }
     } catch {
       toast({ title: 'Error', description: 'Producto no encontrado', variant: 'destructive' })
@@ -827,7 +890,25 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
                     </div>
                   </TableCell>
                   <TableCell className="p-1 text-center">
-                    <span className="text-xs font-medium text-blue-700 bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5">{linea.emp || '—'}</span>
+                    {linea.empaques.length > 1 ? (
+                      <Select
+                        value={(linea.empaques.find(e => (e.descripcion || e.unidad) === linea.emp)?.unidad) || linea.empaques[0].unidad}
+                        onValueChange={v => cambiarEmpaqueLinea(idx, v)}
+                      >
+                        <SelectTrigger className="h-7 text-xs px-2 w-auto min-w-[3.5rem] gap-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {linea.empaques.map(e => (
+                            <SelectItem key={`${e.empaque ?? e.unidad}`} value={e.unidad}>
+                              {empaqueLabel(e)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <span className="text-xs font-medium text-blue-700 bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5">{linea.emp || '—'}</span>
+                    )}
                   </TableCell>
                   <TableCell className="p-1">
                     <Input
@@ -1005,6 +1086,9 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
             l.no_produ = p.no_produ
             l.descripcion = p.descri
             l.precio = p.precio
+            l.precioBase = p.precio
+            l.cantPorEmpBase = 1
+            l.empaques = []
             l.porciento_impuesto = p.porciento_impuesto
             l.itbis = p.porciento_impuesto > 0
             l.emp = p.unidad_empaque
@@ -1014,6 +1098,8 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
             arr[idx] = l
             return arr
           })
+          // Cargar empaques alternos en background
+          cargarEmpaquesLinea(currentLineaIdx, p.no_produ, p.precio)
           setProductDialogOpen(false)
           setCurrentLineaIdx(null)
         }}

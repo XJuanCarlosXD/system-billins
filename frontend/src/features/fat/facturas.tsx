@@ -173,6 +173,16 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
     )
   }
 
+  const printPos = () => {
+    if (!selected) return
+    const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
+    const params = new URLSearchParams({ no_cia: noCia, punto })
+    window.open(
+      `${API_BASE}/fat/documentos/${encodeURIComponent(selected.tipo_factura)}/${encodeURIComponent(selected.no_factura)}/pos-pdf/?${params.toString()}`,
+      '_blank'
+    )
+  }
+
   const isAnulada = selected?.st_anulado === 'S'
 
   return (
@@ -331,6 +341,9 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
                   <div className='ml-auto flex gap-2'>
                     <Button variant='outline' size='sm' onClick={printDetail}>
                       <Printer className='mr-1 h-4 w-4' /> Imprimir
+                    </Button>
+                    <Button variant='outline' size='sm' onClick={printPos} title='Ticket POS 80mm'>
+                      <Printer className='mr-1 h-4 w-4' /> POS
                     </Button>
                     {isAnulada ? (
                       <Badge variant='destructive' className='self-center'>Anulada</Badge>

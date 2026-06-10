@@ -33,6 +33,8 @@ export interface BuscarProductoModalProducto {
   porciento_impuesto: number
   unidad_empaque: string
   existencia: number
+  cant_por_emp?: number
+  referencia_empaque?: string
 }
 
 export interface BuscarProductoModalAlmacen { almacen: string; descripcion?: string }
@@ -312,7 +314,14 @@ export function BuscarProductoModal({
                 >
                   <TableCell className='font-mono text-sm font-semibold'>{p.no_produ}</TableCell>
                   <TableCell className='text-sm'>{p.descri}</TableCell>
-                  <TableCell className='text-center text-xs text-gray-500'>{p.unidad_empaque || '—'}</TableCell>
+                  <TableCell className='text-center text-xs text-gray-500'>
+                    <span title={p.referencia_empaque ? `Ref: ${p.referencia_empaque}` : undefined}>
+                      {p.unidad_empaque || '—'}
+                      {p.cant_por_emp && p.cant_por_emp !== 1 && (
+                        <span className='block text-[10px] text-gray-400'>×{p.cant_por_emp}</span>
+                      )}
+                    </span>
+                  </TableCell>
                   <TableCell className='text-right font-mono font-bold'>{fmtN(p.precio)}</TableCell>
                   <TableCell className='text-right text-sm'>{p.porciento_impuesto > 0 ? `${p.porciento_impuesto}%` : '—'}</TableCell>
                   <TableCell className='text-right font-mono text-sm' onClick={(e) => e.stopPropagation()}>

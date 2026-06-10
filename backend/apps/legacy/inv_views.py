@@ -57,27 +57,53 @@ def _jsonify(data):
 
 
 @login_required
-@require_http_methods(["GET"])
+@require_http_methods(["GET", "POST"])
 def inv_productos(request):
-    """GET /api/inv/productos/?no_cia=01&search=&grupo=&linea=&page=1&page_size=50"""
+    """GET /api/inv/productos/?no_cia=01&search=&grupo=&linea=&limit=50&offset=0
+
+    POST /api/inv/productos/ — crear producto. Body JSON:
+      {no_produ, descripcion, linea, sub_linea, grupo_produ, grupo_contable,
+       tiene_impuesto?, porciento_impuesto?, costo?, servicio?, activo?}
+    """
+    if request.method == 'POST':
+        try:
+            payload = json.loads(request.body.decode('utf-8') or '{}')
+        except Exception:
+            return JsonResponse({"error": "JSON invalido"}, status=400)
+        try:
+            res = inv_repo.create_producto(payload=payload,
+                                            usuario=getattr(request.user, 'username', '') or 'API')
+            return JsonResponse({"data": _jsonify(res)}, status=201)
+        except ValueError as e:
+            return JsonResponse({"error": str(e)}, status=400)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
     try:
         no_cia = request.GET.get('no_cia', '01')
         search = request.GET.get('search', '')
         grupo = request.GET.get('grupo', '')
         linea = request.GET.get('linea', '')
-        page = int(request.GET.get('page', 1))
-        page_size = int(request.GET.get('page_size', 50))
-        offset = (page - 1) * page_size
+        # acepta limit/offset directos o page/page_size
+        if 'limit' in request.GET or 'offset' in request.GET:
+            limit = int(request.GET.get('limit', 50))
+            offset = int(request.GET.get('offset', 0))
+            page = (offset // max(1, limit)) + 1
+            page_size = limit
+        else:
+            page = int(request.GET.get('page', 1))
+            page_size = int(request.GET.get('page_size', 50))
+            offset = (page - 1) * page_size
+            limit = page_size
 
         results = inv_repo.list_productos(
             search=search,
             grupo=grupo,
             linea=linea,
             no_cia=no_cia,
-            limit=page_size,
+            limit=limit,
             offset=offset,
         )
-        count = inv_repo.count_productos()
+        count = inv_repo.count_productos(search=search, grupo=grupo, linea=linea)
         return JsonResponse({
             "results": _jsonify(results),
             "count": count,
@@ -975,84 +1001,129 @@ def inv_documento_pdf(request, tipo_docu: str, no_docu: str):
 
     is_anulado = str(hg('st_anulado', 'N')).upper() == 'S'
 
-    # Build subtitle/blocks per tipo_docu
-    subtitle = [
-        f"Documento: {tipo_s}-{no_docu_s}    Fecha: {fecha_display}    Punto: {hg('punto') or '01'}",
-        f"Tipo Movimiento: {tipo_movi_label}    Tipo Transacción: {tipo_trans_label or 'N/A'}",
-    ]
-    almacen = (lines[0].get('almacen', lines[0].get('ALMACEN', '')) if lines else '') or hg('almacen', '')
-    if almacen:
-        subtitle.append(f"Almacén: {almacen}")
-    if hg('localidad_descripcion') or hg('no_localidad'):
-        subtitle.append(f"Localidad: {hg('no_localidad')} {hg('localidad_descripcion')}".strip())
+    # Construir bloques info_blocks (grilla 2-col) + subtitle_lines (texto largo)
+    def fmt_alm(code, desc):
+        code = str(code or '').strip()
+        desc = str(desc or '').strip()
+        if code and desc:
+            return f"{code} - {desc}"
+        return code or desc or '—'
 
-    # Proveedor block (EC, DC)
-    if hg('no_proveedor'):
-        subtitle.append(
-            f"Proveedor: {hg('no_proveedor')} - {hg('proveedor_nombre') or 'N/A'}"
-            + (f"    RNC: {hg('proveedor_rnc')}" if hg('proveedor_rnc') else "")
-        )
-    # Cliente block (DV, EA con cliente)
-    if hg('no_cliente'):
-        subtitle.append(
-            f"Cliente: {hg('no_cliente')} - {hg('cliente_nombre') or 'N/A'}"
-            + (f"    RNC: {hg('cliente_rnc')}" if hg('cliente_rnc') else "")
-        )
-        if hg('cliente_direccion'):
-            subtitle.append(f"Dirección: {str(hg('cliente_direccion'))[:80]}")
-    # Vendedor (DV, FT, etc.)
-    if hg('vendedor'):
-        subtitle.append(f"Vendedor: {hg('vendedor')} - {hg('vendedor_nombre') or ''}".strip())
-    # NCF DGI (EC, DV con NCF)
-    if hg('ncf_dgi'):
-        subtitle.append(f"NCF: {hg('ncf_dgi')}")
-    # Conduce
-    if hg('conduce'):
-        subtitle.append(f"Conduce: {hg('conduce')}")
-    # Referencias / devuelto / reversado
-    if hg('tipo_refe') and hg('no_refe'):
-        subtitle.append(f"Referencia: {hg('tipo_refe')}-{hg('no_refe')}")
-    if hg('tipo_docu_devuelto') and hg('no_docu_devuelto'):
-        subtitle.append(f"Doc. devuelto: {hg('tipo_docu_devuelto')}-{hg('no_docu_devuelto')}")
-    if hg('tipo_docu_rev') and hg('no_docu_rev'):
-        subtitle.append(f"Doc. reversado: {hg('tipo_docu_rev')}-{hg('no_docu_rev')}")
-    # Componente / depto / orden producción / OT
-    extras = []
-    if hg('no_componente'): extras.append(f"Componente: {hg('no_componente')}")
-    if hg('no_depto'): extras.append(f"Depto: {hg('no_depto')}")
-    if hg('orden_produccion'): extras.append(f"OP: {hg('orden_produccion')}")
-    if hg('no_orden_ot'): extras.append(f"OT: {hg('no_orden_ot')}")
-    if hg('tipo_orden_op'): extras.append(f"Tipo OP: {hg('tipo_orden_op')}")
-    if extras: subtitle.append('    '.join(extras))
-    # Producción Finv204: granulometría/viscosidad/pesos
-    prod = []
-    if hg('granulometria'): prod.append(f"Granulometría: {hg('granulometria')}")
-    if hg('viscosidad'): prod.append(f"Viscosidad: {hg('viscosidad')}")
-    if hg('peso1'): prod.append(f"Peso 1: {hg('peso1')}")
-    if hg('peso2'): prod.append(f"Peso 2: {hg('peso2')}")
-    if prod: subtitle.append('    '.join(prod))
-    # Motivo (reverso) / restock
-    if hg('no_motivo'): subtitle.append(f"Motivo reverso: {hg('no_motivo')}")
-    if hg('con_restock_almacen') == 'S': subtitle.append("Con restock al almacén")
-    # Detalle / nota
-    if hg('detalle'): subtitle.append(f"Detalle: {str(hg('detalle'))[:90]}")
-    if hg('nota'): subtitle.append(f"Nota: {str(hg('nota'))[:90]}")
-    # Usuario y estado
+    almacen = (lines[0].get('almacen', lines[0].get('ALMACEN', '')) if lines else '') or hg('almacen', '')
+    almacen_desc = hg('almacen_descripcion', '')
+    punto_code = hg('punto') or '01'
+    punto_desc = hg('punto_descripcion', '')
+
     estado_label = {'A': 'Autorizado', 'P': 'Pendiente', 'C': 'Cerrado'}.get(
         str(hg('estado', '')).upper(), hg('estado', '')
     )
-    estado_extra = []
-    if hg('usuario'): estado_extra.append(f"Usuario: {hg('usuario')}")
-    if estado_label: estado_extra.append(f"Estado: {estado_label}")
-    if is_anulado: estado_extra.append("ANULADO")
-    if str(hg('st_impresion', 'N')).upper() == 'S': estado_extra.append("Reimpresión")
-    if estado_extra: subtitle.append('    '.join(estado_extra))
 
-    # Tasa, ITBIS
+    # Bloque DOCUMENTO
+    doc_rows = [
+        ('Punto', fmt_alm(punto_code, punto_desc)),
+        ('Almacén', fmt_alm(almacen, almacen_desc)),
+    ]
+    if hg('localidad_descripcion') or hg('no_localidad'):
+        doc_rows.append(('Localidad', fmt_alm(hg('no_localidad'), hg('localidad_descripcion'))))
+    doc_rows.append(('Fecha', fecha_display))
+    if hg('conduce'):
+        doc_rows.append(('Conduce', str(hg('conduce'))))
+
+    # Bloque MOVIMIENTO
+    mov_rows = [
+        ('Tipo Movimiento', tipo_movi_label),
+        ('Tipo Transacción', tipo_trans_label or 'N/A'),
+    ]
+    if estado_label:
+        if is_anulado:
+            mov_rows.append(('Estado', f'{estado_label} (ANULADO)'))
+        else:
+            mov_rows.append(('Estado', estado_label))
+    if hg('usuario'):
+        mov_rows.append(('Usuario', str(hg('usuario'))))
+    if str(hg('st_impresion', 'N')).upper() == 'S':
+        mov_rows.append(('Marca', 'Reimpresión'))
+
+    info_blocks = [
+        {'title': 'DOCUMENTO', 'rows': doc_rows},
+        {'title': 'MOVIMIENTO', 'rows': mov_rows},
+    ]
+
+    # Bloque ORIGEN/DESTINO — Proveedor (EC, DC) o Cliente (DV, EA)
+    od_rows = []
+    if hg('no_proveedor'):
+        od_rows.append(('Proveedor', f"{hg('no_proveedor')} - {hg('proveedor_nombre') or 'N/A'}"))
+        if hg('proveedor_rnc'):
+            od_rows.append(('RNC', str(hg('proveedor_rnc'))))
+    if hg('no_cliente'):
+        od_rows.append(('Cliente', f"{hg('no_cliente')} - {hg('cliente_nombre') or 'N/A'}"))
+        if hg('cliente_rnc'):
+            od_rows.append(('RNC', str(hg('cliente_rnc'))))
+        if hg('cliente_direccion'):
+            od_rows.append(('Dirección', str(hg('cliente_direccion'))[:80]))
+    if hg('vendedor'):
+        od_rows.append(('Vendedor', f"{hg('vendedor')} - {hg('vendedor_nombre') or ''}".strip(' -')))
+    if hg('ncf_dgi'):
+        od_rows.append(('NCF', str(hg('ncf_dgi'))))
+
+    # Bloque REFERENCIAS — refe / devuelto / reversado / motivo
+    ref_rows = []
+    if hg('tipo_refe') and hg('no_refe'):
+        ref_rows.append(('Referencia', f"{hg('tipo_refe')}-{hg('no_refe')}"))
+    if hg('tipo_docu_devuelto') and hg('no_docu_devuelto'):
+        ref_rows.append(('Doc. devuelto', f"{hg('tipo_docu_devuelto')}-{hg('no_docu_devuelto')}"))
+    if hg('tipo_docu_rev') and hg('no_docu_rev'):
+        ref_rows.append(('Doc. reversado', f"{hg('tipo_docu_rev')}-{hg('no_docu_rev')}"))
+    if hg('no_motivo'):
+        ref_rows.append(('Motivo reverso', str(hg('no_motivo'))))
+    if hg('con_restock_almacen') == 'S':
+        ref_rows.append(('Restock', 'Sí (al almacén)'))
+
+    # Bloque PROYECTO / OP
+    proj_rows = []
+    if hg('no_componente'): proj_rows.append(('Componente', str(hg('no_componente'))))
+    if hg('no_depto'): proj_rows.append(('Depto', str(hg('no_depto'))))
+    if hg('orden_produccion'): proj_rows.append(('OP', str(hg('orden_produccion'))))
+    if hg('no_orden_ot'): proj_rows.append(('OT', str(hg('no_orden_ot'))))
+    if hg('tipo_orden_op'): proj_rows.append(('Tipo OP', str(hg('tipo_orden_op'))))
+
+    # Bloque PRODUCCIÓN (Finv204)
+    prod_rows = []
+    if hg('granulometria'): prod_rows.append(('Granulometría', f"{float(hg('granulometria')):.2f}"))
+    if hg('viscosidad'): prod_rows.append(('Viscosidad', f"{float(hg('viscosidad')):.2f}"))
+    if hg('peso1'): prod_rows.append(('Peso 1', f"{float(hg('peso1')):,.2f}"))
+    if hg('peso2'): prod_rows.append(('Peso 2', f"{float(hg('peso2')):,.2f}"))
+
+    # Tasa / ITBIS
     tasa = float(hg('tasa_us', 0) or 0)
     porc_imp = float(hg('porc_impuesto', 0) or 0)
-    if tasa or porc_imp:
-        subtitle.append(f"Tasa USD: {tasa:,.2f}    % ITBIS: {porc_imp:.2f}")
+    tasa_rows = []
+    if tasa: tasa_rows.append(('Tasa USD', f"{tasa:,.2f}"))
+    if porc_imp: tasa_rows.append(('% ITBIS', f"{porc_imp:.2f}"))
+
+    if od_rows and ref_rows:
+        info_blocks.append({'title': 'ORIGEN / DESTINO', 'rows': od_rows})
+        info_blocks.append({'title': 'REFERENCIAS', 'rows': ref_rows})
+    elif od_rows:
+        info_blocks.append({'title': 'ORIGEN / DESTINO', 'span_full': True, 'rows': od_rows})
+    elif ref_rows:
+        info_blocks.append({'title': 'REFERENCIAS', 'span_full': True, 'rows': ref_rows})
+
+    if proj_rows and prod_rows:
+        info_blocks.append({'title': 'PROYECTO / OP', 'rows': proj_rows})
+        info_blocks.append({'title': 'PRODUCCIÓN', 'rows': prod_rows})
+    elif proj_rows:
+        info_blocks.append({'title': 'PROYECTO / OP', 'span_full': True, 'rows': proj_rows})
+    elif prod_rows:
+        info_blocks.append({'title': 'PRODUCCIÓN', 'span_full': True, 'rows': prod_rows})
+
+    if tasa_rows:
+        info_blocks.append({'title': 'TASA / IMPUESTO', 'span_full': True, 'inline': True, 'rows': tasa_rows})
+
+    # subtitle_lines reservado para texto largo (Detalle / Nota) que no calza en grilla
+    subtitle = []
+    if hg('detalle'): subtitle.append(f"Detalle: {str(hg('detalle'))[:160]}")
+    if hg('nota'): subtitle.append(f"Nota: {str(hg('nota'))[:160]}")
 
     # Líneas con empaque + ITBIS
     rows_data = []
@@ -1102,15 +1173,20 @@ def inv_documento_pdf(request, tipo_docu: str, no_docu: str):
         'monto_neto': total_linea or monto_sum,
     }
 
-    # Bloque de totales legacy debajo del subtítulo
-    totales_lines = []
-    if total_linea: totales_lines.append(f"Total Bruto: {total_linea:,.2f}")
-    if desc_t: totales_lines.append(f"Descuento: {desc_t:,.2f}")
-    if impuesto_t: totales_lines.append(f"ITBIS: {impuesto_t:,.2f}")
-    if valor_bienes: totales_lines.append(f"Valor Bienes: {valor_bienes:,.2f}")
-    if valor_serv: totales_lines.append(f"Valor Servicio: {valor_serv:,.2f}")
-    totales_lines.append(f"TOTAL NETO: {total_neto or monto_sum:,.2f}")
-    subtitle.append('    '.join(totales_lines))
+    # Bloque TOTALES como info_block inline ancho completo (TOTAL NETO destacado)
+    tot_rows = []
+    if total_linea: tot_rows.append(('Total Bruto', f"{total_linea:,.2f}"))
+    if desc_t: tot_rows.append(('Descuento', f"{desc_t:,.2f}"))
+    if impuesto_t: tot_rows.append(('ITBIS', f"{impuesto_t:,.2f}"))
+    if valor_bienes: tot_rows.append(('Valor Bienes', f"{valor_bienes:,.2f}"))
+    if valor_serv: tot_rows.append(('Valor Servicio', f"{valor_serv:,.2f}"))
+    tot_rows.append(('TOTAL NETO', f"{total_neto or monto_sum:,.2f}"))
+    info_blocks.append({
+        'title': 'TOTALES',
+        'span_full': True,
+        'inline': True,
+        'rows': tot_rows,
+    })
 
     # Firmas según tipo
     if tipo_s in ('EC', 'DC'):
@@ -1137,6 +1213,7 @@ def inv_documento_pdf(request, tipo_docu: str, no_docu: str):
             title=title,
             cia=cia_full,
             subtitle_lines=subtitle,
+            info_blocks=info_blocks,
             sections=[{
                 'columns': columns,
                 'rows': rows_data,

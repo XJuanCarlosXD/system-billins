@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, Trash2, Search } from 'lucide-react'
+import { Plus, Trash2, Search, FileSearch, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,8 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { EntityPickerModal } from '@/components/shared/entity-picker-modal'
 import { regalGeneralApi } from '@/lib/regal-general-api'
+import { BuscarDocumentoModal } from './components/buscar-documento-modal'
+import { empaqueLabel } from '@/features/fat/utils/empaque-label'
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
 
@@ -28,29 +31,51 @@ interface Almacen {
   [key: string]: any
 }
 
-interface DevVentaRow {
+interface EmpaqueOpt {
+  empaque: number
+  unidad: string
+  descripcion?: string
+  referencia?: string
+  cant_por_emp: number
+  por_defecto: boolean
+  permite_fraccion?: boolean
+}
+
+interface LineaFactura {
+  no_linea: number
+  no_produ: string
+  descripcion: string
+  almacen?: string
+  cantidad: number
+  precio: number
+  descuento?: number
+  porc_descuento?: number
+  porciento_impuesto?: number
+  impuesto?: number
+  monto_neto?: number
+  st_anulado?: string
+}
+
+interface DevRow {
   id: number
   noProdu: string
   nombre: string
   cantidad: string
   precio: string
   almacen: string
-}
-
-interface ProductoResult {
-  no_produ?: string
-  codigo?: string
-  descripcion?: string
-  nombre?: string
-  precio?: number
-  precio_venta?: number
-  [key: string]: any
+  empaque?: string
+  empaques: EmpaqueOpt[]
+  origenLinea?: number
+  origenCantidad?: number
 }
 
 let rowIdCounter = 400
 
-function newRow(almacen = ''): DevVentaRow {
-  return { id: rowIdCounter++, noProdu: '', nombre: '', cantidad: '', precio: '', almacen }
+function newRow(almacen = ''): DevRow {
+  return {
+    id: rowIdCounter++, noProdu: '', nombre: '', cantidad: '', precio: '',
+    almacen, empaque: 'UND', empaques: [],
+  }
 }
 
 async function apiFetch<T>(path: string): Promise<T> {
@@ -64,30 +89,33 @@ export function DevolucionVentas({ noCia, punto }: Props) {
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
   const [almacenHeader, setAlmacenHeader] = useState('')
 
-  // Cliente
+  // Cliente y vendedor
   const [cliente, setCliente] = useState('')
   const [clienteNombre, setClienteNombre] = useState('')
   const [cliModalOpen, setCliModalOpen] = useState(false)
   const [vendedor, setVendedor] = useState('')
   const [vendedorNombre, setVendedorNombre] = useState('')
   const [vendModalOpen, setVendModalOpen] = useState(false)
-  const [docOriginal, setDocOriginal] = useState('')
   const [ncf, setNcf] = useState('')
+
+  // Factura original a afectar
+  const [tipoFactOrigen, setTipoFactOrigen] = useState('FT')
+  const [docOriginal, setDocOriginal] = useState('')
+  const [lineasOrigen, setLineasOrigen] = useState<LineaFactura[]>([])
+  const [headerOrigen, setHeaderOrigen] = useState<Record<string, any> | null>(null)
+  const [loadingOrigen, setLoadingOrigen] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerForIdx, setPickerForIdx] = useState<number | null>(null)
+  const [buscarFactOpen, setBuscarFactOpen] = useState(false)
 
   // Totales
   const [pctItbis, setPctItbis] = useState('18')
 
-  // Catalogs
+  // Catálogos
   const [almacenes, setAlmacenes] = useState<Almacen[]>([])
 
   // Grid
-  const [rows, setRows] = useState<DevVentaRow[]>([newRow()])
-
-  // Search
-  const [searchIdx, setSearchIdx] = useState<number | null>(null)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [searchResults, setSearchResults] = useState<ProductoResult[]>([])
-  const [searching, setSearching] = useState(false)
+  const [rows, setRows] = useState<DevRow[]>([newRow()])
 
   const [saving, setSaving] = useState(false)
 
@@ -101,53 +129,181 @@ export function DevolucionVentas({ noCia, punto }: Props) {
       .catch(() => setAlmacenes([]))
   }, [noCia])
 
-  const searchProducto = useCallback(async (term: string) => {
-    if (!term.trim()) { setSearchResults([]); return }
-    setSearching(true)
-    try {
-      const data = await apiFetch<any>(`/inv/productos/?no_cia=${encodeURIComponent(noCia)}&search=${encodeURIComponent(term)}&limit=10`)
-      const items: ProductoResult[] = Array.isArray(data) ? data : (data.results ?? data.items ?? [])
-      setSearchResults(items)
-    } catch {
-      setSearchResults([])
-    } finally {
-      setSearching(false)
+  const cargarFacturaWith = useCallback(async (tipo: string, no: string) => {
+    if (!tipo || !no.trim()) {
+      toast.error('Indique tipo y número de factura')
+      return
     }
-  }, [noCia])
+    setLoadingOrigen(true)
+    try {
+      const url = `/fat/facturas/${encodeURIComponent(tipo)}/${encodeURIComponent(no.trim())}/?no_cia=${encodeURIComponent(noCia)}&punto=${encodeURIComponent(punto)}`
+      const data = await apiFetch<any>(url)
+      const lineas = (data.lineas || []) as any[]
+      if (!lineas.length) {
+        toast.error('La factura no tiene líneas')
+        setLineasOrigen([])
+        setHeaderOrigen(null)
+        return
+      }
+      const norm: LineaFactura[] = lineas
+        .filter((l) => (l.st_anulado || 'N') !== 'S')
+        .map((l) => ({
+          no_linea: Number(l.no_linea || 0),
+          no_produ: String(l.no_produ || '').trim(),
+          descripcion: String(l.descripcion || '').trim(),
+          almacen: String(l.almacen || '').trim(),
+          cantidad: Number(l.cantidad || 0),
+          precio: Number(l.precio || 0),
+          descuento: Number(l.descuento || 0),
+          porc_descuento: Number(l.porc_descuento || 0),
+          porciento_impuesto: Number(l.porciento_impuesto || 0),
+          impuesto: Number(l.impuesto || 0),
+          monto_neto: Number(l.monto_neto || 0),
+          st_anulado: l.st_anulado || 'N',
+        }))
+      setLineasOrigen(norm)
+      setHeaderOrigen(data)
+      // Prefill desde la factura
+      if (data.no_cliente && !cliente) {
+        setCliente(String(data.no_cliente))
+        setClienteNombre(String(data.nombre_cliente || ''))
+      }
+      if (data.vendedor && !vendedor) {
+        setVendedor(String(data.vendedor))
+      }
+      if (data.ncf_dgi && !ncf) {
+        setNcf(String(data.ncf_dgi))
+      }
+      if (data.porc_impuesto) {
+        setPctItbis(String(data.porc_impuesto))
+      }
+      // Si las líneas tienen un almacén común, usarlo
+      const almSet = new Set(norm.map((l) => l.almacen).filter(Boolean))
+      if (almSet.size === 1 && !almacenHeader) {
+        setAlmacenHeader(Array.from(almSet)[0]!)
+      }
+      toast.success(`Se cargaron ${norm.length} línea${norm.length === 1 ? '' : 's'} de la factura`)
+    } catch (e: any) {
+      const msg = e?.message || ''
+      if (msg.includes('404')) toast.error('Factura no encontrada')
+      else toast.error('Error al cargar la factura')
+      setLineasOrigen([])
+      setHeaderOrigen(null)
+    } finally {
+      setLoadingOrigen(false)
+    }
+  }, [noCia, punto, cliente, vendedor, ncf, almacenHeader])
 
-  const updateRow = (idx: number, patch: Partial<DevVentaRow>) => {
+  const cargarFactura = useCallback(() => cargarFacturaWith(tipoFactOrigen, docOriginal), [cargarFacturaWith, tipoFactOrigen, docOriginal])
+
+  const updateRow = (idx: number, patch: Partial<DevRow>) => {
     setRows((prev) => prev.map((r, i) => i === idx ? { ...r, ...patch } : r))
   }
 
-  const addRow = () => setRows((prev) => [...prev, newRow(almacenHeader)])
+  const cargarEmpaques = useCallback(async (idx: number, noProdu: string, precioBase: number) => {
+    try {
+      const r = await regalGeneralApi.fatProductoEmpaques(noProdu)
+      const items = (r.items || []) as Array<{ unidad: string; descripcion?: string; por_defecto?: boolean; cant_por_emp?: number; empaque?: number }>
+      const emps: EmpaqueOpt[] = items.map((e: any, i) => ({
+        empaque: e.empaque ?? i + 1,
+        unidad: (e.unidad || 'UND').trim() || 'UND',
+        descripcion: e.descripcion || e.unidad,
+        referencia: e.referencia || '',
+        cant_por_emp: e.cant_por_emp && e.cant_por_emp > 0 ? e.cant_por_emp : 1,
+        por_defecto: !!e.por_defecto,
+        permite_fraccion: !!e.permite_fraccion,
+      }))
+      const def = emps.find(e => e.por_defecto) || emps[0]
+      setRows(prev => {
+        const arr = [...prev]
+        if (!arr[idx] || arr[idx].noProdu !== noProdu) return prev
+        const empaque = def ? (def.descripcion || def.unidad) : 'UND'
+        const factor = def?.cant_por_emp || 1
+        arr[idx] = { ...arr[idx], empaques: emps, empaque, precio: precioBase ? (precioBase * factor).toFixed(4) : arr[idx].precio }
+        return arr
+      })
+    } catch { /* sin empaques */ }
+  }, [])
+
+  const cambiarEmpaque = (idx: number, unidad: string) => {
+    setRows(prev => {
+      const arr = [...prev]
+      const row = arr[idx]
+      if (!row) return prev
+      const emp = row.empaques.find(e => (e.descripcion || e.unidad) === unidad || e.unidad === unidad)
+      if (!emp) return prev
+      const factorActual = (row.empaques.find(e => (e.descripcion || e.unidad) === row.empaque || e.unidad === row.empaque)?.cant_por_emp) || 1
+      const precioBase = (parseFloat(row.precio) || 0) / factorActual
+      arr[idx] = {
+        ...row,
+        empaque: emp.descripcion || emp.unidad,
+        precio: (precioBase * (emp.cant_por_emp || 1)).toFixed(4),
+      }
+      return arr
+    })
+  }
+
+  const openPicker = (idx: number) => {
+    if (!lineasOrigen.length) {
+      toast.error('Carga primero la factura original')
+      return
+    }
+    setPickerForIdx(idx)
+    setPickerOpen(true)
+  }
+
+  const addRow = () => {
+    setRows((prev) => {
+      const next = [...prev, newRow(almacenHeader)]
+      setTimeout(() => openPicker(next.length - 1), 0)
+      return next
+    })
+  }
 
   const removeRow = (idx: number) => {
     setRows((prev) => prev.length === 1 ? [newRow(almacenHeader)] : prev.filter((_, i) => i !== idx))
   }
 
-  const selectProducto = (idx: number, p: ProductoResult) => {
+  const selectFromFactura = (linea: LineaFactura) => {
+    if (pickerForIdx == null) return
+    const idx = pickerForIdx
+    const yaUsada = rows.some((r, i) => i !== idx && r.origenLinea === linea.no_linea)
+    if (yaUsada) {
+      toast.error('Esa línea ya fue agregada')
+      return
+    }
     updateRow(idx, {
-      noProdu: p.no_produ ?? p.codigo ?? '',
-      nombre: p.descripcion ?? p.nombre ?? '',
-      precio: String(p.precio_venta ?? p.precio ?? ''),
+      noProdu: linea.no_produ,
+      nombre: linea.descripcion,
+      almacen: linea.almacen || almacenHeader,
+      cantidad: String(linea.cantidad),
+      precio: String(linea.precio),
+      origenLinea: linea.no_linea,
+      origenCantidad: linea.cantidad,
     })
-    setSearchIdx(null)
-    setSearchTerm('')
-    setSearchResults([])
+    cargarEmpaques(idx, linea.no_produ, linea.precio)
+    setPickerOpen(false)
+    setPickerForIdx(null)
   }
 
   const fmt = (n: number) => n.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-  // Computed totals
-  const totalBruto = rows.reduce((acc, r) => acc + (parseFloat(r.cantidad) || 0) * (parseFloat(r.precio) || 0), 0)
-  const totalImpuesto = totalBruto * ((parseFloat(pctItbis) || 0) / 100)
-  const totalNeto = totalBruto + totalImpuesto
+  const montoNeto = rows.reduce((acc, r) => acc + (parseFloat(r.cantidad) || 0) * (parseFloat(r.precio) || 0), 0)
+  const totalItbis = montoNeto * ((parseFloat(pctItbis) || 0) / 100)
+  const totalNeto = montoNeto + totalItbis
 
   const handleSave = async () => {
     if (!ENDPOINT_READY) return
-    if (!cliente.trim()) { toast.error('Ingrese el cliente'); return }
+    if (!cliente.trim()) { toast.error('Seleccione el cliente'); return }
+    if (!lineasOrigen.length) { toast.error('Cargue la factura original'); return }
     const validRows = rows.filter((r) => r.noProdu.trim() && (parseFloat(r.cantidad) || 0) > 0)
-    if (validRows.length === 0) { toast.error('Agregue al menos un producto con cantidad válida'); return }
+    if (validRows.length === 0) { toast.error('Agregue al menos un producto'); return }
+    for (const r of validRows) {
+      if (r.origenCantidad != null && (parseFloat(r.cantidad) || 0) > r.origenCantidad) {
+        toast.error(`Cantidad a devolver (${r.cantidad}) excede la facturada (${r.origenCantidad}) en ${r.noProdu}`)
+        return
+      }
+    }
 
     const payload = {
       no_cia: noCia,
@@ -155,12 +311,23 @@ export function DevolucionVentas({ noCia, punto }: Props) {
       tipo_docu: 'DV',
       fecha,
       almacen: almacenHeader,
-      detalle: validRows.map((r) => ({
-        no_produ: r.noProdu,
-        almacen: r.almacen || almacenHeader,
-        cantidad: parseFloat(r.cantidad) || 0,
-        precio: parseFloat(r.precio) || 0,
-      })),
+      no_cliente: cliente,
+      vendedor,
+      ncf,
+      tipo_docu_devuelto: tipoFactOrigen,
+      no_docu_devuelto: docOriginal,
+      detalle: validRows.map((r) => {
+        const emp = r.empaques.find(e => (e.descripcion || e.unidad) === r.empaque || e.unidad === r.empaque)
+        return {
+          no_produ: r.noProdu,
+          almacen: r.almacen || almacenHeader,
+          cantidad: parseFloat(r.cantidad) || 0,
+          precio: parseFloat(r.precio) || 0,
+          empaque: emp?.empaque,
+          cpe: emp?.cant_por_emp,
+          unidad: r.empaque,
+        }
+      }),
     }
 
     setSaving(true)
@@ -178,8 +345,17 @@ export function DevolucionVentas({ noCia, punto }: Props) {
       }
       const created = await res.json()
       toast.success(`Devolución ${created.no_doc ?? ''} registrada correctamente`)
-      setFecha(new Date().toISOString().slice(0, 10)); setAlmacenHeader('')
-      setCliente(''); setVendedor(''); setDocOriginal(''); setNcf(''); setPctItbis('18')
+      setFecha(new Date().toISOString().slice(0, 10))
+      setAlmacenHeader('')
+      setCliente('')
+      setClienteNombre('')
+      setVendedor('')
+      setVendedorNombre('')
+      setNcf('')
+      setDocOriginal('')
+      setLineasOrigen([])
+      setHeaderOrigen(null)
+      setPctItbis('18')
       setRows([newRow()])
     } catch (err: any) {
       toast.error(`Error al guardar: ${err.message ?? 'Error desconocido'}`)
@@ -195,14 +371,89 @@ export function DevolucionVentas({ noCia, punto }: Props) {
     <TooltipProvider>
       <section className='space-y-6'>
         <div>
-          <h2 className='text-lg font-semibold'>Devolución de Ventas</h2>
-          <p className='text-sm text-muted-foreground'>FINV201 — Registro de devoluciones de clientes al almacén</p>
+          <h2 className='text-lg font-semibold'>Devolución sobre Ventas</h2>
+          <p className='text-sm text-muted-foreground'>FINV209 — Devolución de mercancía de clientes (afecta factura original)</p>
         </div>
 
-        {/* Cabecera */}
+        {/* Factura original */}
         <Card>
           <CardHeader>
-            <CardTitle className='text-base'>Encabezado del Documento</CardTitle>
+            <CardTitle className='text-base'>Factura Original a Devolver</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className='grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 items-end'>
+              <div className='space-y-1'>
+                <Label htmlFor='dv-tipo-origen'>Tipo Factura</Label>
+                <Select value={tipoFactOrigen} onValueChange={setTipoFactOrigen}>
+                  <SelectTrigger id='dv-tipo-origen' className='h-9'>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='FT'>FT — Factura</SelectItem>
+                    <SelectItem value='CR'>CR — Crédito Fiscal</SelectItem>
+                    <SelectItem value='CO'>CO — Contado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className='space-y-1'>
+                <Label htmlFor='dv-doc-original'>No. Factura</Label>
+                <div className='flex gap-1'>
+                  <Input
+                    id='dv-doc-original'
+                    className='h-9 font-mono flex-1'
+                    placeholder='Click 🔍'
+                    value={docOriginal}
+                    onChange={(e) => setDocOriginal(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') cargarFactura() }}
+                  />
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='icon'
+                    className='h-9 w-9 shrink-0'
+                    title='Buscar factura'
+                    onClick={() => setBuscarFactOpen(true)}
+                  >
+                    <Search className='h-4 w-4' />
+                  </Button>
+                </div>
+              </div>
+
+              <div className='space-y-1'>
+                <Label className='invisible'>cargar</Label>
+                <Button
+                  variant='outline'
+                  className='h-9 w-full gap-2'
+                  onClick={cargarFactura}
+                  disabled={loadingOrigen || !docOriginal.trim()}
+                >
+                  {loadingOrigen ? <RefreshCw className='h-4 w-4 animate-spin' /> : <FileSearch className='h-4 w-4' />}
+                  {loadingOrigen ? 'Cargando...' : 'Cargar factura'}
+                </Button>
+              </div>
+
+              {headerOrigen && (
+                <div className='space-y-1 col-span-2'>
+                  <Label className='text-xs text-muted-foreground'>Factura cargada</Label>
+                  <div className='h-9 flex items-center px-3 rounded-md border bg-muted text-xs gap-2'>
+                    <span className='font-mono font-semibold'>
+                      {tipoFactOrigen}-{String(docOriginal).padStart(7, '0')}
+                    </span>
+                    <span className='text-muted-foreground'>·</span>
+                    <span className='truncate'>{headerOrigen.nombre_cliente || '—'}</span>
+                    <span className='ml-auto text-muted-foreground'>{lineasOrigen.length} línea{lineasOrigen.length === 1 ? '' : 's'}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Cabecera devolución */}
+        <Card>
+          <CardHeader>
+            <CardTitle className='text-base'>Encabezado de la Devolución</CardTitle>
           </CardHeader>
           <CardContent>
             <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4'>
@@ -229,25 +480,10 @@ export function DevolucionVentas({ noCia, punto }: Props) {
                 </Select>
               </div>
 
-              <div className='space-y-1'>
-                <Label htmlFor='dv-ncf'>Código NCF Devolución</Label>
-                <Input id='dv-ncf' className='h-9 font-mono' placeholder='B0400000000' value={ncf} onChange={(e) => setNcf(e.target.value)} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Datos del cliente */}
-        <Card>
-          <CardHeader>
-            <CardTitle className='text-base'>Datos del Cliente</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4'>
               <div className='space-y-1 col-span-2'>
                 <Label>Cliente</Label>
                 <div className='flex gap-2'>
-                  <Input id='dv-cliente' className='h-9 font-mono w-28' placeholder='Código' value={cliente} readOnly onClick={() => setCliModalOpen(true)} />
+                  <Input className='h-9 font-mono w-28' placeholder='Código' value={cliente} readOnly onClick={() => setCliModalOpen(true)} />
                   <Input className='h-9 flex-1 bg-gray-50' placeholder='Click la lupa para buscar' value={clienteNombre} readOnly />
                   <Button type='button' variant='outline' size='icon' className='h-9 w-9 shrink-0' onClick={() => setCliModalOpen(true)}>
                     <Search className='h-4 w-4' />
@@ -255,11 +491,11 @@ export function DevolucionVentas({ noCia, punto }: Props) {
                 </div>
               </div>
 
-              <div className='space-y-1'>
+              <div className='space-y-1 col-span-2'>
                 <Label>Vendedor</Label>
                 <div className='flex gap-2'>
-                  <Input id='dv-vendedor' className='h-9 font-mono w-16' placeholder='Cód' value={vendedor} readOnly onClick={() => setVendModalOpen(true)} />
-                  <Input className='h-9 flex-1 bg-gray-50' placeholder='Click para buscar' value={vendedorNombre} readOnly />
+                  <Input className='h-9 font-mono w-28' placeholder='Código' value={vendedor} readOnly onClick={() => setVendModalOpen(true)} />
+                  <Input className='h-9 flex-1 bg-gray-50' placeholder='Click la lupa para buscar' value={vendedorNombre} readOnly />
                   <Button type='button' variant='outline' size='icon' className='h-9 w-9 shrink-0' onClick={() => setVendModalOpen(true)}>
                     <Search className='h-4 w-4' />
                   </Button>
@@ -267,19 +503,19 @@ export function DevolucionVentas({ noCia, punto }: Props) {
               </div>
 
               <div className='space-y-1'>
-                <Label htmlFor='dv-doc-original'>Documento de Venta Original</Label>
-                <Input id='dv-doc-original' className='h-9 font-mono' placeholder='No. documento' value={docOriginal} onChange={(e) => setDocOriginal(e.target.value)} />
+                <Label htmlFor='dv-ncf'>NCF</Label>
+                <Input id='dv-ncf' className='h-9 font-mono' placeholder='B0400000000' value={ncf} onChange={(e) => setNcf(e.target.value)} />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Grid de productos */}
+        {/* Grid */}
         <Card>
           <CardHeader className='flex flex-row items-center justify-between pb-2'>
-            <CardTitle className='text-base'>Productos Devueltos</CardTitle>
+            <CardTitle className='text-base'>Productos a Devolver</CardTitle>
             <Button variant='outline' size='sm' className='gap-1' onClick={addRow}>
-              <Plus className='h-4 w-4' /> Agregar fila
+              <Plus className='h-4 w-4' /> Agregar línea de la factura
             </Button>
           </CardHeader>
           <CardContent className='p-0'>
@@ -290,7 +526,9 @@ export function DevolucionVentas({ noCia, punto }: Props) {
                     <TableHead className='w-[130px]'>No. Producto</TableHead>
                     <TableHead className='min-w-[200px]'>Nombre / Descripción</TableHead>
                     <TableHead className='w-[120px]'>Almacén</TableHead>
-                    <TableHead className='w-[110px] text-right'>Cantidad</TableHead>
+                    <TableHead className='w-[110px]'>UM</TableHead>
+                    <TableHead className='w-[110px] text-right'>Cant. Facturada</TableHead>
+                    <TableHead className='w-[110px] text-right'>Cant. a Devolver</TableHead>
                     <TableHead className='w-[120px] text-right'>Precio Unit.</TableHead>
                     <TableHead className='w-[120px] text-right'>Total</TableHead>
                     <TableHead className='w-[48px]'></TableHead>
@@ -299,44 +537,25 @@ export function DevolucionVentas({ noCia, punto }: Props) {
                 <TableBody>
                   {rows.map((row, idx) => {
                     const lineTotal = (parseFloat(row.cantidad) || 0) * (parseFloat(row.precio) || 0)
-                    const isSearching = searchIdx === idx
                     return (
                       <TableRow key={row.id}>
                         <TableCell className='py-1 px-2'>
                           <div className='relative'>
                             <Input
                               className='h-8 font-mono text-xs pr-7'
-                              placeholder='Código...'
-                              value={isSearching ? searchTerm : row.noProdu}
-                              onChange={(e) => {
-                                if (!isSearching) { setSearchIdx(idx); setSearchResults([]) }
-                                setSearchTerm(e.target.value)
-                                updateRow(idx, { noProdu: e.target.value, nombre: '' })
-                                searchProducto(e.target.value)
-                              }}
-                              onFocus={() => { setSearchIdx(idx); setSearchTerm(row.noProdu) }}
-                              onBlur={() => { setTimeout(() => { setSearchIdx(null); setSearchResults([]) }, 200) }}
+                              placeholder='Click 🔍'
+                              value={row.noProdu}
+                              readOnly
+                              onClick={() => openPicker(idx)}
                             />
-                            <Search className='absolute right-2 top-2 h-3.5 w-3.5 text-muted-foreground pointer-events-none' />
-                            {isSearching && searchResults.length > 0 && (
-                              <div className='absolute z-50 top-full left-0 mt-1 w-[280px] rounded-md border bg-popover shadow-md text-xs'>
-                                {searching && <div className='px-3 py-2 text-muted-foreground'>Buscando...</div>}
-                                {searchResults.map((p) => {
-                                  const code = p.no_produ ?? p.codigo ?? ''
-                                  return (
-                                    <div
-                                      key={code}
-                                      className='px-3 py-2 cursor-pointer hover:bg-accent hover:text-accent-foreground'
-                                      onMouseDown={(e) => { e.preventDefault(); selectProducto(idx, p) }}
-                                    >
-                                      <span className='font-mono font-medium'>{code}</span>
-                                      {' — '}
-                                      <span className='text-muted-foreground'>{p.descripcion ?? p.nombre ?? ''}</span>
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            )}
+                            <button
+                              type='button'
+                              className='absolute right-1 top-1 h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground'
+                              title='Elegir línea de la factura'
+                              onClick={() => openPicker(idx)}
+                            >
+                              <Search className='h-3.5 w-3.5' />
+                            </button>
                           </div>
                         </TableCell>
 
@@ -359,7 +578,40 @@ export function DevolucionVentas({ noCia, punto }: Props) {
                         </TableCell>
 
                         <TableCell className='py-1 px-2'>
-                          <Input className='h-8 text-xs text-right tabular-nums' type='number' min={0} step='0.0001' placeholder='0.00' value={row.cantidad} onChange={(e) => updateRow(idx, { cantidad: e.target.value })} />
+                          {row.empaques.length > 0 ? (
+                            <Select value={row.empaque || 'UND'} onValueChange={(v) => cambiarEmpaque(idx, v)}>
+                              <SelectTrigger className='h-8 text-xs'>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {row.empaques.map((e) => (
+                                  <SelectItem key={`${e.empaque}-${e.unidad}`} value={e.descripcion || e.unidad} className='text-xs'>
+                                    {empaqueLabel(e)}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span className='text-xs text-muted-foreground'>{row.empaque || '—'}</span>
+                          )}
+                        </TableCell>
+
+                        <TableCell className='py-1 px-2 text-right'>
+                          <div className='h-8 flex items-center justify-end px-2 rounded-md border bg-muted/50 font-mono text-xs tabular-nums text-muted-foreground'>
+                            {row.origenCantidad != null ? fmt(row.origenCantidad) : '—'}
+                          </div>
+                        </TableCell>
+
+                        <TableCell className='py-1 px-2'>
+                          <Input
+                            className='h-8 text-xs text-right tabular-nums'
+                            type='number'
+                            min={0}
+                            step='0.0001'
+                            placeholder='0.00'
+                            value={row.cantidad}
+                            onChange={(e) => updateRow(idx, { cantidad: e.target.value })}
+                          />
                         </TableCell>
 
                         <TableCell className='py-1 px-2'>
@@ -381,8 +633,8 @@ export function DevolucionVentas({ noCia, punto }: Props) {
                 </TableBody>
                 <TableFooter>
                   <TableRow>
-                    <TableCell colSpan={5} className='text-xs font-medium text-right pr-4'>Total Bruto:</TableCell>
-                    <TableCell className='text-right font-mono text-xs font-semibold tabular-nums'>{fmt(totalBruto)}</TableCell>
+                    <TableCell colSpan={7} className='text-xs font-medium text-right pr-4'>Monto Neto:</TableCell>
+                    <TableCell className='text-right font-mono text-xs font-semibold tabular-nums'>{fmt(montoNeto)}</TableCell>
                     <TableCell />
                   </TableRow>
                 </TableFooter>
@@ -399,8 +651,8 @@ export function DevolucionVentas({ noCia, punto }: Props) {
           <CardContent>
             <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end'>
               <div className='space-y-1'>
-                <Label>Total Bruto</Label>
-                <div className='h-9 flex items-center px-3 rounded-md border bg-muted font-mono text-sm tabular-nums'>{fmt(totalBruto)}</div>
+                <Label>Monto Neto</Label>
+                <div className='h-9 flex items-center px-3 rounded-md border bg-muted font-mono text-sm tabular-nums'>{fmt(montoNeto)}</div>
               </div>
 
               <div className='space-y-1'>
@@ -409,8 +661,8 @@ export function DevolucionVentas({ noCia, punto }: Props) {
               </div>
 
               <div className='space-y-1'>
-                <Label>Total Impuesto</Label>
-                <div className='h-9 flex items-center px-3 rounded-md border bg-muted font-mono text-sm tabular-nums'>{fmt(totalImpuesto)}</div>
+                <Label>Total ITBIS</Label>
+                <div className='h-9 flex items-center px-3 rounded-md border bg-muted font-mono text-sm tabular-nums'>{fmt(totalItbis)}</div>
               </div>
 
               <div className='space-y-1'>
@@ -426,46 +678,127 @@ export function DevolucionVentas({ noCia, punto }: Props) {
           <Tooltip>
             <TooltipTrigger asChild>
               <span>
-                <Button
-                  onClick={handleSave}
-                  disabled={!ENDPOINT_READY || saving}
-                  className='min-w-[140px]'
-                  title={!ENDPOINT_READY ? 'Endpoint en construcción' : undefined}
-                >
+                <Button onClick={handleSave} disabled={!ENDPOINT_READY || saving} className='min-w-[140px]'>
                   {saving ? 'Guardando...' : 'Guardar'}
                 </Button>
               </span>
             </TooltipTrigger>
-            {!ENDPOINT_READY && (
-              <TooltipContent side='left'>
-                <p>Endpoint en construcción — POST /api/inv/devoluciones/venta/</p>
-              </TooltipContent>
-            )}
           </Tooltip>
         </div>
       </section>
+
+      {/* Picker de líneas de la factura */}
+      <Dialog open={pickerOpen} onOpenChange={(o) => { if (!o) { setPickerOpen(false); setPickerForIdx(null) } }}>
+        <DialogContent className='w-[80vw] max-w-none sm:max-w-none max-h-[80vh] flex flex-col p-0 gap-0 overflow-hidden'>
+          <DialogHeader className='px-6 py-4 border-b shrink-0'>
+            <DialogTitle>
+              Líneas de la factura {tipoFactOrigen}-{String(docOriginal).padStart(7, '0')}
+            </DialogTitle>
+            <p className='text-xs text-muted-foreground'>Selecciona la línea del producto que el cliente devuelve</p>
+          </DialogHeader>
+
+          <div className='flex-1 overflow-y-auto px-6 py-2'>
+            <Table>
+              <TableHeader className='sticky top-0 bg-white z-10'>
+                <TableRow>
+                  <TableHead className='w-12'>Ln</TableHead>
+                  <TableHead className='w-28'>Código</TableHead>
+                  <TableHead>Descripción</TableHead>
+                  <TableHead className='w-20'>Almacén</TableHead>
+                  <TableHead className='w-24 text-right'>Cantidad</TableHead>
+                  <TableHead className='w-24 text-right'>Precio</TableHead>
+                  <TableHead className='w-24 text-right'>Total</TableHead>
+                  <TableHead className='w-24 text-center'>Acción</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {lineasOrigen.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className='py-10 text-center text-muted-foreground text-sm'>
+                      Sin líneas. Carga la factura primero.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {lineasOrigen.map((l) => {
+                  const yaUsada = rows.some((r) => r.origenLinea === l.no_linea)
+                  return (
+                    <TableRow
+                      key={l.no_linea}
+                      className={yaUsada ? 'opacity-50' : 'cursor-pointer hover:bg-blue-50'}
+                      onDoubleClick={() => !yaUsada && selectFromFactura(l)}
+                    >
+                      <TableCell className='text-xs text-center font-mono'>{l.no_linea}</TableCell>
+                      <TableCell className='font-mono text-xs font-semibold'>{l.no_produ}</TableCell>
+                      <TableCell className='text-sm'>{l.descripcion}</TableCell>
+                      <TableCell className='text-xs'>{l.almacen || '—'}</TableCell>
+                      <TableCell className='text-right font-mono text-sm tabular-nums'>{fmt(l.cantidad)}</TableCell>
+                      <TableCell className='text-right font-mono text-sm tabular-nums'>{fmt(l.precio)}</TableCell>
+                      <TableCell className='text-right font-mono text-sm tabular-nums font-semibold'>
+                        {fmt((l.monto_neto && l.monto_neto > 0) ? l.monto_neto : l.cantidad * l.precio)}
+                      </TableCell>
+                      <TableCell className='text-center'>
+                        <Button
+                          size='sm'
+                          variant={yaUsada ? 'ghost' : 'default'}
+                          disabled={yaUsada}
+                          onClick={() => selectFromFactura(l)}
+                        >
+                          {yaUsada ? 'Añadida' : 'Devolver'}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className='px-6 py-3 border-t shrink-0 bg-gray-50 flex items-center justify-between text-sm text-gray-500'>
+            <span>{lineasOrigen.length} línea{lineasOrigen.length === 1 ? '' : 's'} en la factura</span>
+            <Button variant='outline' size='sm' onClick={() => { setPickerOpen(false); setPickerForIdx(null) }}>Cerrar</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <BuscarDocumentoModal
+        open={buscarFactOpen}
+        onClose={() => setBuscarFactOpen(false)}
+        source='fat'
+        noCia={noCia}
+        punto={punto}
+        title='Buscar Factura'
+        defaultTipo={tipoFactOrigen}
+        tipos={[
+          { value: 'FT', label: 'FT — Factura' },
+          { value: 'CR', label: 'CR — Crédito Fiscal' },
+          { value: 'CO', label: 'CO — Contado' },
+        ]}
+        onSelect={(r) => {
+          setTipoFactOrigen(r.tipo)
+          setDocOriginal(String(r.no_docu))
+          cargarFacturaWith(r.tipo, String(r.no_docu))
+        }}
+      />
 
       <EntityPickerModal<any>
         open={cliModalOpen}
         onClose={() => setCliModalOpen(false)}
         title='Buscar Cliente'
-        placeholder='Buscar por código, nombre o RNC...'
+        placeholder='Buscar por código o nombre...'
         fetcher={async (q) => {
-          const res = await regalGeneralApi.fatListClientes(noCia, q, 1, 50)
-          return res.items || []
+          const res = await regalGeneralApi.cxcListClientes(noCia, q, 1)
+          const list = (res as any)?.items || (res as any)?.results || (Array.isArray(res) ? res : [])
+          return Array.isArray(list) ? list.slice(0, 100) : []
         }}
         columns={[
-          { key: 'no_cliente', label: 'Código', width: '110px',
-            render: (c: any) => String(c.no_cliente || '').padStart(7, '0') },
+          { key: 'no_cliente', label: 'Código', width: '110px' },
           { key: 'nombre', label: 'Nombre' },
-          { key: 'rnc', label: 'RNC/Cédula', width: '140px',
-            render: (c: any) => c.rnc || c.cedula || '—' },
-          { key: 'direccion', label: 'Dirección', width: '220px' },
+          { key: 'rnc', label: 'RNC', width: '140px' },
         ]}
-        getKey={(c) => c.no_cliente}
-        onSelect={(c) => {
-          setCliente(String(c.no_cliente || ''))
-          setClienteNombre((c.nombre || '').trim())
+        getKey={(p) => p.no_cliente}
+        onSelect={(p) => {
+          setCliente(String(p.no_cliente || ''))
+          setClienteNombre((p.nombre || '').trim())
         }}
       />
 
@@ -473,26 +806,19 @@ export function DevolucionVentas({ noCia, punto }: Props) {
         open={vendModalOpen}
         onClose={() => setVendModalOpen(false)}
         title='Buscar Vendedor'
-        placeholder='Buscar por código o nombre del vendedor...'
-        minChars={1}
-        fetcher={async (q) => {
-          const r = await fetch(`${API_BASE}/fat/vendedores/?no_cia=${noCia}`, { credentials: 'include' })
-          if (!r.ok) return []
-          const j = await r.json()
-          const items = j.items || j.results || []
-          const term = q.toLowerCase()
-          return items.filter((v: any) =>
-            !term || String(v.vendedor || '').toLowerCase().includes(term) ||
-            String(v.nombre || '').toLowerCase().includes(term))
+        placeholder='Buscar vendedor...'
+        fetcher={async () => {
+          const list = await regalGeneralApi.fatListVendedores(noCia)
+          return Array.isArray(list) ? list : []
         }}
         columns={[
           { key: 'vendedor', label: 'Código', width: '110px' },
           { key: 'nombre', label: 'Nombre' },
         ]}
-        getKey={(v) => v.vendedor}
-        onSelect={(v) => {
-          setVendedor(String(v.vendedor || ''))
-          setVendedorNombre((v.nombre || '').trim())
+        getKey={(p) => p.vendedor}
+        onSelect={(p) => {
+          setVendedor(String(p.vendedor || ''))
+          setVendedorNombre((p.nombre || '').trim())
         }}
       />
     </TooltipProvider>

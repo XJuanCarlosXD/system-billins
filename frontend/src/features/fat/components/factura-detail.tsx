@@ -248,6 +248,20 @@ export function FATFacturaDetail({
             Imprimir / PDF
           </Button>
 
+          <Button
+            variant='secondary'
+            size='sm'
+            title='Ticket POS 80mm'
+            onClick={() => {
+              const apiBase = (import.meta as any).env?.VITE_API_BASE_URL || '/api'
+              const qs = new URLSearchParams({ no_cia: factura.no_cia, punto: factura.punto })
+              window.open(`${apiBase}/fat/documentos/${factura.tipo_factura}/${factura.no_factura}/pos-pdf/?${qs}`, '_blank')
+            }}
+          >
+            <Printer className='size-4 mr-2' />
+            POS 80mm
+          </Button>
+
           {factura.estado === 'P' && (
             <>
               <Button onClick={() => onEdit(factura)} variant='outline'>

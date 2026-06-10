@@ -13,7 +13,7 @@ from .views import (
     FatProximoNoFacturaView, DashboardVentasMesView,
 )
 from .views_print import (
-    fat_documento_pdf, fat_lista_facturas_pdf,
+    fat_documento_pdf, fat_documento_pos_pdf, fat_lista_facturas_pdf,
     fat_conduce_pdf, fat_lista_conduces_pdf,
     fat_lista_precio_pdf, fat_rep_607_pdf,
     fat_rep_ncf_nulos_pdf, fat_rep_facturas_rnc_pdf, fat_rep_margen_bruto_pdf,
@@ -56,6 +56,7 @@ urlpatterns = [
     path('fat/ncf-usado/', FatNcfUsadoView.as_view()),
     path('fat/proximo-no-factura/', FatProximoNoFacturaView.as_view()),
     path('fat/documentos/<str:tipo>/<str:no_factura>/pdf/', fat_documento_pdf),
+    path('fat/documentos/<str:tipo>/<str:no_factura>/pos-pdf/', fat_documento_pos_pdf),
     path('fat/reportes/listado/pdf/', fat_lista_facturas_pdf),
     path('fat/conduces/<str:tipo>/<str:no_conduce>/pdf/', fat_conduce_pdf),
     path('fat/reportes/listado-conduces/pdf/', fat_lista_conduces_pdf),

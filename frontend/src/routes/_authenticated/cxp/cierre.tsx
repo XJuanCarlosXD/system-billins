@@ -1,12 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useCompany } from '@/context/company-context'
-import { CxpPlaceholder } from '@/features/cxp/cxp-placeholder'
+import { CxpCierre } from '@/features/cxp/cxp-procesos'
 
-export const Route = createFileRoute('/_authenticated/cxp/cierre')({ 
+export const Route = createFileRoute('/_authenticated/cxp/cierre')({
   component: _Page,
 })
 
 function _Page() {
   const { selectedCompany, selectedPoint } = useCompany()
-  return <CxpPlaceholder title="cierre" noCia={selectedCompany ?? ''} punto={selectedPoint ?? ''} />
+  return <CxpCierre noCia={selectedCompany ?? ''} punto={selectedPoint ?? ''} />
 }

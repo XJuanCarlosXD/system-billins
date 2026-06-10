@@ -1,0 +1,17 @@
+from django.urls import path
+from apps.legacy import acf_views
+
+urlpatterns = [
+    path('cias/', acf_views.acf_cias),
+    path('puntos/', acf_views.acf_puntos),
+    path('categorias/', acf_views.acf_categorias),
+    path('grupos/', acf_views.acf_grupos),
+    path('subgrupos/', acf_views.acf_subgrupos),
+    path('marcas/', acf_views.acf_marcas),
+    path('responsables/', acf_views.acf_responsables),
+    path('departamentos/', acf_views.acf_departamentos),
+    path('activos/', acf_views.acf_activos),
+    path('activos/<str:no_cia>/<str:punto>/<str:no_activo>/', acf_views.acf_activo),
+    path('rep-resumen/', acf_views.acf_rep_resumen),
+    path('rep-por-grupo/', acf_views.acf_rep_por_grupo),
+]

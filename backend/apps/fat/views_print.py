@@ -1954,7 +1954,8 @@ def _render_conduce_pdf_moderno(*, conduce, cia, razon_social, nombre_cliente,
 # -- Reportes en estilo factura moderna (compartido para todos los listados) --
 
 def _render_modern_report_pdf(*, report_id: str, title: str, cia,
-                              subtitle_lines: list[str],
+                              subtitle_lines: list[str] = None,
+                              info_blocks: list[dict] = None,
                               sections: list[dict],
                               signature_labels: list[str] = None,
                               impreso_por: str = '',
@@ -2109,6 +2110,125 @@ def _render_modern_report_pdf(*, report_id: str, title: str, cia,
             ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
         ]))
         elements += [subtitle_panel, Spacer(1, 3 * mm)]
+
+    if info_blocks:
+        styles.add(ParagraphStyle(name='RpBlockTitle', parent=styles['Normal'],
+            fontName='Helvetica-Bold', fontSize=7.5, leading=9,
+            textColor=colors.HexColor('#0F172A'), spaceAfter=2))
+        styles.add(ParagraphStyle(name='RpKvLabel', parent=styles['Normal'],
+            fontName='Helvetica', fontSize=8, leading=10,
+            textColor=colors.HexColor('#64748B')))
+        styles.add(ParagraphStyle(name='RpKvValue', parent=styles['Normal'],
+            fontName='Helvetica-Bold', fontSize=8, leading=10,
+            textColor=colors.HexColor('#0F172A')))
+        styles.add(ParagraphStyle(name='RpKvValueBig', parent=styles['Normal'],
+            fontName='Helvetica-Bold', fontSize=10, leading=12,
+            textColor=colors.HexColor('#0F172A')))
+        styles.add(ParagraphStyle(name='RpInlineLabel', parent=styles['Normal'],
+            fontName='Helvetica', fontSize=8, leading=10,
+            textColor=colors.HexColor('#64748B')))
+
+        def _kv_subtable(block_rows, value_style=None):
+            vstyle = value_style or styles['RpKvValue']
+            data = []
+            for label, value in block_rows:
+                data.append([
+                    Paragraph(text(label) + ':', styles['RpKvLabel']),
+                    Paragraph(text(value), vstyle),
+                ])
+            if not data:
+                data = [[Paragraph('', styles['RpKvLabel']),
+                         Paragraph('', styles['RpKvValue'])]]
+            t = Table(data, colWidths=[26 * mm, None])
+            t.setStyle(TableStyle([
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 0),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+                ('TOPPADDING', (0, 0), (-1, -1), 1),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
+            ]))
+            return t
+
+        def _render_block(block, col_width):
+            title_p = (
+                Paragraph(text(block.get('title', '')).upper(),
+                          styles['RpBlockTitle'])
+                if block.get('title') else None
+            )
+            if block.get('inline'):
+                rows = block.get('rows', []) or []
+                last_idx = len(rows) - 1
+                parts = []
+                for i, (lbl, val) in enumerate(rows):
+                    big = (i == last_idx)
+                    val_color = '#0F172A'
+                    if big:
+                        parts.append(
+                            f"<font color='#64748B'>{text(lbl)}:</font> "
+                            f"<font color='{val_color}' size='10'><b>{text(val)}</b></font>"
+                        )
+                    else:
+                        parts.append(
+                            f"<font color='#64748B'>{text(lbl)}:</font> "
+                            f"<b>{text(val)}</b>"
+                        )
+                body = Paragraph('  &nbsp; &nbsp; '.join(parts),
+                                 styles['RpKvValue'])
+            else:
+                body = _kv_subtable(block.get('rows', []) or [])
+            cell = []
+            if title_p:
+                cell.append(title_p)
+            cell.append(body)
+            return cell
+
+        blocks_data = []
+        i = 0
+        blocks = [b for b in info_blocks if b]
+        while i < len(blocks):
+            b = blocks[i]
+            if b.get('span_full'):
+                col_w = width
+                cell = _render_block(b, col_w)
+                row = Table([[cell]], colWidths=[col_w])
+                row.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F1F5F9')),
+                    ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 8),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+                    ('TOPPADDING', (0, 0), (-1, -1), 5),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ]))
+                blocks_data.append(row)
+                i += 1
+            else:
+                left = b
+                right = blocks[i + 1] if (i + 1) < len(blocks) and not blocks[i + 1].get('span_full') else None
+                col_w = width / 2 - 1 * mm
+                left_cell = _render_block(left, col_w)
+                right_cell = _render_block(right, col_w) if right else [Paragraph('', styles['RpSmall'])]
+                row = Table(
+                    [[left_cell, right_cell]],
+                    colWidths=[col_w, col_w],
+                )
+                row.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F8FAFC')),
+                    ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
+                    ('LINEAFTER', (0, 0), (0, 0), 0.4, colors.HexColor('#CBD5E1')),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 8),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+                    ('TOPPADDING', (0, 0), (-1, -1), 5),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ]))
+                blocks_data.append(row)
+                i += 2 if right else 1
+
+        for blk in blocks_data:
+            elements.append(blk)
+            elements.append(Spacer(1, 1.5 * mm))
+        elements.append(Spacer(1, 1.5 * mm))
 
     for section in sections:
         sec_title = section.get('title') or ''
@@ -2453,3 +2573,463 @@ def fat_rep_ventas_productos_pdf(request):
     resp = HttpResponse(pdf, content_type='application/pdf')
     resp['Content-Disposition'] = f'inline; filename="ventas_productos_{desde}_{hasta}.pdf"'
     return resp
+
+
+# ── Ticket POS 80mm ──────────────────────────────────────────────────────────
+# Renderer en formato 80mm para impresoras térmicas / punto de venta.
+# Reusa la misma data ya cargada por fat_documento_pdf.
+
+@login_required
+@require_http_methods(["GET"])
+def fat_documento_pos_pdf(request, tipo: str, no_factura: str):
+    """GET /api/fat/documentos/<tipo>/<no_factura>/pos-pdf/?no_cia=01&punto=01
+
+    Devuelve el PDF de una factura en formato ticket POS 80mm.
+    """
+    try:
+        from reportlab.lib.pagesizes import letter  # probe
+    except ImportError:
+        return JsonResponse({"error": "reportlab no instalado"}, status=500)
+
+    tipo = (tipo or '').strip().upper()
+    if tipo not in TIPOS_DOCUMENTO_SOPORTADOS:
+        return JsonResponse(
+            {"error": f"Tipo de documento '{tipo}' no soportado (solo FC, FT)"},
+            status=400)
+
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+
+    perms = permissions_repo.get_for(request.user.username, 'fat', no_cia, punto)
+    if perms is None or not perms.activo:
+        return JsonResponse({'detail': 'sin acceso a FAT en esta empresa/punto'}, status=403)
+
+    try:
+        factura = fat_repo.get_factura(no_cia, punto, tipo, no_factura)
+    except Exception as e:
+        return JsonResponse({"error": f"Error consultando factura: {e}"}, status=500)
+
+    if factura is None:
+        return JsonResponse({"error": "Factura no encontrada"}, status=404)
+
+    tipo_ncf = (factura.get('posiciones_fijas_ncf') or factura.get('tipo_ncf_fiscal') or '').strip().upper()
+    if tipo_ncf and tipo_ncf not in TIPOS_NCF_VALIDOS_FISICOS:
+        return JsonResponse(
+            {"error": f"NCF tipo '{tipo_ncf}' no es válido DGI (debe ser B01..B15)"},
+            status=422)
+
+    try:
+        cia = next(
+            (c for c in fat_repo.list_companias_fat() if str(c.get('no_cia')).strip() == no_cia),
+            None,
+        ) or {}
+    except Exception:
+        cia = {}
+    if not cia:
+        cia = inv_repo.get_compania(no_cia) or {}
+    razon_social = (cia.get('descripcion') or no_cia).strip()
+
+    no_cliente_str = str(factura['no_cliente'])
+    cliente = cxc_repo.get_cliente(no_cia, no_cliente_str) or {}
+    rnc_cliente = (cliente.get('rnc') or '').strip()
+    direccion_cliente = (cliente.get('direccion') or '').strip()
+
+    nombre_vendedor = fat_repo.get_vendedor_nombre(no_cia, factura.get('vendedor', ''))
+    descripcion_cond_pago = fat_repo.get_condicion_pago_descripcion(
+        factura.get('no_condicion_pago', ''))
+    forma_pago_display = (factura.get('forma_pago') or '').strip()
+    try:
+        tipos_pago = fat_repo.list_tipos_pago(no_cia, punto)
+        tipo_pago = next(
+            (p for p in tipos_pago if str(p.get('tipo_pago')).strip() == forma_pago_display),
+            None,
+        )
+        if tipo_pago and tipo_pago.get('descripcion'):
+            forma_pago_display = tipo_pago['descripcion']
+    except Exception:
+        pass
+
+    try:
+        pdf_bytes = _render_factura_pos_ticket(
+            factura=factura,
+            cia=cia,
+            razon_social=razon_social,
+            rnc_cliente=rnc_cliente,
+            direccion_cliente=direccion_cliente,
+            nombre_vendedor=nombre_vendedor,
+            descripcion_cond_pago=descripcion_cond_pago,
+            forma_pago_display=forma_pago_display,
+            tipo_ncf=tipo_ncf,
+            cajero=getattr(request.user, 'username', '') or '',
+        )
+    except Exception as e:
+        return JsonResponse({"error": f"Error generando ticket POS: {e}"}, status=500)
+
+    resp = HttpResponse(pdf_bytes, content_type='application/pdf')
+    resp['Content-Disposition'] = (
+        f'inline; filename="POS_{tipo}_{no_factura}.pdf"'
+    )
+    return resp
+
+
+def _render_factura_pos_ticket(*, factura, cia, razon_social, rnc_cliente,
+                               direccion_cliente, nombre_vendedor,
+                               descripcion_cond_pago, forma_pago_display,
+                               tipo_ncf, cajero: str = '') -> bytes:
+    """Ticket POS 80mm para impresora térmica.
+
+    Ancho fijo 80mm; alto generoso (297mm) — las térmicas con corte automático
+    sólo imprimen hasta donde hay tinta. Tipografía Helvetica, sin colores.
+    """
+    import io
+    from datetime import datetime
+    from html import escape
+
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
+    )
+
+    page_w = 80 * mm
+    page_h = 297 * mm
+    margin = 3 * mm
+
+    tipo = (factura.get('tipo_factura') or '').strip().upper()
+    no_factura = (factura.get('no_factura') or '').strip()
+    documento_label = {
+        'FC': 'FACTURA CREDITO', 'FT': 'FACTURA CONTADO',
+    }.get(tipo, 'FACTURA')
+    fecha = factura.get('fecha', '') or ''
+    fecha_display = (
+        f"{fecha[8:10]}/{fecha[5:7]}/{fecha[:4]}" if fecha and len(fecha) >= 10 else fecha
+    )
+
+    posiciones = (factura.get('posiciones_fijas_ncf') or '').strip().upper()
+    ncf_num = factura.get('ncf')
+    codigo_ncf = f"{posiciones}{int(ncf_num):08d}" if posiciones and ncf_num else ''
+    ncf_label = codigo_ncf or '(sin NCF)'
+    tipo_ncf_label = tipo_ncf or 'N/A'
+
+    nombre_cliente = (factura.get('nombre_cliente') or '').strip() or 'CONSUMIDOR FINAL'
+    cond_pago_display = descripcion_cond_pago or ''
+    forma_pago_display = (forma_pago_display or factura.get('forma_pago') or '').strip()
+    anulada = (factura.get('st_anulado') or 'N') == 'S'
+    impresion_label = 'REIMPRESA' if (factura.get('st_impresion') or 'N') == 'S' else ''
+
+    cia_rnc = (cia.get('rnc') or '').strip()
+    cia_telefono = (cia.get('telefono') or '').strip()
+    cia_direccion = (cia.get('direccion') or '').strip()
+
+    subtotal = float(factura.get('total_linea') or 0)
+    descuento_total = float(factura.get('descuento') or 0)
+    impuesto_total = float(factura.get('impuesto') or 0)
+    propina_total = float(factura.get('propina') or 0)
+    total_general = float(factura.get('total_neto') or 0)
+
+    def t(value) -> str:
+        return escape(str(value if value is not None else '').strip())
+
+    def money(value) -> str:
+        return f"{float(value or 0):,.2f}"
+
+    def qty(value) -> str:
+        amount = float(value or 0)
+        if amount.is_integer():
+            return f"{amount:,.0f}"
+        return f"{amount:,.2f}"
+
+    styles = getSampleStyleSheet()
+    base = ParagraphStyle(
+        name='POSBase', parent=styles['Normal'],
+        fontName='Helvetica', fontSize=8, leading=10,
+        textColor=colors.black,
+    )
+    center = ParagraphStyle(name='POSCenter', parent=base, alignment=TA_CENTER)
+    center_bold = ParagraphStyle(
+        name='POSCenterBold', parent=center,
+        fontName='Helvetica-Bold', fontSize=9, leading=11,
+    )
+    title = ParagraphStyle(
+        name='POSTitle', parent=center,
+        fontName='Helvetica-Bold', fontSize=11, leading=13,
+    )
+    doc_title = ParagraphStyle(
+        name='POSDoc', parent=center,
+        fontName='Helvetica-Bold', fontSize=10, leading=12,
+    )
+    right = ParagraphStyle(name='POSRight', parent=base, alignment=TA_RIGHT)
+    right_bold = ParagraphStyle(
+        name='POSRightBold', parent=right,
+        fontName='Helvetica-Bold',
+    )
+    total_label = ParagraphStyle(
+        name='POSTotalLabel', parent=base,
+        fontName='Helvetica-Bold', fontSize=8.5, leading=10,
+    )
+    total_val = ParagraphStyle(
+        name='POSTotalVal', parent=right_bold, fontSize=8.5, leading=10,
+    )
+    grand_total = ParagraphStyle(
+        name='POSGrand', parent=center,
+        fontName='Helvetica-Bold', fontSize=12, leading=14,
+    )
+    small = ParagraphStyle(name='POSSmall', parent=base, fontSize=7, leading=8.5)
+    small_center = ParagraphStyle(name='POSSmallC', parent=small, alignment=TA_CENTER)
+    line_desc = ParagraphStyle(name='POSLineDesc', parent=small, fontSize=7.5, leading=9)
+    line_qty = ParagraphStyle(name='POSLineQty', parent=small, fontSize=7.5, leading=9)
+    line_right = ParagraphStyle(
+        name='POSLineRight', parent=small, fontSize=7.5,
+        leading=9, alignment=TA_RIGHT,
+    )
+
+    buffer = io.BytesIO()
+    doc_pdf = SimpleDocTemplate(
+        buffer,
+        pagesize=(page_w, page_h),
+        leftMargin=margin,
+        rightMargin=margin,
+        topMargin=margin,
+        bottomMargin=margin,
+    )
+    width = doc_pdf.width
+
+    def hr() -> Table:
+        line = Table([['']], colWidths=[width], rowHeights=[0.3])
+        line.setStyle(TableStyle([
+            ('LINEABOVE', (0, 0), (-1, 0), 0.4, colors.black),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ]))
+        return line
+
+    def dashed_hr() -> Table:
+        return Table(
+            [[Paragraph('-' * 56, small_center)]],
+            colWidths=[width],
+        )
+
+    elements: list = []
+
+    # Encabezado: razón social, dirección, RNC, teléfono
+    elements.append(Paragraph(t(razon_social.upper() or 'EMPRESA'), title))
+    if cia_direccion:
+        elements.append(Paragraph(t(cia_direccion), center))
+    info_line = ' | '.join(
+        part for part in [
+            f"RNC {t(cia_rnc)}" if cia_rnc else '',
+            f"Tel. {t(cia_telefono)}" if cia_telefono else '',
+        ] if part
+    )
+    if info_line:
+        elements.append(Paragraph(info_line, center))
+    elements.append(Spacer(1, 2 * mm))
+
+    # Tipo doc + número + NCF + tipo NCF (centrado destacado)
+    elements.append(hr())
+    elements.append(Spacer(1, 1 * mm))
+    elements.append(Paragraph(t(documento_label), doc_title))
+    elements.append(Paragraph(f"<b>{t(tipo)}-{t(no_factura)}</b>", center_bold))
+    elements.append(Paragraph(f"NCF: {t(ncf_label)}", center_bold))
+    if tipo_ncf_label and tipo_ncf_label != 'N/A':
+        elements.append(Paragraph(f"({t(tipo_ncf_label)})", small_center))
+    if impresion_label:
+        elements.append(Paragraph(t(impresion_label), small_center))
+    elements.append(Spacer(1, 1 * mm))
+    elements.append(hr())
+    elements.append(Spacer(1, 2 * mm))
+
+    # Fecha + cliente
+    elements.append(Paragraph(f"<b>Fecha:</b> {t(fecha_display)}", small))
+    elements.append(Paragraph(f"<b>Cliente:</b> {t(nombre_cliente)}", small))
+    if rnc_cliente:
+        elements.append(Paragraph(f"<b>RNC/Ced:</b> {t(rnc_cliente)}", small))
+    if direccion_cliente:
+        elements.append(Paragraph(f"<b>Dir:</b> {t(direccion_cliente)}", small))
+    if nombre_vendedor:
+        elements.append(Paragraph(f"<b>Vendedor:</b> {t(nombre_vendedor)}", small))
+    if cond_pago_display:
+        elements.append(Paragraph(f"<b>Condicion:</b> {t(cond_pago_display)}", small))
+    if forma_pago_display:
+        elements.append(Paragraph(f"<b>Forma pago:</b> {t(forma_pago_display)}", small))
+    if cajero:
+        elements.append(Paragraph(f"<b>Cajero:</b> {t(cajero)}", small))
+    elements.append(Spacer(1, 2 * mm))
+
+    # Cabecera de líneas
+    head_table = Table(
+        [[
+            Paragraph('Desc.', ParagraphStyle('h1', parent=small, fontName='Helvetica-Bold')),
+            Paragraph('Total', ParagraphStyle('h2', parent=line_right, fontName='Helvetica-Bold')),
+        ]],
+        colWidths=[width * 0.62, width * 0.38],
+    )
+    head_table.setStyle(TableStyle([
+        ('LINEBELOW', (0, 0), (-1, 0), 0.4, colors.black),
+        ('LINEABOVE', (0, 0), (-1, 0), 0.4, colors.black),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+    ]))
+    elements.append(head_table)
+
+    # Detalle de líneas: cada producto en 2 filas:
+    #   [descripción ............................ monto_neto]
+    #   [cant x precio  (-desc)                              ]
+    active_lineas = [
+        l for l in factura.get('lineas', [])
+        if (l.get('st_anulado') or 'N') == 'N'
+    ]
+    line_rows = []
+    for linea in active_lineas:
+        cantidad = float(linea.get('cantidad') or 0)
+        precio = float(linea.get('precio') or 0)
+        descuento = float(linea.get('descuento') or 0)
+        regalia = float(linea.get('cantidad_regalia') or 0)
+        desc = t(linea.get('descripcion') or '')
+        codigo = t(linea.get('no_produ') or '')
+        if codigo:
+            desc = f"{codigo} {desc}"
+        if regalia:
+            desc = f"{desc} (Reg: {qty(regalia)})"
+        detail_parts = [f"{qty(cantidad)} x {money(precio)}"]
+        if descuento:
+            detail_parts.append(f"-{money(descuento)}")
+        line_rows.append([
+            Paragraph(desc, line_desc),
+            Paragraph(money(linea.get('monto_neto')), line_right),
+        ])
+        line_rows.append([
+            Paragraph('  ' + ' '.join(detail_parts), small),
+            Paragraph('', small),
+        ])
+    if not active_lineas:
+        line_rows.append([
+            Paragraph('Sin lineas facturadas.', small),
+            Paragraph('', small),
+        ])
+    lines_table = Table(line_rows, colWidths=[width * 0.62, width * 0.38])
+    lines_table.setStyle(TableStyle([
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('TOPPADDING', (0, 0), (-1, -1), 1),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    ]))
+    elements.append(lines_table)
+    elements.append(hr())
+    elements.append(Spacer(1, 1 * mm))
+
+    # Totales
+    total_rows = [
+        [Paragraph('Subtotal', total_label), Paragraph(money(subtotal), total_val)],
+        [Paragraph('Descuento', total_label), Paragraph(money(descuento_total), total_val)],
+        [Paragraph('ITBIS', total_label), Paragraph(money(impuesto_total), total_val)],
+    ]
+    if propina_total:
+        total_rows.append(
+            [Paragraph('Propina', total_label), Paragraph(money(propina_total), total_val)]
+        )
+    totals_table = Table(total_rows, colWidths=[width * 0.55, width * 0.45])
+    totals_table.setStyle(TableStyle([
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('TOPPADDING', (0, 0), (-1, -1), 1),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
+    ]))
+    elements.append(totals_table)
+    elements.append(Spacer(1, 1 * mm))
+    elements.append(hr())
+    elements.append(Spacer(1, 1 * mm))
+
+    # Total grande
+    grand_table = Table(
+        [[
+            Paragraph('TOTAL', grand_total),
+            Paragraph(f"RD$ {money(total_general)}", ParagraphStyle(
+                'gt', parent=grand_total, alignment=TA_RIGHT,
+            )),
+        ]],
+        colWidths=[width * 0.45, width * 0.55],
+    )
+    grand_table.setStyle(TableStyle([
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    elements.append(grand_table)
+    elements.append(Spacer(1, 1 * mm))
+
+    # Importe en letras
+    try:
+        letras = _importe_en_letras(total_general)
+        elements.append(Paragraph(letras.replace('*', ''), small_center))
+    except Exception:
+        pass
+
+    nota = (factura.get('nota') or factura.get('detalle') or '').strip()
+    if nota:
+        elements.append(Spacer(1, 2 * mm))
+        elements.append(hr())
+        elements.append(Paragraph(f"<b>Nota:</b> {t(nota)}", small))
+
+    # QR del NCF fiscal — para verificación DGII.
+    if codigo_ncf:
+        try:
+            from reportlab.graphics.barcode.qr import QrCodeWidget
+            from reportlab.graphics.shapes import Drawing
+            qr_widget = QrCodeWidget(codigo_ncf, barLevel='M')
+            qr_w = 28 * mm
+            bounds = qr_widget.getBounds()
+            qw = bounds[2] - bounds[0]
+            qh = bounds[3] - bounds[1]
+            scale = qr_w / qw
+            drawing = Drawing(qr_w, qr_w, transform=[scale, 0, 0, scale, 0, 0])
+            drawing.add(qr_widget)
+            qr_table = Table(
+                [[drawing]],
+                colWidths=[width],
+                rowHeights=[qr_w + 1 * mm],
+            )
+            qr_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 0),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+                ('TOPPADDING', (0, 0), (-1, -1), 1),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
+            ]))
+            elements.append(Spacer(1, 2 * mm))
+            elements.append(qr_table)
+            elements.append(Paragraph(f"Comprobante: <b>{t(codigo_ncf)}</b>", small_center))
+        except Exception:
+            pass
+
+    elements.append(Spacer(1, 3 * mm))
+    elements.append(Paragraph('¡Gracias por su compra!', center_bold))
+    elements.append(Spacer(1, 1 * mm))
+    impreso_at = datetime.now().strftime('%d/%m/%Y %H:%M')
+    elements.append(Paragraph(f"Impreso: {impreso_at}", small_center))
+    if anulada:
+        elements.append(Spacer(1, 2 * mm))
+        elements.append(Paragraph('*** ANULADA ***', ParagraphStyle(
+            'anul', parent=center_bold, fontSize=14, leading=16,
+        )))
+
+    def draw_watermark(canvas, doc):
+        if anulada:
+            canvas.saveState()
+            canvas.setFont('Helvetica-Bold', 36)
+            canvas.setFillColor(colors.Color(0.85, 0.15, 0.15, alpha=0.15))
+            canvas.translate(page_w / 2, page_h / 2)
+            canvas.rotate(28)
+            canvas.drawCentredString(0, 0, 'ANULADA')
+            canvas.restoreState()
+
+    doc_pdf.build(elements, onFirstPage=draw_watermark, onLaterPages=draw_watermark)
+    buffer.seek(0)
+    return buffer.read()

@@ -92,13 +92,13 @@ Son backups que el equipo dejó en la BD con sufijos de fecha:
 
 ## Inventario de Forms (Fat)
 
-`D:\\RegalGeneral\gpsc\Fat\Formas\` contiene **175 FMX**. Sin FMB en disco (pendiente cliente).
+`D:\Sigaf\gpsc\Fat\Formas\` contiene **175 FMX**. Sin FMB en disco (pendiente cliente).
 
-`D:\\RegalGeneral\gpsc\Fat\Reportes\` contiene **109 REP**. Sin RDF en disco.
+`D:\Sigaf\gpsc\Fat\Reportes\` contiene **109 REP**. Sin RDF en disco.
 
 ## Lo que falta para QA byte-exact (acción del cliente)
 
-Para cada tipo NCF/e-CF que se use, ejecutar el reporte en Regal General para un período de prueba y guardar el archivo en `legacy_dumps/dgii/samples/`:
+Para cada tipo NCF/e-CF que se use, ejecutar el reporte en el sistema legado para un período de prueba y guardar el archivo en `legacy_dumps/dgii/samples/`:
 
 - 606 (compras del mes)
 - 607 (ventas del mes)

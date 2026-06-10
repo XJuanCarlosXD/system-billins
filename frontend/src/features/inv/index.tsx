@@ -49,7 +49,6 @@ import { ConsultaDocumentos } from './consulta-documentos'
 import { EntradaMercancia } from './entrada-mercancia'
 import { ExistenciaProducto } from './existencia-producto'
 import { GruposProductos } from './grupos'
-import { ImpresionDocumentos } from './impresion-documentos'
 import { LineasProductos } from './lineas'
 import { PuntosTrabajoInv } from './puntos-trabajo'
 import { ReportesParametros } from './reportes-parametros'
@@ -110,7 +109,6 @@ type ViewKey =
   | 'devolucion-suplidores'
   | 'devolucion-ventas'
   | 'reversar-documento'
-  | 'impresion-documentos'
   | 'listado-recepcion-resumen'
   | 'listado-recepcion-detalle'
   | 'listado-doc-asiento'
@@ -478,16 +476,6 @@ const actionsBySection: Record<SectionKey, Action[]> = {
       icon: ArchiveX,
       tables: ['INV.TINV_DOC'],
       apis: ['POST /api/inv/reversar/'],
-    },
-    {
-      key: 'impresion-documentos',
-      label: 'Impresión de Documentos',
-      legacy: 'FINV206',
-      status: 'ready',
-      summary: 'Genera reportes Rinv206/Rinv207 en PDF con parámetros de mes, tipo documento y rango.',
-      icon: Printer,
-      tables: ['INV.TINV_DOC', 'INV.TINV_DOCL'],
-      apis: ['GET /api/inv/reportes/documentos/pdf/'],
     },
     {
       key: 'listado-recepcion-resumen',
@@ -1016,8 +1004,6 @@ function renderWorkspace(view: ViewKey, noCia: string, punto: string) {
     // Procesos
     case 'entrada-compras':
       return <EntradaCompras noCia={noCia} punto={punto} />
-    case 'impresion-documentos':
-      return <ImpresionDocumentos noCia={noCia} punto={punto} />
     case 'entrada-mercancia':
       return <EntradaMercancia noCia={noCia} punto={punto} tipoMov='entrada' />
     case 'salida-mercancia':

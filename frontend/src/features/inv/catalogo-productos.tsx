@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
-import { Search, X, ChevronLeft, ChevronRight, History } from 'lucide-react'
+import { Search, X, ChevronLeft, ChevronRight, History, Plus } from 'lucide-react'
+import { toast } from 'sonner'
 import { useCompany } from '@/context/company-context'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import {
   MovimientosProductoModal,
@@ -66,6 +69,19 @@ export function CatalogoProductos() {
 
   const [selected, setSelected] = useState<Producto | null>(null)
   const [moviProdu, setMoviProdu] = useState<{ no_produ: string; descripcion: string } | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [sublineas, setSublineas] = useState<any[]>([])
+  const [gruposContables, setGruposContables] = useState<any[]>([])
+
+  // Form state
+  const emptyForm = {
+    no_produ: '', descripcion: '', linea: '', sub_linea: '',
+    grupo_produ: '', grupo_contable: '', servicio: 'I',
+    tiene_impuesto: true, porciento_impuesto: '18',
+    costo: '', activo: 'S' as 'S' | 'N',
+  }
+  const [form, setForm] = useState(emptyForm)
+  const [saving, setSaving] = useState(false)
 
   // Load catalogues once
   useEffect(() => {
@@ -93,6 +109,20 @@ export function CatalogoProductos() {
         setAlmacenes(items)
       })
       .catch(() => setAlmacenes([]))
+
+    apiFetch<any>(`/inv/sublineas/?no_cia=${selectedCompany}`)
+      .then((data) => {
+        const items = Array.isArray(data) ? data : data.items ?? data.results ?? []
+        setSublineas(items)
+      })
+      .catch(() => setSublineas([]))
+
+    apiFetch<any>(`/inv/grupo-contable/?no_cia=${selectedCompany}`)
+      .then((data) => {
+        const items = Array.isArray(data) ? data : data.items ?? data.results ?? []
+        setGruposContables(items)
+      })
+      .catch(() => setGruposContables([]))
   }, [selectedCompany, selectedPoint])
 
   // Load products
@@ -133,6 +163,53 @@ export function CatalogoProductos() {
     setPage(1)
   }
 
+  const handleCreate = async () => {
+    if (!form.no_produ.trim()) return toast.error('Código del producto requerido')
+    if (!form.descripcion.trim()) return toast.error('Descripción requerida')
+    if (!form.linea || !form.sub_linea) return toast.error('Línea y sub-línea requeridas')
+    if (!form.grupo_produ) return toast.error('Grupo requerido')
+    if (!form.grupo_contable) return toast.error('Grupo contable requerido')
+
+    setSaving(true)
+    try {
+      const csrf = (document.cookie.split('; ').find(c => c.startsWith('csrftoken=')) || '').split('=')[1] || ''
+      const res = await fetch(`${API_BASE}/inv/productos/`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+        body: JSON.stringify({
+          no_produ: form.no_produ.trim().toUpperCase(),
+          descripcion: form.descripcion.trim(),
+          linea: form.linea,
+          sub_linea: form.sub_linea,
+          grupo_produ: form.grupo_produ,
+          grupo_contable: form.grupo_contable,
+          servicio: form.servicio,
+          tiene_impuesto: form.tiene_impuesto ? 'S' : 'N',
+          porciento_impuesto: parseFloat(form.porciento_impuesto) || 0,
+          costo: parseFloat(form.costo) || 0,
+          activo: form.activo,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      toast.success(`Producto ${form.no_produ} creado`)
+      setCreateOpen(false)
+      setForm(emptyForm)
+      // Forzar refresh de la lista (re-trigger del useEffect)
+      setSearch((s) => s)
+      setPage(1)
+    } catch (err: any) {
+      toast.error(`Error: ${err.message}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const sublineasFiltradas = form.linea
+    ? sublineas.filter((s: any) => String(s.linea) === String(form.linea))
+    : sublineas
+
   return (
     <div className='space-y-4'>
       {/* Header */}
@@ -143,6 +220,9 @@ export function CatalogoProductos() {
             {total > 0 ? `${total.toLocaleString()} productos` : 'Empresa: ' + selectedCompany}
           </p>
         </div>
+        <Button size='sm' className='gap-1' onClick={() => { setForm(emptyForm); setCreateOpen(true) }}>
+          <Plus className='h-4 w-4' /> Nuevo Producto
+        </Button>
       </div>
 
       {/* Filters */}
@@ -343,6 +423,176 @@ export function CatalogoProductos() {
           defaultPunto={selectedPoint || ''}
         />
       )}
+
+      {/* Crear producto */}
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className='max-w-2xl'>
+          <DialogHeader>
+            <DialogTitle>Nuevo Producto</DialogTitle>
+          </DialogHeader>
+          <div className='grid grid-cols-2 gap-4 py-2'>
+            <div className='space-y-1'>
+              <Label htmlFor='np-codigo'>Código <span className='text-destructive'>*</span></Label>
+              <Input
+                id='np-codigo'
+                className='h-9 font-mono uppercase'
+                placeholder='00012345'
+                value={form.no_produ}
+                onChange={(e) => setForm((f) => ({ ...f, no_produ: e.target.value.toUpperCase() }))}
+              />
+            </div>
+            <div className='space-y-1'>
+              <Label htmlFor='np-activo'>Estado</Label>
+              <Select value={form.activo} onValueChange={(v) => setForm((f) => ({ ...f, activo: v as 'S' | 'N' }))}>
+                <SelectTrigger id='np-activo' className='h-9'>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='S'>Activo</SelectItem>
+                  <SelectItem value='N'>Inactivo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className='col-span-2 space-y-1'>
+              <Label htmlFor='np-desc'>Descripción <span className='text-destructive'>*</span></Label>
+              <Input
+                id='np-desc'
+                className='h-9'
+                placeholder='Nombre del producto'
+                value={form.descripcion}
+                onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
+              />
+            </div>
+
+            <div className='space-y-1'>
+              <Label htmlFor='np-grupo'>Grupo <span className='text-destructive'>*</span></Label>
+              <Select value={form.grupo_produ} onValueChange={(v) => setForm((f) => ({ ...f, grupo_produ: v }))}>
+                <SelectTrigger id='np-grupo' className='h-9'>
+                  <SelectValue placeholder='Seleccionar...' />
+                </SelectTrigger>
+                <SelectContent>
+                  {grupos.map((g: any) => (
+                    <SelectItem key={String(g.grupo ?? g.codigo)} value={String(g.grupo ?? g.codigo)}>
+                      {g.grupo ?? g.codigo} — {g.descripcion}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className='space-y-1'>
+              <Label htmlFor='np-linea'>Línea <span className='text-destructive'>*</span></Label>
+              <Select value={form.linea} onValueChange={(v) => setForm((f) => ({ ...f, linea: v, sub_linea: '' }))}>
+                <SelectTrigger id='np-linea' className='h-9'>
+                  <SelectValue placeholder='Seleccionar...' />
+                </SelectTrigger>
+                <SelectContent>
+                  {lineas.map((l: any) => (
+                    <SelectItem key={String(l.linea ?? l.codigo)} value={String(l.linea ?? l.codigo)}>
+                      {l.linea ?? l.codigo} — {l.descripcion}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className='space-y-1'>
+              <Label htmlFor='np-subl'>Sub-Línea <span className='text-destructive'>*</span></Label>
+              <Select value={form.sub_linea} onValueChange={(v) => setForm((f) => ({ ...f, sub_linea: v }))} disabled={!form.linea}>
+                <SelectTrigger id='np-subl' className='h-9'>
+                  <SelectValue placeholder={form.linea ? 'Seleccionar...' : 'Elija línea primero'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {sublineasFiltradas.map((s: any) => (
+                    <SelectItem key={String(s.sub_linea ?? s.codigo)} value={String(s.sub_linea ?? s.codigo)}>
+                      {s.sub_linea ?? s.codigo} — {s.descripcion}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className='space-y-1'>
+              <Label htmlFor='np-gc'>Grupo Contable <span className='text-destructive'>*</span></Label>
+              <Select value={form.grupo_contable} onValueChange={(v) => setForm((f) => ({ ...f, grupo_contable: v }))}>
+                <SelectTrigger id='np-gc' className='h-9'>
+                  <SelectValue placeholder='Seleccionar...' />
+                </SelectTrigger>
+                <SelectContent>
+                  {gruposContables.map((g: any) => (
+                    <SelectItem key={String(g.grupo_contable ?? g.codigo)} value={String(g.grupo_contable ?? g.codigo)}>
+                      {g.grupo_contable ?? g.codigo} — {g.descripcion}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className='space-y-1'>
+              <Label htmlFor='np-tipo'>Tipo</Label>
+              <Select value={form.servicio} onValueChange={(v) => setForm((f) => ({ ...f, servicio: v }))}>
+                <SelectTrigger id='np-tipo' className='h-9'>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='I'>Inventario</SelectItem>
+                  <SelectItem value='S'>Servicio</SelectItem>
+                  <SelectItem value='K'>Kit</SelectItem>
+                  <SelectItem value='C'>Compuesto</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className='space-y-1'>
+              <Label htmlFor='np-costo'>Costo (RD$)</Label>
+              <Input
+                id='np-costo'
+                className='h-9 text-right tabular-nums'
+                type='number'
+                min={0}
+                step='0.01'
+                placeholder='0.00'
+                value={form.costo}
+                onChange={(e) => setForm((f) => ({ ...f, costo: e.target.value }))}
+              />
+            </div>
+
+            <div className='space-y-1 col-span-2'>
+              <div className='flex items-center gap-3 h-9'>
+                <Switch
+                  checked={form.tiene_impuesto}
+                  onCheckedChange={(v) => setForm((f) => ({ ...f, tiene_impuesto: !!v }))}
+                />
+                <Label className='cursor-pointer'>Aplica ITBIS</Label>
+                {form.tiene_impuesto && (
+                  <div className='flex items-center gap-2 ml-4'>
+                    <Label htmlFor='np-itbis' className='text-xs'>% ITBIS:</Label>
+                    <Input
+                      id='np-itbis'
+                      className='h-8 w-24 text-right'
+                      type='number'
+                      min={0}
+                      max={100}
+                      step='0.01'
+                      value={form.porciento_impuesto}
+                      onChange={(e) => setForm((f) => ({ ...f, porciento_impuesto: e.target.value }))}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant='outline' onClick={() => setCreateOpen(false)} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button onClick={handleCreate} disabled={saving}>
+              {saving ? 'Guardando...' : 'Crear Producto'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

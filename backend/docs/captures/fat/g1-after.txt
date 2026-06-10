@@ -1,0 +1,67 @@
+===== FAT Gap G1 PERF — Smoke perf AFTER refactor =====
+Generado: 2026-05-31 06:48 (timezone VM 10.0.0.99)
+Cambio aplicado: fat_repo.py @ search_productos
+  - Eliminado um_join (LEFT JOIN con TINV_EMPAQUE + TINV_UNIDAD) del base_sql paginado.
+  - Bulk fetch separado: SELECT … FROM INV.TINV_EMPAQUE WHERE por_defecto='S'
+                          AND no_produ IN (:ep0..:epN)   -- max 20 ids/pagina.
+  - Precio venta recalculado en Python: round(precio_base * (cpe or 1), 4).
+
+-----------------------------------------------------------------------------
+== Smoke directo (apps.legacy.repositories.fat_repo.search_productos) ==
+warm avg de 3 corridas, cold = primera corrida tras reload:
+
+  page=1 sin search, no_lista=01     : cold=2141ms  warm avg=734ms  items=20 total=7687
+  page=5 sin search                  : cold= 723ms  warm avg=722ms  items=20 total=7687
+  page=1 search='A'                  : cold= 760ms  warm avg=734ms  items=20 total=6885
+  page=1 search='LECHE' (sin matches): cold=   9ms  warm avg=  4ms  items= 0 total=   0
+  page=1 solo_existencia=True        : cold= 734ms  warm avg=732ms  items= 7 total=7687
+  page=1 sin lista (no_lista='')     : cold= 737ms  warm avg=730ms  items=20 total=7687
+
+== Desglose por etapa (page=1 sin search) ==
+  COUNT(*) base_sql                  :   4ms
+  PAGED 20 productos                 :   1ms
+  BULK empaque (20 ids) (NUEVO)      :   1ms
+  BULK existencia movimiento (20 ids):  730ms   ← bottleneck remanente
+  TOTAL                              : ~733ms
+
+== HTTP API ==
+  curl http://localhost:8000/api/fat/productos/?...
+  → 403 sin cookie de sesion. La capa HTTP no se mide; la sesion del frontend
+    Playwright/login no estaba activa en este entorno. La medida fiable es
+    el smoke directo arriba (HTTP solo agrega ~10-30ms de DRF middleware).
+
+-----------------------------------------------------------------------------
+== Validacion semantica ==
+Precio venta = lp.precio * NVL(cpe,1) — verificado contra Oracle directo:
+  00000001 CEMENTO GRIS ARGOS FUNDA: precio_base=5.1388  cpe=94 → 483.0472  ✔ OK
+  00000002                          precio_base=5.1388  cpe=94 → 483.0472  ✔ OK
+  00000003                          precio_base=17.8158 cpe=88 → 1567.7904 ✔ OK
+
+== Comparativa vs BEFORE (T03 EXPLAIN PLAN) ==
+                       BEFORE             AFTER
+  Cost paginado:       48 (98% CPU)       2 (50% CPU)        ← 24× menor
+  um_join paginado:    NESTED LOOPS OUTER eliminado
+                       + VIEW PUSHED
+                       PREDICATE
+  Empaque post-pag:    (no aplica)        BULK 1ms via
+                                          INLIST ITERATOR
+
+-----------------------------------------------------------------------------
+== Concerns ==
+1. Target spec era <500ms; resultado ~733ms warm. La razon es que la query
+   de existencia (TINV_MOVIMIENTO bulk) ya gasta ~730ms — el um_join solo
+   ahorraba ~20ms y ya estaba bien con plan PUSHED PREDICATE.
+2. El verdadero hot spot post-G1 es la existencia. Posibles caminos
+   (FUERA del scope G1):
+   - Cache de existencia (TTL ~30s) por (no_cia, almacen, fecha).
+   - Materialized view / snapshot table TINV_EXISTENCIA refrescada por
+     trigger sobre TINV_MOVIMIENTO.
+   - Lazy load: devolver items sin existencia y completarla por lote vía
+     endpoint /api/inv/existencia-bulk/ del frontend.
+3. El refactor G1 SI vale la pena: en search '%A%' o paginas profundas
+   sobre datasets grandes, el um_join PUSHED PREDICATE podia degradarse
+   bajo carga concurrente; ahora el SQL paginado es Cost 2 estable.
+
+== Proximo paso recomendado ==
+Crear ticket separado "G1.b — Cache/snapshot de existencia normalizada"
+con spec propio, fuera del bloque G1 actual.

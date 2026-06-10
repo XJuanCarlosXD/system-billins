@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { useToast } from '@/hooks/use-toast'
 import { BuscarProductoModal } from './components/buscar-producto-modal'
+import { empaqueLabel } from './utils/empaque-label'
 
 interface Props {
   noCia: string
@@ -77,6 +78,9 @@ interface EmpaqueOpcion {
   descripcion: string
   por_defecto: boolean
   cant_por_emp: number
+  empaque?: number
+  referencia?: string
+  permite_fraccion?: boolean
 }
 
 interface Linea {
@@ -1014,8 +1018,8 @@ export function NuevaFactura({ noCia, punto }: Props) {
                         </SelectTrigger>
                         <SelectContent>
                           {linea.empaques.map(e => (
-                            <SelectItem key={e.unidad} value={e.unidad}>
-                              {(e.descripcion || e.unidad)}{e.cant_por_emp && e.cant_por_emp !== 1 ? ` × ${e.cant_por_emp}` : ''}
+                            <SelectItem key={`${e.empaque ?? e.unidad}`} value={e.unidad}>
+                              {empaqueLabel(e)}
                             </SelectItem>
                           ))}
                         </SelectContent>

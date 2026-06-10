@@ -12,7 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ClerkRouteRouteImport } from './routes/clerk/route'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedSdnRouteImport } from './routes/_authenticated/sdn'
+import { Route as AuthenticatedOdcRouteImport } from './routes/_authenticated/odc'
 import { Route as AuthenticatedNcfAlertsRouteImport } from './routes/_authenticated/ncf-alerts'
+import { Route as AuthenticatedManRouteImport } from './routes/_authenticated/man'
 import { Route as AuthenticatedInvRouteImport } from './routes/_authenticated/inv'
 import { Route as AuthenticatedFatRouteImport } from './routes/_authenticated/fat'
 import { Route as AuthenticatedEmpresasRouteImport } from './routes/_authenticated/empresas'
@@ -20,7 +23,10 @@ import { Route as AuthenticatedDocsRouteImport } from './routes/_authenticated/d
 import { Route as AuthenticatedCxpRouteImport } from './routes/_authenticated/cxp'
 import { Route as AuthenticatedCxcRouteImport } from './routes/_authenticated/cxc'
 import { Route as AuthenticatedCntRouteImport } from './routes/_authenticated/cnt'
+import { Route as AuthenticatedChcRouteImport } from './routes/_authenticated/chc'
 import { Route as AuthenticatedCambiarClaveRouteImport } from './routes/_authenticated/cambiar-clave'
+import { Route as AuthenticatedAcfRouteImport } from './routes/_authenticated/acf'
+import { Route as AuthenticatedAccRouteImport } from './routes/_authenticated/acc'
 import { Route as errors503RouteImport } from './routes/(errors)/503'
 import { Route as errors500RouteImport } from './routes/(errors)/500'
 import { Route as errors404RouteImport } from './routes/(errors)/404'
@@ -37,13 +43,18 @@ import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authen
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedTasksIndexRouteImport } from './routes/_authenticated/tasks/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
+import { Route as AuthenticatedSdnIndexRouteImport } from './routes/_authenticated/sdn/index'
+import { Route as AuthenticatedOdcIndexRouteImport } from './routes/_authenticated/odc/index'
 import { Route as AuthenticatedInvIndexRouteImport } from './routes/_authenticated/inv/index'
 import { Route as AuthenticatedHelpCenterIndexRouteImport } from './routes/_authenticated/help-center/index'
 import { Route as AuthenticatedFatIndexRouteImport } from './routes/_authenticated/fat/index'
 import { Route as AuthenticatedCxpIndexRouteImport } from './routes/_authenticated/cxp/index'
 import { Route as AuthenticatedCxcIndexRouteImport } from './routes/_authenticated/cxc/index'
+import { Route as AuthenticatedChcIndexRouteImport } from './routes/_authenticated/chc/index'
 import { Route as AuthenticatedChatsIndexRouteImport } from './routes/_authenticated/chats/index'
 import { Route as AuthenticatedAppsIndexRouteImport } from './routes/_authenticated/apps/index'
+import { Route as AuthenticatedAcfIndexRouteImport } from './routes/_authenticated/acf/index'
+import { Route as AuthenticatedAccIndexRouteImport } from './routes/_authenticated/acc/index'
 import { Route as ClerkAuthenticatedUserManagementRouteImport } from './routes/clerk/_authenticated/user-management'
 import { Route as ClerkauthSignUpRouteImport } from './routes/clerk/(auth)/sign-up'
 import { Route as ClerkauthSignInRouteImport } from './routes/clerk/(auth)/sign-in'
@@ -52,6 +63,40 @@ import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes
 import { Route as AuthenticatedSettingsDisplayRouteImport } from './routes/_authenticated/settings/display'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
 import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_authenticated/settings/account'
+import { Route as AuthenticatedSettingsSlugRouteImport } from './routes/_authenticated/settings/$slug'
+import { Route as AuthenticatedSdnVolanteRouteImport } from './routes/_authenticated/sdn/volante'
+import { Route as AuthenticatedSdnVacacionesRouteImport } from './routes/_authenticated/sdn/vacaciones'
+import { Route as AuthenticatedSdnRepRncRouteImport } from './routes/_authenticated/sdn/rep-rnc'
+import { Route as AuthenticatedSdnRepInformeRouteImport } from './routes/_authenticated/sdn/rep-informe'
+import { Route as AuthenticatedSdnNominasRouteImport } from './routes/_authenticated/sdn/nominas'
+import { Route as AuthenticatedSdnMovimientosRouteImport } from './routes/_authenticated/sdn/movimientos'
+import { Route as AuthenticatedSdnIngresosRouteImport } from './routes/_authenticated/sdn/ingresos'
+import { Route as AuthenticatedSdnGerenciasRouteImport } from './routes/_authenticated/sdn/gerencias'
+import { Route as AuthenticatedSdnGenVacacionesRouteImport } from './routes/_authenticated/sdn/gen-vacaciones'
+import { Route as AuthenticatedSdnGenChequesRouteImport } from './routes/_authenticated/sdn/gen-cheques'
+import { Route as AuthenticatedSdnEmpleadosRouteImport } from './routes/_authenticated/sdn/empleados'
+import { Route as AuthenticatedSdnDeptosRouteImport } from './routes/_authenticated/sdn/deptos'
+import { Route as AuthenticatedSdnDefNominasRouteImport } from './routes/_authenticated/sdn/def-nominas'
+import { Route as AuthenticatedSdnDeduccionesRouteImport } from './routes/_authenticated/sdn/deducciones'
+import { Route as AuthenticatedSdnCiasRouteImport } from './routes/_authenticated/sdn/cias'
+import { Route as AuthenticatedSdnCatalogosRouteImport } from './routes/_authenticated/sdn/catalogos'
+import { Route as AuthenticatedSdnCalcularRouteImport } from './routes/_authenticated/sdn/calcular'
+import { Route as AuthenticatedSdnArsRouteImport } from './routes/_authenticated/sdn/ars'
+import { Route as AuthenticatedSdnAreasRouteImport } from './routes/_authenticated/sdn/areas'
+import { Route as AuthenticatedSdnAfpRouteImport } from './routes/_authenticated/sdn/afp'
+import { Route as AuthenticatedOdcUsuariosRouteImport } from './routes/_authenticated/odc/usuarios'
+import { Route as AuthenticatedOdcRequisicionesRouteImport } from './routes/_authenticated/odc/requisiciones'
+import { Route as AuthenticatedOdcRepResumenRouteImport } from './routes/_authenticated/odc/rep-resumen'
+import { Route as AuthenticatedOdcRepRequisicionesRouteImport } from './routes/_authenticated/odc/rep-requisiciones'
+import { Route as AuthenticatedOdcRepPendientesRouteImport } from './routes/_authenticated/odc/rep-pendientes'
+import { Route as AuthenticatedOdcRecibirRouteImport } from './routes/_authenticated/odc/recibir'
+import { Route as AuthenticatedOdcPuntosRouteImport } from './routes/_authenticated/odc/puntos'
+import { Route as AuthenticatedOdcOrdenesRouteImport } from './routes/_authenticated/odc/ordenes'
+import { Route as AuthenticatedOdcNuevaRequisicionRouteImport } from './routes/_authenticated/odc/nueva-requisicion'
+import { Route as AuthenticatedOdcNuevaOrdenRouteImport } from './routes/_authenticated/odc/nueva-orden'
+import { Route as AuthenticatedOdcCiasRouteImport } from './routes/_authenticated/odc/cias'
+import { Route as AuthenticatedOdcAutorizarRouteImport } from './routes/_authenticated/odc/autorizar'
+import { Route as AuthenticatedOdcAnularRouteImport } from './routes/_authenticated/odc/anular'
 import { Route as AuthenticatedFatTransportistasRouteImport } from './routes/_authenticated/fat/transportistas'
 import { Route as AuthenticatedFatTiposPagoRouteImport } from './routes/_authenticated/fat/tipos-pago'
 import { Route as AuthenticatedFatTdocuRouteImport } from './routes/_authenticated/fat/tdocu'
@@ -134,6 +179,51 @@ import { Route as AuthenticatedCxcCadenasRouteImport } from './routes/_authentic
 import { Route as AuthenticatedCxcBarriosRouteImport } from './routes/_authenticated/cxc/barrios'
 import { Route as AuthenticatedCxcBalanceRouteImport } from './routes/_authenticated/cxc/balance'
 import { Route as AuthenticatedCxcAsientoContableRouteImport } from './routes/_authenticated/cxc/asiento-contable'
+import { Route as AuthenticatedChcTiposDocuRouteImport } from './routes/_authenticated/chc/tipos-docu'
+import { Route as AuthenticatedChcSolicitarRouteImport } from './routes/_authenticated/chc/solicitar'
+import { Route as AuthenticatedChcSaldosRouteImport } from './routes/_authenticated/chc/saldos'
+import { Route as AuthenticatedChcRepMovimientosRouteImport } from './routes/_authenticated/chc/rep-movimientos'
+import { Route as AuthenticatedChcRepDisponibilidadRouteImport } from './routes/_authenticated/chc/rep-disponibilidad'
+import { Route as AuthenticatedChcRepDiarioRouteImport } from './routes/_authenticated/chc/rep-diario'
+import { Route as AuthenticatedChcRepBalanceRouteImport } from './routes/_authenticated/chc/rep-balance'
+import { Route as AuthenticatedChcPuntosRouteImport } from './routes/_authenticated/chc/puntos'
+import { Route as AuthenticatedChcImprimirRouteImport } from './routes/_authenticated/chc/imprimir'
+import { Route as AuthenticatedChcEntregarRouteImport } from './routes/_authenticated/chc/entregar'
+import { Route as AuthenticatedChcCuentasRouteImport } from './routes/_authenticated/chc/cuentas'
+import { Route as AuthenticatedChcConciliarRouteImport } from './routes/_authenticated/chc/conciliar'
+import { Route as AuthenticatedChcCierresRouteImport } from './routes/_authenticated/chc/cierres'
+import { Route as AuthenticatedChcCiasRouteImport } from './routes/_authenticated/chc/cias'
+import { Route as AuthenticatedChcChequesRouteImport } from './routes/_authenticated/chc/cheques'
+import { Route as AuthenticatedChcBancosRouteImport } from './routes/_authenticated/chc/bancos'
+import { Route as AuthenticatedChcAnularRouteImport } from './routes/_authenticated/chc/anular'
+import { Route as AuthenticatedAcfSubgruposRouteImport } from './routes/_authenticated/acf/subgrupos'
+import { Route as AuthenticatedAcfRetiroRouteImport } from './routes/_authenticated/acf/retiro'
+import { Route as AuthenticatedAcfResponsablesRouteImport } from './routes/_authenticated/acf/responsables'
+import { Route as AuthenticatedAcfReportesRouteImport } from './routes/_authenticated/acf/reportes'
+import { Route as AuthenticatedAcfPuntosRouteImport } from './routes/_authenticated/acf/puntos'
+import { Route as AuthenticatedAcfMarcasRouteImport } from './routes/_authenticated/acf/marcas'
+import { Route as AuthenticatedAcfGruposRouteImport } from './routes/_authenticated/acf/grupos'
+import { Route as AuthenticatedAcfDepreciacionRouteImport } from './routes/_authenticated/acf/depreciacion'
+import { Route as AuthenticatedAcfDepartamentosRouteImport } from './routes/_authenticated/acf/departamentos'
+import { Route as AuthenticatedAcfCompraRouteImport } from './routes/_authenticated/acf/compra'
+import { Route as AuthenticatedAcfCierreRouteImport } from './routes/_authenticated/acf/cierre'
+import { Route as AuthenticatedAcfCiasRouteImport } from './routes/_authenticated/acf/cias'
+import { Route as AuthenticatedAcfCategoriasRouteImport } from './routes/_authenticated/acf/categorias'
+import { Route as AuthenticatedAcfActivosRouteImport } from './routes/_authenticated/acf/activos'
+import { Route as AuthenticatedAccTiposGastoRouteImport } from './routes/_authenticated/acc/tipos-gasto'
+import { Route as AuthenticatedAccTiposBeneRouteImport } from './routes/_authenticated/acc/tipos-bene'
+import { Route as AuthenticatedAccReposicionesRouteImport } from './routes/_authenticated/acc/reposiciones'
+import { Route as AuthenticatedAccReposicionRouteImport } from './routes/_authenticated/acc/reposicion'
+import { Route as AuthenticatedAccReportesRouteImport } from './routes/_authenticated/acc/reportes'
+import { Route as AuthenticatedAccPuntosRouteImport } from './routes/_authenticated/acc/puntos'
+import { Route as AuthenticatedAccNuevoEgresoRouteImport } from './routes/_authenticated/acc/nuevo-egreso'
+import { Route as AuthenticatedAccDocumentosRouteImport } from './routes/_authenticated/acc/documentos'
+import { Route as AuthenticatedAccCierreRouteImport } from './routes/_authenticated/acc/cierre'
+import { Route as AuthenticatedAccCiasRouteImport } from './routes/_authenticated/acc/cias'
+import { Route as AuthenticatedAccCajasRouteImport } from './routes/_authenticated/acc/cajas'
+import { Route as AuthenticatedAccBeneficiariosRouteImport } from './routes/_authenticated/acc/beneficiarios'
+import { Route as AuthenticatedAccAsientoRouteImport } from './routes/_authenticated/acc/asiento'
+import { Route as AuthenticatedAccAnularRouteImport } from './routes/_authenticated/acc/anular'
 
 const ClerkRouteRoute = ClerkRouteRouteImport.update({
   id: '/clerk',
@@ -149,9 +239,24 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSdnRoute = AuthenticatedSdnRouteImport.update({
+  id: '/sdn',
+  path: '/sdn',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedOdcRoute = AuthenticatedOdcRouteImport.update({
+  id: '/odc',
+  path: '/odc',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedNcfAlertsRoute = AuthenticatedNcfAlertsRouteImport.update({
   id: '/ncf-alerts',
   path: '/ncf-alerts',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedManRoute = AuthenticatedManRouteImport.update({
+  id: '/man',
+  path: '/man',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedInvRoute = AuthenticatedInvRouteImport.update({
@@ -189,12 +294,27 @@ const AuthenticatedCntRoute = AuthenticatedCntRouteImport.update({
   path: '/cnt',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedChcRoute = AuthenticatedChcRouteImport.update({
+  id: '/chc',
+  path: '/chc',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedCambiarClaveRoute =
   AuthenticatedCambiarClaveRouteImport.update({
     id: '/cambiar-clave',
     path: '/cambiar-clave',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAcfRoute = AuthenticatedAcfRouteImport.update({
+  id: '/acf',
+  path: '/acf',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAccRoute = AuthenticatedAccRouteImport.update({
+  id: '/acc',
+  path: '/acc',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const errors503Route = errors503RouteImport.update({
   id: '/(errors)/503',
   path: '/503',
@@ -275,6 +395,16 @@ const AuthenticatedSettingsIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
+const AuthenticatedSdnIndexRoute = AuthenticatedSdnIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedSdnRoute,
+} as any)
+const AuthenticatedOdcIndexRoute = AuthenticatedOdcIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedOdcRoute,
+} as any)
 const AuthenticatedInvIndexRoute = AuthenticatedInvIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -301,6 +431,11 @@ const AuthenticatedCxcIndexRoute = AuthenticatedCxcIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedCxcRoute,
 } as any)
+const AuthenticatedChcIndexRoute = AuthenticatedChcIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedChcRoute,
+} as any)
 const AuthenticatedChatsIndexRoute = AuthenticatedChatsIndexRouteImport.update({
   id: '/chats/',
   path: '/chats/',
@@ -310,6 +445,16 @@ const AuthenticatedAppsIndexRoute = AuthenticatedAppsIndexRouteImport.update({
   id: '/apps/',
   path: '/apps/',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAcfIndexRoute = AuthenticatedAcfIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedAcfRoute,
+} as any)
+const AuthenticatedAccIndexRoute = AuthenticatedAccIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedAccRoute,
 } as any)
 const ClerkAuthenticatedUserManagementRoute =
   ClerkAuthenticatedUserManagementRouteImport.update({
@@ -357,6 +502,197 @@ const AuthenticatedSettingsAccountRoute =
     path: '/account',
     getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
+const AuthenticatedSettingsSlugRoute =
+  AuthenticatedSettingsSlugRouteImport.update({
+    id: '/$slug',
+    path: '/$slug',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedSdnVolanteRoute = AuthenticatedSdnVolanteRouteImport.update({
+  id: '/volante',
+  path: '/volante',
+  getParentRoute: () => AuthenticatedSdnRoute,
+} as any)
+const AuthenticatedSdnVacacionesRoute =
+  AuthenticatedSdnVacacionesRouteImport.update({
+    id: '/vacaciones',
+    path: '/vacaciones',
+    getParentRoute: () => AuthenticatedSdnRoute,
+  } as any)
+const AuthenticatedSdnRepRncRoute = AuthenticatedSdnRepRncRouteImport.update({
+  id: '/rep-rnc',
+  path: '/rep-rnc',
+  getParentRoute: () => AuthenticatedSdnRoute,
+} as any)
+const AuthenticatedSdnRepInformeRoute =
+  AuthenticatedSdnRepInformeRouteImport.update({
+    id: '/rep-informe',
+    path: '/rep-informe',
+    getParentRoute: () => AuthenticatedSdnRoute,
+  } as any)
+const AuthenticatedSdnNominasRoute = AuthenticatedSdnNominasRouteImport.update({
+  id: '/nominas',
+  path: '/nominas',
+  getParentRoute: () => AuthenticatedSdnRoute,
+} as any)
+const AuthenticatedSdnMovimientosRoute =
+  AuthenticatedSdnMovimientosRouteImport.update({
+    id: '/movimientos',
+    path: '/movimientos',
+    getParentRoute: () => AuthenticatedSdnRoute,
+  } as any)
+const AuthenticatedSdnIngresosRoute =
+  AuthenticatedSdnIngresosRouteImport.update({
+    id: '/ingresos',
+    path: '/ingresos',
+    getParentRoute: () => AuthenticatedSdnRoute,
+  } as any)
+const AuthenticatedSdnGerenciasRoute =
+  AuthenticatedSdnGerenciasRouteImport.update({
+    id: '/gerencias',
+    path: '/gerencias',
+    getParentRoute: () => AuthenticatedSdnRoute,
+  } as any)
+const AuthenticatedSdnGenVacacionesRoute =
+  AuthenticatedSdnGenVacacionesRouteImport.update({
+    id: '/gen-vacaciones',
+    path: '/gen-vacaciones',
+    getParentRoute: () => AuthenticatedSdnRoute,
+  } as any)
+const AuthenticatedSdnGenChequesRoute =
+  AuthenticatedSdnGenChequesRouteImport.update({
+    id: '/gen-cheques',
+    path: '/gen-cheques',
+    getParentRoute: () => AuthenticatedSdnRoute,
+  } as any)
+const AuthenticatedSdnEmpleadosRoute =
+  AuthenticatedSdnEmpleadosRouteImport.update({
+    id: '/empleados',
+    path: '/empleados',
+    getParentRoute: () => AuthenticatedSdnRoute,
+  } as any)
+const AuthenticatedSdnDeptosRoute = AuthenticatedSdnDeptosRouteImport.update({
+  id: '/deptos',
+  path: '/deptos',
+  getParentRoute: () => AuthenticatedSdnRoute,
+} as any)
+const AuthenticatedSdnDefNominasRoute =
+  AuthenticatedSdnDefNominasRouteImport.update({
+    id: '/def-nominas',
+    path: '/def-nominas',
+    getParentRoute: () => AuthenticatedSdnRoute,
+  } as any)
+const AuthenticatedSdnDeduccionesRoute =
+  AuthenticatedSdnDeduccionesRouteImport.update({
+    id: '/deducciones',
+    path: '/deducciones',
+    getParentRoute: () => AuthenticatedSdnRoute,
+  } as any)
+const AuthenticatedSdnCiasRoute = AuthenticatedSdnCiasRouteImport.update({
+  id: '/cias',
+  path: '/cias',
+  getParentRoute: () => AuthenticatedSdnRoute,
+} as any)
+const AuthenticatedSdnCatalogosRoute =
+  AuthenticatedSdnCatalogosRouteImport.update({
+    id: '/catalogos',
+    path: '/catalogos',
+    getParentRoute: () => AuthenticatedSdnRoute,
+  } as any)
+const AuthenticatedSdnCalcularRoute =
+  AuthenticatedSdnCalcularRouteImport.update({
+    id: '/calcular',
+    path: '/calcular',
+    getParentRoute: () => AuthenticatedSdnRoute,
+  } as any)
+const AuthenticatedSdnArsRoute = AuthenticatedSdnArsRouteImport.update({
+  id: '/ars',
+  path: '/ars',
+  getParentRoute: () => AuthenticatedSdnRoute,
+} as any)
+const AuthenticatedSdnAreasRoute = AuthenticatedSdnAreasRouteImport.update({
+  id: '/areas',
+  path: '/areas',
+  getParentRoute: () => AuthenticatedSdnRoute,
+} as any)
+const AuthenticatedSdnAfpRoute = AuthenticatedSdnAfpRouteImport.update({
+  id: '/afp',
+  path: '/afp',
+  getParentRoute: () => AuthenticatedSdnRoute,
+} as any)
+const AuthenticatedOdcUsuariosRoute =
+  AuthenticatedOdcUsuariosRouteImport.update({
+    id: '/usuarios',
+    path: '/usuarios',
+    getParentRoute: () => AuthenticatedOdcRoute,
+  } as any)
+const AuthenticatedOdcRequisicionesRoute =
+  AuthenticatedOdcRequisicionesRouteImport.update({
+    id: '/requisiciones',
+    path: '/requisiciones',
+    getParentRoute: () => AuthenticatedOdcRoute,
+  } as any)
+const AuthenticatedOdcRepResumenRoute =
+  AuthenticatedOdcRepResumenRouteImport.update({
+    id: '/rep-resumen',
+    path: '/rep-resumen',
+    getParentRoute: () => AuthenticatedOdcRoute,
+  } as any)
+const AuthenticatedOdcRepRequisicionesRoute =
+  AuthenticatedOdcRepRequisicionesRouteImport.update({
+    id: '/rep-requisiciones',
+    path: '/rep-requisiciones',
+    getParentRoute: () => AuthenticatedOdcRoute,
+  } as any)
+const AuthenticatedOdcRepPendientesRoute =
+  AuthenticatedOdcRepPendientesRouteImport.update({
+    id: '/rep-pendientes',
+    path: '/rep-pendientes',
+    getParentRoute: () => AuthenticatedOdcRoute,
+  } as any)
+const AuthenticatedOdcRecibirRoute = AuthenticatedOdcRecibirRouteImport.update({
+  id: '/recibir',
+  path: '/recibir',
+  getParentRoute: () => AuthenticatedOdcRoute,
+} as any)
+const AuthenticatedOdcPuntosRoute = AuthenticatedOdcPuntosRouteImport.update({
+  id: '/puntos',
+  path: '/puntos',
+  getParentRoute: () => AuthenticatedOdcRoute,
+} as any)
+const AuthenticatedOdcOrdenesRoute = AuthenticatedOdcOrdenesRouteImport.update({
+  id: '/ordenes',
+  path: '/ordenes',
+  getParentRoute: () => AuthenticatedOdcRoute,
+} as any)
+const AuthenticatedOdcNuevaRequisicionRoute =
+  AuthenticatedOdcNuevaRequisicionRouteImport.update({
+    id: '/nueva-requisicion',
+    path: '/nueva-requisicion',
+    getParentRoute: () => AuthenticatedOdcRoute,
+  } as any)
+const AuthenticatedOdcNuevaOrdenRoute =
+  AuthenticatedOdcNuevaOrdenRouteImport.update({
+    id: '/nueva-orden',
+    path: '/nueva-orden',
+    getParentRoute: () => AuthenticatedOdcRoute,
+  } as any)
+const AuthenticatedOdcCiasRoute = AuthenticatedOdcCiasRouteImport.update({
+  id: '/cias',
+  path: '/cias',
+  getParentRoute: () => AuthenticatedOdcRoute,
+} as any)
+const AuthenticatedOdcAutorizarRoute =
+  AuthenticatedOdcAutorizarRouteImport.update({
+    id: '/autorizar',
+    path: '/autorizar',
+    getParentRoute: () => AuthenticatedOdcRoute,
+  } as any)
+const AuthenticatedOdcAnularRoute = AuthenticatedOdcAnularRouteImport.update({
+  id: '/anular',
+  path: '/anular',
+  getParentRoute: () => AuthenticatedOdcRoute,
+} as any)
 const AuthenticatedFatTransportistasRoute =
   AuthenticatedFatTransportistasRouteImport.update({
     id: '/transportistas',
@@ -398,16 +734,16 @@ const AuthenticatedFatRepNcfNulosRoute =
     path: '/rep-ncf-nulos',
     getParentRoute: () => AuthenticatedFatRoute,
   } as any)
-const AuthenticatedFatRepFacturasRncRoute =
-  AuthenticatedFatRepFacturasRncRouteImport.update({
-    id: '/rep-facturas-rnc',
-    path: '/rep-facturas-rnc',
-    getParentRoute: () => AuthenticatedFatRoute,
-  } as any)
 const AuthenticatedFatRepMargenBrutoRoute =
   AuthenticatedFatRepMargenBrutoRouteImport.update({
     id: '/rep-margen-bruto',
     path: '/rep-margen-bruto',
+    getParentRoute: () => AuthenticatedFatRoute,
+  } as any)
+const AuthenticatedFatRepFacturasRncRoute =
+  AuthenticatedFatRepFacturasRncRouteImport.update({
+    id: '/rep-facturas-rnc',
+    path: '/rep-facturas-rnc',
     getParentRoute: () => AuthenticatedFatRoute,
   } as any)
 const AuthenticatedFatRepAnaliticaRoute =
@@ -826,6 +1162,254 @@ const AuthenticatedCxcAsientoContableRoute =
     path: '/asiento-contable',
     getParentRoute: () => AuthenticatedCxcRoute,
   } as any)
+const AuthenticatedChcTiposDocuRoute =
+  AuthenticatedChcTiposDocuRouteImport.update({
+    id: '/tipos-docu',
+    path: '/tipos-docu',
+    getParentRoute: () => AuthenticatedChcRoute,
+  } as any)
+const AuthenticatedChcSolicitarRoute =
+  AuthenticatedChcSolicitarRouteImport.update({
+    id: '/solicitar',
+    path: '/solicitar',
+    getParentRoute: () => AuthenticatedChcRoute,
+  } as any)
+const AuthenticatedChcSaldosRoute = AuthenticatedChcSaldosRouteImport.update({
+  id: '/saldos',
+  path: '/saldos',
+  getParentRoute: () => AuthenticatedChcRoute,
+} as any)
+const AuthenticatedChcRepMovimientosRoute =
+  AuthenticatedChcRepMovimientosRouteImport.update({
+    id: '/rep-movimientos',
+    path: '/rep-movimientos',
+    getParentRoute: () => AuthenticatedChcRoute,
+  } as any)
+const AuthenticatedChcRepDisponibilidadRoute =
+  AuthenticatedChcRepDisponibilidadRouteImport.update({
+    id: '/rep-disponibilidad',
+    path: '/rep-disponibilidad',
+    getParentRoute: () => AuthenticatedChcRoute,
+  } as any)
+const AuthenticatedChcRepDiarioRoute =
+  AuthenticatedChcRepDiarioRouteImport.update({
+    id: '/rep-diario',
+    path: '/rep-diario',
+    getParentRoute: () => AuthenticatedChcRoute,
+  } as any)
+const AuthenticatedChcRepBalanceRoute =
+  AuthenticatedChcRepBalanceRouteImport.update({
+    id: '/rep-balance',
+    path: '/rep-balance',
+    getParentRoute: () => AuthenticatedChcRoute,
+  } as any)
+const AuthenticatedChcPuntosRoute = AuthenticatedChcPuntosRouteImport.update({
+  id: '/puntos',
+  path: '/puntos',
+  getParentRoute: () => AuthenticatedChcRoute,
+} as any)
+const AuthenticatedChcImprimirRoute =
+  AuthenticatedChcImprimirRouteImport.update({
+    id: '/imprimir',
+    path: '/imprimir',
+    getParentRoute: () => AuthenticatedChcRoute,
+  } as any)
+const AuthenticatedChcEntregarRoute =
+  AuthenticatedChcEntregarRouteImport.update({
+    id: '/entregar',
+    path: '/entregar',
+    getParentRoute: () => AuthenticatedChcRoute,
+  } as any)
+const AuthenticatedChcCuentasRoute = AuthenticatedChcCuentasRouteImport.update({
+  id: '/cuentas',
+  path: '/cuentas',
+  getParentRoute: () => AuthenticatedChcRoute,
+} as any)
+const AuthenticatedChcConciliarRoute =
+  AuthenticatedChcConciliarRouteImport.update({
+    id: '/conciliar',
+    path: '/conciliar',
+    getParentRoute: () => AuthenticatedChcRoute,
+  } as any)
+const AuthenticatedChcCierresRoute = AuthenticatedChcCierresRouteImport.update({
+  id: '/cierres',
+  path: '/cierres',
+  getParentRoute: () => AuthenticatedChcRoute,
+} as any)
+const AuthenticatedChcCiasRoute = AuthenticatedChcCiasRouteImport.update({
+  id: '/cias',
+  path: '/cias',
+  getParentRoute: () => AuthenticatedChcRoute,
+} as any)
+const AuthenticatedChcChequesRoute = AuthenticatedChcChequesRouteImport.update({
+  id: '/cheques',
+  path: '/cheques',
+  getParentRoute: () => AuthenticatedChcRoute,
+} as any)
+const AuthenticatedChcBancosRoute = AuthenticatedChcBancosRouteImport.update({
+  id: '/bancos',
+  path: '/bancos',
+  getParentRoute: () => AuthenticatedChcRoute,
+} as any)
+const AuthenticatedChcAnularRoute = AuthenticatedChcAnularRouteImport.update({
+  id: '/anular',
+  path: '/anular',
+  getParentRoute: () => AuthenticatedChcRoute,
+} as any)
+const AuthenticatedAcfSubgruposRoute =
+  AuthenticatedAcfSubgruposRouteImport.update({
+    id: '/subgrupos',
+    path: '/subgrupos',
+    getParentRoute: () => AuthenticatedAcfRoute,
+  } as any)
+const AuthenticatedAcfRetiroRoute = AuthenticatedAcfRetiroRouteImport.update({
+  id: '/retiro',
+  path: '/retiro',
+  getParentRoute: () => AuthenticatedAcfRoute,
+} as any)
+const AuthenticatedAcfResponsablesRoute =
+  AuthenticatedAcfResponsablesRouteImport.update({
+    id: '/responsables',
+    path: '/responsables',
+    getParentRoute: () => AuthenticatedAcfRoute,
+  } as any)
+const AuthenticatedAcfReportesRoute =
+  AuthenticatedAcfReportesRouteImport.update({
+    id: '/reportes',
+    path: '/reportes',
+    getParentRoute: () => AuthenticatedAcfRoute,
+  } as any)
+const AuthenticatedAcfPuntosRoute = AuthenticatedAcfPuntosRouteImport.update({
+  id: '/puntos',
+  path: '/puntos',
+  getParentRoute: () => AuthenticatedAcfRoute,
+} as any)
+const AuthenticatedAcfMarcasRoute = AuthenticatedAcfMarcasRouteImport.update({
+  id: '/marcas',
+  path: '/marcas',
+  getParentRoute: () => AuthenticatedAcfRoute,
+} as any)
+const AuthenticatedAcfGruposRoute = AuthenticatedAcfGruposRouteImport.update({
+  id: '/grupos',
+  path: '/grupos',
+  getParentRoute: () => AuthenticatedAcfRoute,
+} as any)
+const AuthenticatedAcfDepreciacionRoute =
+  AuthenticatedAcfDepreciacionRouteImport.update({
+    id: '/depreciacion',
+    path: '/depreciacion',
+    getParentRoute: () => AuthenticatedAcfRoute,
+  } as any)
+const AuthenticatedAcfDepartamentosRoute =
+  AuthenticatedAcfDepartamentosRouteImport.update({
+    id: '/departamentos',
+    path: '/departamentos',
+    getParentRoute: () => AuthenticatedAcfRoute,
+  } as any)
+const AuthenticatedAcfCompraRoute = AuthenticatedAcfCompraRouteImport.update({
+  id: '/compra',
+  path: '/compra',
+  getParentRoute: () => AuthenticatedAcfRoute,
+} as any)
+const AuthenticatedAcfCierreRoute = AuthenticatedAcfCierreRouteImport.update({
+  id: '/cierre',
+  path: '/cierre',
+  getParentRoute: () => AuthenticatedAcfRoute,
+} as any)
+const AuthenticatedAcfCiasRoute = AuthenticatedAcfCiasRouteImport.update({
+  id: '/cias',
+  path: '/cias',
+  getParentRoute: () => AuthenticatedAcfRoute,
+} as any)
+const AuthenticatedAcfCategoriasRoute =
+  AuthenticatedAcfCategoriasRouteImport.update({
+    id: '/categorias',
+    path: '/categorias',
+    getParentRoute: () => AuthenticatedAcfRoute,
+  } as any)
+const AuthenticatedAcfActivosRoute = AuthenticatedAcfActivosRouteImport.update({
+  id: '/activos',
+  path: '/activos',
+  getParentRoute: () => AuthenticatedAcfRoute,
+} as any)
+const AuthenticatedAccTiposGastoRoute =
+  AuthenticatedAccTiposGastoRouteImport.update({
+    id: '/tipos-gasto',
+    path: '/tipos-gasto',
+    getParentRoute: () => AuthenticatedAccRoute,
+  } as any)
+const AuthenticatedAccTiposBeneRoute =
+  AuthenticatedAccTiposBeneRouteImport.update({
+    id: '/tipos-bene',
+    path: '/tipos-bene',
+    getParentRoute: () => AuthenticatedAccRoute,
+  } as any)
+const AuthenticatedAccReposicionesRoute =
+  AuthenticatedAccReposicionesRouteImport.update({
+    id: '/reposiciones',
+    path: '/reposiciones',
+    getParentRoute: () => AuthenticatedAccRoute,
+  } as any)
+const AuthenticatedAccReposicionRoute =
+  AuthenticatedAccReposicionRouteImport.update({
+    id: '/reposicion',
+    path: '/reposicion',
+    getParentRoute: () => AuthenticatedAccRoute,
+  } as any)
+const AuthenticatedAccReportesRoute =
+  AuthenticatedAccReportesRouteImport.update({
+    id: '/reportes',
+    path: '/reportes',
+    getParentRoute: () => AuthenticatedAccRoute,
+  } as any)
+const AuthenticatedAccPuntosRoute = AuthenticatedAccPuntosRouteImport.update({
+  id: '/puntos',
+  path: '/puntos',
+  getParentRoute: () => AuthenticatedAccRoute,
+} as any)
+const AuthenticatedAccNuevoEgresoRoute =
+  AuthenticatedAccNuevoEgresoRouteImport.update({
+    id: '/nuevo-egreso',
+    path: '/nuevo-egreso',
+    getParentRoute: () => AuthenticatedAccRoute,
+  } as any)
+const AuthenticatedAccDocumentosRoute =
+  AuthenticatedAccDocumentosRouteImport.update({
+    id: '/documentos',
+    path: '/documentos',
+    getParentRoute: () => AuthenticatedAccRoute,
+  } as any)
+const AuthenticatedAccCierreRoute = AuthenticatedAccCierreRouteImport.update({
+  id: '/cierre',
+  path: '/cierre',
+  getParentRoute: () => AuthenticatedAccRoute,
+} as any)
+const AuthenticatedAccCiasRoute = AuthenticatedAccCiasRouteImport.update({
+  id: '/cias',
+  path: '/cias',
+  getParentRoute: () => AuthenticatedAccRoute,
+} as any)
+const AuthenticatedAccCajasRoute = AuthenticatedAccCajasRouteImport.update({
+  id: '/cajas',
+  path: '/cajas',
+  getParentRoute: () => AuthenticatedAccRoute,
+} as any)
+const AuthenticatedAccBeneficiariosRoute =
+  AuthenticatedAccBeneficiariosRouteImport.update({
+    id: '/beneficiarios',
+    path: '/beneficiarios',
+    getParentRoute: () => AuthenticatedAccRoute,
+  } as any)
+const AuthenticatedAccAsientoRoute = AuthenticatedAccAsientoRouteImport.update({
+  id: '/asiento',
+  path: '/asiento',
+  getParentRoute: () => AuthenticatedAccRoute,
+} as any)
+const AuthenticatedAccAnularRoute = AuthenticatedAccAnularRouteImport.update({
+  id: '/anular',
+  path: '/anular',
+  getParentRoute: () => AuthenticatedAccRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -841,7 +1425,10 @@ export interface FileRoutesByFullPath {
   '/404': typeof errors404Route
   '/500': typeof errors500Route
   '/503': typeof errors503Route
+  '/acc': typeof AuthenticatedAccRouteWithChildren
+  '/acf': typeof AuthenticatedAcfRouteWithChildren
   '/cambiar-clave': typeof AuthenticatedCambiarClaveRoute
+  '/chc': typeof AuthenticatedChcRouteWithChildren
   '/cnt': typeof AuthenticatedCntRoute
   '/cxc': typeof AuthenticatedCxcRouteWithChildren
   '/cxp': typeof AuthenticatedCxpRouteWithChildren
@@ -849,7 +1436,55 @@ export interface FileRoutesByFullPath {
   '/empresas': typeof AuthenticatedEmpresasRoute
   '/fat': typeof AuthenticatedFatRouteWithChildren
   '/inv': typeof AuthenticatedInvRouteWithChildren
+  '/man': typeof AuthenticatedManRoute
   '/ncf-alerts': typeof AuthenticatedNcfAlertsRoute
+  '/odc': typeof AuthenticatedOdcRouteWithChildren
+  '/sdn': typeof AuthenticatedSdnRouteWithChildren
+  '/acc/anular': typeof AuthenticatedAccAnularRoute
+  '/acc/asiento': typeof AuthenticatedAccAsientoRoute
+  '/acc/beneficiarios': typeof AuthenticatedAccBeneficiariosRoute
+  '/acc/cajas': typeof AuthenticatedAccCajasRoute
+  '/acc/cias': typeof AuthenticatedAccCiasRoute
+  '/acc/cierre': typeof AuthenticatedAccCierreRoute
+  '/acc/documentos': typeof AuthenticatedAccDocumentosRoute
+  '/acc/nuevo-egreso': typeof AuthenticatedAccNuevoEgresoRoute
+  '/acc/puntos': typeof AuthenticatedAccPuntosRoute
+  '/acc/reportes': typeof AuthenticatedAccReportesRoute
+  '/acc/reposicion': typeof AuthenticatedAccReposicionRoute
+  '/acc/reposiciones': typeof AuthenticatedAccReposicionesRoute
+  '/acc/tipos-bene': typeof AuthenticatedAccTiposBeneRoute
+  '/acc/tipos-gasto': typeof AuthenticatedAccTiposGastoRoute
+  '/acf/activos': typeof AuthenticatedAcfActivosRoute
+  '/acf/categorias': typeof AuthenticatedAcfCategoriasRoute
+  '/acf/cias': typeof AuthenticatedAcfCiasRoute
+  '/acf/cierre': typeof AuthenticatedAcfCierreRoute
+  '/acf/compra': typeof AuthenticatedAcfCompraRoute
+  '/acf/departamentos': typeof AuthenticatedAcfDepartamentosRoute
+  '/acf/depreciacion': typeof AuthenticatedAcfDepreciacionRoute
+  '/acf/grupos': typeof AuthenticatedAcfGruposRoute
+  '/acf/marcas': typeof AuthenticatedAcfMarcasRoute
+  '/acf/puntos': typeof AuthenticatedAcfPuntosRoute
+  '/acf/reportes': typeof AuthenticatedAcfReportesRoute
+  '/acf/responsables': typeof AuthenticatedAcfResponsablesRoute
+  '/acf/retiro': typeof AuthenticatedAcfRetiroRoute
+  '/acf/subgrupos': typeof AuthenticatedAcfSubgruposRoute
+  '/chc/anular': typeof AuthenticatedChcAnularRoute
+  '/chc/bancos': typeof AuthenticatedChcBancosRoute
+  '/chc/cheques': typeof AuthenticatedChcChequesRoute
+  '/chc/cias': typeof AuthenticatedChcCiasRoute
+  '/chc/cierres': typeof AuthenticatedChcCierresRoute
+  '/chc/conciliar': typeof AuthenticatedChcConciliarRoute
+  '/chc/cuentas': typeof AuthenticatedChcCuentasRoute
+  '/chc/entregar': typeof AuthenticatedChcEntregarRoute
+  '/chc/imprimir': typeof AuthenticatedChcImprimirRoute
+  '/chc/puntos': typeof AuthenticatedChcPuntosRoute
+  '/chc/rep-balance': typeof AuthenticatedChcRepBalanceRoute
+  '/chc/rep-diario': typeof AuthenticatedChcRepDiarioRoute
+  '/chc/rep-disponibilidad': typeof AuthenticatedChcRepDisponibilidadRoute
+  '/chc/rep-movimientos': typeof AuthenticatedChcRepMovimientosRoute
+  '/chc/saldos': typeof AuthenticatedChcSaldosRoute
+  '/chc/solicitar': typeof AuthenticatedChcSolicitarRoute
+  '/chc/tipos-docu': typeof AuthenticatedChcTiposDocuRoute
   '/cxc/asiento-contable': typeof AuthenticatedCxcAsientoContableRoute
   '/cxc/balance': typeof AuthenticatedCxcBalanceRoute
   '/cxc/barrios': typeof AuthenticatedCxcBarriosRoute
@@ -932,6 +1567,40 @@ export interface FileRoutesByFullPath {
   '/fat/tdocu': typeof AuthenticatedFatTdocuRoute
   '/fat/tipos-pago': typeof AuthenticatedFatTiposPagoRoute
   '/fat/transportistas': typeof AuthenticatedFatTransportistasRoute
+  '/odc/anular': typeof AuthenticatedOdcAnularRoute
+  '/odc/autorizar': typeof AuthenticatedOdcAutorizarRoute
+  '/odc/cias': typeof AuthenticatedOdcCiasRoute
+  '/odc/nueva-orden': typeof AuthenticatedOdcNuevaOrdenRoute
+  '/odc/nueva-requisicion': typeof AuthenticatedOdcNuevaRequisicionRoute
+  '/odc/ordenes': typeof AuthenticatedOdcOrdenesRoute
+  '/odc/puntos': typeof AuthenticatedOdcPuntosRoute
+  '/odc/recibir': typeof AuthenticatedOdcRecibirRoute
+  '/odc/rep-pendientes': typeof AuthenticatedOdcRepPendientesRoute
+  '/odc/rep-requisiciones': typeof AuthenticatedOdcRepRequisicionesRoute
+  '/odc/rep-resumen': typeof AuthenticatedOdcRepResumenRoute
+  '/odc/requisiciones': typeof AuthenticatedOdcRequisicionesRoute
+  '/odc/usuarios': typeof AuthenticatedOdcUsuariosRoute
+  '/sdn/afp': typeof AuthenticatedSdnAfpRoute
+  '/sdn/areas': typeof AuthenticatedSdnAreasRoute
+  '/sdn/ars': typeof AuthenticatedSdnArsRoute
+  '/sdn/calcular': typeof AuthenticatedSdnCalcularRoute
+  '/sdn/catalogos': typeof AuthenticatedSdnCatalogosRoute
+  '/sdn/cias': typeof AuthenticatedSdnCiasRoute
+  '/sdn/deducciones': typeof AuthenticatedSdnDeduccionesRoute
+  '/sdn/def-nominas': typeof AuthenticatedSdnDefNominasRoute
+  '/sdn/deptos': typeof AuthenticatedSdnDeptosRoute
+  '/sdn/empleados': typeof AuthenticatedSdnEmpleadosRoute
+  '/sdn/gen-cheques': typeof AuthenticatedSdnGenChequesRoute
+  '/sdn/gen-vacaciones': typeof AuthenticatedSdnGenVacacionesRoute
+  '/sdn/gerencias': typeof AuthenticatedSdnGerenciasRoute
+  '/sdn/ingresos': typeof AuthenticatedSdnIngresosRoute
+  '/sdn/movimientos': typeof AuthenticatedSdnMovimientosRoute
+  '/sdn/nominas': typeof AuthenticatedSdnNominasRoute
+  '/sdn/rep-informe': typeof AuthenticatedSdnRepInformeRoute
+  '/sdn/rep-rnc': typeof AuthenticatedSdnRepRncRoute
+  '/sdn/vacaciones': typeof AuthenticatedSdnVacacionesRoute
+  '/sdn/volante': typeof AuthenticatedSdnVolanteRoute
+  '/settings/$slug': typeof AuthenticatedSettingsSlugRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
@@ -940,13 +1609,18 @@ export interface FileRoutesByFullPath {
   '/clerk/sign-in': typeof ClerkauthSignInRoute
   '/clerk/sign-up': typeof ClerkauthSignUpRoute
   '/clerk/user-management': typeof ClerkAuthenticatedUserManagementRoute
+  '/acc/': typeof AuthenticatedAccIndexRoute
+  '/acf/': typeof AuthenticatedAcfIndexRoute
   '/apps/': typeof AuthenticatedAppsIndexRoute
   '/chats/': typeof AuthenticatedChatsIndexRoute
+  '/chc/': typeof AuthenticatedChcIndexRoute
   '/cxc/': typeof AuthenticatedCxcIndexRoute
   '/cxp/': typeof AuthenticatedCxpIndexRoute
   '/fat/': typeof AuthenticatedFatIndexRoute
   '/help-center/': typeof AuthenticatedHelpCenterIndexRoute
   '/inv/': typeof AuthenticatedInvIndexRoute
+  '/odc/': typeof AuthenticatedOdcIndexRoute
+  '/sdn/': typeof AuthenticatedSdnIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/tasks/': typeof AuthenticatedTasksIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
@@ -967,8 +1641,54 @@ export interface FileRoutesByTo {
   '/cnt': typeof AuthenticatedCntRoute
   '/docs': typeof AuthenticatedDocsRoute
   '/empresas': typeof AuthenticatedEmpresasRoute
+  '/man': typeof AuthenticatedManRoute
   '/ncf-alerts': typeof AuthenticatedNcfAlertsRoute
   '/': typeof AuthenticatedIndexRoute
+  '/acc/anular': typeof AuthenticatedAccAnularRoute
+  '/acc/asiento': typeof AuthenticatedAccAsientoRoute
+  '/acc/beneficiarios': typeof AuthenticatedAccBeneficiariosRoute
+  '/acc/cajas': typeof AuthenticatedAccCajasRoute
+  '/acc/cias': typeof AuthenticatedAccCiasRoute
+  '/acc/cierre': typeof AuthenticatedAccCierreRoute
+  '/acc/documentos': typeof AuthenticatedAccDocumentosRoute
+  '/acc/nuevo-egreso': typeof AuthenticatedAccNuevoEgresoRoute
+  '/acc/puntos': typeof AuthenticatedAccPuntosRoute
+  '/acc/reportes': typeof AuthenticatedAccReportesRoute
+  '/acc/reposicion': typeof AuthenticatedAccReposicionRoute
+  '/acc/reposiciones': typeof AuthenticatedAccReposicionesRoute
+  '/acc/tipos-bene': typeof AuthenticatedAccTiposBeneRoute
+  '/acc/tipos-gasto': typeof AuthenticatedAccTiposGastoRoute
+  '/acf/activos': typeof AuthenticatedAcfActivosRoute
+  '/acf/categorias': typeof AuthenticatedAcfCategoriasRoute
+  '/acf/cias': typeof AuthenticatedAcfCiasRoute
+  '/acf/cierre': typeof AuthenticatedAcfCierreRoute
+  '/acf/compra': typeof AuthenticatedAcfCompraRoute
+  '/acf/departamentos': typeof AuthenticatedAcfDepartamentosRoute
+  '/acf/depreciacion': typeof AuthenticatedAcfDepreciacionRoute
+  '/acf/grupos': typeof AuthenticatedAcfGruposRoute
+  '/acf/marcas': typeof AuthenticatedAcfMarcasRoute
+  '/acf/puntos': typeof AuthenticatedAcfPuntosRoute
+  '/acf/reportes': typeof AuthenticatedAcfReportesRoute
+  '/acf/responsables': typeof AuthenticatedAcfResponsablesRoute
+  '/acf/retiro': typeof AuthenticatedAcfRetiroRoute
+  '/acf/subgrupos': typeof AuthenticatedAcfSubgruposRoute
+  '/chc/anular': typeof AuthenticatedChcAnularRoute
+  '/chc/bancos': typeof AuthenticatedChcBancosRoute
+  '/chc/cheques': typeof AuthenticatedChcChequesRoute
+  '/chc/cias': typeof AuthenticatedChcCiasRoute
+  '/chc/cierres': typeof AuthenticatedChcCierresRoute
+  '/chc/conciliar': typeof AuthenticatedChcConciliarRoute
+  '/chc/cuentas': typeof AuthenticatedChcCuentasRoute
+  '/chc/entregar': typeof AuthenticatedChcEntregarRoute
+  '/chc/imprimir': typeof AuthenticatedChcImprimirRoute
+  '/chc/puntos': typeof AuthenticatedChcPuntosRoute
+  '/chc/rep-balance': typeof AuthenticatedChcRepBalanceRoute
+  '/chc/rep-diario': typeof AuthenticatedChcRepDiarioRoute
+  '/chc/rep-disponibilidad': typeof AuthenticatedChcRepDisponibilidadRoute
+  '/chc/rep-movimientos': typeof AuthenticatedChcRepMovimientosRoute
+  '/chc/saldos': typeof AuthenticatedChcSaldosRoute
+  '/chc/solicitar': typeof AuthenticatedChcSolicitarRoute
+  '/chc/tipos-docu': typeof AuthenticatedChcTiposDocuRoute
   '/cxc/asiento-contable': typeof AuthenticatedCxcAsientoContableRoute
   '/cxc/balance': typeof AuthenticatedCxcBalanceRoute
   '/cxc/barrios': typeof AuthenticatedCxcBarriosRoute
@@ -1051,6 +1771,40 @@ export interface FileRoutesByTo {
   '/fat/tdocu': typeof AuthenticatedFatTdocuRoute
   '/fat/tipos-pago': typeof AuthenticatedFatTiposPagoRoute
   '/fat/transportistas': typeof AuthenticatedFatTransportistasRoute
+  '/odc/anular': typeof AuthenticatedOdcAnularRoute
+  '/odc/autorizar': typeof AuthenticatedOdcAutorizarRoute
+  '/odc/cias': typeof AuthenticatedOdcCiasRoute
+  '/odc/nueva-orden': typeof AuthenticatedOdcNuevaOrdenRoute
+  '/odc/nueva-requisicion': typeof AuthenticatedOdcNuevaRequisicionRoute
+  '/odc/ordenes': typeof AuthenticatedOdcOrdenesRoute
+  '/odc/puntos': typeof AuthenticatedOdcPuntosRoute
+  '/odc/recibir': typeof AuthenticatedOdcRecibirRoute
+  '/odc/rep-pendientes': typeof AuthenticatedOdcRepPendientesRoute
+  '/odc/rep-requisiciones': typeof AuthenticatedOdcRepRequisicionesRoute
+  '/odc/rep-resumen': typeof AuthenticatedOdcRepResumenRoute
+  '/odc/requisiciones': typeof AuthenticatedOdcRequisicionesRoute
+  '/odc/usuarios': typeof AuthenticatedOdcUsuariosRoute
+  '/sdn/afp': typeof AuthenticatedSdnAfpRoute
+  '/sdn/areas': typeof AuthenticatedSdnAreasRoute
+  '/sdn/ars': typeof AuthenticatedSdnArsRoute
+  '/sdn/calcular': typeof AuthenticatedSdnCalcularRoute
+  '/sdn/catalogos': typeof AuthenticatedSdnCatalogosRoute
+  '/sdn/cias': typeof AuthenticatedSdnCiasRoute
+  '/sdn/deducciones': typeof AuthenticatedSdnDeduccionesRoute
+  '/sdn/def-nominas': typeof AuthenticatedSdnDefNominasRoute
+  '/sdn/deptos': typeof AuthenticatedSdnDeptosRoute
+  '/sdn/empleados': typeof AuthenticatedSdnEmpleadosRoute
+  '/sdn/gen-cheques': typeof AuthenticatedSdnGenChequesRoute
+  '/sdn/gen-vacaciones': typeof AuthenticatedSdnGenVacacionesRoute
+  '/sdn/gerencias': typeof AuthenticatedSdnGerenciasRoute
+  '/sdn/ingresos': typeof AuthenticatedSdnIngresosRoute
+  '/sdn/movimientos': typeof AuthenticatedSdnMovimientosRoute
+  '/sdn/nominas': typeof AuthenticatedSdnNominasRoute
+  '/sdn/rep-informe': typeof AuthenticatedSdnRepInformeRoute
+  '/sdn/rep-rnc': typeof AuthenticatedSdnRepRncRoute
+  '/sdn/vacaciones': typeof AuthenticatedSdnVacacionesRoute
+  '/sdn/volante': typeof AuthenticatedSdnVolanteRoute
+  '/settings/$slug': typeof AuthenticatedSettingsSlugRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
@@ -1059,13 +1813,18 @@ export interface FileRoutesByTo {
   '/clerk/sign-in': typeof ClerkauthSignInRoute
   '/clerk/sign-up': typeof ClerkauthSignUpRoute
   '/clerk/user-management': typeof ClerkAuthenticatedUserManagementRoute
+  '/acc': typeof AuthenticatedAccIndexRoute
+  '/acf': typeof AuthenticatedAcfIndexRoute
   '/apps': typeof AuthenticatedAppsIndexRoute
   '/chats': typeof AuthenticatedChatsIndexRoute
+  '/chc': typeof AuthenticatedChcIndexRoute
   '/cxc': typeof AuthenticatedCxcIndexRoute
   '/cxp': typeof AuthenticatedCxpIndexRoute
   '/fat': typeof AuthenticatedFatIndexRoute
   '/help-center': typeof AuthenticatedHelpCenterIndexRoute
   '/inv': typeof AuthenticatedInvIndexRoute
+  '/odc': typeof AuthenticatedOdcIndexRoute
+  '/sdn': typeof AuthenticatedSdnIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
@@ -1087,7 +1846,10 @@ export interface FileRoutesById {
   '/(errors)/404': typeof errors404Route
   '/(errors)/500': typeof errors500Route
   '/(errors)/503': typeof errors503Route
+  '/_authenticated/acc': typeof AuthenticatedAccRouteWithChildren
+  '/_authenticated/acf': typeof AuthenticatedAcfRouteWithChildren
   '/_authenticated/cambiar-clave': typeof AuthenticatedCambiarClaveRoute
+  '/_authenticated/chc': typeof AuthenticatedChcRouteWithChildren
   '/_authenticated/cnt': typeof AuthenticatedCntRoute
   '/_authenticated/cxc': typeof AuthenticatedCxcRouteWithChildren
   '/_authenticated/cxp': typeof AuthenticatedCxpRouteWithChildren
@@ -1095,8 +1857,56 @@ export interface FileRoutesById {
   '/_authenticated/empresas': typeof AuthenticatedEmpresasRoute
   '/_authenticated/fat': typeof AuthenticatedFatRouteWithChildren
   '/_authenticated/inv': typeof AuthenticatedInvRouteWithChildren
+  '/_authenticated/man': typeof AuthenticatedManRoute
   '/_authenticated/ncf-alerts': typeof AuthenticatedNcfAlertsRoute
+  '/_authenticated/odc': typeof AuthenticatedOdcRouteWithChildren
+  '/_authenticated/sdn': typeof AuthenticatedSdnRouteWithChildren
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/acc/anular': typeof AuthenticatedAccAnularRoute
+  '/_authenticated/acc/asiento': typeof AuthenticatedAccAsientoRoute
+  '/_authenticated/acc/beneficiarios': typeof AuthenticatedAccBeneficiariosRoute
+  '/_authenticated/acc/cajas': typeof AuthenticatedAccCajasRoute
+  '/_authenticated/acc/cias': typeof AuthenticatedAccCiasRoute
+  '/_authenticated/acc/cierre': typeof AuthenticatedAccCierreRoute
+  '/_authenticated/acc/documentos': typeof AuthenticatedAccDocumentosRoute
+  '/_authenticated/acc/nuevo-egreso': typeof AuthenticatedAccNuevoEgresoRoute
+  '/_authenticated/acc/puntos': typeof AuthenticatedAccPuntosRoute
+  '/_authenticated/acc/reportes': typeof AuthenticatedAccReportesRoute
+  '/_authenticated/acc/reposicion': typeof AuthenticatedAccReposicionRoute
+  '/_authenticated/acc/reposiciones': typeof AuthenticatedAccReposicionesRoute
+  '/_authenticated/acc/tipos-bene': typeof AuthenticatedAccTiposBeneRoute
+  '/_authenticated/acc/tipos-gasto': typeof AuthenticatedAccTiposGastoRoute
+  '/_authenticated/acf/activos': typeof AuthenticatedAcfActivosRoute
+  '/_authenticated/acf/categorias': typeof AuthenticatedAcfCategoriasRoute
+  '/_authenticated/acf/cias': typeof AuthenticatedAcfCiasRoute
+  '/_authenticated/acf/cierre': typeof AuthenticatedAcfCierreRoute
+  '/_authenticated/acf/compra': typeof AuthenticatedAcfCompraRoute
+  '/_authenticated/acf/departamentos': typeof AuthenticatedAcfDepartamentosRoute
+  '/_authenticated/acf/depreciacion': typeof AuthenticatedAcfDepreciacionRoute
+  '/_authenticated/acf/grupos': typeof AuthenticatedAcfGruposRoute
+  '/_authenticated/acf/marcas': typeof AuthenticatedAcfMarcasRoute
+  '/_authenticated/acf/puntos': typeof AuthenticatedAcfPuntosRoute
+  '/_authenticated/acf/reportes': typeof AuthenticatedAcfReportesRoute
+  '/_authenticated/acf/responsables': typeof AuthenticatedAcfResponsablesRoute
+  '/_authenticated/acf/retiro': typeof AuthenticatedAcfRetiroRoute
+  '/_authenticated/acf/subgrupos': typeof AuthenticatedAcfSubgruposRoute
+  '/_authenticated/chc/anular': typeof AuthenticatedChcAnularRoute
+  '/_authenticated/chc/bancos': typeof AuthenticatedChcBancosRoute
+  '/_authenticated/chc/cheques': typeof AuthenticatedChcChequesRoute
+  '/_authenticated/chc/cias': typeof AuthenticatedChcCiasRoute
+  '/_authenticated/chc/cierres': typeof AuthenticatedChcCierresRoute
+  '/_authenticated/chc/conciliar': typeof AuthenticatedChcConciliarRoute
+  '/_authenticated/chc/cuentas': typeof AuthenticatedChcCuentasRoute
+  '/_authenticated/chc/entregar': typeof AuthenticatedChcEntregarRoute
+  '/_authenticated/chc/imprimir': typeof AuthenticatedChcImprimirRoute
+  '/_authenticated/chc/puntos': typeof AuthenticatedChcPuntosRoute
+  '/_authenticated/chc/rep-balance': typeof AuthenticatedChcRepBalanceRoute
+  '/_authenticated/chc/rep-diario': typeof AuthenticatedChcRepDiarioRoute
+  '/_authenticated/chc/rep-disponibilidad': typeof AuthenticatedChcRepDisponibilidadRoute
+  '/_authenticated/chc/rep-movimientos': typeof AuthenticatedChcRepMovimientosRoute
+  '/_authenticated/chc/saldos': typeof AuthenticatedChcSaldosRoute
+  '/_authenticated/chc/solicitar': typeof AuthenticatedChcSolicitarRoute
+  '/_authenticated/chc/tipos-docu': typeof AuthenticatedChcTiposDocuRoute
   '/_authenticated/cxc/asiento-contable': typeof AuthenticatedCxcAsientoContableRoute
   '/_authenticated/cxc/balance': typeof AuthenticatedCxcBalanceRoute
   '/_authenticated/cxc/barrios': typeof AuthenticatedCxcBarriosRoute
@@ -1179,6 +1989,40 @@ export interface FileRoutesById {
   '/_authenticated/fat/tdocu': typeof AuthenticatedFatTdocuRoute
   '/_authenticated/fat/tipos-pago': typeof AuthenticatedFatTiposPagoRoute
   '/_authenticated/fat/transportistas': typeof AuthenticatedFatTransportistasRoute
+  '/_authenticated/odc/anular': typeof AuthenticatedOdcAnularRoute
+  '/_authenticated/odc/autorizar': typeof AuthenticatedOdcAutorizarRoute
+  '/_authenticated/odc/cias': typeof AuthenticatedOdcCiasRoute
+  '/_authenticated/odc/nueva-orden': typeof AuthenticatedOdcNuevaOrdenRoute
+  '/_authenticated/odc/nueva-requisicion': typeof AuthenticatedOdcNuevaRequisicionRoute
+  '/_authenticated/odc/ordenes': typeof AuthenticatedOdcOrdenesRoute
+  '/_authenticated/odc/puntos': typeof AuthenticatedOdcPuntosRoute
+  '/_authenticated/odc/recibir': typeof AuthenticatedOdcRecibirRoute
+  '/_authenticated/odc/rep-pendientes': typeof AuthenticatedOdcRepPendientesRoute
+  '/_authenticated/odc/rep-requisiciones': typeof AuthenticatedOdcRepRequisicionesRoute
+  '/_authenticated/odc/rep-resumen': typeof AuthenticatedOdcRepResumenRoute
+  '/_authenticated/odc/requisiciones': typeof AuthenticatedOdcRequisicionesRoute
+  '/_authenticated/odc/usuarios': typeof AuthenticatedOdcUsuariosRoute
+  '/_authenticated/sdn/afp': typeof AuthenticatedSdnAfpRoute
+  '/_authenticated/sdn/areas': typeof AuthenticatedSdnAreasRoute
+  '/_authenticated/sdn/ars': typeof AuthenticatedSdnArsRoute
+  '/_authenticated/sdn/calcular': typeof AuthenticatedSdnCalcularRoute
+  '/_authenticated/sdn/catalogos': typeof AuthenticatedSdnCatalogosRoute
+  '/_authenticated/sdn/cias': typeof AuthenticatedSdnCiasRoute
+  '/_authenticated/sdn/deducciones': typeof AuthenticatedSdnDeduccionesRoute
+  '/_authenticated/sdn/def-nominas': typeof AuthenticatedSdnDefNominasRoute
+  '/_authenticated/sdn/deptos': typeof AuthenticatedSdnDeptosRoute
+  '/_authenticated/sdn/empleados': typeof AuthenticatedSdnEmpleadosRoute
+  '/_authenticated/sdn/gen-cheques': typeof AuthenticatedSdnGenChequesRoute
+  '/_authenticated/sdn/gen-vacaciones': typeof AuthenticatedSdnGenVacacionesRoute
+  '/_authenticated/sdn/gerencias': typeof AuthenticatedSdnGerenciasRoute
+  '/_authenticated/sdn/ingresos': typeof AuthenticatedSdnIngresosRoute
+  '/_authenticated/sdn/movimientos': typeof AuthenticatedSdnMovimientosRoute
+  '/_authenticated/sdn/nominas': typeof AuthenticatedSdnNominasRoute
+  '/_authenticated/sdn/rep-informe': typeof AuthenticatedSdnRepInformeRoute
+  '/_authenticated/sdn/rep-rnc': typeof AuthenticatedSdnRepRncRoute
+  '/_authenticated/sdn/vacaciones': typeof AuthenticatedSdnVacacionesRoute
+  '/_authenticated/sdn/volante': typeof AuthenticatedSdnVolanteRoute
+  '/_authenticated/settings/$slug': typeof AuthenticatedSettingsSlugRoute
   '/_authenticated/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/settings/display': typeof AuthenticatedSettingsDisplayRoute
@@ -1187,13 +2031,18 @@ export interface FileRoutesById {
   '/clerk/(auth)/sign-in': typeof ClerkauthSignInRoute
   '/clerk/(auth)/sign-up': typeof ClerkauthSignUpRoute
   '/clerk/_authenticated/user-management': typeof ClerkAuthenticatedUserManagementRoute
+  '/_authenticated/acc/': typeof AuthenticatedAccIndexRoute
+  '/_authenticated/acf/': typeof AuthenticatedAcfIndexRoute
   '/_authenticated/apps/': typeof AuthenticatedAppsIndexRoute
   '/_authenticated/chats/': typeof AuthenticatedChatsIndexRoute
+  '/_authenticated/chc/': typeof AuthenticatedChcIndexRoute
   '/_authenticated/cxc/': typeof AuthenticatedCxcIndexRoute
   '/_authenticated/cxp/': typeof AuthenticatedCxpIndexRoute
   '/_authenticated/fat/': typeof AuthenticatedFatIndexRoute
   '/_authenticated/help-center/': typeof AuthenticatedHelpCenterIndexRoute
   '/_authenticated/inv/': typeof AuthenticatedInvIndexRoute
+  '/_authenticated/odc/': typeof AuthenticatedOdcIndexRoute
+  '/_authenticated/sdn/': typeof AuthenticatedSdnIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/tasks/': typeof AuthenticatedTasksIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
@@ -1214,7 +2063,10 @@ export interface FileRouteTypes {
     | '/404'
     | '/500'
     | '/503'
+    | '/acc'
+    | '/acf'
     | '/cambiar-clave'
+    | '/chc'
     | '/cnt'
     | '/cxc'
     | '/cxp'
@@ -1222,7 +2074,55 @@ export interface FileRouteTypes {
     | '/empresas'
     | '/fat'
     | '/inv'
+    | '/man'
     | '/ncf-alerts'
+    | '/odc'
+    | '/sdn'
+    | '/acc/anular'
+    | '/acc/asiento'
+    | '/acc/beneficiarios'
+    | '/acc/cajas'
+    | '/acc/cias'
+    | '/acc/cierre'
+    | '/acc/documentos'
+    | '/acc/nuevo-egreso'
+    | '/acc/puntos'
+    | '/acc/reportes'
+    | '/acc/reposicion'
+    | '/acc/reposiciones'
+    | '/acc/tipos-bene'
+    | '/acc/tipos-gasto'
+    | '/acf/activos'
+    | '/acf/categorias'
+    | '/acf/cias'
+    | '/acf/cierre'
+    | '/acf/compra'
+    | '/acf/departamentos'
+    | '/acf/depreciacion'
+    | '/acf/grupos'
+    | '/acf/marcas'
+    | '/acf/puntos'
+    | '/acf/reportes'
+    | '/acf/responsables'
+    | '/acf/retiro'
+    | '/acf/subgrupos'
+    | '/chc/anular'
+    | '/chc/bancos'
+    | '/chc/cheques'
+    | '/chc/cias'
+    | '/chc/cierres'
+    | '/chc/conciliar'
+    | '/chc/cuentas'
+    | '/chc/entregar'
+    | '/chc/imprimir'
+    | '/chc/puntos'
+    | '/chc/rep-balance'
+    | '/chc/rep-diario'
+    | '/chc/rep-disponibilidad'
+    | '/chc/rep-movimientos'
+    | '/chc/saldos'
+    | '/chc/solicitar'
+    | '/chc/tipos-docu'
     | '/cxc/asiento-contable'
     | '/cxc/balance'
     | '/cxc/barrios'
@@ -1305,6 +2205,40 @@ export interface FileRouteTypes {
     | '/fat/tdocu'
     | '/fat/tipos-pago'
     | '/fat/transportistas'
+    | '/odc/anular'
+    | '/odc/autorizar'
+    | '/odc/cias'
+    | '/odc/nueva-orden'
+    | '/odc/nueva-requisicion'
+    | '/odc/ordenes'
+    | '/odc/puntos'
+    | '/odc/recibir'
+    | '/odc/rep-pendientes'
+    | '/odc/rep-requisiciones'
+    | '/odc/rep-resumen'
+    | '/odc/requisiciones'
+    | '/odc/usuarios'
+    | '/sdn/afp'
+    | '/sdn/areas'
+    | '/sdn/ars'
+    | '/sdn/calcular'
+    | '/sdn/catalogos'
+    | '/sdn/cias'
+    | '/sdn/deducciones'
+    | '/sdn/def-nominas'
+    | '/sdn/deptos'
+    | '/sdn/empleados'
+    | '/sdn/gen-cheques'
+    | '/sdn/gen-vacaciones'
+    | '/sdn/gerencias'
+    | '/sdn/ingresos'
+    | '/sdn/movimientos'
+    | '/sdn/nominas'
+    | '/sdn/rep-informe'
+    | '/sdn/rep-rnc'
+    | '/sdn/vacaciones'
+    | '/sdn/volante'
+    | '/settings/$slug'
     | '/settings/account'
     | '/settings/appearance'
     | '/settings/display'
@@ -1313,13 +2247,18 @@ export interface FileRouteTypes {
     | '/clerk/sign-in'
     | '/clerk/sign-up'
     | '/clerk/user-management'
+    | '/acc/'
+    | '/acf/'
     | '/apps/'
     | '/chats/'
+    | '/chc/'
     | '/cxc/'
     | '/cxp/'
     | '/fat/'
     | '/help-center/'
     | '/inv/'
+    | '/odc/'
+    | '/sdn/'
     | '/settings/'
     | '/tasks/'
     | '/users/'
@@ -1340,8 +2279,54 @@ export interface FileRouteTypes {
     | '/cnt'
     | '/docs'
     | '/empresas'
+    | '/man'
     | '/ncf-alerts'
     | '/'
+    | '/acc/anular'
+    | '/acc/asiento'
+    | '/acc/beneficiarios'
+    | '/acc/cajas'
+    | '/acc/cias'
+    | '/acc/cierre'
+    | '/acc/documentos'
+    | '/acc/nuevo-egreso'
+    | '/acc/puntos'
+    | '/acc/reportes'
+    | '/acc/reposicion'
+    | '/acc/reposiciones'
+    | '/acc/tipos-bene'
+    | '/acc/tipos-gasto'
+    | '/acf/activos'
+    | '/acf/categorias'
+    | '/acf/cias'
+    | '/acf/cierre'
+    | '/acf/compra'
+    | '/acf/departamentos'
+    | '/acf/depreciacion'
+    | '/acf/grupos'
+    | '/acf/marcas'
+    | '/acf/puntos'
+    | '/acf/reportes'
+    | '/acf/responsables'
+    | '/acf/retiro'
+    | '/acf/subgrupos'
+    | '/chc/anular'
+    | '/chc/bancos'
+    | '/chc/cheques'
+    | '/chc/cias'
+    | '/chc/cierres'
+    | '/chc/conciliar'
+    | '/chc/cuentas'
+    | '/chc/entregar'
+    | '/chc/imprimir'
+    | '/chc/puntos'
+    | '/chc/rep-balance'
+    | '/chc/rep-diario'
+    | '/chc/rep-disponibilidad'
+    | '/chc/rep-movimientos'
+    | '/chc/saldos'
+    | '/chc/solicitar'
+    | '/chc/tipos-docu'
     | '/cxc/asiento-contable'
     | '/cxc/balance'
     | '/cxc/barrios'
@@ -1424,6 +2409,40 @@ export interface FileRouteTypes {
     | '/fat/tdocu'
     | '/fat/tipos-pago'
     | '/fat/transportistas'
+    | '/odc/anular'
+    | '/odc/autorizar'
+    | '/odc/cias'
+    | '/odc/nueva-orden'
+    | '/odc/nueva-requisicion'
+    | '/odc/ordenes'
+    | '/odc/puntos'
+    | '/odc/recibir'
+    | '/odc/rep-pendientes'
+    | '/odc/rep-requisiciones'
+    | '/odc/rep-resumen'
+    | '/odc/requisiciones'
+    | '/odc/usuarios'
+    | '/sdn/afp'
+    | '/sdn/areas'
+    | '/sdn/ars'
+    | '/sdn/calcular'
+    | '/sdn/catalogos'
+    | '/sdn/cias'
+    | '/sdn/deducciones'
+    | '/sdn/def-nominas'
+    | '/sdn/deptos'
+    | '/sdn/empleados'
+    | '/sdn/gen-cheques'
+    | '/sdn/gen-vacaciones'
+    | '/sdn/gerencias'
+    | '/sdn/ingresos'
+    | '/sdn/movimientos'
+    | '/sdn/nominas'
+    | '/sdn/rep-informe'
+    | '/sdn/rep-rnc'
+    | '/sdn/vacaciones'
+    | '/sdn/volante'
+    | '/settings/$slug'
     | '/settings/account'
     | '/settings/appearance'
     | '/settings/display'
@@ -1432,13 +2451,18 @@ export interface FileRouteTypes {
     | '/clerk/sign-in'
     | '/clerk/sign-up'
     | '/clerk/user-management'
+    | '/acc'
+    | '/acf'
     | '/apps'
     | '/chats'
+    | '/chc'
     | '/cxc'
     | '/cxp'
     | '/fat'
     | '/help-center'
     | '/inv'
+    | '/odc'
+    | '/sdn'
     | '/settings'
     | '/tasks'
     | '/users'
@@ -1459,7 +2483,10 @@ export interface FileRouteTypes {
     | '/(errors)/404'
     | '/(errors)/500'
     | '/(errors)/503'
+    | '/_authenticated/acc'
+    | '/_authenticated/acf'
     | '/_authenticated/cambiar-clave'
+    | '/_authenticated/chc'
     | '/_authenticated/cnt'
     | '/_authenticated/cxc'
     | '/_authenticated/cxp'
@@ -1467,8 +2494,56 @@ export interface FileRouteTypes {
     | '/_authenticated/empresas'
     | '/_authenticated/fat'
     | '/_authenticated/inv'
+    | '/_authenticated/man'
     | '/_authenticated/ncf-alerts'
+    | '/_authenticated/odc'
+    | '/_authenticated/sdn'
     | '/_authenticated/'
+    | '/_authenticated/acc/anular'
+    | '/_authenticated/acc/asiento'
+    | '/_authenticated/acc/beneficiarios'
+    | '/_authenticated/acc/cajas'
+    | '/_authenticated/acc/cias'
+    | '/_authenticated/acc/cierre'
+    | '/_authenticated/acc/documentos'
+    | '/_authenticated/acc/nuevo-egreso'
+    | '/_authenticated/acc/puntos'
+    | '/_authenticated/acc/reportes'
+    | '/_authenticated/acc/reposicion'
+    | '/_authenticated/acc/reposiciones'
+    | '/_authenticated/acc/tipos-bene'
+    | '/_authenticated/acc/tipos-gasto'
+    | '/_authenticated/acf/activos'
+    | '/_authenticated/acf/categorias'
+    | '/_authenticated/acf/cias'
+    | '/_authenticated/acf/cierre'
+    | '/_authenticated/acf/compra'
+    | '/_authenticated/acf/departamentos'
+    | '/_authenticated/acf/depreciacion'
+    | '/_authenticated/acf/grupos'
+    | '/_authenticated/acf/marcas'
+    | '/_authenticated/acf/puntos'
+    | '/_authenticated/acf/reportes'
+    | '/_authenticated/acf/responsables'
+    | '/_authenticated/acf/retiro'
+    | '/_authenticated/acf/subgrupos'
+    | '/_authenticated/chc/anular'
+    | '/_authenticated/chc/bancos'
+    | '/_authenticated/chc/cheques'
+    | '/_authenticated/chc/cias'
+    | '/_authenticated/chc/cierres'
+    | '/_authenticated/chc/conciliar'
+    | '/_authenticated/chc/cuentas'
+    | '/_authenticated/chc/entregar'
+    | '/_authenticated/chc/imprimir'
+    | '/_authenticated/chc/puntos'
+    | '/_authenticated/chc/rep-balance'
+    | '/_authenticated/chc/rep-diario'
+    | '/_authenticated/chc/rep-disponibilidad'
+    | '/_authenticated/chc/rep-movimientos'
+    | '/_authenticated/chc/saldos'
+    | '/_authenticated/chc/solicitar'
+    | '/_authenticated/chc/tipos-docu'
     | '/_authenticated/cxc/asiento-contable'
     | '/_authenticated/cxc/balance'
     | '/_authenticated/cxc/barrios'
@@ -1551,6 +2626,40 @@ export interface FileRouteTypes {
     | '/_authenticated/fat/tdocu'
     | '/_authenticated/fat/tipos-pago'
     | '/_authenticated/fat/transportistas'
+    | '/_authenticated/odc/anular'
+    | '/_authenticated/odc/autorizar'
+    | '/_authenticated/odc/cias'
+    | '/_authenticated/odc/nueva-orden'
+    | '/_authenticated/odc/nueva-requisicion'
+    | '/_authenticated/odc/ordenes'
+    | '/_authenticated/odc/puntos'
+    | '/_authenticated/odc/recibir'
+    | '/_authenticated/odc/rep-pendientes'
+    | '/_authenticated/odc/rep-requisiciones'
+    | '/_authenticated/odc/rep-resumen'
+    | '/_authenticated/odc/requisiciones'
+    | '/_authenticated/odc/usuarios'
+    | '/_authenticated/sdn/afp'
+    | '/_authenticated/sdn/areas'
+    | '/_authenticated/sdn/ars'
+    | '/_authenticated/sdn/calcular'
+    | '/_authenticated/sdn/catalogos'
+    | '/_authenticated/sdn/cias'
+    | '/_authenticated/sdn/deducciones'
+    | '/_authenticated/sdn/def-nominas'
+    | '/_authenticated/sdn/deptos'
+    | '/_authenticated/sdn/empleados'
+    | '/_authenticated/sdn/gen-cheques'
+    | '/_authenticated/sdn/gen-vacaciones'
+    | '/_authenticated/sdn/gerencias'
+    | '/_authenticated/sdn/ingresos'
+    | '/_authenticated/sdn/movimientos'
+    | '/_authenticated/sdn/nominas'
+    | '/_authenticated/sdn/rep-informe'
+    | '/_authenticated/sdn/rep-rnc'
+    | '/_authenticated/sdn/vacaciones'
+    | '/_authenticated/sdn/volante'
+    | '/_authenticated/settings/$slug'
     | '/_authenticated/settings/account'
     | '/_authenticated/settings/appearance'
     | '/_authenticated/settings/display'
@@ -1559,13 +2668,18 @@ export interface FileRouteTypes {
     | '/clerk/(auth)/sign-in'
     | '/clerk/(auth)/sign-up'
     | '/clerk/_authenticated/user-management'
+    | '/_authenticated/acc/'
+    | '/_authenticated/acf/'
     | '/_authenticated/apps/'
     | '/_authenticated/chats/'
+    | '/_authenticated/chc/'
     | '/_authenticated/cxc/'
     | '/_authenticated/cxp/'
     | '/_authenticated/fat/'
     | '/_authenticated/help-center/'
     | '/_authenticated/inv/'
+    | '/_authenticated/odc/'
+    | '/_authenticated/sdn/'
     | '/_authenticated/settings/'
     | '/_authenticated/tasks/'
     | '/_authenticated/users/'
@@ -1609,11 +2723,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/sdn': {
+      id: '/_authenticated/sdn'
+      path: '/sdn'
+      fullPath: '/sdn'
+      preLoaderRoute: typeof AuthenticatedSdnRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/odc': {
+      id: '/_authenticated/odc'
+      path: '/odc'
+      fullPath: '/odc'
+      preLoaderRoute: typeof AuthenticatedOdcRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/ncf-alerts': {
       id: '/_authenticated/ncf-alerts'
       path: '/ncf-alerts'
       fullPath: '/ncf-alerts'
       preLoaderRoute: typeof AuthenticatedNcfAlertsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/man': {
+      id: '/_authenticated/man'
+      path: '/man'
+      fullPath: '/man'
+      preLoaderRoute: typeof AuthenticatedManRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/inv': {
@@ -1665,11 +2800,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCntRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/chc': {
+      id: '/_authenticated/chc'
+      path: '/chc'
+      fullPath: '/chc'
+      preLoaderRoute: typeof AuthenticatedChcRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/cambiar-clave': {
       id: '/_authenticated/cambiar-clave'
       path: '/cambiar-clave'
       fullPath: '/cambiar-clave'
       preLoaderRoute: typeof AuthenticatedCambiarClaveRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/acf': {
+      id: '/_authenticated/acf'
+      path: '/acf'
+      fullPath: '/acf'
+      preLoaderRoute: typeof AuthenticatedAcfRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/acc': {
+      id: '/_authenticated/acc'
+      path: '/acc'
+      fullPath: '/acc'
+      preLoaderRoute: typeof AuthenticatedAccRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/(errors)/503': {
@@ -1784,6 +2940,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsIndexRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
+    '/_authenticated/sdn/': {
+      id: '/_authenticated/sdn/'
+      path: '/'
+      fullPath: '/sdn/'
+      preLoaderRoute: typeof AuthenticatedSdnIndexRouteImport
+      parentRoute: typeof AuthenticatedSdnRoute
+    }
+    '/_authenticated/odc/': {
+      id: '/_authenticated/odc/'
+      path: '/'
+      fullPath: '/odc/'
+      preLoaderRoute: typeof AuthenticatedOdcIndexRouteImport
+      parentRoute: typeof AuthenticatedOdcRoute
+    }
     '/_authenticated/inv/': {
       id: '/_authenticated/inv/'
       path: '/'
@@ -1819,6 +2989,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCxcIndexRouteImport
       parentRoute: typeof AuthenticatedCxcRoute
     }
+    '/_authenticated/chc/': {
+      id: '/_authenticated/chc/'
+      path: '/'
+      fullPath: '/chc/'
+      preLoaderRoute: typeof AuthenticatedChcIndexRouteImport
+      parentRoute: typeof AuthenticatedChcRoute
+    }
     '/_authenticated/chats/': {
       id: '/_authenticated/chats/'
       path: '/chats'
@@ -1832,6 +3009,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/apps/'
       preLoaderRoute: typeof AuthenticatedAppsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/acf/': {
+      id: '/_authenticated/acf/'
+      path: '/'
+      fullPath: '/acf/'
+      preLoaderRoute: typeof AuthenticatedAcfIndexRouteImport
+      parentRoute: typeof AuthenticatedAcfRoute
+    }
+    '/_authenticated/acc/': {
+      id: '/_authenticated/acc/'
+      path: '/'
+      fullPath: '/acc/'
+      preLoaderRoute: typeof AuthenticatedAccIndexRouteImport
+      parentRoute: typeof AuthenticatedAccRoute
     }
     '/clerk/_authenticated/user-management': {
       id: '/clerk/_authenticated/user-management'
@@ -1889,6 +3080,244 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsAccountRouteImport
       parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
+    '/_authenticated/settings/$slug': {
+      id: '/_authenticated/settings/$slug'
+      path: '/$slug'
+      fullPath: '/settings/$slug'
+      preLoaderRoute: typeof AuthenticatedSettingsSlugRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/sdn/volante': {
+      id: '/_authenticated/sdn/volante'
+      path: '/volante'
+      fullPath: '/sdn/volante'
+      preLoaderRoute: typeof AuthenticatedSdnVolanteRouteImport
+      parentRoute: typeof AuthenticatedSdnRoute
+    }
+    '/_authenticated/sdn/vacaciones': {
+      id: '/_authenticated/sdn/vacaciones'
+      path: '/vacaciones'
+      fullPath: '/sdn/vacaciones'
+      preLoaderRoute: typeof AuthenticatedSdnVacacionesRouteImport
+      parentRoute: typeof AuthenticatedSdnRoute
+    }
+    '/_authenticated/sdn/rep-rnc': {
+      id: '/_authenticated/sdn/rep-rnc'
+      path: '/rep-rnc'
+      fullPath: '/sdn/rep-rnc'
+      preLoaderRoute: typeof AuthenticatedSdnRepRncRouteImport
+      parentRoute: typeof AuthenticatedSdnRoute
+    }
+    '/_authenticated/sdn/rep-informe': {
+      id: '/_authenticated/sdn/rep-informe'
+      path: '/rep-informe'
+      fullPath: '/sdn/rep-informe'
+      preLoaderRoute: typeof AuthenticatedSdnRepInformeRouteImport
+      parentRoute: typeof AuthenticatedSdnRoute
+    }
+    '/_authenticated/sdn/nominas': {
+      id: '/_authenticated/sdn/nominas'
+      path: '/nominas'
+      fullPath: '/sdn/nominas'
+      preLoaderRoute: typeof AuthenticatedSdnNominasRouteImport
+      parentRoute: typeof AuthenticatedSdnRoute
+    }
+    '/_authenticated/sdn/movimientos': {
+      id: '/_authenticated/sdn/movimientos'
+      path: '/movimientos'
+      fullPath: '/sdn/movimientos'
+      preLoaderRoute: typeof AuthenticatedSdnMovimientosRouteImport
+      parentRoute: typeof AuthenticatedSdnRoute
+    }
+    '/_authenticated/sdn/ingresos': {
+      id: '/_authenticated/sdn/ingresos'
+      path: '/ingresos'
+      fullPath: '/sdn/ingresos'
+      preLoaderRoute: typeof AuthenticatedSdnIngresosRouteImport
+      parentRoute: typeof AuthenticatedSdnRoute
+    }
+    '/_authenticated/sdn/gerencias': {
+      id: '/_authenticated/sdn/gerencias'
+      path: '/gerencias'
+      fullPath: '/sdn/gerencias'
+      preLoaderRoute: typeof AuthenticatedSdnGerenciasRouteImport
+      parentRoute: typeof AuthenticatedSdnRoute
+    }
+    '/_authenticated/sdn/gen-vacaciones': {
+      id: '/_authenticated/sdn/gen-vacaciones'
+      path: '/gen-vacaciones'
+      fullPath: '/sdn/gen-vacaciones'
+      preLoaderRoute: typeof AuthenticatedSdnGenVacacionesRouteImport
+      parentRoute: typeof AuthenticatedSdnRoute
+    }
+    '/_authenticated/sdn/gen-cheques': {
+      id: '/_authenticated/sdn/gen-cheques'
+      path: '/gen-cheques'
+      fullPath: '/sdn/gen-cheques'
+      preLoaderRoute: typeof AuthenticatedSdnGenChequesRouteImport
+      parentRoute: typeof AuthenticatedSdnRoute
+    }
+    '/_authenticated/sdn/empleados': {
+      id: '/_authenticated/sdn/empleados'
+      path: '/empleados'
+      fullPath: '/sdn/empleados'
+      preLoaderRoute: typeof AuthenticatedSdnEmpleadosRouteImport
+      parentRoute: typeof AuthenticatedSdnRoute
+    }
+    '/_authenticated/sdn/deptos': {
+      id: '/_authenticated/sdn/deptos'
+      path: '/deptos'
+      fullPath: '/sdn/deptos'
+      preLoaderRoute: typeof AuthenticatedSdnDeptosRouteImport
+      parentRoute: typeof AuthenticatedSdnRoute
+    }
+    '/_authenticated/sdn/def-nominas': {
+      id: '/_authenticated/sdn/def-nominas'
+      path: '/def-nominas'
+      fullPath: '/sdn/def-nominas'
+      preLoaderRoute: typeof AuthenticatedSdnDefNominasRouteImport
+      parentRoute: typeof AuthenticatedSdnRoute
+    }
+    '/_authenticated/sdn/deducciones': {
+      id: '/_authenticated/sdn/deducciones'
+      path: '/deducciones'
+      fullPath: '/sdn/deducciones'
+      preLoaderRoute: typeof AuthenticatedSdnDeduccionesRouteImport
+      parentRoute: typeof AuthenticatedSdnRoute
+    }
+    '/_authenticated/sdn/cias': {
+      id: '/_authenticated/sdn/cias'
+      path: '/cias'
+      fullPath: '/sdn/cias'
+      preLoaderRoute: typeof AuthenticatedSdnCiasRouteImport
+      parentRoute: typeof AuthenticatedSdnRoute
+    }
+    '/_authenticated/sdn/catalogos': {
+      id: '/_authenticated/sdn/catalogos'
+      path: '/catalogos'
+      fullPath: '/sdn/catalogos'
+      preLoaderRoute: typeof AuthenticatedSdnCatalogosRouteImport
+      parentRoute: typeof AuthenticatedSdnRoute
+    }
+    '/_authenticated/sdn/calcular': {
+      id: '/_authenticated/sdn/calcular'
+      path: '/calcular'
+      fullPath: '/sdn/calcular'
+      preLoaderRoute: typeof AuthenticatedSdnCalcularRouteImport
+      parentRoute: typeof AuthenticatedSdnRoute
+    }
+    '/_authenticated/sdn/ars': {
+      id: '/_authenticated/sdn/ars'
+      path: '/ars'
+      fullPath: '/sdn/ars'
+      preLoaderRoute: typeof AuthenticatedSdnArsRouteImport
+      parentRoute: typeof AuthenticatedSdnRoute
+    }
+    '/_authenticated/sdn/areas': {
+      id: '/_authenticated/sdn/areas'
+      path: '/areas'
+      fullPath: '/sdn/areas'
+      preLoaderRoute: typeof AuthenticatedSdnAreasRouteImport
+      parentRoute: typeof AuthenticatedSdnRoute
+    }
+    '/_authenticated/sdn/afp': {
+      id: '/_authenticated/sdn/afp'
+      path: '/afp'
+      fullPath: '/sdn/afp'
+      preLoaderRoute: typeof AuthenticatedSdnAfpRouteImport
+      parentRoute: typeof AuthenticatedSdnRoute
+    }
+    '/_authenticated/odc/usuarios': {
+      id: '/_authenticated/odc/usuarios'
+      path: '/usuarios'
+      fullPath: '/odc/usuarios'
+      preLoaderRoute: typeof AuthenticatedOdcUsuariosRouteImport
+      parentRoute: typeof AuthenticatedOdcRoute
+    }
+    '/_authenticated/odc/requisiciones': {
+      id: '/_authenticated/odc/requisiciones'
+      path: '/requisiciones'
+      fullPath: '/odc/requisiciones'
+      preLoaderRoute: typeof AuthenticatedOdcRequisicionesRouteImport
+      parentRoute: typeof AuthenticatedOdcRoute
+    }
+    '/_authenticated/odc/rep-resumen': {
+      id: '/_authenticated/odc/rep-resumen'
+      path: '/rep-resumen'
+      fullPath: '/odc/rep-resumen'
+      preLoaderRoute: typeof AuthenticatedOdcRepResumenRouteImport
+      parentRoute: typeof AuthenticatedOdcRoute
+    }
+    '/_authenticated/odc/rep-requisiciones': {
+      id: '/_authenticated/odc/rep-requisiciones'
+      path: '/rep-requisiciones'
+      fullPath: '/odc/rep-requisiciones'
+      preLoaderRoute: typeof AuthenticatedOdcRepRequisicionesRouteImport
+      parentRoute: typeof AuthenticatedOdcRoute
+    }
+    '/_authenticated/odc/rep-pendientes': {
+      id: '/_authenticated/odc/rep-pendientes'
+      path: '/rep-pendientes'
+      fullPath: '/odc/rep-pendientes'
+      preLoaderRoute: typeof AuthenticatedOdcRepPendientesRouteImport
+      parentRoute: typeof AuthenticatedOdcRoute
+    }
+    '/_authenticated/odc/recibir': {
+      id: '/_authenticated/odc/recibir'
+      path: '/recibir'
+      fullPath: '/odc/recibir'
+      preLoaderRoute: typeof AuthenticatedOdcRecibirRouteImport
+      parentRoute: typeof AuthenticatedOdcRoute
+    }
+    '/_authenticated/odc/puntos': {
+      id: '/_authenticated/odc/puntos'
+      path: '/puntos'
+      fullPath: '/odc/puntos'
+      preLoaderRoute: typeof AuthenticatedOdcPuntosRouteImport
+      parentRoute: typeof AuthenticatedOdcRoute
+    }
+    '/_authenticated/odc/ordenes': {
+      id: '/_authenticated/odc/ordenes'
+      path: '/ordenes'
+      fullPath: '/odc/ordenes'
+      preLoaderRoute: typeof AuthenticatedOdcOrdenesRouteImport
+      parentRoute: typeof AuthenticatedOdcRoute
+    }
+    '/_authenticated/odc/nueva-requisicion': {
+      id: '/_authenticated/odc/nueva-requisicion'
+      path: '/nueva-requisicion'
+      fullPath: '/odc/nueva-requisicion'
+      preLoaderRoute: typeof AuthenticatedOdcNuevaRequisicionRouteImport
+      parentRoute: typeof AuthenticatedOdcRoute
+    }
+    '/_authenticated/odc/nueva-orden': {
+      id: '/_authenticated/odc/nueva-orden'
+      path: '/nueva-orden'
+      fullPath: '/odc/nueva-orden'
+      preLoaderRoute: typeof AuthenticatedOdcNuevaOrdenRouteImport
+      parentRoute: typeof AuthenticatedOdcRoute
+    }
+    '/_authenticated/odc/cias': {
+      id: '/_authenticated/odc/cias'
+      path: '/cias'
+      fullPath: '/odc/cias'
+      preLoaderRoute: typeof AuthenticatedOdcCiasRouteImport
+      parentRoute: typeof AuthenticatedOdcRoute
+    }
+    '/_authenticated/odc/autorizar': {
+      id: '/_authenticated/odc/autorizar'
+      path: '/autorizar'
+      fullPath: '/odc/autorizar'
+      preLoaderRoute: typeof AuthenticatedOdcAutorizarRouteImport
+      parentRoute: typeof AuthenticatedOdcRoute
+    }
+    '/_authenticated/odc/anular': {
+      id: '/_authenticated/odc/anular'
+      path: '/anular'
+      fullPath: '/odc/anular'
+      preLoaderRoute: typeof AuthenticatedOdcAnularRouteImport
+      parentRoute: typeof AuthenticatedOdcRoute
+    }
     '/_authenticated/fat/transportistas': {
       id: '/_authenticated/fat/transportistas'
       path: '/transportistas'
@@ -1938,18 +3367,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFatRepNcfNulosRouteImport
       parentRoute: typeof AuthenticatedFatRoute
     }
-    '/_authenticated/fat/rep-facturas-rnc': {
-      id: '/_authenticated/fat/rep-facturas-rnc'
-      path: '/rep-facturas-rnc'
-      fullPath: '/fat/rep-facturas-rnc'
-      preLoaderRoute: typeof AuthenticatedFatRepFacturasRncRouteImport
-      parentRoute: typeof AuthenticatedFatRoute
-    }
     '/_authenticated/fat/rep-margen-bruto': {
       id: '/_authenticated/fat/rep-margen-bruto'
       path: '/rep-margen-bruto'
       fullPath: '/fat/rep-margen-bruto'
       preLoaderRoute: typeof AuthenticatedFatRepMargenBrutoRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/rep-facturas-rnc': {
+      id: '/_authenticated/fat/rep-facturas-rnc'
+      path: '/rep-facturas-rnc'
+      fullPath: '/fat/rep-facturas-rnc'
+      preLoaderRoute: typeof AuthenticatedFatRepFacturasRncRouteImport
       parentRoute: typeof AuthenticatedFatRoute
     }
     '/_authenticated/fat/rep-analitica': {
@@ -2463,10 +3892,326 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCxcAsientoContableRouteImport
       parentRoute: typeof AuthenticatedCxcRoute
     }
+    '/_authenticated/chc/tipos-docu': {
+      id: '/_authenticated/chc/tipos-docu'
+      path: '/tipos-docu'
+      fullPath: '/chc/tipos-docu'
+      preLoaderRoute: typeof AuthenticatedChcTiposDocuRouteImport
+      parentRoute: typeof AuthenticatedChcRoute
+    }
+    '/_authenticated/chc/solicitar': {
+      id: '/_authenticated/chc/solicitar'
+      path: '/solicitar'
+      fullPath: '/chc/solicitar'
+      preLoaderRoute: typeof AuthenticatedChcSolicitarRouteImport
+      parentRoute: typeof AuthenticatedChcRoute
+    }
+    '/_authenticated/chc/saldos': {
+      id: '/_authenticated/chc/saldos'
+      path: '/saldos'
+      fullPath: '/chc/saldos'
+      preLoaderRoute: typeof AuthenticatedChcSaldosRouteImport
+      parentRoute: typeof AuthenticatedChcRoute
+    }
+    '/_authenticated/chc/rep-movimientos': {
+      id: '/_authenticated/chc/rep-movimientos'
+      path: '/rep-movimientos'
+      fullPath: '/chc/rep-movimientos'
+      preLoaderRoute: typeof AuthenticatedChcRepMovimientosRouteImport
+      parentRoute: typeof AuthenticatedChcRoute
+    }
+    '/_authenticated/chc/rep-disponibilidad': {
+      id: '/_authenticated/chc/rep-disponibilidad'
+      path: '/rep-disponibilidad'
+      fullPath: '/chc/rep-disponibilidad'
+      preLoaderRoute: typeof AuthenticatedChcRepDisponibilidadRouteImport
+      parentRoute: typeof AuthenticatedChcRoute
+    }
+    '/_authenticated/chc/rep-diario': {
+      id: '/_authenticated/chc/rep-diario'
+      path: '/rep-diario'
+      fullPath: '/chc/rep-diario'
+      preLoaderRoute: typeof AuthenticatedChcRepDiarioRouteImport
+      parentRoute: typeof AuthenticatedChcRoute
+    }
+    '/_authenticated/chc/rep-balance': {
+      id: '/_authenticated/chc/rep-balance'
+      path: '/rep-balance'
+      fullPath: '/chc/rep-balance'
+      preLoaderRoute: typeof AuthenticatedChcRepBalanceRouteImport
+      parentRoute: typeof AuthenticatedChcRoute
+    }
+    '/_authenticated/chc/puntos': {
+      id: '/_authenticated/chc/puntos'
+      path: '/puntos'
+      fullPath: '/chc/puntos'
+      preLoaderRoute: typeof AuthenticatedChcPuntosRouteImport
+      parentRoute: typeof AuthenticatedChcRoute
+    }
+    '/_authenticated/chc/imprimir': {
+      id: '/_authenticated/chc/imprimir'
+      path: '/imprimir'
+      fullPath: '/chc/imprimir'
+      preLoaderRoute: typeof AuthenticatedChcImprimirRouteImport
+      parentRoute: typeof AuthenticatedChcRoute
+    }
+    '/_authenticated/chc/entregar': {
+      id: '/_authenticated/chc/entregar'
+      path: '/entregar'
+      fullPath: '/chc/entregar'
+      preLoaderRoute: typeof AuthenticatedChcEntregarRouteImport
+      parentRoute: typeof AuthenticatedChcRoute
+    }
+    '/_authenticated/chc/cuentas': {
+      id: '/_authenticated/chc/cuentas'
+      path: '/cuentas'
+      fullPath: '/chc/cuentas'
+      preLoaderRoute: typeof AuthenticatedChcCuentasRouteImport
+      parentRoute: typeof AuthenticatedChcRoute
+    }
+    '/_authenticated/chc/conciliar': {
+      id: '/_authenticated/chc/conciliar'
+      path: '/conciliar'
+      fullPath: '/chc/conciliar'
+      preLoaderRoute: typeof AuthenticatedChcConciliarRouteImport
+      parentRoute: typeof AuthenticatedChcRoute
+    }
+    '/_authenticated/chc/cierres': {
+      id: '/_authenticated/chc/cierres'
+      path: '/cierres'
+      fullPath: '/chc/cierres'
+      preLoaderRoute: typeof AuthenticatedChcCierresRouteImport
+      parentRoute: typeof AuthenticatedChcRoute
+    }
+    '/_authenticated/chc/cias': {
+      id: '/_authenticated/chc/cias'
+      path: '/cias'
+      fullPath: '/chc/cias'
+      preLoaderRoute: typeof AuthenticatedChcCiasRouteImport
+      parentRoute: typeof AuthenticatedChcRoute
+    }
+    '/_authenticated/chc/cheques': {
+      id: '/_authenticated/chc/cheques'
+      path: '/cheques'
+      fullPath: '/chc/cheques'
+      preLoaderRoute: typeof AuthenticatedChcChequesRouteImport
+      parentRoute: typeof AuthenticatedChcRoute
+    }
+    '/_authenticated/chc/bancos': {
+      id: '/_authenticated/chc/bancos'
+      path: '/bancos'
+      fullPath: '/chc/bancos'
+      preLoaderRoute: typeof AuthenticatedChcBancosRouteImport
+      parentRoute: typeof AuthenticatedChcRoute
+    }
+    '/_authenticated/chc/anular': {
+      id: '/_authenticated/chc/anular'
+      path: '/anular'
+      fullPath: '/chc/anular'
+      preLoaderRoute: typeof AuthenticatedChcAnularRouteImport
+      parentRoute: typeof AuthenticatedChcRoute
+    }
+    '/_authenticated/acf/subgrupos': {
+      id: '/_authenticated/acf/subgrupos'
+      path: '/subgrupos'
+      fullPath: '/acf/subgrupos'
+      preLoaderRoute: typeof AuthenticatedAcfSubgruposRouteImport
+      parentRoute: typeof AuthenticatedAcfRoute
+    }
+    '/_authenticated/acf/retiro': {
+      id: '/_authenticated/acf/retiro'
+      path: '/retiro'
+      fullPath: '/acf/retiro'
+      preLoaderRoute: typeof AuthenticatedAcfRetiroRouteImport
+      parentRoute: typeof AuthenticatedAcfRoute
+    }
+    '/_authenticated/acf/responsables': {
+      id: '/_authenticated/acf/responsables'
+      path: '/responsables'
+      fullPath: '/acf/responsables'
+      preLoaderRoute: typeof AuthenticatedAcfResponsablesRouteImport
+      parentRoute: typeof AuthenticatedAcfRoute
+    }
+    '/_authenticated/acf/reportes': {
+      id: '/_authenticated/acf/reportes'
+      path: '/reportes'
+      fullPath: '/acf/reportes'
+      preLoaderRoute: typeof AuthenticatedAcfReportesRouteImport
+      parentRoute: typeof AuthenticatedAcfRoute
+    }
+    '/_authenticated/acf/puntos': {
+      id: '/_authenticated/acf/puntos'
+      path: '/puntos'
+      fullPath: '/acf/puntos'
+      preLoaderRoute: typeof AuthenticatedAcfPuntosRouteImport
+      parentRoute: typeof AuthenticatedAcfRoute
+    }
+    '/_authenticated/acf/marcas': {
+      id: '/_authenticated/acf/marcas'
+      path: '/marcas'
+      fullPath: '/acf/marcas'
+      preLoaderRoute: typeof AuthenticatedAcfMarcasRouteImport
+      parentRoute: typeof AuthenticatedAcfRoute
+    }
+    '/_authenticated/acf/grupos': {
+      id: '/_authenticated/acf/grupos'
+      path: '/grupos'
+      fullPath: '/acf/grupos'
+      preLoaderRoute: typeof AuthenticatedAcfGruposRouteImport
+      parentRoute: typeof AuthenticatedAcfRoute
+    }
+    '/_authenticated/acf/depreciacion': {
+      id: '/_authenticated/acf/depreciacion'
+      path: '/depreciacion'
+      fullPath: '/acf/depreciacion'
+      preLoaderRoute: typeof AuthenticatedAcfDepreciacionRouteImport
+      parentRoute: typeof AuthenticatedAcfRoute
+    }
+    '/_authenticated/acf/departamentos': {
+      id: '/_authenticated/acf/departamentos'
+      path: '/departamentos'
+      fullPath: '/acf/departamentos'
+      preLoaderRoute: typeof AuthenticatedAcfDepartamentosRouteImport
+      parentRoute: typeof AuthenticatedAcfRoute
+    }
+    '/_authenticated/acf/compra': {
+      id: '/_authenticated/acf/compra'
+      path: '/compra'
+      fullPath: '/acf/compra'
+      preLoaderRoute: typeof AuthenticatedAcfCompraRouteImport
+      parentRoute: typeof AuthenticatedAcfRoute
+    }
+    '/_authenticated/acf/cierre': {
+      id: '/_authenticated/acf/cierre'
+      path: '/cierre'
+      fullPath: '/acf/cierre'
+      preLoaderRoute: typeof AuthenticatedAcfCierreRouteImport
+      parentRoute: typeof AuthenticatedAcfRoute
+    }
+    '/_authenticated/acf/cias': {
+      id: '/_authenticated/acf/cias'
+      path: '/cias'
+      fullPath: '/acf/cias'
+      preLoaderRoute: typeof AuthenticatedAcfCiasRouteImport
+      parentRoute: typeof AuthenticatedAcfRoute
+    }
+    '/_authenticated/acf/categorias': {
+      id: '/_authenticated/acf/categorias'
+      path: '/categorias'
+      fullPath: '/acf/categorias'
+      preLoaderRoute: typeof AuthenticatedAcfCategoriasRouteImport
+      parentRoute: typeof AuthenticatedAcfRoute
+    }
+    '/_authenticated/acf/activos': {
+      id: '/_authenticated/acf/activos'
+      path: '/activos'
+      fullPath: '/acf/activos'
+      preLoaderRoute: typeof AuthenticatedAcfActivosRouteImport
+      parentRoute: typeof AuthenticatedAcfRoute
+    }
+    '/_authenticated/acc/tipos-gasto': {
+      id: '/_authenticated/acc/tipos-gasto'
+      path: '/tipos-gasto'
+      fullPath: '/acc/tipos-gasto'
+      preLoaderRoute: typeof AuthenticatedAccTiposGastoRouteImport
+      parentRoute: typeof AuthenticatedAccRoute
+    }
+    '/_authenticated/acc/tipos-bene': {
+      id: '/_authenticated/acc/tipos-bene'
+      path: '/tipos-bene'
+      fullPath: '/acc/tipos-bene'
+      preLoaderRoute: typeof AuthenticatedAccTiposBeneRouteImport
+      parentRoute: typeof AuthenticatedAccRoute
+    }
+    '/_authenticated/acc/reposiciones': {
+      id: '/_authenticated/acc/reposiciones'
+      path: '/reposiciones'
+      fullPath: '/acc/reposiciones'
+      preLoaderRoute: typeof AuthenticatedAccReposicionesRouteImport
+      parentRoute: typeof AuthenticatedAccRoute
+    }
+    '/_authenticated/acc/reposicion': {
+      id: '/_authenticated/acc/reposicion'
+      path: '/reposicion'
+      fullPath: '/acc/reposicion'
+      preLoaderRoute: typeof AuthenticatedAccReposicionRouteImport
+      parentRoute: typeof AuthenticatedAccRoute
+    }
+    '/_authenticated/acc/reportes': {
+      id: '/_authenticated/acc/reportes'
+      path: '/reportes'
+      fullPath: '/acc/reportes'
+      preLoaderRoute: typeof AuthenticatedAccReportesRouteImport
+      parentRoute: typeof AuthenticatedAccRoute
+    }
+    '/_authenticated/acc/puntos': {
+      id: '/_authenticated/acc/puntos'
+      path: '/puntos'
+      fullPath: '/acc/puntos'
+      preLoaderRoute: typeof AuthenticatedAccPuntosRouteImport
+      parentRoute: typeof AuthenticatedAccRoute
+    }
+    '/_authenticated/acc/nuevo-egreso': {
+      id: '/_authenticated/acc/nuevo-egreso'
+      path: '/nuevo-egreso'
+      fullPath: '/acc/nuevo-egreso'
+      preLoaderRoute: typeof AuthenticatedAccNuevoEgresoRouteImport
+      parentRoute: typeof AuthenticatedAccRoute
+    }
+    '/_authenticated/acc/documentos': {
+      id: '/_authenticated/acc/documentos'
+      path: '/documentos'
+      fullPath: '/acc/documentos'
+      preLoaderRoute: typeof AuthenticatedAccDocumentosRouteImport
+      parentRoute: typeof AuthenticatedAccRoute
+    }
+    '/_authenticated/acc/cierre': {
+      id: '/_authenticated/acc/cierre'
+      path: '/cierre'
+      fullPath: '/acc/cierre'
+      preLoaderRoute: typeof AuthenticatedAccCierreRouteImport
+      parentRoute: typeof AuthenticatedAccRoute
+    }
+    '/_authenticated/acc/cias': {
+      id: '/_authenticated/acc/cias'
+      path: '/cias'
+      fullPath: '/acc/cias'
+      preLoaderRoute: typeof AuthenticatedAccCiasRouteImport
+      parentRoute: typeof AuthenticatedAccRoute
+    }
+    '/_authenticated/acc/cajas': {
+      id: '/_authenticated/acc/cajas'
+      path: '/cajas'
+      fullPath: '/acc/cajas'
+      preLoaderRoute: typeof AuthenticatedAccCajasRouteImport
+      parentRoute: typeof AuthenticatedAccRoute
+    }
+    '/_authenticated/acc/beneficiarios': {
+      id: '/_authenticated/acc/beneficiarios'
+      path: '/beneficiarios'
+      fullPath: '/acc/beneficiarios'
+      preLoaderRoute: typeof AuthenticatedAccBeneficiariosRouteImport
+      parentRoute: typeof AuthenticatedAccRoute
+    }
+    '/_authenticated/acc/asiento': {
+      id: '/_authenticated/acc/asiento'
+      path: '/asiento'
+      fullPath: '/acc/asiento'
+      preLoaderRoute: typeof AuthenticatedAccAsientoRouteImport
+      parentRoute: typeof AuthenticatedAccRoute
+    }
+    '/_authenticated/acc/anular': {
+      id: '/_authenticated/acc/anular'
+      path: '/anular'
+      fullPath: '/acc/anular'
+      preLoaderRoute: typeof AuthenticatedAccAnularRouteImport
+      parentRoute: typeof AuthenticatedAccRoute
+    }
   }
 }
 
 interface AuthenticatedSettingsRouteRouteChildren {
+  AuthenticatedSettingsSlugRoute: typeof AuthenticatedSettingsSlugRoute
   AuthenticatedSettingsAccountRoute: typeof AuthenticatedSettingsAccountRoute
   AuthenticatedSettingsAppearanceRoute: typeof AuthenticatedSettingsAppearanceRoute
   AuthenticatedSettingsDisplayRoute: typeof AuthenticatedSettingsDisplayRoute
@@ -2476,6 +4221,7 @@ interface AuthenticatedSettingsRouteRouteChildren {
 
 const AuthenticatedSettingsRouteRouteChildren: AuthenticatedSettingsRouteRouteChildren =
   {
+    AuthenticatedSettingsSlugRoute: AuthenticatedSettingsSlugRoute,
     AuthenticatedSettingsAccountRoute: AuthenticatedSettingsAccountRoute,
     AuthenticatedSettingsAppearanceRoute: AuthenticatedSettingsAppearanceRoute,
     AuthenticatedSettingsDisplayRoute: AuthenticatedSettingsDisplayRoute,
@@ -2488,6 +4234,130 @@ const AuthenticatedSettingsRouteRouteWithChildren =
   AuthenticatedSettingsRouteRoute._addFileChildren(
     AuthenticatedSettingsRouteRouteChildren,
   )
+
+interface AuthenticatedAccRouteChildren {
+  AuthenticatedAccAnularRoute: typeof AuthenticatedAccAnularRoute
+  AuthenticatedAccAsientoRoute: typeof AuthenticatedAccAsientoRoute
+  AuthenticatedAccBeneficiariosRoute: typeof AuthenticatedAccBeneficiariosRoute
+  AuthenticatedAccCajasRoute: typeof AuthenticatedAccCajasRoute
+  AuthenticatedAccCiasRoute: typeof AuthenticatedAccCiasRoute
+  AuthenticatedAccCierreRoute: typeof AuthenticatedAccCierreRoute
+  AuthenticatedAccDocumentosRoute: typeof AuthenticatedAccDocumentosRoute
+  AuthenticatedAccNuevoEgresoRoute: typeof AuthenticatedAccNuevoEgresoRoute
+  AuthenticatedAccPuntosRoute: typeof AuthenticatedAccPuntosRoute
+  AuthenticatedAccReportesRoute: typeof AuthenticatedAccReportesRoute
+  AuthenticatedAccReposicionRoute: typeof AuthenticatedAccReposicionRoute
+  AuthenticatedAccReposicionesRoute: typeof AuthenticatedAccReposicionesRoute
+  AuthenticatedAccTiposBeneRoute: typeof AuthenticatedAccTiposBeneRoute
+  AuthenticatedAccTiposGastoRoute: typeof AuthenticatedAccTiposGastoRoute
+  AuthenticatedAccIndexRoute: typeof AuthenticatedAccIndexRoute
+}
+
+const AuthenticatedAccRouteChildren: AuthenticatedAccRouteChildren = {
+  AuthenticatedAccAnularRoute: AuthenticatedAccAnularRoute,
+  AuthenticatedAccAsientoRoute: AuthenticatedAccAsientoRoute,
+  AuthenticatedAccBeneficiariosRoute: AuthenticatedAccBeneficiariosRoute,
+  AuthenticatedAccCajasRoute: AuthenticatedAccCajasRoute,
+  AuthenticatedAccCiasRoute: AuthenticatedAccCiasRoute,
+  AuthenticatedAccCierreRoute: AuthenticatedAccCierreRoute,
+  AuthenticatedAccDocumentosRoute: AuthenticatedAccDocumentosRoute,
+  AuthenticatedAccNuevoEgresoRoute: AuthenticatedAccNuevoEgresoRoute,
+  AuthenticatedAccPuntosRoute: AuthenticatedAccPuntosRoute,
+  AuthenticatedAccReportesRoute: AuthenticatedAccReportesRoute,
+  AuthenticatedAccReposicionRoute: AuthenticatedAccReposicionRoute,
+  AuthenticatedAccReposicionesRoute: AuthenticatedAccReposicionesRoute,
+  AuthenticatedAccTiposBeneRoute: AuthenticatedAccTiposBeneRoute,
+  AuthenticatedAccTiposGastoRoute: AuthenticatedAccTiposGastoRoute,
+  AuthenticatedAccIndexRoute: AuthenticatedAccIndexRoute,
+}
+
+const AuthenticatedAccRouteWithChildren =
+  AuthenticatedAccRoute._addFileChildren(AuthenticatedAccRouteChildren)
+
+interface AuthenticatedAcfRouteChildren {
+  AuthenticatedAcfActivosRoute: typeof AuthenticatedAcfActivosRoute
+  AuthenticatedAcfCategoriasRoute: typeof AuthenticatedAcfCategoriasRoute
+  AuthenticatedAcfCiasRoute: typeof AuthenticatedAcfCiasRoute
+  AuthenticatedAcfCierreRoute: typeof AuthenticatedAcfCierreRoute
+  AuthenticatedAcfCompraRoute: typeof AuthenticatedAcfCompraRoute
+  AuthenticatedAcfDepartamentosRoute: typeof AuthenticatedAcfDepartamentosRoute
+  AuthenticatedAcfDepreciacionRoute: typeof AuthenticatedAcfDepreciacionRoute
+  AuthenticatedAcfGruposRoute: typeof AuthenticatedAcfGruposRoute
+  AuthenticatedAcfMarcasRoute: typeof AuthenticatedAcfMarcasRoute
+  AuthenticatedAcfPuntosRoute: typeof AuthenticatedAcfPuntosRoute
+  AuthenticatedAcfReportesRoute: typeof AuthenticatedAcfReportesRoute
+  AuthenticatedAcfResponsablesRoute: typeof AuthenticatedAcfResponsablesRoute
+  AuthenticatedAcfRetiroRoute: typeof AuthenticatedAcfRetiroRoute
+  AuthenticatedAcfSubgruposRoute: typeof AuthenticatedAcfSubgruposRoute
+  AuthenticatedAcfIndexRoute: typeof AuthenticatedAcfIndexRoute
+}
+
+const AuthenticatedAcfRouteChildren: AuthenticatedAcfRouteChildren = {
+  AuthenticatedAcfActivosRoute: AuthenticatedAcfActivosRoute,
+  AuthenticatedAcfCategoriasRoute: AuthenticatedAcfCategoriasRoute,
+  AuthenticatedAcfCiasRoute: AuthenticatedAcfCiasRoute,
+  AuthenticatedAcfCierreRoute: AuthenticatedAcfCierreRoute,
+  AuthenticatedAcfCompraRoute: AuthenticatedAcfCompraRoute,
+  AuthenticatedAcfDepartamentosRoute: AuthenticatedAcfDepartamentosRoute,
+  AuthenticatedAcfDepreciacionRoute: AuthenticatedAcfDepreciacionRoute,
+  AuthenticatedAcfGruposRoute: AuthenticatedAcfGruposRoute,
+  AuthenticatedAcfMarcasRoute: AuthenticatedAcfMarcasRoute,
+  AuthenticatedAcfPuntosRoute: AuthenticatedAcfPuntosRoute,
+  AuthenticatedAcfReportesRoute: AuthenticatedAcfReportesRoute,
+  AuthenticatedAcfResponsablesRoute: AuthenticatedAcfResponsablesRoute,
+  AuthenticatedAcfRetiroRoute: AuthenticatedAcfRetiroRoute,
+  AuthenticatedAcfSubgruposRoute: AuthenticatedAcfSubgruposRoute,
+  AuthenticatedAcfIndexRoute: AuthenticatedAcfIndexRoute,
+}
+
+const AuthenticatedAcfRouteWithChildren =
+  AuthenticatedAcfRoute._addFileChildren(AuthenticatedAcfRouteChildren)
+
+interface AuthenticatedChcRouteChildren {
+  AuthenticatedChcAnularRoute: typeof AuthenticatedChcAnularRoute
+  AuthenticatedChcBancosRoute: typeof AuthenticatedChcBancosRoute
+  AuthenticatedChcChequesRoute: typeof AuthenticatedChcChequesRoute
+  AuthenticatedChcCiasRoute: typeof AuthenticatedChcCiasRoute
+  AuthenticatedChcCierresRoute: typeof AuthenticatedChcCierresRoute
+  AuthenticatedChcConciliarRoute: typeof AuthenticatedChcConciliarRoute
+  AuthenticatedChcCuentasRoute: typeof AuthenticatedChcCuentasRoute
+  AuthenticatedChcEntregarRoute: typeof AuthenticatedChcEntregarRoute
+  AuthenticatedChcImprimirRoute: typeof AuthenticatedChcImprimirRoute
+  AuthenticatedChcPuntosRoute: typeof AuthenticatedChcPuntosRoute
+  AuthenticatedChcRepBalanceRoute: typeof AuthenticatedChcRepBalanceRoute
+  AuthenticatedChcRepDiarioRoute: typeof AuthenticatedChcRepDiarioRoute
+  AuthenticatedChcRepDisponibilidadRoute: typeof AuthenticatedChcRepDisponibilidadRoute
+  AuthenticatedChcRepMovimientosRoute: typeof AuthenticatedChcRepMovimientosRoute
+  AuthenticatedChcSaldosRoute: typeof AuthenticatedChcSaldosRoute
+  AuthenticatedChcSolicitarRoute: typeof AuthenticatedChcSolicitarRoute
+  AuthenticatedChcTiposDocuRoute: typeof AuthenticatedChcTiposDocuRoute
+  AuthenticatedChcIndexRoute: typeof AuthenticatedChcIndexRoute
+}
+
+const AuthenticatedChcRouteChildren: AuthenticatedChcRouteChildren = {
+  AuthenticatedChcAnularRoute: AuthenticatedChcAnularRoute,
+  AuthenticatedChcBancosRoute: AuthenticatedChcBancosRoute,
+  AuthenticatedChcChequesRoute: AuthenticatedChcChequesRoute,
+  AuthenticatedChcCiasRoute: AuthenticatedChcCiasRoute,
+  AuthenticatedChcCierresRoute: AuthenticatedChcCierresRoute,
+  AuthenticatedChcConciliarRoute: AuthenticatedChcConciliarRoute,
+  AuthenticatedChcCuentasRoute: AuthenticatedChcCuentasRoute,
+  AuthenticatedChcEntregarRoute: AuthenticatedChcEntregarRoute,
+  AuthenticatedChcImprimirRoute: AuthenticatedChcImprimirRoute,
+  AuthenticatedChcPuntosRoute: AuthenticatedChcPuntosRoute,
+  AuthenticatedChcRepBalanceRoute: AuthenticatedChcRepBalanceRoute,
+  AuthenticatedChcRepDiarioRoute: AuthenticatedChcRepDiarioRoute,
+  AuthenticatedChcRepDisponibilidadRoute:
+    AuthenticatedChcRepDisponibilidadRoute,
+  AuthenticatedChcRepMovimientosRoute: AuthenticatedChcRepMovimientosRoute,
+  AuthenticatedChcSaldosRoute: AuthenticatedChcSaldosRoute,
+  AuthenticatedChcSolicitarRoute: AuthenticatedChcSolicitarRoute,
+  AuthenticatedChcTiposDocuRoute: AuthenticatedChcTiposDocuRoute,
+  AuthenticatedChcIndexRoute: AuthenticatedChcIndexRoute,
+}
+
+const AuthenticatedChcRouteWithChildren =
+  AuthenticatedChcRoute._addFileChildren(AuthenticatedChcRouteChildren)
 
 interface AuthenticatedCxcRouteChildren {
   AuthenticatedCxcAsientoContableRoute: typeof AuthenticatedCxcAsientoContableRoute
@@ -2699,9 +4569,100 @@ const AuthenticatedInvRouteChildren: AuthenticatedInvRouteChildren = {
 const AuthenticatedInvRouteWithChildren =
   AuthenticatedInvRoute._addFileChildren(AuthenticatedInvRouteChildren)
 
+interface AuthenticatedOdcRouteChildren {
+  AuthenticatedOdcAnularRoute: typeof AuthenticatedOdcAnularRoute
+  AuthenticatedOdcAutorizarRoute: typeof AuthenticatedOdcAutorizarRoute
+  AuthenticatedOdcCiasRoute: typeof AuthenticatedOdcCiasRoute
+  AuthenticatedOdcNuevaOrdenRoute: typeof AuthenticatedOdcNuevaOrdenRoute
+  AuthenticatedOdcNuevaRequisicionRoute: typeof AuthenticatedOdcNuevaRequisicionRoute
+  AuthenticatedOdcOrdenesRoute: typeof AuthenticatedOdcOrdenesRoute
+  AuthenticatedOdcPuntosRoute: typeof AuthenticatedOdcPuntosRoute
+  AuthenticatedOdcRecibirRoute: typeof AuthenticatedOdcRecibirRoute
+  AuthenticatedOdcRepPendientesRoute: typeof AuthenticatedOdcRepPendientesRoute
+  AuthenticatedOdcRepRequisicionesRoute: typeof AuthenticatedOdcRepRequisicionesRoute
+  AuthenticatedOdcRepResumenRoute: typeof AuthenticatedOdcRepResumenRoute
+  AuthenticatedOdcRequisicionesRoute: typeof AuthenticatedOdcRequisicionesRoute
+  AuthenticatedOdcUsuariosRoute: typeof AuthenticatedOdcUsuariosRoute
+  AuthenticatedOdcIndexRoute: typeof AuthenticatedOdcIndexRoute
+}
+
+const AuthenticatedOdcRouteChildren: AuthenticatedOdcRouteChildren = {
+  AuthenticatedOdcAnularRoute: AuthenticatedOdcAnularRoute,
+  AuthenticatedOdcAutorizarRoute: AuthenticatedOdcAutorizarRoute,
+  AuthenticatedOdcCiasRoute: AuthenticatedOdcCiasRoute,
+  AuthenticatedOdcNuevaOrdenRoute: AuthenticatedOdcNuevaOrdenRoute,
+  AuthenticatedOdcNuevaRequisicionRoute: AuthenticatedOdcNuevaRequisicionRoute,
+  AuthenticatedOdcOrdenesRoute: AuthenticatedOdcOrdenesRoute,
+  AuthenticatedOdcPuntosRoute: AuthenticatedOdcPuntosRoute,
+  AuthenticatedOdcRecibirRoute: AuthenticatedOdcRecibirRoute,
+  AuthenticatedOdcRepPendientesRoute: AuthenticatedOdcRepPendientesRoute,
+  AuthenticatedOdcRepRequisicionesRoute: AuthenticatedOdcRepRequisicionesRoute,
+  AuthenticatedOdcRepResumenRoute: AuthenticatedOdcRepResumenRoute,
+  AuthenticatedOdcRequisicionesRoute: AuthenticatedOdcRequisicionesRoute,
+  AuthenticatedOdcUsuariosRoute: AuthenticatedOdcUsuariosRoute,
+  AuthenticatedOdcIndexRoute: AuthenticatedOdcIndexRoute,
+}
+
+const AuthenticatedOdcRouteWithChildren =
+  AuthenticatedOdcRoute._addFileChildren(AuthenticatedOdcRouteChildren)
+
+interface AuthenticatedSdnRouteChildren {
+  AuthenticatedSdnAfpRoute: typeof AuthenticatedSdnAfpRoute
+  AuthenticatedSdnAreasRoute: typeof AuthenticatedSdnAreasRoute
+  AuthenticatedSdnArsRoute: typeof AuthenticatedSdnArsRoute
+  AuthenticatedSdnCalcularRoute: typeof AuthenticatedSdnCalcularRoute
+  AuthenticatedSdnCatalogosRoute: typeof AuthenticatedSdnCatalogosRoute
+  AuthenticatedSdnCiasRoute: typeof AuthenticatedSdnCiasRoute
+  AuthenticatedSdnDeduccionesRoute: typeof AuthenticatedSdnDeduccionesRoute
+  AuthenticatedSdnDefNominasRoute: typeof AuthenticatedSdnDefNominasRoute
+  AuthenticatedSdnDeptosRoute: typeof AuthenticatedSdnDeptosRoute
+  AuthenticatedSdnEmpleadosRoute: typeof AuthenticatedSdnEmpleadosRoute
+  AuthenticatedSdnGenChequesRoute: typeof AuthenticatedSdnGenChequesRoute
+  AuthenticatedSdnGenVacacionesRoute: typeof AuthenticatedSdnGenVacacionesRoute
+  AuthenticatedSdnGerenciasRoute: typeof AuthenticatedSdnGerenciasRoute
+  AuthenticatedSdnIngresosRoute: typeof AuthenticatedSdnIngresosRoute
+  AuthenticatedSdnMovimientosRoute: typeof AuthenticatedSdnMovimientosRoute
+  AuthenticatedSdnNominasRoute: typeof AuthenticatedSdnNominasRoute
+  AuthenticatedSdnRepInformeRoute: typeof AuthenticatedSdnRepInformeRoute
+  AuthenticatedSdnRepRncRoute: typeof AuthenticatedSdnRepRncRoute
+  AuthenticatedSdnVacacionesRoute: typeof AuthenticatedSdnVacacionesRoute
+  AuthenticatedSdnVolanteRoute: typeof AuthenticatedSdnVolanteRoute
+  AuthenticatedSdnIndexRoute: typeof AuthenticatedSdnIndexRoute
+}
+
+const AuthenticatedSdnRouteChildren: AuthenticatedSdnRouteChildren = {
+  AuthenticatedSdnAfpRoute: AuthenticatedSdnAfpRoute,
+  AuthenticatedSdnAreasRoute: AuthenticatedSdnAreasRoute,
+  AuthenticatedSdnArsRoute: AuthenticatedSdnArsRoute,
+  AuthenticatedSdnCalcularRoute: AuthenticatedSdnCalcularRoute,
+  AuthenticatedSdnCatalogosRoute: AuthenticatedSdnCatalogosRoute,
+  AuthenticatedSdnCiasRoute: AuthenticatedSdnCiasRoute,
+  AuthenticatedSdnDeduccionesRoute: AuthenticatedSdnDeduccionesRoute,
+  AuthenticatedSdnDefNominasRoute: AuthenticatedSdnDefNominasRoute,
+  AuthenticatedSdnDeptosRoute: AuthenticatedSdnDeptosRoute,
+  AuthenticatedSdnEmpleadosRoute: AuthenticatedSdnEmpleadosRoute,
+  AuthenticatedSdnGenChequesRoute: AuthenticatedSdnGenChequesRoute,
+  AuthenticatedSdnGenVacacionesRoute: AuthenticatedSdnGenVacacionesRoute,
+  AuthenticatedSdnGerenciasRoute: AuthenticatedSdnGerenciasRoute,
+  AuthenticatedSdnIngresosRoute: AuthenticatedSdnIngresosRoute,
+  AuthenticatedSdnMovimientosRoute: AuthenticatedSdnMovimientosRoute,
+  AuthenticatedSdnNominasRoute: AuthenticatedSdnNominasRoute,
+  AuthenticatedSdnRepInformeRoute: AuthenticatedSdnRepInformeRoute,
+  AuthenticatedSdnRepRncRoute: AuthenticatedSdnRepRncRoute,
+  AuthenticatedSdnVacacionesRoute: AuthenticatedSdnVacacionesRoute,
+  AuthenticatedSdnVolanteRoute: AuthenticatedSdnVolanteRoute,
+  AuthenticatedSdnIndexRoute: AuthenticatedSdnIndexRoute,
+}
+
+const AuthenticatedSdnRouteWithChildren =
+  AuthenticatedSdnRoute._addFileChildren(AuthenticatedSdnRouteChildren)
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
+  AuthenticatedAccRoute: typeof AuthenticatedAccRouteWithChildren
+  AuthenticatedAcfRoute: typeof AuthenticatedAcfRouteWithChildren
   AuthenticatedCambiarClaveRoute: typeof AuthenticatedCambiarClaveRoute
+  AuthenticatedChcRoute: typeof AuthenticatedChcRouteWithChildren
   AuthenticatedCntRoute: typeof AuthenticatedCntRoute
   AuthenticatedCxcRoute: typeof AuthenticatedCxcRouteWithChildren
   AuthenticatedCxpRoute: typeof AuthenticatedCxpRouteWithChildren
@@ -2709,7 +4670,10 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedEmpresasRoute: typeof AuthenticatedEmpresasRoute
   AuthenticatedFatRoute: typeof AuthenticatedFatRouteWithChildren
   AuthenticatedInvRoute: typeof AuthenticatedInvRouteWithChildren
+  AuthenticatedManRoute: typeof AuthenticatedManRoute
   AuthenticatedNcfAlertsRoute: typeof AuthenticatedNcfAlertsRoute
+  AuthenticatedOdcRoute: typeof AuthenticatedOdcRouteWithChildren
+  AuthenticatedSdnRoute: typeof AuthenticatedSdnRouteWithChildren
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedSistemaUsuariosRoute: typeof AuthenticatedSistemaUsuariosRoute
@@ -2722,7 +4686,10 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRouteRoute: AuthenticatedSettingsRouteRouteWithChildren,
+  AuthenticatedAccRoute: AuthenticatedAccRouteWithChildren,
+  AuthenticatedAcfRoute: AuthenticatedAcfRouteWithChildren,
   AuthenticatedCambiarClaveRoute: AuthenticatedCambiarClaveRoute,
+  AuthenticatedChcRoute: AuthenticatedChcRouteWithChildren,
   AuthenticatedCntRoute: AuthenticatedCntRoute,
   AuthenticatedCxcRoute: AuthenticatedCxcRouteWithChildren,
   AuthenticatedCxpRoute: AuthenticatedCxpRouteWithChildren,
@@ -2730,7 +4697,10 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedEmpresasRoute: AuthenticatedEmpresasRoute,
   AuthenticatedFatRoute: AuthenticatedFatRouteWithChildren,
   AuthenticatedInvRoute: AuthenticatedInvRouteWithChildren,
+  AuthenticatedManRoute: AuthenticatedManRoute,
   AuthenticatedNcfAlertsRoute: AuthenticatedNcfAlertsRoute,
+  AuthenticatedOdcRoute: AuthenticatedOdcRouteWithChildren,
+  AuthenticatedSdnRoute: AuthenticatedSdnRouteWithChildren,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedSistemaUsuariosRoute: AuthenticatedSistemaUsuariosRoute,

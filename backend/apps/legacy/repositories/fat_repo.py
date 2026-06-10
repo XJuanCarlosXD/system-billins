@@ -1950,21 +1950,25 @@ def list_empaques_producto(no_produ: str) -> list[dict]:
     if not no_produ:
         return []
     rows = client.fetch_dicts(
-        "SELECT e.unidad, "
+        "SELECT e.empaque, e.unidad, e.referencia, "
         "       NVL(u.descri, e.unidad) AS descripcion, "
         "       NVL(e.por_defecto, 'N') AS por_defecto, "
-        "       NVL(e.cant_por_emp, 1) AS cant_por_emp "
+        "       NVL(e.permite_fraccion, 'N') AS permite_fraccion, "
+        "       NVL(e.cpe, 1) AS cpe "
         "FROM   INV.TINV_EMPAQUE e "
         "LEFT JOIN INV.TINV_UNIDAD u ON u.unidad = e.unidad "
         "WHERE  e.no_produ = :1 "
-        "ORDER BY NVL(e.por_defecto,'N') DESC, e.unidad",
+        "ORDER BY NVL(e.por_defecto,'N') DESC, e.empaque",
         [no_produ.strip().upper()],
     )
     return [{
+        "empaque": int(r["empaque"]) if r.get("empaque") is not None else None,
         "unidad": (r["unidad"] or "").strip(),
         "descripcion": (r["descripcion"] or "").strip(),
+        "referencia": (r["referencia"] or "").strip(),
         "por_defecto": (r["por_defecto"] or "N") == "S",
-        "cant_por_emp": float(r["cant_por_emp"] or 1),
+        "permite_fraccion": (r["permite_fraccion"] or "N") == "S",
+        "cant_por_emp": float(r["cpe"] or 1),
     } for r in rows]
 
 

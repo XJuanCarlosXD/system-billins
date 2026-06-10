@@ -1155,6 +1155,330 @@ export const regalGeneralApi = {
     return request<any>(`/cxp/rep-607/?${qs}`)
   },
 
+  // Procesos CxP (escritura)
+  cxpGetSiguienteNoDocu: (noCia: string, punto: string, tipoDocu: string) =>
+    request<{ siguiente: string }>(`/cxp/entrada-documentos/?no_cia=${noCia}&punto=${punto}&tipo_docu=${encodeURIComponent(tipoDocu)}`),
+  cxpEntradaDocumento: (data: Record<string, unknown>) =>
+    request<{ ok: boolean; no_docu: string }>(`/cxp/entrada-documentos/`, { method: 'POST', body: JSON.stringify(data) }),
+  cxpReversarDocumento: (data: { no_cia: string; punto: string; tipo_docu: string; no_docu: string; usuario?: string }) =>
+    request<any>(`/cxp/reversar/`, { method: 'POST', body: JSON.stringify(data) }),
+  cxpLiberarDebitoGet: (noCia: string, punto: string, noProveedor?: string, tipoMovi?: string) => {
+    const qs = new URLSearchParams({ no_cia: noCia, punto, ...(noProveedor && { no_proveedor: noProveedor }), ...(tipoMovi && { tipo_movi: tipoMovi }) }).toString()
+    return request<any[]>(`/cxp/liberar-debito/?${qs}`)
+  },
+  cxpLiberarDebitoPost: (data: { no_cia: string; punto: string; no_docu_cr: string; tipo_docu_cr: string; debitos: any[] }) =>
+    request<any>(`/cxp/liberar-debito/`, { method: 'POST', body: JSON.stringify(data) }),
+  cxpBloquearPago: (data: { no_cia: string; punto: string; tipo_docu: string; no_docu: string; bloquear: boolean }) =>
+    request<any>(`/cxp/bloquear-pago/`, { method: 'POST', body: JSON.stringify(data) }),
+  cxpAsientoContable: (noCia: string, punto: string, mes: number, ano: number) => {
+    const qs = new URLSearchParams({ no_cia: noCia, punto, mes: String(mes), ano: String(ano) }).toString()
+    return request<any[]>(`/cxp/asiento-contable/?${qs}`)
+  },
+  cxpGenerarAsiento: (data: { no_cia: string; punto: string; mes_proceso: number; ano_proceso: number }) =>
+    request<any>(`/cxp/generar-asiento/`, { method: 'POST', body: JSON.stringify(data) }),
+  cxpCierre: (data: { no_cia: string; punto: string }) =>
+    request<any>(`/cxp/cierre/`, { method: 'POST', body: JSON.stringify(data) }),
+
+  // Acceso de usuarios CxP (FCXP103)
+  cxpListUsuarios: (noCia = '', punto = '') => {
+    const qs = new URLSearchParams({ ...(noCia && { no_cia: noCia }), ...(punto && { punto }) }).toString()
+    return request<any[]>(`/cxp/usuarios/${qs ? '?' + qs : ''}`)
+  },
+  cxpSaveUsuario: (data: Record<string, unknown>) =>
+    request<any>(`/cxp/usuarios/`, { method: 'POST', body: JSON.stringify(data) }),
+  cxpDeleteUsuario: (noCia: string, punto: string, usuario: string) => {
+    const qs = new URLSearchParams({ no_cia: noCia, punto, usuario }).toString()
+    return request<any>(`/cxp/usuarios/?${qs}`, { method: 'DELETE' })
+  },
+
+  // Reportes adicionales
+  cxpRepCuadre: (noCia: string, punto: string, mes: number, ano: number) => {
+    const qs = new URLSearchParams({ no_cia: noCia, punto, mes: String(mes), ano: String(ano) }).toString()
+    return request<any>(`/cxp/rep-cuadre/?${qs}`)
+  },
+  cxpRepRetenciones: (noCia: string, punto: string, ano: number, noProveedor = '') => {
+    const qs = new URLSearchParams({ no_cia: noCia, punto, ano: String(ano), ...(noProveedor && { no_proveedor: noProveedor }) }).toString()
+    return request<any>(`/cxp/rep-retenciones/?${qs}`)
+  },
+
+  // ============================================================
+  // Órdenes de Compra (ODC)
+  // ============================================================
+  // Configuración
+  odcListCias: () => request<any[]>('/odc/cias/'),
+  odcSaveCia: (data: Record<string, unknown>) =>
+    request<any>('/odc/cias/', { method: 'POST', body: JSON.stringify(data) }),
+  odcListPuntos: (noCia: string) => request<any[]>(`/odc/puntos/?no_cia=${noCia}`),
+  odcSavePunto: (data: Record<string, unknown>) =>
+    request<any>('/odc/puntos/', { method: 'POST', body: JSON.stringify(data) }),
+  odcListUsuarios: (noCia = '', punto = '') => {
+    const qs = new URLSearchParams({ ...(noCia && { no_cia: noCia }), ...(punto && { punto }) }).toString()
+    return request<any[]>(`/odc/usuarios/${qs ? '?' + qs : ''}`)
+  },
+  odcSaveUsuario: (data: Record<string, unknown>) =>
+    request<any>('/odc/usuarios/', { method: 'POST', body: JSON.stringify(data) }),
+  odcDeleteUsuario: (noCia: string, punto: string, usuario: string) => {
+    const qs = new URLSearchParams({ no_cia: noCia, punto, usuario }).toString()
+    return request<any>(`/odc/usuarios/?${qs}`, { method: 'DELETE' })
+  },
+
+  // Órdenes
+  odcListOrdenes: (params: {
+    no_cia: string; punto?: string; estado?: string; st_anulado?: string
+    no_proveedor?: string; fecha_desde?: string; fecha_hasta?: string; limit?: number
+  }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '')
+        .map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any[]>(`/odc/ordenes/?${qs}`)
+  },
+  odcGetOrden: (noCia: string, punto: string, noOrden: string) =>
+    request<{ cabecera: any; lineas: any[] }>(`/odc/ordenes/${noCia}/${punto}/${noOrden}/`),
+  odcCrearOrden: (data: Record<string, unknown>) =>
+    request<{ no_orden: string }>('/odc/ordenes/crear/', { method: 'POST', body: JSON.stringify(data) }),
+  odcAutorizarOrden: (data: { no_cia: string; punto: string; no_orden: string }) =>
+    request<any>('/odc/ordenes/autorizar/', { method: 'POST', body: JSON.stringify(data) }),
+  odcAnularOrden: (data: { no_cia: string; punto: string; no_orden: string; motivo?: string }) =>
+    request<any>('/odc/ordenes/anular/', { method: 'POST', body: JSON.stringify(data) }),
+  odcCerrarOrden: (data: { no_cia: string; punto: string; no_orden: string }) =>
+    request<any>('/odc/ordenes/cerrar/', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Requisiciones
+  odcListRequisiciones: (params: {
+    no_cia: string; punto?: string; estado?: string
+    fecha_desde?: string; fecha_hasta?: string; limit?: number
+  }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '')
+        .map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any[]>(`/odc/requisiciones/?${qs}`)
+  },
+  odcGetRequisicion: (noCia: string, punto: string, noRequisicion: string) =>
+    request<{ cabecera: any; lineas: any[] }>(`/odc/requisiciones/${noCia}/${punto}/${noRequisicion}/`),
+  odcCrearRequisicion: (data: Record<string, unknown>) =>
+    request<{ no_requisicion: string }>('/odc/requisiciones/crear/', { method: 'POST', body: JSON.stringify(data) }),
+  odcAutorizarRequisicion: (data: { no_cia: string; punto: string; no_requisicion: string; slot?: number }) =>
+    request<any>('/odc/requisiciones/autorizar/', { method: 'POST', body: JSON.stringify(data) }),
+  odcAnularRequisicion: (data: { no_cia: string; punto: string; no_requisicion: string; motivo?: string }) =>
+    request<any>('/odc/requisiciones/anular/', { method: 'POST', body: JSON.stringify(data) }),
+  odcCerrarRequisicion: (data: { no_cia: string; punto: string; no_requisicion: string }) =>
+    request<any>('/odc/requisiciones/cerrar/', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Reportes
+  odcRepOrdenesPendientes: (params: {
+    no_cia: string; punto?: string; fecha_desde?: string; fecha_hasta?: string
+  }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '')
+        .map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any[]>(`/odc/rep-ordenes-pendientes/?${qs}`)
+  },
+  odcRepResumen: (params: {
+    no_cia: string; punto?: string; fecha_desde?: string; fecha_hasta?: string
+  }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '')
+        .map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any>(`/odc/rep-resumen/?${qs}`)
+  },
+  odcRepRequisicionesPendientes: (params: { no_cia: string; punto?: string; limit?: number }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '')
+        .map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any[]>(`/odc/rep-requisiciones-pendientes/?${qs}`)
+  },
+
+  // ============================================================
+  // Caja Chica (ACC)
+  // ============================================================
+  accListCias: () => request<any[]>('/acc/cias/'),
+  accSaveCia: (data: Record<string, unknown>) =>
+    request<any>('/acc/cias/', { method: 'POST', body: JSON.stringify(data) }),
+  accListPuntos: (noCia: string) => request<any[]>(`/acc/puntos/?no_cia=${noCia}`),
+  accListCajas: (noCia: string, punto?: string) => {
+    const qs = new URLSearchParams({ no_cia: noCia, ...(punto && { punto }) }).toString()
+    return request<any[]>(`/acc/cajas/?${qs}`)
+  },
+  accSaveCaja: (data: Record<string, unknown>) =>
+    request<any>('/acc/cajas/', { method: 'POST', body: JSON.stringify(data) }),
+  accListBeneficiarios: (params: { activo?: string; search?: string } = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any[]>(`/acc/beneficiarios/${qs ? '?' + qs : ''}`)
+  },
+  accListTiposBene: () => request<any[]>('/acc/tipos-bene/'),
+  accListTiposGasto: () => request<any[]>('/acc/tipos-gasto/'),
+  accListDocumentos: (params: {
+    no_cia: string; punto?: string; no_caja?: string
+    fecha_desde?: string; fecha_hasta?: string; anulado?: string; limit?: number
+  }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any[]>(`/acc/documentos/?${qs}`)
+  },
+  accGetDocumento: (noCia: string, punto: string, noDocu: string) =>
+    request<{ cabecera: any; lineas: any[] }>(`/acc/documentos/${noCia}/${punto}/${noDocu}/`),
+  accCrearDocumento: (data: Record<string, unknown>) =>
+    request<{ no_docu: string }>('/acc/documentos/crear/', { method: 'POST', body: JSON.stringify(data) }),
+  accAnularDocumento: (data: { no_cia: string; punto: string; no_docu: string; motivo?: string }) =>
+    request<any>('/acc/documentos/anular/', { method: 'POST', body: JSON.stringify(data) }),
+  accListReposiciones: (params: {
+    no_cia: string; punto?: string; no_caja?: string
+    fecha_desde?: string; fecha_hasta?: string; limit?: number
+  }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any[]>(`/acc/reposiciones/?${qs}`)
+  },
+  accRepResumen: (params: { no_cia: string; punto?: string; fecha_desde?: string; fecha_hasta?: string }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any>(`/acc/rep-resumen/?${qs}`)
+  },
+  accRepGastosTipo: (params: { no_cia: string; punto?: string; fecha_desde?: string; fecha_hasta?: string }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any[]>(`/acc/rep-gastos-tipo/?${qs}`)
+  },
+
+  // ============================================================
+  // Cheques / Bancos / Conciliación (CHC)
+  // ============================================================
+  chcListBancos: (activo = '') => request<any[]>(`/chc/bancos/${activo ? '?activo=' + activo : ''}`),
+  chcSaveBanco: (data: Record<string, unknown>) =>
+    request<any>('/chc/bancos/', { method: 'POST', body: JSON.stringify(data) }),
+  chcListCias: () => request<any[]>('/chc/cias/'),
+  chcListPuntos: (noCia: string) => request<any[]>(`/chc/puntos/?no_cia=${noCia}`),
+  chcListCuentas: (params: { no_cia: string; punto?: string; activa?: string }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any[]>(`/chc/cuentas/?${qs}`)
+  },
+  chcGetSaldoCuenta: (noCia: string, punto: string, cuentaBanco: string) => {
+    const qs = new URLSearchParams({ no_cia: noCia, punto, cuenta_banco: cuentaBanco }).toString()
+    return request<any>(`/chc/cuentas/saldo/?${qs}`)
+  },
+  chcListCheques: (params: {
+    no_cia: string; punto?: string; cuenta_banco?: string; status?: string
+    conciliado?: string; entregado?: string; no_proveedor?: string
+    fecha_desde?: string; fecha_hasta?: string; limit?: number
+  }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any[]>(`/chc/cheques/?${qs}`)
+  },
+  chcGetCheque: (noCia: string, punto: string, tipoDocu: string, noDocu: string) =>
+    request<any>(`/chc/cheques/${noCia}/${punto}/${tipoDocu}/${noDocu}/`),
+  chcListTiposDocu: () => request<any[]>('/chc/tipos-docu/'),
+  chcAnularCheque: (data: { no_cia: string; punto: string; tipo_docu: string; no_docu: string; motivo?: string }) =>
+    request<any>('/chc/cheques/anular/', { method: 'POST', body: JSON.stringify(data) }),
+  chcEntregarCheque: (data: { no_cia: string; punto: string; tipo_docu: string; no_docu: string }) =>
+    request<any>('/chc/cheques/entregar/', { method: 'POST', body: JSON.stringify(data) }),
+  chcConciliarCheque: (data: { no_cia: string; punto: string; tipo_docu: string; no_docu: string }) =>
+    request<any>('/chc/cheques/conciliar/', { method: 'POST', body: JSON.stringify(data) }),
+  chcListCierres: (params: { no_cia: string; punto?: string; cuenta_banco?: string }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any[]>(`/chc/cierres/?${qs}`)
+  },
+  chcRepResumenCuenta: (params: { no_cia: string; punto: string; cuenta_banco: string; fecha_desde: string; fecha_hasta: string }) => {
+    const qs = new URLSearchParams(params).toString()
+    return request<any>(`/chc/rep-resumen-cuenta/?${qs}`)
+  },
+  chcRepBalance: (params: { no_cia: string; punto?: string }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any[]>(`/chc/rep-balance/?${qs}`)
+  },
+
+  // ============================================================
+  // Nómina (SDN)
+  // ============================================================
+  sdnListCias: () => request<any[]>('/sdn/cias/'),
+  sdnListAfp: () => request<any[]>('/sdn/afp/'),
+  sdnListArs: () => request<any[]>('/sdn/ars/'),
+  sdnListGerencias: () => request<any[]>('/sdn/gerencias/'),
+  sdnListAreas: () => request<any[]>('/sdn/areas/'),
+  sdnListDeptos: () => request<any[]>('/sdn/deptos/'),
+  sdnListIngresos: (status = 'A') => request<any[]>(`/sdn/ingresos/?status=${status}`),
+  sdnListDeducciones: (status = 'A') => request<any[]>(`/sdn/deducciones/?status=${status}`),
+  sdnListEmpleados: (params: { no_cia: string; punto?: string; nomina?: string; activos?: string; search?: string; limit?: number }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any[]>(`/sdn/empleados/?${qs}`)
+  },
+  sdnGetEmpleado: (noCia: string, noEmpleado: number) =>
+    request<any>(`/sdn/empleados/${noCia}/${noEmpleado}/`),
+  sdnListNominas: (params: { no_cia: string; punto?: string; estado?: string; ano?: number; mes?: number; limit?: number }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any[]>(`/sdn/nominas/?${qs}`)
+  },
+  sdnListVacaciones: (params: { no_cia: string; punto?: string; nomina?: string; ano?: number; limit?: number }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any[]>(`/sdn/vacaciones/?${qs}`)
+  },
+  sdnRepResumenEmpleados: (noCia: string) => request<any>(`/sdn/rep-empleados/?no_cia=${noCia}`),
+  sdnRepNominasResumen: (noCia: string, ano?: number) => {
+    const qs = new URLSearchParams({ no_cia: noCia, ...(ano && { ano: String(ano) }) }).toString()
+    return request<any[]>(`/sdn/rep-nominas/?${qs}`)
+  },
+
+  // ============================================================
+  // Activos Fijos (ACF)
+  // ============================================================
+  acfListCias: () => request<any[]>('/acf/cias/'),
+  acfListPuntos: (noCia: string) => request<any[]>(`/acf/puntos/?no_cia=${noCia}`),
+  acfListCategorias: () => request<any[]>('/acf/categorias/'),
+  acfListGrupos: () => request<any[]>('/acf/grupos/'),
+  acfListSubgrupos: () => request<any[]>('/acf/subgrupos/'),
+  acfListMarcas: () => request<any[]>('/acf/marcas/'),
+  acfListResponsables: () => request<any[]>('/acf/responsables/'),
+  acfListDepartamentos: () => request<any[]>('/acf/departamentos/'),
+  acfListActivos: (params: {
+    no_cia: string; punto?: string; status?: string; tipo?: string
+    grupo?: string; departamento?: string; search?: string; limit?: number
+  }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any[]>(`/acf/activos/?${qs}`)
+  },
+  acfGetActivo: (noCia: string, punto: string, noActivo: string) =>
+    request<any>(`/acf/activos/${noCia}/${punto}/${noActivo}/`),
+  acfRepResumen: (noCia: string, punto?: string) => {
+    const qs = new URLSearchParams({ no_cia: noCia, ...(punto && { punto }) }).toString()
+    return request<any>(`/acf/rep-resumen/?${qs}`)
+  },
+  acfRepPorGrupo: (noCia: string, punto?: string) => {
+    const qs = new URLSearchParams({ no_cia: noCia, ...(punto && { punto }) }).toString()
+    return request<any[]>(`/acf/rep-por-grupo/?${qs}`)
+  },
+
+  // ============================================================
+  // Manuales (MAN)
+  // ============================================================
+  manListManuales: () => request<any[]>('/man/manuales/'),
+  manListCsc: () => request<any[]>('/man/csc/'),
+
 }
 
 export const api = regalGeneralApi

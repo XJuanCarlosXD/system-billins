@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react'
-import { X, FileText, ExternalLink, ChevronRight } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  X, FileText, ExternalLink, ArrowDownToLine, ArrowUpFromLine,
+  ArrowLeftRight, Minus, Package, TrendingUp, TrendingDown, Wallet,
+} from 'lucide-react'
 import { useCompany } from '@/context/company-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -19,16 +22,24 @@ interface Documento {
   tipo_docu: string
   no_docu: string | number
   fecha?: string
+  punto?: string
+  desc_punto?: string
   almacen?: string
   desc_almacen?: string
+  desc_tipo_docu?: string
+  tipo_movi?: string
+  tipo_transaccion?: string
   estado?: string
+  st_anulado?: string
   total?: number
+  lineas?: number
   [key: string]: any
 }
 
 interface DocumentoDetalle {
   header: Record<string, any>
-  lineas: Array<Record<string, any>>
+  lines?: Array<Record<string, any>>
+  lineas?: Array<Record<string, any>>
 }
 
 async function apiFetch<T>(path: string): Promise<T> {
@@ -41,29 +52,341 @@ function toInputDate(d: Date) {
   return d.toISOString().slice(0, 10)
 }
 
-function estadoBadge(estado: string | undefined) {
-  if (!estado) return <Badge variant='outline'>—</Badge>
-  const u = estado.toUpperCase()
-  if (u === 'A' || u === 'APLICADO' || u === 'AUTORIZADO')
-    return <Badge className='bg-green-600 text-white text-xs'>{estado}</Badge>
-  if (u === 'P' || u === 'PENDIENTE')
-    return <Badge variant='secondary' className='text-xs'>{estado}</Badge>
-  if (u === 'N' || u === 'ANULADO')
-    return <Badge variant='destructive' className='text-xs'>{estado}</Badge>
-  return <Badge variant='outline' className='text-xs'>{estado}</Badge>
+const TIPO_MOVI_LABEL: Record<string, string> = {
+  E: 'Entrada', S: 'Salida', T: 'Transferencia',
+}
+
+const TIPO_TRANS_LABEL: Record<string, string> = {
+  C: 'Compra', V: 'Venta', D: 'Devolución', E: 'Entrada Almacén',
+  S: 'Salida Almacén', T: 'Transferencia', J: 'Ajuste',
+  P: 'Producción', M: 'Movimiento Interno', R: 'Reverso',
+  A: 'Ajuste Físico', F: 'Factura',
+}
+
+const ESTADO_LABEL: Record<string, string> = {
+  A: 'Autorizado', P: 'Pendiente', C: 'Cerrado', N: 'Anulado',
+}
+
+const TIPO_DOCU_FALLBACK: Record<string, string> = {
+  AE: 'Ajuste de Entrada',
+  AF: 'Ajuste Físico',
+  AS: 'Ajuste de Salida',
+  DC: 'Devolución de Compra',
+  DV: 'Devolución',
+  EA: 'Entrada de Almacén',
+  EC: 'Entrada de Compra',
+  EP: 'Entrada de Producción',
+  SA: 'Salida de Almacén',
+  SP: 'Salida de Producción',
+  TA: 'Transferencia de Almacén',
+}
+
+function tipoMoviIcon(tipo: string | undefined) {
+  const t = (tipo || '').toUpperCase()
+  if (t === 'E') return <ArrowDownToLine className='h-4 w-4 text-emerald-600' />
+  if (t === 'S') return <ArrowUpFromLine className='h-4 w-4 text-orange-600' />
+  if (t === 'T') return <ArrowLeftRight className='h-4 w-4 text-sky-600' />
+  return <Minus className='h-4 w-4 text-muted-foreground' />
+}
+
+function estadoBadge(estado: string | undefined, anulado?: string) {
+  const u = (estado || '').toUpperCase()
+  if ((anulado || '').toUpperCase() === 'S' || u === 'N')
+    return <Badge variant='destructive' className='text-[10px] uppercase'>Anulado</Badge>
+  const label = ESTADO_LABEL[u] || estado || '—'
+  if (u === 'A')
+    return <Badge className='bg-emerald-600 hover:bg-emerald-600 text-white text-[10px] uppercase'>{label}</Badge>
+  if (u === 'P')
+    return <Badge className='bg-amber-500 hover:bg-amber-500 text-white text-[10px] uppercase'>{label}</Badge>
+  if (u === 'C')
+    return <Badge variant='secondary' className='text-[10px] uppercase'>{label}</Badge>
+  return <Badge variant='outline' className='text-[10px] uppercase'>{label}</Badge>
 }
 
 function fmt(n?: number) {
   return n == null
     ? '—'
-    : n.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : Number(n).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function fmtDate(s?: string) {
   if (!s) return '—'
-  return s.slice(0, 10)
+  const d = s.slice(0, 10)
+  if (d.length !== 10) return d
+  return `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`
 }
 
+function fmtCombo(code: string | number | undefined, desc: string | undefined) {
+  const c = code != null ? String(code).trim() : ''
+  const d = desc ? String(desc).trim() : ''
+  if (c && d) return `${c} - ${d}`
+  return d || c || '—'
+}
+
+function tipoDocuLabel(doc: Pick<Documento, 'tipo_docu' | 'desc_tipo_docu'>) {
+  return doc.desc_tipo_docu
+    || TIPO_DOCU_FALLBACK[(doc.tipo_docu || '').toUpperCase()]
+    || doc.tipo_docu
+    || '—'
+}
+
+function tipoMoviColor(tipo: string | undefined) {
+  const t = (tipo || '').toUpperCase()
+  if (t === 'E') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  if (t === 'S') return 'bg-orange-50 text-orange-700 border-orange-200'
+  if (t === 'T') return 'bg-sky-50 text-sky-700 border-sky-200'
+  return 'bg-muted text-foreground border-border'
+}
+
+// ─── KPI cards ────────────────────────────────────────────────────────────
+function KpiCards({ rows }: { rows: Documento[] }) {
+  const stats = useMemo(() => {
+    let entradas = 0, salidas = 0, transf = 0
+    let sumEnt = 0, sumSal = 0, sumTot = 0
+    for (const r of rows) {
+      const total = Number(r.total) || 0
+      sumTot += total
+      const m = (r.tipo_movi || '').toUpperCase()
+      if (m === 'E') { entradas++; sumEnt += total }
+      else if (m === 'S') { salidas++; sumSal += total }
+      else if (m === 'T') { transf++ }
+    }
+    return { total: rows.length, entradas, salidas, transf, sumEnt, sumSal, sumTot }
+  }, [rows])
+
+  const cards = [
+    {
+      icon: <Package className='h-4 w-4' />,
+      label: 'Documentos',
+      value: stats.total.toString(),
+      sub: stats.transf ? `${stats.transf} transferencias` : 'en el período',
+      tone: 'text-slate-600',
+      bg: 'bg-slate-50',
+    },
+    {
+      icon: <TrendingDown className='h-4 w-4' />,
+      label: 'Entradas',
+      value: stats.entradas.toString(),
+      sub: `RD$ ${fmt(stats.sumEnt)}`,
+      tone: 'text-emerald-700',
+      bg: 'bg-emerald-50',
+    },
+    {
+      icon: <TrendingUp className='h-4 w-4' />,
+      label: 'Salidas',
+      value: stats.salidas.toString(),
+      sub: `RD$ ${fmt(stats.sumSal)}`,
+      tone: 'text-orange-700',
+      bg: 'bg-orange-50',
+    },
+    {
+      icon: <Wallet className='h-4 w-4' />,
+      label: 'Total Neto',
+      value: `RD$ ${fmt(stats.sumTot)}`,
+      sub: 'sumatoria del filtro',
+      tone: 'text-sky-700',
+      bg: 'bg-sky-50',
+    },
+  ]
+
+  return (
+    <div className='grid grid-cols-2 md:grid-cols-4 gap-3'>
+      {cards.map((c) => (
+        <div
+          key={c.label}
+          className={`rounded-lg border ${c.bg} px-4 py-3 flex items-start gap-3`}
+        >
+          <div className={`mt-0.5 ${c.tone}`}>{c.icon}</div>
+          <div className='min-w-0'>
+            <div className='text-[11px] uppercase tracking-wide text-muted-foreground font-medium'>
+              {c.label}
+            </div>
+            <div className={`text-base font-semibold leading-tight ${c.tone}`}>
+              {c.value}
+            </div>
+            <div className='text-[11px] text-muted-foreground truncate'>{c.sub}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── Header info-grid (panel detalle) ─────────────────────────────────────
+function InfoBlock({ title, rows, span }: {
+  title: string
+  rows: Array<[string, React.ReactNode]>
+  span?: boolean
+}) {
+  if (!rows.length) return null
+  return (
+    <div className={`rounded-md border bg-muted/30 ${span ? 'col-span-2' : ''}`}>
+      <div className='px-3 py-1.5 border-b text-[10px] font-semibold uppercase tracking-wider text-muted-foreground'>
+        {title}
+      </div>
+      <dl className='px-3 py-2 grid grid-cols-[8rem_1fr] gap-x-3 gap-y-1 text-xs'>
+        {rows.map(([k, v]) => (
+          <>
+            <dt key={`k-${k}`} className='text-muted-foreground'>{k}</dt>
+            <dd key={`v-${k}`} className='font-medium text-foreground break-words'>{v ?? '—'}</dd>
+          </>
+        ))}
+      </dl>
+    </div>
+  )
+}
+
+function DocumentoInfoGrid({ header, fallback }: {
+  header: Record<string, any>
+  fallback?: Documento
+}) {
+  const h = header || {}
+  const tipoMovi = String(h.tipo_movi || fallback?.tipo_movi || '').toUpperCase()
+  const tipoTrans = String(h.tipo_transaccion || fallback?.tipo_transaccion || '').toUpperCase()
+  const estado = String(h.estado || fallback?.estado || '').toUpperCase()
+  const isAnulado = String(h.st_anulado || fallback?.st_anulado || 'N').toUpperCase() === 'S'
+
+  const docRows: Array<[string, React.ReactNode]> = [
+    ['Punto', fmtCombo(h.punto || fallback?.punto, h.punto_descripcion || (fallback as any)?.desc_punto)],
+    ['Almacén', fmtCombo(h.almacen || fallback?.almacen, h.almacen_descripcion || fallback?.desc_almacen)],
+  ]
+  if (h.no_localidad || h.localidad_descripcion)
+    docRows.push(['Localidad', fmtCombo(h.no_localidad, h.localidad_descripcion)])
+  docRows.push(['Fecha', fmtDate(h.fecha || fallback?.fecha)])
+  if (h.conduce) docRows.push(['Conduce', h.conduce])
+
+  const movRows: Array<[string, React.ReactNode]> = [
+    ['Tipo Doc.', tipoDocuLabel({ tipo_docu: h.tipo_docu || fallback?.tipo_docu, desc_tipo_docu: h.tipo_docu_descri || fallback?.desc_tipo_docu })],
+    ['Movimiento', TIPO_MOVI_LABEL[tipoMovi] || tipoMovi || '—'],
+    ['Transacción', TIPO_TRANS_LABEL[tipoTrans] || tipoTrans || '—'],
+    ['Estado', isAnulado
+      ? <span className='text-destructive font-semibold'>ANULADO</span>
+      : (ESTADO_LABEL[estado] || estado || '—')],
+  ]
+  if (h.usuario) movRows.push(['Usuario', h.usuario])
+  if (String(h.st_impresion || 'N').toUpperCase() === 'S')
+    movRows.push(['Marca', 'Reimpresión'])
+
+  const odRows: Array<[string, React.ReactNode]> = []
+  if (h.no_proveedor) {
+    odRows.push(['Proveedor', `${h.no_proveedor} - ${h.proveedor_nombre || ''}`])
+    if (h.proveedor_rnc) odRows.push(['RNC', h.proveedor_rnc])
+  }
+  if (h.no_cliente) {
+    odRows.push(['Cliente', `${h.no_cliente} - ${h.cliente_nombre || ''}`])
+    if (h.cliente_rnc) odRows.push(['RNC', h.cliente_rnc])
+    if (h.cliente_direccion) odRows.push(['Dirección', String(h.cliente_direccion).slice(0, 80)])
+  }
+  if (h.vendedor) odRows.push(['Vendedor', `${h.vendedor} - ${h.vendedor_nombre || ''}`])
+  if (h.ncf_dgi) odRows.push(['NCF', h.ncf_dgi])
+
+  const refRows: Array<[string, React.ReactNode]> = []
+  if (h.tipo_refe && h.no_refe) refRows.push(['Referencia', `${h.tipo_refe}-${h.no_refe}`])
+  if (h.tipo_docu_devuelto && h.no_docu_devuelto) refRows.push(['Doc. devuelto', `${h.tipo_docu_devuelto}-${h.no_docu_devuelto}`])
+  if (h.tipo_docu_rev && h.no_docu_rev) refRows.push(['Doc. reversado', `${h.tipo_docu_rev}-${h.no_docu_rev}`])
+  if (h.no_motivo) refRows.push(['Motivo reverso', h.no_motivo])
+  if (String(h.con_restock_almacen || '').toUpperCase() === 'S') refRows.push(['Restock', 'Sí'])
+
+  const totRows: Array<[string, React.ReactNode]> = []
+  const totalLinea = Number(h.total_linea) || 0
+  const desc = Number(h.descuento) || 0
+  const itbis = Number(h.impuesto) || 0
+  const vb = Number(h.valor_bienes) || 0
+  const vs = Number(h.valor_servicio) || 0
+  const totalNeto = Number(h.total_neto ?? fallback?.total) || 0
+  if (totalLinea) totRows.push(['Total Bruto', `RD$ ${fmt(totalLinea)}`])
+  if (desc) totRows.push(['Descuento', `RD$ ${fmt(desc)}`])
+  if (itbis) totRows.push(['ITBIS', `RD$ ${fmt(itbis)}`])
+  if (vb) totRows.push(['Valor Bienes', `RD$ ${fmt(vb)}`])
+  if (vs) totRows.push(['Valor Servicio', `RD$ ${fmt(vs)}`])
+  totRows.push(['TOTAL NETO',
+    <span className='text-base font-bold text-foreground'>RD$ {fmt(totalNeto)}</span>])
+
+  return (
+    <div className='grid grid-cols-2 gap-3'>
+      <InfoBlock title='Documento' rows={docRows} />
+      <InfoBlock title='Movimiento' rows={movRows} />
+      {odRows.length > 0 && (
+        <InfoBlock title='Origen / Destino' rows={odRows} span={refRows.length === 0} />
+      )}
+      {refRows.length > 0 && (
+        <InfoBlock title='Referencias' rows={refRows} span={odRows.length === 0} />
+      )}
+      <InfoBlock title='Totales' rows={totRows} span />
+      {(h.detalle || h.nota) && (
+        <div className='col-span-2 rounded-md border bg-muted/20 px-3 py-2 text-xs space-y-1'>
+          {h.detalle && (
+            <div><span className='text-muted-foreground'>Detalle: </span>{h.detalle}</div>
+          )}
+          {h.nota && (
+            <div><span className='text-muted-foreground'>Nota: </span>{h.nota}</div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Líneas (columnas curadas) ────────────────────────────────────────────
+const LINE_COLUMNS = [
+  { key: 'no_linea', label: 'Ln', align: 'center' as const, mono: true, width: 'w-12' },
+  { key: 'no_produ', label: 'Código', align: 'left' as const, mono: true, width: 'w-28' },
+  { key: 'descripcion', label: 'Descripción', align: 'left' as const, width: '' },
+  { key: 'unidad', label: 'Unid.', align: 'left' as const, width: 'w-16' },
+  { key: 'cantidad', label: 'Cantidad', align: 'right' as const, format: 'qty', width: 'w-24' },
+  { key: 'costo', label: 'Costo', align: 'right' as const, format: 'money', width: 'w-24' },
+  { key: 'impuesto', label: 'ITBIS', align: 'right' as const, format: 'money', width: 'w-20' },
+  { key: 'monto_neto', label: 'Monto Neto', align: 'right' as const, format: 'money', mono: true, width: 'w-28' },
+]
+
+function LineasTable({ lineas }: { lineas: Array<Record<string, any>> }) {
+  if (!lineas?.length) return (
+    <p className='text-sm text-muted-foreground'>No hay líneas de detalle.</p>
+  )
+  return (
+    <div className='rounded-md border overflow-x-auto'>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            {LINE_COLUMNS.map((c) => (
+              <TableHead
+                key={c.key}
+                className={`text-[11px] ${c.width} ${c.align === 'right' ? 'text-right' : c.align === 'center' ? 'text-center' : ''}`}
+              >
+                {c.label}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {lineas.map((ln, i) => (
+            <TableRow key={i}>
+              {LINE_COLUMNS.map((c) => {
+                const raw = ln[c.key] ?? ln[c.key.toUpperCase()]
+                let v: React.ReactNode = '—'
+                if (raw !== undefined && raw !== null && raw !== '') {
+                  if (c.format === 'money' || c.format === 'qty')
+                    v = Number(raw).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  else v = String(raw)
+                }
+                return (
+                  <TableCell
+                    key={c.key}
+                    className={`text-xs py-1.5 ${c.mono ? 'font-mono' : ''} ${c.align === 'right' ? 'text-right tabular-nums' : c.align === 'center' ? 'text-center' : ''}`}
+                  >
+                    {v}
+                  </TableCell>
+                )
+              })}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+// ─── Componente principal ─────────────────────────────────────────────────
 export function ConsultaDocumentos() {
   const { selectedCompany } = useCompany()
   const noCia = selectedCompany || '01'
@@ -74,6 +397,7 @@ export function ConsultaDocumentos() {
 
   const [tipoDocu, setTipoDocu] = useState('__all__')
   const [almacen, setAlmacen] = useState('__all__')
+  const [tipoMovi, setTipoMovi] = useState('__all__')
   const [desde, setDesde] = useState(toInputDate(thirtyAgo))
   const [hasta, setHasta] = useState(toInputDate(today))
   const [estado, setEstado] = useState('__all__')
@@ -89,7 +413,6 @@ export function ConsultaDocumentos() {
   const [detalleDoc, setDetalleDoc] = useState<Documento | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
 
-  // Load catalogs once
   useEffect(() => {
     if (!noCia) return
     apiFetch<any>(`/inv/tipos-docu/?no_cia=${noCia}`)
@@ -101,7 +424,6 @@ export function ConsultaDocumentos() {
       .catch(() => setAlmacenes([]))
   }, [noCia])
 
-  // Load documents
   useEffect(() => {
     if (!noCia) return
     setLoading(true)
@@ -119,14 +441,24 @@ export function ConsultaDocumentos() {
       .finally(() => setLoading(false))
   }, [noCia, tipoDocu, almacen, desde, hasta, estado])
 
+  // Filtro client-side por tipo movimiento
+  const filteredRows = useMemo(() => {
+    if (tipoMovi === '__all__') return rows
+    return rows.filter((r) => (r.tipo_movi || '').toUpperCase() === tipoMovi)
+  }, [rows, tipoMovi])
+
   function openDetalle(doc: Documento) {
     setDetalleDoc(doc)
     setDetalle(null)
     setSheetOpen(true)
     setDetalleLoading(true)
     apiFetch<any>(`/inv/documentos/${doc.tipo_docu}/${doc.no_docu}/?no_cia=${noCia}`)
-      .then((d) => setDetalle(d))
-      .catch(() => setDetalle({ header: {}, lineas: [] }))
+      .then((d) => {
+        // backend devuelve {data: {header, lines}}
+        const payload = d?.data ?? d
+        setDetalle(payload)
+      })
+      .catch(() => setDetalle({ header: {}, lines: [] }))
       .finally(() => setDetalleLoading(false))
   }
 
@@ -139,13 +471,17 @@ export function ConsultaDocumentos() {
   const reset = () => {
     setTipoDocu('__all__')
     setAlmacen('__all__')
+    setTipoMovi('__all__')
     setDesde(toInputDate(thirtyAgo))
     setHasta(toInputDate(today))
     setEstado('__all__')
   }
 
   const hasFilters =
-    tipoDocu !== '__all__' || almacen !== '__all__' || estado !== '__all__'
+    tipoDocu !== '__all__' || almacen !== '__all__' ||
+    tipoMovi !== '__all__' || estado !== '__all__'
+
+  const detalleLineas = detalle?.lines ?? detalle?.lineas ?? []
 
   return (
     <div className='space-y-4'>
@@ -156,10 +492,23 @@ export function ConsultaDocumentos() {
         </p>
       </div>
 
-      {/* Filters */}
+      <KpiCards rows={filteredRows} />
+
       <div className='flex flex-wrap gap-2 items-end'>
+        <Select value={tipoMovi} onValueChange={setTipoMovi}>
+          <SelectTrigger className='h-9 w-[160px]'>
+            <SelectValue placeholder='Movimiento' />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value='__all__'>Todos los movim.</SelectItem>
+            <SelectItem value='E'>Entradas</SelectItem>
+            <SelectItem value='S'>Salidas</SelectItem>
+            <SelectItem value='T'>Transferencias</SelectItem>
+          </SelectContent>
+        </Select>
+
         <Select value={tipoDocu} onValueChange={setTipoDocu}>
-          <SelectTrigger className='h-9 w-[180px]'>
+          <SelectTrigger className='h-9 w-[200px]'>
             <SelectValue placeholder='Tipo Documento' />
           </SelectTrigger>
           <SelectContent>
@@ -168,7 +517,7 @@ export function ConsultaDocumentos() {
               const key = t.tipo_docu ?? t.codigo ?? t.id
               return (
                 <SelectItem key={key} value={String(key)}>
-                  {key}{t.descripcion ? ` - ${t.descripcion}` : ''}
+                  {t.descripcion ?? TIPO_DOCU_FALLBACK[String(key).toUpperCase()] ?? key}
                 </SelectItem>
               )
             })}
@@ -185,7 +534,7 @@ export function ConsultaDocumentos() {
               const key = a.almacen ?? a.codigo ?? a.id
               return (
                 <SelectItem key={key} value={String(key)}>
-                  {a.descripcion ?? a.desc_almacen ?? key}
+                  {a.descripcion ?? a.descri ?? a.desc_almacen ?? key}
                 </SelectItem>
               )
             })}
@@ -218,7 +567,7 @@ export function ConsultaDocumentos() {
           <SelectContent>
             <SelectItem value='__all__'>Todos los estados</SelectItem>
             <SelectItem value='P'>Pendiente</SelectItem>
-            <SelectItem value='A'>Aplicado</SelectItem>
+            <SelectItem value='A'>Autorizado</SelectItem>
             <SelectItem value='N'>Anulado</SelectItem>
           </SelectContent>
         </Select>
@@ -230,25 +579,23 @@ export function ConsultaDocumentos() {
         )}
       </div>
 
-      {/* Error */}
       {error && (
         <div className='rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive'>
           {error}
         </div>
       )}
 
-      {/* Table */}
       <div className='rounded-md border overflow-x-auto'>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className='w-[100px]'>Tipo Doc</TableHead>
-              <TableHead className='w-[130px]'>No. Documento</TableHead>
+              <TableHead className='w-[44px]'></TableHead>
+              <TableHead>Documento</TableHead>
               <TableHead className='w-[110px]'>Fecha</TableHead>
               <TableHead>Almacén</TableHead>
-              <TableHead className='w-[100px] text-center'>Estado</TableHead>
-              <TableHead className='text-right w-[130px]'>Total</TableHead>
-              <TableHead className='w-[100px] text-center'>Acciones</TableHead>
+              <TableHead className='w-[120px] text-center'>Estado</TableHead>
+              <TableHead className='w-[150px] text-right'>Total</TableHead>
+              <TableHead className='w-[90px] text-center'>Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -259,44 +606,51 @@ export function ConsultaDocumentos() {
                 </TableCell>
               </TableRow>
             )}
-            {!loading && rows.length === 0 && (
+            {!loading && filteredRows.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className='py-10 text-center text-muted-foreground'>
                   No se encontraron documentos
                 </TableCell>
               </TableRow>
             )}
-            {!loading && rows.map((r, idx) => (
+            {!loading && filteredRows.map((r, idx) => (
               <TableRow
                 key={`${r.tipo_docu}-${r.no_docu}-${idx}`}
-                className='cursor-pointer hover:bg-muted/50'
+                className='cursor-pointer hover:bg-muted/40'
                 onClick={() => openDetalle(r)}
               >
+                <TableCell className='text-center'>
+                  <div className='inline-flex items-center justify-center'>
+                    {tipoMoviIcon(r.tipo_movi)}
+                  </div>
+                </TableCell>
                 <TableCell>
-                  <span className='rounded bg-muted px-1.5 py-0.5 text-xs font-mono font-medium'>
-                    {r.tipo_docu}
-                  </span>
+                  <div className='flex flex-col gap-0.5 min-w-0'>
+                    <div className='flex items-center gap-2'>
+                      <span className={`text-[10px] font-mono font-semibold rounded px-1.5 py-0.5 border ${tipoMoviColor(r.tipo_movi)}`}>
+                        {r.tipo_docu}
+                      </span>
+                      <span className='text-xs font-medium truncate'>
+                        {tipoDocuLabel(r)}
+                      </span>
+                    </div>
+                    <span className='font-mono text-[11px] text-muted-foreground'>
+                      {r.tipo_docu}-{String(r.no_docu).padStart(7, '0')}
+                    </span>
+                  </div>
                 </TableCell>
-                <TableCell className='font-mono text-xs'>{r.no_docu}</TableCell>
                 <TableCell className='text-xs tabular-nums'>{fmtDate(r.fecha)}</TableCell>
-                <TableCell className='text-xs text-muted-foreground'>
-                  {r.desc_almacen ?? r.almacen ?? '—'}
+                <TableCell className='text-xs'>
+                  {fmtCombo(r.almacen, r.desc_almacen)}
                 </TableCell>
-                <TableCell className='text-center'>{estadoBadge(r.estado)}</TableCell>
-                <TableCell className='text-right font-mono text-xs font-medium'>
-                  {fmt(r.total)}
+                <TableCell className='text-center'>
+                  {estadoBadge(r.estado, r.st_anulado)}
+                </TableCell>
+                <TableCell className='text-right font-mono text-xs font-semibold tabular-nums'>
+                  RD$ {fmt(r.total)}
                 </TableCell>
                 <TableCell className='text-center'>
                   <div className='flex items-center justify-center gap-1'>
-                    <Button
-                      variant='ghost'
-                      size='icon'
-                      className='h-7 w-7'
-                      title='Ver detalle'
-                      onClick={(e) => { e.stopPropagation(); openDetalle(r) }}
-                    >
-                      <ChevronRight className='h-3.5 w-3.5' />
-                    </Button>
                     <Button
                       variant='ghost'
                       size='icon'
@@ -314,21 +668,23 @@ export function ConsultaDocumentos() {
         </Table>
       </div>
 
-      {!loading && rows.length > 0 && (
+      {!loading && filteredRows.length > 0 && (
         <p className='text-xs text-muted-foreground text-right'>
-          {rows.length} documentos mostrados
+          {filteredRows.length} documento{filteredRows.length === 1 ? '' : 's'} mostrado{filteredRows.length === 1 ? '' : 's'}
         </p>
       )}
 
-      {/* Detail Side Panel */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
+        <SheetContent className='sm:max-w-[820px] w-full max-h-screen overflow-y-auto'>
           <SheetHeader>
             <SheetTitle className='flex items-center gap-2'>
               <FileText className='h-5 w-5' />
-              {detalleDoc
-                ? `${detalleDoc.tipo_docu} / ${detalleDoc.no_docu}`
-                : 'Detalle de Documento'}
+              <span className='flex items-center gap-2'>
+                {detalleDoc && tipoMoviIcon(detalleDoc.tipo_movi)}
+                {detalleDoc
+                  ? `${tipoDocuLabel(detalleDoc)} · ${detalleDoc.tipo_docu}-${String(detalleDoc.no_docu).padStart(7, '0')}`
+                  : 'Detalle de Documento'}
+              </span>
             </SheetTitle>
           </SheetHeader>
 
@@ -340,39 +696,11 @@ export function ConsultaDocumentos() {
 
           {!detalleLoading && detalle && (
             <div className='space-y-4 mt-4'>
-              {/* Header info */}
-              <div className='rounded-md border p-4 space-y-2 text-sm'>
-                {detalleDoc && (
-                  <>
-                    <div className='grid grid-cols-2 gap-x-4 gap-y-1'>
-                      <span className='text-muted-foreground'>Tipo Doc:</span>
-                      <span className='font-mono font-medium'>{detalleDoc.tipo_docu}</span>
-                      <span className='text-muted-foreground'>No. Documento:</span>
-                      <span className='font-mono font-medium'>{detalleDoc.no_docu}</span>
-                      <span className='text-muted-foreground'>Fecha:</span>
-                      <span>{fmtDate(detalleDoc.fecha)}</span>
-                      <span className='text-muted-foreground'>Almacén:</span>
-                      <span>{detalleDoc.desc_almacen ?? detalleDoc.almacen ?? '—'}</span>
-                      <span className='text-muted-foreground'>Estado:</span>
-                      <span>{estadoBadge(detalleDoc.estado)}</span>
-                      <span className='text-muted-foreground'>Total:</span>
-                      <span className='font-mono font-semibold'>{fmt(detalleDoc.total)}</span>
-                    </div>
-                  </>
-                )}
-                {/* Extra header fields from API */}
-                {Object.entries(detalle.header ?? {}).map(([k, v]) => {
-                  if (['tipo_docu','no_docu','fecha','almacen','desc_almacen','estado','total'].includes(k)) return null
-                  return (
-                    <div key={k} className='grid grid-cols-2 gap-x-4'>
-                      <span className='text-muted-foreground capitalize'>{k.replace(/_/g, ' ')}:</span>
-                      <span className='font-mono text-xs'>{String(v ?? '—')}</span>
-                    </div>
-                  )
-                })}
-              </div>
+              <DocumentoInfoGrid
+                header={detalle.header || {}}
+                fallback={detalleDoc || undefined}
+              />
 
-              {/* PDF button */}
               {detalleDoc && (
                 <Button
                   variant='outline'
@@ -385,42 +713,10 @@ export function ConsultaDocumentos() {
                 </Button>
               )}
 
-              {/* Line items */}
-              {detalle.lineas && detalle.lineas.length > 0 && (
-                <div>
-                  <h4 className='text-sm font-semibold mb-2'>Líneas del Documento</h4>
-                  <div className='rounded-md border overflow-x-auto'>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          {Object.keys(detalle.lineas[0]).map((col) => (
-                            <TableHead key={col} className='text-xs whitespace-nowrap'>
-                              {col.replace(/_/g, ' ').toUpperCase()}
-                            </TableHead>
-                          ))}
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {detalle.lineas.map((line, i) => (
-                          <TableRow key={i}>
-                            {Object.values(line).map((val, j) => (
-                              <TableCell key={j} className='text-xs font-mono'>
-                                {typeof val === 'number'
-                                  ? val.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                                  : String(val ?? '—')}
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-              )}
-
-              {(!detalle.lineas || detalle.lineas.length === 0) && (
-                <p className='text-sm text-muted-foreground'>No hay líneas de detalle disponibles.</p>
-              )}
+              <div>
+                <h4 className='text-sm font-semibold mb-2'>Líneas del Documento</h4>
+                <LineasTable lineas={detalleLineas} />
+              </div>
             </div>
           )}
         </SheetContent>

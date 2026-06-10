@@ -73,4 +73,4 @@ Estos son reportes de Sdn que generan archivos para enviar a DGII. Pendiente ide
 | DGT4 | `legacy_dumps/integraciones/dgii/dgt4_YYYYMM.txt` |
 | Autodeterminación | `legacy_dumps/integraciones/dgii/autodet_YYYY.txt` |
 
-Esto se hace ejecutando los reportes en Regal General para un mes/año real.
+Esto se hace ejecutando los reportes en el sistema legado para un mes/año real.

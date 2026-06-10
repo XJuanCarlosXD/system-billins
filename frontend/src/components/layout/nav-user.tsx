@@ -87,21 +87,21 @@ export function NavUser({ user }: NavUserProps) {
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
                 <DropdownMenuItem asChild>
-                  <Link to='/settings/account'>
+                  <Link to='/settings/$slug' params={{ slug: 'account' } as any}>
                     <BadgeCheck />
-                    Account
+                    Cuenta
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to='/settings'>
+                  <Link to='/settings/$slug' params={{ slug: 'profile' } as any}>
                     <CreditCard />
-                    Billing
+                    Configuración
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to='/settings/notifications'>
+                  <Link to='/settings/$slug' params={{ slug: 'notifications' } as any}>
                     <Bell />
-                    Notifications
+                    Notificaciones
                   </Link>
                 </DropdownMenuItem>
               </DropdownMenuGroup>

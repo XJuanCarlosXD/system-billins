@@ -311,6 +311,184 @@ def list_ciudades():
         "SELECT ciudad, descripcion FROM CXC.TCXC_CIUDAD ORDER BY ciudad", [])
 
 
+def list_usuarios(no_cia: str = '', punto: str = ''):
+    """Acceso de usuarios al módulo CxP (FCXP103)."""
+    conditions = ['1=1']
+    params = []
+    if no_cia:
+        params.append(no_cia)
+        conditions.append('no_cia=:' + str(len(params)))
+    if punto:
+        params.append(punto)
+        conditions.append('punto=:' + str(len(params)))
+    where = ' AND '.join(conditions)
+    return client.fetch_dicts(
+        "SELECT no_cia, punto, usuario, "
+        "NVL(por_defecto,'N') por_defecto, NVL(activo,'S') activo, "
+        "NVL(hacer_transacciones,'N') hacer_transacciones, "
+        "NVL(generar_listado_cxp,'N') generar_listado_cxp, "
+        "NVL(crear_proveedor,'N') crear_proveedor, "
+        "NVL(hacer_cierre,'N') hacer_cierre, "
+        "NVL(asignar_proveedor,'N') asignar_proveedor, "
+        "NVL(asignar_cuenta_bancaria,'N') asignar_cuenta_bancaria, "
+        "NVL(liberar_debito,'N') liberar_debito, "
+        "NVL(bloquear_pago,'N') bloquear_pago "
+        "FROM CXP.TCXP_USUARIO WHERE " + where + " ORDER BY no_cia, punto, usuario",
+        params)
+
+
+_CXP_USUARIO_FLAGS = (
+    'por_defecto', 'activo', 'hacer_transacciones', 'generar_listado_cxp',
+    'crear_proveedor', 'hacer_cierre', 'asignar_proveedor',
+    'asignar_cuenta_bancaria', 'liberar_debito', 'bloquear_pago',
+)
+
+
+def _coerce_sn(v) -> str:
+    s = (str(v) if v is not None else '').strip().upper()
+    return 'S' if s in ('S', 'Y', '1', 'TRUE') else 'N'
+
+
+def upsert_usuario(data: dict) -> dict:
+    """Crea o actualiza un acceso TCXP_USUARIO (PK: no_cia, punto, usuario)."""
+    no_cia  = (data.get('no_cia') or '').strip()
+    punto   = (data.get('punto') or '').strip()
+    usuario = (data.get('usuario') or '').strip().upper()
+    if not no_cia or not punto or not usuario:
+        raise ValueError('no_cia, punto y usuario son requeridos')
+    flags = {k: _coerce_sn(data.get(k)) for k in _CXP_USUARIO_FLAGS}
+    with client.connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT 1 FROM CXP.TCXP_USUARIO WHERE no_cia=:1 AND punto=:2 AND usuario=:3",
+            [no_cia, punto, usuario],
+        )
+        exists = cur.fetchone() is not None
+        if exists:
+            cur.execute(
+                "UPDATE CXP.TCXP_USUARIO SET "
+                "por_defecto=:1, activo=:2, hacer_transacciones=:3, "
+                "generar_listado_cxp=:4, crear_proveedor=:5, hacer_cierre=:6, "
+                "asignar_proveedor=:7, asignar_cuenta_bancaria=:8, "
+                "liberar_debito=:9, bloquear_pago=:10 "
+                "WHERE no_cia=:11 AND punto=:12 AND usuario=:13",
+                [flags['por_defecto'], flags['activo'], flags['hacer_transacciones'],
+                 flags['generar_listado_cxp'], flags['crear_proveedor'], flags['hacer_cierre'],
+                 flags['asignar_proveedor'], flags['asignar_cuenta_bancaria'],
+                 flags['liberar_debito'], flags['bloquear_pago'],
+                 no_cia, punto, usuario],
+            )
+            action = 'updated'
+        else:
+            cur.execute(
+                "INSERT INTO CXP.TCXP_USUARIO ("
+                "no_cia, punto, usuario, por_defecto, activo, hacer_transacciones, "
+                "generar_listado_cxp, crear_proveedor, hacer_cierre, asignar_proveedor, "
+                "asignar_cuenta_bancaria, liberar_debito, bloquear_pago) VALUES ("
+                ":1,:2,:3,:4,:5,:6,:7,:8,:9,:10,:11,:12,:13)",
+                [no_cia, punto, usuario,
+                 flags['por_defecto'], flags['activo'], flags['hacer_transacciones'],
+                 flags['generar_listado_cxp'], flags['crear_proveedor'], flags['hacer_cierre'],
+                 flags['asignar_proveedor'], flags['asignar_cuenta_bancaria'],
+                 flags['liberar_debito'], flags['bloquear_pago']],
+            )
+            action = 'created'
+        conn.commit()
+    return {'ok': True, 'action': action,
+            'no_cia': no_cia, 'punto': punto, 'usuario': usuario}
+
+
+def delete_usuario(no_cia: str, punto: str, usuario: str) -> dict:
+    if not no_cia or not punto or not usuario:
+        raise ValueError('no_cia, punto y usuario son requeridos')
+    with client.connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "DELETE FROM CXP.TCXP_USUARIO WHERE no_cia=:1 AND punto=:2 AND usuario=:3",
+            [no_cia, punto, usuario.upper()],
+        )
+        affected = cur.rowcount
+        conn.commit()
+    return {'ok': True, 'deleted': affected}
+
+
+def rep_cuadre(no_cia: str, punto: str, mes: int, ano: int):
+    """RCXP105 — Cuadre Contable por cuenta. Agrupa TCXP_DOCUMENTO del
+    periodo por cuenta contable, sumando debe/haber según tipo_movi."""
+    sql = (
+        "SELECT cuenta, "
+        "SUM(CASE WHEN tipo_movi = 'D' THEN valor_original ELSE 0 END) AS debe, "
+        "SUM(CASE WHEN tipo_movi = 'C' THEN valor_original ELSE 0 END) AS haber, "
+        "COUNT(*) AS docs "
+        "FROM CXP.TCXP_DOCUMENTO "
+        "WHERE no_cia = :1 AND punto = :2 "
+        "AND EXTRACT(MONTH FROM fecha) = :3 AND EXTRACT(YEAR FROM fecha) = :4 "
+        "AND NVL(status,'A') <> 'R' "
+        "AND cuenta IS NOT NULL "
+        "GROUP BY cuenta ORDER BY cuenta"
+    )
+    rows = client.fetch_dicts(sql, [no_cia, punto, mes, ano])
+    total_debe = sum(float(r.get('debe') or 0) for r in rows)
+    total_haber = sum(float(r.get('haber') or 0) for r in rows)
+    return {
+        'items': rows,
+        'total_debe': total_debe,
+        'total_haber': total_haber,
+        'diferencia': total_debe - total_haber,
+    }
+
+
+def rep_retenciones(no_cia: str, punto: str, ano: int, no_proveedor: str = ''):
+    """RCXP108 — Certificado de retenciones por proveedor en un año.
+    Devuelve por proveedor el detalle de docs con ITBIS/ISR retenido."""
+    conditions = [
+        "d.no_cia = :1", "d.punto = :2",
+        "EXTRACT(YEAR FROM d.fecha) = :3",
+        "(NVL(d.itbis_retenido,0) > 0 OR NVL(d.isr_retenido,0) > 0)",
+        "NVL(d.status,'A') <> 'R'",
+    ]
+    params = [no_cia, punto, ano]
+    if no_proveedor:
+        params.append(no_proveedor.strip())
+        conditions.append('d.no_proveedor = :' + str(len(params)))
+    where = ' AND '.join(conditions)
+    sql = (
+        "SELECT d.no_proveedor, p.nombre AS nombre_proveedor, p.rnc AS rnc_proveedor, "
+        "d.tipo_docu, d.no_docu, d.fecha, d.ncf, d.posiciones_fijas_ncf, "
+        "d.valor_original, d.impuesto, NVL(d.itbis_retenido,0) AS itbis_retenido, "
+        "NVL(d.isr_retenido,0) AS isr_retenido, d.tipo_retencion "
+        "FROM CXP.TCXP_DOCUMENTO d "
+        "LEFT JOIN CXP.TCXP_BPROVEEDOR b ON b.no_cia = d.no_cia AND b.punto = d.punto AND b.no_proveedor = d.no_proveedor "
+        "LEFT JOIN CXP.TCXP_DPROVEEDOR p ON p.no_proveedor = d.no_proveedor "
+        f"WHERE {where} "
+        "ORDER BY d.no_proveedor, d.fecha"
+    )
+    rows = client.fetch_dicts(sql, params)
+    # Agrupar por proveedor
+    grouped: dict[str, dict] = {}
+    for r in rows:
+        key = (r.get('no_proveedor') or '').strip()
+        g = grouped.setdefault(key, {
+            'no_proveedor': key,
+            'nombre_proveedor': r.get('nombre_proveedor') or '',
+            'rnc_proveedor': r.get('rnc_proveedor') or '',
+            'documentos': [],
+            'total_itbis': 0.0,
+            'total_isr': 0.0,
+        })
+        g['documentos'].append(r)
+        g['total_itbis'] += float(r.get('itbis_retenido') or 0)
+        g['total_isr'] += float(r.get('isr_retenido') or 0)
+    total_itbis = sum(g['total_itbis'] for g in grouped.values())
+    total_isr = sum(g['total_isr'] for g in grouped.values())
+    return {
+        'proveedores': list(grouped.values()),
+        'total_itbis': total_itbis,
+        'total_isr': total_isr,
+        'count_docs': len(rows),
+    }
+
+
 def list_barrios(ciudad: str = ''):
     conditions = ['1=1']
     params = []

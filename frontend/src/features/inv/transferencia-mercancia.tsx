@@ -8,8 +8,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { BuscarProductoModal } from '@/features/fat/components/buscar-producto-modal'
+import { empaqueLabel } from '@/features/fat/utils/empaque-label'
+import { regalGeneralApi } from '@/lib/regal-general-api'
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
+
+interface EmpaqueOpt {
+  empaque: number
+  unidad: string
+  descripcion?: string
+  referencia?: string
+  cant_por_emp: number
+  por_defecto: boolean
+  permite_fraccion?: boolean
+}
 
 const ENDPOINT_READY = true
 
@@ -32,6 +45,8 @@ interface TransfRow {
   nombre: string
   existencia: string
   cantidad: string
+  empaque?: string
+  empaques: EmpaqueOpt[]
 }
 
 interface ProductoResult {
@@ -47,7 +62,8 @@ interface ProductoResult {
 let rowIdCounter = 200
 
 function newRow(): TransfRow {
-  return { id: rowIdCounter++, noProdu: '', nombre: '', existencia: '', cantidad: '' }
+  return { id: rowIdCounter++, noProdu: '', nombre: '', existencia: '', cantidad: '',
+           empaque: 'UND', empaques: [] }
 }
 
 async function apiFetch<T>(path: string): Promise<T> {
@@ -69,6 +85,9 @@ export function TransferenciaMercancia({ noCia, punto }: Props) {
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState<ProductoResult[]>([])
   const [searching, setSearching] = useState(false)
+
+  const [productModalOpen, setProductModalOpen] = useState(false)
+  const [productModalForIdx, setProductModalForIdx] = useState<number | null>(null)
 
   const [saving, setSaving] = useState(false)
 
@@ -102,21 +121,55 @@ export function TransferenciaMercancia({ noCia, punto }: Props) {
     setRows((prev) => prev.map((r, i) => i === idx ? { ...r, ...patch } : r))
   }
 
-  const addRow = () => setRows((prev) => [...prev, newRow()])
+  const cargarEmpaques = useCallback(async (idx: number, noProdu: string) => {
+    try {
+      const r = await regalGeneralApi.fatProductoEmpaques(noProdu)
+      const items = (r.items || []) as Array<{ unidad: string; descripcion?: string; por_defecto?: boolean; cant_por_emp?: number; empaque?: number }>
+      const emps: EmpaqueOpt[] = items.map((e: any, i) => ({
+        empaque: e.empaque ?? i + 1,
+        unidad: (e.unidad || 'UND').trim() || 'UND',
+        descripcion: e.descripcion || e.unidad,
+        referencia: e.referencia || '',
+        cant_por_emp: e.cant_por_emp && e.cant_por_emp > 0 ? e.cant_por_emp : 1,
+        por_defecto: !!e.por_defecto,
+        permite_fraccion: !!e.permite_fraccion,
+      }))
+      const def = emps.find(e => e.por_defecto) || emps[0]
+      setRows(prev => {
+        const arr = [...prev]
+        if (!arr[idx] || arr[idx].noProdu !== noProdu) return prev
+        arr[idx] = { ...arr[idx], empaques: emps, empaque: def ? (def.descripcion || def.unidad) : 'UND' }
+        return arr
+      })
+    } catch { /* sin empaques => UND */ }
+  }, [])
+
+  const openProductModal = (idx: number) => {
+    setProductModalForIdx(idx)
+    setProductModalOpen(true)
+  }
+
+  const addRow = () => setRows((prev) => {
+    const next = [...prev, newRow()]
+    setTimeout(() => openProductModal(next.length - 1), 0)
+    return next
+  })
 
   const removeRow = (idx: number) => {
     setRows((prev) => prev.length === 1 ? [newRow()] : prev.filter((_, i) => i !== idx))
   }
 
   const selectProducto = (idx: number, p: ProductoResult) => {
+    const code = p.no_produ ?? p.codigo ?? ''
     updateRow(idx, {
-      noProdu: p.no_produ ?? p.codigo ?? '',
+      noProdu: code,
       nombre: p.descripcion ?? p.nombre ?? '',
       existencia: String(p.existencia ?? p.cantidad ?? ''),
     })
     setSearchIdx(null)
     setSearchTerm('')
     setSearchResults([])
+    cargarEmpaques(idx, code)
   }
 
   const fmt = (n: number) => n.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -250,6 +303,7 @@ export function TransferenciaMercancia({ noCia, punto }: Props) {
                   <TableRow>
                     <TableHead className='w-[130px]'>No. Producto</TableHead>
                     <TableHead className='min-w-[200px]'>Nombre / Descripción</TableHead>
+                    <TableHead className='w-[110px]'>UM</TableHead>
                     <TableHead className='w-[130px] text-right'>Existencia Disp.</TableHead>
                     <TableHead className='w-[130px] text-right'>Cantidad a Transferir</TableHead>
                     <TableHead className='w-[48px]'></TableHead>
@@ -275,7 +329,14 @@ export function TransferenciaMercancia({ noCia, punto }: Props) {
                               onFocus={() => { setSearchIdx(idx); setSearchTerm(row.noProdu) }}
                               onBlur={() => { setTimeout(() => { setSearchIdx(null); setSearchResults([]) }, 200) }}
                             />
-                            <Search className='absolute right-2 top-2 h-3.5 w-3.5 text-muted-foreground pointer-events-none' />
+                            <button
+                              type='button'
+                              className='absolute right-1 top-1 h-6 w-6 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground'
+                              title='Buscar producto'
+                              onClick={() => openProductModal(idx)}
+                            >
+                              <Search className='h-3.5 w-3.5' />
+                            </button>
                             {isSearching && searchResults.length > 0 && (
                               <div className='absolute z-50 top-full left-0 mt-1 w-[280px] rounded-md border bg-popover shadow-md text-xs'>
                                 {searching && <div className='px-3 py-2 text-muted-foreground'>Buscando...</div>}
@@ -302,6 +363,28 @@ export function TransferenciaMercancia({ noCia, punto }: Props) {
                           <Input className='h-8 text-xs' value={row.nombre} readOnly tabIndex={-1} placeholder='Descripción' />
                         </TableCell>
 
+                        <TableCell className='py-1 px-2'>
+                          {row.empaques.length > 0 ? (
+                            <Select
+                              value={row.empaque || 'UND'}
+                              onValueChange={(v) => updateRow(idx, { empaque: v })}
+                            >
+                              <SelectTrigger className='h-8 text-xs'>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {row.empaques.map((e) => (
+                                  <SelectItem key={`${e.empaque}-${e.unidad}`} value={e.descripcion || e.unidad} className='text-xs'>
+                                    {empaqueLabel(e)}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span className='text-xs text-muted-foreground'>{row.empaque || '—'}</span>
+                          )}
+                        </TableCell>
+
                         <TableCell className='py-1 px-2 text-right'>
                           <div className='h-8 flex items-center justify-end px-3 rounded-md border bg-muted font-mono text-xs tabular-nums text-muted-foreground'>
                             {row.existencia !== '' ? fmt(parseFloat(row.existencia) || 0) : '—'}
@@ -323,7 +406,7 @@ export function TransferenciaMercancia({ noCia, punto }: Props) {
                 </TableBody>
                 <TableFooter>
                   <TableRow>
-                    <TableCell colSpan={2} className='text-xs font-medium text-right pr-4'>Total Unidades:</TableCell>
+                    <TableCell colSpan={3} className='text-xs font-medium text-right pr-4'>Total Unidades:</TableCell>
                     <TableCell />
                     <TableCell className='text-right font-mono text-sm font-bold tabular-nums'>{fmt(totalUnidades)}</TableCell>
                     <TableCell />
@@ -357,6 +440,30 @@ export function TransferenciaMercancia({ noCia, punto }: Props) {
           </Tooltip>
         </div>
       </section>
+
+      <BuscarProductoModal
+        open={productModalOpen}
+        onClose={() => { setProductModalOpen(false); setProductModalForIdx(null) }}
+        noCia={noCia}
+        punto={punto}
+        almacenes={almacenes as any}
+        listas={[]}
+        noLista={''}
+        defaultAlmacen={almacenOrigen}
+        onSelect={(p, qty, _alm) => {
+          if (productModalForIdx == null) return
+          const idx = productModalForIdx
+          const baseQty = qty && qty > 0 ? qty : 1
+          updateRow(idx, {
+            noProdu: p.no_produ,
+            nombre: p.descri,
+            existencia: String(p.existencia ?? ''),
+            cantidad: String(baseQty),
+          })
+          cargarEmpaques(idx, p.no_produ)
+          setProductModalOpen(false); setProductModalForIdx(null)
+        }}
+      />
     </TooltipProvider>
   )
 }

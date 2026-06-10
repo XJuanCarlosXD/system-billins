@@ -1,4 +1,4 @@
-# Plan definitivo Regal General — versión validada
+# Plan definitivo SIGAFT — versión validada
 
 Reemplaza el orden ejecutivo anterior. Decisiones de alcance: ver `06_resumen_propuesta.md`, `07_requerimientos_extra.md`, y memoria `project/scope-decisions`.
 
@@ -14,7 +14,7 @@ Reemplaza el orden ejecutivo anterior. Decisiones de alcance: ver `06_resumen_pr
 | Formatos DGII y bancos | **Byte-exact** (`diff` como prueba) |
 | Driver Oracle | python-oracledb thick (Instant Client 19); nunca Django ORM contra Oracle |
 | Auth | Backend custom contra usuarios del legado + JIT provisioning |
-| Permisos | RBAC módulo × documento × acción, paridad con Regal General |
+| Permisos | RBAC módulo × documento × acción, paridad con SIGAFT |
 
 ---
 
@@ -110,7 +110,7 @@ Solo lo que aún no está cerrado:
 
 | # | Decisión | Salida en |
 |---|---|---|
-| 0.1 | Multi-empresa en Regal General (¿BD soporta varias?) | sección en `09_decisiones_fase0.md` |
+| 0.1 | Multi-empresa en SIGAFT (¿BD soporta varias?) | sección en `09_decisiones_fase0.md` |
 | 0.2 | Migración Oracle 11g → 19c al cierre, o quedarse en 11g | misma |
 | 0.3 | Concurrencia: bloqueo optimista con columna `version` | misma |
 | 0.4 | Corrida paralela: cuántas semanas | misma |
@@ -128,7 +128,7 @@ Las dos primeras tareas bloquean todo lo demás.
 | # | Tarea | Entregable (rutas exactas) |
 |---|---|---|
 | 1.A | **Auth legado:** identificar tabla de usuarios, mecanismo de password, perfiles | `memorias_sigaft/10_auth_legacy.md` + `facturation-system/backend/apps/legacy/repositories/users_repo.py` con SQL real |
-| 1.B | **Permisos legado:** matriz módulo × documento × acción del control de acceso de Regal General | `memorias_sigaft/11_permisos_legacy.md` + dump CSV en `memorias_sigaft/legacy_dumps/permisos.csv` |
+| 1.B | **Permisos legado:** matriz módulo × documento × acción del control de acceso de SIGAFT | `memorias_sigaft/11_permisos_legacy.md` + dump CSV en `memorias_sigaft/legacy_dumps/permisos.csv` |
 | 1.C | **PL/SQL servidor:** packages, procedures, functions, triggers, jobs | `memorias_sigaft/legacy_dumps/plsql/{packages,procedures,functions,triggers,jobs}/*.sql` |
 | 1.D | **Inventario módulo Sdn (nómina)** | `memorias_sigaft/12_inventario_sdn.md` + `legacy_dumps/sdn/{tables.csv,fmbs.csv,rdfs.csv}` |
 | 1.E | **Inventario módulo Fat (facturación + NCF + DGII)** + asientos contables generados | `memorias_sigaft/13_inventario_fat.md` + `legacy_dumps/fat/...` |

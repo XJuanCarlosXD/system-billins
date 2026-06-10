@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { BuscarProductoModal } from '@/features/fat/components/buscar-producto-modal'
+import { empaqueLabel } from '@/features/fat/utils/empaque-label'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
@@ -17,8 +18,10 @@ interface EmpaqueOpt {
   empaque: number
   unidad: string
   descripcion?: string
+  referencia?: string
   cant_por_emp: number
   por_defecto: boolean
+  permite_fraccion?: boolean
 }
 
 interface Props {
@@ -84,12 +87,11 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
   const legacy = isEntrada ? 'FINV210' : 'FINV211'
   const totalLabel = isEntrada ? 'Total Entrada' : 'Total Salida'
 
-  // Header
+  // Header — la cuenta contable y centro de costo vienen del TINV_TDOCU
+  // (no son input del usuario en el legado Finv210/Finv211).
   const [tipoDocu, setTipoDocu] = useState('')
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
   const [almacenHeader, setAlmacenHeader] = useState('')
-  const [cuenta, setCuenta] = useState('')
-  const [departamento, setDepartamento] = useState('')
 
   // Catalog data
   const [tiposDocu, setTiposDocu] = useState<TipoDocu[]>([])
@@ -159,12 +161,14 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
     try {
       const r = await regalGeneralApi.fatProductoEmpaques(noProdu)
       const items = (r.items || []) as Array<{ unidad: string; descripcion?: string; por_defecto?: boolean; cant_por_emp?: number; empaque?: number }>
-      const emps: EmpaqueOpt[] = items.map((e, i) => ({
+      const emps: EmpaqueOpt[] = items.map((e: any, i) => ({
         empaque: e.empaque ?? i + 1,
         unidad: (e.unidad || 'UND').trim() || 'UND',
         descripcion: e.descripcion || e.unidad,
+        referencia: e.referencia || '',
         cant_por_emp: e.cant_por_emp && e.cant_por_emp > 0 ? e.cant_por_emp : 1,
         por_defecto: !!e.por_defecto,
+        permite_fraccion: !!e.permite_fraccion,
       }))
       const def = emps.find(e => e.por_defecto) || emps[0]
       setRows(prev => {
@@ -253,8 +257,6 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
       tipo_docu: tipoDocu,
       fecha,
       almacen: almacenHeader,
-      cuenta,
-      departamento,
       tipo_mov: tipoMov,
       detalle: validRows.map((r) => {
         const emp = r.empaques.find(e => (e.descripcion || e.unidad) === r.empaque || e.unidad === r.empaque)
@@ -289,8 +291,6 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
       setTipoDocu('')
       setFecha(new Date().toISOString().slice(0, 10))
       setAlmacenHeader('')
-      setCuenta('')
-      setDepartamento('')
       setRows([newRow()])
     } catch (err: any) {
       toast.error(`Error al guardar: ${err.message ?? 'Error desconocido'}`)
@@ -370,27 +370,6 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
                 </Select>
               </div>
 
-              <div className='space-y-1'>
-                <Label htmlFor='cuenta'>Cuenta Contable</Label>
-                <Input
-                  id='cuenta'
-                  className='h-9 font-mono'
-                  placeholder='000-000-000'
-                  value={cuenta}
-                  onChange={(e) => setCuenta(e.target.value)}
-                />
-              </div>
-
-              <div className='space-y-1'>
-                <Label htmlFor='departamento'>Departamento</Label>
-                <Input
-                  id='departamento'
-                  className='h-9'
-                  placeholder='Código depto.'
-                  value={departamento}
-                  onChange={(e) => setDepartamento(e.target.value)}
-                />
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -522,8 +501,8 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
                               </SelectTrigger>
                               <SelectContent>
                                 {row.empaques.map((e) => (
-                                  <SelectItem key={e.unidad} value={e.descripcion || e.unidad} className='text-xs'>
-                                    {(e.descripcion || e.unidad)}{e.cant_por_emp > 1 ? ` (×${e.cant_por_emp})` : ''}
+                                  <SelectItem key={`${e.empaque}-${e.unidad}`} value={e.descripcion || e.unidad} className='text-xs'>
+                                    {empaqueLabel(e)}
                                   </SelectItem>
                                 ))}
                               </SelectContent>

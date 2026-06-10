@@ -1,4 +1,4 @@
-# Cierre Fase 1 — Descubrimiento e inventario Regal General
+# Cierre Fase 1 — Descubrimiento e inventario el sistema legado
 
 ## Estado de tareas
 
@@ -51,7 +51,7 @@
 ### Acción del cliente
 
 1. **Confirmar fuentes FMB y RDF**. Si no existen → plan B: decompile parcial de FMX + observación + SQL trace mientras los usuarios trabajan.
-2. **Generar golden files DGII** ejecutando reportes en Regal General:
+2. **Generar golden files DGII** ejecutando reportes en el sistema legado:
    - 606, 607, 608 para un mes
    - Cualquier e-CF que se haya emitido (E31, E32, E33, E34, E41, E43, E44, E45, E46, E47)
 3. **Generar samples integraciones** de un mes real:

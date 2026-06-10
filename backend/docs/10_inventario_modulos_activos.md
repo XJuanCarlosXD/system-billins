@@ -1,4 +1,4 @@
-# Inventario módulos activos Regal General
+# Inventario módulos activos el sistema legado
 
 Solo los 9 módulos en uso real. Datos extraídos de `JCABREU@AB` el 2026-05-06.
 
@@ -53,7 +53,7 @@ Matriz exportada: `legacy_dumps/sql/permisos_columnas.csv`.
 ## Ubicación física de los binarios
 
 ```
-D:\\RegalGeneral\gpsc\
+D:\Sigaf\gpsc\
   Fat\Formas\*.fmx     (175 archivos)
   Fat\Reportes\*.rep   (109)
   Sdn\Formas\*.fmx     (104)
@@ -62,7 +62,7 @@ D:\\RegalGeneral\gpsc\
   ...
 ```
 
-**FMB y RDF (fuentes): NO encontrados en D:\\RegalGeneral ni rutas comunes de C:\.** Pendiente confirmar con el cliente si están en otro lugar (USB, backup, GP Software).
+**FMB y RDF (fuentes): NO encontrados en D:\Sigaf ni rutas comunes de C:\.** Pendiente confirmar con el cliente si están en otro lugar (USB, backup, GP Software).
 
 ## Lista completa de usuarios humanos detectados
 
@@ -84,8 +84,8 @@ Locked: LGONZALEZ.
 Estos son los puntos que **no se pueden extraer automáticamente** y requieren acción del cliente:
 
 1. **Confirmar fuentes FMB/RDF** (o aceptar clon comportamental).
-2. **Generar golden files DGII** ejecutando los reportes 606, 607, 608, E31-E47 en Regal General para un período de prueba y guardando los archivos en `legacy_dumps/dgii/samples/`.
-3. **Generar samples integraciones externas:** correr en Regal General los archivos AFP, ARS, ACH, retenciones para un mes real y guardarlos en `legacy_dumps/integraciones/`.
+2. **Generar golden files DGII** ejecutando los reportes 606, 607, 608, E31-E47 en el sistema legado para un período de prueba y guardando los archivos en `legacy_dumps/dgii/samples/`.
+3. **Generar samples integraciones externas:** correr en el sistema legado los archivos AFP, ARS, ACH, retenciones para un mes real y guardarlos en `legacy_dumps/integraciones/`.
 4. **Capturas de impresión:** PNG/PDF de cómo se ven hoy las facturas, cheques, recibos. Guardar en `legacy_dumps/impresion/`.
 
 Yo no puedo correr Forms desde la línea de comandos — esos pasos los hace una persona usando el sistema.

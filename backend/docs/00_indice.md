@@ -15,9 +15,7 @@ y decisiones de arquitectura. Esta página se mantiene al día junto con el cód
 | `13_impresion_pendiente.md` | Formatos físicos pendientes de captura |
 | `14_fase1_cierre.md` | Cierre de Fase 1 con métricas |
 | `30_plan_maestro_modulos.md` | Plan maestro por módulos, incluye CNT y orden de ejecución |
-| 31_cnt_plan_detallado.md | Plan CNT completo: menu, rutas, validacion y exportacion |
-| 32_cnt_comparacion_legado_pendiente.md | Auditoria pendiente para comparar CNT nuevo vs sistema viejo |
-| `33_inv_plan_detallado.md` | Plan INV completo: catálogo de forms legacy, rutas, prioridades |
+| `31_cnt_plan_detallado.md` | Plan CNT completo: menu, rutas, validacion y exportacion |
 
 ## Estado actual del proyecto
 
@@ -57,4 +55,3 @@ y decisiones de arquitectura. Esta página se mantiene al día junto con el cód
 Construir la pantalla dedicada de **Alertas NCF** (filtrable por empresa, severidad, código)
 y la de **Empresas** (con métricas por empresa). Después, primer módulo funcional: **Facturación**
 con pantalla de búsqueda de facturas (paginada/filtrable) que consume `FAT.TFAT_FACTURA`.
-

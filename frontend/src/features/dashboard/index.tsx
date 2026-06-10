@@ -62,16 +62,12 @@ export function Dashboard() {
     setLoading(true)
     setError(null)
     try {
-      const meRes = await sigafApi.me()
-      setMe(meRes)
-      const noCia =
-        meRes.companies.find((c) => c.activa)?.no_cia ||
-        meRes.companies[0]?.no_cia ||
-        '01'
-      const [alertsRes, ventasRes] = await Promise.all([
+      const [meRes, alertsRes, ventasRes] = await Promise.all([
+        sigafApi.me(),
         sigafApi.fatNcfAlerts('low'),
-        sigafApi.dashboardVentasMes(noCia).catch(() => null),
+        sigafApi.dashboardVentasMes('01').catch(() => null),
       ])
+      setMe(meRes)
       setAlerts(alertsRes.alerts)
       setVentas(ventasRes)
     } catch (e: any) {
@@ -312,7 +308,7 @@ export function Dashboard() {
               )}
             </CardTitle>
             <CardDescription>
-              Total neto diario del mes en curso (facturas no anuladas).
+              Total neto diario (facturas no anuladas, empresa 01).
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -355,7 +351,7 @@ export function Dashboard() {
                       formatter={(value: number) => [fmtCurrency(value), 'Total']}
                       labelFormatter={(label) => `Día ${label}`}
                     />
-                    <Bar dataKey='total' fill='currentColor' radius={[4, 4, 0, 0]} className='fill-primary' />
+                    <Bar dataKey='total' radius={[4, 4, 0, 0]} className='fill-primary' />
                   </BarChart>
                 </ResponsiveContainer>
               </>

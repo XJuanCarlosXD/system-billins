@@ -18,11 +18,14 @@ urlpatterns = [
     path('tdocu-config/', cxp_views.cxp_tdocu_config),
     path('ciudades/', cxp_views.cxp_ciudades),
     path('barrios/', cxp_views.cxp_barrios),
+    path('usuarios/', cxp_views.cxp_usuarios),
     # Reportes read-only
     path('rep-alfabetico/', cxp_views.cxp_rep_alfabetico),
     path('rep-mayor/', cxp_views.cxp_rep_mayor),
     path('rep-606/', cxp_views.cxp_rep_606),
     path('rep-607/', cxp_views.cxp_rep_607),
+    path('rep-cuadre/', cxp_views.cxp_rep_cuadre),
+    path('rep-retenciones/', cxp_views.cxp_rep_retenciones),
     # Procesos escritura
     path('entrada-documentos/', cxp_views.cxp_entrada_documentos),
     path('reversar/', cxp_views.cxp_reversar),

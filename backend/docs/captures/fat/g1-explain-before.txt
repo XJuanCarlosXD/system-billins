@@ -1,0 +1,119 @@
+===== FAT Gap G1 PERF — EXPLAIN PLAN BEFORE / AFTER =====
+Generado: 2026-05-31 06:45:11 (timezone VM 10.0.0.99)
+Oracle: 11g (servicio AB, owner JCABREU)
+Herramienta: oracledb 2.5.1 via Django backend container (no hay sqlplus instalado en la VM).
+Binds: usando literales 'no_cia=01, punto=01, no_lista=01' porque EXPLAIN PLAN
+       da ORA-01036 con binds en oracledb 2.x (no afecta el plan elegido).
+
+-----------------------------------------------------------------------------
+TINV_PRODUCTO activos: 7687
+TINV_EMPAQUE POR_DEFECTO=S: 7687
+TINV_EMPAQUE total: 8592
+TFAT_LISTA_PRECIO 01/01/01: 3511
+-----------------------------------------------------------------------------
+
+############ BEFORE (codigo actual en VM, um_join dentro del base_sql paginado) ############
+SQL: paged( SELECT … FROM TINV_PRODUCTO p
+              LEFT JOIN TFAT_LISTA_PRECIO lp ON …
+              LEFT JOIN (SELECT … FROM TINV_EMPAQUE e
+                          LEFT JOIN TINV_UNIDAD u ON …
+                          WHERE e.POR_DEFECTO='S') um ON um.NO_PRODU=p.no_produ
+            WHERE NVL(p.activo,'S')='S' ORDER BY p.no_produ )
+
+Plan hash value: 3390055859
+---------------------------------------------------------------------------------------
+| Id  | Operation                         | Name                 | Rows  | Cost (%CPU)|
+---------------------------------------------------------------------------------------
+|   0 | SELECT STATEMENT                  |                      |    20 |    48  (98)|
+|*  1 |  VIEW                             |                      |    20 |    48  (98)|
+|*  2 |   COUNT STOPKEY                   |                      |       |            |
+|   3 |    VIEW                           |                      |  7688 |    48  (98)|
+|   4 |     NESTED LOOPS OUTER            |                      |  7688 |    48  (98)|
+|   5 |      NESTED LOOPS OUTER           |                      |  7305 |     2  (50)|
+|*  6 |       TABLE ACCESS BY INDEX ROWID | TINV_PRODUCTO        |  7305 |     1   (0)|
+|   7 |        INDEX FULL SCAN            | PK_TINV_PRODUCTO     |    20 |     1   (0)|
+|   8 |       TABLE ACCESS BY INDEX ROWID | TFAT_LISTA_PRECIO    |     1 |     0   (0)|
+|*  9 |        INDEX UNIQUE SCAN          | PK_TFAT_LISTA_PRECIO |     1 |     0   (0)|
+|  10 |      VIEW PUSHED PREDICATE        |                      |     1 |     0   (0)|
+|  11 |       NESTED LOOPS OUTER          |                      |    77 |     0   (0)|
+|* 12 |        TABLE ACCESS BY INDEX ROWID| TINV_EMPAQUE         |    77 |     0   (0)|
+|* 13 |         INDEX RANGE SCAN          | PK_TINV_EMPAQUE      |    34 |     0   (0)|
+|  14 |        TABLE ACCESS BY INDEX ROWID| TINV_UNIDAD          |     1 |     0   (0)|
+|* 15 |         INDEX UNIQUE SCAN         | PK_TINV_UNIDAD       |     1 |     0   (0)|
+---------------------------------------------------------------------------------------
+
+Predicate Information (identified by operation id):
+---------------------------------------------------
+   1 - filter("RN">0)
+   2 - filter(ROWNUM<=20)
+   6 - filter("P"."ACTIVO"='S')
+   9 - access("LP"."NO_CIA"(+)='01' AND "LP"."PUNTO"(+)='01' AND
+              "LP"."NO_LISTA"(+)='01' AND "LP"."NO_PRODU"(+)="P"."NO_PRODU")
+  12 - filter("E"."POR_DEFECTO"='S')
+  13 - access("E"."NO_PRODU"="P"."NO_PRODU")
+  15 - access("U"."UNIDAD"(+)="E"."UNIDAD")
+
+Timing real (warm cache):
+  count(*) sin search: 78ms (primera vez), 15ms / 7ms (subsiguientes)
+  pagina 1 (rn<=20): 22ms / 23ms / 24ms
+  pagina ~100 (rn<=2000): 6ms
+  pagina 1 con search %A%: 23ms
+
+Cost total 48 con 98% CPU. NESTED LOOPS OUTER + VIEW PUSHED PREDICATE
+sobre TINV_EMPAQUE (id 10-15) se ejecuta por cada producto candidato
+ANTES del COUNT STOPKEY, aunque ROWNUM<=20.
+
+
+############ AFTER (proyectado tras T04: um_join fuera del base_sql) ############
+SQL paginado: paged( SELECT p.no_produ, NVL(p.descri,…), porciento_impuesto,
+                            activo, NVL(lp.precio,0) AS precio_base
+                       FROM TINV_PRODUCTO p
+                       LEFT JOIN TFAT_LISTA_PRECIO lp ON …
+                      WHERE NVL(p.activo,'S')='S' ORDER BY p.no_produ )
+
+Plan hash value: 3497342059
+-------------------------------------------------------------------------------------
+| Id  | Operation                       | Name                 | Rows  | Cost (%CPU)|
+-------------------------------------------------------------------------------------
+|   0 | SELECT STATEMENT                |                      |    20 |     2  (50)|
+|*  1 |  VIEW                           |                      |    20 |     2  (50)|
+|*  2 |   COUNT STOPKEY                 |                      |       |            |
+|   3 |    VIEW                         |                      |  7305 |     2  (50)|
+|   4 |     NESTED LOOPS OUTER          |                      |  7305 |     2  (50)|
+|*  5 |      TABLE ACCESS BY INDEX ROWID| TINV_PRODUCTO        |  7305 |     1   (0)|
+|   6 |       INDEX FULL SCAN           | PK_TINV_PRODUCTO     |    20 |     1   (0)|
+|   7 |      TABLE ACCESS BY INDEX ROWID| TFAT_LISTA_PRECIO    |     1 |     0   (0)|
+|*  8 |       INDEX UNIQUE SCAN         | PK_TFAT_LISTA_PRECIO |     1 |     0   (0)|
+-------------------------------------------------------------------------------------
+
+Bulk fetch post-paginacion: SELECT no_produ, unidad_empaque, cpe
+                            FROM TINV_EMPAQUE e WHERE por_defecto='S'
+                              AND no_produ IN (:p0,:p1,…:pN)
+Plan hash value: 731165697
+------------------------------------------------------------------------------
+| Id  | Operation                     | Name            | Rows  | Cost (%CPU)|
+------------------------------------------------------------------------------
+|   0 | SELECT STATEMENT              |                 |     5 |     0   (0)|
+|   1 |  NESTED LOOPS OUTER           |                 |     5 |     0   (0)|
+|   2 |   INLIST ITERATOR             |                 |       |            |
+|*  3 |    TABLE ACCESS BY INDEX ROWID| TINV_EMPAQUE    |     5 |     0   (0)|
+|*  4 |     INDEX RANGE SCAN          | PK_TINV_EMPAQUE |    34 |     0   (0)|
+|   5 |   TABLE ACCESS BY INDEX ROWID | TINV_UNIDAD     |     1 |     0   (0)|
+|*  6 |    INDEX UNIQUE SCAN          | PK_TINV_UNIDAD  |     1 |     0   (0)|
+------------------------------------------------------------------------------
+
+Timing real (warm cache):
+  count(*) sin search: 8ms / 4ms
+  pagina 1 (rn<=20): 9ms / 1ms
+  bulk empaque (5 ids): 4ms / 1ms
+  TOTAL request equivalente: ~5-10ms backend + bulk existencia ya implementado.
+
+-----------------------------------------------------------------------------
+Conclusion:
+  - El plan AFTER reduce Cost 48 → 2 (24× menor) eliminando el
+    NESTED LOOPS OUTER sobre TINV_EMPAQUE en el query paginado.
+  - El bulk post-paginacion usa INLIST ITERATOR + INDEX RANGE SCAN
+    (cost 0) para max 20 productos por pagina.
+  - Tiempo total esperado <50ms (vs 22-90s reportados antes del refactor
+    de TINV_MOVIMIENTO en commit 1fa58e0).
+-----------------------------------------------------------------------------

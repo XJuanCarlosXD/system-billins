@@ -1,4 +1,4 @@
-import { Outlet } from '@tanstack/react-router'
+import { Outlet, useLocation } from '@tanstack/react-router'
 import { getCookie } from '@/lib/cookies'
 import { cn } from '@/lib/utils'
 import { LayoutProvider } from '@/context/layout-provider'
@@ -13,24 +13,25 @@ type AuthenticatedLayoutProps = {
 
 export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   const defaultOpen = getCookie('sidebar_state') !== 'false'
+  const { searchStr } = useLocation()
+  const bare = /(^|[?&])bare=1(&|$)/.test(searchStr ?? '')
+
   return (
     <SearchProvider>
       <LayoutProvider>
         <SidebarProvider defaultOpen={defaultOpen}>
+          {bare && (
+            <style>{`[data-bare="1"] > header { display: none !important; }`}</style>
+          )}
           <SkipToMain />
-          <AppSidebar />
+          {!bare && <AppSidebar />}
           <SidebarInset
+            data-bare={bare ? '1' : undefined}
             className={cn(
-              // Set content container, so we can use container queries
               '@container/content',
-
-              // If layout is fixed, set the height
-              // to 100svh to prevent overflow
               'has-data-[layout=fixed]:h-svh',
-
-              // If layout is fixed and sidebar is inset,
-              // set the height to 100svh - spacing (total margins) to prevent overflow
-              'peer-data-[variant=inset]:has-data-[layout=fixed]:h-[calc(100svh-(var(--spacing)*4))]'
+              'peer-data-[variant=inset]:has-data-[layout=fixed]:h-[calc(100svh-(var(--spacing)*4))]',
+              bare && 'm-0 h-svh w-full rounded-none shadow-none'
             )}
           >
             {children ?? <Outlet />}
