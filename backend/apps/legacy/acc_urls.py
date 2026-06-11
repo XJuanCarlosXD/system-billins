@@ -1,7 +1,9 @@
 from django.urls import path
 from apps.legacy import acc_views
+from apps.legacy.docs_print_data import acc_documento_print_data
 
 urlpatterns = [
+    path('documentos/<str:no_docu>/print-data/', acc_documento_print_data),
     path('cias/', acc_views.acc_cias),
     path('puntos/', acc_views.acc_puntos),
     path('cajas/', acc_views.acc_cajas),

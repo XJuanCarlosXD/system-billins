@@ -1,7 +1,9 @@
 from django.urls import path
 from apps.legacy import chc_views
+from apps.legacy.docs_print_data import chc_cheque_print_data
 
 urlpatterns = [
+    path('cheques/<str:tipo_docu>/<str:no_docu>/print-data/', chc_cheque_print_data),
     path('bancos/', chc_views.chc_bancos),
     path('cias/', chc_views.chc_cias),
     path('puntos/', chc_views.chc_puntos),

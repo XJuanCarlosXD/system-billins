@@ -277,12 +277,15 @@ function WatermarkAnulada({ texto, opacity, angle, color }: WatermarkProps) {
   if (!data || isReportePayload(data)) return null
   const anulada = (data as DocumentoPrintPayload).doc.anulada
   if (!anulada) return null
+  // position:absolute relativo al .pdf-page (que tiene position:relative en print.css)
+  // para que aparezca centrado en la hoja, incluso al imprimir multi-página.
   return (
     <div className="pdf-watermark" style={{
-      position: 'fixed', top: '40%', left: '50%',
+      position: 'absolute', top: '50%', left: '50%',
       transform: `translate(-50%, -50%) rotate(${angle}deg)`,
-      fontSize: 120, fontWeight: 900, color, opacity,
-      pointerEvents: 'none', zIndex: 999,
+      fontSize: 140, fontWeight: 900, color, opacity,
+      pointerEvents: 'none', zIndex: 999, whiteSpace: 'nowrap',
+      letterSpacing: '0.1em',
     }}>
       {texto}
     </div>

@@ -1,7 +1,9 @@
 from django.urls import path
 from apps.legacy import odc_views
+from apps.legacy.docs_print_data import odc_orden_print_data
 
 urlpatterns = [
+    path('ordenes/<str:no_orden>/print-data/', odc_orden_print_data),
     # Configuración
     path('cias/', odc_views.odc_cias),
     path('puntos/', odc_views.odc_puntos),

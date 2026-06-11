@@ -9,6 +9,7 @@
   box-sizing: border-box;
   max-width: 210mm;
   margin: 0 auto;
+  position: relative; /* para que WatermarkAnulada se centre en la hoja */
 }
 
 .pdf-page--A4 { width: 210mm; min-height: 297mm; }

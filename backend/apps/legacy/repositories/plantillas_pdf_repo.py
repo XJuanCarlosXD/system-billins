@@ -2,19 +2,25 @@
 
 Tabla nueva creada por el sistema clon (no es del legado SIGAFT).
 DML directo permitido — no hay package PL/SQL.
+
+IMPORTANTE — CLOBs y oracledb thick:
+    Los CLOBs no se pueden leer DESPUÉS de que el cursor se cierre porque
+    el objeto LOB queda con conexión cerrada (DPY-1001). Todo SELECT con CLOB
+    en este módulo lee el .read() ANTES de salir del bloque `with cur`.
 """
 from __future__ import annotations
 
 from .. import client
 
 
-def _clob_to_str(v) -> str | None:
+def _read_lob_or_none(v):
+    """Lee un CLOB ahora; devuelve None si v es None."""
     if v is None:
         return None
     try:
         return v.read() if hasattr(v, 'read') else str(v)
     except Exception:
-        return str(v)
+        return None
 
 
 def list_plantillas(no_cia: str) -> list[dict]:
@@ -45,27 +51,33 @@ def list_plantillas(no_cia: str) -> list[dict]:
 
 
 def get_plantilla(no_cia: str, codigo_doc: str) -> dict | None:
+    # Leemos el CLOB DENTRO del cursor para evitar DPY-1001 (not connected)
+    # que ocurre si oracledb intenta leer el LOB después de cerrar la conexión.
     sql = (
         "SELECT NO_CIA, CODIGO_DOC, NOMBRE, DEFINICION_JSON, "
         "PAGE_SIZE, PAGE_ORIENTATION, NVL(ACTIVO,'S') AS ACTIVO, "
         "VERSION, FECHA_MOD, USUARIO_MOD "
         "FROM FAT.TFAT_PLANTILLA_PDF WHERE NO_CIA = :1 AND CODIGO_DOC = :2"
     )
-    rows = client.fetch_dicts(sql, [no_cia, codigo_doc])
-    if not rows:
-        return None
-    r = rows[0]
+    with client.cursor() as cur:
+        cur.execute(sql, [no_cia, codigo_doc])
+        row = cur.fetchone()
+        if not row:
+            return None
+        (no_cia_v, codigo_v, nombre_v, def_lob, page_size, orient,
+         activo, version, fecha_mod, usuario_mod) = row
+        definicion = _read_lob_or_none(def_lob)
     return {
-        'no_cia': (r['no_cia'] or '').strip(),
-        'codigo_doc': (r['codigo_doc'] or '').strip(),
-        'nombre': r['nombre'] or '',
-        'definicion_json': _clob_to_str(r['definicion_json']),
-        'page_size': r['page_size'] or 'A4',
-        'page_orientation': r['page_orientation'] or 'P',
-        'activo': r['activo'] == 'S',
-        'version': int(r['version'] or 1),
-        'fecha_mod': r['fecha_mod'].isoformat() if r['fecha_mod'] else None,
-        'usuario_mod': r['usuario_mod'] or '',
+        'no_cia': (no_cia_v or '').strip(),
+        'codigo_doc': (codigo_v or '').strip(),
+        'nombre': nombre_v or '',
+        'definicion_json': definicion,
+        'page_size': page_size or 'A4',
+        'page_orientation': orient or 'P',
+        'activo': activo == 'S',
+        'version': int(version or 1),
+        'fecha_mod': fecha_mod.isoformat() if fecha_mod else None,
+        'usuario_mod': usuario_mod or '',
     }
 
 
@@ -75,17 +87,18 @@ def upsert_plantilla(no_cia: str, codigo_doc: str, nombre: str,
                      activo: bool = True,
                      usuario: str = '') -> dict:
     with client.cursor() as cur:
-        # Resolver versión actual (si existe)
+        # Resolver versión actual (si existe) — leemos el CLOB previo
+        # ANTES de cualquier otra operación que pueda invalidar la conexión.
         cur.execute(
             "SELECT VERSION, DEFINICION_JSON, PAGE_SIZE, PAGE_ORIENTATION "
             "FROM FAT.TFAT_PLANTILLA_PDF WHERE NO_CIA = :1 AND CODIGO_DOC = :2",
             [no_cia, codigo_doc])
         prev = cur.fetchone()
+        prev_json = _read_lob_or_none(prev[1]) if prev else None
         next_version = (int(prev[0]) + 1) if prev else 1
 
         # Snapshot del estado previo en HIST
         if prev:
-            prev_json = _clob_to_str(prev[1])
             cur.execute(
                 "INSERT INTO FAT.TFAT_PLANTILLA_PDF_HIST "
                 "(NO_CIA, CODIGO_DOC, VERSION, DEFINICION_JSON, PAGE_SIZE, PAGE_ORIENTATION, FECHA_MOD, USUARIO_MOD) "
@@ -123,7 +136,7 @@ def restore_default(no_cia: str, codigo_doc: str, usuario: str = '') -> dict | N
         prev = cur.fetchone()
         if not prev:
             return None
-        prev_json = _clob_to_str(prev[1])
+        prev_json = _read_lob_or_none(prev[1])
         cur.execute(
             "INSERT INTO FAT.TFAT_PLANTILLA_PDF_HIST "
             "(NO_CIA, CODIGO_DOC, VERSION, DEFINICION_JSON, PAGE_SIZE, PAGE_ORIENTATION, FECHA_MOD, USUARIO_MOD) "
@@ -166,15 +179,17 @@ def get_historial_version(no_cia: str, codigo_doc: str, version: int) -> dict | 
         "FROM FAT.TFAT_PLANTILLA_PDF_HIST "
         "WHERE NO_CIA = :1 AND CODIGO_DOC = :2 AND VERSION = :3"
     )
-    rows = client.fetch_dicts(sql, [no_cia, codigo_doc, version])
-    if not rows:
-        return None
-    r = rows[0]
-    return {
-        'definicion_json': _clob_to_str(r['definicion_json']),
-        'page_size': r['page_size'] or 'A4',
-        'page_orientation': r['page_orientation'] or 'P',
-    }
+    with client.cursor() as cur:
+        cur.execute(sql, [no_cia, codigo_doc, version])
+        row = cur.fetchone()
+        if not row:
+            return None
+        def_json = _read_lob_or_none(row[0])
+        return {
+            'definicion_json': def_json,
+            'page_size': row[1] or 'A4',
+            'page_orientation': row[2] or 'P',
+        }
 
 
 def rollback_to(no_cia: str, codigo_doc: str, version: int, usuario: str = '') -> dict | None:

@@ -1,5 +1,6 @@
 """CXC URL patterns — include in main urls.py under /api/cxc/."""
 from django.urls import path
+from .docs_print_data import cxc_documento_print_data
 from .cxc_views import (
     CxcCiasView, CxcPuntosView, CxcPuntoDetailView,
     CxcTdocuView, CxcTcliView, CxcSupervisoresView,
@@ -15,6 +16,8 @@ from .cxc_views import (
 )
 
 urlpatterns = [
+    # print-data
+    path('documentos/<str:no_docu>/print-data/', cxc_documento_print_data),
     # Configuración
     path('cias/', CxcCiasView.as_view()),
     path('puntos/', CxcPuntosView.as_view()),

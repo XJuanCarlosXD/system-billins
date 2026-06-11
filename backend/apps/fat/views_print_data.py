@@ -141,9 +141,25 @@ def fat_factura_print_data(request, tipo: str, no_factura: str):
                        factura.get('tipo_ncf_fiscal') or '').strip().upper()
     ncf_descripcion = NCF_DESCRIPCION.get(tipo_ncf_fiscal, '')
 
+    # Resolver tipo_label desde TFAT_TDOCU para soportar cualquier tipo de
+    # documento (FT, FC, NC, ND, DV, AF, etc.). Si no se encuentra, fallback
+    # a la lista por defecto y por último al código en uppercase.
+    tipo_label_resuelto = None
+    try:
+        for td in fat_repo.list_document_types(no_cia):
+            if (td.tipo_docu or '').strip().upper() == tipo_s:
+                tipo_label_resuelto = (td.descripcion or '').strip() or None
+                break
+    except Exception:
+        pass
+
     doc = {
         'tipo': tipo_s,
-        'tipo_label': {'FC': 'Factura Crédito', 'FT': 'Factura Contado'}.get(tipo_s, 'Factura'),
+        'tipo_label': tipo_label_resuelto or {
+            'FC': 'Factura Crédito', 'FT': 'Factura Contado',
+            'NC': 'Nota de Crédito', 'ND': 'Nota de Débito',
+            'DV': 'Devolución', 'AF': 'Ajuste Factura',
+        }.get(tipo_s, f'Documento {tipo_s}'),
         'no': factura.get('no_factura'),
         'numero_display': f"{tipo_s}-{factura.get('no_factura')}",
         'fecha': factura.get('fecha'),
