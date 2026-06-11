@@ -1,7 +1,9 @@
 from django.urls import path
 from apps.legacy import acf_views
+from apps.legacy.docs_print_data import acf_acta_print_data
 
 urlpatterns = [
+    path('activos/<str:no_activo>/print-data/', acf_acta_print_data),
     path('cias/', acf_views.acf_cias),
     path('puntos/', acf_views.acf_puntos),
     path('categorias/', acf_views.acf_categorias),

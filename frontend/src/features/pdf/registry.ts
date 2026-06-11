@@ -13,6 +13,9 @@ import { comprobantePagoDefault } from './defaults/comprobante-pago'
 import { ordenCompraDefault } from './defaults/orden-compra'
 import { chequeChcDefault } from './defaults/cheque-chc'
 import { accDocumentoDefault } from './defaults/acc-documento'
+import { comprobanteContableDefault } from './defaults/comprobante-contable'
+import { actaActivoDefault } from './defaults/acta-activo'
+import { sdnNominaDefault } from './defaults/sdn-nomina'
 
 export type DocFamily = 'documento' | 'reporte'
 
@@ -126,6 +129,37 @@ export const registry: Record<string, RegistryEntry> = {
     defaultPageSize: 'A4', defaultPageOrientation: 'P',
     variables: docVarsBase,
   },
+  // ── CNT ────────────────────────────────────────────────────────────
+  // id encoding: ANO-MES-NO_ASIENTO (e.g. 2026-06-00123)
+  'comprobante-contable': {
+    codigo: 'comprobante-contable', modulo: 'CNT', nombre: 'Comprobante Contable', familia: 'documento',
+    printDataPath: (id, qs) => {
+      const [ano, mes, no] = id.split('-')
+      return `/cnt/asientos/${encodeURIComponent(ano)}/${encodeURIComponent(mes)}/${encodeURIComponent(no)}/print-data/?${qs.toString()}`
+    },
+    defaultTemplate: comprobanteContableDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: docVarsBase.concat(['doc.periodo', 'extra.debitos', 'extra.creditos', 'extra.diferencia']),
+  },
+  // ── ACF ────────────────────────────────────────────────────────────
+  'acta-activo': {
+    codigo: 'acta-activo', modulo: 'ACF', nombre: 'Acta de Activo Fijo', familia: 'documento',
+    printDataPath: (id, qs) => `/acf/activos/${encodeURIComponent(id)}/print-data/?${qs.toString()}`,
+    defaultTemplate: actaActivoDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: docVarsBase.concat([
+      'doc.grupo', 'doc.ubicacion', 'doc.serial', 'doc.marca', 'doc.modelo',
+      'extra.depreciacion_acum', 'extra.valor_residual', 'extra.vida_util',
+    ]),
+  },
+  // ── SDN ────────────────────────────────────────────────────────────
+  'sdn-nomina': {
+    codigo: 'sdn-nomina', modulo: 'SDN', nombre: 'Cabecera de Nómina', familia: 'documento',
+    printDataPath: (id, qs) => `/sdn/nominas/${encodeURIComponent(id)}/print-data/?${qs.toString()}`,
+    defaultTemplate: sdnNominaDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: docVarsBase.concat(['doc.periodo', 'extra.cuenta_contable', 'extra.cuenta_bancaria']),
+  },
 }
 
 export function getRegistryEntry(codigo: string): RegistryEntry | undefined {
@@ -144,17 +178,10 @@ export const PLANIFICADOS: Array<{ codigo: string; modulo: string; nombre: strin
   { codigo: 'nota-credito', modulo: 'FAT', nombre: 'Nota de Crédito' },
   { codigo: 'nota-debito', modulo: 'FAT', nombre: 'Nota de Débito' },
   { codigo: 'devolucion', modulo: 'FAT', nombre: 'Devolución' },
-  // CNT
-  { codigo: 'comprobante-contable', modulo: 'CNT', nombre: 'Comprobante Contable' },
-  // BAN
-  { codigo: 'cheque-impreso', modulo: 'BAN', nombre: 'Cheque Impreso' },
-  // NOM
-  { codigo: 'volante-pago', modulo: 'NOM', nombre: 'Volante de Pago' },
-  { codigo: 'recibo-nomina', modulo: 'NOM', nombre: 'Recibo de Nómina' },
-  // ACF
-  { codigo: 'acta-activo', modulo: 'ACF', nombre: 'Acta de Activo' },
-  // SDN
-  { codigo: 'sdn-documento', modulo: 'SDN', nombre: 'Documento SDN' },
+  // NOM — Volante individual (por empleado)
+  { codigo: 'volante-pago', modulo: 'NOM', nombre: 'Volante de Pago (individual)' },
   // MAN
   { codigo: 'man-orden-trabajo', modulo: 'MAN', nombre: 'Orden de Trabajo MAN' },
+  // BAN — Cheque bancario (no caja chica)
+  { codigo: 'cheque-impreso', modulo: 'BAN', nombre: 'Cheque Bancario (formato bancario)' },
 ]

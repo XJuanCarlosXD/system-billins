@@ -19,6 +19,7 @@ from django.views.decorators.http import require_http_methods
 
 from apps.legacy.repositories import (
     cxc_repo, cxp_repo, odc_repo, chc_repo, acc_repo,
+    cnt_repo, acf_repo, sdn_repo,
 )
 from apps.fat.views_print_data import _cia_payload, _money
 
@@ -254,6 +255,167 @@ def chc_cheque_print_data(request, tipo_docu: str, no_docu: str):
             'subtotal': total, 'descuento': 0, 'itbis': 0,
             'propina': 0, 'otros': 0, 'total': total, 'monto_letras': '',
         }, 'extra': {},
+    })
+
+
+# ─── CNT — Comprobante contable (asiento) ────────────────────────────────
+
+@login_required
+@require_http_methods(["GET"])
+def cnt_asiento_print_data(request, ano: int, mes: int, no_asiento: int):
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    cia = _cia_payload(no_cia, request=request)
+    try:
+        asiento = cnt_repo.get_asiento(no_cia, punto, int(ano), int(mes), int(no_asiento))
+    except Exception as e:
+        return JsonResponse({'error': f'Error consultando asiento: {e}'}, status=500)
+    if not asiento:
+        return JsonResponse({'error': 'Asiento no encontrado'}, status=404)
+
+    debitos = _money_or_zero(asiento.get('debitos'))
+    creditos = _money_or_zero(asiento.get('creditos'))
+
+    doc = {
+        'tipo': 'AS', 'tipo_label': 'Comprobante Contable',
+        'no': str(asiento.get('no_asiento') or ''),
+        'numero_display': f"AS-{int(ano):04d}-{int(mes):02d}-{int(asiento.get('no_asiento') or 0):05d}",
+        'fecha': str(asiento.get('fecha') or '')[:10],
+        'fecha_venc': None,
+        'estado': asiento.get('autorizado') == 'S' and 'AUTORIZADO' or 'PENDIENTE',
+        'anulada': (asiento.get('st_anulado') or 'N') == 'S',
+        'impresion': 'IMPRESA',
+        'condicion_pago': '', 'forma_pago': '', 'plazo_pago': 0,
+        'vendedor': '', 'nota': asiento.get('detalle') or '',
+        'detalle': asiento.get('detalle') or '',
+        'moneda': 'DOP', 'tasa': 0, 'porc_impuesto': 0,
+        'periodo': f"{int(mes):02d}/{int(ano)}",
+    }
+    cliente = {  # En CNT no hay "cliente" — usamos un slot vacío para el bloque
+        'no': '', 'nombre': '— Comprobante Contable —',
+        'rnc': '', 'direccion': '', 'telefono': '', 'email': '', 'tipo_ncf': '',
+    }
+    lineas = [{
+        'no_linea': l.get('no_linea'),
+        'codigo': (l.get('cuenta') or '').strip(),
+        'descripcion': (l.get('cuenta_desc') or '').strip(),
+        'almacen': (l.get('centro_costo') or '').strip(),
+        'cantidad': 1,
+        'precio': _money_or_zero(l.get('monto')),
+        'descuento': 0, 'itbis': 0,
+        'tipo_movi': l.get('tipo_movi') or '',
+        'debito': _money_or_zero(l.get('monto')) if l.get('tipo_movi') == 'D' else 0,
+        'credito': _money_or_zero(l.get('monto')) if l.get('tipo_movi') == 'C' else 0,
+        'total': _money_or_zero(l.get('monto')),
+    } for l in asiento.get('lineas') or []]
+    return JsonResponse({
+        'cia': cia, 'doc': doc, 'cliente': cliente,
+        'lineas': lineas,
+        'totales': {
+            'subtotal': debitos, 'descuento': 0, 'itbis': 0,
+            'propina': 0, 'otros': 0, 'total': debitos,
+            'monto_letras': '',
+        },
+        'extra': {'debitos': debitos, 'creditos': creditos, 'diferencia': debitos - creditos},
+    })
+
+
+# ─── ACF — Acta de Activo Fijo ───────────────────────────────────────────
+
+@login_required
+@require_http_methods(["GET"])
+def acf_acta_print_data(request, no_activo: str):
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    cia = _cia_payload(no_cia, request=request)
+    activo = acf_repo.get_activo(no_cia, punto, no_activo)
+    if not activo:
+        return JsonResponse({'error': 'Activo no encontrado'}, status=404)
+    doc = {
+        'tipo': 'AAF', 'tipo_label': 'Acta de Activo Fijo',
+        'no': activo.get('no_activo'),
+        'numero_display': f"ACF-{(activo.get('no_activo') or '').strip()}",
+        'fecha': str(activo.get('fecha_compra') or activo.get('fecha_alta') or '')[:10],
+        'estado': activo.get('status') or '',
+        'anulada': (activo.get('status') or 'A').upper() == 'R',  # R = Retirado
+        'impresion': 'IMPRESA',
+        'nota': activo.get('descripcion') or '',
+        'detalle': activo.get('descripcion') or '',
+        'moneda': 'DOP', 'tasa': 0, 'porc_impuesto': 0,
+        'grupo': activo.get('grupo') or '',
+        'ubicacion': activo.get('ubicacion') or '',
+        'serial': activo.get('serial') or '',
+        'marca': activo.get('marca') or '',
+        'modelo': activo.get('modelo') or '',
+        'condicion_pago': '', 'forma_pago': '', 'plazo_pago': 0, 'vendedor': '',
+    }
+    cliente = {
+        'no': activo.get('responsable') or '',
+        'nombre': activo.get('responsable_nombre') or activo.get('responsable') or '— Responsable —',
+        'rnc': '', 'direccion': activo.get('ubicacion') or '',
+        'telefono': '', 'email': '', 'tipo_ncf': '',
+    }
+    valor = _money_or_zero(activo.get('valor_compra') or activo.get('valor'))
+    return JsonResponse({
+        'cia': cia, 'doc': doc, 'cliente': cliente,
+        'lineas': [{
+            'no_linea': 1,
+            'codigo': activo.get('no_activo') or '',
+            'descripcion': activo.get('descripcion') or '',
+            'cantidad': 1,
+            'precio': valor, 'descuento': 0, 'itbis': 0, 'total': valor,
+        }],
+        'totales': {
+            'subtotal': valor, 'descuento': 0, 'itbis': 0,
+            'propina': 0, 'otros': 0, 'total': valor, 'monto_letras': '',
+        },
+        'extra': {
+            'depreciacion_acum': _money_or_zero(activo.get('depreciacion_acumulada')),
+            'valor_residual': _money_or_zero(activo.get('valor_residual')),
+            'vida_util': activo.get('vida_util'),
+        },
+    })
+
+
+# ─── SDN — Cabecera de Nómina (no volante individual aún) ─────────────────
+
+@login_required
+@require_http_methods(["GET"])
+def sdn_nomina_print_data(request, nomina: str):
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    cia = _cia_payload(no_cia, request=request)
+    nom = sdn_repo.get_nomina(no_cia, punto, nomina)
+    if not nom:
+        return JsonResponse({'error': 'Nómina no encontrada'}, status=404)
+    doc = {
+        'tipo': 'NOM', 'tipo_label': f"Nómina {nom.get('descripcion') or nomina}",
+        'no': nomina, 'numero_display': f"NOM-{nomina}",
+        'fecha': str(nom.get('fecha_inicial') or '')[:10],
+        'fecha_venc': str(nom.get('fecha_final') or '')[:10] if nom.get('fecha_final') else None,
+        'estado': nom.get('estado') or '', 'anulada': False,
+        'impresion': 'IMPRESA',
+        'forma_pago': nom.get('forma_pago') or '',
+        'condicion_pago': '', 'plazo_pago': 0, 'vendedor': '',
+        'nota': '', 'detalle': nom.get('descripcion') or '',
+        'moneda': nom.get('tipo_moneda') or 'DOP', 'tasa': 0, 'porc_impuesto': 0,
+        'periodo': f"{nom.get('mes_proceso') or ''}/{nom.get('ano_proceso') or ''}",
+    }
+    cliente = {
+        'no': '', 'nombre': f"Resumen Nómina {nom.get('descripcion') or nomina}",
+        'rnc': '', 'direccion': '', 'telefono': '', 'email': '', 'tipo_ncf': '',
+    }
+    return JsonResponse({
+        'cia': cia, 'doc': doc, 'cliente': cliente,
+        'lineas': [],  # cabecera sin desglose — volante por empleado pendiente
+        'totales': {
+            'subtotal': 0, 'descuento': 0, 'itbis': 0,
+            'propina': 0, 'otros': 0, 'total': 0, 'monto_letras': '',
+        },
+        'extra': {
+            'cuenta_contable': nom.get('cuenta_contable') or '',
+            'cuenta_bancaria': nom.get('cuenta_bancaria') or '',
+        },
     })
 
 

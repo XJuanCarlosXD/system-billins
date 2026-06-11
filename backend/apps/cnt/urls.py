@@ -1,7 +1,9 @@
 from django.urls import path
 from . import views
+from apps.legacy.docs_print_data import cnt_asiento_print_data
 
 urlpatterns = [
+    path('cnt/asientos/<int:ano>/<int:mes>/<int:no_asiento>/print-data/', cnt_asiento_print_data),
     # Config base
     path('cnt/config/', views.CntConfigView.as_view()),
 
