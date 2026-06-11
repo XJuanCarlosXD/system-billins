@@ -1,22 +1,26 @@
-// Plantilla default para Factura A4. Se aplica si TFAT_PLANTILLA_PDF.DEFINICION_JSON es NULL.
+// Plantilla default para Factura A4 — replica el layout del legacy ReportLab moderno:
+// [Logo + Empresa] | [Tarjeta documento (tipo, no, NCF)]   ← 2 columnas
+// [Panel cliente 2x4] + [Panel fiscal 4 columnas]          ← grid info
+// [Tabla líneas]
+// [Bloque totales]
+// [Nota]
+// [Firmas: Recibido por / Entregado por]
+// [Footer]
 export const facturaDefault: any = {
   content: [
     { type: 'WatermarkAnulada', props: { id: 'watermark-1', texto: 'ANULADA', opacity: 0.18, angle: -30, color: '#dc2626' } },
-    { type: 'HeaderEmpresa', props: {
-      id: 'header-empresa', showLogo: true, logoAlign: 'left', colorPrimario: '#0F172A',
-      showRnc: true, showTelefono: true, showEmail: false, showDireccion: true, razonSize: 16,
+    { type: 'EncabezadoFactura', props: {
+      id: 'encab',
+      showLogo: true, colorPrimario: '#0F172A',
+      showRnc: true, showTelefono: true, showEmail: false, showDireccion: true, razonSize: 15,
+      docBg: '#0F172A', docColor: '#ffffff', showNcf: true, showImpresion: true,
     } },
-    { type: 'HeaderDocumento', props: {
-      id: 'header-doc', showNcf: true, showFechaVenc: false, showImpresion: true,
-      bgColor: '#0F172A', textColor: '#ffffff',
+    { type: 'PanelInfoFactura', props: {
+      id: 'panel',
+      showCliente: true, showRnc: true, showDireccion: true, showVendedor: true,
+      showFecha: true, showCondicion: true, showPlazo: true,
+      showTipoNcf: true, showFormaPago: true, showEstado: true,
     } },
-    { type: 'Spacer', props: { id: 'sp-1', height: 6 } },
-    { type: 'BloqueCliente', props: {
-      id: 'cliente', columnas: 2,
-      showNombre: true, showRnc: true, showDireccion: true,
-      showTelefono: false, showEmail: false, showTipoNcf: true, showCondicion: true, showVendedor: true,
-    } },
-    { type: 'Spacer', props: { id: 'sp-2', height: 6 } },
     { type: 'TablaLineas', props: {
       id: 'tabla',
       columnas: ['codigo', 'descripcion', 'cantidad', 'precio', 'descuento', 'itbis', 'total'],

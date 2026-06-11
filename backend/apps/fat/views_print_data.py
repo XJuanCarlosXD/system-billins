@@ -12,11 +12,13 @@ Forma estándar familia "reporte":
 """
 from __future__ import annotations
 
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 
 from apps.legacy.repositories import fat_repo, inv_repo, cxc_repo, permissions_repo
+from apps.legacy.logo_helpers import get_logo_path
 
 
 NCF_DESCRIPCION = {
@@ -32,7 +34,25 @@ NCF_DESCRIPCION = {
 }
 
 
-def _cia_payload(no_cia: str) -> dict:
+def _resolve_logo_url(request, no_cia: str) -> str:
+    """Devuelve la URL pública absoluta del logo de la empresa, o '' si no existe.
+
+    El logo se sube vía POST /api/cnt/cia-header/ y se guarda en
+    MEDIA_ROOT/logos/<no_cia>.<ext>. Aquí se compone {scheme}://{host}{MEDIA_URL}logos/...
+    para que el frontend (Netlify, distinto origen) pueda hacer <img src> sin CORS.
+    """
+    p = get_logo_path(no_cia)
+    if not p:
+        return ''
+    media_url = getattr(settings, 'MEDIA_URL', '/media/')
+    # Construye URL absoluta usando request.build_absolute_uri para portabilidad.
+    try:
+        return request.build_absolute_uri(f"{media_url}logos/{p.name}")
+    except Exception:
+        return f"{media_url}logos/{p.name}"
+
+
+def _cia_payload(no_cia: str, request=None) -> dict:
     """Resuelve datos de empresa (razón social, RNC, dirección, etc.) desde TFAT_CIAS o TCNT_CIAS."""
     cia = {}
     try:
@@ -44,6 +64,7 @@ def _cia_payload(no_cia: str) -> dict:
         cia = {}
     if not cia:
         cia = inv_repo.get_compania(no_cia) or {}
+    logo_url = _resolve_logo_url(request, no_cia) if request is not None else ''
     return {
         'no_cia': no_cia,
         'razon_social': (cia.get('descripcion') or no_cia).strip(),
@@ -51,7 +72,7 @@ def _cia_payload(no_cia: str) -> dict:
         'direccion': (cia.get('direccion') or '').strip(),
         'telefono': (cia.get('telefono') or '').strip(),
         'email': (cia.get('email') or '').strip(),
-        'logo_url': cia.get('logo_url') or '',
+        'logo_url': logo_url,
         'color_primario': cia.get('color_primario') or '#0F172A',
     }
 
@@ -98,7 +119,7 @@ def fat_factura_print_data(request, tipo: str, no_factura: str):
     if factura is None:
         return JsonResponse({'error': 'Factura no encontrada'}, status=404)
 
-    cia = _cia_payload(no_cia)
+    cia = _cia_payload(no_cia, request=request)
 
     no_cliente_str = str(factura.get('no_cliente') or '')
     cliente_row = cxc_repo.get_cliente(no_cia, no_cliente_str) or {}
@@ -221,7 +242,7 @@ def fat_conduce_print_data(request, tipo: str, no_conduce: str):
     if conduce is None:
         return JsonResponse({'error': 'Conduce no encontrado'}, status=404)
 
-    cia = _cia_payload(no_cia)
+    cia = _cia_payload(no_cia, request=request)
 
     no_cliente_str = str(conduce.get('no_cliente') or '')
     cliente_row = cxc_repo.get_cliente(no_cia, no_cliente_str) or {}
@@ -346,7 +367,7 @@ def fat_listado_facturas_print_data(request):
     except Exception as e:
         return JsonResponse({'error': f'Error consultando facturas: {e}'}, status=500)
 
-    cia = _cia_payload(no_cia)
+    cia = _cia_payload(no_cia, request=request)
 
     filas = []
     total_general = 0.0

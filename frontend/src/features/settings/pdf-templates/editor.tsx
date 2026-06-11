@@ -15,7 +15,9 @@ import {
   savePlantilla,
 } from '@/features/pdf/api'
 import { getRegistryEntry } from '@/features/pdf/registry'
-import { puckConfig } from '@/features/pdf/blocks'
+import { puckConfig, PdfDataProvider } from '@/features/pdf/blocks'
+import { getDemoData } from '@/features/pdf/demo-data'
+import '@/features/pdf/print.css'
 
 type Props = { codigo: string }
 
@@ -164,14 +166,17 @@ export default function PdfTemplateEditor({ codigo }: Props) {
         </div>
       </div>
 
-      {/* Puck editor */}
+      {/* Puck editor — envuelto en PdfDataProvider con datos demo,
+          así cada bloque se renderiza con valores realistas en el lienzo. */}
       <div className="flex-1 overflow-hidden">
-        <Puck
-          config={puckConfig}
-          data={puckData}
-          onChange={(d: any) => setPuckData(d)}
-          onPublish={(d: any) => saveMut.mutate(d)}
-        />
+        <PdfDataProvider value={getDemoData(codigo)}>
+          <Puck
+            config={puckConfig}
+            data={puckData}
+            onChange={(d: any) => setPuckData(d)}
+            onPublish={(d: any) => saveMut.mutate(d)}
+          />
+        </PdfDataProvider>
       </div>
     </div>
   )

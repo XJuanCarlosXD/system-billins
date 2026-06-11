@@ -50,22 +50,42 @@ function HeaderEmpresa({
   const data = usePdfData()
   const cia = data?.cia
   if (!cia) return null
-  return (
-    <div className="pdf-header-empresa" style={{ borderBottom: `2px solid ${colorPrimario}` }}>
-      {showLogo && cia.logo_url && (
-        <div className={`pdf-logo pdf-logo-${logoAlign}`}>
-          <img src={cia.logo_url} alt="logo" style={{ maxHeight: 60 }} />
-        </div>
-      )}
-      <div className="pdf-empresa-info">
-        <div style={{ fontSize: razonSize, fontWeight: 700, color: colorPrimario, lineHeight: 1.1 }}>
-          {cia.razon_social}
-        </div>
-        {showDireccion && cia.direccion && <div className="pdf-text-sm">{cia.direccion}</div>}
-        {showRnc && cia.rnc && <div className="pdf-text-sm">RNC: {cia.rnc}</div>}
-        {showTelefono && cia.telefono && <div className="pdf-text-sm">Tel: {cia.telefono}</div>}
-        {showEmail && cia.email && <div className="pdf-text-sm">{cia.email}</div>}
+  // Layout horizontal real (legacy): logo a un lado, datos al otro.
+  const logoEl = showLogo && cia.logo_url ? (
+    <div className="pdf-logo" style={{ flex: '0 0 auto' }}>
+      <img src={cia.logo_url} alt="logo" style={{ maxHeight: 70, maxWidth: 130, objectFit: 'contain' }} />
+    </div>
+  ) : null
+  const infoEl = (
+    <div className="pdf-empresa-info" style={{ flex: '1 1 auto' }}>
+      <div style={{ fontSize: razonSize, fontWeight: 700, color: colorPrimario, lineHeight: 1.15 }}>
+        {cia.razon_social}
       </div>
+      {showDireccion && cia.direccion && <div className="pdf-text-sm">{cia.direccion}</div>}
+      <div className="pdf-text-sm">
+        {[
+          showRnc && cia.rnc ? `RNC: ${cia.rnc}` : '',
+          showTelefono && cia.telefono ? `Tel: ${cia.telefono}` : '',
+          showEmail && cia.email ? cia.email : '',
+        ].filter(Boolean).join(' | ')}
+      </div>
+    </div>
+  )
+  const isCenter = logoAlign === 'center'
+  return (
+    <div
+      className="pdf-header-empresa"
+      style={{
+        display: 'flex',
+        flexDirection: isCenter ? 'column' : 'row',
+        alignItems: isCenter ? 'center' : 'center',
+        gap: 12,
+        paddingBottom: 6,
+        borderBottom: `2px solid ${colorPrimario}`,
+        textAlign: isCenter ? 'center' : 'left',
+      }}
+    >
+      {isCenter ? (<>{logoEl}{infoEl}</>) : logoAlign === 'right' ? (<>{infoEl}{logoEl}</>) : (<>{logoEl}{infoEl}</>)}
     </div>
   )
 }
@@ -93,6 +113,122 @@ function HeaderDocumento({ showNcf, showFechaVenc, showImpresion, bgColor, textC
       {showFechaVenc && d.fecha_venc && <div className="pdf-text-sm">Vence: {fmtDate(d.fecha_venc)}</div>}
       {showNcf && d.ncf_dgi && <div style={{ fontSize: 11 }}>NCF: {d.ncf_dgi}</div>}
       {showNcf && d.tipo_ncf_label && <div className="pdf-text-sm">{d.tipo_ncf_label}</div>}
+    </div>
+  )
+}
+
+// ────────────────────────────────────────────────────────────────────
+// EncabezadoFactura — combo legacy: empresa (logo + datos) + tarjeta doc
+// ────────────────────────────────────────────────────────────────────
+type EncabezadoFacturaProps = {
+  showLogo: boolean
+  colorPrimario: string
+  showRnc: boolean
+  showTelefono: boolean
+  showEmail: boolean
+  showDireccion: boolean
+  razonSize: number
+  docBg: string
+  docColor: string
+  showNcf: boolean
+  showImpresion: boolean
+}
+function EncabezadoFactura(p: EncabezadoFacturaProps) {
+  const data = usePdfData()
+  if (!data || isReportePayload(data)) return null
+  const cia = data.cia
+  const d = (data as DocumentoPrintPayload).doc
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 90mm', gap: 12, marginBottom: 4 }}>
+      {/* Columna empresa: logo + razón + dirección + RNC|tel */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 6, borderBottom: `2px solid ${p.colorPrimario}` }}>
+        {p.showLogo && cia.logo_url ? (
+          <img src={cia.logo_url} alt="logo" style={{ maxHeight: 70, maxWidth: 130, objectFit: 'contain', flex: '0 0 auto' }} />
+        ) : null}
+        <div style={{ flex: '1 1 auto' }}>
+          <div style={{ fontSize: p.razonSize, fontWeight: 700, color: p.colorPrimario, lineHeight: 1.15 }}>
+            {cia.razon_social || 'Empresa'}
+          </div>
+          {p.showDireccion && cia.direccion && <div className="pdf-text-sm">{cia.direccion}</div>}
+          <div className="pdf-text-sm">
+            {[
+              p.showRnc && cia.rnc ? `RNC: ${cia.rnc}` : '',
+              p.showTelefono && cia.telefono ? `Tel: ${cia.telefono}` : '',
+              p.showEmail && cia.email ? cia.email : '',
+            ].filter(Boolean).join(' | ') || 'RNC/teléfono no registrados'}
+          </div>
+        </div>
+      </div>
+      {/* Columna documento: tarjeta dark */}
+      <div style={{ background: p.docBg, color: p.docColor, padding: '8px 10px', borderRadius: 4, display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 70 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.1 }}>{d.tipo_label || d.tipo}</div>
+        <div style={{ fontSize: 16, fontWeight: 800, lineHeight: 1.1, marginTop: 2 }}>
+          {d.numero_display || `${d.tipo}-${d.no}`}
+        </div>
+        {p.showNcf && d.ncf_dgi && (
+          <div style={{ fontSize: 10, marginTop: 4 }}>NCF: {d.ncf_dgi}</div>
+        )}
+        {p.showImpresion && d.impresion && (
+          <div style={{ fontSize: 9, marginTop: 2, opacity: 0.85 }}>{d.impresion}</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ────────────────────────────────────────────────────────────────────
+// PanelInfoFactura — panel cliente + panel fiscal estilo legacy
+// ────────────────────────────────────────────────────────────────────
+type PanelInfoFacturaProps = {
+  showCliente: boolean
+  showRnc: boolean
+  showDireccion: boolean
+  showVendedor: boolean
+  showFecha: boolean
+  showCondicion: boolean
+  showPlazo: boolean
+  showTipoNcf: boolean
+  showFormaPago: boolean
+  showEstado: boolean
+}
+function PanelInfoFactura(p: PanelInfoFacturaProps) {
+  const data = usePdfData()
+  if (!data || isReportePayload(data)) return null
+  const d = (data as DocumentoPrintPayload).doc
+  const cli = (data as DocumentoPrintPayload).cliente
+  if (!cli) return null
+  const cell = (label: string, value: any) => (
+    <div style={{ padding: '5px 8px', borderRight: '1px solid #E2E8F0', borderBottom: '1px solid #E2E8F0' }}>
+      <div style={{ fontSize: 8, color: '#64748B', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
+      <div style={{ fontSize: 10, color: '#0F172A' }}>{value || 'N/A'}</div>
+    </div>
+  )
+  return (
+    <div style={{ marginTop: 4 }}>
+      {/* Panel cliente: 2 columnas, 4 filas */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: '62% 38%',
+        background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: 3,
+      }}>
+        {p.showCliente && cell('Cliente', cli.nombre)}
+        {p.showCliente && cell('No. Cliente', cli.no)}
+        {p.showRnc && cell('RNC/Cédula', cli.rnc)}
+        {p.showFecha && cell('Fecha', d.fecha ? fmtDate(d.fecha) : null)}
+        {p.showDireccion && cell('Dirección', cli.direccion)}
+        {p.showCondicion && cell('Condición', d.condicion_pago)}
+        {p.showVendedor && cell('Vendedor', d.vendedor)}
+        {p.showPlazo && cell('Plazo', d.plazo_pago !== undefined ? `${d.plazo_pago} días` : null)}
+      </div>
+      {/* Panel fiscal: 4 columnas */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: '30% 22% 30% 18%',
+        background: '#EFF6FF', border: '1px solid #BFDBFE', borderTop: 'none', borderRadius: '0 0 3px 3px',
+      }}>
+        {p.showTipoNcf && cell('Tipo NCF', d.tipo_ncf_label || d.tipo_ncf)}
+        {p.showEstado && cell('Estado', d.anulada ? 'ANULADA' : (d.impresion || d.estado))}
+        {p.showFormaPago && cell('Forma Pago', d.forma_pago)}
+        {p.showFecha && cell('Fecha', d.fecha ? fmtDate(d.fecha) : null)}
+      </div>
     </div>
   )
 }
@@ -491,6 +627,8 @@ function FooterReporte({ showCantidad, showTotal, colorPrimario }: FooterReporte
 // ────────────────────────────────────────────────────────────────────
 export type PuckBlockProps = {
   HeaderEmpresa: HeaderEmpresaProps
+  EncabezadoFactura: EncabezadoFacturaProps
+  PanelInfoFactura: PanelInfoFacturaProps
   HeaderDocumento: HeaderDocProps
   WatermarkAnulada: WatermarkProps
   BloqueCliente: BloqueClienteProps
@@ -530,6 +668,49 @@ export const puckConfig: any = {
         showRnc: true, showTelefono: true, showEmail: false, showDireccion: true, razonSize: 16,
       },
       render: HeaderEmpresa,
+    },
+    EncabezadoFactura: {
+      label: 'Encabezado Factura (empresa + doc)',
+      fields: {
+        showLogo: { type: 'radio', options: [{ label: 'Sí', value: true }, { label: 'No', value: false }] },
+        colorPrimario: { type: 'text' },
+        showRnc: { type: 'radio', options: [{ label: 'Sí', value: true }, { label: 'No', value: false }] },
+        showTelefono: { type: 'radio', options: [{ label: 'Sí', value: true }, { label: 'No', value: false }] },
+        showEmail: { type: 'radio', options: [{ label: 'Sí', value: true }, { label: 'No', value: false }] },
+        showDireccion: { type: 'radio', options: [{ label: 'Sí', value: true }, { label: 'No', value: false }] },
+        razonSize: { type: 'number', min: 10, max: 24 },
+        docBg: { type: 'text' },
+        docColor: { type: 'text' },
+        showNcf: { type: 'radio', options: [{ label: 'Sí', value: true }, { label: 'No', value: false }] },
+        showImpresion: { type: 'radio', options: [{ label: 'Sí', value: true }, { label: 'No', value: false }] },
+      },
+      defaultProps: {
+        showLogo: true, colorPrimario: '#0F172A',
+        showRnc: true, showTelefono: true, showEmail: false, showDireccion: true, razonSize: 15,
+        docBg: '#0F172A', docColor: '#ffffff', showNcf: true, showImpresion: true,
+      },
+      render: EncabezadoFactura,
+    },
+    PanelInfoFactura: {
+      label: 'Panel Info Factura (cliente + fiscal)',
+      fields: {
+        showCliente: { type: 'radio', options: [{ label: 'Sí', value: true }, { label: 'No', value: false }] },
+        showRnc: { type: 'radio', options: [{ label: 'Sí', value: true }, { label: 'No', value: false }] },
+        showDireccion: { type: 'radio', options: [{ label: 'Sí', value: true }, { label: 'No', value: false }] },
+        showVendedor: { type: 'radio', options: [{ label: 'Sí', value: true }, { label: 'No', value: false }] },
+        showFecha: { type: 'radio', options: [{ label: 'Sí', value: true }, { label: 'No', value: false }] },
+        showCondicion: { type: 'radio', options: [{ label: 'Sí', value: true }, { label: 'No', value: false }] },
+        showPlazo: { type: 'radio', options: [{ label: 'Sí', value: true }, { label: 'No', value: false }] },
+        showTipoNcf: { type: 'radio', options: [{ label: 'Sí', value: true }, { label: 'No', value: false }] },
+        showFormaPago: { type: 'radio', options: [{ label: 'Sí', value: true }, { label: 'No', value: false }] },
+        showEstado: { type: 'radio', options: [{ label: 'Sí', value: true }, { label: 'No', value: false }] },
+      },
+      defaultProps: {
+        showCliente: true, showRnc: true, showDireccion: true, showVendedor: true,
+        showFecha: true, showCondicion: true, showPlazo: true,
+        showTipoNcf: true, showFormaPago: true, showEstado: true,
+      },
+      render: PanelInfoFactura,
     },
     HeaderDocumento: {
       label: 'Header — Documento',

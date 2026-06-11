@@ -1,24 +1,22 @@
 export const cotizacionDefault: any = {
   content: [
-    { type: 'HeaderEmpresa', props: {
-      id: 'he', showLogo: true, logoAlign: 'center', colorPrimario: '#1e40af',
-      showRnc: true, showTelefono: true, showEmail: true, showDireccion: true, razonSize: 18,
-    } },
-    { type: 'HeaderDocumento', props: {
-      id: 'hd', showNcf: false, showFechaVenc: true, showImpresion: false,
-      bgColor: '#1e40af', textColor: '#ffffff',
+    { type: 'EncabezadoFactura', props: {
+      id: 'encab',
+      showLogo: true, colorPrimario: '#1e40af',
+      showRnc: true, showTelefono: true, showEmail: true, showDireccion: true, razonSize: 16,
+      docBg: '#1e40af', docColor: '#ffffff', showNcf: false, showImpresion: false,
     } },
     { type: 'TextoLibre', props: {
       id: 'intro',
       html: '<p>Estimado(a) <b>{{ cliente.nombre }}</b>,</p><p>Por la presente cotización le presentamos nuestra mejor oferta para los siguientes productos y/o servicios:</p>',
       fontSize: 10, textAlign: 'left',
     } },
-    { type: 'BloqueCliente', props: {
-      id: 'cl', columnas: 2,
-      showNombre: true, showRnc: true, showDireccion: true,
-      showTelefono: true, showEmail: true, showTipoNcf: false, showCondicion: true, showVendedor: true,
+    { type: 'PanelInfoFactura', props: {
+      id: 'panel',
+      showCliente: true, showRnc: true, showDireccion: true, showVendedor: true,
+      showFecha: true, showCondicion: true, showPlazo: true,
+      showTipoNcf: false, showFormaPago: false, showEstado: false,
     } },
-    { type: 'Spacer', props: { id: 'sp', height: 6 } },
     { type: 'TablaLineas', props: {
       id: 'tabla',
       columnas: ['codigo', 'descripcion', 'cantidad', 'precio', 'itbis', 'total'],

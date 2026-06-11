@@ -1,21 +1,18 @@
 export const conduceDefault: any = {
   content: [
     { type: 'WatermarkAnulada', props: { id: 'watermark', texto: 'ANULADA', opacity: 0.18, angle: -30, color: '#dc2626' } },
-    { type: 'HeaderEmpresa', props: {
-      id: 'he', showLogo: true, logoAlign: 'left', colorPrimario: '#0F172A',
-      showRnc: true, showTelefono: true, showEmail: false, showDireccion: true, razonSize: 16,
+    { type: 'EncabezadoFactura', props: {
+      id: 'encab',
+      showLogo: true, colorPrimario: '#475569',
+      showRnc: true, showTelefono: true, showEmail: false, showDireccion: true, razonSize: 15,
+      docBg: '#475569', docColor: '#ffffff', showNcf: false, showImpresion: true,
     } },
-    { type: 'HeaderDocumento', props: {
-      id: 'hd', showNcf: false, showFechaVenc: false, showImpresion: true,
-      bgColor: '#475569', textColor: '#ffffff',
+    { type: 'PanelInfoFactura', props: {
+      id: 'panel',
+      showCliente: true, showRnc: true, showDireccion: true, showVendedor: true,
+      showFecha: true, showCondicion: true, showPlazo: true,
+      showTipoNcf: false, showFormaPago: false, showEstado: true,
     } },
-    { type: 'Spacer', props: { id: 'sp1', height: 6 } },
-    { type: 'BloqueCliente', props: {
-      id: 'cl', columnas: 2,
-      showNombre: true, showRnc: true, showDireccion: true,
-      showTelefono: false, showEmail: false, showTipoNcf: false, showCondicion: true, showVendedor: true,
-    } },
-    { type: 'Spacer', props: { id: 'sp2', height: 6 } },
     { type: 'TablaLineas', props: {
       id: 'tabla',
       columnas: ['codigo', 'descripcion', 'cantidad', 'precio', 'descuento', 'total'],
