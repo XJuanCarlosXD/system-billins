@@ -17,4 +17,5 @@ urlpatterns = [
     path('api/sdn/', include('apps.legacy.sdn_urls')),
     path('api/acf/', include('apps.legacy.acf_urls')),
     path('api/man/', include('apps.legacy.man_urls')),
+    path('api/settings/', include('apps.legacy.plantillas_pdf_urls')),
 ]

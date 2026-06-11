@@ -19,6 +19,10 @@ from .views_print import (
     fat_rep_ncf_nulos_pdf, fat_rep_facturas_rnc_pdf, fat_rep_margen_bruto_pdf,
     fat_cuadre_caja_pdf, fat_rep_ventas_productos_pdf,
 )
+from .views_print_data import (
+    fat_factura_print_data, fat_conduce_print_data,
+    fat_listado_facturas_print_data,
+)
 
 urlpatterns = [
     path('fat/ncf/', FatNCFListView.as_view()),
@@ -55,6 +59,11 @@ urlpatterns = [
     path('fat/proximo-ncf/', FatProximoNcfView.as_view()),
     path('fat/ncf-usado/', FatNcfUsadoView.as_view()),
     path('fat/proximo-no-factura/', FatProximoNoFacturaView.as_view()),
+    # print-data endpoints (JSON puro — el PDF se arma en el frontend)
+    path('fat/documentos/<str:tipo>/<str:no_factura>/print-data/', fat_factura_print_data),
+    path('fat/conduces/<str:tipo>/<str:no_conduce>/print-data/', fat_conduce_print_data),
+    path('fat/reportes/listado/print-data/', fat_listado_facturas_print_data),
+
     path('fat/documentos/<str:tipo>/<str:no_factura>/pdf/', fat_documento_pdf),
     path('fat/documentos/<str:tipo>/<str:no_factura>/pos-pdf/', fat_documento_pos_pdf),
     path('fat/reportes/listado/pdf/', fat_lista_facturas_pdf),

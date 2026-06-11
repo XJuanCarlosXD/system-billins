@@ -239,9 +239,9 @@ export function FATFacturaDetail({
             variant='secondary'
             size='sm'
             onClick={() => {
-              const apiBase = (import.meta as any).env?.VITE_API_BASE_URL || '/api'
               const qs = new URLSearchParams({ no_cia: factura.no_cia, punto: factura.punto })
-              window.open(`${apiBase}/fat/documentos/${factura.tipo_factura}/${factura.no_factura}/pdf/?${qs}`, '_blank')
+              const id = `${factura.tipo_factura}-${factura.no_factura}`
+              window.open(`/print/factura/${encodeURIComponent(id)}?${qs}`, '_blank')
             }}
           >
             <Printer className='size-4 mr-2' />

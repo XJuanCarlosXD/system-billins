@@ -1,0 +1,33 @@
+-- DDL para sistema de plantillas PDF editables (estilo Odoo).
+-- Spec: backend/docs/superpowers/specs/2026-06-10-pdf-frontend-templates-design.md
+--
+-- Ejecutar como usuario con privilegios sobre el schema FAT.
+-- En la VM 10.0.0.99: sqlplus JCABREU/508192003@AB @2026-06-10-plantillas-pdf.sql
+
+CREATE TABLE FAT.TFAT_PLANTILLA_PDF (
+  NO_CIA            VARCHAR2(2)   NOT NULL,
+  CODIGO_DOC        VARCHAR2(40)  NOT NULL,
+  NOMBRE            VARCHAR2(120) NOT NULL,
+  DEFINICION_JSON   CLOB,
+  PAGE_SIZE         VARCHAR2(10)  DEFAULT 'A4',
+  PAGE_ORIENTATION  VARCHAR2(1)   DEFAULT 'P',
+  ACTIVO            CHAR(1)       DEFAULT 'S',
+  VERSION           NUMBER(4)     DEFAULT 1,
+  FECHA_MOD         DATE          DEFAULT SYSDATE,
+  USUARIO_MOD       VARCHAR2(30),
+  CONSTRAINT PK_TFAT_PLANTILLA_PDF PRIMARY KEY (NO_CIA, CODIGO_DOC)
+);
+
+CREATE TABLE FAT.TFAT_PLANTILLA_PDF_HIST (
+  NO_CIA            VARCHAR2(2)   NOT NULL,
+  CODIGO_DOC        VARCHAR2(40)  NOT NULL,
+  VERSION           NUMBER(4)     NOT NULL,
+  DEFINICION_JSON   CLOB,
+  PAGE_SIZE         VARCHAR2(10),
+  PAGE_ORIENTATION  VARCHAR2(1),
+  FECHA_MOD         DATE,
+  USUARIO_MOD       VARCHAR2(30),
+  CONSTRAINT PK_TFAT_PLANTILLA_PDF_HIST PRIMARY KEY (NO_CIA, CODIGO_DOC, VERSION)
+);
+
+COMMIT;

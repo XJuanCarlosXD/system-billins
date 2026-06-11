@@ -1,0 +1,63 @@
+/* Estilos para la vista /print/<codigo>/<id> y la página de impresión.
+   El editor Puck reusa estas mismas clases dentro del lienzo de preview. */
+
+.pdf-page {
+  font-family: 'Helvetica', 'Arial', sans-serif;
+  color: #0F172A;
+  background: #fff;
+  padding: 15mm;
+  box-sizing: border-box;
+  max-width: 210mm;
+  margin: 0 auto;
+}
+
+.pdf-page--A4 { width: 210mm; min-height: 297mm; }
+.pdf-page--LETTER { width: 216mm; min-height: 279mm; }
+.pdf-page--POS80 { width: 80mm; min-height: 200mm; padding: 4mm; font-size: 10px; max-width: 80mm; }
+
+.pdf-page--landscape.pdf-page--A4 { width: 297mm; min-height: 210mm; max-width: 297mm; }
+
+.pdf-canvas { display: flex; flex-direction: column; gap: 6px; }
+.pdf-text-sm { font-size: 10px; color: #334155; line-height: 1.3; }
+
+.pdf-header-empresa {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding-bottom: 6px;
+}
+.pdf-logo { flex: 0 0 auto; }
+.pdf-logo-left { order: 0; }
+.pdf-logo-center { margin: 0 auto; }
+.pdf-logo-right { margin-left: auto; order: 2; }
+.pdf-empresa-info { flex: 1 1 auto; }
+
+.pdf-header-doc {
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.pdf-tabla-lineas thead { display: table-header-group; }
+.pdf-tabla-lineas tr { page-break-inside: avoid; }
+
+.pdf-firmas { page-break-inside: avoid; }
+.pdf-footer { page-break-inside: avoid; }
+
+/* Numeración de páginas — counters de @page no aplican; usamos un span con counter */
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
+@media print {
+  html, body { background: #fff; margin: 0; padding: 0; }
+  .pdf-page { box-shadow: none; padding: 15mm; }
+  .pdf-noprint { display: none !important; }
+  body.pdf-pagesize-LETTER { /* hint solamente */ }
+}
+
+/* Sólo en pantalla: marco visual para distinguir la hoja */
+@media screen {
+  body.pdf-screen { background: #f1f5f9; padding: 16px 0; }
+  .pdf-page { box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin: 16px auto; }
+}

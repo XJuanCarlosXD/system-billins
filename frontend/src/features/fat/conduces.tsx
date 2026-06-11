@@ -242,11 +242,12 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
   }
 
   const openConducePdf = (c: { tipo_conduce: string; no_conduce: string }) => {
-    const API_BASE =
-      (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
     const qs = new URLSearchParams({ no_cia: noCia, punto }).toString()
+    const id = `${c.tipo_conduce}-${c.no_conduce}`
+    // Cotización (CT) usa una plantilla distinta del conduce normal (CO).
+    const codigo = c.tipo_conduce === 'CT' ? 'cotizacion' : 'conduce'
     window.open(
-      `${API_BASE}/fat/conduces/${encodeURIComponent(c.tipo_conduce)}/${encodeURIComponent(c.no_conduce)}/pdf/?${qs}`,
+      `/print/${codigo}/${encodeURIComponent(id)}?${qs}`,
       '_blank'
     )
   }

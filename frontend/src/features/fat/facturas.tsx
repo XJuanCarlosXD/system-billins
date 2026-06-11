@@ -282,21 +282,15 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
     if (filterHasta) params.set('hasta', filterHasta)
     if (filterTipo) params.set('tipo', filterTipo)
     if (filterEstado) params.set('estado', filterEstado)
-    window.open(
-      `${API_BASE}/fat/reportes/listado/pdf/?${params.toString()}`,
-      '_blank'
-    )
+    // Render del listado vía /print/<codigo>/<id> (frontend, plantilla editable).
+    window.open(`/print/listado-facturas/listado?${params.toString()}`, '_blank')
   }
 
   const printDetail = () => {
     if (!selected) return
-    const API_BASE =
-      (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
     const params = new URLSearchParams({ no_cia: noCia, punto })
-    window.open(
-      `${API_BASE}/fat/documentos/${encodeURIComponent(selected.tipo_factura)}/${encodeURIComponent(selected.no_factura)}/pdf/?${params.toString()}`,
-      '_blank'
-    )
+    const id = `${selected.tipo_factura}-${selected.no_factura}`
+    window.open(`/print/factura/${encodeURIComponent(id)}?${params.toString()}`, '_blank')
   }
 
   const printPos = () => {
