@@ -52,8 +52,13 @@ function HeaderEmpresa({
   if (!cia) return null
   // Layout horizontal real (legacy): logo a un lado, datos al otro.
   const logoEl = showLogo && cia.logo_url ? (
-    <div className="pdf-logo" style={{ flex: '0 0 auto' }}>
-      <img src={cia.logo_url} alt="logo" style={{ maxHeight: 70, maxWidth: 130, objectFit: 'contain' }} />
+    <div className="pdf-logo" style={{ flex: '0 0 auto', maxWidth: 130, lineHeight: 0 }}>
+      <img
+        src={cia.logo_url}
+        alt="logo"
+        style={{ maxHeight: 70, maxWidth: 130, objectFit: 'contain', display: 'block' }}
+        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+      />
     </div>
   ) : null
   const infoEl = (
@@ -143,7 +148,12 @@ function EncabezadoFactura(p: EncabezadoFacturaProps) {
       {/* Columna empresa: logo + razón + dirección + RNC|tel */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 6, borderBottom: `2px solid ${p.colorPrimario}` }}>
         {p.showLogo && cia.logo_url ? (
-          <img src={cia.logo_url} alt="logo" style={{ maxHeight: 70, maxWidth: 130, objectFit: 'contain', flex: '0 0 auto' }} />
+          <img
+            src={cia.logo_url}
+            alt="logo"
+            style={{ maxHeight: 70, maxWidth: 130, objectFit: 'contain', flex: '0 0 auto', display: 'block' }}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+          />
         ) : null}
         <div style={{ flex: '1 1 auto' }}>
           <div style={{ fontSize: p.razonSize, fontWeight: 700, color: p.colorPrimario, lineHeight: 1.15 }}>

@@ -37,19 +37,20 @@ NCF_DESCRIPCION = {
 def _resolve_logo_url(request, no_cia: str) -> str:
     """Devuelve la URL pública absoluta del logo de la empresa, o '' si no existe.
 
-    El logo se sube vía POST /api/cnt/cia-header/ y se guarda en
-    MEDIA_ROOT/logos/<no_cia>.<ext>. Aquí se compone {scheme}://{host}{MEDIA_URL}logos/...
-    para que el frontend (Netlify, distinto origen) pueda hacer <img src> sin CORS.
+    El logo se sube vía POST /api/cnt/cia-header/ y se sirve públicamente por
+    GET /api/cnt/cia-logo/<no_cia>/ (CiaLogoView, sin auth). Este es el endpoint
+    correcto — NO MEDIA_URL, porque Django dev no sirve /media/ por defecto
+    y queremos un endpoint estable controlado por nosotros que funcione desde
+    cualquier origen (Netlify frontend → backend VM).
     """
     p = get_logo_path(no_cia)
     if not p:
         return ''
-    media_url = getattr(settings, 'MEDIA_URL', '/media/')
-    # Construye URL absoluta usando request.build_absolute_uri para portabilidad.
+    path = f"/api/cnt/cia-logo/{no_cia}/"
     try:
-        return request.build_absolute_uri(f"{media_url}logos/{p.name}")
+        return request.build_absolute_uri(path)
     except Exception:
-        return f"{media_url}logos/{p.name}"
+        return path
 
 
 def _cia_payload(no_cia: str, request=None) -> dict:
@@ -402,7 +403,7 @@ def fat_listado_facturas_print_data(request):
         'reporte': {
             'codigo': 'listado-facturas',
             'titulo': 'Listado de Facturas',
-            'fecha_generacion': None,  # frontend pone la suya al imprimir
+            'fecha_generacion': None,
             'filtros': filtros_legibles,
         },
         'filas': filas,
@@ -411,3 +412,298 @@ def fat_listado_facturas_print_data(request):
             'cantidad': len(filas),
         },
     })
+
+
+# ─── Helpers genéricos para reportes ─────────────────────────────────────
+
+def _filtros_basicos(request, extra: dict | None = None) -> dict:
+    out = {}
+    for k, label in (('desde', 'Desde'), ('hasta', 'Hasta'), ('tipo', 'Tipo'),
+                     ('tipo_docu', 'Tipo Doc'), ('estado', 'Estado'),
+                     ('vendedor', 'Vendedor'), ('almacen', 'Almacén'),
+                     ('no_cliente', 'Cliente'), ('rnc', 'RNC'), ('no_produ', 'Producto'),
+                     ('agrupar', 'Agrupar por')):
+        v = (request.GET.get(k) or '').strip()
+        if v:
+            out[label] = v
+    if extra:
+        out.update(extra)
+    return out
+
+
+# ─── /api/fat/reportes/ncf-nulos/print-data/ ─────────────────────────────
+
+@login_required
+@require_http_methods(["GET"])
+def fat_ncf_nulos_print_data(request):
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    err = _check_fat_access(request, no_cia, punto)
+    if err is not None:
+        return err
+    cia = _cia_payload(no_cia, request=request)
+    rows = fat_repo.rep_ncf_nulos(
+        no_cia=no_cia,
+        desde=request.GET.get('desde', ''),
+        hasta=request.GET.get('hasta', ''),
+    )
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'ncf-nulos', 'titulo': 'NCF Nulos',
+            'fecha_generacion': None,
+            'filtros': _filtros_basicos(request),
+        },
+        'filas': rows,
+        'totales': {'cantidad': len(rows)},
+    })
+
+
+# ─── /api/fat/reportes/facturas-rnc/print-data/ ──────────────────────────
+
+@login_required
+@require_http_methods(["GET"])
+def fat_facturas_rnc_print_data(request):
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    err = _check_fat_access(request, no_cia, punto)
+    if err is not None:
+        return err
+    cia = _cia_payload(no_cia, request=request)
+    rows = fat_repo.rep_facturas_rnc(
+        no_cia=no_cia, punto=punto,
+        desde=request.GET.get('desde', ''),
+        hasta=request.GET.get('hasta', ''),
+        tipo_docu=request.GET.get('tipo_docu', 'T'),
+        rnc=request.GET.get('rnc', ''),
+        no_cliente=request.GET.get('no_cliente', ''),
+    )
+    total = sum(_money(r.get('total_neto')) for r in rows)
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'facturas-rnc', 'titulo': 'Facturas con RNC',
+            'fecha_generacion': None,
+            'filtros': _filtros_basicos(request),
+        },
+        'filas': rows,
+        'totales': {'total': total, 'cantidad': len(rows)},
+    })
+
+
+# ─── /api/fat/reportes/margen-bruto/print-data/ ──────────────────────────
+
+@login_required
+@require_http_methods(["GET"])
+def fat_margen_bruto_print_data(request):
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    err = _check_fat_access(request, no_cia, punto)
+    if err is not None:
+        return err
+    cia = _cia_payload(no_cia, request=request)
+    agrupar = request.GET.get('agrupar', 'producto')
+    rows = fat_repo.rep_margen_bruto(
+        no_cia=no_cia, punto=punto,
+        desde=request.GET.get('desde', ''),
+        hasta=request.GET.get('hasta', ''),
+        tipo_docu=request.GET.get('tipo_docu', 'T'),
+        agrupar=agrupar,
+        vendedor=request.GET.get('vendedor', ''),
+        almacen=request.GET.get('almacen', ''),
+        no_cliente=request.GET.get('no_cliente', ''),
+        no_produ=request.GET.get('no_produ', ''),
+        tipo_transaccion=request.GET.get('tipo_transaccion', ''),
+    )
+    venta = sum(_money(r.get('venta')) for r in rows)
+    costo = sum(_money(r.get('costo')) for r in rows)
+    beneficio = sum(_money(r.get('beneficio')) for r in rows)
+    margen_pct = round((beneficio / venta) * 100, 2) if venta else 0
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'margen-bruto', 'titulo': f'Margen Bruto — agrupado por {agrupar}',
+            'fecha_generacion': None,
+            'filtros': _filtros_basicos(request),
+        },
+        'filas': rows,
+        'totales': {
+            'venta': venta, 'costo': costo, 'beneficio': beneficio,
+            'margen_pct': margen_pct, 'cantidad': len(rows), 'total': venta,
+        },
+    })
+
+
+# ─── /api/fat/reportes/607/print-data/ ───────────────────────────────────
+
+@login_required
+@require_http_methods(["GET"])
+def fat_607_print_data(request):
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    err = _check_fat_access(request, no_cia, punto)
+    if err is not None:
+        return err
+    cia = _cia_payload(no_cia, request=request)
+    ano = request.GET.get('ano', '')
+    mes = request.GET.get('mes', '')
+    try:
+        rows = fat_repo.rep_607(no_cia=no_cia, ano=int(ano), mes=int(mes)) if ano and mes else []
+    except Exception:
+        rows = []
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'ncf-607', 'titulo': f'Reporte 607 NCF — {mes}/{ano}',
+            'fecha_generacion': None,
+            'filtros': {'Año': ano, 'Mes': mes},
+        },
+        'filas': rows,
+        'totales': {'cantidad': len(rows)},
+    })
+
+
+# ─── /api/fat/reportes/lista-precios/print-data/ ─────────────────────────
+
+@login_required
+@require_http_methods(["GET"])
+def fat_lista_precios_print_data(request):
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    err = _check_fat_access(request, no_cia, punto)
+    if err is not None:
+        return err
+    cia = _cia_payload(no_cia, request=request)
+    no_lista = request.GET.get('no_lista', '')
+    try:
+        rows = fat_repo.list_lista_precio_detalle(no_cia=no_cia, punto=punto, no_lista=no_lista)
+    except Exception:
+        rows = []
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'lista-precios', 'titulo': f'Lista de Precios {no_lista}',
+            'fecha_generacion': None,
+            'filtros': {'Lista': no_lista} if no_lista else {},
+        },
+        'filas': rows,
+        'totales': {'cantidad': len(rows)},
+    })
+
+
+# ─── /api/fat/reportes/cuadre-caja/print-data/ ───────────────────────────
+
+@login_required
+@require_http_methods(["GET"])
+def fat_cuadre_caja_print_data(request):
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    err = _check_fat_access(request, no_cia, punto)
+    if err is not None:
+        return err
+    cia = _cia_payload(no_cia, request=request)
+    desde = request.GET.get('desde', '')
+    hasta = request.GET.get('hasta', '')
+    try:
+        rows = fat_repo.list_cuadre_caja(no_cia=no_cia, punto=punto, desde=desde, hasta=hasta)
+    except Exception:
+        rows = []
+    total = sum(_money(r.get('total') or r.get('total_neto')) for r in rows)
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'cuadre-caja', 'titulo': 'Cuadre de Caja',
+            'fecha_generacion': None,
+            'filtros': {'Desde': desde, 'Hasta': hasta} if (desde or hasta) else {},
+        },
+        'filas': rows,
+        'totales': {'total': total, 'cantidad': len(rows)},
+    })
+
+
+# ─── /api/fat/reportes/ventas-productos/print-data/ ──────────────────────
+
+@login_required
+@require_http_methods(["GET"])
+def fat_ventas_productos_print_data(request):
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    err = _check_fat_access(request, no_cia, punto)
+    if err is not None:
+        return err
+    cia = _cia_payload(no_cia, request=request)
+    desde = request.GET.get('desde', '')
+    hasta = request.GET.get('hasta', '')
+    try:
+        rows = fat_repo.rep_ventas_producto(
+            no_cia=no_cia, punto=punto, desde=desde, hasta=hasta,
+            vendedor=request.GET.get('vendedor', ''),
+            almacen=request.GET.get('almacen', ''),
+            no_cliente=request.GET.get('no_cliente', ''),
+            no_produ=request.GET.get('no_produ', ''),
+        )
+    except Exception:
+        rows = []
+    total = sum(_money(r.get('total_neto') or r.get('total')) for r in rows)
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'ventas-productos', 'titulo': 'Ventas por Producto',
+            'fecha_generacion': None,
+            'filtros': _filtros_basicos(request),
+        },
+        'filas': rows,
+        'totales': {'total': total, 'cantidad': len(rows)},
+    })
+
+
+# ─── /api/fat/reportes/listado-conduces/print-data/ ──────────────────────
+
+@login_required
+@require_http_methods(["GET"])
+def fat_listado_conduces_print_data(request):
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    err = _check_fat_access(request, no_cia, punto)
+    if err is not None:
+        return err
+    cia = _cia_payload(no_cia, request=request)
+    try:
+        result = fat_repo.list_conduces(
+            no_cia=no_cia, punto=punto,
+            fecha_desde=request.GET.get('desde', ''),
+            fecha_hasta=request.GET.get('hasta', ''),
+            tipo=request.GET.get('tipo', ''),
+            estado=request.GET.get('estado', ''),
+            search=request.GET.get('search', ''),
+            page=1, page_size=10000,
+        )
+        items = result.get('items', [])
+    except Exception:
+        items = []
+    filas = [{
+        'tipo': r.get('tipo_conduce', ''),
+        'no_conduce': f"{r.get('tipo_conduce', '')}-{r.get('no_conduce', '')}",
+        'fecha': r.get('fecha') or '',
+        'cliente': r.get('nombre_cliente', ''),
+        'factura': (
+            f"{(r.get('tipo_factura') or '').strip()}-{(r.get('no_factura') or '').strip()}"
+            if (r.get('no_factura') or '').strip() else ''
+        ),
+        'total': _money(r.get('total_neto')),
+    } for r in items]
+    total = sum(r['total'] for r in filas)
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'listado-conduces', 'titulo': 'Listado de Conduces / Cotizaciones',
+            'fecha_generacion': None,
+            'filtros': _filtros_basicos(request),
+        },
+        'filas': filas,
+        'totales': {'total': total, 'cantidad': len(filas)},
+    })
+
+
+# ─── /api/fat/documentos/<tipo>/<no>/print-data/?pos=1 — reusa fat_factura_print_data ──
+# El POS 80mm usa el mismo print-data; lo que cambia es la plantilla (codigo_doc = 'factura-pos').

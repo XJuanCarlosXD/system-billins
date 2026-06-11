@@ -22,6 +22,10 @@ from .views_print import (
 from .views_print_data import (
     fat_factura_print_data, fat_conduce_print_data,
     fat_listado_facturas_print_data,
+    fat_ncf_nulos_print_data, fat_facturas_rnc_print_data,
+    fat_margen_bruto_print_data, fat_607_print_data,
+    fat_lista_precios_print_data, fat_cuadre_caja_print_data,
+    fat_ventas_productos_print_data, fat_listado_conduces_print_data,
 )
 
 urlpatterns = [
@@ -63,6 +67,14 @@ urlpatterns = [
     path('fat/documentos/<str:tipo>/<str:no_factura>/print-data/', fat_factura_print_data),
     path('fat/conduces/<str:tipo>/<str:no_conduce>/print-data/', fat_conduce_print_data),
     path('fat/reportes/listado/print-data/', fat_listado_facturas_print_data),
+    path('fat/reportes/ncf-nulos/print-data/', fat_ncf_nulos_print_data),
+    path('fat/reportes/facturas-rnc/print-data/', fat_facturas_rnc_print_data),
+    path('fat/reportes/margen-bruto/print-data/', fat_margen_bruto_print_data),
+    path('fat/reportes/607/print-data/', fat_607_print_data),
+    path('fat/reportes/lista-precios/print-data/', fat_lista_precios_print_data),
+    path('fat/reportes/cuadre-caja/print-data/', fat_cuadre_caja_print_data),
+    path('fat/reportes/ventas-productos/print-data/', fat_ventas_productos_print_data),
+    path('fat/reportes/listado-conduces/print-data/', fat_listado_conduces_print_data),
 
     path('fat/documentos/<str:tipo>/<str:no_factura>/pdf/', fat_documento_pdf),
     path('fat/documentos/<str:tipo>/<str:no_factura>/pos-pdf/', fat_documento_pos_pdf),

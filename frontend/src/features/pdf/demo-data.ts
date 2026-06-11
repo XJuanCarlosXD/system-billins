@@ -2,6 +2,10 @@
 // Permite que el usuario vea cómo se ve cada bloque sin tener que abrir el documento real.
 import type { DocumentoPrintPayload, ReportePrintPayload } from './types'
 
+// Resuelve URL absoluta del logo del backend para el preview del editor.
+// CiaLogoView es público (sin auth), así que sirve para cargar la imagen demo.
+const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
+
 const ciaDemo = {
   no_cia: '01',
   razon_social: 'GRUPO ABREGONZA S.R.L.',
@@ -9,7 +13,7 @@ const ciaDemo = {
   direccion: 'Av. Independencia #1234, Santo Domingo, R.D.',
   telefono: '809-555-0100',
   email: 'contacto@grupo-abregonza.com',
-  logo_url: '',
+  logo_url: `${API_BASE}/cnt/cia-logo/01/`,
   color_primario: '#0F172A',
 }
 
