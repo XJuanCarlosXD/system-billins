@@ -5,7 +5,6 @@ import '@measured/puck/puck.css'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { ArrowLeft, Eye, RotateCcw, Save } from 'lucide-react'
-import type { Data } from '@measured/puck'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -16,7 +15,7 @@ import {
   savePlantilla,
 } from '@/features/pdf/api'
 import { getRegistryEntry } from '@/features/pdf/registry'
-import { puckConfig, type PuckBlockProps } from '@/features/pdf/blocks'
+import { puckConfig } from '@/features/pdf/blocks'
 
 type Props = { codigo: string }
 
@@ -33,7 +32,7 @@ export default function PdfTemplateEditor({ codigo }: Props) {
     enabled: !!noCia && !!codigo,
   })
 
-  const [puckData, setPuckData] = useState<Data<PuckBlockProps> | null>(null)
+  const [puckData, setPuckData] = useState<any>(null)
   const [pageSize, setPageSize] = useState<'A4' | 'LETTER' | 'POS80'>('A4')
   const [orientation, setOrientation] = useState<'P' | 'L'>('P')
 
@@ -42,7 +41,7 @@ export default function PdfTemplateEditor({ codigo }: Props) {
     if (!entry) return
     if (plantilla?.definicion_json) {
       try {
-        setPuckData(JSON.parse(plantilla.definicion_json) as Data<PuckBlockProps>)
+        setPuckData(JSON.parse(plantilla.definicion_json))
       } catch {
         setPuckData(entry.defaultTemplate)
       }
@@ -54,7 +53,7 @@ export default function PdfTemplateEditor({ codigo }: Props) {
   }, [plantilla, entry, isLoading])
 
   const saveMut = useMutation({
-    mutationFn: (data: Data<PuckBlockProps>) =>
+    mutationFn: (data: any) =>
       savePlantilla(noCia, codigo, {
         nombre: entry?.nombre ?? codigo,
         definicion_json: data,
@@ -168,10 +167,10 @@ export default function PdfTemplateEditor({ codigo }: Props) {
       {/* Puck editor */}
       <div className="flex-1 overflow-hidden">
         <Puck
-          config={puckConfig as any}
-          data={puckData as any}
-          onChange={(d: any) => setPuckData(d as Data<PuckBlockProps>)}
-          onPublish={(d: any) => saveMut.mutate(d as Data<PuckBlockProps>)}
+          config={puckConfig}
+          data={puckData}
+          onChange={(d: any) => setPuckData(d)}
+          onPublish={(d: any) => saveMut.mutate(d)}
         />
       </div>
     </div>

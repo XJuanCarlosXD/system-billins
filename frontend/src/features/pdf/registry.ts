@@ -1,5 +1,3 @@
-import type { Data } from '@measured/puck'
-import type { PuckBlockProps } from './blocks'
 import { facturaDefault } from './defaults/factura'
 import { conduceDefault } from './defaults/conduce'
 import { cotizacionDefault } from './defaults/cotizacion'
@@ -13,15 +11,12 @@ export type RegistryEntry = {
   nombre: string
   familia: DocFamily
   printDataPath: (id: string, qs: URLSearchParams) => string
-  defaultTemplate: Data<PuckBlockProps>
+  defaultTemplate: any
   defaultPageSize?: 'A4' | 'LETTER' | 'POS80'
   defaultPageOrientation?: 'P' | 'L'
   /** Variables disponibles para el árbol del editor — keys = paths dot-notation. */
   variables: string[]
 }
-
-// Default template para reporte vacío (placeholder usado por codigos sin default real aún).
-const reporteEmpty: Data<PuckBlockProps> = listadoFacturasDefault
 
 export const registry: Record<string, RegistryEntry> = {
   // ── FAT ─────────────────────────────────────────────────────────────────
@@ -169,4 +164,3 @@ export const PLANIFICADOS: Array<{ codigo: string; modulo: string; nombre: strin
   { codigo: 'man-orden-trabajo', modulo: 'MAN', nombre: 'Orden de Trabajo MAN' },
 ]
 
-void reporteEmpty

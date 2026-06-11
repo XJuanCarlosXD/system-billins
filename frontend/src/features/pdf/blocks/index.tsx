@@ -1,7 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import QRCode from 'qrcode'
-import type { Config } from '@measured/puck'
 import type { DocumentoPrintPayload, ReportePrintPayload, PrintPayload } from '../types'
 import { isReportePayload } from '../types'
 import { renderTemplate } from '../handlebars-helpers'
@@ -510,7 +509,7 @@ export type PuckBlockProps = {
   FooterReporte: FooterReporteProps
 }
 
-export const puckConfig: Config<PuckBlockProps> = {
+export const puckConfig: any = {
   components: {
     HeaderEmpresa: {
       label: 'Header — Empresa',
@@ -740,6 +739,6 @@ export const puckConfig: Config<PuckBlockProps> = {
     },
   },
   root: {
-    render: ({ children }) => <div className="pdf-canvas">{children}</div>,
+    render: ({ children }: { children?: ReactNode }) => <div className="pdf-canvas">{children}</div>,
   },
 }

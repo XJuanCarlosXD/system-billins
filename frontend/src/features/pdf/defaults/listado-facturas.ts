@@ -1,15 +1,12 @@
-import type { Data } from '@measured/puck'
-import type { PuckBlockProps } from '../blocks'
-
-export const listadoFacturasDefault: Data<PuckBlockProps> = {
+export const listadoFacturasDefault: any = {
   content: [
     { type: 'HeaderEmpresa', props: {
       id: 'he', showLogo: true, logoAlign: 'left', colorPrimario: '#0F172A',
       showRnc: true, showTelefono: true, showEmail: false, showDireccion: true, razonSize: 14,
-    } as any },
+    } },
     { type: 'HeaderReporte', props: {
       id: 'hr', showFiltros: true, showFechaGeneracion: true, colorPrimario: '#0F172A',
-    } as any },
+    } },
     { type: 'TablaReporte', props: {
       id: 'tr',
       columnasJson: JSON.stringify(
@@ -24,14 +21,14 @@ export const listadoFacturasDefault: Data<PuckBlockProps> = {
         null, 2,
       ),
       zebra: true, headerBg: '#0F172A', headerColor: '#ffffff', fontSize: 9,
-    } as any },
+    } },
     { type: 'FooterReporte', props: {
       id: 'fr', showCantidad: true, showTotal: true, colorPrimario: '#0F172A',
-    } as any },
+    } },
     { type: 'FooterEmpresa', props: {
       id: 'fo', texto: '{{ cia.razon_social }}',
       showPaginacion: true, showFechaGeneracion: false, color: '#777777',
-    } as any },
+    } },
   ],
   root: { props: {} },
   zones: {},

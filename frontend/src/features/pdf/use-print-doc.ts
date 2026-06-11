@@ -2,14 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { fetchPrintData, getPlantilla } from './api'
 import { getRegistryEntry } from './registry'
 import type { PrintPayload, Plantilla } from './types'
-import type { Data } from '@measured/puck'
-import type { PuckBlockProps } from './blocks'
 
 export type UsePrintDocResult = {
   loading: boolean
   error?: string
   data?: PrintPayload
-  template?: Data<PuckBlockProps>
+  template?: any
   plantilla?: Plantilla
 }
 
@@ -58,11 +56,11 @@ export function usePrintDoc(codigo: string, id: string, no_cia: string, punto: s
     }
   }, [codigo, id, no_cia, punto, qs, entry])
 
-  const template = useMemo<Data<PuckBlockProps> | undefined>(() => {
+  const template = useMemo<any>(() => {
     if (!entry) return undefined
     if (plantilla?.definicion_json) {
       try {
-        return JSON.parse(plantilla.definicion_json) as Data<PuckBlockProps>
+        return JSON.parse(plantilla.definicion_json)
       } catch {
         return entry.defaultTemplate
       }

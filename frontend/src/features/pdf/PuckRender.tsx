@@ -1,10 +1,9 @@
 import { Render } from '@measured/puck'
-import type { Data } from '@measured/puck'
-import { puckConfig, PdfDataProvider, type PuckBlockProps } from './blocks'
+import { puckConfig, PdfDataProvider } from './blocks'
 import type { PrintPayload } from './types'
 
 type Props = {
-  template: Data<PuckBlockProps>
+  template: any
   data: PrintPayload | null
   pageSize?: 'A4' | 'LETTER' | 'POS80'
   pageOrientation?: 'P' | 'L'
@@ -15,7 +14,7 @@ export function PuckRender({ template, data, pageSize = 'A4', pageOrientation = 
   return (
     <PdfDataProvider value={data}>
       <div className={`pdf-page pdf-page--${pageSize} pdf-page--${orientation}`}>
-        <Render config={puckConfig as any} data={template as any} />
+        <Render config={puckConfig} data={template} />
       </div>
     </PdfDataProvider>
   )
