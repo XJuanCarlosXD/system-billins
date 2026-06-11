@@ -42,12 +42,14 @@ export function CuentaCombobox({
 
   const cuentas = useMemo(() => {
     const all = (cuentasQ.data as any[]) ?? []
-    const filtered = soloMovi ? all.filter(c => (c.acepta_movi ?? c.aceptaMovi) === 'S') : all
+    const filtered = soloMovi
+      ? all.filter(c => (c.acepta_movimiento ?? c.acepta_movi ?? c.aceptaMovi ?? 'N') === 'S')
+      : all
     if (!search.trim()) return filtered.slice(0, 100)
     const s = search.toLowerCase()
     return filtered.filter(c =>
       String(c.cuenta).toLowerCase().includes(s) ||
-      String(c.nombre || c.descripcion || '').toLowerCase().includes(s)
+      String(c.descripcion || c.nombre || '').toLowerCase().includes(s)
     ).slice(0, 100)
   }, [cuentasQ.data, search, soloMovi])
 
@@ -57,7 +59,9 @@ export function CuentaCombobox({
   }, [cuentasQ.data, value])
 
   const inválida = required && value && !selected
-  const label = selected ? `${selected.cuenta} — ${selected.nombre || selected.descripcion}` : value || placeholder
+  const label = selected
+    ? `${selected.cuenta} — ${selected.descripcion || selected.nombre}`
+    : value || placeholder
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -99,7 +103,7 @@ export function CuentaCombobox({
                     key={c.cuenta}
                     value={c.cuenta}
                     onSelect={() => {
-                      onChange(String(c.cuenta), c.nombre || c.descripcion)
+                      onChange(String(c.cuenta), c.descripcion || c.nombre)
                       setOpen(false)
                       setSearch('')
                     }}
@@ -107,7 +111,7 @@ export function CuentaCombobox({
                   >
                     <Check className={cn('mr-2 h-3 w-3', isSel ? 'opacity-100' : 'opacity-0')} />
                     <span className="font-mono mr-2 shrink-0">{c.cuenta}</span>
-                    <span className="truncate">{c.nombre || c.descripcion}</span>
+                    <span className="truncate">{c.descripcion || c.nombre}</span>
                   </CommandItem>
                 )
               })}

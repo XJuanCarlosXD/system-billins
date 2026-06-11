@@ -37,7 +37,9 @@ export function CentroCostoCombobox({
 
   const centros = useMemo(() => {
     const all = (centrosQ.data as any[]) ?? []
-    const filtered = all.filter(c => (c.activo ?? c.activa) !== 'N' && (c.acepta_movi ?? 'S') === 'S')
+    // TCNT_CENTRO_COSTO en este backend devuelve {centro_costo, descripcion, activo}.
+    // Filtramos sólo por activo != 'N' (acepta_movimiento no se devuelve aquí).
+    const filtered = all.filter(c => (c.activo ?? c.activa ?? 'S') !== 'N')
     if (!search.trim()) return filtered.slice(0, 80)
     const s = search.toLowerCase()
     return filtered.filter(c =>
