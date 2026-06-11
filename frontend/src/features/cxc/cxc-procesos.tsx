@@ -15,6 +15,16 @@ const fmt = (n: any) => Number(n || 0).toLocaleString('es-DO', { minimumFraction
 const today = new Date().toISOString().slice(0, 10)
 const firstOfMonth = today.slice(0, 7) + '-01'
 
+// Formato dd/mm/yyyy a partir de strings ISO (con o sin time), tipo '2026-06-10T17:34:59'.
+const fmtDate = (s: any) => {
+  if (!s) return ''
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/)
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(s)
+}
+
+// Formato compacto del documento: 'RC-0004874' (tipo prefijado).
+const docCode = (tipo: any, no: any) => `${(tipo || '').toString().trim()}-${(no || '').toString().trim()}`
+
 // ─── FCXC205 Documentos ───────────────────────────────────────────────────────
 export function CxcDocumentos({ noCia, punto }: P) {
   const [rows, setRows] = useState<any[]>([])
@@ -41,7 +51,10 @@ export function CxcDocumentos({ noCia, punto }: P) {
 
   return (
     <div className="p-6 space-y-4">
-      <h1 className="text-2xl font-semibold">FCXC205 — Consulta / Impresión de Documentos</h1>
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Consulta / Impresión de Documentos</h1>
+        <p className="text-sm text-muted-foreground mt-1">Búsqueda de documentos CxC por fecha y estado. Click en una fila para ver el detalle e imprimir.</p>
+      </div>
       <div className="flex flex-wrap gap-3 border rounded-lg p-3 bg-muted/30">
         <div className="space-y-1">
           <Label className="text-xs">Desde</Label>
@@ -87,9 +100,9 @@ export function CxcDocumentos({ noCia, punto }: P) {
             {!loading && rows.length === 0 && <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Sin documentos</TableCell></TableRow>}
             {rows.map(r => (
               <TableRow key={r.no_doc} className="cursor-pointer hover:bg-muted/50" onClick={() => openDetail(r)}>
-                <TableCell className="font-mono text-sm">{r.no_doc}</TableCell>
+                <TableCell className="font-mono text-sm">{docCode(r.tipo_doc, r.no_doc)}</TableCell>
                 <TableCell><Badge variant="outline">{r.tipo_doc}</Badge></TableCell>
-                <TableCell>{r.fecha}</TableCell>
+                <TableCell className="tabular-nums">{fmtDate(r.fecha)}</TableCell>
                 <TableCell className="max-w-[200px] truncate">{r.nombre_cliente}</TableCell>
                 <TableCell className="text-right">{fmt(r.valor)}</TableCell>
                 <TableCell className={`text-right font-medium ${Number(r.saldo) > 0 ? 'text-red-600' : 'text-green-600'}`}>{fmt(r.saldo)}</TableCell>
@@ -115,12 +128,25 @@ export function CxcDocumentos({ noCia, punto }: P) {
       {/* Document detail dialog */}
       <Dialog open={!!detail} onOpenChange={() => setDetail(null)}>
         <DialogContent className="max-w-[70vw] max-h-[70vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Detalle Documento — {detail?.no_doc}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Detalle Documento — {docCode(detail?.tipo_doc, detail?.no_doc)}</DialogTitle>
+          </DialogHeader>
           {detail && (
             <div className="space-y-4">
+              <div className="flex justify-end">
+                <Button
+                  size="sm" variant="outline"
+                  onClick={() => {
+                    const qs = new URLSearchParams({ no_cia: noCia, punto: punto || '01' }).toString()
+                    window.open(`/print/recibo-cobro/${encodeURIComponent(detail.no_doc)}?${qs}`, '_blank', 'noopener')
+                  }}
+                >
+                  <FileText className="h-4 w-4 mr-1" /> Imprimir / PDF
+                </Button>
+              </div>
               <div className="grid grid-cols-3 gap-3 text-sm">
                 <div><span className="text-muted-foreground">Tipo:</span> {detail.tipo_doc}</div>
-                <div><span className="text-muted-foreground">Fecha:</span> {detail.fecha}</div>
+                <div><span className="text-muted-foreground">Fecha:</span> {fmtDate(detail.fecha)}</div>
                 <div><span className="text-muted-foreground">Estado:</span> <Badge variant={detail.estado === 'R' ? 'destructive' : 'default'}>{detail.estado === 'R' ? 'Reversado' : 'Activo'}</Badge></div>
                 <div className="col-span-2"><span className="text-muted-foreground">Cliente:</span> {detail.no_cliente} — {detail.nombre_cliente}</div>
                 <div><span className="text-muted-foreground">RNC:</span> {detail.rnc}</div>
@@ -199,11 +225,9 @@ export function CxcReversar({ noCia, punto = '01', mes = 1, ano = 2025 }: P) {
 
   return (
     <div className="p-6 space-y-6 max-w-2xl">
-      <h1 className="text-2xl font-semibold">FCXC208 — Reversar Documento</h1>
-
-      <div className="grid grid-cols-2 gap-3 border rounded-lg p-4 bg-muted/30">
-        <div className="space-y-1"><Label>No. Cia</Label><Input value={noCia} disabled /></div>
-        <div className="space-y-1"><Label>Mes/Año en Proceso</Label><Input value={`${String(mes).padStart(2,'0')}/${ano}`} disabled /></div>
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Reversar Documento</h1>
+        <p className="text-sm text-muted-foreground mt-1">Genera un documento contrario que anula el original. La operación es irreversible.</p>
       </div>
 
       <div className="space-y-3 border rounded-lg p-4">
@@ -220,10 +244,10 @@ export function CxcReversar({ noCia, punto = '01', mes = 1, ano = 2025 }: P) {
         {docInfo && (
           <div className="grid grid-cols-3 gap-2 text-sm bg-blue-50 border border-blue-200 rounded p-3">
             <div><span className="text-muted-foreground">Tipo:</span> {docInfo.tipo_doc}</div>
-            <div><span className="text-muted-foreground">Fecha:</span> {docInfo.fecha}</div>
+            <div><span className="text-muted-foreground">Fecha:</span> {fmtDate(docInfo.fecha)}</div>
             <div><span className="text-muted-foreground">Valor:</span> {fmt(docInfo.valor)}</div>
             <div className="col-span-2"><span className="text-muted-foreground">Cliente:</span> {docInfo.no_cliente} — {docInfo.nombre_cliente}</div>
-            <div><span className="text-muted-foreground">NCF:</span> <span className="font-mono">{docInfo.ncf}</span></div>
+            <div><span className="text-muted-foreground">NCF:</span> <span className="font-mono">{docInfo.ncf || '—'}</span></div>
           </div>
         )}
       </div>
@@ -301,7 +325,10 @@ export function CxcPagosMasivos({ noCia, punto = '01' }: P) {
 
   return (
     <div className="p-6 space-y-4">
-      <h1 className="text-2xl font-semibold">FCXC209 — Pagos Masivos</h1>
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Pagos Masivos</h1>
+        <p className="text-sm text-muted-foreground mt-1">Aplica pagos a múltiples documentos pendientes en una sola operación.</p>
+      </div>
 
       <div className="flex flex-wrap gap-3 border rounded-lg p-3 bg-muted/30">
         <div className="space-y-1"><Label className="text-xs">Fecha Desde</Label><Input type="date" value={desde} onChange={e => setDesde(e.target.value)} className="h-8 w-36" /></div>
@@ -337,8 +364,8 @@ export function CxcPagosMasivos({ noCia, punto = '01' }: P) {
               <TableBody>
                 {docs.map(d => (
                   <TableRow key={d.no_doc}>
-                    <TableCell className="font-mono text-sm">{d.no_doc}</TableCell>
-                    <TableCell>{d.fecha}</TableCell>
+                    <TableCell className="font-mono text-sm">{docCode(d.tipo_doc, d.no_doc)}</TableCell>
+                    <TableCell className="tabular-nums">{fmtDate(d.fecha)}</TableCell>
                     <TableCell>{d.no_cliente}</TableCell>
                     <TableCell className="truncate max-w-[180px]">{d.nombre_cliente}</TableCell>
                     <TableCell className="text-right text-red-600">{fmt(d.saldo)}</TableCell>
@@ -412,7 +439,10 @@ export function CxcLiberarCredito({ noCia, punto = '01' }: P) {
 
   return (
     <div className="p-6 space-y-4 max-w-3xl">
-      <h1 className="text-2xl font-semibold">FCXC210 — Liberar Crédito</h1>
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Liberar Crédito (aplicar nota crédito)</h1>
+        <p className="text-sm text-muted-foreground mt-1">Aplica el saldo de una nota crédito (CR) a uno o más documentos de débito del mismo cliente.</p>
+      </div>
 
       <div className="grid grid-cols-3 gap-3 border rounded-lg p-4 bg-muted/30">
         <div className="space-y-1"><Label>No. Cliente</Label><Input value={noCliente} onChange={e => setNoCliente(e.target.value)} className="font-mono" /></div>
@@ -506,7 +536,10 @@ export function CxcCorregirNcf({ noCia }: P) {
 
   return (
     <div className="p-6 space-y-4 max-w-xl">
-      <h1 className="text-2xl font-semibold">FCXC211 — Corregir / Liberar NCF</h1>
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Corregir / Liberar NCF</h1>
+        <p className="text-sm text-muted-foreground mt-1">Corrige o reasigna el NCF de un documento ya emitido.</p>
+      </div>
 
       <div className="flex gap-2">
         <Input value={noDoc} onChange={e => setNoDoc(e.target.value)} onKeyDown={e => e.key === 'Enter' && buscar()} placeholder="No. Documento..." className="font-mono" />
@@ -577,7 +610,10 @@ export function CxcClienteRuta({ noCia }: P) {
 
   return (
     <div className="p-6 space-y-4">
-      <h1 className="text-2xl font-semibold">FCXC116 — Asignación de Cliente a Ruta</h1>
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Asignación de Cliente a Ruta</h1>
+        <p className="text-sm text-muted-foreground mt-1">Asocia clientes a una ruta de cobro/distribución.</p>
+      </div>
       <div className="flex gap-3 items-end">
         <div className="space-y-1">
           <Label>Ruta</Label>

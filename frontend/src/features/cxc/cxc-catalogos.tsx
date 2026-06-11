@@ -7,7 +7,7 @@ interface P { noCia: string; punto?: string; mes?: number; ano?: number }
 // ─── FCXC101 Compañías ────────────────────────────────────────────────────────
 export function CxcCias({ noCia }: P) {
   return <CatalogoCrud
-    title="FCXC101 — Mantenimiento de Compañías"
+    title="Mantenimiento de Compañías"
     idFields={['no_cia']}
     noCia={noCia}
     fields={[
@@ -26,7 +26,7 @@ export function CxcCias({ noCia }: P) {
 // ─── FCXC102 Sucursales ───────────────────────────────────────────────────────
 export function CxcPuntos({ noCia }: P) {
   return <CatalogoCrud
-    title="FCXC102 — Control de Sucursales"
+    title="Control de Sucursales"
     idFields={['no_cia', 'punto']}
     noCia={noCia}
     fields={[
@@ -48,7 +48,7 @@ export function CxcPuntos({ noCia }: P) {
 // ─── FCXC104 Tipo Documento ───────────────────────────────────────────────────
 export function CxcTdocu({ noCia }: P) {
   return <CatalogoCrud
-    title="FCXC104 — Mantenimiento Tipo de Documento"
+    title="Tipos de Documento CxC"
     idFields={['no_cia', 'tipo_doc']}
     noCia={noCia}
     fields={[
@@ -73,7 +73,7 @@ export function CxcTdocu({ noCia }: P) {
 // ─── FCXC105 Tipo de Clientes ─────────────────────────────────────────────────
 export function CxcTcli({ noCia }: P) {
   return <CatalogoCrud
-    title="FCXC105 — Mantenimiento Tipo de Clientes"
+    title="Tipos de Cliente"
     idFields={['no_cia', 'tipo_cli']}
     noCia={noCia}
     fields={[
@@ -92,7 +92,7 @@ export function CxcTcli({ noCia }: P) {
 // ─── FCXC106 Supervisores ─────────────────────────────────────────────────────
 export function CxcSupervisores({ noCia }: P) {
   return <CatalogoCrud
-    title="FCXC106 — Mantenimiento de Supervisores"
+    title="Mantenimiento de Supervisores"
     idFields={['no_cia', 'supervisor']}
     noCia={noCia}
     fields={[
@@ -109,7 +109,7 @@ export function CxcSupervisores({ noCia }: P) {
 // ─── FCXC108 Grupo de Ruta ────────────────────────────────────────────────────
 export function CxcRutas({ noCia }: P) {
   return <CatalogoCrud
-    title="FCXC108 — Mantenimiento Grupo de Ruta"
+    title="Rutas de Cobro / Distribución"
     idFields={['no_cia', 'ruta']}
     noCia={noCia}
     fields={[
@@ -127,7 +127,7 @@ export function CxcRutas({ noCia }: P) {
 // ─── FCXC110 Tipo Contable ────────────────────────────────────────────────────
 export function CxcTcontable({ noCia }: P) {
   return <CatalogoCrud
-    title="FCXC110 — Tipo Contable de Cliente"
+    title="Tipos Contables de Cliente"
     idFields={['no_cia', 'tipo_conta']}
     noCia={noCia}
     fields={[
@@ -145,7 +145,7 @@ export function CxcTcontable({ noCia }: P) {
 // ─── FCXC111 Ciudades ─────────────────────────────────────────────────────────
 export function CxcCiudades({ noCia }: P) {
   return <CatalogoCrud
-    title="FCXC111 — Mantenimiento de Ciudades"
+    title="Ciudades"
     idFields={['no_cia', 'ciudad']}
     noCia={noCia}
     fields={[
@@ -161,7 +161,7 @@ export function CxcCiudades({ noCia }: P) {
 // ─── FCXC112 Barrios ──────────────────────────────────────────────────────────
 export function CxcBarrios({ noCia }: P) {
   return <CatalogoCrud
-    title="FCXC112 — Mantenimiento de Sectores / Barrios"
+    title="Sectores / Barrios"
     idFields={['no_cia', 'barrio']}
     noCia={noCia}
     fields={[
@@ -179,7 +179,7 @@ export function CxcBarrios({ noCia }: P) {
 // ─── FCXC113 Zonas ────────────────────────────────────────────────────────────
 export function CxcZonas({ noCia }: P) {
   return <CatalogoCrud
-    title="FCXC113 — Mantenimiento de Zonas"
+    title="Zonas"
     idFields={['no_cia', 'zona']}
     noCia={noCia}
     fields={[
@@ -196,7 +196,7 @@ export function CxcZonas({ noCia }: P) {
 // ─── FCXC114 Cadenas ──────────────────────────────────────────────────────────
 export function CxcCadenas({ noCia }: P) {
   return <CatalogoCrud
-    title="FCXC114 — Mantenimiento de Cadenas de Negocios"
+    title="Cadenas de Negocios"
     idFields={['no_cia', 'cadena']}
     noCia={noCia}
     fields={[

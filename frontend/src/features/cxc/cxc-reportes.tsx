@@ -138,7 +138,7 @@ export function CxcRepEnvejecimiento({ noCia, punto }: P) {
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">RCXC401 — Envejecimiento de Cartera</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Envejecimiento de Cartera</h1>
         <div className="flex gap-2">
           <Button onClick={exportCsv} variant="outline" size="sm" disabled={!items.length}><FileDown className="h-4 w-4 mr-1" />CSV</Button>
           <Button onClick={printPdf} variant="outline" size="sm" disabled={!items.length}><Printer className="h-4 w-4 mr-1" />PDF</Button>
@@ -255,7 +255,7 @@ export function CxcRepCobrosVendedor({ noCia, punto, mes = 1, ano = 2025 }: P) {
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">RCXC402 — Cobros por Vendedor</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Cobros por Vendedor</h1>
         <div className="flex gap-2">
           <Button onClick={printPdf} variant="outline" size="sm" disabled={!items.length}><Printer className="h-4 w-4 mr-1" />PDF</Button>
         </div>
@@ -349,7 +349,7 @@ export function CxcRepComisiones({ noCia, punto, mes = 1, ano = 2025 }: P) {
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">RCXC403 — Comisiones por Vendedor</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Comisiones por Vendedor</h1>
         <Button onClick={printPdf} variant="outline" size="sm" disabled={!items.length}><Printer className="h-4 w-4 mr-1" />PDF</Button>
       </div>
       <div className="flex gap-3 border rounded-lg p-3 bg-muted/30">
@@ -427,7 +427,7 @@ export function CxcRepNcf({ noCia, punto }: P) {
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">RCXC404 — NCF Emitidos por Período</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">NCF Emitidos por Período</h1>
         <div className="flex gap-2">
           <Button onClick={exportCsv} variant="outline" size="sm" disabled={!items.length}><FileDown className="h-4 w-4 mr-1" />CSV</Button>
         </div>

@@ -139,7 +139,7 @@ export function CxcClientes({ noCia, punto = '01' }: P) {
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">FCXC115 — Mantenimiento de Clientes</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Mantenimiento de Clientes</h1>
         <Button onClick={openNew} size="sm"><Plus className="h-4 w-4 mr-1" />Nuevo Cliente</Button>
       </div>
 

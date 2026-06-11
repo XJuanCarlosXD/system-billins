@@ -64,7 +64,7 @@ export function CxcVendedores({ noCia }: P) {
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">FCXC107 — Mantenimiento de Vendedores</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Mantenimiento de Vendedores</h1>
         <Button onClick={openNew} size="sm"><Plus className="h-4 w-4 mr-1" />Nuevo</Button>
       </div>
 
