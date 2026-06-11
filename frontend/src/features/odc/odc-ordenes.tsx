@@ -16,7 +16,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { Loader2, Search, Eye, CheckCircle2, XCircle, Lock } from 'lucide-react'
+import { Loader2, Search, Eye, CheckCircle2, XCircle, Lock, Printer } from 'lucide-react'
 
 interface Orden {
   no_cia: string; punto: string; no_orden: string
@@ -276,6 +276,14 @@ export function OdcOrdenes() {
             </div>
           )}
           <DialogFooter>
+            {selected && (
+              <Button size="sm" variant="outline" onClick={() => {
+                const qs = new URLSearchParams({ no_cia: selected.no_cia, punto: selected.punto }).toString()
+                window.open(`/print/orden-compra/${encodeURIComponent(selected.no_orden)}?${qs}`, '_blank')
+              }}>
+                <Printer className="h-4 w-4 mr-1" /> Imprimir
+              </Button>
+            )}
             {/* Autorizar: orden Pendiente todavía sin autorizar */}
             {selected && selected.st_anulado === 'A' && selected.estado === 'P' && !selected.autorizada_por && (
               <Button size="sm" onClick={() => autorizar.mutate(selected)} disabled={autorizar.isPending}>

@@ -8,6 +8,11 @@ import { conduceDefault } from './defaults/conduce'
 import { cotizacionDefault } from './defaults/cotizacion'
 import { facturaPosDefault } from './defaults/factura-pos'
 import { invDocumentoDefault } from './defaults/reporte-generico'
+import { reciboCobroDefault } from './defaults/recibo-cobro'
+import { comprobantePagoDefault } from './defaults/comprobante-pago'
+import { ordenCompraDefault } from './defaults/orden-compra'
+import { chequeChcDefault } from './defaults/cheque-chc'
+import { accDocumentoDefault } from './defaults/acc-documento'
 
 export type DocFamily = 'documento' | 'reporte'
 
@@ -85,7 +90,7 @@ export const registry: Record<string, RegistryEntry> = {
   'recibo-cobro': {
     codigo: 'recibo-cobro', modulo: 'CXC', nombre: 'Recibo de Cobro', familia: 'documento',
     printDataPath: (id, qs) => `/cxc/documentos/${encodeURIComponent(id)}/print-data/?${qs.toString()}`,
-    defaultTemplate: invDocumentoDefault,
+    defaultTemplate: reciboCobroDefault,
     defaultPageSize: 'A4', defaultPageOrientation: 'P',
     variables: docVarsBase.concat(['extra.saldo']),
   },
@@ -93,7 +98,7 @@ export const registry: Record<string, RegistryEntry> = {
   'comprobante-pago': {
     codigo: 'comprobante-pago', modulo: 'CXP', nombre: 'Comprobante de Pago', familia: 'documento',
     printDataPath: (id, qs) => `/cxp/documentos/${encodeURIComponent(splitTipo(id).tipo)}/${encodeURIComponent(splitTipo(id).no)}/print-data/?${qs.toString()}`,
-    defaultTemplate: invDocumentoDefault,
+    defaultTemplate: comprobantePagoDefault,
     defaultPageSize: 'A4', defaultPageOrientation: 'P',
     variables: docVarsBase.concat(['proveedor.nombre', 'proveedor.rnc', 'extra.saldo']),
   },
@@ -101,7 +106,7 @@ export const registry: Record<string, RegistryEntry> = {
   'orden-compra': {
     codigo: 'orden-compra', modulo: 'ODC', nombre: 'Orden de Compra', familia: 'documento',
     printDataPath: (id, qs) => `/odc/ordenes/${encodeURIComponent(id)}/print-data/?${qs.toString()}`,
-    defaultTemplate: invDocumentoDefault,
+    defaultTemplate: ordenCompraDefault,
     defaultPageSize: 'A4', defaultPageOrientation: 'P',
     variables: docVarsBase.concat(['proveedor.nombre', 'proveedor.rnc']),
   },
@@ -109,7 +114,7 @@ export const registry: Record<string, RegistryEntry> = {
   'cheque-caja-chica': {
     codigo: 'cheque-caja-chica', modulo: 'CHC', nombre: 'Cheque / Comprobante CHC', familia: 'documento',
     printDataPath: (id, qs) => `/chc/cheques/${encodeURIComponent(splitTipo(id).tipo)}/${encodeURIComponent(splitTipo(id).no)}/print-data/?${qs.toString()}`,
-    defaultTemplate: invDocumentoDefault,
+    defaultTemplate: chequeChcDefault,
     defaultPageSize: 'A4', defaultPageOrientation: 'P',
     variables: docVarsBase.concat(['doc.banco', 'doc.cuenta']),
   },
@@ -117,7 +122,7 @@ export const registry: Record<string, RegistryEntry> = {
   'acc-documento': {
     codigo: 'acc-documento', modulo: 'ACC', nombre: 'Documento ACC (caja chica)', familia: 'documento',
     printDataPath: (id, qs) => `/acc/documentos/${encodeURIComponent(id)}/print-data/?${qs.toString()}`,
-    defaultTemplate: invDocumentoDefault,
+    defaultTemplate: accDocumentoDefault,
     defaultPageSize: 'A4', defaultPageOrientation: 'P',
     variables: docVarsBase,
   },

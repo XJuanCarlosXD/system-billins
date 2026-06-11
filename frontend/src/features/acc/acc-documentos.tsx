@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Eye, Plus, XCircle, Search } from 'lucide-react'
+import { Eye, Plus, XCircle, Search, Printer } from 'lucide-react'
 
 const fmt = (n: any) => Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })
 const fmtDate = (s: any) => s ? String(s).slice(0, 10) : ''
@@ -189,6 +189,14 @@ export function AccDocumentos() {
             </div>
           )}
           <DialogFooter>
+            {selected && (
+              <Button size="sm" variant="outline" onClick={() => {
+                const qs = new URLSearchParams({ no_cia: selected.no_cia, punto: selected.punto }).toString()
+                window.open(`/print/acc-documento/${encodeURIComponent(selected.no_docu)}?${qs}`, '_blank')
+              }}>
+                <Printer className="h-4 w-4 mr-1" /> Imprimir
+              </Button>
+            )}
             {selected && selected.anulado !== 'S' && (
               <Button size="sm" variant="destructive" onClick={() => setOpenAnular(true)}>
                 <XCircle className="h-4 w-4 mr-1" /> Anular

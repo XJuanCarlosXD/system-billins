@@ -234,6 +234,21 @@ export function CxpDocumentos() {
                   </div>
                 )}
               </div>
+              <div className="flex justify-end">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const qs = new URLSearchParams({ no_cia: detalle.no_cia, punto: detalle.punto }).toString()
+                    window.open(
+                      `/print/comprobante-pago/${encodeURIComponent(detalle.tipo_docu)}-${encodeURIComponent(detalle.no_docu)}?${qs}`,
+                      '_blank',
+                    )
+                  }}
+                >
+                  Imprimir / PDF
+                </Button>
+              </div>
               {detalle.lineas?.length > 0 && (
                 <div>
                   <p className="font-semibold mb-2">Distribución Contable</p>
