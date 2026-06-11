@@ -19,6 +19,8 @@ import { puckConfig, PdfDataProvider } from '@/features/pdf/blocks'
 import { getDemoData } from '@/features/pdf/demo-data'
 import '@/features/pdf/print.css'
 
+const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
+
 type Props = { codigo: string }
 
 export default function PdfTemplateEditor({ codigo }: Props) {
@@ -28,17 +30,21 @@ export default function PdfTemplateEditor({ codigo }: Props) {
   const qc = useQueryClient()
   const entry = getRegistryEntry(codigo)
 
-  const { data: plantilla, isLoading } = useQuery({
+  const { data: plantilla, isLoading, isError } = useQuery({
     queryKey: ['plantilla-pdf', noCia, codigo],
     queryFn: () => getPlantilla(noCia, codigo),
     enabled: !!noCia && !!codigo,
+    retry: 0,
+    // Si la tabla TFAT_PLANTILLA_PDF aún no existe (DDL pendiente) o el endpoint
+    // falla por cualquier motivo, dejamos plantilla=undefined y el editor cae al
+    // default del registry — no rompemos el editor.
   })
 
   const [puckData, setPuckData] = useState<any>(null)
   const [pageSize, setPageSize] = useState<'A4' | 'LETTER' | 'POS80'>('A4')
   const [orientation, setOrientation] = useState<'P' | 'L'>('P')
 
-  // Inicializar lienzo cuando llega plantilla.
+  // Inicializar lienzo cuando llega plantilla (o cuando falló y caemos a default).
   useEffect(() => {
     if (!entry) return
     if (plantilla?.definicion_json) {
@@ -47,12 +53,13 @@ export default function PdfTemplateEditor({ codigo }: Props) {
       } catch {
         setPuckData(entry.defaultTemplate)
       }
-    } else if (plantilla || !isLoading) {
+    } else if (plantilla || !isLoading || isError) {
+      // plantilla cargada sin JSON | terminó el load | falló: arrancar con default.
       setPuckData(entry.defaultTemplate)
     }
     if (plantilla?.page_size) setPageSize(plantilla.page_size)
     if (plantilla?.page_orientation) setOrientation(plantilla.page_orientation)
-  }, [plantilla, entry, isLoading])
+  }, [plantilla, entry, isLoading, isError])
 
   const saveMut = useMutation({
     mutationFn: (data: any) =>
@@ -96,6 +103,17 @@ export default function PdfTemplateEditor({ codigo }: Props) {
 
   const headerSummary = useMemo(() => entry?.nombre ?? codigo, [entry, codigo])
 
+  // Datos demo del editor: clonamos el base y reemplazamos cia.logo_url por
+  // la URL del logo REAL de la empresa activa para sincronizar el preview.
+  const demoWithLogo = useMemo(() => {
+    const base = getDemoData(codigo)
+    if (!base) return null
+    return {
+      ...base,
+      cia: { ...base.cia, logo_url: `${API_BASE}/cnt/cia-logo/${encodeURIComponent(noCia)}/` },
+    }
+  }, [codigo, noCia])
+
   if (!entry) {
     return (
       <div className="p-6">
@@ -113,9 +131,12 @@ export default function PdfTemplateEditor({ codigo }: Props) {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col">
+    <div
+      className="flex flex-col bg-background"
+      style={{ position: 'fixed', inset: 0, zIndex: 30 }}
+    >
       {/* Top bar */}
-      <div className="flex items-center justify-between border-b bg-card px-4 py-2">
+      <div className="flex items-center justify-between border-b bg-card px-4 py-2 shrink-0">
         <div className="flex items-center gap-3">
           <Button asChild variant="ghost" size="icon"
             onClick={() => navigate({ to: '/settings/pdf-templates' })}>
@@ -168,8 +189,8 @@ export default function PdfTemplateEditor({ codigo }: Props) {
 
       {/* Puck editor — envuelto en PdfDataProvider con datos demo,
           así cada bloque se renderiza con valores realistas en el lienzo. */}
-      <div className="flex-1 overflow-hidden">
-        <PdfDataProvider value={getDemoData(codigo)}>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <PdfDataProvider value={demoWithLogo}>
           <Puck
             config={puckConfig}
             data={puckData}

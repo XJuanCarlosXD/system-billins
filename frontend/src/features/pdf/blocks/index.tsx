@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useEffect, useState, type ReactNode } from 'react'
 import QRCode from 'qrcode'
+import { DropZone } from '@measured/puck'
 import type { DocumentoPrintPayload, ReportePrintPayload, PrintPayload } from '../types'
 import { isReportePayload } from '../types'
 import { renderTemplate } from '../handlebars-helpers'
@@ -118,6 +119,30 @@ function HeaderDocumento({ showNcf, showFechaVenc, showImpresion, bgColor, textC
       {showFechaVenc && d.fecha_venc && <div className="pdf-text-sm">Vence: {fmtDate(d.fecha_venc)}</div>}
       {showNcf && d.ncf_dgi && <div style={{ fontSize: 11 }}>NCF: {d.ncf_dgi}</div>}
       {showNcf && d.tipo_ncf_label && <div className="pdf-text-sm">{d.tipo_ncf_label}</div>}
+    </div>
+  )
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Fila — agrupa otros bloques en N columnas (usa DropZones de Puck)
+// ────────────────────────────────────────────────────────────────────
+type FilaProps = {
+  columnas: number
+  gap: number
+  alineacion: 'flex-start' | 'center' | 'flex-end' | 'stretch'
+}
+function Fila({ columnas, gap, alineacion }: FilaProps & { puck?: any }) {
+  const cols = Math.max(1, Math.min(6, Number(columnas) || 1))
+  return (
+    <div style={{
+      display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`,
+      gap, alignItems: alineacion, width: '100%',
+    }}>
+      {Array.from({ length: cols }).map((_, i) => (
+        <div key={i}>
+          <DropZone zone={`col-${i}`} />
+        </div>
+      ))}
     </div>
   )
 }
@@ -636,6 +661,7 @@ function FooterReporte({ showCantidad, showTotal, colorPrimario }: FooterReporte
 // Puck Config
 // ────────────────────────────────────────────────────────────────────
 export type PuckBlockProps = {
+  Fila: FilaProps
   HeaderEmpresa: HeaderEmpresaProps
   EncabezadoFactura: EncabezadoFacturaProps
   PanelInfoFactura: PanelInfoFacturaProps
@@ -678,6 +704,21 @@ export const puckConfig: any = {
         showRnc: true, showTelefono: true, showEmail: false, showDireccion: true, razonSize: 16,
       },
       render: HeaderEmpresa,
+    },
+    Fila: {
+      label: 'Fila — agrupar bloques en columnas',
+      fields: {
+        columnas: { type: 'number', min: 1, max: 6 },
+        gap: { type: 'number', min: 0, max: 40 },
+        alineacion: { type: 'select', options: [
+          { label: 'Arriba', value: 'flex-start' },
+          { label: 'Centro', value: 'center' },
+          { label: 'Abajo', value: 'flex-end' },
+          { label: 'Estirar', value: 'stretch' },
+        ] },
+      },
+      defaultProps: { columnas: 2, gap: 12, alineacion: 'flex-start' },
+      render: Fila as any,
     },
     EncabezadoFactura: {
       label: 'Encabezado Factura (empresa + doc)',

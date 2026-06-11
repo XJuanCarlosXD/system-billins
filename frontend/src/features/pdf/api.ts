@@ -12,8 +12,21 @@ async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
     ...init,
   })
   const text = await res.text()
-  const body = text ? JSON.parse(text) : null
-  if (!res.ok) throw new Error(typeof body === 'string' ? body : JSON.stringify(body))
+  // Tolerar respuestas no-JSON (e.g. página HTML 500 cuando la tabla aún no existe).
+  let body: any = null
+  if (text) {
+    try { body = JSON.parse(text) } catch {
+      // No-JSON. Si fue 2xx con body raro lo logueamos; si fue error, usamos el status.
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText} en ${path}`)
+      body = null
+    }
+  }
+  if (!res.ok) {
+    const msg = typeof body === 'string' ? body
+              : body && typeof body === 'object' ? JSON.stringify(body)
+              : `HTTP ${res.status} ${res.statusText}`
+    throw new Error(msg)
+  }
   return body as T
 }
 
