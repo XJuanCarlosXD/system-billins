@@ -1,15 +1,21 @@
-// FCXC201 — Entrada de Transacciones CXC (DR/CR contra clientes)
-// Reescrito 2026-06-11: noCia/punto vienen de useCompany (no se muestran al usuario),
-// React Query para tdocus/punto/clientes, comboboxes contables, validación de período,
-// botón Imprimir tras guardar.
-import { useMemo, useState } from 'react'
+// Recibo de Cobro CxC — flujo legado FCXC201:
+//   1. Selecciona el cliente
+//   2. Aparecen sus facturas pendientes (TCXC_DOCUMENTO con saldo > 0)
+//   3. El usuario marca cuáles afectar e indica el monto a aplicar
+//   4. Al grabar: se inserta TCXC_DOCUMENTO (CR) + TCXC_REFEDOCU (aplicaciones)
+//      + se reduce el saldo de cada factura referenciada.
+//
+// Refactor 2026-06-12 según skill sigaft-ui-facturacion: no_cia/punto desde useCompany,
+// React Query, ClientePicker estilo FAT, CuentaCombobox para caja/banco.
+import { useMemo, useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Plus, Trash2, Save, Printer, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Save, Printer, AlertCircle, CheckCircle2, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -24,19 +30,16 @@ import { ClientePicker } from '@/components/cxc/cliente-picker'
 
 interface P { noCia: string; punto?: string }
 
-interface Linea {
-  cuenta: string
-  cuenta_nombre?: string
-  centro_costo: string
-  centro_costo_nombre?: string
-  debito: number
-  credito: number
+type FacturaPendiente = {
+  punto: string
+  tipo_doc: string
+  no_doc: string
+  no_doc_display: string
+  fecha: string | null
   detalle: string
-}
-
-const BLANK_LINEA: Linea = {
-  cuenta: '', cuenta_nombre: '', centro_costo: '', centro_costo_nombre: '',
-  debito: 0, credito: 0, detalle: '',
+  valor_original: number
+  saldo: number
+  ncf_dgi: string
 }
 
 const MESES_ES = [
@@ -44,15 +47,21 @@ const MESES_ES = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ]
 
-function fmtMoney(n: number) {
-  return Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const fmt = (n: any) => Number(n || 0).toLocaleString('es-DO', {
+  minimumFractionDigits: 2, maximumFractionDigits: 2,
+})
+
+const fmtDate = (s: any) => {
+  if (!s) return ''
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/)
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(s).slice(0, 10)
 }
 
 export function CxcTransacciones({ noCia, punto = '01' }: P) {
   const qc = useQueryClient()
   const today = new Date().toISOString().slice(0, 10)
 
-  // ── Datos del módulo ──────────────────────────────────────────────
+  // ── Datos ──────────────────────────────────────────────────────────
   const tdocusQ = useQuery({
     queryKey: ['cxc-tdocu', noCia],
     queryFn: () => regalGeneralApi.cxcListTdocu(noCia),
@@ -80,92 +89,129 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
   const [fecha, setFecha] = useState(today)
   const [cliente, setCliente] = useState<any | null>(null)
   const [ncf, setNcf] = useState('')
-  const [ncfAnterior, setNcfAnterior] = useState('')
-  const [detalleGeneral, setDetalleGeneral] = useState('')
-  const [lineas, setLineas] = useState<Linea[]>([{ ...BLANK_LINEA }])
+  const [detalle, setDetalle] = useState('')
+  const [cuentaCaja, setCuentaCaja] = useState('')
+  const [centroCosto, setCentroCosto] = useState('')
+  /** key: 'tipo_doc-no_doc' → monto a aplicar */
+  const [aplicaciones, setAplicaciones] = useState<Record<string, number>>({})
   const [ultimoNoDoc, setUltimoNoDoc] = useState<string | null>(null)
 
   const tdocusActivos = useMemo(() => (tdocusQ.data ?? []).filter((t: any) => t.activo === 'S'), [tdocusQ.data])
+
+  // Para recibos solo mostramos tipos CR (crédito) — los DR son facturas/notas débito de FAT
+  const tdocusCR = useMemo(
+    () => tdocusActivos.filter((t: any) => (t.tipo_movimiento || t.tipo_movi || '').toUpperCase() === 'CR' || (t.tipo_movimiento || t.tipo_movi || '').toUpperCase() === 'C'),
+    [tdocusActivos],
+  )
   const tipoDocSel = useMemo(() => tdocusActivos.find((t: any) => t.tipo_doc === tipoDoc), [tdocusActivos, tipoDoc])
-  const tipoMovimiento = tipoDocSel?.tipo_movimiento || ''
   const requiereNcf = !!tipoDocSel?.codigo_ncf
 
-  // ── Cálculos del asiento ──────────────────────────────────────────
-  const totalDebito = lineas.reduce((s, l) => s + Number(l.debito || 0), 0)
-  const totalCredito = lineas.reduce((s, l) => s + Number(l.credito || 0), 0)
-  const diferencia = Math.abs(totalDebito - totalCredito)
-  const balanced = diferencia < 0.001 && (totalDebito + totalCredito) > 0
-  const valorDoc = Math.max(totalDebito, totalCredito)
+  // ── Facturas pendientes del cliente seleccionado ─────────────────
+  const pendientesQ = useQuery({
+    queryKey: ['cxc-pendientes', noCia, cliente?.no_cliente, punto],
+    queryFn: () => regalGeneralApi.cxcFacturasPendientesCliente(noCia, String(cliente!.no_cliente), punto),
+    enabled: !!cliente,
+  })
+  const pendientes: FacturaPendiente[] = (pendientesQ.data as any[]) ?? []
 
-  // ── Período abierto: validación de fecha contra TCXC_PUNTO.mes_proceso/ano_proceso ─
-  const periodoMesAno = puntoQ.data ? `${MESES_ES[(puntoQ.data.mes_proceso || 1) - 1]} ${puntoQ.data.ano_proceso}` : ''
+  // Al cambiar cliente, limpiar aplicaciones previas
+  useEffect(() => {
+    setAplicaciones({})
+  }, [cliente?.no_cliente])
+
+  // ── Cálculos ──────────────────────────────────────────────────────
+  const totalAplicado = useMemo(
+    () => Object.values(aplicaciones).reduce((s, n) => s + (Number(n) || 0), 0),
+    [aplicaciones],
+  )
+
+  const periodoMesAno = puntoQ.data
+    ? `${MESES_ES[(puntoQ.data.mes_proceso || 1) - 1]} ${puntoQ.data.ano_proceso}`
+    : ''
   const fechaFueraDePeriodo = useMemo(() => {
     if (!puntoQ.data || !fecha) return false
     const [y, m] = fecha.split('-').map(Number)
     return y !== puntoQ.data.ano_proceso || m !== puntoQ.data.mes_proceso
   }, [fecha, puntoQ.data])
 
-  // ── Mutación grabar ───────────────────────────────────────────────
+  // ── Mutación grabar ────────────────────────────────────────────────
   const grabarMut = useMutation({
     mutationFn: async () => {
-      const payload = {
+      const aplicacionesArr = pendientes
+        .map(p => {
+          const key = `${p.tipo_doc}-${p.no_doc}`
+          const monto = Number(aplicaciones[key] || 0)
+          return monto > 0
+            ? { tipo_ref: p.tipo_doc, no_ref: p.no_doc, monto }
+            : null
+        })
+        .filter(Boolean) as Array<{ tipo_ref: string; no_ref: string; monto: number }>
+      return regalGeneralApi.cxcCrearRecibo({
         no_cia: noCia, punto,
-        tipo_doc: tipoDoc, no_doc: nextDocQ.data?.no_doc || '',
-        no_cliente: cliente!.no_cliente,
-        nombre_cliente: cliente!.nombre || cliente!.nombre_cliente,
-        fecha, valor: valorDoc,
-        detalle: detalleGeneral, ncf, ncf_anterior: ncfAnterior,
-        tipo_movimiento: tipoMovimiento,
-        lineas: lineas.map(l => ({
-          cuenta: l.cuenta, centro_costo: l.centro_costo || '0000000000',
-          debito: Number(l.debito || 0), credito: Number(l.credito || 0),
-          detalle: l.detalle,
-        })),
-      }
-      return regalGeneralApi.cxcSaveDocumento(payload as any)
+        tipo_doc: tipoDoc, no_cliente: String(cliente!.no_cliente),
+        fecha, ncf, detalle,
+        cuenta_default: cuentaCaja,
+        centro_costo: centroCosto,
+        aplicaciones: aplicacionesArr,
+      })
     },
-    onSuccess: (res: any) => {
-      const noDoc = res?.no_doc || nextDocQ.data?.no_doc || ''
+    onSuccess: (r: any) => {
+      const noDoc = r?.no_doc || nextDocQ.data?.no_doc || ''
       setUltimoNoDoc(noDoc)
-      toast.success(`Documento ${tipoDoc}-${noDoc} guardado correctamente`)
-      // Limpiar y avanzar
+      toast.success(
+        `Recibo ${tipoDoc}-${noDoc} grabado · ${r.aplicaciones_count} factura(s) afectada(s) · RD$ ${fmt(r.total)}`,
+      )
       qc.invalidateQueries({ queryKey: ['cxc-next-doc', noCia, punto] })
-      setCliente(null); setNcf(''); setNcfAnterior('')
-      setDetalleGeneral(''); setLineas([{ ...BLANK_LINEA }])
+      qc.invalidateQueries({ queryKey: ['cxc-pendientes', noCia, cliente?.no_cliente] })
+      qc.invalidateQueries({ queryKey: ['cxc-documentos'] })
+      // Reset
+      setCliente(null)
+      setNcf('')
+      setDetalle('')
+      setAplicaciones({})
       setFecha(today)
     },
-    onError: (e: Error) => toast.error(e.message || 'Error al guardar'),
+    onError: (e: Error) => toast.error(e.message || 'Error al grabar el recibo'),
   })
 
+  // ── Validación ─────────────────────────────────────────────────────
   const validar = (): string | null => {
-    if (!tipoDoc) return 'Seleccione el tipo de documento'
+    if (!tipoDoc) return 'Seleccione el tipo de recibo'
     if (!cliente) return 'Seleccione un cliente'
+    if (!cuentaCaja) return 'Seleccione la cuenta de caja/banco donde entra el dinero'
     if (fechaFueraDePeriodo) return `La fecha debe estar dentro del período activo: ${periodoMesAno}`
-    if (lineas.length === 0) return 'Agregue al menos una línea contable'
-    if (lineas.some(l => !l.cuenta)) return 'Todas las líneas deben tener cuenta seleccionada'
-    if ((totalDebito + totalCredito) === 0) return 'Los montos no pueden ser cero'
-    if (!balanced) return `Asiento desbalanceado: Débitos RD$ ${fmtMoney(totalDebito)} ≠ Créditos RD$ ${fmtMoney(totalCredito)}`
-    if (requiereNcf && !ncf.trim()) return `Este tipo de documento requiere NCF (${tipoDocSel?.codigo_ncf})`
+    if (totalAplicado <= 0) return 'Indique al menos un monto a aplicar a alguna factura'
+    // Validar que ningún monto exceda el saldo de la factura
+    for (const p of pendientes) {
+      const key = `${p.tipo_doc}-${p.no_doc}`
+      const m = Number(aplicaciones[key] || 0)
+      if (m > p.saldo + 0.001) {
+        return `Monto en ${p.no_doc_display} (RD$ ${fmt(m)}) excede su saldo (RD$ ${fmt(p.saldo)})`
+      }
+    }
+    if (requiereNcf && !ncf.trim()) return `Este tipo de recibo requiere NCF (${tipoDocSel?.codigo_ncf})`
     return null
   }
+  const validacion = validar()
 
-  const onGrabar = () => {
-    const err = validar()
-    if (err) { toast.error(err); return }
-    grabarMut.mutate()
+  // Aplicar monto a factura específica
+  const setMonto = (key: string, monto: number) => {
+    setAplicaciones(prev => ({ ...prev, [key]: monto }))
   }
 
-  const setLinea = (i: number, k: keyof Linea, v: any) => {
-    setLineas(prev => prev.map((l, idx) => idx === i ? { ...l, [k]: v } : l))
+  // Marcar/desmarcar: si check → aplica saldo completo; si uncheck → 0
+  const toggleFactura = (p: FacturaPendiente, check: boolean) => {
+    const key = `${p.tipo_doc}-${p.no_doc}`
+    setMonto(key, check ? p.saldo : 0)
   }
 
-  const setLineaCuenta = (i: number, cuenta: string, nombre?: string) => {
-    setLineas(prev => prev.map((l, idx) => idx === i ? { ...l, cuenta, cuenta_nombre: nombre } : l))
+  const seleccionarTodo = () => {
+    const next: Record<string, number> = {}
+    for (const p of pendientes) next[`${p.tipo_doc}-${p.no_doc}`] = p.saldo
+    setAplicaciones(next)
   }
 
-  const setLineaCentro = (i: number, centro: string, nombre?: string) => {
-    setLineas(prev => prev.map((l, idx) => idx === i ? { ...l, centro_costo: centro, centro_costo_nombre: nombre } : l))
-  }
+  const limpiarTodo = () => setAplicaciones({})
 
   const imprimirUltimo = () => {
     if (!ultimoNoDoc) return
@@ -173,21 +219,21 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
     window.open(`/print/recibo-cobro/${encodeURIComponent(ultimoNoDoc)}?${qs}`, '_blank', 'noopener')
   }
 
-  const validacion = validar()
-
   return (
     <div className="p-6 space-y-4 max-w-6xl mx-auto">
-      {/* Cabecera con contexto: empresa, período, número que se asignará */}
+      {/* Header / contexto */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <CardTitle className="text-lg">Nueva Transacción CxC</CardTitle>
+              <CardTitle className="text-lg">Recibo de Cobro</CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Asiento contable contra un cliente · Débitos = Créditos
+                Aplica un pago del cliente a sus facturas pendientes. Equivale a la forma legada
+                <i> Fcxc201 — Entrada de Documentos CR </i>
+                (tablas TCXC_DOCUMENTO + TCXC_REFEDOCU).
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {puntoQ.data && (
                 <Badge variant="outline" className="text-xs">
                   Período: <span className="font-semibold ml-1">{periodoMesAno}</span>
@@ -208,31 +254,31 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Tipo documento + fecha + movimiento */}
+          {/* Tipo recibo + fecha */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs">Tipo de Documento *</Label>
+              <Label className="text-xs">Tipo de Recibo *</Label>
               <Select value={tipoDoc} onValueChange={setTipoDoc}>
                 <SelectTrigger className="h-9">
                   <SelectValue placeholder="Seleccione tipo…" />
                 </SelectTrigger>
                 <SelectContent>
-                  {tdocusActivos.map((t: any) => (
+                  {tdocusCR.length === 0 && (
+                    <div className="px-3 py-2 text-xs text-muted-foreground">
+                      No hay tipos de documento crédito configurados para CxC.
+                    </div>
+                  )}
+                  {tdocusCR.map((t: any) => (
                     <SelectItem key={t.tipo_doc} value={t.tipo_doc}>
                       <span className="font-mono mr-2">{t.tipo_doc}</span>
                       {t.descripcion}
-                      <Badge variant={t.tipo_movimiento === 'DR' ? 'default' : 'secondary'} className="ml-2 text-[10px] px-1">
-                        {t.tipo_movimiento}
-                      </Badge>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {tipoDocSel?.tipo_transaccion && (
-                <p className="text-[11px] text-muted-foreground">
-                  Transacción: {tipoDocSel.tipo_transaccion}
-                </p>
-              )}
+              <p className="text-[11px] text-muted-foreground">
+                Sólo se muestran tipos crédito (CR) — los DR son facturas que vienen de FAT.
+              </p>
             </div>
 
             <div className="space-y-1.5">
@@ -247,150 +293,163 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs">Movimiento</Label>
-              <div className="flex items-center h-9">
-                {tipoMovimiento
-                  ? (
-                    <Badge variant={tipoMovimiento === 'DR' ? 'default' : 'secondary'} className="h-7 px-3 text-sm">
-                      {tipoMovimiento === 'DR' ? 'Débito (DR)' : 'Crédito (CR)'}
-                    </Badge>
-                  )
-                  : <span className="text-xs text-muted-foreground">— Sin tipo seleccionado —</span>}
-              </div>
+              <Label className="text-xs">Cuenta de Caja / Banco *</Label>
+              <CuentaCombobox value={cuentaCaja} onChange={setCuentaCaja} required />
+              <p className="text-[11px] text-muted-foreground">Cuenta donde entra el dinero (débito).</p>
             </div>
           </div>
 
-          {/* Cliente — picker estilo FAT: código + lupa + modal + card verde */}
+          {/* Cliente */}
           <div className="space-y-1.5">
             <Label className="text-xs">Cliente *</Label>
             <ClientePicker noCia={noCia} cliente={cliente} onChange={setCliente} />
           </div>
 
-          {/* NCF (condicional) + Detalle */}
-          {requiereNcf && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 border border-dashed rounded bg-amber-50/50">
+          {/* NCF (condicional) + Detalle + Centro de costo */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {requiereNcf && (
               <div className="space-y-1.5">
                 <Label className="text-xs">NCF * <span className="text-muted-foreground">({tipoDocSel?.codigo_ncf})</span></Label>
-                <Input value={ncf} onChange={e => setNcf(e.target.value)} maxLength={19} className="font-mono h-9 uppercase" />
+                <Input value={ncf} onChange={e => setNcf(e.target.value.toUpperCase())} maxLength={19} className="font-mono h-9 uppercase" />
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">NCF Anterior</Label>
-                <Input value={ncfAnterior} onChange={e => setNcfAnterior(e.target.value)} maxLength={19} className="font-mono h-9 uppercase" />
-              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Centro de costo</Label>
+              <CentroCostoCombobox noCia={noCia} value={centroCosto} onChange={setCentroCosto} />
             </div>
-          )}
-
-          <div className="space-y-1.5">
-            <Label className="text-xs">Concepto / Detalle</Label>
-            <Input value={detalleGeneral} onChange={e => setDetalleGeneral(e.target.value)} className="h-9"
-                   placeholder="Descripción de la transacción…" />
+            <div className={`space-y-1.5 ${requiereNcf ? '' : 'sm:col-span-2'}`}>
+              <Label className="text-xs">Concepto</Label>
+              <Input
+                value={detalle}
+                onChange={e => setDetalle(e.target.value)}
+                placeholder="Ej. Pago factura junio…"
+                className="h-9"
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Líneas contables */}
+      {/* Facturas pendientes / aplicación */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
-              <CardTitle className="text-base">Distribución Contable</CardTitle>
+              <CardTitle className="text-base">Facturas pendientes del cliente</CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Asignar cuenta y centro de costo. La suma de débitos debe igualar la suma de créditos.
+                Marque las facturas a las que se aplica el pago e indique el monto.
+                El monto no puede exceder el saldo de la factura.
               </p>
             </div>
-            <Button size="sm" variant="outline" onClick={() => setLineas(l => [...l, { ...BLANK_LINEA }])}>
-              <Plus className="h-4 w-4 mr-1" /> Agregar línea
-            </Button>
+            {cliente && pendientes.length > 0 && (
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={seleccionarTodo}>
+                  Aplicar a todas
+                </Button>
+                <Button size="sm" variant="ghost" onClick={limpiarTodo}>
+                  Limpiar
+                </Button>
+              </div>
+            )}
           </div>
         </CardHeader>
         <CardContent>
-          <div className="border rounded-lg overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/40">
-                  <TableHead className="w-[280px]">Cuenta *</TableHead>
-                  <TableHead className="w-[220px]">Centro Costo</TableHead>
-                  <TableHead className="w-32 text-right">Débito</TableHead>
-                  <TableHead className="w-32 text-right">Crédito</TableHead>
-                  <TableHead>Detalle</TableHead>
-                  <TableHead className="w-10"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {lineas.map((l, i) => (
-                  <TableRow key={i}>
-                    <TableCell>
-                      <CuentaCombobox
-                        value={l.cuenta}
-                        onChange={(c, n) => setLineaCuenta(i, c, n)}
-                        required
-                      />
+          {!cliente && (
+            <div className="text-center py-10 text-sm text-muted-foreground border rounded">
+              Seleccione un cliente para ver sus facturas pendientes.
+            </div>
+          )}
+
+          {cliente && pendientesQ.isLoading && (
+            <div className="text-center py-10 text-sm text-muted-foreground">
+              Cargando facturas pendientes…
+            </div>
+          )}
+
+          {cliente && !pendientesQ.isLoading && pendientes.length === 0 && (
+            <div className="text-center py-10 text-sm border rounded bg-muted/30">
+              <CheckCircle2 className="h-6 w-6 text-green-600 mx-auto mb-2" />
+              El cliente <b>{cliente.nombre}</b> no tiene facturas pendientes en este momento.
+            </div>
+          )}
+
+          {cliente && pendientes.length > 0 && (
+            <div className="border rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead className="w-12 text-center">Aplica</TableHead>
+                    <TableHead className="w-32">Factura</TableHead>
+                    <TableHead className="w-28">Fecha</TableHead>
+                    <TableHead className="w-32">NCF</TableHead>
+                    <TableHead>Concepto / Detalle</TableHead>
+                    <TableHead className="w-32 text-right">Valor Orig.</TableHead>
+                    <TableHead className="w-32 text-right">Saldo</TableHead>
+                    <TableHead className="w-36 text-right">Monto a aplicar</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pendientes.map(p => {
+                    const key = `${p.tipo_doc}-${p.no_doc}`
+                    const monto = Number(aplicaciones[key] || 0)
+                    const checked = monto > 0
+                    const excedeSaldo = monto > p.saldo + 0.001
+                    return (
+                      <TableRow key={key} className={checked ? 'bg-green-50/40 dark:bg-green-950/10' : ''}>
+                        <TableCell className="text-center">
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(v: any) => toggleFactura(p, !!v)}
+                          />
+                        </TableCell>
+                        <TableCell className="font-mono text-sm font-semibold">
+                          {p.no_doc_display}
+                        </TableCell>
+                        <TableCell className="tabular-nums text-sm">{fmtDate(p.fecha)}</TableCell>
+                        <TableCell className="font-mono text-xs">{p.ncf_dgi || '—'}</TableCell>
+                        <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
+                          {p.detalle || '—'}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{fmt(p.valor_original)}</TableCell>
+                        <TableCell className="text-right tabular-nums font-medium text-amber-700">
+                          {fmt(p.saldo)}
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max={p.saldo}
+                            value={monto || ''}
+                            onChange={e => setMonto(key, Number(e.target.value || 0))}
+                            placeholder="0.00"
+                            className={`h-8 text-right tabular-nums font-mono ${excedeSaldo ? 'border-destructive' : ''}`}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                  <TableRow className="bg-muted/60 font-semibold">
+                    <TableCell colSpan={6} className="text-right">TOTAL A APLICAR</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {fmt(pendientes.reduce((s, p) => s + p.saldo, 0))}
                     </TableCell>
-                    <TableCell>
-                      <CentroCostoCombobox
-                        noCia={noCia}
-                        value={l.centro_costo}
-                        onChange={(c, n) => setLineaCentro(i, c, n)}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number" step="0.01" value={l.debito || ''}
-                        onChange={e => setLinea(i, 'debito', Number(e.target.value || 0))}
-                        className="text-right h-8 tabular-nums font-mono"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number" step="0.01" value={l.credito || ''}
-                        onChange={e => setLinea(i, 'credito', Number(e.target.value || 0))}
-                        className="text-right h-8 tabular-nums font-mono"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        value={l.detalle}
-                        onChange={e => setLinea(i, 'detalle', e.target.value)}
-                        className="h-8"
-                        placeholder="(opcional)"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost" size="icon" className="h-8 w-8 text-destructive"
-                        onClick={() => setLineas(l2 => l2.filter((_, j) => j !== i))}
-                        disabled={lineas.length === 1}
-                        title="Eliminar línea"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                    <TableCell className="text-right tabular-nums font-mono text-base">
+                      RD$ {fmt(totalAplicado)}
                     </TableCell>
                   </TableRow>
-                ))}
-
-                <TableRow className="bg-muted/60 font-semibold">
-                  <TableCell colSpan={2} className="text-right">TOTALES</TableCell>
-                  <TableCell className="text-right tabular-nums font-mono">RD$ {fmtMoney(totalDebito)}</TableCell>
-                  <TableCell className="text-right tabular-nums font-mono">RD$ {fmtMoney(totalCredito)}</TableCell>
-                  <TableCell colSpan={2}>
-                    {balanced
-                      ? <span className="text-green-700 text-xs flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> Balanceado</span>
-                      : (totalDebito + totalCredito) > 0
-                        ? <span className="text-destructive text-xs flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5" /> Diferencia RD$ {fmtMoney(diferencia)}</span>
-                        : <span className="text-muted-foreground text-xs">Sin montos</span>}
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Footer con valor, validación y acción */}
+      {/* Footer sticky con valor + validación + acción */}
       <div className="flex items-center justify-between gap-4 p-4 border rounded-lg bg-card sticky bottom-4">
         <div className="space-y-0.5">
-          <div className="text-xs text-muted-foreground">Valor del documento</div>
-          <div className="text-2xl font-bold tabular-nums font-mono">RD$ {fmtMoney(valorDoc)}</div>
+          <div className="text-xs text-muted-foreground">Total a recibir</div>
+          <div className="text-2xl font-bold tabular-nums font-mono">RD$ {fmt(totalAplicado)}</div>
         </div>
         {validacion && (
           <div className="flex-1 px-3 py-2 bg-destructive/10 border border-destructive/40 rounded text-xs text-destructive flex items-center gap-2">
@@ -398,10 +457,17 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
             {validacion}
           </div>
         )}
-        <Button onClick={onGrabar} disabled={!!validacion || grabarMut.isPending} size="lg" className="gap-2 min-w-[180px]">
+        <Button onClick={() => grabarMut.mutate()}
+                disabled={!!validacion || grabarMut.isPending}
+                size="lg" className="gap-2 min-w-[200px]">
           <Save className="h-4 w-4" />
-          {grabarMut.isPending ? 'Guardando…' : 'Grabar Documento'}
+          {grabarMut.isPending ? 'Grabando…' : 'Grabar Recibo'}
         </Button>
+      </div>
+
+      <div className="text-xs text-muted-foreground flex items-center gap-1 justify-center">
+        <FileText className="h-3 w-3" />
+        Para crear documentos manuales (asientos libres), use la vista de Asiento Contable en Cierre.
       </div>
     </div>
   )

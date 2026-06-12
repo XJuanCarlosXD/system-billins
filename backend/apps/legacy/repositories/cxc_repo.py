@@ -707,6 +707,117 @@ def reversar_documento(no_cia: str, no_docu: str, tipo_doc_rev: str = '',
         cur.connection.commit()
     return no_docu
 
+def get_facturas_pendientes_cliente(no_cia: str, no_cliente: str, punto: str = ''):
+    """Documentos DR (facturas/débitos) con saldo > 0 del cliente, no aplicados aún
+    contra el recibo en curso. Se filtra `tipo_movi='D'` y `saldo > 0`.
+
+    Si `punto` se pasa, se restringe al punto; si no, todas las sucursales del cliente.
+    Ordenado por fecha — el legado aplica FIFO por defecto.
+    """
+    sql = (
+        "SELECT d.punto, d.tipo_docu, d.no_docu, d.no_cliente, d.fecha, "
+        "       d.detalle, NVL(d.valor_original,0) AS valor_original, "
+        "       NVL(d.saldo,0) AS saldo, "
+        "       d.ncf, d.tipo_movi, "
+        "       d.posiciones_fijas_ncf "
+        "  FROM CXC.TCXC_DOCUMENTO d "
+        " WHERE d.no_cia=:1 AND d.no_cliente=:2 "
+        "   AND NVL(d.st_anulado,'N')='N' "
+        "   AND NVL(d.saldo,0) > 0 "
+        "   AND NVL(d.tipo_movi,'D')='D' "
+    )
+    params: list = [no_cia, str(no_cliente)]
+    if punto:
+        sql += " AND d.punto=:3 "
+        params.append(punto)
+    sql += " ORDER BY d.fecha, d.no_docu"
+    rows = client.fetch_dicts(sql, params)
+    out = []
+    for r in rows:
+        ncf_dgi = ''
+        if r.get('posiciones_fijas_ncf') and r.get('ncf'):
+            try:
+                ncf_dgi = f"{str(r['posiciones_fijas_ncf']).strip()}{int(r['ncf']):08d}"
+            except (TypeError, ValueError):
+                ncf_dgi = str(r.get('ncf') or '')
+        out.append({
+            'punto': r['punto'],
+            'tipo_doc': (r.get('tipo_docu') or '').strip(),
+            'no_doc': str(r.get('no_docu') or '').strip(),
+            'no_doc_display': f"{(r.get('tipo_docu') or '').strip()}-{str(r.get('no_docu') or '').strip()}",
+            'no_cliente': r['no_cliente'],
+            'fecha': str(r.get('fecha') or '')[:10] if r.get('fecha') else None,
+            'detalle': r.get('detalle') or '',
+            'valor_original': float(r.get('valor_original') or 0),
+            'saldo': float(r.get('saldo') or 0),
+            'ncf_dgi': ncf_dgi,
+        })
+    return out
+
+
+def crear_recibo_cobro(
+    *, no_cia: str, punto: str, tipo_doc: str, no_cliente: str,
+    fecha: str, ncf: str = '', detalle: str = '',
+    cuenta_default: str = '', centro_costo: str = '',
+    aplicaciones: list | None = None,
+) -> dict:
+    """Crea un recibo de ingreso (CR) y registra las referencias en TCXC_REFEDOCU.
+
+    Para cada aplicación: { tipo_ref, no_ref, monto }
+      - Reduce el saldo de la factura referenciada (TCXC_DOCUMENTO)
+      - Inserta una fila en TCXC_REFEDOCU (NO_CIA, PUNTO, TIPO_DOCU, NO_DOCU,
+        NO_CLIENTE, TIPO_REFE, NO_REFE, MONTO)
+      - Acumula el total como VALOR_ORIGINAL del recibo
+    """
+    aplicaciones = aplicaciones or []
+    total = sum(float(a.get('monto') or 0) for a in aplicaciones)
+    no_doc = get_next_no_doc(no_cia, punto)
+    with client.cursor() as cur:
+        # Cabecera del recibo
+        cur.execute(
+            "INSERT INTO CXC.TCXC_DOCUMENTO ("
+            " no_cia, punto, tipo_docu, no_docu, no_cliente, fecha, "
+            " valor_original, saldo, ncf, detalle, st_anulado, tipo_movi"
+            ") VALUES (:1,:2,:3,:4,:5,TO_DATE(:6,'YYYY-MM-DD'),"
+            " :7, 0, :8, :9, 'N', 'C')",
+            [no_cia, punto, tipo_doc, no_doc, str(no_cliente), fecha,
+             total, ncf, detalle])
+
+        # Distribución contable (1 sola línea por la cuenta default — caja/banco)
+        if cuenta_default and total > 0:
+            cur.execute(
+                "INSERT INTO CXC.TCXC_DCDOCU ("
+                " no_cia, punto, tipo_docu, no_docu, cuenta, "
+                " tipo_movi, monto, centro_costo, no_cliente"
+                ") VALUES (:1,:2,:3,:4,:5,'D',:6,:7,:8)",
+                [no_cia, punto, tipo_doc, no_doc, cuenta_default,
+                 total, centro_costo or '', str(no_cliente)])
+
+        # Aplicaciones — actualiza saldo de cada factura + inserta TCXC_REFEDOCU
+        for a in aplicaciones:
+            monto = float(a.get('monto') or 0)
+            if monto <= 0:
+                continue
+            tipo_ref = (a.get('tipo_ref') or a.get('tipo_doc') or '').strip().upper()
+            no_ref = str(a.get('no_ref') or a.get('no_doc') or '').strip()
+            if not tipo_ref or not no_ref:
+                continue
+            cur.execute(
+                "UPDATE CXC.TCXC_DOCUMENTO "
+                "   SET saldo = NVL(saldo,0) - :1 "
+                " WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4 AND no_docu=:5",
+                [monto, no_cia, punto, tipo_ref, no_ref])
+            cur.execute(
+                "INSERT INTO CXC.TCXC_REFEDOCU "
+                "(no_cia, punto, tipo_docu, no_docu, no_cliente, tipo_refe, no_refe, monto) "
+                "VALUES (:1, :2, :3, :4, :5, :6, :7, :8)",
+                [no_cia, punto, tipo_doc, no_doc, str(no_cliente), tipo_ref, no_ref, monto])
+
+        cur.connection.commit()
+    return {'no_doc': no_doc, 'tipo_doc': tipo_doc, 'total': total,
+            'aplicaciones_count': sum(1 for a in aplicaciones if float(a.get('monto') or 0) > 0)}
+
+
 def get_documentos_pendientes_masivo(no_cia: str, desde: str, hasta: str):
     return client.fetch_dicts(
         "SELECT d.punto, d.tipo_docu tipo_doc, d.no_docu no_doc, "

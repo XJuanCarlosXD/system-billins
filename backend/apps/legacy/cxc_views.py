@@ -371,6 +371,50 @@ class CxcDocumentoDetailView(APIView):
 
 
 @_auth
+class CxcFacturasPendientesClienteView(APIView):
+    """GET /api/cxc/clientes/<no_cliente>/facturas-pendientes/?no_cia=01&punto=01
+
+    Devuelve los documentos DR (facturas/débitos) con saldo > 0 del cliente,
+    para que el formulario de recibo de ingreso muestre cuáles afectar.
+    """
+    def get(self, request, no_cliente):
+        no_cia = request.query_params.get("no_cia", "01")
+        punto = request.query_params.get("punto", "")
+        return Response(repo.get_facturas_pendientes_cliente(no_cia, no_cliente, punto))
+
+
+@_auth
+class CxcCrearReciboView(APIView):
+    """POST /api/cxc/recibos/
+
+    Body:
+      no_cia, punto, tipo_doc, no_cliente, fecha, ncf, detalle,
+      cuenta_default (caja/banco), centro_costo (opcional),
+      aplicaciones: [ { tipo_ref, no_ref, monto }, ... ]
+
+    Crea el recibo + actualiza saldos + inserta TCXC_REFEDOCU.
+    """
+    def post(self, request):
+        d = request.data
+        try:
+            res = repo.crear_recibo_cobro(
+                no_cia=d.get('no_cia', '01'),
+                punto=d.get('punto', '01'),
+                tipo_doc=d.get('tipo_doc') or d.get('tipo_docu', ''),
+                no_cliente=d.get('no_cliente', ''),
+                fecha=d.get('fecha', ''),
+                ncf=d.get('ncf', ''),
+                detalle=d.get('detalle', ''),
+                cuenta_default=d.get('cuenta_default', '') or d.get('cuenta', ''),
+                centro_costo=d.get('centro_costo', ''),
+                aplicaciones=d.get('aplicaciones') or [],
+            )
+            return Response({'ok': True, **res})
+        except Exception as e:
+            return Response({'error': str(e)}, status=400)
+
+
+@_auth
 class CxcNextDocView(APIView):
     def get(self, request):
         no_cia = request.query_params.get("no_cia", "01")

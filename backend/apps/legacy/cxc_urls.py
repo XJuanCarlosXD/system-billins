@@ -13,6 +13,7 @@ from .cxc_views import (
     CxcEstadoCuentaView, CxcBalanceClientesView, CxcHistoricoView, CxcLibroVentasView,
     CxcRepEnvejecimientoView, CxcRepCobrosVendedorView, CxcRepComisionesView, CxcRepNcfView,
     CxcAsientoContableView, CxcGenerarAsientoView, CxcCierreView,
+    CxcFacturasPendientesClienteView, CxcCrearReciboView,
 )
 
 urlpatterns = [
@@ -40,6 +41,9 @@ urlpatterns = [
     path('documentos/', CxcDocumentosView.as_view()),
     path('documentos/<str:no_cia>/<str:no_doc>/', CxcDocumentoDetailView.as_view()),
     path('next-doc/', CxcNextDocView.as_view()),
+    # Recibo de Cobro (flujo legado FCXC201 con aplicación a TCXC_REFEDOCU)
+    path('clientes/<str:no_cliente>/facturas-pendientes/', CxcFacturasPendientesClienteView.as_view()),
+    path('recibos/', CxcCrearReciboView.as_view()),
     # Procesos
     path('reversar/', CxcReversarView.as_view()),
     path('pagos-masivos/', CxcPagosMasivosView.as_view()),

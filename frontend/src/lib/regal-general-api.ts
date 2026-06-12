@@ -981,6 +981,10 @@ export const regalGeneralApi = {
   cxcListDocumentos: (p: Record<string, any>) => { const qs = new URLSearchParams(Object.fromEntries(Object.entries(p).filter(([,v]) => v != null && v !== ''))).toString(); return request<{ items: any[]; count: number }>(`/cxc/documentos/?${qs}`)},
   cxcGetDocumento: (noCia: string, noDoc: string) => request<any>(`/cxc/documentos/${noCia}/${noDoc}/`),
   cxcSaveDocumento: (d: any) => request<any>('/cxc/documentos/', { method: 'POST', body: JSON.stringify(d) }),
+  cxcFacturasPendientesCliente: (noCia: string, noCliente: string, punto = '') =>
+    request<any[]>(`/cxc/clientes/${encodeURIComponent(noCliente)}/facturas-pendientes/?no_cia=${noCia}${punto ? `&punto=${punto}` : ''}`),
+  cxcCrearRecibo: (d: any) =>
+    request<any>('/cxc/recibos/', { method: 'POST', body: JSON.stringify(d) }),
   cxcGetNextDoc: (noCia: string, punto: string) => request<{ no_doc: string }>(`/cxc/next-doc/?no_cia=${noCia}&punto=${punto}`),
   cxcReversar: (d: any) => request<any>('/cxc/reversar/', { method: 'POST', body: JSON.stringify(d) }),
   cxcGetDocsPendientesMasivo: (noCia: string, desde: string, hasta: string) => request<any[]>(`/cxc/pagos-masivos/?no_cia=${noCia}&desde=${desde}&hasta=${hasta}`),
