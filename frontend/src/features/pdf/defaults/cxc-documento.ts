@@ -161,6 +161,36 @@ export const cxcDocumentoDefault: any = {
       },
     },
 
+    // ── 8. Tabla Distribución Contable (TCXC_DCDOCU) — sí va en legacy
+    {
+      type: 'TextoLibre',
+      props: {
+        id: 'dist-contable',
+        html: `
+<table style="width:100%;border-collapse:collapse;font-size:9px;margin-top:10px">
+  <thead>
+    <tr style="border-top:1px solid #333;border-bottom:1px solid #333;font-weight:bold">
+      <td style="padding:3px 4px;width:90px">Cuenta</td>
+      <td style="padding:3px 4px">Descripción</td>
+      <td style="padding:3px 4px;text-align:right;width:100px">Débito</td>
+      <td style="padding:3px 4px;text-align:right;width:100px">Crédito</td>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each extra.dist_contable}}
+    <tr>
+      <td style="padding:3px 4px;font-family:monospace">{{this.cuenta}}</td>
+      <td style="padding:3px 4px">{{upper this.descripcion}}</td>
+      <td style="padding:3px 4px;text-align:right">{{formatMoney this.debito}}</td>
+      <td style="padding:3px 4px;text-align:right">{{formatMoney this.credito}}</td>
+    </tr>
+    {{/each}}
+  </tbody>
+</table>`,
+        fontSize: 9, textAlign: 'left',
+      },
+    },
+
     { type: 'Spacer', props: { id: 'sp', height: 24 } },
 
     // ── 9. Firmas
