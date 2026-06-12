@@ -56,6 +56,7 @@ def cxp_documentos(request):
         punto=punto,
         no_proveedor=request.GET.get('no_proveedor', ''),
         tipo=request.GET.get('tipo', ''),
+        no_doc=request.GET.get('no_doc', ''),
         desde=request.GET.get('desde', ''),
         hasta=request.GET.get('hasta', ''),
         status=request.GET.get('status', 'A'),

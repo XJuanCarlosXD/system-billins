@@ -1148,7 +1148,7 @@ export const regalGeneralApi = {
 
   cxpListDocumentos: (params: {
     no_cia: string; punto: string;
-    no_proveedor?: string; tipo?: string;
+    no_proveedor?: string; tipo?: string; no_doc?: string;
     desde?: string; hasta?: string; status?: string;
   }) => {
     const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v != null && v !== ""))).toString()

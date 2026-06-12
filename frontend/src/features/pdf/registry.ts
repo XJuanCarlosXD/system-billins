@@ -17,6 +17,7 @@ import { comprobanteContableDefault } from './defaults/comprobante-contable'
 import { actaActivoDefault } from './defaults/acta-activo'
 import { sdnNominaDefault } from './defaults/sdn-nomina'
 import { cxcDocumentoDefault } from './defaults/cxc-documento'
+import { cxpDocumentoDefault } from './defaults/cxp-documento'
 
 export type DocFamily = 'documento' | 'reporte'
 
@@ -161,13 +162,70 @@ export const registry: Record<string, RegistryEntry> = {
     defaultPageSize: 'A4', defaultPageOrientation: 'P',
     variables: docVarsBase.concat(['extra.dist_contable']),
   },
-  // ── CXP ────────────────────────────────────────────────────────────
+  // ── CXP — todos los tipos comparten plantilla y endpoint (Rcxp207 legacy) ─
+  // Backend resuelve título y "Acreditado/Debitado" desde TCXP_TDOCU y
+  // tipo_movi. Cada tipo tiene su código en /print para que el editor de
+  // plantillas pueda personalizar uno por separado si el usuario quiere.
   'comprobante-pago': {
     codigo: 'comprobante-pago', modulo: 'CXP', nombre: 'Comprobante de Pago', familia: 'documento',
     printDataPath: (id, qs) => `/cxp/documentos/${encodeURIComponent(splitTipo(id).tipo)}/${encodeURIComponent(splitTipo(id).no)}/print-data/?${qs.toString()}`,
     defaultTemplate: comprobantePagoDefault,
     defaultPageSize: 'A4', defaultPageOrientation: 'P',
     variables: docVarsBase.concat(['proveedor.nombre', 'proveedor.rnc', 'extra.saldo']),
+  },
+  'cxp-factura-proveedor': {
+    codigo: 'cxp-factura-proveedor', modulo: 'CXP', nombre: 'Factura Proveedor (FP)', familia: 'documento',
+    printDataPath: (id, qs) => `/cxp/documentos/${encodeURIComponent(splitTipo(id).tipo)}/${encodeURIComponent(splitTipo(id).no)}/print-data/?${qs.toString()}`,
+    defaultTemplate: cxpDocumentoDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: docVarsBase.concat([
+      'doc.acreditado_debitado', 'doc.fecha_larga', 'doc.hecho_por',
+      'proveedor.nombre', 'proveedor.rnc', 'proveedor.direccion', 'proveedor.telefono',
+      'totales.total_padded',
+      'extra.documentos_afectados', 'extra.dist_contable', 'extra.mostrar_recibido_conforme',
+    ]),
+  },
+  'cxp-ajuste-credito': {
+    codigo: 'cxp-ajuste-credito', modulo: 'CXP', nombre: 'Ajuste Crédito CxP (AC)', familia: 'documento',
+    printDataPath: (id, qs) => `/cxp/documentos/${encodeURIComponent(splitTipo(id).tipo)}/${encodeURIComponent(splitTipo(id).no)}/print-data/?${qs.toString()}`,
+    defaultTemplate: cxpDocumentoDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: docVarsBase.concat(['proveedor.nombre', 'extra.dist_contable']),
+  },
+  'cxp-ajuste-debito': {
+    codigo: 'cxp-ajuste-debito', modulo: 'CXP', nombre: 'Ajuste Débito CxP (AD)', familia: 'documento',
+    printDataPath: (id, qs) => `/cxp/documentos/${encodeURIComponent(splitTipo(id).tipo)}/${encodeURIComponent(splitTipo(id).no)}/print-data/?${qs.toString()}`,
+    defaultTemplate: cxpDocumentoDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: docVarsBase.concat(['proveedor.nombre', 'extra.dist_contable']),
+  },
+  'cxp-balance-debito': {
+    codigo: 'cxp-balance-debito', modulo: 'CXP', nombre: 'Balance Débito CxP (BD)', familia: 'documento',
+    printDataPath: (id, qs) => `/cxp/documentos/${encodeURIComponent(splitTipo(id).tipo)}/${encodeURIComponent(splitTipo(id).no)}/print-data/?${qs.toString()}`,
+    defaultTemplate: cxpDocumentoDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: docVarsBase.concat(['proveedor.nombre', 'extra.dist_contable']),
+  },
+  'cxp-nota-credito': {
+    codigo: 'cxp-nota-credito', modulo: 'CXP', nombre: 'Nota de Crédito CxP (NC)', familia: 'documento',
+    printDataPath: (id, qs) => `/cxp/documentos/${encodeURIComponent(splitTipo(id).tipo)}/${encodeURIComponent(splitTipo(id).no)}/print-data/?${qs.toString()}`,
+    defaultTemplate: cxpDocumentoDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: docVarsBase.concat(['proveedor.nombre', 'extra.dist_contable']),
+  },
+  'cxp-nota-debito': {
+    codigo: 'cxp-nota-debito', modulo: 'CXP', nombre: 'Nota de Débito CxP (ND)', familia: 'documento',
+    printDataPath: (id, qs) => `/cxp/documentos/${encodeURIComponent(splitTipo(id).tipo)}/${encodeURIComponent(splitTipo(id).no)}/print-data/?${qs.toString()}`,
+    defaultTemplate: cxpDocumentoDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: docVarsBase.concat(['proveedor.nombre', 'extra.dist_contable']),
+  },
+  'cxp-solicitud-cheque': {
+    codigo: 'cxp-solicitud-cheque', modulo: 'CXP', nombre: 'Solicitud de Cheque (SO)', familia: 'documento',
+    printDataPath: (id, qs) => `/cxp/documentos/${encodeURIComponent(splitTipo(id).tipo)}/${encodeURIComponent(splitTipo(id).no)}/print-data/?${qs.toString()}`,
+    defaultTemplate: cxpDocumentoDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: docVarsBase.concat(['proveedor.nombre', 'extra.dist_contable', 'extra.documentos_afectados']),
   },
   // ── ODC ────────────────────────────────────────────────────────────
   'orden-compra': {

@@ -32,6 +32,8 @@ const TIPO_DOC: Record<string, string> = {
   SO: 'Solicitud de Cheque',
   AC: 'Ajuste Crédito',
   AD: 'Ajuste Débito',
+  BD: 'Balance Débito',
+  BC: 'Balance Crédito',
 }
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
@@ -59,6 +61,7 @@ export function CxpDocumentos() {
   const { selectedCompany: noCia, selectedPoint: punto } = useCompany()
   const [noProveedor, setNoProveedor] = useState('')
   const [tipo, setTipo] = useState('')
+  const [noDoc, setNoDoc] = useState('')
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
   const [status, setStatus] = useState('A')
@@ -68,8 +71,8 @@ export function CxpDocumentos() {
   const enabled = !!noCia
 
   const { data = [], isLoading, isError } = useQuery<Documento[]>({
-    queryKey: ['cxp-documentos', noCia, punto, noProveedor, tipo, desde, hasta, status],
-    queryFn: () => api.cxpListDocumentos({ no_cia: noCia, punto, no_proveedor: noProveedor, tipo, desde, hasta, status }),
+    queryKey: ['cxp-documentos', noCia, punto, noProveedor, tipo, noDoc, desde, hasta, status],
+    queryFn: () => api.cxpListDocumentos({ no_cia: noCia, punto, no_proveedor: noProveedor, tipo, no_doc: noDoc, desde, hasta, status }),
     staleTime: 60_000,
     enabled,
   })
@@ -120,7 +123,15 @@ export function CxpDocumentos() {
             <option value="SO">Solicitud de Cheque</option>
             <option value="AC">Ajuste Crédito</option>
             <option value="AD">Ajuste Débito</option>
+            <option value="BD">Balance Débito</option>
+            <option value="BC">Balance Crédito</option>
           </select>
+          <Input
+            placeholder="No. Documento"
+            value={noDoc}
+            onChange={e => { setNoDoc(e.target.value); setPage(1) }}
+            className="w-32 font-mono"
+          />
           <div className="flex items-center gap-1 text-sm"><span className="text-muted-foreground whitespace-nowrap">Desde:</span><Input type="date" value={desde} onChange={e => setDesde(e.target.value)} className="w-36" /></div>
           <div className="flex items-center gap-1 text-sm"><span className="text-muted-foreground whitespace-nowrap">Hasta:</span><Input type="date" value={hasta} onChange={e => setHasta(e.target.value)} className="w-36" /></div>
           <select className="border rounded px-3 py-2 text-sm" value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}>
@@ -239,9 +250,27 @@ export function CxpDocumentos() {
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    const qs = new URLSearchParams({ no_cia: detalle.no_cia, punto: detalle.punto }).toString()
+                    const tipo = (detalle.tipo_docu || '').toUpperCase()
+                    const codigoMap: Record<string, string> = {
+                      FP: 'cxp-factura-proveedor',
+                      AC: 'cxp-ajuste-credito',
+                      AD: 'cxp-ajuste-debito',
+                      BD: 'cxp-balance-debito',
+                      NC: 'cxp-nota-credito',
+                      ND: 'cxp-nota-debito',
+                      SO: 'cxp-solicitud-cheque',
+                    }
+                    const codigo = codigoMap[tipo]
+                    if (!codigo) {
+                      alert(`Imprimir no disponible para el tipo ${tipo}`)
+                      return
+                    }
+                    const qs = new URLSearchParams({
+                      no_cia: detalle.no_cia,
+                      punto: detalle.punto,
+                    }).toString()
                     window.open(
-                      `/print/comprobante-pago/${encodeURIComponent(detalle.tipo_docu)}-${encodeURIComponent(detalle.no_docu)}?${qs}`,
+                      `/print/${codigo}/${encodeURIComponent(tipo)}-${encodeURIComponent(detalle.no_docu)}?${qs}`,
                       '_blank',
                     )
                   }}

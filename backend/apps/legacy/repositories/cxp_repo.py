@@ -104,7 +104,8 @@ def save_proveedor(data: dict):
     return {'no_proveedor': no_proveedor}
 
 
-def list_documentos(no_cia, punto, no_proveedor='', tipo='', desde='', hasta='', status='A'):
+def list_documentos(no_cia, punto, no_proveedor='', tipo='', no_doc='',
+                    desde='', hasta='', status='A'):
     conditions = ['d.no_cia=:1', 'd.punto=:2']
     params = [no_cia, punto]
     if no_proveedor:
@@ -113,6 +114,9 @@ def list_documentos(no_cia, punto, no_proveedor='', tipo='', desde='', hasta='',
     if tipo:
         params.append(tipo)
         conditions.append(f'd.tipo_docu=:{len(params)}')
+    if no_doc:
+        params.append(f"%{no_doc}%")
+        conditions.append(f'd.no_docu LIKE :{len(params)}')
     if desde:
         params.append(desde)
         conditions.append(f"d.fecha>=TO_DATE(:{len(params)},'YYYY-MM-DD')")
@@ -144,6 +148,9 @@ def get_documento(no_cia, punto, tipo_docu, no_docu):
     sql = """
         SELECT d.no_cia, d.punto, d.tipo_docu, d.no_docu,
                d.no_proveedor, p.nombre AS nombre_proveedor,
+               p.direccion AS direccion_proveedor,
+               p.telefono AS telefono_proveedor,
+               p.celular  AS celular_proveedor,
                TO_CHAR(d.fecha,'YYYY-MM-DD') AS fecha,
                TO_CHAR(d.fecha_vence,'YYYY-MM-DD') AS fecha_vence,
                d.valor_original, d.saldo, d.status,
@@ -151,18 +158,20 @@ def get_documento(no_cia, punto, tipo_docu, no_docu):
                d.tipo_transaccion, d.impuesto,
                d.itbis_retenido, d.isr_retenido,
                d.tipo_movi, d.forma_pago, d.debito, d.credito,
-               d.pago_bloqueado
+               d.pago_bloqueado, d.detalle, d.usuario
         FROM CXP.TCXP_DOCUMENTO d
         JOIN CXP.TCXP_DPROVEEDOR p ON p.no_proveedor = d.no_proveedor
         WHERE d.no_cia=:1 AND d.punto=:2 AND d.tipo_docu=:3 AND d.no_docu=:4
     """
     sql_lineas = """
         SELECT dc.cuenta,
+               dc.centro_costo,
+               dc.no_componente,
                dc.monto,
                dc.tipo_movi
         FROM CXP.TCXP_DCDOCU dc
         WHERE dc.no_cia=:1 AND dc.punto=:2 AND dc.tipo_docu=:3 AND dc.no_docu=:4
-        ORDER BY dc.cuenta
+        ORDER BY dc.no_componente NULLS FIRST, dc.cuenta
     """
     rows = client.fetch_dicts(sql, [no_cia, punto, tipo_docu, no_docu])
     if not rows:
@@ -170,6 +179,24 @@ def get_documento(no_cia, punto, tipo_docu, no_docu):
     doc = rows[0]
     doc['lineas'] = client.fetch_dicts(sql_lineas, [no_cia, punto, tipo_docu, no_docu])
     return doc
+
+
+def get_documentos_afectados(no_cia, punto, tipo_docu, no_docu):
+    """TCXP_REFEDOCU + datos del documento referenciado (saldo actual)."""
+    sql = """
+        SELECT r.tipo_refe AS tipo_doc, r.no_refe AS no_doc,
+               r.no_cuota, r.monto,
+               TO_CHAR(rd.fecha,'YYYY-MM-DD') AS fecha,
+               NVL(rd.valor_original,0) AS valor_original,
+               NVL(rd.saldo,0) AS saldo
+        FROM CXP.TCXP_REFEDOCU r
+        LEFT JOIN CXP.TCXP_DOCUMENTO rd
+          ON rd.no_cia=r.no_cia AND rd.punto=r.punto
+         AND rd.tipo_docu=r.tipo_refe AND rd.no_docu=r.no_refe
+        WHERE r.no_cia=:1 AND r.punto=:2 AND r.tipo_docu=:3 AND r.no_docu=:4
+        ORDER BY r.no_cuota, r.tipo_refe, r.no_refe
+    """
+    return client.fetch_dicts(sql, [no_cia, punto, tipo_docu, no_docu])
 
 
 def list_tipos_docu():

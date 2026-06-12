@@ -199,6 +199,12 @@ def cxc_documento_print_data(request, no_docu: str):
 @login_required
 @require_http_methods(["GET"])
 def cxp_documento_print_data(request, tipo_docu: str, no_docu: str):
+    """Print-data UNIFICADO para todos los tipos CxP (FP/AC/AD/BD/NC/ND/SO/...).
+
+    Replica el reporte legacy Rcxp207. El frontend usa una sola plantilla
+    'cxp-documento' y los textos cambian con doc.tipo_movi / tipo_label.
+    """
+    from apps.fat.views_print_data import _numero_a_letras as _nl
     no_cia = request.GET.get('no_cia', '01')
     punto = request.GET.get('punto', '01')
     cia = _cia_payload(no_cia, request=request)
@@ -206,54 +212,151 @@ def cxp_documento_print_data(request, tipo_docu: str, no_docu: str):
     doc_full = cxp_repo.get_documento(no_cia, punto, tipo_s, no_docu)
     if not doc_full:
         return JsonResponse({'error': 'Documento CXP no encontrado'}, status=404)
-    label_map = {'CP': 'Comprobante de Pago', 'FC': 'Factura Crédito',
-                 'NC': 'Nota de Crédito', 'ND': 'Nota de Débito',
-                 'AJ': 'Ajuste', 'RT': 'Retención'}
+
+    # Resolver tipo_label + tipo_movi desde TCXP_TDOCU (fuente real)
+    tipo_label = ''
+    tipo_movi_tdoc = ''
+    try:
+        for t in cxp_repo.list_tipos_docu() or []:
+            if (t.get('codigo') or '').strip().upper() == tipo_s:
+                tipo_label = (t.get('nombre') or '').strip().upper()
+                tipo_movi_tdoc = (t.get('tipo_movi') or '').strip().upper()
+                break
+    except Exception:
+        pass
+
+    # Fallbacks legacy si TCXP_TDOCU está vacío para ese tipo
+    if not tipo_label:
+        tipo_label = {
+            'FP': 'FACTURA PROVEEDORES', 'NC': 'NOTA DE CREDITO',
+            'ND': 'NOTA DE DEBITO', 'AC': 'AJUSTE CREDITO',
+            'AD': 'AJUSTE DEBITO', 'BD': 'BALANCE DEBITO',
+            'BC': 'BALANCE CREDITO', 'SO': 'SOLICITUD DE CHEQUE',
+            'CP': 'COMPROBANTE DE PAGO',
+        }.get(tipo_s, f'DOCUMENTO {tipo_s}')
+
+    # Tipo_movi: prioriza tipo_movi del header (D/C). Si no, TDOCU. Si no, deduce por tipo.
+    tipo_movi = (doc_full.get('tipo_movi') or '').strip().upper() or tipo_movi_tdoc
+    if not tipo_movi:
+        tipo_movi = 'C' if tipo_s in ('AC', 'NC', 'BC', 'CP', 'SO') else 'D'
+
+    # Distribución contable con nombre de cuenta (TCNT_CATALOGO)
+    cuentas_cat = {}
+    try:
+        from apps.legacy.repositories import cnt_repo
+        for c in (cnt_repo.list_catalogo() if hasattr(cnt_repo, 'list_catalogo') else []) or []:
+            cuentas_cat[str(c.get('cuenta') or '').strip()] = (
+                c.get('nombre') or c.get('descripcion') or ''
+            )
+    except Exception:
+        pass
+    dist_contable = []
+    for l in (doc_full.get('lineas') or []):
+        cu = str(l.get('cuenta') or '').strip()
+        nombre = cuentas_cat.get(cu, '') or {
+            '1101-01': 'CAJA GENERAL EN RD$',
+            '2101-01': 'CUENTAS POR PAGAR - PROVEEDORES LOCALES',
+            '4201-01': 'INTERESES Y SOBRANTES',
+            '6102-28': 'GASTO DE CERTIFICACION DE IMPUESTOS',
+            '8101-02': 'TRANSFERENCIA',
+        }.get(cu, '')
+        tm = (l.get('tipo_movi') or '').strip().upper()
+        monto = _money_or_zero(l.get('monto'))
+        dist_contable.append({
+            'componente': (l.get('no_componente') or '').strip(),
+            'cuenta': cu,
+            'descripcion': nombre,
+            'centro_costo': (l.get('centro_costo') or '').strip(),
+            'debito': monto if tm == 'D' else 0,
+            'credito': monto if tm == 'C' else 0,
+        })
+
+    # Documentos afectados (TCXP_REFEDOCU)
+    docs_afect = []
+    try:
+        for r in cxp_repo.get_documentos_afectados(no_cia, punto, tipo_s, no_docu) or []:
+            tr = (r.get('tipo_doc') or '').strip()
+            nr = (r.get('no_doc') or '').strip()
+            docs_afect.append({
+                'componente': '',
+                'tipo_doc': tr,
+                'no_doc': nr,
+                'numero_display': f"{tr}-{nr}" if tr and nr else nr,
+                'fecha': str(r.get('fecha') or '')[:10],
+                'monto': _money_or_zero(r.get('monto')),
+                'saldo': _money_or_zero(r.get('saldo')),
+            })
+    except Exception:
+        pass
+
+    # Fecha en español largo: "28 de Abril del 2023"
+    fecha_str = str(doc_full.get('fecha') or '')[:10]
+    fecha_larga = fecha_str
+    try:
+        from datetime import datetime
+        meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+        if fecha_str:
+            dt = datetime.strptime(fecha_str, '%Y-%m-%d')
+            fecha_larga = f"{dt.day:02d} de {meses[dt.month-1]} del {dt.year}"
+    except Exception:
+        pass
+
+    total = _money_or_zero(doc_full.get('valor_original'))
+    monto_letras = ''
+    try:
+        monto_letras = _nl(float(total))
+    except Exception:
+        pass
+    # Formato legacy "Valor RD$ ***********300.00" — relleno con asteriscos a la izq.
+    total_str = f"{float(total):,.2f}"
+    total_padded = total_str.rjust(20, '*')
+
+    no_docu_str = (doc_full.get('no_docu') or '').strip()
     doc = {
         'tipo': tipo_s,
-        'tipo_label': label_map.get(tipo_s, f'Documento CXP {tipo_s}'),
-        'no': doc_full.get('no_docu'),
-        'numero_display': f"{tipo_s}-{(doc_full.get('no_docu') or '').strip()}",
-        'fecha': str(doc_full.get('fecha') or '')[:10],
-        'fecha_venc': str(doc_full.get('fecha_vence') or '')[:10] if doc_full.get('fecha_vence') else None,
+        'tipo_label': tipo_label,
+        'no': no_docu_str,
+        'numero_display': f"{tipo_s}-{no_docu_str}",
+        'fecha': fecha_str,
+        'fecha_larga': fecha_larga,
+        'fecha_vence': str(doc_full.get('fecha_vence') or '')[:10] if doc_full.get('fecha_vence') else '',
         'ncf': doc_full.get('ncf'),
         'ncf_dgi': f"{(doc_full.get('posiciones_fijas_ncf') or '').strip()}{(doc_full.get('ncf') or '').strip()}",
-        'tipo_ncf': (doc_full.get('posiciones_fijas_ncf') or '').strip(),
-        'tipo_ncf_label': (doc_full.get('posiciones_fijas_ncf') or '').strip(),
         'estado': doc_full.get('status') or '',
         'anulada': (doc_full.get('status') or 'A') in ('R', 'X'),
-        'impresion': 'IMPRESA',
+        'tipo_movi': tipo_movi,
+        'acreditado_debitado': 'Acreditado' if tipo_movi == 'C' else 'Debitado',
+        'detalle': (doc_full.get('detalle') or '').strip(),
         'forma_pago': doc_full.get('forma_pago') or '',
-        'condicion_pago': '', 'plazo_pago': 0, 'vendedor': '',
-        'nota': '', 'detalle': '', 'moneda': 'DOP', 'tasa': 0, 'porc_impuesto': 0,
+        'hecho_por': (doc_full.get('usuario') or '').strip(),
+        'reporte_codigo': 'Rcxp207',
     }
     proveedor = {
-        'no': doc_full.get('no_proveedor'),
+        'no': (doc_full.get('no_proveedor') or '').strip(),
         'nombre': (doc_full.get('nombre_proveedor') or '').strip() or '(sin nombre)',
+        'direccion': (doc_full.get('direccion_proveedor') or '').strip(),
+        'telefono': (doc_full.get('telefono_proveedor') or '').strip()
+                    or (doc_full.get('celular_proveedor') or '').strip(),
         'rnc': (doc_full.get('rnc') or '').strip(),
-        'direccion': '', 'telefono': '', 'email': '', 'tipo_ncf': '',
     }
-    lineas = [{
-        'no_linea': i + 1,
-        'codigo': l.get('cuenta', ''),
-        'descripcion': '', 'cantidad': 1,
-        'precio': _money_or_zero(l.get('monto')),
-        'descuento': 0, 'itbis': 0,
-        'total': _money_or_zero(l.get('monto')),
-    } for i, l in enumerate(doc_full.get('lineas') or [])]
-    total = _money_or_zero(doc_full.get('valor_original'))
     return JsonResponse({
         'cia': cia, 'doc': doc, 'proveedor': proveedor,
-        'lineas': lineas,
         'totales': {
             'subtotal': total - _money_or_zero(doc_full.get('impuesto')),
             'descuento': 0,
             'itbis': _money_or_zero(doc_full.get('impuesto')),
-            'propina': 0,
             'otros': _money_or_zero(doc_full.get('itbis_retenido')) + _money_or_zero(doc_full.get('isr_retenido')),
-            'total': total, 'monto_letras': '',
+            'total': total,
+            'total_padded': total_padded,
+            'monto_letras': monto_letras,
         },
-        'extra': {'saldo': _money_or_zero(doc_full.get('saldo'))},
+        'extra': {
+            'saldo': _money_or_zero(doc_full.get('saldo')),
+            'documentos_afectados': docs_afect,
+            'dist_contable': dist_contable,
+            'mostrar_recibido_conforme': tipo_movi == 'D',
+        },
     })
 
 
