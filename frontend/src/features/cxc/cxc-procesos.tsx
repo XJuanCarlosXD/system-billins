@@ -30,7 +30,12 @@ export function CxcDocumentos({ noCia, punto }: P) {
   const [rows, setRows] = useState<any[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
-  const [filters, setFilters] = useState({ desde: firstOfMonth, hasta: today, tipo_doc: '', estado: '' })
+  const [filters, setFilters] = useState({
+    desde: firstOfMonth, hasta: today,
+    tipo_doc: '', estado: '',
+    no_doc: '', no_cliente: '', ncf: '',
+  })
+  const [tipos, setTipos] = useState<any[]>([])
   const [detail, setDetail] = useState<any>(null)
   const [loading, setLoading] = useState(false)
 
@@ -43,6 +48,16 @@ export function CxcDocumentos({ noCia, punto }: P) {
   }, [noCia, punto, filters])
 
   useEffect(() => { load(1) }, [])
+  useEffect(() => {
+    if (!noCia) return
+    regalGeneralApi.cxcListTdocu(noCia).then(setTipos).catch(() => setTipos([]))
+  }, [noCia])
+
+  const limpiarFiltros = () => setFilters({
+    desde: firstOfMonth, hasta: today,
+    tipo_doc: '', estado: '',
+    no_doc: '', no_cliente: '', ncf: '',
+  })
 
   const openDetail = async (row: any) => {
     const d = await regalGeneralApi.cxcGetDocumento(noCia, row.no_doc)
@@ -56,6 +71,48 @@ export function CxcDocumentos({ noCia, punto }: P) {
         <p className="text-sm text-muted-foreground mt-1">Búsqueda de documentos CxC por fecha y estado. Click en una fila para ver el detalle e imprimir.</p>
       </div>
       <div className="flex flex-wrap gap-3 border rounded-lg p-3 bg-muted/30">
+        <div className="space-y-1">
+          <Label className="text-xs">No. Documento</Label>
+          <Input
+            value={filters.no_doc}
+            onChange={e => setFilters(f => ({ ...f, no_doc: e.target.value }))}
+            onKeyDown={e => e.key === 'Enter' && load(1)}
+            placeholder="ej. 0004875"
+            className="h-8 w-32 font-mono tabular-nums"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Tipo</Label>
+          <select className="flex h-8 rounded-md border border-input bg-background px-3 text-sm"
+            value={filters.tipo_doc} onChange={e => setFilters(f => ({ ...f, tipo_doc: e.target.value }))}>
+            <option value="">Todos</option>
+            {tipos.map((t: any) => (
+              <option key={t.tipo_doc} value={t.tipo_doc}>
+                {t.tipo_doc} — {t.descripcion}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Cliente No.</Label>
+          <Input
+            value={filters.no_cliente}
+            onChange={e => setFilters(f => ({ ...f, no_cliente: e.target.value }))}
+            onKeyDown={e => e.key === 'Enter' && load(1)}
+            placeholder="ej. 234"
+            className="h-8 w-28 font-mono tabular-nums"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">NCF</Label>
+          <Input
+            value={filters.ncf}
+            onChange={e => setFilters(f => ({ ...f, ncf: e.target.value }))}
+            onKeyDown={e => e.key === 'Enter' && load(1)}
+            placeholder="ej. B0100..."
+            className="h-8 w-36 font-mono"
+          />
+        </div>
         <div className="space-y-1">
           <Label className="text-xs">Desde</Label>
           <Input type="date" value={filters.desde} onChange={e => setFilters(f => ({ ...f, desde: e.target.value }))} className="h-8 w-36" />
@@ -71,10 +128,12 @@ export function CxcDocumentos({ noCia, punto }: P) {
             <option value="">Todos</option>
             <option value="pendiente">Pendiente</option>
             <option value="pagado">Pagado</option>
+            <option value="anulado">Anulado</option>
           </select>
         </div>
-        <div className="flex items-end">
+        <div className="flex items-end gap-2">
           <Button onClick={() => load(1)} size="sm" className="h-8 gap-1"><Search className="h-4 w-4" />Buscar</Button>
+          <Button onClick={() => { limpiarFiltros(); setTimeout(() => load(1), 0) }} size="sm" variant="ghost" className="h-8">Limpiar</Button>
         </div>
       </div>
 

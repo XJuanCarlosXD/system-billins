@@ -563,6 +563,7 @@ def asignar_cliente_ruta(no_cia: str, no_cliente: str, ruta: str):
 
 def list_documentos(no_cia: str, punto: str = '', tipo_doc: str = '',
                     desde: str = '', hasta: str = '', no_cliente: str = '',
+                    no_doc: str = '', ncf: str = '',
                     estado: str = '', page: int = 1, page_size: int = 50):
     params = [no_cia]
     where = "WHERE d.no_cia=:1"
@@ -571,6 +572,10 @@ def list_documentos(no_cia: str, punto: str = '', tipo_doc: str = '',
         where += f" AND d.punto=:{n}"; params.append(punto); n += 1
     if tipo_doc:
         where += f" AND d.tipo_docu=:{n}"; params.append(tipo_doc); n += 1
+    if no_doc:
+        where += f" AND d.no_docu LIKE :{n}"; params.append(f"%{no_doc}%"); n += 1
+    if ncf:
+        where += f" AND d.ncf LIKE :{n}"; params.append(f"%{ncf}%"); n += 1
     if desde:
         where += f" AND d.fecha>=TO_DATE(:{n},'YYYY-MM-DD')"; params.append(desde); n += 1
     if hasta:

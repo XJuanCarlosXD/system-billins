@@ -346,11 +346,15 @@ class CxcDocumentosView(APIView):
             "punto": request.query_params.get("punto"),
             "tipo_doc": request.query_params.get("tipo_doc"),
             "no_cliente": request.query_params.get("no_cliente"),
+            "no_doc": request.query_params.get("no_doc"),
+            "ncf": request.query_params.get("ncf"),
             "desde": request.query_params.get("desde"),
             "hasta": request.query_params.get("hasta"),
             "estado": request.query_params.get("estado"),
             "page": int(request.query_params.get("page", 1)),
         }
+        # Drop Nones so repo defaults kick in
+        params = {k: v for k, v in params.items() if v is not None}
         return Response(repo.list_documentos(**params))
 
     def post(self, request):
