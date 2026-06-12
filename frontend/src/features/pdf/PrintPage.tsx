@@ -8,12 +8,14 @@ type Props = {
   id: string
   no_cia: string
   punto: string
+  /** Params adicionales (ej. tipo_doc) que se pasan al endpoint print-data. */
+  extra?: Record<string, string>
   /** Si true, no dispara window.print() automáticamente (modo preview/draft del editor). */
   noAutoPrint?: boolean
 }
 
-export function PrintPage({ codigo, id, no_cia, punto, noAutoPrint }: Props) {
-  const { loading, error, data, template, plantilla } = usePrintDoc(codigo, id, no_cia, punto)
+export function PrintPage({ codigo, id, no_cia, punto, extra, noAutoPrint }: Props) {
+  const { loading, error, data, template, plantilla } = usePrintDoc(codigo, id, no_cia, punto, extra)
 
   useEffect(() => {
     document.body.classList.add('pdf-screen')

@@ -609,8 +609,8 @@ def list_documentos(no_cia: str, punto: str = '', tipo_doc: str = '',
     params += [offset + page_size, offset]
     return {'items': client.fetch_dicts(sql, params), 'count': total}
 
-def get_documento(no_cia: str, no_docu: str):
-    rows = client.fetch_dicts(
+def get_documento(no_cia: str, no_docu: str, tipo_docu: str = ''):
+    sql = (
         "SELECT d.no_cia, d.punto, d.tipo_docu tipo_doc, d.no_docu no_doc, "
         "d.no_cliente, d.fecha, c.nombre nombre_cliente, c.rnc, "
         "NVL(d.valor_original,0) valor, NVL(d.saldo,0) saldo, "
@@ -618,8 +618,13 @@ def get_documento(no_cia: str, no_docu: str):
         "CASE NVL(d.st_anulado,'N') WHEN 'S' THEN 'R' ELSE 'A' END estado "
         "FROM CXC.TCXC_DOCUMENTO d "
         "LEFT JOIN CXC.TCXC_CLIENTE c ON c.no_cia=d.no_cia AND c.no_cliente=d.no_cliente "
-        "WHERE d.no_cia=:1 AND d.no_docu=:2",
-        [no_cia, no_docu])
+        "WHERE d.no_cia=:1 AND d.no_docu=:2"
+    )
+    params = [no_cia, no_docu]
+    if tipo_docu:
+        sql += " AND d.tipo_docu=:3"
+        params.append(tipo_docu)
+    rows = client.fetch_dicts(sql, params)
     if not rows:
         return None
     doc = rows[0]

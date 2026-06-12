@@ -15,14 +15,17 @@ export type UsePrintDocResult = {
  * Hook usado por la página /print/<codigo>/<id>.
  * Hace dos fetches: print-data + plantilla (con fallback al default del registry).
  */
-export function usePrintDoc(codigo: string, id: string, no_cia: string, punto: string): UsePrintDocResult {
+export function usePrintDoc(codigo: string, id: string, no_cia: string, punto: string, extra?: Record<string, string>): UsePrintDocResult {
   const entry = getRegistryEntry(codigo)
+  const extraKey = JSON.stringify(extra || {})
   const qs = useMemo(() => {
     const u = new URLSearchParams()
     u.set('no_cia', no_cia)
     u.set('punto', punto)
+    if (extra) for (const [k, v] of Object.entries(extra)) if (v) u.set(k, v)
     return u
-  }, [no_cia, punto])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [no_cia, punto, extraKey])
 
   const [data, setData] = useState<PrintPayload | undefined>()
   const [plantilla, setPlantilla] = useState<Plantilla | undefined>()

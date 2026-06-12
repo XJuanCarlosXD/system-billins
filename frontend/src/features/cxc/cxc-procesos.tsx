@@ -60,8 +60,9 @@ export function CxcDocumentos({ noCia, punto }: P) {
   })
 
   const openDetail = async (row: any) => {
-    const d = await regalGeneralApi.cxcGetDocumento(noCia, row.no_doc)
-    setDetail(d)
+    setDetail(null) // limpiar antes para evitar mostrar el anterior
+    const d = await regalGeneralApi.cxcGetDocumento(noCia, row.no_doc, row.tipo_doc)
+    setDetail({ ...d, tipo_doc: d?.tipo_doc || row.tipo_doc }) // garantiza tipo
   }
 
   return (
@@ -84,7 +85,12 @@ export function CxcDocumentos({ noCia, punto }: P) {
         <div className="space-y-1">
           <Label className="text-xs">Tipo</Label>
           <select className="flex h-8 rounded-md border border-input bg-background px-3 text-sm"
-            value={filters.tipo_doc} onChange={e => setFilters(f => ({ ...f, tipo_doc: e.target.value }))}>
+            value={filters.tipo_doc}
+            onChange={e => {
+              const v = e.target.value
+              setFilters(f => ({ ...f, tipo_doc: v }))
+              setTimeout(() => load(1), 0)
+            }}>
             <option value="">Todos</option>
             {tipos.map((t: any) => (
               <option key={t.tipo_doc} value={t.tipo_doc}>
@@ -124,7 +130,12 @@ export function CxcDocumentos({ noCia, punto }: P) {
         <div className="space-y-1">
           <Label className="text-xs">Estado</Label>
           <select className="flex h-8 rounded-md border border-input bg-background px-3 text-sm"
-            value={filters.estado} onChange={e => setFilters(f => ({ ...f, estado: e.target.value }))}>
+            value={filters.estado}
+            onChange={e => {
+              const v = e.target.value
+              setFilters(f => ({ ...f, estado: v }))
+              setTimeout(() => load(1), 0)
+            }}>
             <option value="">Todos</option>
             <option value="pendiente">Pendiente</option>
             <option value="pagado">Pagado</option>
@@ -196,14 +207,18 @@ export function CxcDocumentos({ noCia, punto }: P) {
                 <Button
                   size="sm" variant="outline"
                   onClick={() => {
-                    const qs = new URLSearchParams({ no_cia: noCia, punto: punto || '01' }).toString()
+                    const tipo = (detail.tipo_doc || '').toUpperCase()
+                    const qs = new URLSearchParams({
+                      no_cia: noCia,
+                      punto: punto || '01',
+                      tipo_doc: tipo,
+                    }).toString()
                     const codigoMap: Record<string, string> = {
                       RI: 'recibo-cobro', NC: 'cxc-nota-credito', ND: 'cxc-nota-debito',
                       CD: 'cxc-cheque-devuelto', AC: 'cxc-ajuste-credito', AD: 'cxc-ajuste-debito',
                       DV: 'cxc-devolucion', AF: 'cxc-anulacion-factura', BI: 'cxc-balance-inicial',
                       FC: 'factura-credito',
                     }
-                    const tipo = (detail.tipo_doc || '').toUpperCase()
                     const codigo = codigoMap[tipo]
                     if (!codigo) {
                       alert(`Imprimir no está disponible para el tipo ${tipo}`)

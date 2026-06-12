@@ -368,7 +368,8 @@ class CxcDocumentosView(APIView):
 @_auth
 class CxcDocumentoDetailView(APIView):
     def get(self, request, no_cia, no_doc):
-        r = repo.get_documento(no_cia, no_doc)
+        tipo = request.query_params.get('tipo_doc', '') or request.query_params.get('tipo_docu', '')
+        r = repo.get_documento(no_cia, no_doc, tipo)
         if not r:
             return Response({"error": "Not found"}, status=404)
         return Response(r)

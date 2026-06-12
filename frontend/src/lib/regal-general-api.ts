@@ -979,7 +979,10 @@ export const regalGeneralApi = {
   cxcGetClientesRuta: (noCia: string, ruta: string) => request<any[]>(`/cxc/clientes-ruta/?no_cia=${noCia}&ruta=${ruta}`),
   cxcAsignarClienteRuta: (d: any) => request<any>('/cxc/clientes-ruta/', { method: 'POST', body: JSON.stringify(d) }),
   cxcListDocumentos: (p: Record<string, any>) => { const qs = new URLSearchParams(Object.fromEntries(Object.entries(p).filter(([,v]) => v != null && v !== ''))).toString(); return request<{ items: any[]; count: number }>(`/cxc/documentos/?${qs}`)},
-  cxcGetDocumento: (noCia: string, noDoc: string) => request<any>(`/cxc/documentos/${noCia}/${noDoc}/`),
+  cxcGetDocumento: (noCia: string, noDoc: string, tipoDoc = '') => {
+    const qs = tipoDoc ? `?tipo_doc=${encodeURIComponent(tipoDoc)}` : ''
+    return request<any>(`/cxc/documentos/${noCia}/${noDoc}/${qs}`)
+  },
   cxcSaveDocumento: (d: any) => request<any>('/cxc/documentos/', { method: 'POST', body: JSON.stringify(d) }),
   cxcFacturasPendientesCliente: (noCia: string, noCliente: string, punto = '') =>
     request<any[]>(`/cxc/clientes/${encodeURIComponent(noCliente)}/facturas-pendientes/?no_cia=${noCia}${punto ? `&punto=${punto}` : ''}`),

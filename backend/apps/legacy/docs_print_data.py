@@ -42,8 +42,9 @@ def cxc_documento_print_data(request, no_docu: str):
     from apps.fat.views_print_data import _numero_a_letras as _nl
     no_cia = request.GET.get('no_cia', '01')
     punto = request.GET.get('punto', '01')
+    tipo_q = (request.GET.get('tipo_doc') or request.GET.get('tipo_docu') or '').strip().upper()
     cia = _cia_payload(no_cia, request=request)
-    doc_full = cxc_repo.get_documento(no_cia, no_docu)
+    doc_full = cxc_repo.get_documento(no_cia, no_docu, tipo_q)
     if not doc_full:
         return JsonResponse({'error': 'Documento CXC no encontrado'}, status=404)
     tipo_s = (doc_full.get('tipo_doc') or '').strip().upper()
