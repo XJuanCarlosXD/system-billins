@@ -1,35 +1,36 @@
-// Plantilla CxP universal — replica el layout legado Rcxp207.
-// Sirve para FP (Factura Proveedores), AC/AD (Ajuste C/D), BD (Balance Débito),
-// NC/ND (Nota C/D), SO (Solicitud Cheque) y demás. El título y el texto
+// Plantilla CxP universal — replica el layout legado Rcxp207 manteniendo
+// COHERENCIA VISUAL con la plantilla cxc-documento (mismo estilo de header,
+// tablas y firmas).
+//
+// Sirve para FP (Factura Proveedor), AC/AD (Ajuste C/D), BD/BC (Balance),
+// NC/ND (Nota C/D), SO (Solicitud Cheque). El título y el texto
 // "Acreditado/Debitado" cambian con doc.tipo_label y doc.acreditado_debitado.
 //
-// Estructura legacy (validada contra impresion_doc_FP/AC/AD legacy PDFs):
-//   1. Header: Empresa izq | Doc. No. + Rcxp207 + Fecha (en español largo) der
-//   2. Proveedor: código + nombre + dirección + tel + RNC
-//   3. Numeración FP-XXXX a la izquierda
-//   4. "Hemos Acreditado/Debitado a su Cuenta"
-//   5. La Suma de: <monto en letras>
-//   6. Por concepto: <detalle>
-//   7. Valor RD$ ********<monto>
-//   8. Tabla Documento(s) Afectado(s) (Documento, Fecha, Monto, Saldo)
-//   9. Tabla Componente | Cuenta | Descripción | Débito | Crédito
-//  10. Firmas: Hecho por | Autorizado por  [| Recibido Conforme cuando tipo_movi=D]
+// Estructura:
+//   1. Header: Logo + empresa | TÍTULO DOC + No-DGI + Fecha (estilo CxC)
+//   2. Tabla Proveedor (PROVEEDOR NO. / NOMBRE / DIRECCION / TEL / RNC)
+//   3. "Hemos Acreditado/Debitado a su Cuenta" + monto letras + Por concepto
+//   4. Valor Recibido + Saldo (tabla horizontal)
+//   5. Tabla Documento(s) Afectado(s) (Componente/Documento/Fecha/Monto/Saldo)
+//   6. Tabla Distribución Contable (Componente/Cuenta/Descripción/Débito/Crédito)
+//   7. Firmas (Hecho por / Autorizado por [+ Recibido Conforme si D])
 export const cxpDocumentoDefault: any = {
   content: [
+    // ── Watermark ANULADA
     {
       type: 'WatermarkAnulada',
       props: { id: 'wm', texto: 'ANULADA', opacity: 0.18, angle: -30, color: '#dc2626' },
     },
 
-    // ── 1. Header empresa + doc info
+    // ── 1. Encabezado: empresa izq + título doc der (igual a CxC)
     {
       type: 'TextoLibre',
       props: {
         id: 'header',
         html: `
-<table style="width:100%;border-collapse:collapse;margin-bottom:10px">
+<table style="width:100%;border-collapse:collapse;margin-bottom:8px">
   <tr>
-    <td style="vertical-align:top;width:55%">
+    <td style="vertical-align:top;width:50%">
       <table>
         <tr>
           <td style="vertical-align:top">
@@ -44,10 +45,11 @@ export const cxpDocumentoDefault: any = {
         </tr>
       </table>
     </td>
-    <td style="vertical-align:top;font-size:10px">
-      <div><b>Doc. No.:</b> {{doc.numero_display}}</div>
-      <div style="font-style:italic;color:#444">{{default doc.reporte_codigo "Rcxp207"}}</div>
-      <div><b>Fecha:</b> {{doc.fecha_larga}}</div>
+    <td style="vertical-align:top;text-align:right">
+      <div style="font-size:14px;font-weight:bold">{{upper doc.tipo_label}}</div>
+      <div style="font-size:14px;font-weight:bold">{{doc.numero_display}}</div>
+      <div style="font-size:9px;margin-top:6px">Fecha {{default doc.fecha_larga doc.fecha}}</div>
+      <div style="font-size:8px;color:#666;font-style:italic">{{default doc.reporte_codigo "Rcxp207"}}</div>
     </td>
   </tr>
 </table>`,
@@ -55,84 +57,104 @@ export const cxpDocumentoDefault: any = {
       },
     },
 
-    // ── 2. Proveedor
+    // ── 2. Tabla Proveedor (mismo estilo que tabla Cliente de CxC)
     {
       type: 'TextoLibre',
       props: {
-        id: 'proveedor',
+        id: 'proveedor-tabla',
         html: `
-<table style="width:100%;font-size:10px;border-top:1px solid #aaa;border-bottom:1px solid #aaa;padding:4px 0;margin-bottom:6px">
+<table style="width:100%;border-collapse:collapse;border-top:1px solid #333;border-bottom:1px solid #333;font-size:9px;margin-bottom:6px">
+  <tr style="border-bottom:1px solid #ccc">
+    <td style="padding:3px 6px;width:90px;font-weight:bold;border-right:1px solid #ccc">PROVEEDOR NO.</td>
+    <td style="padding:3px 6px">{{proveedor.no}}</td>
+    <td style="padding:3px 6px;text-align:right">{{#if proveedor.rnc}}RNC: {{proveedor.rnc}}{{/if}}</td>
+  </tr>
+  <tr style="border-bottom:1px solid #ccc">
+    <td style="padding:3px 6px;font-weight:bold;border-right:1px solid #ccc">NOMBRE</td>
+    <td style="padding:3px 6px" colspan="2">{{proveedor.nombre}}</td>
+  </tr>
+  <tr style="border-bottom:1px solid #ccc">
+    <td style="padding:3px 6px;font-weight:bold;border-right:1px solid #ccc">DIRECCION</td>
+    <td style="padding:3px 6px" colspan="2">{{default proveedor.direccion "—"}}</td>
+  </tr>
   <tr>
-    <td style="width:90px;font-weight:bold;padding:2px 4px;vertical-align:top">Proveedor:</td>
-    <td style="padding:2px 4px;vertical-align:top">
-      <div>{{proveedor.nombre}}</div>
-      <div>{{default proveedor.direccion ""}}</div>
-      <div>{{default proveedor.telefono ""}}</div>
-      <div>RNC: {{default proveedor.rnc ""}}</div>
-    </td>
-    <td style="width:120px;padding:2px 4px;vertical-align:top;text-align:right">
-      <div>{{proveedor.no}}</div>
-      <div style="margin-top:18px;font-weight:bold">{{doc.numero_display}}</div>
-    </td>
+    <td style="padding:3px 6px;font-weight:bold;border-right:1px solid #ccc">TELEFONO</td>
+    <td style="padding:3px 6px" colspan="2">{{default proveedor.telefono "—"}}</td>
   </tr>
 </table>`,
-        fontSize: 10, textAlign: 'left',
+        fontSize: 9, textAlign: 'left',
       },
     },
 
-    // ── 3+4+5. "Hemos Acreditado/Debitado" + monto en letras + Por concepto
+    // ── 3. "Hemos Acreditado/Debitado" + monto en letras + Por concepto
     {
       type: 'TextoLibre',
       props: {
         id: 'mensaje',
         html: `
 <div style="margin:8px 0">
-  <div style="font-size:10px"><b>Hemos {{doc.acreditado_debitado}} a su Cuenta</b></div>
-  <div style="font-size:10px;margin-top:4px"><b>La Suma de:</b> {{upper totales.monto_letras}}</div>
-  <div style="font-size:10px;margin-top:6px"><b>Por concepto:</b> {{default doc.detalle ""}}</div>
+  <div style="font-weight:bold;font-size:11px">Hemos {{doc.acreditado_debitado}} a su Cuenta</div>
+  <div style="font-size:9px;margin-top:2px">La Suma de: {{upper totales.monto_letras}}</div>
+  <div style="font-size:10px;margin-top:8px"><b>Por Concepto:</b> {{default doc.detalle ""}}</div>
 </div>`,
         fontSize: 10, textAlign: 'left',
       },
     },
 
-    // ── 6. Valor RD$ + tabla de documentos afectados
+    // ── 4. Valor + Saldo (tabla horizontal estilo CxC)
     {
       type: 'TextoLibre',
       props: {
-        id: 'valor-y-afectados',
+        id: 'valores',
         html: `
-<div style="margin-top:8px;font-size:10px;font-family:monospace"><b>Valor RD$</b> {{totales.total_padded}}</div>
-<table style="width:100%;border-collapse:collapse;font-size:9px;margin-top:8px">
-  <thead>
-    <tr style="font-weight:bold">
-      <td style="padding:3px 4px;width:130px"></td>
-      <td style="padding:3px 4px">Documento</td>
-      <td style="padding:3px 4px;width:90px">Fecha</td>
-      <td style="padding:3px 4px;text-align:right;width:110px">Monto</td>
-      <td style="padding:3px 4px;text-align:right;width:110px">Saldo</td>
-    </tr>
-    <tr>
-      <td style="padding:3px 4px;font-weight:bold">Documento(s) Afectado(s)=&gt;</td>
-      <td colspan="4"></td>
-    </tr>
-  </thead>
-  <tbody>
-    {{#each extra.documentos_afectados}}
-    <tr>
-      <td style="padding:2px 4px"></td>
-      <td style="padding:2px 4px">{{this.numero_display}}</td>
-      <td style="padding:2px 4px">{{formatDate this.fecha}}</td>
-      <td style="padding:2px 4px;text-align:right">{{formatMoney this.monto}}</td>
-      <td style="padding:2px 4px;text-align:right">{{formatMoney this.saldo}}</td>
-    </tr>
-    {{/each}}
-  </tbody>
+<table style="width:100%;font-size:10px;margin-top:8px">
+  <tr>
+    <td style="width:30%"><b>Valor RD$</b></td>
+    <td style="width:25%;text-align:right">{{formatMoney totales.total}}</td>
+    <td style="width:20%"><b>Saldo</b></td>
+    <td style="width:25%;text-align:right">{{formatMoney extra.saldo}}</td>
+  </tr>
 </table>`,
         fontSize: 10, textAlign: 'left',
       },
     },
 
-    // ── 7. Distribución contable (Componente | Cuenta | Descripción | Débito | Crédito)
+    // ── 5. Tabla Documentos Afectados (TCXP_REFEDOCU) — estilo CxC
+    {
+      type: 'TextoLibre',
+      props: {
+        id: 'docs-afectados',
+        html: `
+{{#if extra.documentos_afectados.length}}
+<div style="margin-top:6px;font-weight:bold;font-size:9px">Documento(s) Afectado(s)</div>
+<table style="width:100%;border-collapse:collapse;font-size:9px;margin-top:2px">
+  <thead>
+    <tr style="border-bottom:1px solid #333;font-weight:bold">
+      <td style="padding:3px 4px;width:80px">Componente</td>
+      <td style="padding:3px 4px">Documento</td>
+      <td style="padding:3px 4px;width:90px">Fecha</td>
+      <td style="padding:3px 4px;text-align:right;width:100px">Monto</td>
+      <td style="padding:3px 4px;text-align:right;width:100px">Saldo</td>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each extra.documentos_afectados}}
+    <tr>
+      <td style="padding:3px 4px">{{this.componente}}</td>
+      <td style="padding:3px 4px">{{this.numero_display}}</td>
+      <td style="padding:3px 4px">{{formatDate this.fecha}}</td>
+      <td style="padding:3px 4px;text-align:right">{{formatMoney this.monto}}</td>
+      <td style="padding:3px 4px;text-align:right">{{formatMoney this.saldo}}</td>
+    </tr>
+    {{/each}}
+  </tbody>
+</table>
+{{/if}}`,
+        fontSize: 9, textAlign: 'left',
+      },
+    },
+
+    // ── 6. Tabla Distribución Contable (TCXP_DCDOCU) — estilo CxC
     {
       type: 'TextoLibre',
       props: {
@@ -142,7 +164,7 @@ export const cxpDocumentoDefault: any = {
   <thead>
     <tr style="border-top:1px solid #333;border-bottom:1px solid #333;font-weight:bold">
       <td style="padding:3px 4px;width:80px">Componente</td>
-      <td style="padding:3px 4px;width:80px">Cuenta</td>
+      <td style="padding:3px 4px;width:90px">Cuenta</td>
       <td style="padding:3px 4px">Descripción</td>
       <td style="padding:3px 4px;text-align:right;width:100px">Débito</td>
       <td style="padding:3px 4px;text-align:right;width:100px">Crédito</td>
@@ -164,22 +186,42 @@ export const cxpDocumentoDefault: any = {
       },
     },
 
-    { type: 'Spacer', props: { id: 'sp', height: 20 } },
+    { type: 'Spacer', props: { id: 'sp', height: 24 } },
 
-    // ── 8. Firmas (3 cuando tipo_movi=D)
+    // ── 7. Firmas (estilo CxC: border-top sólido) — 3a firma cuando D
     {
       type: 'TextoLibre',
       props: {
         id: 'firmas',
         html: `
-<table style="width:100%;margin-top:16px;font-size:10px">
+<table style="width:100%;margin-top:20px">
+  {{#if extra.mostrar_recibido_conforme}}
   <tr>
-    <td style="width:33%;padding-top:4px">Hecho por:_____________</td>
-    <td style="width:33%;padding-top:4px">Autorizado por:______________</td>
-    <td style="width:33%;padding-top:4px">{{#if extra.mostrar_recibido_conforme}}Recibido Conforme:_____________{{/if}}</td>
+    <td style="border-top:1px solid #000;width:30%;padding-top:4px;font-size:9px">
+      Hecho por {{default doc.hecho_por ""}}
+    </td>
+    <td style="width:5%"></td>
+    <td style="border-top:1px solid #000;width:30%;padding-top:4px;font-size:9px;text-align:center">
+      Autorizado por
+    </td>
+    <td style="width:5%"></td>
+    <td style="border-top:1px solid #000;width:30%;padding-top:4px;font-size:9px;text-align:center">
+      Recibido Conforme
+    </td>
   </tr>
+  {{else}}
+  <tr>
+    <td style="border-top:1px solid #000;width:45%;padding-top:4px;font-size:9px">
+      Hecho por {{default doc.hecho_por ""}}
+    </td>
+    <td style="width:10%"></td>
+    <td style="border-top:1px solid #000;width:45%;padding-top:4px;font-size:9px;text-align:center">
+      Autorizado por
+    </td>
+  </tr>
+  {{/if}}
 </table>`,
-        fontSize: 10, textAlign: 'left',
+        fontSize: 9, textAlign: 'left',
       },
     },
   ],
