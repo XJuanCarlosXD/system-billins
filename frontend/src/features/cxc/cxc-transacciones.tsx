@@ -5,7 +5,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Plus, Trash2, Save, Printer, Search, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Plus, Trash2, Save, Printer, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -20,6 +20,7 @@ import {
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { CuentaCombobox } from '@/components/cnt/cuenta-combobox'
 import { CentroCostoCombobox } from '@/components/cnt/centro-costo-combobox'
+import { ClientePicker } from '@/components/cxc/cliente-picker'
 
 interface P { noCia: string; punto?: string }
 
@@ -77,8 +78,7 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
   // ── Estado del formulario ─────────────────────────────────────────
   const [tipoDoc, setTipoDoc] = useState('')
   const [fecha, setFecha] = useState(today)
-  const [cliente, setCliente] = useState<{ no_cliente: string; nombre_cliente: string; rnc?: string } | null>(null)
-  const [clienteQ, setClienteQ] = useState('')
+  const [cliente, setCliente] = useState<any | null>(null)
   const [ncf, setNcf] = useState('')
   const [ncfAnterior, setNcfAnterior] = useState('')
   const [detalleGeneral, setDetalleGeneral] = useState('')
@@ -89,19 +89,6 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
   const tipoDocSel = useMemo(() => tdocusActivos.find((t: any) => t.tipo_doc === tipoDoc), [tdocusActivos, tipoDoc])
   const tipoMovimiento = tipoDocSel?.tipo_movimiento || ''
   const requiereNcf = !!tipoDocSel?.codigo_ncf
-
-  // Búsqueda de clientes con debounce simple (se dispara con Enter o botón)
-  const [clienteResults, setClienteResults] = useState<any[]>([])
-  const buscarCliente = async () => {
-    if (!clienteQ.trim()) return
-    const res: any = await regalGeneralApi.cxcListClientes(noCia, clienteQ, 1)
-    setClienteResults(res.items || [])
-  }
-  const seleccionarCliente = (c: any) => {
-    setCliente({ no_cliente: c.no_cliente, nombre_cliente: c.nombre_cliente, rnc: c.rnc })
-    setClienteResults([])
-    setClienteQ('')
-  }
 
   // ── Cálculos del asiento ──────────────────────────────────────────
   const totalDebito = lineas.reduce((s, l) => s + Number(l.debito || 0), 0)
@@ -124,7 +111,8 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
       const payload = {
         no_cia: noCia, punto,
         tipo_doc: tipoDoc, no_doc: nextDocQ.data?.no_doc || '',
-        no_cliente: cliente!.no_cliente, nombre_cliente: cliente!.nombre_cliente,
+        no_cliente: cliente!.no_cliente,
+        nombre_cliente: cliente!.nombre || cliente!.nombre_cliente,
         fecha, valor: valorDoc,
         detalle: detalleGeneral, ncf, ncf_anterior: ncfAnterior,
         tipo_movimiento: tipoMovimiento,
@@ -272,47 +260,10 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
             </div>
           </div>
 
-          {/* Cliente */}
+          {/* Cliente — picker estilo FAT: código + lupa + modal + card verde */}
           <div className="space-y-1.5">
             <Label className="text-xs">Cliente *</Label>
-            {cliente ? (
-              <div className="flex items-center gap-2 p-2 bg-muted/40 border rounded">
-                <Badge variant="outline" className="font-mono">{cliente.no_cliente}</Badge>
-                <span className="text-sm font-medium flex-1">{cliente.nombre_cliente}</span>
-                {cliente.rnc && <span className="text-xs text-muted-foreground">RNC: {cliente.rnc}</span>}
-                <Button size="sm" variant="ghost" onClick={() => setCliente(null)}>Cambiar</Button>
-              </div>
-            ) : (
-              <div className="relative">
-                <div className="flex gap-2">
-                  <Input
-                    value={clienteQ}
-                    onChange={e => setClienteQ(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), buscarCliente())}
-                    placeholder="Buscar por nombre, RNC o código…"
-                    className="h-9"
-                  />
-                  <Button onClick={buscarCliente} variant="secondary" size="sm" className="h-9">
-                    <Search className="h-4 w-4 mr-1" /> Buscar
-                  </Button>
-                </div>
-                {clienteResults.length > 0 && (
-                  <div className="absolute z-20 top-full left-0 right-0 mt-1 border rounded-md shadow-lg bg-background max-h-60 overflow-y-auto">
-                    {clienteResults.map((c: any) => (
-                      <button
-                        key={c.no_cliente}
-                        onClick={() => seleccionarCliente(c)}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted border-b last:border-0 flex items-center gap-2"
-                      >
-                        <Badge variant="outline" className="font-mono text-xs">{c.no_cliente}</Badge>
-                        <span className="flex-1">{c.nombre_cliente}</span>
-                        {c.rnc && <span className="text-xs text-muted-foreground">{c.rnc}</span>}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            <ClientePicker noCia={noCia} cliente={cliente} onChange={setCliente} />
           </div>
 
           {/* NCF (condicional) + Detalle */}
