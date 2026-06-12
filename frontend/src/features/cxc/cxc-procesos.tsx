@@ -142,9 +142,14 @@ export function CxcDocumentos({ noCia, punto }: P) {
                       RI: 'recibo-cobro', NC: 'cxc-nota-credito', ND: 'cxc-nota-debito',
                       CD: 'cxc-cheque-devuelto', AC: 'cxc-ajuste-credito', AD: 'cxc-ajuste-debito',
                       DV: 'cxc-devolucion', AF: 'cxc-anulacion-factura', BI: 'cxc-balance-inicial',
+                      FC: 'factura-credito',
                     }
                     const tipo = (detail.tipo_doc || '').toUpperCase()
-                    const codigo = codigoMap[tipo] || 'recibo-cobro'
+                    const codigo = codigoMap[tipo]
+                    if (!codigo) {
+                      alert(`Imprimir no está disponible para el tipo ${tipo}`)
+                      return
+                    }
                     window.open(`/print/${codigo}/${encodeURIComponent(detail.no_doc)}?${qs}`, '_blank', 'noopener')
                   }}
                 >

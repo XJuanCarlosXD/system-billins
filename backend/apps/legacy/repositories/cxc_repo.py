@@ -618,12 +618,13 @@ def get_documento(no_cia: str, no_docu: str):
     if not rows:
         return None
     doc = rows[0]
+    # TCXC_DCDOCU NO tiene columna `detalle` — solo cuenta/centro_costo/tipo_movi/monto.
     doc['lineas'] = client.fetch_dicts(
-        "SELECT cuenta, centro_costo, "
+        "SELECT cuenta, centro_costo, tipo_movi, NVL(monto,0) AS monto, "
         "CASE WHEN tipo_movi='D' THEN NVL(monto,0) ELSE 0 END debito, "
-        "CASE WHEN tipo_movi='C' THEN NVL(monto,0) ELSE 0 END credito, "
-        "detalle "
-        "FROM CXC.TCXC_DCDOCU WHERE no_cia=:1 AND no_docu=:2",
+        "CASE WHEN tipo_movi='C' THEN NVL(monto,0) ELSE 0 END credito "
+        "FROM CXC.TCXC_DCDOCU WHERE no_cia=:1 AND no_docu=:2 "
+        "ORDER BY tipo_movi DESC, cuenta",
         [no_cia, no_docu])
     return doc
 
