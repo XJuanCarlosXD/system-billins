@@ -405,8 +405,10 @@ class CxcCrearReciboView(APIView):
                 fecha=d.get('fecha', ''),
                 ncf=d.get('ncf', ''),
                 detalle=d.get('detalle', ''),
-                cuenta_default=d.get('cuenta_default', '') or d.get('cuenta', ''),
-                centro_costo=d.get('centro_costo', ''),
+                vendedor=d.get('vendedor', ''),
+                cobrador=d.get('cobrador', ''),
+                plazo=int(d.get('plazo') or 0),
+                valor_doc=float(d.get('valor_doc') or 0),
                 aplicaciones=d.get('aplicaciones') or [],
             )
             return Response({'ok': True, **res})

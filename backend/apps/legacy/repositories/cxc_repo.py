@@ -60,9 +60,16 @@ def get_punto(no_cia: str, punto: str):
 # TCXC_TDOCU: NO_CIA, TIPO_DOCU, TIPO_MOVI, DESCRIPCION, TIPO_TRANSACCION, CODIGO_NCF
 
 def list_tdocu(no_cia: str):
+    # Incluye cuenta y centro_costo defaults (FCXC104) para autocompletar en
+    # la entrada FCXC201 — el usuario NO selecciona cuenta, viene del tipo doc.
     return client.fetch_dicts(
         "SELECT no_cia, tipo_docu tipo_doc, descripcion, tipo_transaccion, "
-        "tipo_movi tipo_movimiento, codigo_ncf, 'S' activo "
+        "tipo_movi tipo_movimiento, codigo_ncf, "
+        "NVL(cuenta,'') AS cuenta, "
+        "NVL(centro_costo,'0000000000') AS centro_costo, "
+        "NVL(controlar_entrega,'N') AS controlar_entrega, "
+        "NVL(registrar_banco,'N') AS registrar_banco, "
+        "'S' activo "
         "FROM CXC.TCXC_TDOCU WHERE no_cia=:1 ORDER BY tipo_docu",
         [no_cia])
 
@@ -758,46 +765,89 @@ def get_facturas_pendientes_cliente(no_cia: str, no_cliente: str, punto: str = '
 def crear_recibo_cobro(
     *, no_cia: str, punto: str, tipo_doc: str, no_cliente: str,
     fecha: str, ncf: str = '', detalle: str = '',
-    cuenta_default: str = '', centro_costo: str = '',
+    vendedor: str = '', cobrador: str = '', plazo: int = 0,
+    valor_doc: float = 0,
     aplicaciones: list | None = None,
 ) -> dict:
-    """Crea un recibo de ingreso (CR) y registra las referencias en TCXC_REFEDOCU.
+    """Crea un recibo de ingreso siguiendo el flujo legado FCXC201:
 
-    Para cada aplicación: { tipo_ref, no_ref, monto }
-      - Reduce el saldo de la factura referenciada (TCXC_DOCUMENTO)
-      - Inserta una fila en TCXC_REFEDOCU (NO_CIA, PUNTO, TIPO_DOCU, NO_DOCU,
-        NO_CLIENTE, TIPO_REFE, NO_REFE, MONTO)
-      - Acumula el total como VALOR_ORIGINAL del recibo
+    1. Lee del tipo de documento (TCXC_TDOCU) la CUENTA y CENTRO_COSTO defaults
+       (configurado en FCXC104 — el usuario NO los elige).
+    2. Lee del cliente (TCXC_CLIENTE) su Tipo Contable y de ahí el CUENTA_CLIENTE
+       (TCXC_TCONTABLE) — la cuenta de Cuentas por Cobrar.
+    3. Inserta TCXC_DOCUMENTO (cabecera).
+    4. Inserta TCXC_DCDOCU con la distribución contable auto-generada:
+         - Cuenta tipo_doc (ej. 1101-01 caja) tipo_movi='D' (débito) por el total
+         - Cuenta cliente (ej. 1103-01 CxC) tipo_movi='C' (crédito) por el total
+       (Esto es lo que muestra el PDF: 1101-01 caja DR · 1103-01 CxC CR)
+    5. Por cada aplicación en TCXC_REFEDOCU y reduce saldo de la factura.
     """
     aplicaciones = aplicaciones or []
-    total = sum(float(a.get('monto') or 0) for a in aplicaciones)
+    aplicaciones_validas = [a for a in aplicaciones if float(a.get('monto') or 0) > 0]
+    total_apl = sum(float(a.get('monto') or 0) for a in aplicaciones_validas)
+    valor_doc = float(valor_doc or total_apl)
+    if valor_doc <= 0 and total_apl <= 0:
+        raise ValueError("El recibo no puede tener valor 0. Indique el valor del documento o aplique a alguna factura.")
     no_doc = get_next_no_doc(no_cia, punto)
+
     with client.cursor() as cur:
-        # Cabecera del recibo
+        # 1. Cuenta y centro_costo defaults del tipo de doc (configurado en FCXC104)
+        cur.execute(
+            "SELECT NVL(cuenta,''), NVL(centro_costo,'0000000000'), tipo_movi "
+            "FROM CXC.TCXC_TDOCU WHERE no_cia=:1 AND tipo_docu=:2",
+            [no_cia, tipo_doc])
+        td = cur.fetchone()
+        if not td:
+            raise ValueError(f"Tipo de documento {tipo_doc} no existe")
+        cuenta_default, centro_costo, tipo_movi_tdocu = td[0], td[1], (td[2] or 'C').upper()
+
+        # 2. Cuenta del cliente (CxC) desde TCXC_CLIENTE.tipo_contable → TCXC_TCONTABLE.cuenta_cliente
+        cur.execute(
+            "SELECT NVL(t.cuenta_cliente,'') "
+            "FROM CXC.TCXC_CLIENTE c "
+            "LEFT JOIN CXC.TCXC_TCONTABLE t ON t.no_cia=c.no_cia AND t.tipo_contable=c.tipo_contable "
+            "WHERE c.no_cia=:1 AND c.no_cliente=:2",
+            [no_cia, str(no_cliente)])
+        cli_row = cur.fetchone()
+        cuenta_cliente = cli_row[0] if cli_row else ''
+
+        # 3. Cabecera del recibo
+        # tipo_movi: 'C' (recibo) → en el documento se guarda como 'C' porque CXC tiene saldo opuesto
+        # Para tipos AD/AC depende; aquí confiamos en TCXC_TDOCU.tipo_movi
         cur.execute(
             "INSERT INTO CXC.TCXC_DOCUMENTO ("
             " no_cia, punto, tipo_docu, no_docu, no_cliente, fecha, "
-            " valor_original, saldo, ncf, detalle, st_anulado, tipo_movi"
+            " valor_original, saldo, ncf, detalle, st_anulado, tipo_movi, "
+            " vendedor, cobrador, plazo"
             ") VALUES (:1,:2,:3,:4,:5,TO_DATE(:6,'YYYY-MM-DD'),"
-            " :7, 0, :8, :9, 'N', 'C')",
+            " :7, 0, :8, :9, 'N', :10, :11, :12, :13)",
             [no_cia, punto, tipo_doc, no_doc, str(no_cliente), fecha,
-             total, ncf, detalle])
+             valor_doc, ncf, detalle, tipo_movi_tdocu,
+             vendedor or '', cobrador or '', int(plazo or 0)])
 
-        # Distribución contable (1 sola línea por la cuenta default — caja/banco)
-        if cuenta_default and total > 0:
+        # 4. Distribución contable auto-generada:
+        #    Cuenta del tipo_doc (ej. CAJA) — DR por el valor
+        #    Cuenta del cliente (ej. CxC)   — CR por el valor
+        if cuenta_default:
             cur.execute(
                 "INSERT INTO CXC.TCXC_DCDOCU ("
                 " no_cia, punto, tipo_docu, no_docu, cuenta, "
                 " tipo_movi, monto, centro_costo, no_cliente"
                 ") VALUES (:1,:2,:3,:4,:5,'D',:6,:7,:8)",
                 [no_cia, punto, tipo_doc, no_doc, cuenta_default,
-                 total, centro_costo or '', str(no_cliente)])
+                 valor_doc, centro_costo, str(no_cliente)])
+        if cuenta_cliente:
+            cur.execute(
+                "INSERT INTO CXC.TCXC_DCDOCU ("
+                " no_cia, punto, tipo_docu, no_docu, cuenta, "
+                " tipo_movi, monto, centro_costo, no_cliente"
+                ") VALUES (:1,:2,:3,:4,:5,'C',:6,:7,:8)",
+                [no_cia, punto, tipo_doc, no_doc, cuenta_cliente,
+                 valor_doc, '0000000000', str(no_cliente)])
 
-        # Aplicaciones — actualiza saldo de cada factura + inserta TCXC_REFEDOCU
-        for a in aplicaciones:
+        # 5. Aplicaciones (TCXC_REFEDOCU) — actualiza saldo de cada factura
+        for a in aplicaciones_validas:
             monto = float(a.get('monto') or 0)
-            if monto <= 0:
-                continue
             tipo_ref = (a.get('tipo_ref') or a.get('tipo_doc') or '').strip().upper()
             no_ref = str(a.get('no_ref') or a.get('no_doc') or '').strip()
             if not tipo_ref or not no_ref:
@@ -814,8 +864,12 @@ def crear_recibo_cobro(
                 [no_cia, punto, tipo_doc, no_doc, str(no_cliente), tipo_ref, no_ref, monto])
 
         cur.connection.commit()
-    return {'no_doc': no_doc, 'tipo_doc': tipo_doc, 'total': total,
-            'aplicaciones_count': sum(1 for a in aplicaciones if float(a.get('monto') or 0) > 0)}
+    return {
+        'no_doc': no_doc, 'tipo_doc': tipo_doc, 'total': valor_doc,
+        'aplicaciones_count': len(aplicaciones_validas),
+        'cuenta_default': cuenta_default,
+        'cuenta_cliente': cuenta_cliente,
+    }
 
 
 def get_documentos_pendientes_masivo(no_cia: str, desde: str, hasta: str):
