@@ -35,15 +35,17 @@ urlpatterns = [
     path('cadenas/', CxcCadenasView.as_view()),
     # Clientes
     path('clientes/', CxcClientesView.as_view()),
+    # Recibo de Cobro (flujo legado FCXC201 con aplicación a TCXC_REFEDOCU)
+    # NOTA: este path DEBE ir ANTES de clientes/<no_cia>/<no_cliente>/ porque Django
+    # hace first-match; si no, 234/facturas-pendientes se interpreta como (no_cia=234, no_cliente=facturas-pendientes).
+    path('clientes/<str:no_cliente>/facturas-pendientes/', CxcFacturasPendientesClienteView.as_view()),
+    path('recibos/', CxcCrearReciboView.as_view()),
     path('clientes/<str:no_cia>/<str:no_cliente>/', CxcClienteDetailView.as_view()),
     path('clientes-ruta/', CxcClientesRutaView.as_view()),
     # Documentos
     path('documentos/', CxcDocumentosView.as_view()),
     path('documentos/<str:no_cia>/<str:no_doc>/', CxcDocumentoDetailView.as_view()),
     path('next-doc/', CxcNextDocView.as_view()),
-    # Recibo de Cobro (flujo legado FCXC201 con aplicación a TCXC_REFEDOCU)
-    path('clientes/<str:no_cliente>/facturas-pendientes/', CxcFacturasPendientesClienteView.as_view()),
-    path('recibos/', CxcCrearReciboView.as_view()),
     # Procesos
     path('reversar/', CxcReversarView.as_view()),
     path('pagos-masivos/', CxcPagosMasivosView.as_view()),
