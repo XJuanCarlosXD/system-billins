@@ -138,7 +138,14 @@ export function CxcDocumentos({ noCia, punto }: P) {
                   size="sm" variant="outline"
                   onClick={() => {
                     const qs = new URLSearchParams({ no_cia: noCia, punto: punto || '01' }).toString()
-                    window.open(`/print/recibo-cobro/${encodeURIComponent(detail.no_doc)}?${qs}`, '_blank', 'noopener')
+                    const codigoMap: Record<string, string> = {
+                      RI: 'recibo-cobro', NC: 'cxc-nota-credito', ND: 'cxc-nota-debito',
+                      CD: 'cxc-cheque-devuelto', AC: 'cxc-ajuste-credito', AD: 'cxc-ajuste-debito',
+                      DV: 'cxc-devolucion', AF: 'cxc-anulacion-factura', BI: 'cxc-balance-inicial',
+                    }
+                    const tipo = (detail.tipo_doc || '').toUpperCase()
+                    const codigo = codigoMap[tipo] || 'recibo-cobro'
+                    window.open(`/print/${codigo}/${encodeURIComponent(detail.no_doc)}?${qs}`, '_blank', 'noopener')
                   }}
                 >
                   <FileText className="h-4 w-4 mr-1" /> Imprimir / PDF

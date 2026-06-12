@@ -16,6 +16,7 @@ import { accDocumentoDefault } from './defaults/acc-documento'
 import { comprobanteContableDefault } from './defaults/comprobante-contable'
 import { actaActivoDefault } from './defaults/acta-activo'
 import { sdnNominaDefault } from './defaults/sdn-nomina'
+import { cxcDocumentoDefault } from './defaults/cxc-documento'
 
 export type DocFamily = 'documento' | 'reporte'
 
@@ -89,13 +90,76 @@ export const registry: Record<string, RegistryEntry> = {
       'proveedor.nombre', 'proveedor.rnc',
     ]),
   },
-  // ── CXC ────────────────────────────────────────────────────────────
+  // ── CXC — todos los tipos comparten plantilla y endpoint (FCXC201 legacy) ─
+  // El backend devuelve el título correcto (RECIBO DE INGRESO/NOTA DE CREDITO/etc.)
+  // según TCXC_TDOCU. Solo cambia el codigo_doc en /print para que el editor
+  // permita personalizar cada tipo por separado si el usuario lo necesita.
   'recibo-cobro': {
-    codigo: 'recibo-cobro', modulo: 'CXC', nombre: 'Recibo de Cobro', familia: 'documento',
+    codigo: 'recibo-cobro', modulo: 'CXC', nombre: 'Recibo de Ingreso (RI)', familia: 'documento',
     printDataPath: (id, qs) => `/cxc/documentos/${encodeURIComponent(id)}/print-data/?${qs.toString()}`,
-    defaultTemplate: reciboCobroDefault,
+    defaultTemplate: cxcDocumentoDefault,
     defaultPageSize: 'A4', defaultPageOrientation: 'P',
-    variables: docVarsBase.concat(['extra.saldo']),
+    variables: docVarsBase.concat([
+      'doc.acreditado_debitado', 'doc.tipo_movi_label', 'doc.hecho_por',
+      'extra.saldo', 'extra.dist_contable', 'extra.documentos_afectados',
+      'extra.total_aplicado', 'extra.valor_recibido',
+    ]),
+  },
+  'cxc-nota-credito': {
+    codigo: 'cxc-nota-credito', modulo: 'CXC', nombre: 'Nota de Crédito CxC (NC)', familia: 'documento',
+    printDataPath: (id, qs) => `/cxc/documentos/${encodeURIComponent(id)}/print-data/?${qs.toString()}`,
+    defaultTemplate: cxcDocumentoDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: docVarsBase.concat(['extra.dist_contable', 'extra.documentos_afectados']),
+  },
+  'cxc-nota-debito': {
+    codigo: 'cxc-nota-debito', modulo: 'CXC', nombre: 'Nota de Débito CxC (ND)', familia: 'documento',
+    printDataPath: (id, qs) => `/cxc/documentos/${encodeURIComponent(id)}/print-data/?${qs.toString()}`,
+    defaultTemplate: cxcDocumentoDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: docVarsBase.concat(['extra.dist_contable', 'extra.documentos_afectados']),
+  },
+  'cxc-cheque-devuelto': {
+    codigo: 'cxc-cheque-devuelto', modulo: 'CXC', nombre: 'Cheque Devuelto CxC (CD)', familia: 'documento',
+    printDataPath: (id, qs) => `/cxc/documentos/${encodeURIComponent(id)}/print-data/?${qs.toString()}`,
+    defaultTemplate: cxcDocumentoDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: docVarsBase.concat(['extra.dist_contable']),
+  },
+  'cxc-ajuste-credito': {
+    codigo: 'cxc-ajuste-credito', modulo: 'CXC', nombre: 'Ajuste Crédito CxC (AC)', familia: 'documento',
+    printDataPath: (id, qs) => `/cxc/documentos/${encodeURIComponent(id)}/print-data/?${qs.toString()}`,
+    defaultTemplate: cxcDocumentoDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: docVarsBase.concat(['extra.dist_contable']),
+  },
+  'cxc-ajuste-debito': {
+    codigo: 'cxc-ajuste-debito', modulo: 'CXC', nombre: 'Ajuste Débito CxC (AD)', familia: 'documento',
+    printDataPath: (id, qs) => `/cxc/documentos/${encodeURIComponent(id)}/print-data/?${qs.toString()}`,
+    defaultTemplate: cxcDocumentoDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: docVarsBase.concat(['extra.dist_contable']),
+  },
+  'cxc-devolucion': {
+    codigo: 'cxc-devolucion', modulo: 'CXC', nombre: 'Devolución CxC (DV)', familia: 'documento',
+    printDataPath: (id, qs) => `/cxc/documentos/${encodeURIComponent(id)}/print-data/?${qs.toString()}`,
+    defaultTemplate: cxcDocumentoDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: docVarsBase.concat(['extra.dist_contable']),
+  },
+  'cxc-anulacion-factura': {
+    codigo: 'cxc-anulacion-factura', modulo: 'CXC', nombre: 'Anulación Factura CxC (AF)', familia: 'documento',
+    printDataPath: (id, qs) => `/cxc/documentos/${encodeURIComponent(id)}/print-data/?${qs.toString()}`,
+    defaultTemplate: cxcDocumentoDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: docVarsBase.concat(['extra.dist_contable']),
+  },
+  'cxc-balance-inicial': {
+    codigo: 'cxc-balance-inicial', modulo: 'CXC', nombre: 'Balance Inicial CxC (BI)', familia: 'documento',
+    printDataPath: (id, qs) => `/cxc/documentos/${encodeURIComponent(id)}/print-data/?${qs.toString()}`,
+    defaultTemplate: cxcDocumentoDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: docVarsBase.concat(['extra.dist_contable']),
   },
   // ── CXP ────────────────────────────────────────────────────────────
   'comprobante-pago': {

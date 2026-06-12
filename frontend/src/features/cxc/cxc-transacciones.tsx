@@ -247,10 +247,27 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
   }
   const limpiarTodo = () => setAplicaciones({})
 
+  // Mapea el tipo legacy al codigo del registry de plantillas PDF.
+  const codigoPlantillaPorTipo = (tipo: string): string => {
+    switch ((tipo || '').toUpperCase()) {
+      case 'RI': return 'recibo-cobro'
+      case 'NC': return 'cxc-nota-credito'
+      case 'ND': return 'cxc-nota-debito'
+      case 'CD': return 'cxc-cheque-devuelto'
+      case 'AC': return 'cxc-ajuste-credito'
+      case 'AD': return 'cxc-ajuste-debito'
+      case 'DV': return 'cxc-devolucion'
+      case 'AF': return 'cxc-anulacion-factura'
+      case 'BI': return 'cxc-balance-inicial'
+      default: return 'recibo-cobro'
+    }
+  }
+
   const imprimirUltimo = () => {
     if (!ultimoNoDoc) return
     const qs = new URLSearchParams({ no_cia: noCia, punto }).toString()
-    window.open(`/print/recibo-cobro/${encodeURIComponent(ultimoNoDoc)}?${qs}`, '_blank', 'noopener')
+    const codigo = codigoPlantillaPorTipo(tipoDoc)
+    window.open(`/print/${codigo}/${encodeURIComponent(ultimoNoDoc)}?${qs}`, '_blank', 'noopener')
   }
 
   return (
