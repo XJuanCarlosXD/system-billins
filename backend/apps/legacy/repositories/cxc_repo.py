@@ -935,6 +935,219 @@ def liberar_credito(no_cia: str, no_docu_cr: str, debitos: list):
         cur.connection.commit()
     return {'ok': True}
 
+def get_max_saldo_menor_aj(no_cia: str, punto: str) -> float:
+    """Lee el umbral default desde TCXC_PUNTO (configurable por compañía/punto)."""
+    row = client.fetch_one(
+        "SELECT NVL(max_saldo_menor_aj,0) FROM CXC.TCXC_PUNTO "
+        "WHERE no_cia=:1 AND punto=:2",
+        [no_cia, punto])
+    return float(row[0]) if row else 0.0
+
+
+def get_saldos_menores_preview(no_cia: str, punto: str, max_saldo: float):
+    """Preview de docs con saldo dentro del rango (-max_saldo, +max_saldo)
+    excluyendo 0 y anulados. Agrupado por cliente.
+
+    Retorna { positivos: [{cliente,...,docs:[...], total_saldo}],
+              negativos: [...] }
+    Los positivos serán cancelados con un AC (Ajuste Crédito).
+    Los negativos serán cancelados con un AD (Ajuste Débito).
+    """
+    if max_saldo <= 0:
+        return {'positivos': [], 'negativos': [], 'max_saldo': max_saldo}
+    sql = """
+        SELECT d.no_cliente, NVL(c.nombre,'') AS nombre_cliente,
+               d.punto, d.tipo_docu AS tipo_doc, d.no_docu AS no_doc,
+               TO_CHAR(d.fecha,'YYYY-MM-DD') AS fecha,
+               NVL(d.valor_original,0) AS valor,
+               NVL(d.saldo,0) AS saldo, d.ncf
+          FROM CXC.TCXC_DOCUMENTO d
+          LEFT JOIN CXC.TCXC_CLIENTE c
+            ON c.no_cia=d.no_cia AND c.no_cliente=d.no_cliente
+         WHERE d.no_cia=:1 AND d.punto=:2
+           AND NVL(d.st_anulado,'N')='N'
+           AND ((d.saldo > 0 AND d.saldo <= :3)
+                OR (d.saldo < 0 AND d.saldo >= :4))
+         ORDER BY d.no_cliente, d.fecha, d.no_docu
+    """
+    rows = client.fetch_dicts(sql, [no_cia, punto, max_saldo, -max_saldo])
+    pos: dict = {}
+    neg: dict = {}
+    for r in rows:
+        bucket = pos if r['saldo'] > 0 else neg
+        cli = str(r['no_cliente'] or '').strip()
+        if cli not in bucket:
+            bucket[cli] = {
+                'no_cliente': cli,
+                'nombre_cliente': r['nombre_cliente'],
+                'docs': [],
+                'total_saldo': 0.0,
+            }
+        bucket[cli]['docs'].append({
+            'punto': r['punto'], 'tipo_doc': r['tipo_doc'].strip(),
+            'no_doc': r['no_doc'].strip(), 'fecha': r['fecha'],
+            'valor': float(r['valor']), 'saldo': float(r['saldo']),
+            'ncf': r['ncf'],
+        })
+        bucket[cli]['total_saldo'] += float(r['saldo'])
+    return {
+        'max_saldo': max_saldo,
+        'positivos': sorted(pos.values(), key=lambda x: -x['total_saldo']),
+        'negativos': sorted(neg.values(), key=lambda x: x['total_saldo']),
+    }
+
+
+def aplicar_saldos_menores(no_cia: str, punto: str, max_saldo: float,
+                           fecha: str, motivo: str = '',
+                           usuario: str = '') -> dict:
+    """Genera 1 AC por cliente con docs de saldo positivo <= max_saldo y
+    1 AD por cliente con docs de saldo negativo >= -max_saldo, aplicando
+    el ajuste contra esos documentos (TCXC_REFEDOCU) y dejándolos en saldo 0.
+
+    Imita Fcxc204 legacy:
+    - Cuenta del ajuste viene de TCXC_TDOCU.cuenta para AC/AD (suele 4201-01)
+    - Cuenta del cliente viene de TCXC_TCONTABLE.cuenta_cliente
+    - Motivo se guarda en detalle del nuevo documento
+    """
+    if max_saldo <= 0:
+        raise ValueError("max_saldo debe ser mayor que 0")
+    preview = get_saldos_menores_preview(no_cia, punto, max_saldo)
+    motivo = motivo or 'DOC. GENERADO POR SALDOS MENORES POR AJUSTAR'
+
+    # Resolver tipos y cuentas AC/AD una sola vez
+    tdoc_rows = client.fetch_dicts(
+        "SELECT tipo_docu, tipo_movi, NVL(cuenta,'') AS cuenta, "
+        "NVL(centro_costo,'0000000000') AS centro_costo "
+        "FROM CXC.TCXC_TDOCU WHERE no_cia=:1 AND tipo_transaccion='A'",
+        [no_cia])
+    tdocs = {(r['tipo_movi'] or '').upper(): r for r in tdoc_rows}
+    if 'C' not in tdocs or 'D' not in tdocs:
+        raise ValueError("No están configurados los tipos de ajuste AC/AD en TCXC_TDOCU.")
+
+    docs_creados = []
+    with client.cursor() as cur:
+        # POSITIVOS → AC (Crédito) que reduce el saldo a 0
+        td_ac = tdocs['C']
+        for grp in preview['positivos']:
+            no_cli = grp['no_cliente']
+            total = round(grp['total_saldo'], 2)
+            if total <= 0:
+                continue
+            no_doc = get_next_no_doc(no_cia, punto)
+            cuenta_cliente = _get_cuenta_cliente(cur, no_cia, no_cli)
+            _insert_ajuste_header(cur, no_cia, punto, td_ac['tipo_docu'], no_doc,
+                                  no_cli, fecha, total, motivo, 'C', usuario)
+            _insert_ajuste_lineas(cur, no_cia, punto, td_ac['tipo_docu'], no_doc,
+                                  no_cli, total,
+                                  cuenta_ajuste=td_ac['cuenta'],
+                                  centro_costo=td_ac['centro_costo'],
+                                  cuenta_cliente=cuenta_cliente,
+                                  signo_ajuste='D',  # AC: D 4201-01 | C cuenta_cliente
+                                  signo_cliente='C')
+            _aplicar_refedocu_y_cerrar(cur, no_cia, punto, td_ac['tipo_docu'],
+                                       no_doc, no_cli, grp['docs'])
+            docs_creados.append({
+                'tipo_doc': td_ac['tipo_docu'], 'no_doc': no_doc,
+                'no_cliente': no_cli, 'total': total, 'cancelados': len(grp['docs']),
+            })
+
+        # NEGATIVOS → AD (Débito) que sube el saldo a 0
+        td_ad = tdocs['D']
+        for grp in preview['negativos']:
+            no_cli = grp['no_cliente']
+            total = round(abs(grp['total_saldo']), 2)
+            if total <= 0:
+                continue
+            no_doc = get_next_no_doc(no_cia, punto)
+            cuenta_cliente = _get_cuenta_cliente(cur, no_cia, no_cli)
+            _insert_ajuste_header(cur, no_cia, punto, td_ad['tipo_docu'], no_doc,
+                                  no_cli, fecha, total, motivo, 'D', usuario)
+            _insert_ajuste_lineas(cur, no_cia, punto, td_ad['tipo_docu'], no_doc,
+                                  no_cli, total,
+                                  cuenta_ajuste=td_ad['cuenta'],
+                                  centro_costo=td_ad['centro_costo'],
+                                  cuenta_cliente=cuenta_cliente,
+                                  signo_ajuste='C',  # AD: D cuenta_cliente | C 4201-01
+                                  signo_cliente='D')
+            _aplicar_refedocu_y_cerrar(cur, no_cia, punto, td_ad['tipo_docu'],
+                                       no_doc, no_cli, grp['docs'])
+            docs_creados.append({
+                'tipo_doc': td_ad['tipo_docu'], 'no_doc': no_doc,
+                'no_cliente': no_cli, 'total': total, 'cancelados': len(grp['docs']),
+            })
+
+        cur.connection.commit()
+    return {
+        'ok': True,
+        'docs_creados': docs_creados,
+        'clientes_positivos': len(preview['positivos']),
+        'clientes_negativos': len(preview['negativos']),
+    }
+
+
+def _get_cuenta_cliente(cur, no_cia, no_cliente):
+    cur.execute(
+        "SELECT NVL(t.cuenta_cliente,'') "
+        "FROM CXC.TCXC_CLIENTE c "
+        "LEFT JOIN CXC.TCXC_TCONTABLE t "
+        "  ON t.no_cia=c.no_cia AND t.tipo_contable=c.tipo_contable "
+        "WHERE c.no_cia=:1 AND c.no_cliente=:2",
+        [no_cia, str(no_cliente)])
+    row = cur.fetchone()
+    return row[0] if row else ''
+
+
+def _insert_ajuste_header(cur, no_cia, punto, tipo_docu, no_docu,
+                          no_cliente, fecha, valor, motivo, tipo_movi, usuario):
+    cur.execute(
+        "INSERT INTO CXC.TCXC_DOCUMENTO ("
+        " no_cia, punto, tipo_docu, no_docu, no_cliente, fecha,"
+        " valor_original, saldo, ncf, detalle, st_anulado, tipo_movi"
+        ") VALUES (:1,:2,:3,:4,:5,TO_DATE(:6,'YYYY-MM-DD'),:7,0,'',:8,'N',:9)",
+        [no_cia, punto, tipo_docu, no_docu, str(no_cliente), fecha,
+         valor, motivo, tipo_movi])
+
+
+def _insert_ajuste_lineas(cur, no_cia, punto, tipo_docu, no_docu, no_cliente,
+                          monto, cuenta_ajuste, centro_costo, cuenta_cliente,
+                          signo_ajuste, signo_cliente):
+    if cuenta_ajuste:
+        cur.execute(
+            "INSERT INTO CXC.TCXC_DCDOCU ("
+            " no_cia, punto, tipo_docu, no_docu, cuenta, tipo_movi,"
+            " monto, centro_costo, no_cliente"
+            ") VALUES (:1,:2,:3,:4,:5,:6,:7,:8,:9)",
+            [no_cia, punto, tipo_docu, no_docu, cuenta_ajuste,
+             signo_ajuste, monto, centro_costo, str(no_cliente)])
+    if cuenta_cliente:
+        cur.execute(
+            "INSERT INTO CXC.TCXC_DCDOCU ("
+            " no_cia, punto, tipo_docu, no_docu, cuenta, tipo_movi,"
+            " monto, centro_costo, no_cliente"
+            ") VALUES (:1,:2,:3,:4,:5,:6,:7,'0000000000',:8)",
+            [no_cia, punto, tipo_docu, no_docu, cuenta_cliente,
+             signo_cliente, monto, str(no_cliente)])
+
+
+def _aplicar_refedocu_y_cerrar(cur, no_cia, punto, tipo_docu, no_docu,
+                                no_cliente, docs_afectados):
+    for d in docs_afectados:
+        saldo = float(d['saldo'])
+        monto = abs(saldo)  # siempre positivo en REFEDOCU
+        tipo_ref = d['tipo_doc'].strip()
+        no_ref = d['no_doc'].strip()
+        cur.execute(
+            "INSERT INTO CXC.TCXC_REFEDOCU "
+            "(no_cia, punto, tipo_docu, no_docu, no_cliente, tipo_refe, no_refe, monto) "
+            "VALUES (:1,:2,:3,:4,:5,:6,:7,:8)",
+            [no_cia, punto, tipo_docu, no_docu, str(no_cliente),
+             tipo_ref, no_ref, monto])
+        cur.execute(
+            "UPDATE CXC.TCXC_DOCUMENTO SET saldo=0 "
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+            [no_cia, punto, tipo_ref, no_ref])
+
+
 def corregir_ncf(no_cia: str, no_docu: str, ncf: str, ncf_anterior: str = ''):
     with client.cursor() as cur:
         cur.execute(

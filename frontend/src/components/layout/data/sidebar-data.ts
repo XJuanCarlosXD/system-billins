@@ -140,6 +140,7 @@ export const sidebarData: SidebarData = {
                 { title: 'Pagos Masivos', url: '/cxc/pagos-masivos' },
                 { title: 'Liberar Credito', url: '/cxc/liberar-credito' },
                 { title: 'Corregir / Liberar NCF', url: '/cxc/corregir-ncf' },
+                { title: 'Aplicar Saldos Menores', url: '/cxc/saldos-menores' },
               ],
             },
             {
@@ -216,6 +217,7 @@ export const sidebarData: SidebarData = {
               items: [
                 { title: 'Reversar Documento', url: '/cxp/reversar' },
                 { title: 'Liberar Debito', url: '/cxp/liberar-debito' },
+                { title: 'Aplicar Saldos Menores', url: '/cxp/saldos-menores' },
                 {
                   title: 'Bloquear / Desbloquear Pago',
                   url: '/cxp/bloquear-pago',

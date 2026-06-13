@@ -14,6 +14,7 @@ from .cxc_views import (
     CxcRepEnvejecimientoView, CxcRepCobrosVendedorView, CxcRepComisionesView, CxcRepNcfView,
     CxcAsientoContableView, CxcGenerarAsientoView, CxcCierreView,
     CxcFacturasPendientesClienteView, CxcCrearReciboView,
+    CxcSaldosMenoresView,
 )
 
 urlpatterns = [
@@ -51,6 +52,7 @@ urlpatterns = [
     path('pagos-masivos/', CxcPagosMasivosView.as_view()),
     path('liberar-credito/', CxcLiberarCreditoView.as_view()),
     path('corregir-ncf/', CxcCorregirNcfView.as_view()),
+    path('saldos-menores/', CxcSaldosMenoresView.as_view()),
     # Consultas
     path('estado-cuenta/', CxcEstadoCuentaView.as_view()),
     path('balance-clientes/', CxcBalanceClientesView.as_view()),

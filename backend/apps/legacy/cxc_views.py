@@ -429,6 +429,47 @@ class CxcNextDocView(APIView):
         return Response({"no_doc": repo.get_next_no_doc(no_cia, punto)})
 
 
+# ─── SALDOS MENORES (Fcxc204) ─────────────────────────────────────────────────
+
+@_auth
+class CxcSaldosMenoresView(APIView):
+    """GET /api/cxc/saldos-menores/?no_cia=01&punto=01&max_saldo=1
+        → preview de documentos candidatos (sin escribir nada).
+        Si max_saldo omitido, usa TCXC_PUNTO.max_saldo_menor_aj.
+    POST /api/cxc/saldos-menores/
+        Body: { no_cia, punto, max_saldo, fecha, motivo }
+        → Crea 1 AC por cliente con saldos positivos pequeños y 1 AD por
+        cliente con saldos negativos pequeños. Aplica los ajustes contra
+        los docs originales (TCXC_REFEDOCU) y deja sus saldos en 0.
+    """
+    def get(self, request):
+        no_cia = request.query_params.get('no_cia', '01')
+        punto = request.query_params.get('punto', '01')
+        max_q = request.query_params.get('max_saldo')
+        try:
+            max_saldo = float(max_q) if max_q else repo.get_max_saldo_menor_aj(no_cia, punto)
+        except Exception:
+            max_saldo = 0.0
+        data = repo.get_saldos_menores_preview(no_cia, punto, max_saldo)
+        data['max_saldo_default'] = repo.get_max_saldo_menor_aj(no_cia, punto)
+        return Response(data)
+
+    def post(self, request):
+        d = request.data
+        try:
+            res = repo.aplicar_saldos_menores(
+                no_cia=d.get('no_cia', '01'),
+                punto=d.get('punto', '01'),
+                max_saldo=float(d.get('max_saldo', 0) or 0),
+                fecha=d.get('fecha', ''),
+                motivo=d.get('motivo', ''),
+                usuario=request.user.username if request.user else '',
+            )
+            return Response(res)
+        except Exception as e:
+            return Response({'error': str(e)}, status=400)
+
+
 # ─── REVERSAR ─────────────────────────────────────────────────────────────────
 
 @_auth

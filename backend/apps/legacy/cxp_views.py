@@ -77,6 +77,38 @@ def cxp_documento(request, no_cia, punto, tipo, no):
 
 @login_required
 @csrf_exempt
+@require_http_methods(['GET', 'POST'])
+def cxp_saldos_menores(request):
+    """GET → preview de docs candidatos (sin escribir nada).
+       POST → ejecuta los ajustes (1 AC por proveedor positivos, 1 AD por negativos)."""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = _norm_punto(request.GET.get('punto', '01'))
+    if request.method == 'GET':
+        max_q = request.GET.get('max_saldo')
+        try:
+            max_saldo = float(max_q) if max_q else cxp_repo.get_max_saldo_menor_aj(no_cia, punto)
+        except Exception:
+            max_saldo = 0.0
+        data = cxp_repo.get_saldos_menores_preview(no_cia, punto, max_saldo)
+        data['max_saldo_default'] = cxp_repo.get_max_saldo_menor_aj(no_cia, punto)
+        return JsonResponse(data)
+    data = json.loads(request.body or '{}')
+    try:
+        res = cxp_repo.aplicar_saldos_menores(
+            no_cia=data.get('no_cia', '01'),
+            punto=_norm_punto(data.get('punto', '01')),
+            max_saldo=float(data.get('max_saldo', 0) or 0),
+            fecha=data.get('fecha', ''),
+            motivo=data.get('motivo', ''),
+            usuario=request.user.username if request.user else '',
+        )
+        return JsonResponse(res)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+
+@login_required
+@csrf_exempt
 @require_http_methods(['GET'])
 def cxp_aging(request):
     no_cia = request.GET.get('no_cia', '')

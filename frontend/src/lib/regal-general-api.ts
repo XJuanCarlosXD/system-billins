@@ -979,6 +979,20 @@ export const regalGeneralApi = {
   cxcGetClientesRuta: (noCia: string, ruta: string) => request<any[]>(`/cxc/clientes-ruta/?no_cia=${noCia}&ruta=${ruta}`),
   cxcAsignarClienteRuta: (d: any) => request<any>('/cxc/clientes-ruta/', { method: 'POST', body: JSON.stringify(d) }),
   cxcListDocumentos: (p: Record<string, any>) => { const qs = new URLSearchParams(Object.fromEntries(Object.entries(p).filter(([,v]) => v != null && v !== ''))).toString(); return request<{ items: any[]; count: number }>(`/cxc/documentos/?${qs}`)},
+  cxcGetSaldosMenores: (noCia: string, punto: string, maxSaldo?: number) => {
+    const qs = new URLSearchParams({ no_cia: noCia, punto })
+    if (maxSaldo != null) qs.set('max_saldo', String(maxSaldo))
+    return request<any>(`/cxc/saldos-menores/?${qs.toString()}`)
+  },
+  cxcAplicarSaldosMenores: (p: { no_cia: string; punto: string; max_saldo: number; fecha: string; motivo?: string }) =>
+    request<any>('/cxc/saldos-menores/', { method: 'POST', body: JSON.stringify(p) }),
+  cxpGetSaldosMenores: (noCia: string, punto: string, maxSaldo?: number) => {
+    const qs = new URLSearchParams({ no_cia: noCia, punto })
+    if (maxSaldo != null) qs.set('max_saldo', String(maxSaldo))
+    return request<any>(`/cxp/saldos-menores/?${qs.toString()}`)
+  },
+  cxpAplicarSaldosMenores: (p: { no_cia: string; punto: string; max_saldo: number; fecha: string; motivo?: string }) =>
+    request<any>('/cxp/saldos-menores/', { method: 'POST', body: JSON.stringify(p) }),
   cxcGetDocumento: (noCia: string, noDoc: string, tipoDoc = '') => {
     const qs = tipoDoc ? `?tipo_doc=${encodeURIComponent(tipoDoc)}` : ''
     return request<any>(`/cxc/documentos/${noCia}/${noDoc}/${qs}`)

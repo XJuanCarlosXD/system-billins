@@ -952,3 +952,198 @@ def cierre_cxp(no_cia, punto):
             [nuevo_mes, nuevo_ano, no_cia, punto])
         cur.connection.commit()
     return {"mes": nuevo_mes, "ano": nuevo_ano}
+
+
+# ─── SALDOS MENORES POR AJUSTAR (Fcxp204) ──────────────────────────────────
+
+def get_max_saldo_menor_aj(no_cia: str, punto: str) -> float:
+    row = client.fetch_one(
+        "SELECT NVL(max_saldo_menor_aj,0) FROM CXP.TCXP_PUNTO "
+        "WHERE no_cia=:1 AND punto=:2",
+        [no_cia, punto])
+    return float(row[0]) if row else 0.0
+
+
+def get_saldos_menores_preview(no_cia: str, punto: str, max_saldo: float):
+    """Preview de docs CxP con saldo en (-max_saldo, +max_saldo)\\{0}.
+    Positivos → AC (Crédito), Negativos → AD (Débito)."""
+    if max_saldo <= 0:
+        return {'positivos': [], 'negativos': [], 'max_saldo': max_saldo}
+    sql = """
+        SELECT d.no_proveedor, NVL(p.nombre,'') AS nombre_proveedor,
+               d.tipo_docu AS tipo_doc, d.no_docu AS no_doc,
+               TO_CHAR(d.fecha,'YYYY-MM-DD') AS fecha,
+               NVL(d.valor_original,0) AS valor,
+               NVL(d.saldo,0) AS saldo, d.ncf
+          FROM CXP.TCXP_DOCUMENTO d
+          LEFT JOIN CXP.TCXP_DPROVEEDOR p ON p.no_proveedor=d.no_proveedor
+         WHERE d.no_cia=:1 AND d.punto=:2
+           AND d.status='A'
+           AND ((d.saldo > 0 AND d.saldo <= :3)
+                OR (d.saldo < 0 AND d.saldo >= :4))
+         ORDER BY d.no_proveedor, d.fecha, d.no_docu
+    """
+    rows = client.fetch_dicts(sql, [no_cia, punto, max_saldo, -max_saldo])
+    pos: dict = {}
+    neg: dict = {}
+    for r in rows:
+        bucket = pos if r['saldo'] > 0 else neg
+        prov = str(r['no_proveedor'] or '').strip()
+        if prov not in bucket:
+            bucket[prov] = {
+                'no_proveedor': prov,
+                'nombre_proveedor': r['nombre_proveedor'],
+                'docs': [], 'total_saldo': 0.0,
+            }
+        bucket[prov]['docs'].append({
+            'tipo_doc': r['tipo_doc'].strip(),
+            'no_doc': r['no_doc'].strip(),
+            'fecha': r['fecha'],
+            'valor': float(r['valor']),
+            'saldo': float(r['saldo']),
+            'ncf': r['ncf'],
+        })
+        bucket[prov]['total_saldo'] += float(r['saldo'])
+    return {
+        'max_saldo': max_saldo,
+        'positivos': sorted(pos.values(), key=lambda x: -x['total_saldo']),
+        'negativos': sorted(neg.values(), key=lambda x: x['total_saldo']),
+    }
+
+
+# Cuenta CxP estándar del proveedor (Cuentas por Pagar - Proveedores Locales)
+_CUENTA_CXP_PROVEEDOR_DEFAULT = '2101-01'
+
+
+def aplicar_saldos_menores(no_cia: str, punto: str, max_saldo: float,
+                           fecha: str, motivo: str = '',
+                           usuario: str = '') -> dict:
+    if max_saldo <= 0:
+        raise ValueError("max_saldo debe ser mayor que 0")
+    preview = get_saldos_menores_preview(no_cia, punto, max_saldo)
+    motivo = motivo or 'DOC. GENERADO POR SALDOS MENORES POR AJUSTAR'
+
+    tdoc_rows = client.fetch_dicts(
+        "SELECT tipo_docu, tipo_movi, NVL(cuenta,'') AS cuenta, "
+        "NVL(centro_costo,'0000000000') AS centro_costo "
+        "FROM CXP.TCXP_TDOCU WHERE tipo_transaccion='A'",
+        [])
+    tdocs = {(r['tipo_movi'] or '').upper(): r for r in tdoc_rows}
+    if 'C' not in tdocs or 'D' not in tdocs:
+        raise ValueError("Faltan tipos AC/AD configurados en TCXP_TDOCU.")
+
+    docs_creados = []
+    with client.cursor() as cur:
+        td_ac = tdocs['C']
+        for grp in preview['positivos']:
+            no_prov = grp['no_proveedor']
+            total = round(grp['total_saldo'], 2)
+            if total <= 0:
+                continue
+            no_doc = _next_no_docu(cur, no_cia, punto, td_ac['tipo_docu'])
+            _insert_cxp_ajuste_header(cur, no_cia, punto, td_ac['tipo_docu'],
+                                       no_doc, no_prov, fecha, total, motivo, 'C',
+                                       usuario)
+            _insert_cxp_ajuste_lineas(cur, no_cia, punto, td_ac['tipo_docu'],
+                                       no_doc, no_prov, total,
+                                       cuenta_ajuste=td_ac['cuenta'],
+                                       centro_costo=td_ac['centro_costo'],
+                                       cuenta_proveedor=_CUENTA_CXP_PROVEEDOR_DEFAULT,
+                                       signo_ajuste='C',
+                                       signo_proveedor='D')
+            _aplicar_refedocu_cxp(cur, no_cia, punto, td_ac['tipo_docu'],
+                                  no_doc, no_prov, grp['docs'])
+            docs_creados.append({
+                'tipo_doc': td_ac['tipo_docu'], 'no_doc': no_doc,
+                'no_proveedor': no_prov, 'total': total,
+                'cancelados': len(grp['docs']),
+            })
+
+        td_ad = tdocs['D']
+        for grp in preview['negativos']:
+            no_prov = grp['no_proveedor']
+            total = round(abs(grp['total_saldo']), 2)
+            if total <= 0:
+                continue
+            no_doc = _next_no_docu(cur, no_cia, punto, td_ad['tipo_docu'])
+            _insert_cxp_ajuste_header(cur, no_cia, punto, td_ad['tipo_docu'],
+                                       no_doc, no_prov, fecha, total, motivo, 'D',
+                                       usuario)
+            _insert_cxp_ajuste_lineas(cur, no_cia, punto, td_ad['tipo_docu'],
+                                       no_doc, no_prov, total,
+                                       cuenta_ajuste=td_ad['cuenta'],
+                                       centro_costo=td_ad['centro_costo'],
+                                       cuenta_proveedor=_CUENTA_CXP_PROVEEDOR_DEFAULT,
+                                       signo_ajuste='D',
+                                       signo_proveedor='C')
+            _aplicar_refedocu_cxp(cur, no_cia, punto, td_ad['tipo_docu'],
+                                  no_doc, no_prov, grp['docs'])
+            docs_creados.append({
+                'tipo_doc': td_ad['tipo_docu'], 'no_doc': no_doc,
+                'no_proveedor': no_prov, 'total': total,
+                'cancelados': len(grp['docs']),
+            })
+
+        cur.connection.commit()
+    return {
+        'ok': True,
+        'docs_creados': docs_creados,
+        'proveedores_positivos': len(preview['positivos']),
+        'proveedores_negativos': len(preview['negativos']),
+    }
+
+
+def _insert_cxp_ajuste_header(cur, no_cia, punto, tipo_docu, no_docu,
+                               no_proveedor, fecha, valor, motivo, tipo_movi,
+                               usuario):
+    cur.execute(
+        "INSERT INTO CXP.TCXP_DOCUMENTO ("
+        " no_cia, punto, tipo_docu, no_docu, no_proveedor, tipo_movi,"
+        " tipo_transaccion, fecha, status, valor_original, saldo,"
+        " detalle, usuario, st_generado_cnt, st_impresion, debito, credito"
+        ") VALUES (:1,:2,:3,:4,:5,:6,'A',TO_DATE(:7,'YYYY-MM-DD'),"
+        " 'A',:8,0,:9,:10,'N','N',:11,:12)",
+        [no_cia, punto, tipo_docu, no_docu, str(no_proveedor), tipo_movi,
+         fecha, valor, motivo, usuario,
+         valor if tipo_movi == 'D' else 0,
+         valor if tipo_movi == 'C' else 0])
+
+
+def _insert_cxp_ajuste_lineas(cur, no_cia, punto, tipo_docu, no_docu,
+                               no_proveedor, monto, cuenta_ajuste, centro_costo,
+                               cuenta_proveedor, signo_ajuste, signo_proveedor):
+    if cuenta_ajuste:
+        cur.execute(
+            "INSERT INTO CXP.TCXP_DCDOCU ("
+            " no_cia, punto, tipo_docu, no_docu, cuenta, centro_costo,"
+            " tipo_movi, no_proveedor, monto"
+            ") VALUES (:1,:2,:3,:4,:5,:6,:7,:8,:9)",
+            [no_cia, punto, tipo_docu, no_docu, cuenta_ajuste,
+             centro_costo, signo_ajuste, str(no_proveedor), monto])
+    if cuenta_proveedor:
+        cur.execute(
+            "INSERT INTO CXP.TCXP_DCDOCU ("
+            " no_cia, punto, tipo_docu, no_docu, cuenta, centro_costo,"
+            " tipo_movi, no_proveedor, monto"
+            ") VALUES (:1,:2,:3,:4,:5,'0000000000',:6,:7,:8)",
+            [no_cia, punto, tipo_docu, no_docu, cuenta_proveedor,
+             signo_proveedor, str(no_proveedor), monto])
+
+
+def _aplicar_refedocu_cxp(cur, no_cia, punto, tipo_docu, no_docu,
+                           no_proveedor, docs_afectados):
+    for d in docs_afectados:
+        saldo = float(d['saldo'])
+        monto = abs(saldo)
+        tipo_ref = d['tipo_doc'].strip()
+        no_ref = d['no_doc'].strip()
+        cur.execute(
+            "INSERT INTO CXP.TCXP_REFEDOCU "
+            "(no_cia, punto, tipo_docu, no_docu, no_proveedor, tipo_refe, no_refe, monto) "
+            "VALUES (:1,:2,:3,:4,:5,:6,:7,:8)",
+            [no_cia, punto, tipo_docu, no_docu, str(no_proveedor),
+             tipo_ref, no_ref, monto])
+        cur.execute(
+            "UPDATE CXP.TCXP_DOCUMENTO SET saldo=0, status='C' "
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+            [no_cia, punto, tipo_ref, no_ref])
