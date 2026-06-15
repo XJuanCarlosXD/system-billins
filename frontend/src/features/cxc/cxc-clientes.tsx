@@ -15,7 +15,7 @@ interface P { noCia: string; punto?: string }
 const BLANK_CLIENTE = {
   no_cliente: '', nombre_cliente: '', nombre_comercial: '', rnc: '',
   tipo_cli: '', vendedor: '', ruta: '', zona: '', ciudad: '',
-  barrio: '', cadena: '', tipo_conta: '', limite_credito: 0,
+  barrio: '', cadena: '', tipo_conta: '', codigo_ncf: '', limite_credito: 0,
   dias_credito: 0, telefono: '', celular: '', email: '',
   direccion: '', activo: 'S', tipo_persona: 'J',
   contactos: [], referencias: [], referencias_banco: []
@@ -41,6 +41,7 @@ export function CxcClientes({ noCia, punto = '01' }: P) {
   const [barrios, setBarrios] = useState<any[]>([])
   const [cadenas, setCadenas] = useState<any[]>([])
   const [tcontables, setTcontables] = useState<any[]>([])
+  const [ncfOptions, setNcfOptions] = useState<any[]>([])
 
   useEffect(() => {
     Promise.all([
@@ -52,11 +53,13 @@ export function CxcClientes({ noCia, punto = '01' }: P) {
       regalGeneralApi.cxcListBarrios(noCia),
       regalGeneralApi.cxcListCadenas(noCia),
       regalGeneralApi.cxcListTcontable(noCia),
-    ]).then(([t, v, r, z, c, b, ca, tc]) => {
+      regalGeneralApi.cntNcf(noCia, punto),
+    ]).then(([t, v, r, z, c, b, ca, tc, ncf]) => {
       setTclis(t); setVendedores(v); setRutas(r); setZonas(z)
       setCiudades(c); setBarrios(b); setCadenas(ca); setTcontables(tc)
+      setNcfOptions(ncf || [])
     })
-  }, [noCia])
+  }, [noCia, punto])
 
   const load = useCallback(async (pg = page, search = q) => {
     setLoading(true)
@@ -158,6 +161,7 @@ export function CxcClientes({ noCia, punto = '01' }: P) {
               <TableHead className="w-24">No Cliente</TableHead>
               <TableHead>Nombre</TableHead>
               <TableHead className="w-28">RNC</TableHead>
+              <TableHead className="w-24">NCF</TableHead>
               <TableHead>Vendedor</TableHead>
               <TableHead className="w-28">Límite Crd.</TableHead>
               <TableHead className="w-20">Días</TableHead>
@@ -166,13 +170,14 @@ export function CxcClientes({ noCia, punto = '01' }: P) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading && <TableRow><TableCell colSpan={8} className="text-center py-8">Cargando...</TableCell></TableRow>}
-            {!loading && rows.length === 0 && <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Sin resultados</TableCell></TableRow>}
+            {loading && <TableRow><TableCell colSpan={9} className="text-center py-8">Cargando...</TableCell></TableRow>}
+            {!loading && rows.length === 0 && <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Sin resultados</TableCell></TableRow>}
             {rows.map(r => (
               <TableRow key={r.no_cliente}>
                 <TableCell className="font-mono">{r.no_cliente}</TableCell>
                 <TableCell className="font-medium">{r.nombre_cliente}</TableCell>
                 <TableCell>{r.rnc}</TableCell>
+                <TableCell className="font-mono text-xs">{r.codigo_ncf || ''}</TableCell>
                 <TableCell>{r.nombre_vendedor || r.vendedor}</TableCell>
                 <TableCell className="text-right">{fmt(r.limite_credito)}</TableCell>
                 <TableCell className="text-center">{r.dias_credito}</TableCell>
@@ -252,6 +257,18 @@ export function CxcClientes({ noCia, punto = '01' }: P) {
                 <div className="space-y-1">
                   <Label>Tipo Contable</Label>
                   <Sel field="tipo_conta" opts={tcontables} valKey="tipo_conta" />
+                </div>
+                <div className="space-y-1">
+                  <Label>NCF del Cliente</Label>
+                  <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                    value={form.codigo_ncf || ''} onChange={e => set('codigo_ncf', e.target.value)}>
+                    <option value="">-- Por tipo documento --</option>
+                    {ncfOptions.map(n => (
+                      <option key={n.codigo_ncf} value={n.codigo_ncf}>
+                        {n.codigo_ncf} - {n.posiciones_fijas || n.tipo_ncf_fiscal || ''}{n.descripcion ? ` - ${n.descripcion}` : ''}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="space-y-1">
                   <Label>Teléfono</Label>

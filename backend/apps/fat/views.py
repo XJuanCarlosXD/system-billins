@@ -210,7 +210,8 @@ class FatFacturasView(APIView):
                 no_cliente=int(no_cliente), fecha=str(fecha).strip(),
                 vendedor=str(vendedor).strip(), forma_pago=str(forma_pago).strip(),
                 no_lista=str(no_lista).strip(), nota=str(nota).strip(),
-                lineas=lineas, usuario=request.user.username)
+                lineas=lineas, usuario=request.user.username,
+                codigo_ncf=str(request.data.get('codigo_ncf', '')).strip())
             return Response(res, status=201)
         except ValueError as e:
             return Response({'detail': str(e)}, status=400)
@@ -1132,6 +1133,7 @@ class FatNcfUsadoView(APIView):
     def get(self, request):
         no_cia = request.query_params.get('no_cia', '01')
         ncf_raw = request.query_params.get('ncf', '')
+        codigo_ncf = request.query_params.get('codigo_ncf', '')
         if not ncf_raw:
             return Response({'detail': 'ncf es requerido'}, status=400)
         forbidden = _check_fat_access(request.user.username, no_cia, '01')
@@ -1142,7 +1144,7 @@ class FatNcfUsadoView(APIView):
         except ValueError:
             return Response({'detail': 'ncf debe ser un entero'}, status=400)
         try:
-            usado = fat_repo.ncf_ya_usado(no_cia, ncf_num)
+            usado = fat_repo.ncf_ya_usado(no_cia, ncf_num, codigo_ncf)
             return Response({'usado': usado})
         except Exception as e:
             return Response({'detail': str(e)}, status=500)

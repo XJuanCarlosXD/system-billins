@@ -1487,11 +1487,22 @@ def get_factura(no_cia: str, punto: str, tipo_factura: str, no_factura: str) -> 
 
 
 def list_vendedores(no_cia: str) -> list[dict]:
+    # Misma fuente que /api/cxc/vendedores/ (TCXC_VENDEDOR sin filtrar por activo)
+    # para que la lista de vendedores en facturacion/conduce coincida exactamente
+    # con la pantalla /settings/cxc-vendedores. Se ordena por nombre para UX
+    # de dropdown y se incluye 'activo' para que el frontend pueda filtrar/
+    # marcar visualmente si lo desea.
     rows = client.fetch_dicts(
-        "SELECT VENDEDOR, NOMBRE FROM CXC.TCXC_VENDEDOR "
-        "WHERE NO_CIA = :1 AND NVL(ACTIVO,'S') = 'S' ORDER BY VENDEDOR",
+        "SELECT VENDEDOR, NOMBRE, NVL(ACTIVO,'S') ACTIVO "
+        "FROM CXC.TCXC_VENDEDOR "
+        "WHERE NO_CIA = :1 "
+        "ORDER BY NVL(ACTIVO,'S') DESC, NOMBRE",
         [no_cia])
-    return [{'vendedor': r['vendedor'] or '', 'nombre': (r['nombre'] or '').strip()} for r in rows]
+    return [{
+        'vendedor': r['vendedor'] or '',
+        'nombre': (r['nombre'] or '').strip(),
+        'activo': r['activo'] or 'S',
+    } for r in rows]
 
 
 def list_clientes(no_cia: str, search: str = '', page: int = 1, page_size: int = 30) -> dict:
@@ -1595,12 +1606,17 @@ def get_proximo_ncf(no_cia: str, codigo_ncf: str) -> dict:
     }
 
 
-def ncf_ya_usado(no_cia: str, ncf_num: int) -> bool:
+def ncf_ya_usado(no_cia: str, ncf_num: int, codigo_ncf: str = "") -> bool:
     """True si ese NCF ya está usado en alguna factura no anulada."""
+    params = [no_cia, int(ncf_num)]
+    extra = ""
+    if codigo_ncf:
+        extra = " AND CODIGO_NCF=:3"
+        params.append(codigo_ncf.strip().upper())
     row = client.fetch_one(
         "SELECT COUNT(*) FROM FAT.TFAT_FACTURA "
-        "WHERE NO_CIA=:1 AND NCF=:2 AND NVL(ST_ANULADO,'N')='N'",
-        [no_cia, int(ncf_num)])
+        f"WHERE NO_CIA=:1 AND NCF=:2{extra} AND NVL(ST_ANULADO,'N')='N'",
+        params)
     return bool(row and row[0] > 0)
 
 
@@ -1975,7 +1991,8 @@ def list_empaques_producto(no_produ: str) -> list[dict]:
 # -- Crear Factura ------------------------------------------------------------
 
 def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
-                   forma_pago, no_lista, nota, lineas, usuario):
+                   forma_pago, no_lista, nota, lineas, usuario,
+                   codigo_ncf: str = ""):
     tf = tipo_factura.strip().upper()
     fp = forma_pago.strip().upper() if forma_pago else ""
     with client.cursor() as cur:
@@ -1994,16 +2011,23 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
             [no_cia, tf])
         tdocu_row = cur.fetchone()
         tipo_transaccion = tdocu_row[0] if tdocu_row else "V"
-        codigo_ncf_doc = (tdocu_row[1] or "").strip() if tdocu_row else ""
+        codigo_ncf_doc = (tdocu_row[1] or "").strip().upper() if tdocu_row else ""
         afecta_cxc = (tdocu_row[2] or "N") if tdocu_row else "N"
+        cur.execute(
+            "SELECT NVL(codigo_ncf,'') FROM CXC.TCXC_CLIENTE "
+            "WHERE no_cia=:1 AND no_cliente=:2",
+            [no_cia, no_cliente])
+        cli_ncf_row = cur.fetchone()
+        codigo_ncf_cliente = (cli_ncf_row[0] or "").strip().upper() if cli_ncf_row else ""
+        codigo_ncf_emitir = (codigo_ncf or "").strip().upper() or codigo_ncf_cliente or codigo_ncf_doc
         ncf_val = None
         tipo_ncf_fiscal = ""
         posiciones_fijas_ncf = ""
-        if codigo_ncf_doc:
+        if codigo_ncf_emitir:
             cur.execute(
                 "SELECT prox_ncf, tipo_ncf_fiscal, posiciones_fijas, ncf_final FROM CNT.TCNT_NCF "
                 "WHERE no_localidad=:1 AND codigo_ncf=:2 FOR UPDATE",
-                [no_cia, codigo_ncf_doc])
+                [no_cia, codigo_ncf_emitir])
             ncf_row = cur.fetchone()
             if ncf_row:
                 ncf_val = int(ncf_row[0] or 0)
@@ -2018,11 +2042,15 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
                         "SELECT 1 FROM FAT.TFAT_FACTURA "
                         "WHERE no_cia=:1 AND codigo_ncf=:2 AND ncf=:3 "
                         "  AND NVL(st_anulado,'N')<>'S' AND ROWNUM<=1",
-                        [no_cia, codigo_ncf_doc, ncf_val])
+                        [no_cia, codigo_ncf_emitir, ncf_val])
                     if cur.fetchone():
                         ncf_val += 1
                     else:
                         break
+                if ncf_val > ncf_final:
+                    raise ValueError("Serie NCF {} agotada".format(codigo_ncf_emitir))
+            else:
+                raise ValueError("Serie NCF {} no encontrada para la empresa {}".format(codigo_ncf_emitir, no_cia))
         total_linea = 0.0
         total_descuento = 0.0
         total_impuesto = 0.0
@@ -2042,6 +2070,12 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
             total_impuesto += imp_monto
             no_produ_norm = lin.get("no_produ", "").strip().upper()
             almacen_norm = lin.get("almacen", "").strip()
+            cur.execute(
+                "SELECT 1 FROM INV.TINV_PRODUCTO "
+                "WHERE no_produ=:1 AND NVL(activo,'S')='S'",
+                [no_produ_norm])
+            if not cur.fetchone():
+                raise ValueError("Producto {} no existe o esta inactivo".format(no_produ_norm))
             cur.execute(
                 "SELECT NVL(ep.costo_actual,0) FROM INV.TINV_EPRODUCTO ep "
                 "WHERE ep.no_cia=:1 AND ep.punto=:2 AND ep.almacen=:3 AND ep.no_produ=:4",
@@ -2089,7 +2123,7 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
             ")",
             [no_cia, punto, tf, new_no_factura, no_cliente, fecha, vendedor,
              total_linea, total_descuento, total_impuesto, total_neto,
-             ncf_val, codigo_ncf_doc, tipo_ncf_fiscal, posiciones_fijas_ncf,
+             ncf_val, codigo_ncf_emitir, tipo_ncf_fiscal, posiciones_fijas_ncf,
              usuario, nota, str(prox_formulario), tipo_transaccion,
              afecta_cxc, fp])
         for lin in lineas_calc:
@@ -2139,13 +2173,13 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
             "SET prox_documento=prox_documento+1, ult_docu_impreso=:1 "
             "WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4",
             [new_no_factura, no_cia, punto, tf])
-        if ncf_val is not None and codigo_ncf_doc:
+        if ncf_val is not None and codigo_ncf_emitir:
             # Avanza prox_ncf al siguiente del NCF efectivamente emitido
             # (puede haber saltado por colisiones).
             cur.execute(
                 "UPDATE CNT.TCNT_NCF SET prox_ncf=:1 "
                 "WHERE no_localidad=:2 AND codigo_ncf=:3",
-                [ncf_val + 1, no_cia, codigo_ncf_doc])
+                [ncf_val + 1, no_cia, codigo_ncf_emitir])
         cur.connection.commit()
     return {"no_factura": new_no_factura, "tipo_factura": tf, "ncf": ncf_val,
             "total_neto": total_neto, "total_linea": total_linea,
@@ -2159,13 +2193,24 @@ def anular_factura(no_cia, punto, tipo_factura, no_factura, usuario, motivo="", 
     nf = no_factura.strip()
     with client.cursor() as cur:
         cur.execute(
-            "SELECT CODIGO_NCF, NCF FROM FAT.TFAT_FACTURA "
+            "SELECT CODIGO_NCF, NCF, NVL(ST_ANULADO,'N') FROM FAT.TFAT_FACTURA "
             "WHERE no_cia=:1 AND punto=:2 AND tipo_factura=:3 AND no_factura=:4",
             [no_cia, punto, tf, nf])
         row = cur.fetchone()
         if not row:
             raise ValueError("Factura {}/{} no encontrada".format(tf, nf))
-        codigo_ncf_fact, ncf_num = row[0], row[1]
+        codigo_ncf_fact, ncf_num, st_anulado = row[0], row[1], row[2]
+        if st_anulado == 'S':
+            raise ValueError("Factura {}/{} ya esta anulada".format(tf, nf))
+        cur.execute(
+            "SELECT no_linea, almacen, no_produ, cantidad, precio, costo, "
+            "       empaque, cpe, tipo_transaccion "
+            "FROM INV.TINV_MOVIMIENTO "
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4 "
+            "  AND NVL(st_anulado,'N')='N' "
+            "ORDER BY no_linea",
+            [no_cia, punto, tf, nf])
+        movs_orig = cur.fetchall()
         cur.execute(
             "UPDATE FAT.TFAT_FACTURA SET st_anulado='S', tipo_anula_dgii=:1 "
             "WHERE no_cia=:2 AND punto=:3 AND tipo_factura=:4 AND no_factura=:5",
@@ -2182,14 +2227,6 @@ def anular_factura(no_cia, punto, tipo_factura, no_factura, usuario, motivo="", 
         # Crea movimientos AF (entrada) que compensan la salida original.
         # get_existencia_producto suma TODOS los movimientos (anulados o no),
         # por eso la devolucion al stock se hace mediante esta entrada inversa.
-        cur.execute(
-            "SELECT no_linea, almacen, no_produ, cantidad, precio, costo, "
-            "       empaque, cpe, tipo_transaccion "
-            "FROM INV.TINV_MOVIMIENTO "
-            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4 "
-            "ORDER BY no_linea",
-            [no_cia, punto, tf, nf])
-        movs_orig = cur.fetchall()
         if movs_orig:
             cur.execute(
                 "SELECT prox_documento FROM FAT.TFAT_SECUENCIA "

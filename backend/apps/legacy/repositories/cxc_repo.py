@@ -419,7 +419,7 @@ def search_clientes(no_cia: str, q: str = '', page: int = 1, page_size: int = 50
         "  SELECT c.*, ROWNUM rn FROM ("
         "    SELECT no_cia, no_cliente, punto, nombre nombre_cliente, tipo_contable tipo_conta,"
         "           tipo_cliente tipo_cli, cedula, rnc, telefono, email1 email, ciudad, zona,"
-        "           vendedor, ruta_entrega ruta,"
+        "           vendedor, ruta_entrega ruta, codigo_ncf,"
         "           NVL(limite_credito,0) limite_credito, NVL(plazo,0) dias_credito,"
         "           NVL(debitos,0)-NVL(creditos,0) saldo_actual"
         "    FROM CXC.TCXC_CLIENTE"
@@ -465,6 +465,7 @@ def save_cliente(d: dict):
     ruta_entrega = d.get('ruta') or d.get('ruta_entrega', '')
     no_cadena = d.get('cadena') or d.get('no_cadena', '')
     dias_credito = d.get('dias_credito') or d.get('plazo', 0)
+    codigo_ncf = (d.get('codigo_ncf') or '').strip().upper()
     with client.cursor() as cur:
         is_new = not d.get('no_cliente')
         if is_new:
@@ -484,29 +485,29 @@ def save_cliente(d: dict):
                 "UPDATE CXC.TCXC_CLIENTE SET nombre=:1, tipo_contable=:2, tipo_cliente=:3,"
                 "cedula=:4, rnc=:5, telefono=:6, telefono2=:7, email1=:8, direccion=:9,"
                 "ciudad=:10, barrio=:11, zona=:12, no_cadena=:13, vendedor=:14,"
-                "ruta_entrega=:15, limite_credito=:16, plazo=:17 "
-                "WHERE no_cia=:18 AND no_cliente=:19",
+                "ruta_entrega=:15, limite_credito=:16, plazo=:17, codigo_ncf=:18 "
+                "WHERE no_cia=:19 AND no_cliente=:20",
                 [nombre, tipo_contable, tipo_cliente,
                  d.get('cedula', ''), d.get('rnc', ''), d.get('telefono', ''),
                  d.get('telefono2', ''), email1, d.get('direccion', ''),
                  d.get('ciudad', ''), d.get('barrio', ''), d.get('zona', ''),
                  no_cadena, d.get('vendedor', ''), ruta_entrega,
-                 d.get('limite_credito', 0), dias_credito,
+                 d.get('limite_credito', 0), dias_credito, codigo_ncf,
                  no_cia, d['no_cliente']])
         else:
             cur.execute(
                 "INSERT INTO CXC.TCXC_CLIENTE"
                 "(no_cia,punto,no_cliente,nombre,tipo_contable,tipo_cliente,"
                 "cedula,rnc,telefono,telefono2,email1,direccion,ciudad,barrio,zona,"
-                "no_cadena,vendedor,ruta_entrega,limite_credito,plazo,fecha_ingreso) "
-                "VALUES(:1,:2,:3,:4,:5,:6,:7,:8,:9,:10,:11,:12,:13,:14,:15,:16,:17,:18,:19,:20,SYSDATE)",
+                "no_cadena,vendedor,ruta_entrega,limite_credito,plazo,codigo_ncf,fecha_ingreso) "
+                "VALUES(:1,:2,:3,:4,:5,:6,:7,:8,:9,:10,:11,:12,:13,:14,:15,:16,:17,:18,:19,:20,:21,SYSDATE)",
                 [no_cia, punto, d['no_cliente'], nombre,
                  tipo_contable, tipo_cliente,
                  d.get('cedula', ''), d.get('rnc', ''), d.get('telefono', ''),
                  d.get('telefono2', ''), email1, d.get('direccion', ''),
                  d.get('ciudad', ''), d.get('barrio', ''), d.get('zona', ''),
                  no_cadena, d.get('vendedor', ''), ruta_entrega,
-                 d.get('limite_credito', 0), dias_credito])
+                 d.get('limite_credito', 0), dias_credito, codigo_ncf])
         # Sync contactos
         cur.execute(
             "DELETE FROM CXC.TCXC_CONTACTO_CLIENTE "

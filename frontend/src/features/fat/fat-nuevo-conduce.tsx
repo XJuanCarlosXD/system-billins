@@ -133,7 +133,7 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
   const [clienteSeleccionado, setClienteSeleccionado] =
     useState<Cliente | null>(null)
   const [cargandoCliente, setCargandoCliente] = useState(false)
-  const [clase, setClase] = useState('CO')
+  const [clase, setClase] = useState('C')
   const [tipoMoneda, setTipoMoneda] = useState('RD')
   const [tasa, setTasa] = useState<number>(57.5)
   const [direccion, setDireccion] = useState('')
@@ -245,7 +245,7 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
         if (d.fecha) setFecha(d.fecha)
         if (d.forma_pago) setFormaPago(d.forma_pago)
         if (d.vendedor) setVendedor(d.vendedor)
-        if (d.clase) setClase(d.clase)
+        if (d.clase) setClase(String(d.clase).trim().charAt(0).toUpperCase() === 'P' ? 'P' : 'C')
         if (d.tipo_moneda) setTipoMoneda(d.tipo_moneda)
         if (d.tasa_us) setTasa(d.tasa_us)
         if (d.detalle) setDetalleNota(d.detalle)
@@ -423,6 +423,32 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
     })
   }
 
+  const agregarLineaCustom = () => {
+    const td = tiposDoc.find((d) => d.tipo_docu === tipoDoc)
+    const lin = lineas.length + 1
+    const nuevaLinea: Linea = {
+      id: lineaIdCounter++,
+      lin,
+      almacen: td?.almacen || '',
+      cod_barra: '',
+      no_produ: 'X',
+      emp: 'UND',
+      descripcion: '',
+      no_lista: noLista,
+      precio_lista: 0,
+      precio: 0,
+      cantidad: 1,
+      porc_descuento: 0,
+      monto: 0,
+      porciento_impuesto: 0,
+      itbis: false,
+      empaques: [],
+      precioBase: 0,
+      cantPorEmpBase: 1,
+    }
+    setLineas((prev) => [...prev, nuevaLinea])
+  }
+
   const updateLinea = (
     idx: number,
     field: keyof Linea,
@@ -431,6 +457,14 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
     setLineas((prev) => {
       const arr = [...prev]
       const linea = { ...arr[idx], [field]: value }
+      if (field === 'itbis') {
+        linea.itbis = value === true
+        linea.porciento_impuesto = linea.itbis
+          ? linea.porciento_impuesto > 0
+            ? linea.porciento_impuesto
+            : 18
+          : 0
+      }
       if (['cantidad', 'precio', 'porc_descuento'].includes(field as string)) {
         linea.monto =
           linea.cantidad * linea.precio * (1 - linea.porc_descuento / 100)
@@ -498,6 +532,30 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
 
   const buscarProductoPorCodigo = async (idx: number, codigo: string) => {
     if (!codigo) return
+    // Codigo manual 'X' → producto generico editable (sin lookup en TINV_PRODUCTO)
+    if (codigo.trim().toUpperCase() === 'X') {
+      setLineas((prev) => {
+        const arr = [...prev]
+        const linea = { ...arr[idx] }
+        linea.no_produ = 'X'
+        linea.descripcion = linea.descripcion || ''
+        linea.precio = linea.precio || 0
+        linea.precio_lista = linea.precio
+        linea.precioBase = linea.precio
+        linea.cantPorEmpBase = 1
+        linea.empaques = []
+        linea.porciento_impuesto = linea.itbis
+          ? linea.porciento_impuesto || 18
+          : linea.porciento_impuesto || 0
+        linea.itbis = linea.porciento_impuesto > 0
+        linea.emp = linea.emp || 'UND'
+        linea.monto =
+          linea.cantidad * linea.precio * (1 - linea.porc_descuento / 100)
+        arr[idx] = linea
+        return arr
+      })
+      return
+    }
     try {
       const res = await regalGeneralApi.fatSearchProductos(
         noCia,
@@ -913,9 +971,8 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value='CO'>Conduce</SelectItem>
-                <SelectItem value='CT'>Cotizacion</SelectItem>
-                <SelectItem value='PF'>PreFactura</SelectItem>
+                <SelectItem value='C'>C - Normal</SelectItem>
+                <SelectItem value='P'>P - Pre-factura</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1018,9 +1075,14 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
       <div className='space-y-2 rounded-md border p-3'>
         <div className='flex items-center justify-between'>
           <h2 className='font-semibold'>Lineas de Detalle</h2>
-          <Button size='sm' variant='outline' onClick={agregarLinea}>
-            + Agregar Linea
-          </Button>
+          <div className='flex items-center gap-2'>
+            <Button size='sm' variant='outline' onClick={agregarLineaCustom}>
+              Linea X
+            </Button>
+            <Button size='sm' variant='outline' onClick={agregarLinea}>
+              + Agregar Linea
+            </Button>
+          </div>
         </div>
         <div className='overflow-x-auto'>
           <Table>

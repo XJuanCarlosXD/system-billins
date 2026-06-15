@@ -1104,9 +1104,9 @@ export const regalGeneralApi = {
       agotado: boolean
     }>(`/fat/proximo-ncf/?no_cia=${encodeURIComponent(no_cia)}&codigo_ncf=${encodeURIComponent(codigo_ncf)}`),
 
-  fatNcfUsado: (no_cia: string, ncf: number) =>
+  fatNcfUsado: (no_cia: string, ncf: number, codigo_ncf = '') =>
     request<{ usado: boolean }>(
-      `/fat/ncf-usado/?no_cia=${encodeURIComponent(no_cia)}&ncf=${encodeURIComponent(String(ncf))}`,
+      `/fat/ncf-usado/?no_cia=${encodeURIComponent(no_cia)}&ncf=${encodeURIComponent(String(ncf))}${codigo_ncf ? `&codigo_ncf=${encodeURIComponent(codigo_ncf)}` : ''}`,
     ),
 
   fatProximoNoFactura: (no_cia: string, punto: string, tipo_docu: string) => {

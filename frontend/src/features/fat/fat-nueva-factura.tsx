@@ -824,7 +824,8 @@ export function NuevaFactura({ noCia, punto }: Props) {
       try {
         const { usado } = await regalGeneralApi.fatNcfUsado(
           noCia,
-          proximoNcf.prox_ncf
+          proximoNcf.prox_ncf,
+          proximoNcf.codigo_ncf
         )
         if (usado) {
           toast({
@@ -856,6 +857,7 @@ export function NuevaFactura({ noCia, punto }: Props) {
         punto,
         tipo_factura: tipoDoc,
         no_cliente: noCliente,
+        codigo_ncf: codigoNcfDeCliente,
         fecha,
         vendedor,
         forma_pago: formaPago,
