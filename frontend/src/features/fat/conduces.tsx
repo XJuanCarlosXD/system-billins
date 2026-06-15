@@ -107,7 +107,7 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
   const [tiposDoc, setTiposDoc] = useState<TipoDoc[]>([])
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
-  const pageSize = 30
+  const pageSize = 10
 
   const [selected, setSelected] = useState<ConduceDetalle | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
@@ -175,8 +175,8 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
     setLoadingDetail(true)
     try {
       const d = await regalGeneralApi.fatGetConduce(
-        noCia,
-        punto,
+        row.no_cia || noCia,
+        row.punto || punto,
         row.tipo_conduce,
         row.no_conduce
       )
@@ -276,8 +276,11 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
     )
   }
 
-  const openConducePdf = (c: { tipo_conduce: string; no_conduce: string }) => {
-    const qs = new URLSearchParams({ no_cia: noCia, punto }).toString()
+  const openConducePdf = (c: { no_cia?: string; punto?: string; tipo_conduce: string; no_conduce: string }) => {
+    const qs = new URLSearchParams({
+      no_cia: c.no_cia || noCia,
+      punto: c.punto || punto,
+    }).toString()
     const id = `${c.tipo_conduce}-${c.no_conduce}`
     // Cotización (CT) usa una plantilla distinta del conduce normal (CO).
     const codigo = c.tipo_conduce === 'CT' ? 'cotizacion' : 'conduce'
@@ -507,6 +510,8 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
                   className='shrink-0 gap-1'
                   onClick={() =>
                     openConducePdf({
+                      no_cia: selected.no_cia,
+                      punto: selected.punto,
                       tipo_conduce: selected.tipo_conduce,
                       no_conduce: selected.no_conduce,
                     })

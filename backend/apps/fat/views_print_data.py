@@ -123,7 +123,7 @@ def fat_factura_print_data(request, tipo: str, no_factura: str):
     cia = _cia_payload(no_cia, request=request)
 
     no_cliente_str = str(factura.get('no_cliente') or '')
-    cliente_row = cxc_repo.get_cliente(no_cia, no_cliente_str) or {}
+    cliente_row = cxc_repo.get_cliente(no_cia, no_cliente_str, punto) or {}
 
     nombre_vendedor = fat_repo.get_vendedor_nombre(no_cia, factura.get('vendedor', '')) or ''
     descripcion_cond_pago = fat_repo.get_condicion_pago_descripcion(
@@ -262,7 +262,7 @@ def fat_conduce_print_data(request, tipo: str, no_conduce: str):
     cia = _cia_payload(no_cia, request=request)
 
     no_cliente_str = str(conduce.get('no_cliente') or '')
-    cliente_row = cxc_repo.get_cliente(no_cia, no_cliente_str) or {}
+    cliente_row = cxc_repo.get_cliente(no_cia, no_cliente_str, punto) or {}
 
     nombre_vendedor = fat_repo.get_vendedor_nombre(no_cia, conduce.get('vendedor', '')) or ''
     descripcion_cond_pago = fat_repo.get_condicion_pago_descripcion(

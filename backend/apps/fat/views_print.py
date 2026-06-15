@@ -107,7 +107,7 @@ def fat_documento_pdf(request, tipo: str, no_factura: str):
 
     # no_cliente viene como int desde get_factura; get_cliente espera str
     no_cliente_str = str(factura['no_cliente'])
-    cliente = cxc_repo.get_cliente(no_cia, no_cliente_str) or {}
+    cliente = cxc_repo.get_cliente(no_cia, no_cliente_str, punto) or {}
     rnc_cliente = (cliente.get('rnc') or '').strip()
     direccion_cliente = (cliente.get('direccion') or '').strip()
 
@@ -806,7 +806,7 @@ def fat_conduce_pdf(request, tipo: str, no_conduce: str):
     razon_social = (cia.get('descripcion') or no_cia).strip()
 
     no_cliente_str = str(conduce.get('no_cliente') or '')
-    cliente = cxc_repo.get_cliente(no_cia, no_cliente_str) or {}
+    cliente = cxc_repo.get_cliente(no_cia, no_cliente_str, punto) or {}
     rnc_cliente = (cliente.get('rnc') or '').strip()
     direccion_cliente = (cliente.get('direccion') or '').strip()
 
@@ -2715,7 +2715,7 @@ def fat_documento_pos_pdf(request, tipo: str, no_factura: str):
     razon_social = (cia.get('descripcion') or no_cia).strip()
 
     no_cliente_str = str(factura['no_cliente'])
-    cliente = cxc_repo.get_cliente(no_cia, no_cliente_str) or {}
+    cliente = cxc_repo.get_cliente(no_cia, no_cliente_str, punto) or {}
     rnc_cliente = (cliente.get('rnc') or '').strip()
     direccion_cliente = (cliente.get('direccion') or '').strip()
 

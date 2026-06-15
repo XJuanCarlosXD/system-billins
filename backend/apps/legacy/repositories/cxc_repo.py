@@ -432,11 +432,16 @@ def search_clientes(no_cia: str, q: str = '', page: int = 1, page_size: int = 50
     rows = client.fetch_dicts(sql, [no_cia, like, like, offset + page_size, offset])
     return {'items': rows, 'count': total}
 
-def get_cliente(no_cia: str, no_cliente: str):
+def get_cliente(no_cia: str, no_cliente: str, punto: str = ''):
+    filters = ["c.no_cia=:1", "c.no_cliente=:2"]
+    params = [no_cia, no_cliente]
+    if punto:
+        filters.append("c.punto=:3")
+        params.append(punto)
     rows = client.fetch_dicts(
         "SELECT c.*, NVL(c.debitos,0)-NVL(c.creditos,0) saldo_actual "
-        "FROM CXC.TCXC_CLIENTE c WHERE c.no_cia=:1 AND c.no_cliente=:2",
-        [no_cia, no_cliente])
+        f"FROM CXC.TCXC_CLIENTE c WHERE {' AND '.join(filters)}",
+        params)
     if not rows:
         return None
     cli = rows[0]
