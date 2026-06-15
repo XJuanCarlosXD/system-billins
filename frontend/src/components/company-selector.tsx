@@ -10,18 +10,17 @@ import { useCompany } from '@/context/company-context'
  * Selector global de empresa.
  *
  * Reglas:
- * - Lee las empresas vía `apiClient.me()` → solo las que el usuario tiene
- *   permiso para usar (no lista admin).
- * - Si el usuario es admin pero su perfil aún no tiene empresas asignadas,
- *   cae a `adminListCompanies()` como fallback para que pueda navegar.
- * - Si solo tiene 1 empresa, se muestra como info estática (no Select)
- *   y se setea automáticamente.
- * - Cualquier cambio del selector actualiza el contexto global y vuelve
- *   a ejecutar todas las queries que dependen de selectedCompany.
+ * - Solo administradores pueden CAMBIAR de empresa.
+ * - Admin ve todas las empresas activas (vía adminListCompanies()).
+ * - No-admin se queda fijo en su empresa asignada (la primera que tenga
+ *   con módulo activo). Si tiene varias, igual queda fija — no hay Select.
+ *   Para cambiarle de empresa hay que pedirlo al administrador.
+ * - Si el usuario no tiene ninguna empresa asignada, muestra error en rojo.
  */
 export function CompanySelector() {
   const { selectedCompany, setSelectedCompany } = useCompany()
   const [companies, setCompanies] = useState<Company[]>([])
+  const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -30,19 +29,26 @@ export function CompanySelector() {
       setLoading(true)
       try {
         const me = await apiClient.me()
-        let cias = me.companies.filter((c) => c.activa)
-        // Admin sin asignaciones explícitas: ver TODAS las empresas activas.
-        if (me.is_admin && cias.length === 0) {
+        if (cancelled) return
+        setIsAdmin(!!me.is_admin)
+
+        let cias: Company[]
+        if (me.is_admin) {
+          // Admin: lista completa de empresas activas.
           try {
             const res = await apiClient.adminListCompanies()
             cias = res.companies.filter((c) => c.activa)
-          } catch { /* ignore */ }
+          } catch {
+            cias = me.companies.filter((c) => c.activa)
+          }
+        } else {
+          // No admin: solo las empresas con permiso.
+          cias = me.companies.filter((c) => c.activa)
         }
         if (cancelled) return
+
         setCompanies(cias)
         if (cias.length > 0) {
-          // Si el seleccionado actual ya no está en la lista permitida,
-          // forzar al primero.
           const stillAllowed = cias.find((c) => c.no_cia === selectedCompany)
           if (!stillAllowed) setSelectedCompany(cias[0].no_cia)
         }
@@ -76,25 +82,27 @@ export function CompanySelector() {
     )
   }
 
-  if (companies.length === 1) {
-    const c = companies[0]
+  // No admin → info estática con la empresa activa (no puede cambiar).
+  if (!isAdmin) {
+    const c = companies.find((x) => x.no_cia === selectedCompany) ?? companies[0]
     return (
       <div
         className='flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-1.5 text-sm'
-        title='Tienes acceso a una sola empresa'
+        title='Solo los administradores pueden cambiar de empresa'
       >
         <Building2 className='h-4 w-4 text-muted-foreground' />
         <span className='font-mono text-xs'>{c.no_cia}</span>
-        <span className='max-w-[160px] truncate'>{c.descripcion}</span>
+        <span className='max-w-[180px] truncate'>{c.descripcion}</span>
       </div>
     )
   }
 
+  // Admin → Select.
   return (
     <div className='flex items-center gap-2'>
       <Building2 className='h-4 w-4 text-muted-foreground' />
       <Select value={selectedCompany} onValueChange={setSelectedCompany}>
-        <SelectTrigger className='h-9 w-[220px] text-sm'>
+        <SelectTrigger className='h-9 w-[260px] text-sm'>
           <SelectValue placeholder='Seleccione empresa' />
         </SelectTrigger>
         <SelectContent align='start'>
