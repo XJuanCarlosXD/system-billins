@@ -10,17 +10,19 @@ import { useCompany } from '@/context/company-context'
  * Selector global de empresa.
  *
  * Reglas:
- * - Solo administradores pueden CAMBIAR de empresa.
- * - Admin ve todas las empresas activas (vía adminListCompanies()).
- * - No-admin se queda fijo en su empresa asignada (la primera que tenga
- *   con módulo activo). Si tiene varias, igual queda fija — no hay Select.
- *   Para cambiarle de empresa hay que pedirlo al administrador.
- * - Si el usuario no tiene ninguna empresa asignada, muestra error en rojo.
+ * - Admin: ve TODAS las empresas activas (lista completa, vía
+ *   adminListCompanies) y puede cambiar entre ellas.
+ * - No admin: ve solo las empresas a las que tiene permiso (al menos
+ *   un módulo activo). Si tiene 2+, puede cambiar entre ellas con el
+ *   Select; si tiene 1, se muestra como chip estático.
+ * - Sin empresas asignadas: chip rojo "Sin empresas asignadas".
+ *
+ * Para dar/quitar empresas a un usuario se usa la pantalla de Permisos
+ * (asignar al menos un módulo en la empresa → aparece en su selector).
  */
 export function CompanySelector() {
   const { selectedCompany, setSelectedCompany } = useCompany()
   const [companies, setCompanies] = useState<Company[]>([])
-  const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -30,11 +32,10 @@ export function CompanySelector() {
       try {
         const me = await apiClient.me()
         if (cancelled) return
-        setIsAdmin(!!me.is_admin)
 
         let cias: Company[]
         if (me.is_admin) {
-          // Admin: lista completa de empresas activas.
+          // Admin: lista completa.
           try {
             const res = await apiClient.adminListCompanies()
             cias = res.companies.filter((c) => c.activa)
@@ -42,7 +43,7 @@ export function CompanySelector() {
             cias = me.companies.filter((c) => c.activa)
           }
         } else {
-          // No admin: solo las empresas con permiso.
+          // No admin: solo las empresas con al menos un módulo activo.
           cias = me.companies.filter((c) => c.activa)
         }
         if (cancelled) return
@@ -82,13 +83,12 @@ export function CompanySelector() {
     )
   }
 
-  // No admin → info estática con la empresa activa (no puede cambiar).
-  if (!isAdmin) {
-    const c = companies.find((x) => x.no_cia === selectedCompany) ?? companies[0]
+  if (companies.length === 1) {
+    const c = companies[0]
     return (
       <div
         className='flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-1.5 text-sm'
-        title='Solo los administradores pueden cambiar de empresa'
+        title='Solo una empresa asignada'
       >
         <Building2 className='h-4 w-4 text-muted-foreground' />
         <span className='font-mono text-xs'>{c.no_cia}</span>
@@ -97,7 +97,6 @@ export function CompanySelector() {
     )
   }
 
-  // Admin → Select.
   return (
     <div className='flex items-center gap-2'>
       <Building2 className='h-4 w-4 text-muted-foreground' />
