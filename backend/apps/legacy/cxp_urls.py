@@ -1,9 +1,10 @@
 from django.urls import path
 from apps.legacy import cxp_views
-from apps.legacy.docs_print_data import cxp_documento_print_data
+from apps.legacy.docs_print_data import cxp_documento_print_data, cxp_estado_cuenta_print_data
 
 urlpatterns = [
     path('documentos/<str:tipo_docu>/<str:no_docu>/print-data/', cxp_documento_print_data),
+    path('proveedores/<str:no_proveedor>/estado-cuenta/print-data/', cxp_estado_cuenta_print_data),
     path('proveedores/', cxp_views.cxp_proveedores),
     path('proveedores/<str:no>/', cxp_views.cxp_proveedor),
     path('proveedores/<str:no>/cuenta/', cxp_views.cxp_proveedor_cuenta),

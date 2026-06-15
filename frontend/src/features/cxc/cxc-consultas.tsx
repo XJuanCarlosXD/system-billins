@@ -95,7 +95,14 @@ export function CxcEstadoCuenta({ noCia, punto }: P) {
     return '+90 d'
   }
 
-  const handleImprimir = () => window.print()
+  const handleImprimir = () => {
+    if (!cliente?.no_cliente) return
+    const qs = new URLSearchParams({ no_cia: noCia, punto: punto || '01', fecha_corte: fechaCorte }).toString()
+    window.open(
+      `/print/cxc-estado-cuenta/${encodeURIComponent(String(cliente.no_cliente))}?${qs}`,
+      '_blank', 'noopener',
+    )
+  }
 
   const handleExportCsv = () => {
     if (!data?.documentos?.length) return
@@ -182,23 +189,6 @@ export function CxcEstadoCuenta({ noCia, punto }: P) {
 
       {data && (
         <>
-          {/* Encabezado de impresión (solo visible al imprimir) */}
-          <div className="hidden print:block print-header">
-            <table className="w-full">
-              <tbody>
-                <tr>
-                  <td className="align-top text-left">
-                    <div className="font-bold text-base">ESTADO DE CUENTA</div>
-                    <div className="text-[11px]">Fecha de corte: {fmtDate(fechaCorte)}</div>
-                  </td>
-                  <td className="align-top text-right text-[10px]">
-                    Generado: {new Date().toLocaleString('es-DO')}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
           {/* Datos del cliente */}
           <Card>
             <CardHeader className="pb-2">

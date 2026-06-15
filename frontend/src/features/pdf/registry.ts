@@ -18,6 +18,8 @@ import { actaActivoDefault } from './defaults/acta-activo'
 import { sdnNominaDefault } from './defaults/sdn-nomina'
 import { cxcDocumentoDefault } from './defaults/cxc-documento'
 import { cxpDocumentoDefault } from './defaults/cxp-documento'
+import { cxcEstadoCuentaDefault } from './defaults/cxc-estado-cuenta'
+import { cxpEstadoCuentaDefault } from './defaults/cxp-estado-cuenta'
 
 export type DocFamily = 'documento' | 'reporte'
 
@@ -162,6 +164,20 @@ export const registry: Record<string, RegistryEntry> = {
     defaultPageSize: 'A4', defaultPageOrientation: 'P',
     variables: docVarsBase.concat(['extra.dist_contable']),
   },
+  'cxc-estado-cuenta': {
+    codigo: 'cxc-estado-cuenta', modulo: 'CXC', nombre: 'Estado de Cuenta CxC', familia: 'documento',
+    printDataPath: (id, qs) => `/cxc/clientes/${encodeURIComponent(id)}/estado-cuenta/print-data/?${qs.toString()}`,
+    defaultTemplate: cxcEstadoCuentaDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'L',
+    variables: docVarsBase.concat([
+      'cliente.no_cliente', 'cliente.vendedor', 'cliente.dias',
+      'totales.total_debito', 'totales.total_credito', 'totales.total_pendiente',
+      'aging.d_0_30', 'aging.d_31_60', 'aging.d_61_90', 'aging.d_mas_90',
+      'documentos[].numero_display', 'documentos[].tipo_label',
+      'documentos[].fecha', 'documentos[].valor', 'documentos[].saldo',
+      'documentos[].dias_vencido', 'documentos[].ncf', 'documentos[].detalle',
+    ]),
+  },
   // ── CXP — todos los tipos comparten plantilla y endpoint (Rcxp207 legacy) ─
   // Backend resuelve título y "Acreditado/Debitado" desde TCXP_TDOCU y
   // tipo_movi. Cada tipo tiene su código en /print para que el editor de
@@ -226,6 +242,20 @@ export const registry: Record<string, RegistryEntry> = {
     defaultTemplate: cxpDocumentoDefault,
     defaultPageSize: 'A4', defaultPageOrientation: 'P',
     variables: docVarsBase.concat(['proveedor.nombre', 'extra.dist_contable', 'extra.documentos_afectados']),
+  },
+  'cxp-estado-cuenta': {
+    codigo: 'cxp-estado-cuenta', modulo: 'CXP', nombre: 'Estado de Cuenta CxP', familia: 'documento',
+    printDataPath: (id, qs) => `/cxp/proveedores/${encodeURIComponent(id)}/estado-cuenta/print-data/?${qs.toString()}`,
+    defaultTemplate: cxpEstadoCuentaDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'L',
+    variables: docVarsBase.concat([
+      'proveedor.no_proveedor', 'proveedor.encargado', 'proveedor.dias',
+      'totales.total_debito', 'totales.total_credito', 'totales.total_pendiente',
+      'aging.d_0_30', 'aging.d_31_60', 'aging.d_61_90', 'aging.d_mas_90',
+      'documentos[].numero_display', 'documentos[].tipo_label',
+      'documentos[].fecha', 'documentos[].valor', 'documentos[].saldo',
+      'documentos[].dias_vencido', 'documentos[].ncf', 'documentos[].detalle',
+    ]),
   },
   // ── ODC ────────────────────────────────────────────────────────────
   'orden-compra': {

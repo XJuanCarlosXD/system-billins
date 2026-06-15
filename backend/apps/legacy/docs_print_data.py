@@ -29,6 +29,101 @@ def _money_or_zero(v):
     return _money(v)
 
 
+# ─── ESTADO DE CUENTA (Cliente / Proveedor) ─────────────────────────────
+
+@login_required
+@require_http_methods(["GET"])
+def cxc_estado_cuenta_print_data(request, no_cliente: str):
+    """GET /api/cxc/clientes/<no_cliente>/estado-cuenta/print-data/?no_cia=01"""
+    from datetime import datetime
+    no_cia = request.GET.get('no_cia', '01')
+    fecha_corte = request.GET.get('fecha_corte') or datetime.now().strftime('%Y-%m-%d')
+    cia = _cia_payload(no_cia, request=request)
+    data = cxc_repo.estado_cuenta(no_cia, no_cliente)
+    if not data:
+        return JsonResponse({'error': 'Cliente no encontrado'}, status=404)
+    documentos = []
+    for d in data.get('documentos', []):
+        tipo = (d.get('tipo_doc') or '').strip().upper()
+        no_doc = (d.get('no_doc') or '').strip()
+        documentos.append({
+            'numero_display': f"{tipo}-{no_doc}" if tipo else no_doc,
+            'tipo_doc': tipo,
+            'tipo_label': (d.get('tipo_label') or tipo).strip(),
+            'fecha': str(d.get('fecha') or '')[:10],
+            'valor': _money(d.get('valor')),
+            'saldo': _money(d.get('saldo')),
+            'dias_vencido': int(d.get('dias_vencido') or 0),
+            'tipo_movi': (d.get('tipo_movi') or '').strip().upper(),
+            'ncf': d.get('ncf') or '',
+            'detalle': (d.get('detalle') or '')[:80],
+        })
+    return JsonResponse({
+        'cia': cia,
+        'doc': {
+            'tipo': 'ESTADO_CUENTA',
+            'tipo_label': 'Estado de Cuenta',
+            'fecha_corte': fecha_corte,
+            'fecha_generacion': datetime.now().strftime('%Y-%m-%d %H:%M'),
+        },
+        'cliente': data['cliente'],
+        'totales': {
+            'total_debito': data['total_debito'],
+            'total_credito': data['total_credito'],
+            'total_pendiente': data['total_pendiente'],
+        },
+        'aging': data['aging'],
+        'documentos': documentos,
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def cxp_estado_cuenta_print_data(request, no_proveedor: str):
+    """GET /api/cxp/proveedores/<no_proveedor>/estado-cuenta/print-data/?no_cia=01"""
+    from datetime import datetime
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '')
+    fecha_corte = request.GET.get('fecha_corte') or datetime.now().strftime('%Y-%m-%d')
+    cia = _cia_payload(no_cia, request=request)
+    data = cxp_repo.estado_cuenta(no_cia, no_proveedor, punto)
+    if not data:
+        return JsonResponse({'error': 'Proveedor no encontrado'}, status=404)
+    documentos = []
+    for d in data.get('documentos', []):
+        tipo = (d.get('tipo_doc') or '').strip().upper()
+        no_doc = (d.get('no_doc') or '').strip()
+        documentos.append({
+            'numero_display': f"{tipo}-{no_doc}" if tipo else no_doc,
+            'tipo_doc': tipo,
+            'tipo_label': (d.get('tipo_label') or tipo).strip(),
+            'fecha': str(d.get('fecha') or '')[:10],
+            'valor': _money(d.get('valor')),
+            'saldo': _money(d.get('saldo')),
+            'dias_vencido': int(d.get('dias_vencido') or 0),
+            'tipo_movi': (d.get('tipo_movi') or '').strip().upper(),
+            'ncf': d.get('ncf') or '',
+            'detalle': (d.get('detalle') or '')[:80],
+        })
+    return JsonResponse({
+        'cia': cia,
+        'doc': {
+            'tipo': 'ESTADO_CUENTA_CXP',
+            'tipo_label': 'Estado de Cuenta — Proveedor',
+            'fecha_corte': fecha_corte,
+            'fecha_generacion': datetime.now().strftime('%Y-%m-%d %H:%M'),
+        },
+        'proveedor': data['proveedor'],
+        'totales': {
+            'total_debito': data['total_debito'],
+            'total_credito': data['total_credito'],
+            'total_pendiente': data['total_pendiente'],
+        },
+        'aging': data['aging'],
+        'documentos': documentos,
+    })
+
+
 # ─── CXC ─────────────────────────────────────────────────────────────────
 
 @login_required
