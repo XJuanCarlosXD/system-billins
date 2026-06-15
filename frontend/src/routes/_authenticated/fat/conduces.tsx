@@ -10,5 +10,13 @@ function _Page() {
   const { selectedCompany, selectedPoint } = useCompany()
   const noCia = selectedCompany ?? ''
   const punto  = selectedPoint  ?? ''
-  return <ConducesFat noCia={noCia} punto={punto} />
+  const now = new Date()
+  return (
+    <ConducesFat
+      noCia={noCia}
+      punto={punto}
+      ano={now.getFullYear()}
+      mes={now.getMonth() + 1}
+    />
+  )
 }

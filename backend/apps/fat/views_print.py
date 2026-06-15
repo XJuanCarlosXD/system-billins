@@ -861,6 +861,15 @@ def fat_lista_conduces_pdf(request):
     estado = request.GET.get('estado', '')
     search = request.GET.get('search', '')
 
+    # Validar fechas: si vienen mal formadas (ej. 'undefined-...' desde un frontend
+    # que aún no setea ano/mes) las descartamos para evitar ORA-01841.
+    import re
+    _date_re = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+    if desde and not _date_re.match(desde):
+        desde = ''
+    if hasta and not _date_re.match(hasta):
+        hasta = ''
+
     try:
         result = fat_repo.list_conduces(
             no_cia=no_cia, punto=punto,
