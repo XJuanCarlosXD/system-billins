@@ -53,6 +53,7 @@ export function EmpresasPage() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
   // bust por empresa para invalidar caché de imagen tras upload/delete
   const [logoBust, setLogoBust] = useState<Record<string, number>>({})
 
@@ -73,8 +74,19 @@ export function EmpresasPage() {
       setLoading(true)
       setError(null)
       try {
-        const res = await apiClient.adminListCompanies()
-        setCompanies(res.companies)
+        // Cualquier usuario logueado puede leer /api/me/ con sus empresas
+        // permitidas. Si es admin, complementamos con la lista global para
+        // que pueda gestionar logos de todas las empresas.
+        const me = await apiClient.me()
+        setIsAdmin(!!me.is_admin)
+        let cias = (me.companies || []).filter((c) => c.activa)
+        if (me.is_admin) {
+          try {
+            const res = await apiClient.adminListCompanies()
+            cias = (res.companies || []).filter((c) => c.activa)
+          } catch { /* ignore — usamos las del me */ }
+        }
+        setCompanies(cias)
       } catch (e) {
         const msg =
           e instanceof ApiError ? e.detail?.detail || 'Error' : 'Error de red'
@@ -237,18 +249,20 @@ export function EmpresasPage() {
                         <CheckCircle2 className='h-3 w-3' /> Activa
                       </Badge>
                     )}
-                    <Button
-                      variant='secondary'
-                      size='icon'
-                      className='absolute top-2 left-2 z-10 h-8 w-8 opacity-0 shadow-md transition-opacity group-hover:opacity-100'
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        openEdit(c)
-                      }}
-                      title='Subir / cambiar logo'
-                    >
-                      <Settings className='h-4 w-4' />
-                    </Button>
+                    {isAdmin && (
+                      <Button
+                        variant='secondary'
+                        size='icon'
+                        className='absolute top-2 left-2 z-10 h-8 w-8 opacity-0 shadow-md transition-opacity group-hover:opacity-100'
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openEdit(c)
+                        }}
+                        title='Subir / cambiar logo (solo admin)'
+                      >
+                        <Settings className='h-4 w-4' />
+                      </Button>
+                    )}
                   </div>
 
                   <CardContent className='space-y-2 p-4'>

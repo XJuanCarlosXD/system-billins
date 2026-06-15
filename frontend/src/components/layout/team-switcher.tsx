@@ -71,18 +71,33 @@ export function TeamSwitcher({ teams }: TeamSwitcherProps) {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
+    let cancelled = false
     async function loadCompanies() {
       setLoading(true)
       try {
-        const res = await regalGeneralApi.adminListCompanies()
-        setCompanies(res.companies)
+        // 1) Cualquier usuario logueado puede llamar /api/me/.
+        //    El backend ya filtra companies por las que tienen permiso
+        //    (al menos un módulo activo). Admin recibe todas.
+        const me = await regalGeneralApi.me()
+        let cias = (me.companies || []).filter((c: Company) => c.activa)
+        // 2) Si es admin y por alguna razón no recibió ninguna, complementa
+        //    con la lista admin global (todas las activas).
+        if (me.is_admin && cias.length === 0) {
+          try {
+            const res = await regalGeneralApi.adminListCompanies()
+            cias = (res.companies || []).filter((c: Company) => c.activa)
+          } catch { /* ignore */ }
+        }
+        if (!cancelled) setCompanies(cias)
       } catch (e) {
         console.error('Error loading companies', e)
+        if (!cancelled) setCompanies([])
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
     loadCompanies()
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
