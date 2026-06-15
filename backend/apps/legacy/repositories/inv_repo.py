@@ -327,6 +327,7 @@ def list_existencias(
     search: str = '',
     grupo: str = '',
     solo_con_existencia: bool = False,
+    solo_sin_existencia: bool = False,
 ) -> list[dict]:
     """Existencias por (cia, punto, almacén, producto) replicando la lógica legada.
 
@@ -402,9 +403,12 @@ def list_existencias(
         "     ELSE NVL(mov.existencia, 0) END"
     )
 
-    having_existencia = (
-        f"AND ({existencia_expr}) > 0" if solo_con_existencia else ""
-    )
+    if solo_con_existencia:
+        having_existencia = f"AND ({existencia_expr}) > 0"
+    elif solo_sin_existencia:
+        having_existencia = f"AND ({existencia_expr}) <= 0"
+    else:
+        having_existencia = ""
 
     outer_where = " AND ".join(where_outer)
     sql = (
@@ -437,7 +441,7 @@ def list_existencias(
         ") mov ON mov.no_cia=u.no_cia AND mov.punto=u.punto "
         "  AND mov.almacen=u.almacen AND mov.no_produ=u.no_produ "
         + (f"WHERE {outer_where} " if outer_where else "")
-        + (f"{'AND' if outer_where else 'WHERE'} 1=1 {having_existencia} " if solo_con_existencia else "")
+        + (f"{'AND' if outer_where else 'WHERE'} 1=1 {having_existencia} " if (solo_con_existencia or solo_sin_existencia) else "")
         + "ORDER BY u.punto, u.almacen, p.descri"
     )
     return client.fetch_dicts(sql, params)

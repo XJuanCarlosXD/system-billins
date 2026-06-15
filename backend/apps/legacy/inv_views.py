@@ -197,9 +197,11 @@ def inv_existencias(request):
         no_produ = request.GET.get('no_produ', '')
         search = request.GET.get('search', '')
         grupo = request.GET.get('grupo', '')
-        solo_con_existencia = request.GET.get('solo_con_existencia', '').lower() in {'1','true','yes','y','s'}
-        page = int(request.GET.get('page', 1))
-        page_size = int(request.GET.get('page_size', 50))
+        truthy = {'1','true','yes','y','s'}
+        solo_con_existencia = request.GET.get('solo_con_existencia', '').lower() in truthy
+        solo_sin_existencia = request.GET.get('solo_sin_existencia', '').lower() in truthy
+        page = max(1, int(request.GET.get('page', 1)))
+        page_size = max(1, min(500, int(request.GET.get('page_size', 50))))
 
         results = inv_repo.list_existencias(
             no_cia=no_cia,
@@ -209,8 +211,18 @@ def inv_existencias(request):
             search=search,
             grupo=grupo,
             solo_con_existencia=solo_con_existencia,
+            solo_sin_existencia=solo_sin_existencia,
         )
         count = len(results)
+        # Totales sobre el conjunto COMPLETO (no solo la página actual).
+        total_existencia = 0.0
+        total_valor = 0.0
+        for r in results:
+            try:
+                total_existencia += float(r.get('existencia') or 0)
+                total_valor += float(r.get('valor') or 0)
+            except Exception:
+                pass
         offset = (page - 1) * page_size
         page_results = results[offset: offset + page_size]
         return JsonResponse({
@@ -218,6 +230,8 @@ def inv_existencias(request):
             "count": count,
             "page": page,
             "page_size": page_size,
+            "total_existencia": round(total_existencia, 2),
+            "total_valor": round(total_valor, 2),
         })
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)

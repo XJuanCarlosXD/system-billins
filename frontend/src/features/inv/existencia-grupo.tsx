@@ -11,7 +11,7 @@
 // Cada fila = (almacén, producto) — un mismo producto puede aparecer varias
 // veces si está en varios almacenes. Coincide con el formato del legado.
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Layers, Search, X, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -78,6 +78,9 @@ export function ExistenciaGrupo({ noCia }: Props) {
   const [loading, setLoading] = useState(false)
   const [consulted, setConsulted] = useState(false)
   const [page, setPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const [totalExistencia, setTotalExistencia] = useState(0)
+  const [totalValor, setTotalValor] = useState(0)
 
   useEffect(() => {
     if (!noCia) return
@@ -108,33 +111,42 @@ export function ExistenciaGrupo({ noCia }: Props) {
     return desc ? `${code} — ${desc}` : code
   }
 
-  const consultar = () => {
+  const fetchPage = (pg: number) => {
     setLoading(true)
     setConsulted(true)
-    setPage(1)
-    const qs = new URLSearchParams({ no_cia: noCia })
+    const qs = new URLSearchParams({
+      no_cia: noCia,
+      page: String(pg),
+      page_size: String(PAGE_SIZE),
+    })
     if (grupoSel !== ALL) qs.set('grupo', grupoSel)
     if (almacenSel !== ALL) qs.set('almacen', almacenSel)
     if (search.trim()) qs.set('search', search.trim())
     if (estado === 'con') qs.set('solo_con_existencia', '1')
+    if (estado === 'sin') qs.set('solo_sin_existencia', '1')
 
     fetch(`${API_BASE}/inv/existencia/?${qs.toString()}`, { credentials: 'include' })
       .then((r) => r.ok ? r.json() : Promise.reject(`HTTP ${r.status}`))
       .then((data) => {
-        let items: ExistenciaRow[] = Array.isArray(data) ? data : (data.results ?? data.items ?? [])
-        // El backend acepta solo_con_existencia, pero "sin existencia" lo
-        // filtramos en frontend para no agregar otro param.
-        if (estado === 'sin') {
-          items = items.filter((r) => Number(r.existencia || 0) <= 0)
-        }
+        const items: ExistenciaRow[] = Array.isArray(data) ? data : (data.results ?? data.items ?? [])
         setRows(items)
+        setTotalCount(Number(data?.count ?? items.length))
+        setTotalExistencia(Number(data?.total_existencia ?? 0))
+        setTotalValor(Number(data?.total_valor ?? 0))
+        setPage(pg)
       })
       .catch((e) => {
         toast.error('Error al cargar existencias: ' + (e?.message ?? e))
         setRows([])
+        setTotalCount(0)
+        setTotalExistencia(0)
+        setTotalValor(0)
       })
       .finally(() => setLoading(false))
   }
+
+  const consultar = () => fetchPage(1)
+  const irPagina = (pg: number) => fetchPage(Math.max(1, Math.min(totalPages, pg)))
 
   const limpiar = () => {
     setSearch('')
@@ -144,22 +156,14 @@ export function ExistenciaGrupo({ noCia }: Props) {
     setRows([])
     setConsulted(false)
     setPage(1)
+    setTotalCount(0)
+    setTotalExistencia(0)
+    setTotalValor(0)
   }
 
-  const pagedRows = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE
-    return rows.slice(start, start + PAGE_SIZE)
-  }, [rows, page])
-
-  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
-  const totalExistencia = useMemo(
-    () => rows.reduce((acc, r) => acc + Number(r.existencia || 0), 0),
-    [rows],
-  )
-  const totalValor = useMemo(
-    () => rows.reduce((acc, r) => acc + Number(r.valor || 0), 0),
-    [rows],
-  )
+  // Servidor ya pagina; rows YA es la página actual.
+  const pagedRows = rows
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
   return (
     <section className='space-y-4'>
@@ -260,7 +264,7 @@ export function ExistenciaGrupo({ noCia }: Props) {
         <div className='flex flex-wrap gap-3 text-sm'>
           <Badge variant='outline' className='gap-1'>
             <span className='text-muted-foreground'>Filas:</span>
-            <span className='font-mono font-semibold'>{rows.length.toLocaleString('es-DO')}</span>
+            <span className='font-mono font-semibold'>{totalCount.toLocaleString('es-DO')}</span>
           </Badge>
           <Badge variant='outline' className='gap-1'>
             <span className='text-muted-foreground'>Existencia total:</span>
@@ -336,10 +340,12 @@ export function ExistenciaGrupo({ noCia }: Props) {
                 )
               })}
             </TableBody>
-            {!loading && rows.length > 0 && (
+            {!loading && totalCount > 0 && (
               <TableFooter>
                 <TableRow className='font-semibold bg-muted/50'>
-                  <TableCell colSpan={4} className='text-right text-xs'>Totales (todas las filas):</TableCell>
+                  <TableCell colSpan={4} className='text-right text-xs'>
+                    Totales (todas las filas):
+                  </TableCell>
                   <TableCell className='text-right font-mono tabular-nums'>{fmt(totalExistencia)}</TableCell>
                   <TableCell />
                   <TableCell className='text-right font-mono tabular-nums'>{fmt(totalValor)}</TableCell>
@@ -356,22 +362,23 @@ export function ExistenciaGrupo({ noCia }: Props) {
       )}
 
       {/* Paginación */}
-      {consulted && rows.length > 0 && (
+      {consulted && totalCount > 0 && (
         <div className='flex items-center justify-between gap-2 text-sm'>
           <span className='text-muted-foreground'>
-            Página {page} de {totalPages} · {Math.min(PAGE_SIZE, rows.length - (page - 1) * PAGE_SIZE)} de {rows.length} filas
+            Página {page} de {totalPages} · mostrando {(page - 1) * PAGE_SIZE + 1}
+            –{Math.min(page * PAGE_SIZE, totalCount)} de {totalCount} filas
           </span>
           <div className='flex gap-2'>
-            <Button variant='outline' size='sm' disabled={page === 1} onClick={() => setPage(1)}>
+            <Button variant='outline' size='sm' disabled={loading || page === 1} onClick={() => irPagina(1)}>
               «
             </Button>
-            <Button variant='outline' size='sm' disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
+            <Button variant='outline' size='sm' disabled={loading || page === 1} onClick={() => irPagina(page - 1)}>
               Anterior
             </Button>
-            <Button variant='outline' size='sm' disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+            <Button variant='outline' size='sm' disabled={loading || page >= totalPages} onClick={() => irPagina(page + 1)}>
               Siguiente
             </Button>
-            <Button variant='outline' size='sm' disabled={page >= totalPages} onClick={() => setPage(totalPages)}>
+            <Button variant='outline' size='sm' disabled={loading || page >= totalPages} onClick={() => irPagina(totalPages)}>
               »
             </Button>
           </div>
