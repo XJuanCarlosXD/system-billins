@@ -12,6 +12,7 @@ urlpatterns = [
     path('documentos/', cxp_views.cxp_documentos),
     path('documentos/<str:no_cia>/<str:punto>/<str:tipo>/<str:no>/', cxp_views.cxp_documento),
     path('aging/', cxp_views.cxp_aging),
+    path('estado-cuenta/', cxp_views.cxp_estado_cuenta),
     path('tipos-docu/', cxp_views.cxp_tipos_docu),
     # Configuración
     path('cias/', cxp_views.cxp_cias),

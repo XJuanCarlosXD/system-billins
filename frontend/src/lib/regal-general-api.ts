@@ -1172,6 +1172,12 @@ export const regalGeneralApi = {
   cxpGetDocumento: (no_cia: string, punto: string, tipo: string, no: string) =>
     request<any>(`/cxp/documentos/${no_cia}/${punto}/${tipo}/${no}/`),
 
+  cxpEstadoCuenta: (noCia: string, noProveedor: string, punto = '') => {
+    const qs = new URLSearchParams({ no_cia: noCia, no_proveedor: noProveedor })
+    if (punto) qs.set('punto', punto)
+    return request<any>(`/cxp/estado-cuenta/?${qs.toString()}`)
+  },
+
   cxpGetAging: (params: { no_cia: string; punto?: string; no_proveedor?: string }) => {
     const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([,v]) => v != null && v !== ""))).toString()
     return request<any[]>(`/cxp/aging/?${qs}`)

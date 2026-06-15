@@ -110,6 +110,22 @@ def cxp_saldos_menores(request):
 @login_required
 @csrf_exempt
 @require_http_methods(['GET'])
+def cxp_estado_cuenta(request):
+    """GET /api/cxp/estado-cuenta/?no_cia=01&no_proveedor=X[&punto=01]"""
+    no_cia = request.GET.get('no_cia', '01')
+    no_prov = request.GET.get('no_proveedor', '')
+    punto = _norm_punto(request.GET.get('punto', ''))
+    if not no_prov:
+        return JsonResponse({'error': 'no_proveedor requerido'}, status=400)
+    data = cxp_repo.estado_cuenta(no_cia, no_prov, punto)
+    if not data:
+        return JsonResponse({'error': 'Proveedor no encontrado'}, status=404)
+    return JsonResponse(data, safe=False)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
 def cxp_aging(request):
     no_cia = request.GET.get('no_cia', '')
     punto = _norm_punto(request.GET.get('punto', ''))

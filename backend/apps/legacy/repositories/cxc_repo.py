@@ -1163,8 +1163,8 @@ def estado_cuenta(no_cia: str, no_cliente: str):
     cli = client.fetch_dicts(
         "SELECT no_cliente, nombre, "
         "       NVL(rnc,'') rnc, NVL(direccion,'') direccion, "
-        "       NVL(telefono,'') telefono, NVL(celular,'') celular, "
-        "       NVL(e_mail,'') email, NVL(vendedor,'') vendedor, "
+        "       NVL(telefono,'') telefono, NVL(telefono2,'') telefono2, "
+        "       NVL(email1,'') email, NVL(vendedor,'') vendedor, "
         "       NVL(cobrador,'') cobrador, "
         "       NVL(limite_credito,0) limite, NVL(plazo,0) dias, "
         "       NVL(debitos,0)-NVL(creditos,0) saldo_actual "
@@ -1211,7 +1211,7 @@ def estado_cuenta(no_cia: str, no_cliente: str):
             'no_cliente': str(row['no_cliente']).strip(),
             'nombre': row['nombre'],
             'rnc': row['rnc'], 'direccion': row['direccion'],
-            'telefono': row['telefono'] or row['celular'],
+            'telefono': row['telefono'] or row['telefono2'],
             'email': row['email'],
             'vendedor': row['vendedor'], 'cobrador': row['cobrador'],
             'limite': float(row['limite'] or 0),

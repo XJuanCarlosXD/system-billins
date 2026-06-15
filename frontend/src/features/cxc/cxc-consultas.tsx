@@ -5,8 +5,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Search, FileDown, Printer, Loader2, FileText } from 'lucide-react'
+import { Search, FileDown, Printer, Loader2, FileText, Eye } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { ClientePicker, type Cliente } from '@/components/cxc/cliente-picker'
 import './print-estado-cuenta.css'
@@ -26,12 +27,43 @@ const docCode = (tipo: any, no: any) => {
   return t ? `${t}-${n}` : n
 }
 
+// Mapeo tipo CxC → código de plantilla PDF registrada en /print/<codigo>/<no>
+const CXC_PRINT_CODE: Record<string, string> = {
+  RI: 'recibo-cobro',
+  NC: 'cxc-nota-credito',
+  ND: 'cxc-nota-debito',
+  CD: 'cxc-cheque-devuelto',
+  AC: 'cxc-ajuste-credito',
+  AD: 'cxc-ajuste-debito',
+  DV: 'cxc-devolucion',
+  AF: 'cxc-anulacion-factura',
+  BI: 'cxc-balance-inicial',
+  FC: 'factura-credito',
+}
+
+const printDocCxc = (tipo: any, no: any, noCia: string, punto: string) => {
+  const t = docPrefijoTipo(tipo)
+  const code = CXC_PRINT_CODE[t]
+  if (!code) {
+    alert(`Imprimir no está disponible para el tipo ${t}`)
+    return
+  }
+  const qs = new URLSearchParams({
+    no_cia: noCia, punto: punto || '01', tipo_doc: t,
+  }).toString()
+  window.open(
+    `/print/${code}/${encodeURIComponent((no || '').toString().trim())}?${qs}`,
+    '_blank', 'noopener',
+  )
+}
+
 // ─── Estado de Cuenta ─────────────────────────────────────────────────────────
-export function CxcEstadoCuenta({ noCia }: P) {
+export function CxcEstadoCuenta({ noCia, punto }: P) {
   const [cliente, setCliente] = useState<Cliente | null>(null)
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [fechaCorte, setFechaCorte] = useState(today)
+  const [detalleDoc, setDetalleDoc] = useState<any>(null)
 
   const load = async () => {
     if (!cliente?.no_cliente) return
@@ -273,12 +305,13 @@ export function CxcEstadoCuenta({ noCia }: P) {
                   <TableHead className="w-24 text-center">Envejec.</TableHead>
                   <TableHead className="w-32">NCF</TableHead>
                   <TableHead>Detalle</TableHead>
+                  <TableHead className="w-24 print:hidden">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading && (
                   <TableRow>
-                    <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
+                    <TableCell colSpan={10} className="py-10 text-center text-muted-foreground">
                       <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
                       Cargando…
                     </TableCell>
@@ -286,7 +319,7 @@ export function CxcEstadoCuenta({ noCia }: P) {
                 )}
                 {!loading && (data.documentos || []).length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
+                    <TableCell colSpan={10} className="py-10 text-center text-muted-foreground">
                       Sin documentos pendientes
                     </TableCell>
                   </TableRow>
@@ -296,7 +329,11 @@ export function CxcEstadoCuenta({ noCia }: P) {
                   const esCredito = (d.tipo_movi || '').toUpperCase() === 'C'
                   const saldo = Number(d.saldo || 0)
                   return (
-                    <TableRow key={`${d.tipo_doc}-${d.no_doc}`}>
+                    <TableRow
+                      key={`${d.tipo_doc}-${d.no_doc}`}
+                      className="cursor-pointer hover:bg-muted/40"
+                      onClick={() => setDetalleDoc(d)}
+                    >
                       <TableCell className="font-mono text-xs">{docCode(d.tipo_doc, d.no_doc)}</TableCell>
                       <TableCell>
                         <Badge variant={esCredito ? 'secondary' : 'outline'} className="text-xs">
@@ -318,6 +355,24 @@ export function CxcEstadoCuenta({ noCia }: P) {
                       <TableCell className="text-xs max-w-[200px] truncate" title={d.detalle}>
                         {d.detalle}
                       </TableCell>
+                      <TableCell className="text-right print:hidden" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex gap-1 justify-end">
+                          <Button
+                            size="icon" variant="ghost" className="h-7 w-7"
+                            onClick={() => setDetalleDoc(d)}
+                            title="Ver detalle"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            size="icon" variant="ghost" className="h-7 w-7"
+                            onClick={() => printDocCxc(d.tipo_doc, d.no_doc, noCia, punto || '01')}
+                            title="Imprimir documento"
+                          >
+                            <Printer className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   )
                 })}
@@ -330,7 +385,7 @@ export function CxcEstadoCuenta({ noCia }: P) {
                       <span className="tabular-nums text-emerald-700">{fmt(data.total_credito)}</span>
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums font-bold">{fmt(data.total_pendiente)}</td>
-                    <td colSpan={4} />
+                    <td colSpan={5} />
                   </tr>
                 </tfoot>
               )}
@@ -338,6 +393,77 @@ export function CxcEstadoCuenta({ noCia }: P) {
           </div>
         </>
       )}
+
+      {/* Modal detalle de documento */}
+      <Dialog open={!!detalleDoc} onOpenChange={(o) => !o && setDetalleDoc(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Documento {docCode(detalleDoc?.tipo_doc, detalleDoc?.no_doc)}
+            </DialogTitle>
+            <DialogDescription>
+              {detalleDoc?.tipo_label || detalleDoc?.tipo_doc} — {cli?.nombre}
+            </DialogDescription>
+          </DialogHeader>
+          {detalleDoc && (
+            <div className="space-y-4 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="text-xs text-muted-foreground">Fecha</div>
+                  <div className="font-mono tabular-nums">{fmtDate(detalleDoc.fecha)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Días transcurridos</div>
+                  <div className={`font-mono tabular-nums ${agingColor(Number(detalleDoc.dias_vencido || 0))}`}>
+                    {fmtInt(detalleDoc.dias_vencido)} días — {agingBadge(Number(detalleDoc.dias_vencido || 0))}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Valor original</div>
+                  <div className="font-mono tabular-nums">RD$ {fmt(detalleDoc.valor)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Saldo actual</div>
+                  <div className={`font-mono tabular-nums font-semibold text-base ${Number(detalleDoc.saldo) < 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                    RD$ {fmt(detalleDoc.saldo)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Tipo movimiento</div>
+                  <div>
+                    <Badge variant={(detalleDoc.tipo_movi || '').toUpperCase() === 'C' ? 'secondary' : 'outline'}>
+                      {(detalleDoc.tipo_movi || '').toUpperCase() === 'C' ? 'Crédito (CR)' : 'Débito (DR)'}
+                    </Badge>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">NCF</div>
+                  <div className="font-mono text-xs">{detalleDoc.ncf || '—'}</div>
+                </div>
+              </div>
+              {detalleDoc.detalle && (
+                <div className="border-t pt-3">
+                  <div className="text-xs text-muted-foreground mb-1">Detalle / Concepto</div>
+                  <div className="rounded bg-muted/30 px-3 py-2 text-sm">{detalleDoc.detalle}</div>
+                </div>
+              )}
+              <div className="border-t pt-3 flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setDetalleDoc(null)}>
+                  Cerrar
+                </Button>
+                <Button
+                  className="gap-1"
+                  onClick={() => printDocCxc(detalleDoc.tipo_doc, detalleDoc.no_doc, noCia, punto || '01')}
+                >
+                  <Printer className="h-4 w-4" />
+                  Imprimir documento
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

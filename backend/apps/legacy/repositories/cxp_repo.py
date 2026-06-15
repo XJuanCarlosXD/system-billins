@@ -181,6 +181,74 @@ def get_documento(no_cia, punto, tipo_docu, no_docu):
     return doc
 
 
+def estado_cuenta(no_cia: str, no_proveedor: str, punto: str = ''):
+    """Estado de cuenta del proveedor: header con datos + tabla de documentos
+    con saldo pendiente y envejecimiento por edad de la fecha de emisión."""
+    prov = client.fetch_dicts(
+        "SELECT no_proveedor, nombre, "
+        "       NVL(rnc,'') rnc, NVL(direccion,'') direccion, "
+        "       NVL(telefono,'') telefono, NVL(celular,'') celular, "
+        "       NVL(e_mail,'') email, NVL(encargado,'') encargado, "
+        "       NVL(plazo_pago,0) dias "
+        "FROM CXP.TCXP_DPROVEEDOR WHERE no_proveedor=:1",
+        [no_proveedor])
+    if not prov:
+        return None
+
+    where = "WHERE d.no_cia=:1 AND d.no_proveedor=:2 AND d.status='A' AND NVL(d.saldo,0)<>0"
+    params = [no_cia, no_proveedor]
+    if punto:
+        where += " AND d.punto=:3"
+        params.append(punto)
+    docs = client.fetch_dicts(
+        "SELECT d.no_docu no_doc, d.tipo_docu tipo_doc, d.punto, "
+        "       TO_CHAR(d.fecha,'YYYY-MM-DD') fecha, "
+        "       TO_CHAR(d.fecha_vence,'YYYY-MM-DD') fecha_vence, "
+        "       NVL(d.valor_original,0) valor, NVL(d.saldo,0) saldo, "
+        "       d.ncf, d.detalle, "
+        "       TRUNC(SYSDATE)-TRUNC(d.fecha) dias_vencido, "
+        "       NVL(t.tipo_movi,'D') tipo_movi, "
+        "       NVL(t.descri, d.tipo_docu) tipo_label "
+        "FROM CXP.TCXP_DOCUMENTO d "
+        "LEFT JOIN CXP.TCXP_TDOCU t ON t.tipo_docu=d.tipo_docu "
+        f"{where} ORDER BY d.fecha, d.no_docu",
+        params)
+
+    aging = {'d_0_30': 0.0, 'd_31_60': 0.0, 'd_61_90': 0.0, 'd_mas_90': 0.0}
+    total_debito = 0.0
+    total_credito = 0.0
+    for d in docs:
+        sld = float(d.get('saldo') or 0)
+        dv = int(d.get('dias_vencido') or 0)
+        if sld > 0:
+            total_debito += sld
+            if dv <= 30: aging['d_0_30'] += sld
+            elif dv <= 60: aging['d_31_60'] += sld
+            elif dv <= 90: aging['d_61_90'] += sld
+            else: aging['d_mas_90'] += sld
+        elif sld < 0:
+            total_credito += abs(sld)
+    total_pendiente = total_debito - total_credito
+
+    row = prov[0]
+    return {
+        'proveedor': {
+            'no_proveedor': str(row['no_proveedor']).strip(),
+            'nombre': row['nombre'],
+            'rnc': row['rnc'], 'direccion': row['direccion'],
+            'telefono': row['telefono'] or row['celular'],
+            'email': row['email'],
+            'encargado': row['encargado'],
+            'dias': int(row['dias'] or 0),
+        },
+        'total_pendiente': total_pendiente,
+        'total_debito': total_debito,
+        'total_credito': total_credito,
+        'aging': aging,
+        'documentos': docs,
+    }
+
+
 def get_documentos_afectados(no_cia, punto, tipo_docu, no_docu):
     """TCXP_REFEDOCU + datos del documento referenciado (saldo actual)."""
     sql = """

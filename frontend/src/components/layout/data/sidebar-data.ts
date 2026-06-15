@@ -227,6 +227,7 @@ export const sidebarData: SidebarData = {
             {
               title: 'Consultas',
               items: [
+                { title: 'Estado de Cuenta', url: '/cxp/estado-cuenta' },
                 { title: 'Antiguedad de Saldos', url: '/cxp/envejecimiento' },
                 {
                   title: 'Movimientos de Proveedores',
