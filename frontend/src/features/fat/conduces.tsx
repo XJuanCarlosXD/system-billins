@@ -85,6 +85,13 @@ type ConduceDetalle = Conduce & {
   }>
 }
 
+type TipoDoc = {
+  tipo_docu: string
+  descripcion: string
+  tipo_transaccion: string
+  activo: boolean | string
+}
+
 const fmtN = (n: number) =>
   n.toLocaleString('en-US', {
     minimumFractionDigits: 2,
@@ -97,6 +104,7 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [tipo, setTipo] = useState('ALL')
+  const [tiposDoc, setTiposDoc] = useState<TipoDoc[]>([])
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = 30
@@ -119,7 +127,14 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
         mes
       )
       .then((d) => {
-        setRows((d.items ?? []) as Conduce[])
+        const seen = new Set<string>()
+        const uniqueItems = ((d.items ?? []) as Conduce[]).filter((item) => {
+          const key = `${item.tipo_conduce}-${item.no_conduce}`
+          if (seen.has(key)) return false
+          seen.add(key)
+          return true
+        })
+        setRows(uniqueItems)
         setTotal(d.total ?? 0)
       })
       .catch(() => {})
@@ -130,6 +145,26 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
     setPage(1)
     load(1)
   }, [noCia, punto, ano, mes, tipo])
+
+  useEffect(() => {
+    if (!noCia) return
+    regalGeneralApi
+      .fatListDocumentTypes(noCia, punto)
+      .then((res) => {
+        const byCode = new Map<string, TipoDoc>()
+        const docs = (res.items ?? []) as TipoDoc[]
+        docs
+          .filter((d) => d.tipo_transaccion === 'C' && d.activo !== false && d.activo !== 'N')
+          .forEach((d) => {
+            const code = String(d.tipo_docu ?? '').trim()
+            if (code && !byCode.has(code)) {
+              byCode.set(code, { ...d, tipo_docu: code })
+            }
+          })
+        setTiposDoc(Array.from(byCode.values()))
+      })
+      .catch(() => setTiposDoc([]))
+  }, [noCia, punto])
 
   const handleSearch = () => {
     setPage(1)
@@ -280,14 +315,16 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
 
       <div className='flex flex-wrap gap-2'>
         <Select value={tipo} onValueChange={setTipo}>
-          <SelectTrigger className='h-9 w-40 text-sm'>
+          <SelectTrigger className='h-9 w-56 text-sm'>
             <SelectValue placeholder='Tipo' />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value='ALL'>Todos</SelectItem>
-            <SelectItem value='C'>Cotizacion</SelectItem>
-            <SelectItem value='D'>Conduce</SelectItem>
-            <SelectItem value='P'>Pedido</SelectItem>
+            {tiposDoc.map((d) => (
+              <SelectItem key={d.tipo_docu} value={d.tipo_docu}>
+                {d.tipo_docu} - {d.descripcion}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <div className='flex gap-1'>

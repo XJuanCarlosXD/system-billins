@@ -546,8 +546,10 @@ def list_conduces(no_cia: str, punto: str, page: int = 1, page_size: int = 30,
     where = " AND ".join(filters)
     total_row = client.fetch_one(
         f"SELECT COUNT(*) FROM FAT.TFAT_CONDUCE c "
-        f"LEFT JOIN CXC.TCXC_CLIENTE cl "
-        f"  ON cl.no_cia = c.no_cia AND cl.punto = c.punto AND cl.no_cliente = c.no_cliente "
+        f"LEFT JOIN ("
+        f"  SELECT no_cia, punto, no_cliente, MAX(nombre) AS nombre "
+        f"  FROM CXC.TCXC_CLIENTE GROUP BY no_cia, punto, no_cliente"
+        f") cl ON cl.no_cia = c.no_cia AND cl.punto = c.punto AND cl.no_cliente = c.no_cliente "
         f"WHERE {where}", params)
     total = int(total_row[0]) if total_row else 0
     if total == 0:
@@ -567,8 +569,10 @@ def list_conduces(no_cia: str, punto: str, page: int = 1, page_size: int = 30,
                     NVL(c.st_anulado,'N') AS st_anulado, NVL(c.st_impresion,'N') AS st_impresion,
                     c.clase, c.tipo_factura, c.no_factura, c.detalle
                 FROM FAT.TFAT_CONDUCE c
-                LEFT JOIN CXC.TCXC_CLIENTE cl
-                  ON cl.no_cia = c.no_cia AND cl.punto = c.punto AND cl.no_cliente = c.no_cliente
+                LEFT JOIN (
+                  SELECT no_cia, punto, no_cliente, MAX(nombre) AS nombre
+                  FROM CXC.TCXC_CLIENTE GROUP BY no_cia, punto, no_cliente
+                ) cl ON cl.no_cia = c.no_cia AND cl.punto = c.punto AND cl.no_cliente = c.no_cliente
                 WHERE {where}
                 ORDER BY c.fecha DESC, c.no_conduce DESC
             ) a WHERE ROWNUM <= :end_row
@@ -641,8 +645,10 @@ def get_conduce(no_cia: str, punto: str, tipo_conduce: str, no_conduce: str) -> 
         "c.forma_pago, c.no_condicion_pago, c.tipo_moneda, NVL(c.tasa_us,57.5) AS tasa_us, "
         "c.posiciones_fijas_ncf, c.ncf "
         "FROM FAT.TFAT_CONDUCE c "
-        "LEFT JOIN CXC.TCXC_CLIENTE cl "
-        "  ON cl.no_cia = c.no_cia AND cl.punto = c.punto AND cl.no_cliente = c.no_cliente "
+        "LEFT JOIN ("
+        "  SELECT no_cia, punto, no_cliente, MAX(nombre) AS nombre "
+        "  FROM CXC.TCXC_CLIENTE GROUP BY no_cia, punto, no_cliente"
+        ") cl ON cl.no_cia = c.no_cia AND cl.punto = c.punto AND cl.no_cliente = c.no_cliente "
         "WHERE c.no_cia=:1 AND c.punto=:2 AND c.tipo_conduce=:3 AND c.no_conduce=:4",
         [no_cia, punto, tipo_conduce.strip().upper(), no_conduce.strip()])
     if not rows:

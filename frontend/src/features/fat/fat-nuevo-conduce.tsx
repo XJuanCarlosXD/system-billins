@@ -53,7 +53,7 @@ interface TipoDoc {
   descripcion: string
   tipo_transaccion: string
   almacen: string
-  activo: string
+  activo: boolean | string
 }
 
 interface Vendedor {
@@ -123,7 +123,6 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
   const [tiposPago, setTiposPago] = useState<TipoPago[]>([])
   const [noLista, setNoLista] = useState<string>('1')
 
-  const [tipoPedido, setTipoPedido] = useState('CO')
   const [tipoDoc, setTipoDoc] = useState('')
   const [cantBultos, setCantBultos] = useState<number>(0)
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
@@ -196,10 +195,26 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
             regalGeneralApi.fatListasPrecio(noCia, punto),
             regalGeneralApi.invAlmacenes(noCia, punto),
           ])
-        const conduces = (docsRes.items || []).filter(
-          (d: TipoDoc) => d.tipo_transaccion === 'C'
-        )
+        const conducesMap = new Map<string, TipoDoc>()
+        const docs = (docsRes.items || []) as TipoDoc[]
+        docs
+          .filter(
+            (d) =>
+              d.tipo_transaccion === 'C' &&
+              d.activo !== false &&
+              d.activo !== 'N'
+          )
+          .forEach((d) => {
+            const code = String(d.tipo_docu ?? '').trim()
+            if (code && !conducesMap.has(code)) {
+              conducesMap.set(code, { ...d, tipo_docu: code })
+            }
+          })
+        const conduces = Array.from(conducesMap.values())
         setTiposDoc(conduces)
+        if (!editId && conduces.length > 0) {
+          setTipoDoc((prev) => prev || conduces[0].tipo_docu)
+        }
         setVendedores(vendsRes.items || [])
         setTiposPago(pagosRes.items || [])
 
@@ -794,19 +809,7 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
 
       {/* ── Section 1: Header fields ── */}
       <div className='space-y-3 rounded-md border p-4'>
-        <div className='grid grid-cols-6 items-end gap-3'>
-          <div className='space-y-1'>
-            <Label>Tipo Pedido/Cot.</Label>
-            <Select value={tipoPedido} onValueChange={setTipoPedido}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value='CO'>CO - Conduce</SelectItem>
-                <SelectItem value='CT'>CT - Cotizacion</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <div className='grid grid-cols-5 items-end gap-3'>
           <div className='space-y-1'>
             <Label>Tipo Documento</Label>
             <Select value={tipoDoc} onValueChange={setTipoDoc}>
