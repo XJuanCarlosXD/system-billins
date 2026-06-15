@@ -111,6 +111,7 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
 
   const [selected, setSelected] = useState<ConduceDetalle | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const detailLookupSeqRef = useRef(0)
 
   const load = (p = 1) => {
     if (!noCia) return
@@ -127,14 +128,7 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
         mes
       )
       .then((d) => {
-        const seen = new Set<string>()
-        const uniqueItems = ((d.items ?? []) as Conduce[]).filter((item) => {
-          const key = `${item.tipo_conduce}-${item.no_conduce}`
-          if (seen.has(key)) return false
-          seen.add(key)
-          return true
-        })
-        setRows(uniqueItems)
+        setRows((d.items ?? []) as Conduce[])
         setTotal(d.total ?? 0)
       })
       .catch(() => {})
@@ -172,6 +166,7 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
   }
 
   const openDetail = async (row: Conduce) => {
+    const requestId = ++detailLookupSeqRef.current
     setLoadingDetail(true)
     try {
       const d = await regalGeneralApi.fatGetConduce(
@@ -180,11 +175,12 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
         row.tipo_conduce,
         row.no_conduce
       )
+      if (requestId !== detailLookupSeqRef.current) return
       setSelected(d as ConduceDetalle)
     } catch {
       /* ignore */
     } finally {
-      setLoadingDetail(false)
+      if (requestId === detailLookupSeqRef.current) setLoadingDetail(false)
     }
   }
 
