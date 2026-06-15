@@ -1,126 +1,339 @@
 // CXC Consultas: estado cuenta, balance, histórico, libro ventas
-import { useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Search, FileDown } from 'lucide-react'
+import { Search, FileDown, Printer, Loader2, FileText } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
+import { ClientePicker, type Cliente } from '@/components/cxc/cliente-picker'
+import './print-estado-cuenta.css'
 
 interface P { noCia: string; punto?: string; mes?: number; ano?: number }
 
-const fmt = (n: any) => Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })
+const fmt = (n: any) => Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const fmtInt = (n: any) => Number(n || 0).toLocaleString('es-DO')
 const today = new Date().toISOString().slice(0, 10)
 const firstOfMonth = today.slice(0, 7) + '-01'
+const fmtDate = (s: any) => s ? String(s).slice(0, 10) : ''
+
+const docPrefijoTipo = (tipo: string) => (tipo || '').toString().trim().toUpperCase()
+const docCode = (tipo: any, no: any) => {
+  const t = docPrefijoTipo(tipo)
+  const n = (no || '').toString().trim()
+  return t ? `${t}-${n}` : n
+}
 
 // ─── Estado de Cuenta ─────────────────────────────────────────────────────────
 export function CxcEstadoCuenta({ noCia }: P) {
-  const [noCliente, setNoCliente] = useState('')
-  const [clienteQ, setClienteQ] = useState('')
-  const [clienteOpts, setClienteOpts] = useState<any[]>([])
+  const [cliente, setCliente] = useState<Cliente | null>(null)
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(false)
-
-  const searchCliente = async () => {
-    if (!clienteQ.trim()) return
-    const res = await regalGeneralApi.cxcListClientes(noCia, clienteQ, 1)
-    setClienteOpts(res.items || [])
-  }
-
-  const selectCliente = (c: any) => {
-    setNoCliente(c.no_cliente)
-    setClienteOpts([])
-    setClienteQ(c.nombre_cliente)
-  }
+  const [fechaCorte, setFechaCorte] = useState(today)
 
   const load = async () => {
-    if (!noCliente) return
+    if (!cliente?.no_cliente) return
     setLoading(true)
     try {
-      const res = await regalGeneralApi.cxcEstadoCuenta(noCia, noCliente)
+      const res = await regalGeneralApi.cxcEstadoCuenta(noCia, String(cliente.no_cliente))
       setData(res)
     } finally { setLoading(false) }
   }
 
-  const aging = (diasVencido: number) => {
-    if (diasVencido <= 30) return 'text-green-600'
-    if (diasVencido <= 60) return 'text-yellow-600'
-    if (diasVencido <= 90) return 'text-orange-600'
+  // Auto-consultar cuando se selecciona un cliente nuevo
+  useEffect(() => {
+    if (cliente?.no_cliente) load()
+    else setData(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cliente?.no_cliente])
+
+  const agingColor = (dias: number) => {
+    if (dias <= 30) return 'text-emerald-700'
+    if (dias <= 60) return 'text-yellow-700'
+    if (dias <= 90) return 'text-orange-700'
     return 'text-red-700 font-semibold'
   }
 
+  const agingBadge = (dias: number) => {
+    if (dias <= 30) return 'Al día'
+    if (dias <= 60) return '31–60 d'
+    if (dias <= 90) return '61–90 d'
+    return '+90 d'
+  }
+
+  const handleImprimir = () => window.print()
+
+  const handleExportCsv = () => {
+    if (!data?.documentos?.length) return
+    const headers = ['Documento','Tipo','Fecha','Detalle','NCF','Valor','Saldo','Días']
+    const rows = data.documentos.map((d: any) => [
+      docCode(d.tipo_doc, d.no_doc), d.tipo_label || d.tipo_doc,
+      fmtDate(d.fecha), (d.detalle || '').replace(/[,;\n]/g, ' '),
+      d.ncf || '', d.valor, d.saldo, d.dias_vencido,
+    ])
+    const csv = [headers, ...rows].map((r) => r.join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `estado_cuenta_${cliente?.no_cliente || 'cliente'}_${today}.csv`
+    a.click()
+  }
+
+  const cli = data?.cliente
+  const aging = data?.aging || {}
+
   return (
-    <div className="p-6 space-y-4">
-      <h1 className="text-2xl font-semibold">Estado de Cuenta</h1>
-      <div className="flex gap-2 items-end">
-        <div className="space-y-1 relative">
-          <Label>Cliente</Label>
-          <div className="flex gap-2">
-            <Input value={clienteQ} onChange={e => { setClienteQ(e.target.value); if (!e.target.value) setNoCliente('') }}
-              onKeyDown={e => e.key === 'Enter' && searchCliente()} placeholder="Nombre o código..." className="w-72" />
-            <Button onClick={searchCliente} variant="secondary" size="sm"><Search className="h-4 w-4" /></Button>
-          </div>
-          {clienteOpts.length > 0 && (
-            <div className="absolute top-full mt-1 border rounded shadow-md bg-background max-h-48 overflow-y-auto z-20 w-full">
-              {clienteOpts.map(c => (
-                <button key={c.no_cliente} onClick={() => selectCliente(c)} className="w-full text-left px-3 py-2 text-sm hover:bg-muted border-b last:border-0">
-                  {c.no_cliente} — {c.nombre_cliente}
-                </button>
-              ))}
-            </div>
-          )}
+    <div className="p-6 space-y-4 print:p-0">
+      {/* Header pantalla — se oculta al imprimir */}
+      <div className="flex items-start justify-between gap-3 print:hidden">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Estado de Cuenta</h1>
+          <p className="text-sm text-muted-foreground">
+            Consulta de saldos abiertos del cliente con envejecimiento de cartera.
+          </p>
         </div>
-        <div className="space-y-1">
-          <Label>No. Cliente</Label>
-          <Input value={noCliente} onChange={e => setNoCliente(e.target.value)} className="font-mono w-28" />
+        <div className="flex gap-2">
+          <Button
+            onClick={handleExportCsv}
+            disabled={!data?.documentos?.length}
+            variant="outline" size="sm"
+            className="gap-1"
+          >
+            <FileDown className="h-4 w-4" /> CSV
+          </Button>
+          <Button
+            onClick={handleImprimir}
+            disabled={!data?.documentos?.length}
+            variant="outline" size="sm"
+            className="gap-1"
+          >
+            <Printer className="h-4 w-4" /> Imprimir
+          </Button>
         </div>
-        <Button onClick={load} className="gap-1"><Search className="h-4 w-4" />Consultar</Button>
       </div>
+
+      {/* Filtros — se oculta al imprimir */}
+      <div className="space-y-3 rounded-lg border bg-muted/30 p-3 print:hidden">
+        <div className="flex flex-col md:flex-row md:items-end gap-3">
+          <div className="flex-1 space-y-1">
+            <Label className="text-xs">Cliente</Label>
+            <ClientePicker noCia={noCia} cliente={cliente} onChange={setCliente} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Fecha de corte</Label>
+            <Input
+              type="date" value={fechaCorte}
+              onChange={(e) => setFechaCorte(e.target.value)}
+              className="h-9 w-40"
+            />
+          </div>
+          <Button
+            onClick={load} disabled={!cliente || loading}
+            size="sm" className="h-9 gap-1"
+          >
+            {loading
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <Search className="h-4 w-4" />}
+            Actualizar
+          </Button>
+        </div>
+      </div>
+
+      {!data && !loading && (
+        <div className="rounded-md border-2 border-dashed p-12 text-center text-muted-foreground print:hidden">
+          <FileText className="h-8 w-8 mx-auto mb-3 opacity-30" />
+          <p className="text-sm">Seleccione un cliente para ver su estado de cuenta.</p>
+        </div>
+      )}
 
       {data && (
         <>
-          <div className="grid grid-cols-3 gap-3 border rounded-lg p-4 bg-blue-50 border-blue-200">
-            <div><span className="text-muted-foreground text-sm">Cliente:</span><div className="font-semibold">{data.cliente?.nombre}</div></div>
-            <div><span className="text-muted-foreground text-sm">Límite Crédito:</span><div className="font-semibold">{fmt(data.cliente?.limite)}</div></div>
-            <div><span className="text-muted-foreground text-sm">Días Crédito:</span><div className="font-semibold">{data.cliente?.dias} días</div></div>
-            <div className="col-span-3 pt-2 border-t border-blue-200">
-              <span className="text-muted-foreground text-sm">Total Pendiente:</span>
-              <span className="text-xl font-bold text-red-700 ml-2">{fmt(data.total_pendiente)}</span>
-            </div>
+          {/* Encabezado de impresión (solo visible al imprimir) */}
+          <div className="hidden print:block print-header">
+            <table className="w-full">
+              <tbody>
+                <tr>
+                  <td className="align-top text-left">
+                    <div className="font-bold text-base">ESTADO DE CUENTA</div>
+                    <div className="text-[11px]">Fecha de corte: {fmtDate(fechaCorte)}</div>
+                  </td>
+                  <td className="align-top text-right text-[10px]">
+                    Generado: {new Date().toLocaleString('es-DO')}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
+          {/* Datos del cliente */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <span className="font-mono text-sm bg-muted px-2 py-0.5 rounded">{cli?.no_cliente}</span>
+                {cli?.nombre}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-1">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                {cli?.rnc && (
+                  <div>
+                    <div className="text-xs text-muted-foreground">RNC / Cédula</div>
+                    <div className="font-mono">{cli.rnc}</div>
+                  </div>
+                )}
+                {cli?.direccion && (
+                  <div className="col-span-2">
+                    <div className="text-xs text-muted-foreground">Dirección</div>
+                    <div className="truncate" title={cli.direccion}>{cli.direccion}</div>
+                  </div>
+                )}
+                {cli?.telefono && (
+                  <div>
+                    <div className="text-xs text-muted-foreground">Teléfono</div>
+                    <div className="font-mono">{cli.telefono}</div>
+                  </div>
+                )}
+                {cli?.vendedor && (
+                  <div>
+                    <div className="text-xs text-muted-foreground">Vendedor</div>
+                    <div>{cli.vendedor}</div>
+                  </div>
+                )}
+                <div>
+                  <div className="text-xs text-muted-foreground">Límite de crédito</div>
+                  <div className="font-mono tabular-nums">RD$ {fmt(cli?.limite)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Plazo</div>
+                  <div>{fmtInt(cli?.dias)} días</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* KPIs y aging */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <Card className="bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-900">
+              <CardHeader className="pb-1">
+                <CardTitle className="text-xs text-muted-foreground font-medium">Total pendiente</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className={`text-xl font-bold tabular-nums ${data.total_pendiente > 0 ? 'text-blue-900 dark:text-blue-200' : 'text-emerald-700'}`}>
+                  RD$ {fmt(data.total_pendiente)}
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-900">
+              <CardHeader className="pb-1">
+                <CardTitle className="text-xs text-muted-foreground font-medium">Al día (0–30)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-lg font-semibold text-emerald-700 tabular-nums">RD$ {fmt(aging.d_0_30)}</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-yellow-50 border-yellow-200 dark:bg-yellow-950/30 dark:border-yellow-900">
+              <CardHeader className="pb-1">
+                <CardTitle className="text-xs text-muted-foreground font-medium">31–60 días</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-lg font-semibold text-yellow-700 tabular-nums">RD$ {fmt(aging.d_31_60)}</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-orange-50 border-orange-200 dark:bg-orange-950/30 dark:border-orange-900">
+              <CardHeader className="pb-1">
+                <CardTitle className="text-xs text-muted-foreground font-medium">61–90 días</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-lg font-semibold text-orange-700 tabular-nums">RD$ {fmt(aging.d_61_90)}</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-900">
+              <CardHeader className="pb-1">
+                <CardTitle className="text-xs text-muted-foreground font-medium">+90 días (vencido)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-lg font-semibold text-red-700 tabular-nums">RD$ {fmt(aging.d_mas_90)}</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Tabla de documentos */}
           <div className="border rounded-lg overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-28">Documento</TableHead>
-                  <TableHead className="w-20">Tipo</TableHead>
-                  <TableHead className="w-28">Fecha</TableHead>
+                  <TableHead className="w-32">Documento</TableHead>
+                  <TableHead className="w-32">Tipo</TableHead>
+                  <TableHead className="w-24">Fecha</TableHead>
                   <TableHead className="w-32 text-right">Valor</TableHead>
                   <TableHead className="w-32 text-right">Saldo</TableHead>
-                  <TableHead className="w-24 text-center">Días</TableHead>
+                  <TableHead className="w-20 text-center">Días</TableHead>
+                  <TableHead className="w-24 text-center">Envejec.</TableHead>
+                  <TableHead className="w-32">NCF</TableHead>
                   <TableHead>Detalle</TableHead>
-                  <TableHead className="w-28">NCF</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(data.documentos || []).map((d: any) => (
-                  <TableRow key={d.no_doc}>
-                    <TableCell className="font-mono text-sm">{d.no_doc}</TableCell>
-                    <TableCell><Badge variant="outline">{d.tipo_doc}</Badge></TableCell>
-                    <TableCell>{d.fecha}</TableCell>
-                    <TableCell className="text-right">{fmt(d.valor)}</TableCell>
-                    <TableCell className="text-right font-medium">{fmt(d.saldo)}</TableCell>
-                    <TableCell className={`text-center ${aging(d.dias_vencido)}`}>{d.dias_vencido}</TableCell>
-                    <TableCell className="truncate max-w-[160px]">{d.detalle}</TableCell>
-                    <TableCell className="font-mono text-xs">{d.ncf}</TableCell>
+                {loading && (
+                  <TableRow>
+                    <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
+                      <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
+                      Cargando…
+                    </TableCell>
                   </TableRow>
-                ))}
-                {(data.documentos || []).length === 0 && (
-                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Sin documentos pendientes</TableCell></TableRow>
                 )}
+                {!loading && (data.documentos || []).length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
+                      Sin documentos pendientes
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!loading && (data.documentos || []).map((d: any) => {
+                  const dias = Number(d.dias_vencido) || 0
+                  const esCredito = (d.tipo_movi || '').toUpperCase() === 'C'
+                  const saldo = Number(d.saldo || 0)
+                  return (
+                    <TableRow key={`${d.tipo_doc}-${d.no_doc}`}>
+                      <TableCell className="font-mono text-xs">{docCode(d.tipo_doc, d.no_doc)}</TableCell>
+                      <TableCell>
+                        <Badge variant={esCredito ? 'secondary' : 'outline'} className="text-xs">
+                          {d.tipo_label || d.tipo_doc}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs tabular-nums">{fmtDate(d.fecha)}</TableCell>
+                      <TableCell className="text-right font-mono tabular-nums">{fmt(d.valor)}</TableCell>
+                      <TableCell className={`text-right font-mono tabular-nums font-medium ${saldo < 0 ? 'text-emerald-700' : ''}`}>
+                        {fmt(saldo)}
+                      </TableCell>
+                      <TableCell className={`text-center tabular-nums ${agingColor(dias)}`}>{fmtInt(dias)}</TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="outline" className={`text-[10px] ${agingColor(dias)}`}>
+                          {agingBadge(dias)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-mono text-[11px]">{d.ncf || ''}</TableCell>
+                      <TableCell className="text-xs max-w-[200px] truncate" title={d.detalle}>
+                        {d.detalle}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
+              {!loading && (data.documentos || []).length > 0 && (
+                <tfoot>
+                  <tr className="font-semibold bg-muted/50 border-t-2 text-sm">
+                    <td colSpan={4} className="px-3 py-2 text-right">
+                      Totales — Débito: <span className="tabular-nums">{fmt(data.total_debito)}</span> · Crédito:{' '}
+                      <span className="tabular-nums text-emerald-700">{fmt(data.total_credito)}</span>
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums font-bold">{fmt(data.total_pendiente)}</td>
+                    <td colSpan={4} />
+                  </tr>
+                </tfoot>
+              )}
             </Table>
           </div>
         </>

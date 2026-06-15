@@ -1161,26 +1161,68 @@ def corregir_ncf(no_cia: str, no_docu: str, ncf: str, ncf_anterior: str = ''):
 
 def estado_cuenta(no_cia: str, no_cliente: str):
     cli = client.fetch_dicts(
-        "SELECT no_cliente, nombre, NVL(limite_credito,0) limite, "
-        "NVL(plazo,0) dias, NVL(debitos,0)-NVL(creditos,0) saldo_actual "
+        "SELECT no_cliente, nombre, "
+        "       NVL(rnc,'') rnc, NVL(direccion,'') direccion, "
+        "       NVL(telefono,'') telefono, NVL(celular,'') celular, "
+        "       NVL(e_mail,'') email, NVL(vendedor,'') vendedor, "
+        "       NVL(cobrador,'') cobrador, "
+        "       NVL(limite_credito,0) limite, NVL(plazo,0) dias, "
+        "       NVL(debitos,0)-NVL(creditos,0) saldo_actual "
         "FROM CXC.TCXC_CLIENTE WHERE no_cia=:1 AND no_cliente=:2",
         [no_cia, no_cliente])
     if not cli:
         return None
     docs = client.fetch_dicts(
-        "SELECT no_docu no_doc, tipo_docu tipo_doc, fecha, "
-        "NVL(valor_original,0) valor, NVL(saldo,0) saldo,"
-        "ncf, detalle, TRUNC(SYSDATE)-TRUNC(fecha) dias_vencido "
-        "FROM CXC.TCXC_DOCUMENTO "
-        "WHERE no_cia=:1 AND no_cliente=:2 AND NVL(st_anulado,'N')='N' "
-        "AND NVL(saldo,0)<>0 ORDER BY fecha",
+        "SELECT d.no_docu no_doc, d.tipo_docu tipo_doc, "
+        "       TO_CHAR(d.fecha,'YYYY-MM-DD') fecha, "
+        "       NVL(d.valor_original,0) valor, NVL(d.saldo,0) saldo, "
+        "       d.ncf, d.detalle, "
+        "       TRUNC(SYSDATE)-TRUNC(d.fecha) dias_vencido, "
+        "       NVL(t.tipo_movi,'D') tipo_movi, "
+        "       NVL(t.descripcion, d.tipo_docu) tipo_label "
+        "FROM CXC.TCXC_DOCUMENTO d "
+        "LEFT JOIN CXC.TCXC_TDOCU t "
+        "  ON t.no_cia=d.no_cia AND t.tipo_docu=d.tipo_docu "
+        "WHERE d.no_cia=:1 AND d.no_cliente=:2 "
+        "  AND NVL(d.st_anulado,'N')='N' AND NVL(d.saldo,0)<>0 "
+        "ORDER BY d.fecha, d.no_docu",
         [no_cia, no_cliente])
     row = cli[0]
-    total_pendiente = sum(d.get('saldo', 0) for d in docs)
+
+    # Aging buckets (basados en saldo positivo = débito pendiente del cliente)
+    aging = {'d_0_30': 0.0, 'd_31_60': 0.0, 'd_61_90': 0.0, 'd_mas_90': 0.0}
+    total_debito = 0.0
+    total_credito = 0.0
+    for d in docs:
+        sld = float(d.get('saldo') or 0)
+        dv = int(d.get('dias_vencido') or 0)
+        if sld > 0:
+            total_debito += sld
+            if dv <= 30: aging['d_0_30'] += sld
+            elif dv <= 60: aging['d_31_60'] += sld
+            elif dv <= 90: aging['d_61_90'] += sld
+            else: aging['d_mas_90'] += sld
+        elif sld < 0:
+            total_credito += abs(sld)
+    total_pendiente = total_debito - total_credito
+
     return {
-        'cliente': {'nombre': row['nombre'], 'limite': row['limite'], 'dias': row['dias']},
+        'cliente': {
+            'no_cliente': str(row['no_cliente']).strip(),
+            'nombre': row['nombre'],
+            'rnc': row['rnc'], 'direccion': row['direccion'],
+            'telefono': row['telefono'] or row['celular'],
+            'email': row['email'],
+            'vendedor': row['vendedor'], 'cobrador': row['cobrador'],
+            'limite': float(row['limite'] or 0),
+            'dias': int(row['dias'] or 0),
+            'saldo_actual': float(row['saldo_actual'] or 0),
+        },
         'total_pendiente': total_pendiente,
-        'documentos': docs
+        'total_debito': total_debito,
+        'total_credito': total_credito,
+        'aging': aging,
+        'documentos': docs,
     }
 
 def balance_clientes(no_cia: str, punto: str = ''):

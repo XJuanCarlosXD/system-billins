@@ -1,0 +1,110 @@
+/* Estilos solo para impresión del Estado de Cuenta CxC. */
+@media print {
+  /* Página y body */
+  @page {
+    size: A4 landscape;
+    margin: 12mm 10mm;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 10px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Esconder navegación del shell */
+  aside,
+  nav,
+  header[role='banner'],
+  .app-shell-sidebar,
+  .app-shell-header,
+  button[aria-label='Toggle Sidebar'] {
+    display: none !important;
+  }
+
+  /* Caja principal a ancho completo */
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Reducir el padding del contenedor del componente */
+  .p-6 {
+    padding: 0 !important;
+  }
+
+  /* KPI cards: 5 columnas siempre */
+  .grid {
+    display: grid !important;
+    page-break-inside: avoid;
+  }
+  .grid-cols-2,
+  .md\:grid-cols-4,
+  .md\:grid-cols-5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+
+  /* Tablas: no romper filas */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tr {
+    page-break-inside: avoid;
+  }
+  th,
+  td {
+    border: 1px solid #ccc !important;
+    padding: 3px 6px !important;
+    font-size: 9.5px !important;
+  }
+  thead th {
+    background: #f4f4f5 !important;
+    font-weight: bold !important;
+  }
+  tfoot td {
+    background: #f4f4f5 !important;
+    font-weight: bold !important;
+  }
+
+  /* Header del print */
+  .print-header {
+    border-bottom: 2px solid #000;
+    padding-bottom: 4px;
+    margin-bottom: 8px;
+  }
+  .print-header td {
+    border: none !important;
+    padding: 2px 0 !important;
+  }
+
+  /* Cards: bordes simples */
+  [class*='Card'],
+  .border {
+    border: 1px solid #aaa !important;
+    box-shadow: none !important;
+    background: white !important;
+  }
+
+  /* Quita backgrounds chillones de los KPI */
+  .bg-blue-50,
+  .bg-emerald-50,
+  .bg-yellow-50,
+  .bg-orange-50,
+  .bg-red-50,
+  .bg-muted\/30,
+  .bg-muted\/50 {
+    background: #fafafa !important;
+  }
+
+  /* Colores de texto para aging — mantener semaforización */
+  .text-emerald-700 { color: #047857 !important; }
+  .text-yellow-700 { color: #a16207 !important; }
+  .text-orange-700 { color: #c2410c !important; }
+  .text-red-700 { color: #b91c1c !important; }
+}
