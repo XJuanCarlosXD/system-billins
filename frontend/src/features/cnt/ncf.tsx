@@ -217,43 +217,130 @@ function NcfEditDialog({
   onClose: () => void
   onSaved: () => void
 }) {
+  const [ncfInicial, setNcfInicial] = useState(String(row.ncf_inicial || ''))
   const [ncfFinal, setNcfFinal] = useState(String(row.ncf_final || ''))
+  const [proxNcf, setProxNcf] = useState(String(row.prox_ncf || ''))
   const [cantMin, setCantMin] = useState(String(row.cant_min_ncf || 50))
+  const [fechaVenc, setFechaVenc] = useState(
+    row.fecha_vencimiento ? String(row.fecha_vencimiento).slice(0, 10) : '',
+  )
+  const [ncfManual, setNcfManual] = useState(row.ncf_manual === 'S' || row.ncf_manual === true)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string>('')
+
+  const validarRango = () => {
+    const ini = Number(ncfInicial)
+    const fin = Number(ncfFinal)
+    const px = Number(proxNcf)
+    if (!Number.isFinite(ini) || !Number.isFinite(fin) || !Number.isFinite(px)) {
+      return 'Los NCF deben ser números enteros.'
+    }
+    if (fin < ini) return 'El NCF final debe ser ≥ NCF inicial.'
+    if (px < ini || px > fin + 1) return `El Próximo NCF debe estar entre ${ini} y ${fin + 1}.`
+    return ''
+  }
 
   const save = async () => {
-    setSaving(true)
+    const errVal = validarRango()
+    if (errVal) { setError(errVal); return }
+    setSaving(true); setError('')
     try {
       await regalGeneralApi.cntUpdateNcf(row.codigo_ncf, {
         no_cia: noCia,
         punto,
+        ncf_inicial: Number(ncfInicial),
         ncf_final: Number(ncfFinal),
+        prox_ncf: Number(proxNcf),
         cant_min_ncf: Number(cantMin),
+        fecha_vencimiento: fechaVenc || null,
+        ncf_manual: ncfManual ? 'S' : 'N',
       })
       onSaved()
+    } catch (e: any) {
+      setError(e?.message || 'No se pudo guardar')
     } finally {
       setSaving(false)
     }
   }
 
+  const disponibles = Math.max(0, Number(ncfFinal) - Number(proxNcf) + 1)
+
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
+      <DialogContent className='max-w-md'>
         <DialogHeader>
           <DialogTitle>Editar NCF {row.codigo_ncf}</DialogTitle>
         </DialogHeader>
         <div className='space-y-3 text-sm'>
-          <div className='space-y-1'>
-            <label className='text-xs font-medium'>NCF final</label>
-            <Input value={ncfFinal} onChange={(event) => setNcfFinal(event.target.value)} className='h-9' />
+          <div className='rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground'>
+            <div><b>Tipo DGI:</b> {row.posiciones_fijas || '—'} ({row.tipo_ncf_fiscal || ''})</div>
+            <div className='mt-1'><b>Disponibles si se aplican estos valores:</b> <span className='font-mono'>{disponibles}</span></div>
+          </div>
+          <div className='grid grid-cols-2 gap-3'>
+            <div className='space-y-1'>
+              <label className='text-xs font-medium'>NCF inicial</label>
+              <Input
+                type='number' min='0' value={ncfInicial}
+                onChange={(e) => setNcfInicial(e.target.value)}
+                className='h-9 font-mono'
+              />
+            </div>
+            <div className='space-y-1'>
+              <label className='text-xs font-medium'>NCF final</label>
+              <Input
+                type='number' min='0' value={ncfFinal}
+                onChange={(e) => setNcfFinal(e.target.value)}
+                className='h-9 font-mono'
+              />
+            </div>
           </div>
           <div className='space-y-1'>
-            <label className='text-xs font-medium'>Minimo de alerta</label>
-            <Input value={cantMin} onChange={(event) => setCantMin(event.target.value)} className='h-9' />
+            <label className='text-xs font-medium'>Próximo NCF a emitir</label>
+            <Input
+              type='number' min='0' value={proxNcf}
+              onChange={(e) => setProxNcf(e.target.value)}
+              className='h-9 font-mono'
+            />
+            <p className='text-[11px] text-muted-foreground'>
+              Debe estar dentro del rango [inicial, final + 1]. Usa este campo si necesitas
+              reposicionar la secuencia.
+            </p>
           </div>
-          <div className='flex justify-end gap-2'>
+          <div className='grid grid-cols-2 gap-3'>
+            <div className='space-y-1'>
+              <label className='text-xs font-medium'>Mínimo de alerta</label>
+              <Input
+                type='number' min='0' value={cantMin}
+                onChange={(e) => setCantMin(e.target.value)}
+                className='h-9 font-mono'
+              />
+            </div>
+            <div className='space-y-1'>
+              <label className='text-xs font-medium'>Fecha vencimiento</label>
+              <Input
+                type='date' value={fechaVenc}
+                onChange={(e) => setFechaVenc(e.target.value)}
+                className='h-9'
+              />
+            </div>
+          </div>
+          <label className='flex items-center gap-2 text-xs'>
+            <Checkbox
+              checked={ncfManual}
+              onCheckedChange={(v) => setNcfManual(v === true)}
+            />
+            NCF manual (el usuario lo ingresa al facturar)
+          </label>
+
+          {error && (
+            <div className='rounded border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive'>
+              {error}
+            </div>
+          )}
+
+          <div className='flex justify-end gap-2 pt-2'>
             <Button variant='outline' size='sm' onClick={onClose}>Cancelar</Button>
-            <Button size='sm' onClick={save} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</Button>
+            <Button size='sm' onClick={save} disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</Button>
           </div>
         </div>
       </DialogContent>

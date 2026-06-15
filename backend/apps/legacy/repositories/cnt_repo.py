@@ -172,7 +172,42 @@ def list_ncf(no_cia: str = ''):
 
 
 def update_ncf(no_cia: str, codigo_ncf: str, **kwargs):
-    allowed = {'ncf_final', 'cant_min_ncf', 'fecha_vencimiento', 'ncf_manual'}
+    """Actualiza una secuencia NCF.
+
+    Campos editables: ncf_inicial, ncf_final, prox_ncf, cant_min_ncf,
+    fecha_vencimiento, ncf_manual. Si se intenta cambiar prox_ncf por fuera
+    del rango [ncf_inicial, ncf_final+1], se rechaza.
+    """
+    allowed = {'ncf_inicial', 'ncf_final', 'prox_ncf', 'cant_min_ncf',
+               'fecha_vencimiento', 'ncf_manual'}
+    # Normaliza ncf_manual booleano/string a 'S'/'N'
+    if 'ncf_manual' in kwargs:
+        v = kwargs['ncf_manual']
+        if isinstance(v, bool):
+            kwargs['ncf_manual'] = 'S' if v else 'N'
+        elif isinstance(v, str):
+            kwargs['ncf_manual'] = 'S' if v.upper() in ('S', 'TRUE', '1', 'Y') else 'N'
+    # Valida prox_ncf contra rango
+    if 'prox_ncf' in kwargs and kwargs['prox_ncf'] is not None:
+        try:
+            px = int(kwargs['prox_ncf'])
+        except (TypeError, ValueError):
+            raise ValueError('prox_ncf inválido')
+        with client.connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT ncf_inicial, ncf_final FROM CNT.TCNT_NCF "
+                "WHERE no_localidad=:1 AND codigo_ncf=:2",
+                [no_cia, codigo_ncf])
+            r = cur.fetchone()
+        if r:
+            ini = int(r[0] or 0)
+            fin = int(kwargs.get('ncf_final') or r[1] or 0)
+            if px < ini or (fin and px > fin + 1):
+                raise ValueError(
+                    f'prox_ncf={px} fuera del rango [{ini}, {fin}+1]')
+        kwargs['prox_ncf'] = px
+
     sets = []
     params = []
     for k, v in kwargs.items():

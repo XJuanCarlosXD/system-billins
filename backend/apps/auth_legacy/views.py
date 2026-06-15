@@ -56,12 +56,20 @@ class MeView(APIView):
             is_admin = users_repo.is_dba(username)
         except Exception:
             is_admin = False
+        modules = permissions_repo.list_user_modules(username)
+        all_companies = companies_repo.list_active()
+        if is_admin:
+            companies = all_companies
+        else:
+            # Solo empresas en las que el usuario tiene al menos un módulo activo
+            allowed_cias = {m['no_cia'] for m in modules if m.get('activo')}
+            companies = [c for c in all_companies if c.no_cia in allowed_cias]
         return Response({
             'username': username,
             'is_authenticated': True,
             'is_admin': is_admin,
-            'companies': [c.to_dict() for c in companies_repo.list_active()],
-            'modules': permissions_repo.list_user_modules(username),
+            'companies': [c.to_dict() for c in companies],
+            'modules': modules,
         })
 
 
