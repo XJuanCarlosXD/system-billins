@@ -366,9 +366,12 @@ def list_existencias(
         i = len(params)
         where_outer.append(f"p.grupo_produ = :{i}")
     if search:
+        # Match por descripción O código de producto.
         params.append(f'%{search}%')
         i = len(params)
-        where_outer.append(f"UPPER(p.descri) LIKE UPPER(:{i})")
+        where_outer.append(
+            f"(UPPER(p.descri) LIKE UPPER(:{i}) OR p.no_produ LIKE :{i})"
+        )
 
     # Universo de filas (cia, punto, almacen, no_produ) — unión de EPRODUCTO y
     # MOVIMIENTO. Productos con alguna evidencia de stock o histórico aparecen.
