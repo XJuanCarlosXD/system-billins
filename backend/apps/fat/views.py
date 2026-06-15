@@ -662,13 +662,20 @@ class FatConducesView(APIView):
         except ValueError:
             page, page_size = 1, 30
         try:
+            desde = request.query_params.get('desde', '')
+            hasta = request.query_params.get('hasta', '')
+            if not desde and not hasta:
+                ano = request.query_params.get('ano', '')
+                mes = request.query_params.get('mes', '')
+                if ano and mes:
+                    desde, hasta = _ano_mes_to_range(ano, mes)
             result = fat_repo.list_conduces(
                 no_cia=no_cia, punto=punto, page=page, page_size=page_size,
                 search=request.query_params.get('search', ''),
                 tipo=request.query_params.get('tipo', ''),
                 estado=request.query_params.get('estado', ''),
-                fecha_desde=request.query_params.get('desde', ''),
-                fecha_hasta=request.query_params.get('hasta', ''))
+                fecha_desde=desde,
+                fecha_hasta=hasta)
             return Response(result)
         except Exception as e:
             return Response({'detail': str(e)}, status=500)
