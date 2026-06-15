@@ -329,7 +329,7 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
         </Select>
         <div className='flex gap-1'>
           <Input
-            placeholder='Buscar cliente o no. conduce...'
+            placeholder='Cliente, codigo o no. conduce...'
             value={search}
             className='h-9 w-60 text-sm'
             onChange={(e) => setSearch(e.target.value)}

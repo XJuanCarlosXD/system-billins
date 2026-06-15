@@ -540,7 +540,11 @@ def list_conduces(no_cia: str, punto: str, page: int = 1, page_size: int = 30,
         filters.append("TRUNC(c.fecha) <= TO_DATE(:hasta,'YYYY-MM-DD')")
         params['hasta'] = fecha_hasta
     if search:
-        filters.append("(UPPER(cl.nombre) LIKE UPPER(:srch) OR c.no_conduce LIKE :srch)")
+        filters.append(
+            "(UPPER(cl.nombre) LIKE UPPER(:srch) "
+            "OR TO_CHAR(c.no_cliente) LIKE :srch "
+            "OR c.no_conduce LIKE :srch)"
+        )
         params['srch'] = f'%{search}%'
 
     where = " AND ".join(filters)
