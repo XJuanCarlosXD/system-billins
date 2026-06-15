@@ -295,6 +295,7 @@ class FatClientesView(APIView):
         except ValueError:
             page, page_size = 1, 30
         result = fat_repo.list_clientes(no_cia=no_cia,
+                                        punto=punto,
                                         search=request.query_params.get('search', ''),
                                         page=page, page_size=page_size)
         return Response(result)

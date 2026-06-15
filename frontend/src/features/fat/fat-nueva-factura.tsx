@@ -91,6 +91,7 @@ interface Almacen {
 
 interface Cliente {
   no_cliente: string | number
+  punto?: string
   nombre: string
   rnc?: string
   cedula?: string
@@ -221,6 +222,7 @@ export function NuevaFactura({ noCia, punto }: Props) {
   const [guardando, setGuardando] = useState(false)
 
   const clienteSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const clienteLookupSeqRef = useRef(0)
   const productSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const noClienteInputRef = useRef<HTMLInputElement>(null)
   const clienteModalInputRef = useRef<HTMLInputElement>(null)
@@ -353,9 +355,11 @@ export function NuevaFactura({ noCia, punto }: Props) {
   const cargarClientePorCodigo = async (codigo: string) => {
     const cod = codigo.trim()
     if (!cod) return
+    const requestId = ++clienteLookupSeqRef.current
     setCargandoCliente(true)
     try {
-      const res = await regalGeneralApi.fatListClientes(noCia, cod, 1, 5)
+      const res = await regalGeneralApi.fatListClientes(noCia, cod, 1, 5, punto)
+      if (requestId !== clienteLookupSeqRef.current) return
       const items: Cliente[] = res.items || []
       // Try exact match first
       const exact = items.find((c) => String(c.no_cliente).trim() === cod)
@@ -375,17 +379,19 @@ export function NuevaFactura({ noCia, punto }: Props) {
         })
       }
     } catch {
+      if (requestId !== clienteLookupSeqRef.current) return
       toast({
         title: 'Error',
         description: 'No se pudo cargar el cliente',
         variant: 'destructive',
       })
     } finally {
-      setCargandoCliente(false)
+      if (requestId === clienteLookupSeqRef.current) setCargandoCliente(false)
     }
   }
 
   const aplicarCliente = (c: Cliente) => {
+    clienteLookupSeqRef.current += 1
     setClienteSeleccionado(c)
     setNoCliente(String(c.no_cliente))
     setNoClienteInput(String(c.no_cliente))
@@ -428,7 +434,8 @@ export function NuevaFactura({ noCia, punto }: Props) {
           noCia,
           String(cot.no_cliente),
           1,
-          5
+          5,
+          punto
         )
         const c = (res.items || []).find(
           (x) => String(x.no_cliente) === String(cot!.no_cliente)
@@ -493,21 +500,25 @@ export function NuevaFactura({ noCia, punto }: Props) {
         return
       }
       setBuscandoClientes(true)
+      const requestId = ++clienteLookupSeqRef.current
       clienteSearchRef.current = setTimeout(async () => {
         try {
-          const res = await regalGeneralApi.fatListClientes(noCia, q, 1, 50)
+          const res = await regalGeneralApi.fatListClientes(noCia, q, 1, 50, punto)
+          if (requestId !== clienteLookupSeqRef.current) return
           setClienteResults(res.items || [])
         } catch {
+          if (requestId !== clienteLookupSeqRef.current) return
           setClienteResults([])
         } finally {
-          setBuscandoClientes(false)
+          if (requestId === clienteLookupSeqRef.current) setBuscandoClientes(false)
         }
       }, 300)
     },
-    [noCia]
+    [noCia, punto]
   )
 
   const abrirClienteModal = () => {
+    clienteLookupSeqRef.current += 1
     setClienteSearch('')
     setClienteResults([])
     setClienteModalOpen(true)
@@ -886,7 +897,12 @@ export function NuevaFactura({ noCia, punto }: Props) {
         title: 'Factura creada',
         description: `No. ${res.no_factura}  |  NCF: ${res.ncf || '—'}`,
       })
-      navigate({ to: '/fat/facturas' as never })
+      const tipoCreado = String((res as any).tipo_factura || tipoDoc)
+      const noCreado = String(res.no_factura || '')
+      const qs = new URLSearchParams({ no_cia: noCia, punto }).toString()
+      window.location.assign(
+        `/print/factura/${encodeURIComponent(`${tipoCreado}-${noCreado}`)}?${qs}`
+      )
     } catch {
       toast({
         title: 'Error al guardar',
@@ -1667,7 +1683,7 @@ export function NuevaFactura({ noCia, punto }: Props) {
                 )}
                 {clienteResults.map((c) => (
                   <TableRow
-                    key={c.no_cliente}
+                    key={`${c.punto || punto}-${c.no_cliente}`}
                     className='cursor-pointer hover:bg-blue-50'
                     onDoubleClick={() => aplicarCliente(c)}
                   >

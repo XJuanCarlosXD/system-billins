@@ -826,14 +826,14 @@ export const regalGeneralApi = {
   fatListVendedores: (noCia: string) =>
     request<{ items: Array<{ vendedor: string; nombre: string }> }>(`/fat/vendedores/?no_cia=${encodeURIComponent(noCia)}`),
 
-  fatListClientes: (no_cia: string, search = '', page = 1, page_size = 30) =>
+  fatListClientes: (no_cia: string, search = '', page = 1, page_size = 30, punto = '01') =>
     request<{
       items: Array<{
-        no_cliente: number; nombre: string; rnc: string; cedula: string
+        punto: string; no_cliente: number; nombre: string; rnc: string; cedula: string
         telefono: string; ciudad: string; direccion: string; codigo_ncf: string; plazo: number
       }>
       total: number; page: number; page_size: number; total_pages: number
-    }>(`/fat/clientes/?no_cia=${encodeURIComponent(no_cia)}&search=${encodeURIComponent(search)}&page=${page}&page_size=${page_size}`),
+    }>(`/fat/clientes/?no_cia=${encodeURIComponent(no_cia)}&punto=${encodeURIComponent(punto)}&search=${encodeURIComponent(search)}&page=${page}&page_size=${page_size}`),
 
   fatListCompanias: () =>
     request<{ items: Array<Record<string, any>> }>('/fat/companias/'),

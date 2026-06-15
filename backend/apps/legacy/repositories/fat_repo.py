@@ -1521,9 +1521,9 @@ def list_vendedores(no_cia: str) -> list[dict]:
     } for r in rows]
 
 
-def list_clientes(no_cia: str, search: str = '', page: int = 1, page_size: int = 30) -> dict:
-    filters = ["no_cia = :no_cia"]
-    params: dict = {'no_cia': no_cia}
+def list_clientes(no_cia: str, punto: str = '01', search: str = '', page: int = 1, page_size: int = 30) -> dict:
+    filters = ["no_cia = :no_cia", "punto = :punto"]
+    params: dict = {'no_cia': no_cia, 'punto': punto}
     if search:
         filters.append("(UPPER(nombre) LIKE UPPER(:srch) OR TO_CHAR(no_cliente) LIKE :srch)")
         params['srch'] = f'%{search}%'
@@ -1541,7 +1541,7 @@ def list_clientes(no_cia: str, search: str = '', page: int = 1, page_size: int =
     sql = f"""
         SELECT * FROM (
             SELECT a.*, ROWNUM rn FROM (
-                SELECT no_cliente, nombre, rnc, cedula, telefono,
+                SELECT punto, no_cliente, nombre, rnc, cedula, telefono,
                     ciudad, direccion, codigo_ncf, NVL(plazo,0) AS plazo
                 FROM CXC.TCXC_CLIENTE WHERE {where} ORDER BY nombre
             ) a WHERE ROWNUM <= :end_row
@@ -1550,6 +1550,7 @@ def list_clientes(no_cia: str, search: str = '', page: int = 1, page_size: int =
     rows = client.fetch_dicts(sql, params)
     return {
         'items': [{'no_cliente': int(r['no_cliente']), 'nombre': (r['nombre'] or '').strip(),
+                   'punto': r['punto'] or '',
                    'rnc': r['rnc'] or '', 'cedula': r['cedula'] or '', 'telefono': r['telefono'] or '',
                    'ciudad': r['ciudad'] or '', 'direccion': r['direccion'] or '',
                    'codigo_ncf': r['codigo_ncf'] or '', 'plazo': int(r['plazo'] or 0)}
