@@ -3,7 +3,7 @@ import { Building2, Loader2 } from 'lucide-react'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { sigafApi, type Company } from '@/lib/sigaf-api'
+import { apiClient, type Company } from '@/lib/api-client'
 import { useCompany } from '@/context/company-context'
 
 export function CompanySelector() {
@@ -15,7 +15,7 @@ export function CompanySelector() {
     async function loadCompanies() {
       setLoading(true)
       try {
-        const res = await sigafApi.adminListCompanies()
+        const res = await apiClient.adminListCompanies()
         setCompanies(res.companies)
       } catch (e) {
         console.error('Error loading companies', e)

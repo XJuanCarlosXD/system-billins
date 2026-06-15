@@ -1,4 +1,4 @@
-"""Permisos por módulo del legado SIGAFPLUS.
+"""Permisos por módulo del sistema legado.
 
 Cada módulo activo tiene una tabla TXXX_USUARIO con una clave compuesta
 (NO_CIA, PUNTO, USUARIO) y N flags S/N + algunos campos extra (almacén,

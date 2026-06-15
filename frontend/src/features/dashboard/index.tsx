@@ -32,7 +32,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
-import { sigafApi, type Me, type NCFAlert } from '@/lib/sigaf-api'
+import { apiClient, type Me, type NCFAlert } from '@/lib/api-client'
 
 type VentaDia = { dia: string; total: number }
 
@@ -63,9 +63,9 @@ export function Dashboard() {
     setError(null)
     try {
       const [meRes, alertsRes, ventasRes] = await Promise.all([
-        sigafApi.me(),
-        sigafApi.fatNcfAlerts('low').catch(() => ({ alerts: [] })),
-        sigafApi.dashboardVentasMes('01').catch(() => null),
+        apiClient.me(),
+        apiClient.fatNcfAlerts('low').catch(() => ({ alerts: [] })),
+        apiClient.dashboardVentasMes('01').catch(() => null),
       ])
       setMe(meRes)
       setAlerts(alertsRes.alerts)
@@ -90,7 +90,7 @@ export function Dashboard() {
   return (
     <>
       <Header>
-        <h2 className='text-lg font-semibold me-auto'>Dashboard SIGAFPLUS</h2>
+        <h2 className='text-lg font-semibold me-auto'>Dashboard</h2>
         <ThemeSwitch />
         <ConfigDrawer />
         <ProfileDropdown />

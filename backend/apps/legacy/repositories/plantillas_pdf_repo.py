@@ -1,6 +1,6 @@
 """Repositorio de plantillas PDF editables (FAT.TFAT_PLANTILLA_PDF).
 
-Tabla nueva creada por el sistema clon (no es del legado SIGAFT).
+Tabla nueva creada por el sistema actual (no es del sistema legado).
 DML directo permitido — no hay package PL/SQL.
 
 IMPORTANTE — CLOBs y oracledb thick:

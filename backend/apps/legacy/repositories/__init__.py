@@ -1,4 +1,4 @@
-"""Repositorios de lectura del legado SIGAFPLUS.
+"""Repositorios de lectura del sistema legado.
 
 Convención:
 - 1 archivo por módulo del ERP (fat_repo, cxc_repo, etc.).

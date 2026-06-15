@@ -25,14 +25,14 @@
 
 import { test, expect, type Request, type Response, type ConsoleMessage } from '@playwright/test'
 
-const FRONTEND_URL = process.env.SIGAFT_FRONT_URL ?? 'http://localhost:5173'
-const BACKEND_URL = process.env.SIGAFT_BACK_URL ?? 'http://localhost:8000'
-const USERNAME = process.env.SIGAFT_USER ?? 'JCABREU'
-const PASSWORD = process.env.SIGAFT_PASS ?? 'Temp1234!'
-const NO_CIA = process.env.SIGAFT_NO_CIA ?? '01'
-const PUNTO = process.env.SIGAFT_PUNTO ?? '01'
-const CONDUCE_TIPO = process.env.SIGAFT_CONDUCE_TIPO ?? 'CT'
-const CONDUCE_NO = process.env.SIGAFT_CONDUCE_NO ?? '00003924'
+const FRONTEND_URL = process.env.E2E_FRONT_URL ?? 'http://localhost:5173'
+const BACKEND_URL = process.env.E2E_BACK_URL ?? 'http://localhost:8000'
+const USERNAME = process.env.E2E_USER ?? 'JCABREU'
+const PASSWORD = process.env.E2E_PASS ?? 'Temp1234!'
+const NO_CIA = process.env.E2E_NO_CIA ?? '01'
+const PUNTO = process.env.E2E_PUNTO ?? '01'
+const CONDUCE_TIPO = process.env.E2E_CONDUCE_TIPO ?? 'CT'
+const CONDUCE_NO = process.env.E2E_CONDUCE_NO ?? '00003924'
 
 test('F4: editar conduce existente vía PATCH (Gap G2)', async ({ page }) => {
   const consoleErrors: string[] = []

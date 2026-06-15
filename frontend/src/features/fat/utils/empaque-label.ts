@@ -3,7 +3,7 @@
 // entrada-compras, entrada-mercancia, salida-mercancia, transferencia,
 // devolución suplidores, devolución ventas).
 //
-// El legado SIGAF presenta el empaque como un "factor" o "proporción" — un
+// El legado presenta el empaque como un "factor" o "proporción" — un
 // producto puede venir como UND (1), FUNDA (×12), CAJA (×24), o como
 // fracción cuando permite_fraccion='S' (1/2 = ×0.5, 1/4 = ×0.25).
 

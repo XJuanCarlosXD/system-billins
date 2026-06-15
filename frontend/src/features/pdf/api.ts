@@ -1,5 +1,5 @@
 // Cliente API del subsistema PDFs.
-// Reusa el mismo patrón fetch/credentials que sigaf-api.ts.
+// Reusa el mismo patrón fetch/credentials que api-client.ts.
 
 import type { Plantilla, PrintPayload } from './types'
 

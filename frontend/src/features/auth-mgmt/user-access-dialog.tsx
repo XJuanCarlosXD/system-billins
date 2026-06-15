@@ -15,7 +15,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { sigafApi, ApiError, type AdminUser, type Company, type ModuleAccess } from '@/lib/sigaf-api'
+import { apiClient, ApiError, type AdminUser, type Company, type ModuleAccess } from '@/lib/api-client'
 
 // Etiquetas amigables para los flags de cada módulo
 const FLAG_LABELS: Record<string, string> = {
@@ -145,7 +145,7 @@ function ModuleFlagsPanel({
   async function load() {
     setLoading(true)
     try {
-      const res = await sigafApi.adminGetModuleFlags(username, modulo, no_cia, punto)
+      const res = await apiClient.adminGetModuleFlags(username, modulo, no_cia, punto)
       setFlags(res.flags)
     } catch {
       setFlags({})
@@ -159,7 +159,7 @@ function ModuleFlagsPanel({
   async function toggle(flag: string, current: boolean) {
     setWorking(flag)
     try {
-      await sigafApi.adminSetModuleFlag(username, modulo, no_cia, punto, flag, !current)
+      await apiClient.adminSetModuleFlag(username, modulo, no_cia, punto, flag, !current)
       setFlags((prev) => ({ ...prev, [flag]: !current }))
     } catch (e) {
       const msg = e instanceof ApiError ? e.detail?.detail || 'Error' : 'Error de red'
@@ -209,7 +209,7 @@ function DocPermsPanel({
   async function load() {
     setLoading(true)
     try {
-      const res = await sigafApi.adminGetDocPerms(username, modulo, no_cia, punto)
+      const res = await apiClient.adminGetDocPerms(username, modulo, no_cia, punto)
       const assignedSet = new Set(res.assigned.map((a) => a.tipo_docu))
       const defSet = new Set(res.assigned.filter((a) => a.por_defecto).map((a) => a.tipo_docu))
       setDocs(res.available.map((av) => ({
@@ -231,10 +231,10 @@ function DocPermsPanel({
     setWorking(doc.tipo_docu)
     try {
       if (doc.assigned) {
-        await sigafApi.adminRevokeDocAccess(username, modulo, no_cia, punto, doc.tipo_docu)
+        await apiClient.adminRevokeDocAccess(username, modulo, no_cia, punto, doc.tipo_docu)
         toast.success(`Documento ${doc.tipo_docu} removido`)
       } else {
-        await sigafApi.adminGrantDocAccess(username, modulo, { no_cia, punto, tipo_docu: doc.tipo_docu })
+        await apiClient.adminGrantDocAccess(username, modulo, { no_cia, punto, tipo_docu: doc.tipo_docu })
         toast.success(`Documento ${doc.tipo_docu} asignado`)
       }
       load()
@@ -305,7 +305,7 @@ export function UserAccessDialog({
   async function load() {
     setLoading(true)
     try {
-      const res = await sigafApi.adminListUserAccess(user.username)
+      const res = await apiClient.adminListUserAccess(user.username)
       setAccess(res.access)
     } catch (e) {
       const msg = e instanceof ApiError ? e.detail?.detail || 'Error' : 'Error de red'
@@ -318,7 +318,7 @@ export function UserAccessDialog({
   async function loadModules(cia: string) {
     setLoadingModules(true)
     try {
-      const res = await sigafApi.adminListModulesForCompany(cia)
+      const res = await apiClient.adminListModulesForCompany(cia)
       setAvailableModules(res.modules)
       if (res.modules.length > 0) setNewModulo(res.modules[0])
     } catch {
@@ -334,7 +334,7 @@ export function UserAccessDialog({
   async function grant() {
     setWorking(true)
     try {
-      await sigafApi.adminGrantAccess(user.username, {
+      await apiClient.adminGrantAccess(user.username, {
         modulo: newModulo, no_cia: newCia, punto: newPunto,
         activo: true, por_defecto: newPorDefecto,
       })
@@ -350,7 +350,7 @@ export function UserAccessDialog({
   async function revoke(a: ModuleAccess) {
     if (!confirm(`Quitar acceso a ${MODULE_LABELS[a.modulo] || a.modulo.toUpperCase()} en empresa ${a.no_cia}?`)) return
     try {
-      await sigafApi.adminRevokeAccess(user.username, a.modulo, a.no_cia, a.punto)
+      await apiClient.adminRevokeAccess(user.username, a.modulo, a.no_cia, a.punto)
       toast.success('Acceso removido')
       load(); onChanged?.()
     } catch (e) {

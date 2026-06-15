@@ -1,4 +1,4 @@
-// Printing utilities — SIGAF Contabilidad General
+// Printing utilities — Contabilidad General
 // Template replica exacta del sistema legado (catalogo.pdf Rcnt301)
 // Orientacion: portrait (vertical), header 3-lineas izq. + tabla Pagina/Fecha/Codigo der.
 
@@ -100,7 +100,7 @@ export function fmtN(val: number | null | undefined): string {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// CSS — estilo replica factura A4 SIGAF
+// CSS — estilo replica factura A4 legacy
 // ══════════════════════════════════════════════════════════════════════════════
 const CSS = `
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -236,7 +236,7 @@ table.rpt tfoot td.r { text-align: right; }
 `
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Generador de cabecera — estilo factura A4 SIGAF (con logo)
+// Generador de cabecera — estilo factura A4 legacy (con logo)
 // ══════════════════════════════════════════════════════════════════════════════
 function buildHeader(meta: ReportMeta, code: string, title: string): string {
   const now  = new Date()

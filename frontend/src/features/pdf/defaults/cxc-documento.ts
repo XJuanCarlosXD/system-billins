@@ -1,4 +1,4 @@
-// Plantilla CXC universal — replica EXACTAMENTE el layout legado SIGAFT.
+// Plantilla CXC universal — replica EXACTAMENTE el layout legado.
 // Sirve para RI (Recibo de Ingreso), NC (Nota de Crédito), ND (Nota de Débito),
 // CD (Cheque Devuelto), AC/AD (Ajustes), DV (Devolución), AF (Anulación), BC/BI.
 //

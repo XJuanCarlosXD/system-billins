@@ -35,7 +35,7 @@ export const cotizacionDefault: any = {
     { type: 'Firmas', props: { id: 'fi', cantidad: 1, labels: 'Aprobado por', lineWidth: 60 } },
     { type: 'FooterEmpresa', props: {
       id: 'fo',
-      texto: '{{ cia.razon_social }} | Cotización generada en sistema SIGAFT',
+      texto: '{{ cia.razon_social }}',
       showPaginacion: true, showFechaGeneracion: true, color: '#777777',
     } },
   ],

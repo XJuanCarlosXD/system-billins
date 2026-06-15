@@ -3,7 +3,7 @@
 //   Doble click o "Seleccionar" carga el cliente
 //
 // Reusable en CXC/CXP/cualquier vista que pida un cliente.
-// Sigue la skill sigaft-ui-facturacion: card verde con datos al seleccionar.
+// Card verde con datos al seleccionar (patrón estándar del sistema).
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Search, X, UserCircle2 } from 'lucide-react'

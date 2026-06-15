@@ -238,7 +238,7 @@ export function ChcSolicitar() {
         <h3 className="text-base font-semibold">Solicitar Cheque</h3>
         <p className="text-sm text-muted-foreground">
           Crea una solicitud de cheque, depósito u otro movimiento bancario.
-          Equivale a <i>Fchc201 — Solicitud de Cheque</i> del SIGAF legacy. Tabla base: <code>TCHC_CHEQUE</code>.
+          Equivale a <i>Fchc201 — Solicitud de Cheque</i> del sistema legado. Tabla base: <code>TCHC_CHEQUE</code>.
         </p>
       </div>
 

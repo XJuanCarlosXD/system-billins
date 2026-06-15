@@ -100,7 +100,7 @@ type FacturaDetalle = Factura & {
   }>
 }
 
-// Estado de factura SIGAF: P=Pendiente, A=Autorizada, C=Cerrada (impresa /
+// Estado de factura (legacy): P=Pendiente, A=Autorizada, C=Cerrada (impresa /
 // finalizada). La anulacion se rastrea por st_anulado='S' aparte; C NO
 // significa anulada — eso era un error de mapeo.
 const ESTADO_BADGE: Record<

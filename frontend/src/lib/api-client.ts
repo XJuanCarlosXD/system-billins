@@ -1,4 +1,4 @@
-// Cliente API contra el backend SIGAFPLUS clon (Django + Oracle).
+// Cliente API contra el backend (Django + Oracle).
 // Sesión por cookie (HttpOnly) — credentials: 'include' en cada fetch.
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
@@ -124,7 +124,7 @@ export type NCFAlert = {
 }
 
 // ---- Endpoints ----
-export const sigafApi = {
+export const apiClient = {
   health: () => request<{ status: string }>('/health/'),
   oracleHealth: () => request<{ status: string; user?: string }>('/health/oracle/'),
 

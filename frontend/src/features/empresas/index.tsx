@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { regalGeneralApi } from '@/lib/regal-general-api'
-import { sigafApi, type Company, ApiError } from '@/lib/sigaf-api'
+import { apiClient, type Company, ApiError } from '@/lib/api-client'
 import { useCompany } from '@/context/company-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -73,7 +73,7 @@ export function EmpresasPage() {
       setLoading(true)
       setError(null)
       try {
-        const res = await sigafApi.adminListCompanies()
+        const res = await apiClient.adminListCompanies()
         setCompanies(res.companies)
       } catch (e) {
         const msg =

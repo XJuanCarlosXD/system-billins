@@ -57,7 +57,7 @@ export function FATFacturaDetail({
   }
 
   const getEstadoBadge = () => {
-    // En SIGAF legacy: P=Pendiente (sin autorizar), A=Autorizada (lista para
+    // En el legacy: P=Pendiente (sin autorizar), A=Autorizada (lista para
     // imprimir), C=Cerrada (impresa/finalizada). La ANULACION va aparte via
     // st_anulado='S'; estado='C' NO significa anulada.
     if (factura.st_anulado === 'S') {

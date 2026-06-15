@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ChevronsUpDown } from 'lucide-react'
-import { sigafApi, type Me } from '@/lib/sigaf-api'
+import { apiClient, type Me } from '@/lib/api-client'
 import useDialogState from '@/hooks/use-dialog-state'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -35,7 +35,7 @@ export function NavUser({ user }: NavUserProps) {
   const [me, setMe] = useState<Me | null>(null)
 
   useEffect(() => {
-    sigafApi
+    apiClient
       .me()
       .then(setMe)
       .catch(() => setMe(null))

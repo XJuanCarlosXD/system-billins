@@ -13,14 +13,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { SignOutDialog } from '@/components/sign-out-dialog'
-import { sigafApi, type Me } from '@/lib/sigaf-api'
+import { apiClient, type Me } from '@/lib/api-client'
 
 export function ProfileDropdown() {
   const [open, setOpen] = useDialogState()
   const [me, setMe] = useState<Me | null>(null)
 
   useEffect(() => {
-    sigafApi.me().then(setMe).catch(() => setMe(null))
+    apiClient.me().then(setMe).catch(() => setMe(null))
   }, [])
 
   const initials = (me?.username ?? '??').slice(0, 2).toUpperCase()

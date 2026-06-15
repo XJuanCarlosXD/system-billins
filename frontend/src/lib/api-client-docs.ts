@@ -1,5 +1,5 @@
-// Endpoints de docs (separado de sigaf-api.ts para no inflarlo).
-import { ApiError } from './sigaf-api'
+// Endpoints de docs (separado de api-client.ts para no inflarlo).
+import { ApiError } from './api-client'
 
 export { ApiError }
 
@@ -23,7 +23,7 @@ export type DocItem = {
 
 export type DocFull = DocItem & { content: string }
 
-export const sigafApi = {
+export const apiClient = {
   docsList: (q = '') =>
     request<{ count: number; q: string; items: DocItem[] }>(`/docs/?q=${encodeURIComponent(q)}`),
   docsGet: (slug: string) =>
