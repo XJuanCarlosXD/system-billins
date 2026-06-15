@@ -546,7 +546,8 @@ def list_conduces(no_cia: str, punto: str, page: int = 1, page_size: int = 30,
     where = " AND ".join(filters)
     total_row = client.fetch_one(
         f"SELECT COUNT(*) FROM FAT.TFAT_CONDUCE c "
-        f"LEFT JOIN CXC.TCXC_CLIENTE cl ON cl.no_cliente = c.no_cliente "
+        f"LEFT JOIN CXC.TCXC_CLIENTE cl "
+        f"  ON cl.no_cia = c.no_cia AND cl.punto = c.punto AND cl.no_cliente = c.no_cliente "
         f"WHERE {where}", params)
     total = int(total_row[0]) if total_row else 0
     if total == 0:
@@ -566,7 +567,8 @@ def list_conduces(no_cia: str, punto: str, page: int = 1, page_size: int = 30,
                     NVL(c.st_anulado,'N') AS st_anulado, NVL(c.st_impresion,'N') AS st_impresion,
                     c.clase, c.tipo_factura, c.no_factura, c.detalle
                 FROM FAT.TFAT_CONDUCE c
-                LEFT JOIN CXC.TCXC_CLIENTE cl ON cl.no_cliente = c.no_cliente
+                LEFT JOIN CXC.TCXC_CLIENTE cl
+                  ON cl.no_cia = c.no_cia AND cl.punto = c.punto AND cl.no_cliente = c.no_cliente
                 WHERE {where}
                 ORDER BY c.fecha DESC, c.no_conduce DESC
             ) a WHERE ROWNUM <= :end_row
@@ -639,7 +641,8 @@ def get_conduce(no_cia: str, punto: str, tipo_conduce: str, no_conduce: str) -> 
         "c.forma_pago, c.no_condicion_pago, c.tipo_moneda, NVL(c.tasa_us,57.5) AS tasa_us, "
         "c.posiciones_fijas_ncf, c.ncf "
         "FROM FAT.TFAT_CONDUCE c "
-        "LEFT JOIN CXC.TCXC_CLIENTE cl ON cl.no_cliente = c.no_cliente "
+        "LEFT JOIN CXC.TCXC_CLIENTE cl "
+        "  ON cl.no_cia = c.no_cia AND cl.punto = c.punto AND cl.no_cliente = c.no_cliente "
         "WHERE c.no_cia=:1 AND c.punto=:2 AND c.tipo_conduce=:3 AND c.no_conduce=:4",
         [no_cia, punto, tipo_conduce.strip().upper(), no_conduce.strip()])
     if not rows:
@@ -965,7 +968,8 @@ def rep_ncf_607(no_cia: str, desde: str, hasta: str) -> list[dict]:
         f"NVL(f.total_neto,0) AS total_neto, NVL(f.impuesto,0) AS impuesto, "
         f"NVL(f.total_linea,0) AS total_linea "
         f"FROM FAT.TFAT_FACTURA f "
-        f"LEFT JOIN CXC.TCXC_CLIENTE cl ON cl.no_cliente = f.no_cliente "
+        f"LEFT JOIN CXC.TCXC_CLIENTE cl "
+        f"  ON cl.no_cia = f.no_cia AND cl.punto = f.punto AND cl.no_cliente = f.no_cliente "
         f"WHERE f.no_cia=:1 AND f.ncf IS NOT NULL "
         f"AND NVL(f.st_anulado,'N')='N' {extra_sql} "
         f"ORDER BY f.fecha, f.ncf",
@@ -1291,7 +1295,8 @@ def list_facturas_pendientes_cnt(no_cia: str, punto: str, mes: int, ano: int) ->
         "SELECT f.tipo_factura, f.no_factura, f.fecha, f.total_neto, f.impuesto, "
         "cl.nombre AS nombre_cliente "
         "FROM FAT.TFAT_FACTURA f "
-        "LEFT JOIN CXC.TCXC_CLIENTE cl ON cl.no_cliente = f.no_cliente "
+        "LEFT JOIN CXC.TCXC_CLIENTE cl "
+        "  ON cl.no_cia = f.no_cia AND cl.punto = f.punto AND cl.no_cliente = f.no_cliente "
         "WHERE f.no_cia=:1 AND f.punto=:2 "
         "AND EXTRACT(YEAR FROM f.fecha)=:3 AND EXTRACT(MONTH FROM f.fecha)=:4 "
         "AND NVL(f.st_generado_cnt,'N')='N' AND NVL(f.st_anulado,'N')='N' "
@@ -1383,7 +1388,7 @@ def list_facturas(no_cia: str, punto: str, page: int = 1, page_size: int = 30,
     total_row = client.fetch_one(
         f"SELECT COUNT(*) FROM FAT.TFAT_FACTURA f "
         f"LEFT JOIN CXC.TCXC_CLIENTE c "
-        f"  ON c.no_cia = f.no_cia AND c.no_cliente = f.no_cliente "
+        f"  ON c.no_cia = f.no_cia AND c.punto = f.punto AND c.no_cliente = f.no_cliente "
         f"WHERE {where}", params)
     total = int(total_row[0]) if total_row else 0
     if total == 0:
@@ -1403,7 +1408,7 @@ def list_facturas(no_cia: str, punto: str, page: int = 1, page_size: int = 30,
                     f.plazo_pago, f.forma_pago_fat, f.st_anulado, f.st_impresion
                 FROM FAT.TFAT_FACTURA f
                 LEFT JOIN CXC.TCXC_CLIENTE c
-                  ON c.no_cia = f.no_cia AND c.no_cliente = f.no_cliente
+                  ON c.no_cia = f.no_cia AND c.punto = f.punto AND c.no_cliente = f.no_cliente
                 WHERE {where}
                 ORDER BY f.fecha DESC, f.no_factura DESC
             ) a WHERE ROWNUM <= :end_row
@@ -1442,7 +1447,8 @@ def get_factura(no_cia: str, punto: str, tipo_factura: str, no_factura: str) -> 
         "f.tasa_us, f.porc_impuesto, f.nota, f.detalle, "
         "f.st_anulado, f.st_impresion, f.st_generado_cnt "
         "FROM FAT.TFAT_FACTURA f "
-        "LEFT JOIN CXC.TCXC_CLIENTE c ON c.no_cliente = f.no_cliente "
+        "LEFT JOIN CXC.TCXC_CLIENTE c "
+        "  ON c.no_cia = f.no_cia AND c.punto = f.punto AND c.no_cliente = f.no_cliente "
         "WHERE f.no_cia=:1 AND f.punto=:2 AND f.tipo_factura=:3 AND f.no_factura=:4",
         [no_cia, punto, tipo_factura.strip().upper(), no_factura.strip()])
     if not rows:
@@ -1630,7 +1636,9 @@ def search_invoices(no_cia: str, punto: str = '01', page: int = 1, page_size: in
     where = " AND ".join(filters)
     total_row = client.fetch_one(
         f"SELECT COUNT(*) FROM FAT.TFAT_FACTURA f "
-        f"LEFT JOIN CXC.TCXC_CLIENTE c ON c.no_cliente = f.no_cliente WHERE {where}", params)
+        f"LEFT JOIN CXC.TCXC_CLIENTE c "
+        f"  ON c.no_cia = f.no_cia AND c.punto = f.punto AND c.no_cliente = f.no_cliente "
+        f"WHERE {where}", params)
     total = int(total_row[0]) if total_row else 0
     if total == 0:
         return {'items': [], 'total': 0, 'page': page, 'page_size': page_size, 'total_pages': 0}
@@ -1646,7 +1654,8 @@ def search_invoices(no_cia: str, punto: str = '01', page: int = 1, page_size: in
                     c.nombre AS nombre_cliente, f.fecha, f.vendedor,
                     f.total_neto, f.estado, f.ncf, f.codigo_ncf
                 FROM FAT.TFAT_FACTURA f
-                LEFT JOIN CXC.TCXC_CLIENTE c ON c.no_cliente = f.no_cliente
+                LEFT JOIN CXC.TCXC_CLIENTE c
+                  ON c.no_cia = f.no_cia AND c.punto = f.punto AND c.no_cliente = f.no_cliente
                 WHERE {where} ORDER BY f.fecha DESC, f.no_factura DESC
             ) a WHERE ROWNUM <= :end_row
         ) WHERE rn > :start_row
@@ -1725,7 +1734,8 @@ def rep_ventas_cliente(no_cia: str, punto: str, desde: str, hasta: str, top: int
         f"SUM(NVL(f.impuesto,0)) AS total_itbis, "
         f"SUM(NVL(f.total_neto,0) + NVL(f.impuesto,0)) AS total_bruto "
         f"FROM FAT.TFAT_FACTURA f "
-        f"LEFT JOIN CXC.TCXC_CLIENTE cl ON cl.no_cliente=f.no_cliente "
+        f"LEFT JOIN CXC.TCXC_CLIENTE cl "
+        f"  ON cl.no_cia=f.no_cia AND cl.punto=f.punto AND cl.no_cliente=f.no_cliente "
         f"WHERE f.no_cia=:1 AND f.punto=:2 "
         f"AND NVL(f.st_anulado,'N')='N' {extra_sql} "
         f"GROUP BY f.no_cliente, cl.nombre ORDER BY total_neto DESC"
@@ -1789,7 +1799,8 @@ def rep_analitica_mensual(no_cia: str, punto: str, ano: int) -> dict:
         "SELECT f.no_cliente, NVL(cl.nombre,'Consumidor Final') AS nombre_cliente, "
         "COUNT(*) AS facturas, SUM(NVL(f.total_neto,0)) AS total_neto "
         "FROM FAT.TFAT_FACTURA f "
-        "LEFT JOIN CXC.TCXC_CLIENTE cl ON cl.no_cliente=f.no_cliente "
+        "LEFT JOIN CXC.TCXC_CLIENTE cl "
+        "  ON cl.no_cia=f.no_cia AND cl.punto=f.punto AND cl.no_cliente=f.no_cliente "
         "WHERE f.no_cia=:1 AND f.punto=:2 "
         "AND EXTRACT(YEAR FROM f.fecha) = :3 "
         "AND NVL(f.st_anulado,'N')='N' "
@@ -2015,8 +2026,8 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
         afecta_cxc = (tdocu_row[2] or "N") if tdocu_row else "N"
         cur.execute(
             "SELECT NVL(codigo_ncf,'') FROM CXC.TCXC_CLIENTE "
-            "WHERE no_cia=:1 AND no_cliente=:2",
-            [no_cia, no_cliente])
+            "WHERE no_cia=:1 AND punto=:2 AND no_cliente=:3",
+            [no_cia, punto, no_cliente])
         cli_ncf_row = cur.fetchone()
         codigo_ncf_cliente = (cli_ncf_row[0] or "").strip().upper() if cli_ncf_row else ""
         codigo_ncf_emitir = (codigo_ncf or "").strip().upper() or codigo_ncf_cliente or codigo_ncf_doc

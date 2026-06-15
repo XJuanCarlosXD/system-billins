@@ -424,12 +424,11 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
   }
 
   const agregarLineaCustom = () => {
-    const td = tiposDoc.find((d) => d.tipo_docu === tipoDoc)
     const lin = lineas.length + 1
     const nuevaLinea: Linea = {
       id: lineaIdCounter++,
       lin,
-      almacen: td?.almacen || '',
+      almacen: 'X',
       cod_barra: '',
       no_produ: 'X',
       emp: 'UND',
@@ -538,6 +537,7 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
         const arr = [...prev]
         const linea = { ...arr[idx] }
         linea.no_produ = 'X'
+        linea.almacen = 'X'
         linea.descripcion = linea.descripcion || ''
         linea.precio = linea.precio || 0
         linea.precio_lista = linea.precio
