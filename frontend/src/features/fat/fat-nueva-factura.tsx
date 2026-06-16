@@ -900,9 +900,15 @@ export function NuevaFactura({ noCia, punto }: Props) {
       const tipoCreado = String((res as any).tipo_factura || tipoDoc)
       const noCreado = String(res.no_factura || '')
       const qs = new URLSearchParams({ no_cia: noCia, punto }).toString()
-      window.location.assign(
-        `/print/factura/${encodeURIComponent(`${tipoCreado}-${noCreado}`)}?${qs}`
-      )
+      const printUrl = `/print/factura/${encodeURIComponent(`${tipoCreado}-${noCreado}`)}?${qs}`
+      const popup = window.open(printUrl, '_blank', 'noopener,width=900,height=1100')
+      if (!popup) {
+        toast({
+          title: 'Bloqueado por el navegador',
+          description: 'Permita ventanas emergentes para imprimir automáticamente.',
+        })
+      }
+      navigate({ to: '/fat/facturas' as never })
     } catch {
       toast({
         title: 'Error al guardar',

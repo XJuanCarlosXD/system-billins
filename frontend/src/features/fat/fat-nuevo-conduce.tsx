@@ -762,10 +762,14 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
         const noCreado = String(res.no_conduce || '')
         const codigoPrint = tipoCreado === 'CT' ? 'cotizacion' : 'conduce'
         const qs = new URLSearchParams({ no_cia: noCia, punto }).toString()
-        window.location.assign(
-          `/print/${codigoPrint}/${encodeURIComponent(`${tipoCreado}-${noCreado}`)}?${qs}`
-        )
-        return
+        const printUrl = `/print/${codigoPrint}/${encodeURIComponent(`${tipoCreado}-${noCreado}`)}?${qs}`
+        const popup = window.open(printUrl, '_blank', 'noopener,width=900,height=1100')
+        if (!popup) {
+          toast({
+            title: 'Bloqueado por el navegador',
+            description: 'Permita ventanas emergentes para imprimir automáticamente.',
+          })
+        }
       }
       navigate({ to: '/fat/conduces' as never })
     } catch (e: any) {
