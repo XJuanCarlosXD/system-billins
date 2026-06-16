@@ -23,6 +23,7 @@ from apps.legacy.repositories import (
     cnt_repo, acf_repo, sdn_repo,
 )
 from apps.fat.views_print_data import _cia_payload, _money
+from apps.legacy.repositories.fat_repo import _compose_ncf_dgi
 
 
 def _money_or_zero(v):
@@ -417,7 +418,9 @@ def cxp_documento_print_data(request, tipo_docu: str, no_docu: str):
         'fecha_larga': fecha_larga,
         'fecha_vence': str(doc_full.get('fecha_vence') or '')[:10] if doc_full.get('fecha_vence') else '',
         'ncf': doc_full.get('ncf'),
-        'ncf_dgi': f"{(doc_full.get('posiciones_fijas_ncf') or '').strip()}{(doc_full.get('ncf') or '').strip()}",
+        'ncf_dgi': doc_full.get('ncf_dgi') or _compose_ncf_dgi(
+            doc_full.get('posiciones_fijas_ncf'), doc_full.get('ncf')
+        ),
         'estado': doc_full.get('status') or '',
         'anulada': (doc_full.get('status') or 'A') in ('R', 'X'),
         'tipo_movi': tipo_movi,
