@@ -1522,6 +1522,51 @@ export const regalGeneralApi = {
     const qs = new URLSearchParams({ no_cia: noCia, ...(ano && { ano: String(ano) }) }).toString()
     return request<any[]>(`/sdn/rep-nominas/?${qs}`)
   },
+  // Movimientos manuales (Fsdn204/205)
+  sdnListMovimientos: (p: { no_cia: string; punto: string; nomina: string; ano: number; mes: number; periodo?: number; no_empleado?: number; tipo?: string; origen?: string }) => {
+    const qs = new URLSearchParams({
+      no_cia: p.no_cia, punto: p.punto, nomina: p.nomina,
+      ano: String(p.ano), mes: String(p.mes), periodo: String(p.periodo ?? 1),
+      ...(p.no_empleado && { no_empleado: String(p.no_empleado) }),
+      ...(p.tipo && { tipo: p.tipo }),
+      ...(p.origen && { origen: p.origen }),
+    }).toString()
+    return request<any[]>(`/sdn/movimientos/?${qs}`)
+  },
+  sdnCrearMovimiento: (data: Record<string, unknown>) =>
+    request<any>('/sdn/movimientos/crear/', { method: 'POST', body: JSON.stringify(data) }),
+  sdnEliminarMovimiento: (data: Record<string, unknown>) =>
+    request<any>('/sdn/movimientos/eliminar/', { method: 'POST', body: JSON.stringify(data) }),
+  // Generar Vacaciones (Fsdn401)
+  sdnGenerarVacaciones: (data: { no_cia: string; punto: string; nomina: string; ano: number; dry_run?: boolean }) =>
+    request<any>('/sdn/vacaciones/generar/', { method: 'POST', body: JSON.stringify(data) }),
+  // Generar Solicitud de Cheques (Fsdn409)
+  sdnPreviewCheques: (p: { no_cia: string; punto: string; nomina: string }) => {
+    const qs = new URLSearchParams({ no_cia: p.no_cia, punto: p.punto, nomina: p.nomina }).toString()
+    return request<any>(`/sdn/cheques/preview/?${qs}`)
+  },
+  // Informe de Nómina (Fsdn207)
+  sdnRepInforme: (p: { no_cia: string; punto: string; nomina: string; ano: number; mes: number; periodo?: number; no_empleado?: number; no_gerencia?: string; no_area?: string; no_depto?: string }) => {
+    const qs = new URLSearchParams({
+      no_cia: p.no_cia, punto: p.punto, nomina: p.nomina,
+      ano: String(p.ano), mes: String(p.mes), periodo: String(p.periodo ?? 1),
+      ...(p.no_empleado && { no_empleado: String(p.no_empleado) }),
+      ...(p.no_gerencia && { no_gerencia: p.no_gerencia }),
+      ...(p.no_area && { no_area: p.no_area }),
+      ...(p.no_depto && { no_depto: p.no_depto }),
+    }).toString()
+    return request<any>(`/sdn/rep-informe/?${qs}`)
+  },
+  // RNC Empleados (DGII)
+  sdnRepEmpleadosRnc: (p: { no_cia: string; punto?: string; activos?: boolean; search?: string }) => {
+    const qs = new URLSearchParams({
+      no_cia: p.no_cia,
+      activos: p.activos === false ? '0' : '1',
+      ...(p.punto && { punto: p.punto }),
+      ...(p.search && { search: p.search }),
+    }).toString()
+    return request<any[]>(`/sdn/rep-rnc/?${qs}`)
+  },
 
   // ============================================================
   // Activos Fijos (ACF)

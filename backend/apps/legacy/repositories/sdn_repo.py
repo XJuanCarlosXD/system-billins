@@ -505,6 +505,441 @@ def volante_nomina(no_cia: str, punto: str, nomina: str) -> dict:
     }
 
 
+# ---- Movimientos manuales (Fsdn204/205) -------------------------------------
+
+def list_movimientos(no_cia: str, punto: str, nomina: str,
+                     ano: int, mes: int, periodo: int = 1,
+                     no_empleado: int | None = None,
+                     tipo: str | None = None,
+                     origen: str | None = None) -> list[dict]:
+    """Lista movimientos de la nómina/período. Origen 'M'=manual, 'N'=normal,
+    'V'=vacaciones. tipo 'I'=ingreso, 'D'=deducción."""
+    sql = (
+        "SELECT m.no_cia, m.punto, m.nomina, m.ano, m.mes, m.periodo, "
+        "       m.no_empleado, "
+        "       e.nombre||' '||e.apellido AS nombre_empleado, "
+        "       e.cedula, "
+        "       m.no_transaccion, m.tipo_transaccion, m.origen, "
+        "       m.clase_transaccion, "
+        "       TO_CHAR(m.fecha,'YYYY-MM-DD') AS fecha, "
+        "       NVL(m.monto_transaccion,0) AS monto_transaccion, "
+        "       NVL(m.salario_mensual,0) AS salario_mensual, "
+        "       m.linea, "
+        "       CASE WHEN m.tipo_transaccion='I' THEN i.descripcion "
+        "            WHEN m.tipo_transaccion='D' THEN d.descripcion END AS descri_concepto "
+        "  FROM SDN.TSDN_MOVIMIENTO m "
+        "  LEFT JOIN SDN.TSDN_EMPLEADO e "
+        "         ON e.no_cia=m.no_cia AND e.no_empleado=m.no_empleado "
+        "  LEFT JOIN SDN.TSDN_INGRESOS i "
+        "         ON m.tipo_transaccion='I' AND i.no_ingreso=m.no_transaccion "
+        "  LEFT JOIN SDN.TSDN_DEDUCCIONES d "
+        "         ON m.tipo_transaccion='D' AND d.no_deduccion=m.no_transaccion "
+        " WHERE m.no_cia=:1 AND m.punto=:2 AND m.nomina=:3 "
+        "   AND m.ano=:4 AND m.mes=:5 AND m.periodo=:6"
+    )
+    params: list = [no_cia, punto, nomina, int(ano), int(mes), int(periodo)]
+    if no_empleado:
+        sql += f" AND m.no_empleado=:{len(params)+1}"; params.append(int(no_empleado))
+    if tipo in ('I', 'D'):
+        sql += f" AND m.tipo_transaccion=:{len(params)+1}"; params.append(tipo)
+    if origen:
+        sql += f" AND m.origen=:{len(params)+1}"; params.append(origen)
+    sql += " ORDER BY m.no_empleado, m.tipo_transaccion, NVL(m.linea,0)"
+    return client.fetch_dicts(sql, params)
+
+
+def crear_movimiento_manual(*, no_cia: str, punto: str, nomina: str,
+                            ano: int, mes: int, periodo: int,
+                            no_empleado: int, tipo_transaccion: str,
+                            no_transaccion: str, monto: float,
+                            clase_transaccion: str = 'L',
+                            empleado_patrono: str = 'E',
+                            usuario: str = '') -> dict:
+    """Inserta un movimiento manual (ORIGEN='M').
+
+    tipo_transaccion: 'I'=ingreso, 'D'=deducción
+    clase_transaccion: 'L'=fijo, 'O'=otro, según legado
+    Reabre el cálculo de la nómina (CALCULO_NOMINA='N') para forzar recálculo.
+    """
+    tt = (tipo_transaccion or '').upper()
+    if tt not in ('I', 'D'):
+        raise ValueError("tipo_transaccion debe ser 'I' (ingreso) o 'D' (deducción)")
+    nt = (no_transaccion or '').upper().strip()
+    if not nt:
+        raise ValueError("no_transaccion (concepto) es obligatorio")
+    if monto is None:
+        raise ValueError("monto es obligatorio")
+    nomina = (nomina or '').upper()
+
+    # Empleado válido + salario
+    emp = client.fetch_one(
+        "SELECT NVL(salario_mensual,0) FROM SDN.TSDN_EMPLEADO "
+        " WHERE no_cia=:1 AND no_empleado=:2",
+        [no_cia, int(no_empleado)],
+    )
+    if not emp:
+        raise ValueError(f"Empleado {no_empleado} no existe en empresa {no_cia}")
+    salario = float(emp[0] or 0)
+
+    # Nómina válida y abierta
+    cab = get_nomina(no_cia, punto, nomina)
+    if not cab:
+        raise ValueError(f"Nómina {nomina} no existe")
+    if cab.get('estado') != 'A':
+        raise ValueError(f"Nómina {nomina} no está activa")
+
+    # Próxima línea para ese empleado en ese período
+    row = client.fetch_one(
+        "SELECT NVL(MAX(linea),0)+1 FROM SDN.TSDN_MOVIMIENTO "
+        " WHERE no_cia=:1 AND punto=:2 AND nomina=:3 "
+        "   AND ano=:4 AND mes=:5 AND periodo=:6 AND no_empleado=:7",
+        [no_cia, punto, nomina, int(ano), int(mes), int(periodo), int(no_empleado)],
+    )
+    linea = int(row[0]) if row else 1
+
+    client.execute(
+        "INSERT INTO SDN.TSDN_MOVIMIENTO ("
+        " no_cia, punto, ano, mes, nomina, periodo, no_empleado, "
+        " no_transaccion, tipo_transaccion, origen, clase_transaccion, "
+        " fecha, monto_transaccion, salario_mensual, "
+        " valido_regalia, valido_bonificacion, tasa_transaccion, "
+        " empleado_patrono, genero_ed, linea "
+        ") VALUES ("
+        " :1, :2, :3, :4, :5, :6, :7, "
+        " :8, :9, 'M', :10, "
+        " SYSDATE, :11, :12, "
+        " 'N', 'N', 0, "
+        " :13, 'N', :14"
+        ")",
+        [no_cia, punto, int(ano), int(mes), nomina, int(periodo), int(no_empleado),
+         nt, tt, clase_transaccion, float(monto), salario,
+         empleado_patrono, linea],
+    )
+    # Reabrir cálculo si estaba cerrado
+    client.execute(
+        "UPDATE SDN.TSDN_NOMINA SET calculo_nomina='N' "
+        " WHERE no_cia=:1 AND punto=:2 AND nomina=:3",
+        [no_cia, punto, nomina],
+    )
+    return {
+        'no_cia': no_cia, 'punto': punto, 'nomina': nomina,
+        'ano': int(ano), 'mes': int(mes), 'periodo': int(periodo),
+        'no_empleado': int(no_empleado), 'linea': linea,
+        'tipo_transaccion': tt, 'no_transaccion': nt, 'monto': float(monto),
+    }
+
+
+def eliminar_movimiento_manual(*, no_cia: str, punto: str, nomina: str,
+                               ano: int, mes: int, periodo: int,
+                               no_empleado: int, linea: int) -> None:
+    cab = get_nomina(no_cia, punto, nomina)
+    if not cab:
+        raise ValueError(f"Nómina {nomina} no existe")
+    if cab.get('estado') != 'A':
+        raise ValueError(f"Nómina {nomina} no está activa")
+    client.execute(
+        "DELETE FROM SDN.TSDN_MOVIMIENTO "
+        " WHERE no_cia=:1 AND punto=:2 AND nomina=:3 "
+        "   AND ano=:4 AND mes=:5 AND periodo=:6 "
+        "   AND no_empleado=:7 AND linea=:8 AND origen='M'",
+        [no_cia, punto, nomina, int(ano), int(mes), int(periodo),
+         int(no_empleado), int(linea)],
+    )
+    client.execute(
+        "UPDATE SDN.TSDN_NOMINA SET calculo_nomina='N' "
+        " WHERE no_cia=:1 AND punto=:2 AND nomina=:3",
+        [no_cia, punto, nomina],
+    )
+
+
+# ---- Vacaciones — generación (Fsdn401) --------------------------------------
+
+def _meses_trabajados(fecha_ingreso, hasta_ano: int) -> int:
+    """Aproxima los meses trabajados a 31-dic del año dado."""
+    if not fecha_ingreso:
+        return 0
+    try:
+        anio = int(fecha_ingreso.year)
+        mes = int(fecha_ingreso.month)
+    except AttributeError:
+        s = str(fecha_ingreso)[:10]
+        anio, mes = int(s[:4]), int(s[5:7]) if len(s) >= 7 else 1
+    total = (int(hasta_ano) - anio) * 12 + (12 - mes + 1)
+    return max(0, total)
+
+
+def generar_vacaciones(*, no_cia: str, punto: str, nomina: str, ano: int,
+                       usuario: str = '', dry_run: bool = False) -> dict:
+    """Recorre TSDN_EMPLEADO activos con FECHA_INGRESO < año y crea/actualiza
+    TSDN_VACACIONES con cantidad_dias según TSDN_ESCALA_MESES (tipo_escala='V').
+    """
+    nomina = (nomina or '').upper()
+    cab = get_nomina(no_cia, punto, nomina)
+    if not cab:
+        raise ValueError(f"Nómina {nomina} no existe")
+
+    escala = client.fetch_dicts(
+        "SELECT escala_inferior, escala_superior, cantidad_dias "
+        "  FROM SDN.TSDN_ESCALA_MESES WHERE tipo_escala='V' "
+        " ORDER BY escala_inferior"
+    )
+    if not escala:
+        raise ValueError("No hay escala de vacaciones configurada (TSDN_ESCALA_MESES)")
+
+    empleados = client.fetch_dicts(
+        "SELECT no_empleado, nombre, apellido, fecha_ingreso "
+        "  FROM SDN.TSDN_EMPLEADO "
+        " WHERE no_cia=:1 AND punto=:2 AND nomina=:3 "
+        "   AND fecha_egreso IS NULL "
+        "   AND TO_CHAR(fecha_ingreso,'YYYY') < :4 "
+        "   AND NVL(st_vacaciones,'N') = 'N' "
+        " ORDER BY apellido, nombre",
+        [no_cia, punto, nomina, str(int(ano))],
+    )
+
+    plan: list[dict] = []
+    for e in empleados:
+        meses = _meses_trabajados(e.get('fecha_ingreso'), int(ano))
+        dias = 0
+        for r in escala:
+            inf = int(r['escala_inferior'])
+            sup = int(r['escala_superior'])
+            if inf <= meses <= sup:
+                dias = int(r['cantidad_dias'])
+                break
+        if dias <= 0:
+            continue
+        plan.append({
+            'no_empleado': int(e['no_empleado']),
+            'nombre_empleado': f"{e.get('nombre') or ''} {e.get('apellido') or ''}".strip(),
+            'fecha_ingreso': str(e['fecha_ingreso'])[:10] if e.get('fecha_ingreso') else '',
+            'meses_trabajados': meses,
+            'dias': dias,
+        })
+
+    if dry_run:
+        return {
+            'dry_run': True,
+            'ano': int(ano),
+            'nomina': nomina,
+            'empleados': plan,
+            'total_empleados': len(plan),
+            'total_dias': sum(p['dias'] for p in plan),
+        }
+
+    # DELETE existentes del año y re-insertar (mismo patrón legacy Fsdn401)
+    client.execute(
+        "DELETE FROM SDN.TSDN_VACACIONES "
+        " WHERE no_cia=:1 AND punto=:2 AND nomina=:3 "
+        "   AND TO_CHAR(fecha_inicial,'YYYY')=:4",
+        [no_cia, punto, nomina, str(int(ano))],
+    )
+    creados = 0
+    for p in plan:
+        client.execute(
+            "INSERT INTO SDN.TSDN_VACACIONES ("
+            " no_cia, punto, nomina, no_empleado, fecha_ingreso, "
+            " fecha_inicial, fecha_final, cantidad_dias, usuario, st_vacaciones, "
+            " tiempo_ano, tiempo_mes, tiempo_dia "
+            ") VALUES ( "
+            " :1, :2, :3, :4, "
+            " CASE WHEN :5 IS NULL THEN NULL ELSE TO_DATE(:5,'YYYY-MM-DD') END, "
+            " TO_DATE(:6,'YYYY-MM-DD'), TO_DATE(:7,'YYYY-MM-DD') + :8 - 1, "
+            " :8, :9, 'N', "
+            " :10, :11, :12 "
+            ")",
+            [no_cia, punto, nomina, p['no_empleado'],
+             p.get('fecha_ingreso') or None,
+             f"{int(ano)}-01-01", f"{int(ano)}-01-01", int(p['dias']),
+             (usuario or '').upper()[:20],
+             p['meses_trabajados'] // 12,
+             p['meses_trabajados'] % 12,
+             0],
+        )
+        creados += 1
+
+    return {
+        'dry_run': False,
+        'ano': int(ano),
+        'nomina': nomina,
+        'creados': creados,
+        'empleados': plan,
+        'total_dias': sum(p['dias'] for p in plan),
+    }
+
+
+# ---- Solicitud de Cheques de Nómina (Fsdn409) — preview ---------------------
+
+def preview_solicitud_cheques(*, no_cia: str, punto: str, nomina: str) -> dict:
+    """Calcula qué solicitudes de cheque generaría la nómina actual.
+
+    Para cada empleado con neto > 0 (a partir del volante) lista:
+    - no_empleado, nombre, cuenta banco, salario, neto.
+    El usuario aún no puede generar TCHC_CHEQUE desde el clon porque
+    necesita beneficiario/cuenta autorizada — se delega al legado.
+    """
+    v = volante_nomina(no_cia, punto, nomina)
+    detalle = []
+    for emp in v['empleados']:
+        neto = float(emp.get('neto') or 0)
+        if neto <= 0:
+            continue
+        cta = client.fetch_one(
+            "SELECT cuenta_banco FROM SDN.TSDN_EMPLEADO "
+            " WHERE no_cia=:1 AND no_empleado=:2",
+            [no_cia, int(emp['no_empleado'])],
+        )
+        detalle.append({
+            'no_empleado': emp['no_empleado'],
+            'nombre_empleado': emp['nombre_empleado'],
+            'cedula': emp.get('cedula') or '',
+            'cuenta_banco': (cta[0] if cta else '') or '',
+            'neto': neto,
+        })
+    seq = client.fetch_one(
+        "SELECT NVL(ult_docu,0)+1 FROM CHC.TCHC_SECUENCIA "
+        " WHERE no_cia=:1 AND punto=:2 AND tipo_docu='SO'",
+        [no_cia, punto],
+    )
+    prox_no_solicitud = int(seq[0]) if seq else 1
+    return {
+        'cabecera': v['cabecera'],
+        'empleados': detalle,
+        'totales': {
+            'empleados': len(detalle),
+            'total_neto': sum(d['neto'] for d in detalle),
+            'prox_no_solicitud': prox_no_solicitud,
+        },
+    }
+
+
+# ---- Informe de Nómina (Fsdn207) --------------------------------------------
+
+def rep_informe_nomina(*, no_cia: str, punto: str, nomina: str,
+                       ano: int, mes: int, periodo: int = 1,
+                       no_empleado: int | None = None,
+                       no_gerencia: str | None = None,
+                       no_area: str | None = None,
+                       no_depto: str | None = None) -> dict:
+    """Devuelve, por empleado, ingresos/deducciones agregados del período +
+    cabecera de la nómina + totales globales."""
+    cab = get_nomina(no_cia, punto, nomina)
+    if not cab:
+        raise ValueError(f"Nómina {nomina} no existe")
+
+    sql = (
+        "SELECT e.no_empleado, "
+        "       e.nombre||' '||e.apellido AS nombre_empleado, "
+        "       e.cedula, e.no_gerencia, e.no_area, e.no_depto, "
+        "       NVL(e.salario_mensual,0) AS salario_mensual, "
+        "       NVL((SELECT SUM(m.monto_transaccion) "
+        "              FROM SDN.TSDN_MOVIMIENTO m "
+        "             WHERE m.no_cia=e.no_cia AND m.punto=e.punto "
+        "               AND m.nomina=:nomina AND m.ano=:ano AND m.mes=:mes "
+        "               AND m.periodo=:periodo AND m.no_empleado=e.no_empleado "
+        "               AND m.tipo_transaccion='I'), 0) AS total_ingresos, "
+        "       NVL((SELECT SUM(m.monto_transaccion) "
+        "              FROM SDN.TSDN_MOVIMIENTO m "
+        "             WHERE m.no_cia=e.no_cia AND m.punto=e.punto "
+        "               AND m.nomina=:nomina AND m.ano=:ano AND m.mes=:mes "
+        "               AND m.periodo=:periodo AND m.no_empleado=e.no_empleado "
+        "               AND m.tipo_transaccion='D'), 0) AS total_deducciones "
+        "  FROM SDN.TSDN_EMPLEADO e "
+        " WHERE e.no_cia=:no_cia AND e.punto=:punto AND e.nomina=:nomina "
+        "   AND e.fecha_egreso IS NULL"
+    )
+    params = {'no_cia': no_cia, 'punto': punto, 'nomina': (nomina or '').upper(),
+              'ano': int(ano), 'mes': int(mes), 'periodo': int(periodo)}
+    if no_empleado:
+        sql += " AND e.no_empleado=:no_empleado"
+        params['no_empleado'] = int(no_empleado)
+    if no_gerencia:
+        sql += " AND e.no_gerencia=:no_gerencia"
+        params['no_gerencia'] = no_gerencia
+    if no_area:
+        sql += " AND e.no_area=:no_area"
+        params['no_area'] = no_area
+    if no_depto:
+        sql += " AND e.no_depto=:no_depto"
+        params['no_depto'] = no_depto
+    sql += " ORDER BY e.apellido, e.nombre"
+
+    rows = client.fetch_dicts(sql, params)
+    detalle = []
+    tot_sal = tot_ing = tot_ded = tot_neto = 0.0
+    for r in rows:
+        sal = float(r.get('salario_mensual') or 0)
+        ing = float(r.get('total_ingresos') or 0)
+        ded = float(r.get('total_deducciones') or 0)
+        bruto = ing if ing > 0 else sal
+        neto = bruto - ded
+        tot_sal += sal; tot_ing += ing; tot_ded += ded; tot_neto += neto
+        detalle.append({
+            'no_empleado': int(r['no_empleado']),
+            'nombre_empleado': r.get('nombre_empleado') or '',
+            'cedula': r.get('cedula') or '',
+            'no_gerencia': r.get('no_gerencia') or '',
+            'no_area': r.get('no_area') or '',
+            'no_depto': r.get('no_depto') or '',
+            'salario_mensual': sal,
+            'total_ingresos': ing,
+            'total_deducciones': ded,
+            'bruto': bruto,
+            'neto': neto,
+        })
+
+    return {
+        'cabecera': {
+            'no_cia': no_cia, 'punto': punto, 'nomina': params['nomina'],
+            'descripcion': cab.get('descripcion'),
+            'ano_proceso': int(ano), 'mes_proceso': int(mes), 'periodo': int(periodo),
+            'estado': cab.get('estado'),
+            'calculo_nomina': cab.get('calculo_nomina'),
+        },
+        'empleados': detalle,
+        'totales': {
+            'empleados': len(detalle),
+            'salario': tot_sal,
+            'ingresos': tot_ing,
+            'deducciones': tot_ded,
+            'neto': tot_neto,
+        },
+    }
+
+
+# ---- RNC Empleados (DGII) ---------------------------------------------------
+
+def rep_empleados_rnc(*, no_cia: str, punto: str | None = None,
+                      activos: bool = True, search: str = '') -> list[dict]:
+    """Listado de empleados con cédula/RNC, AFP, ARS y salario, formato DGII."""
+    sql = (
+        "SELECT e.no_cia, e.punto, e.no_empleado, e.cedula, e.nss, "
+        "       e.nombre, e.apellido, "
+        "       NVL(e.salario_mensual,0) AS salario_mensual, "
+        "       e.no_afp, afp.descripcion AS afp, "
+        "       e.no_ars, ars.descripcion AS ars, "
+        "       TO_CHAR(e.fecha_ingreso,'YYYY-MM-DD') AS fecha_ingreso, "
+        "       TO_CHAR(e.fecha_egreso,'YYYY-MM-DD') AS fecha_egreso, "
+        "       e.nomina "
+        "  FROM SDN.TSDN_EMPLEADO e "
+        "  LEFT JOIN SDN.TSDN_AFP afp ON afp.no_afp=e.no_afp "
+        "  LEFT JOIN SDN.TSDN_ARS ars ON ars.no_ars=e.no_ars "
+        " WHERE e.no_cia=:1"
+    )
+    params: list = [no_cia]
+    if punto:
+        sql += f" AND e.punto=:{len(params)+1}"; params.append(punto)
+    if activos:
+        sql += " AND e.fecha_egreso IS NULL"
+    if search:
+        sql += (f" AND (UPPER(e.nombre||' '||e.apellido) LIKE UPPER(:{len(params)+1}) "
+                f"      OR e.cedula LIKE :{len(params)+1}"
+                f"      OR TO_CHAR(e.no_empleado) LIKE :{len(params)+1})")
+        params.append(f"%{search}%")
+    sql += " ORDER BY e.apellido, e.nombre"
+    return client.fetch_dicts(sql, params)
+
+
 def rep_nominas_resumen(no_cia: str, ano: int | None = None) -> list[dict]:
     sql = (
         "SELECT ano_proceso, mes_proceso, COUNT(*) total_nominas, "

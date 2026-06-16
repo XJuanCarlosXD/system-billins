@@ -24,4 +24,16 @@ urlpatterns = [
     path('vacaciones/', sdn_views.sdn_vacaciones),
     path('rep-empleados/', sdn_views.sdn_rep_resumen_empleados),
     path('rep-nominas/', sdn_views.sdn_rep_nominas_resumen),
+    # Movimientos manuales (Fsdn204/205)
+    path('movimientos/', sdn_views.sdn_movimientos_list),
+    path('movimientos/crear/', sdn_views.sdn_movimientos_crear),
+    path('movimientos/eliminar/', sdn_views.sdn_movimientos_eliminar),
+    # Generar Vacaciones (Fsdn401)
+    path('vacaciones/generar/', sdn_views.sdn_generar_vacaciones),
+    # Solicitud de Cheques de Nómina (Fsdn409) — preview
+    path('cheques/preview/', sdn_views.sdn_preview_cheques),
+    # Informe de Nómina (Fsdn207)
+    path('rep-informe/', sdn_views.sdn_rep_informe),
+    # RNC Empleados (DGII)
+    path('rep-rnc/', sdn_views.sdn_rep_empleados_rnc),
 ]

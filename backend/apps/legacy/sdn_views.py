@@ -222,6 +222,150 @@ def sdn_nomina_volante(request):
     return JsonResponse(out)
 
 
+# --- Movimientos manuales (Fsdn204/205) --------------------------------------
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
+def sdn_movimientos_list(request):
+    rows = sdn_repo.list_movimientos(
+        no_cia=request.GET.get('no_cia', ''),
+        punto=_norm_punto(request.GET.get('punto', '01')),
+        nomina=(request.GET.get('nomina') or '').upper(),
+        ano=int(request.GET.get('ano', 0)),
+        mes=int(request.GET.get('mes', 0)),
+        periodo=int(request.GET.get('periodo', 1)),
+        no_empleado=int(request.GET.get('no_empleado', 0)) or None,
+        tipo=request.GET.get('tipo') or None,
+        origen=request.GET.get('origen') or None,
+    )
+    return JsonResponse(rows, safe=False)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def sdn_movimientos_crear(request):
+    data = json.loads(request.body or '{}')
+    try:
+        out = sdn_repo.crear_movimiento_manual(
+            no_cia=data['no_cia'],
+            punto=_norm_punto(data['punto']),
+            nomina=(data['nomina'] or '').upper(),
+            ano=int(data['ano']),
+            mes=int(data['mes']),
+            periodo=int(data.get('periodo', 1)),
+            no_empleado=int(data['no_empleado']),
+            tipo_transaccion=data['tipo_transaccion'],
+            no_transaccion=data['no_transaccion'],
+            monto=float(data['monto']),
+            clase_transaccion=(data.get('clase_transaccion') or 'L').upper(),
+            empleado_patrono=(data.get('empleado_patrono') or 'E').upper(),
+            usuario=request.user.username,
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse(out, status=201)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['DELETE', 'POST'])
+def sdn_movimientos_eliminar(request):
+    data = json.loads(request.body or '{}')
+    try:
+        sdn_repo.eliminar_movimiento_manual(
+            no_cia=data['no_cia'],
+            punto=_norm_punto(data['punto']),
+            nomina=(data['nomina'] or '').upper(),
+            ano=int(data['ano']),
+            mes=int(data['mes']),
+            periodo=int(data.get('periodo', 1)),
+            no_empleado=int(data['no_empleado']),
+            linea=int(data['linea']),
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse({'ok': True})
+
+
+# --- Generar Vacaciones (Fsdn401) --------------------------------------------
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def sdn_generar_vacaciones(request):
+    data = json.loads(request.body or '{}')
+    try:
+        out = sdn_repo.generar_vacaciones(
+            no_cia=data['no_cia'],
+            punto=_norm_punto(data['punto']),
+            nomina=(data['nomina'] or '').upper(),
+            ano=int(data['ano']),
+            usuario=request.user.username,
+            dry_run=bool(data.get('dry_run', False)),
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse(out)
+
+
+# --- Generar Solicitud de Cheques (Fsdn409) ----------------------------------
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
+def sdn_preview_cheques(request):
+    try:
+        out = sdn_repo.preview_solicitud_cheques(
+            no_cia=request.GET.get('no_cia', ''),
+            punto=_norm_punto(request.GET.get('punto', '01')),
+            nomina=(request.GET.get('nomina') or '').upper(),
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse(out)
+
+
+# --- Informe de Nómina (Fsdn207) ---------------------------------------------
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
+def sdn_rep_informe(request):
+    try:
+        out = sdn_repo.rep_informe_nomina(
+            no_cia=request.GET.get('no_cia', ''),
+            punto=_norm_punto(request.GET.get('punto', '01')),
+            nomina=(request.GET.get('nomina') or '').upper(),
+            ano=int(request.GET.get('ano', 0)),
+            mes=int(request.GET.get('mes', 0)),
+            periodo=int(request.GET.get('periodo', 1)),
+            no_empleado=int(request.GET.get('no_empleado', 0)) or None,
+            no_gerencia=request.GET.get('no_gerencia') or None,
+            no_area=request.GET.get('no_area') or None,
+            no_depto=request.GET.get('no_depto') or None,
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse(out)
+
+
+# --- RNC Empleados (DGII) ----------------------------------------------------
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
+def sdn_rep_empleados_rnc(request):
+    rows = sdn_repo.rep_empleados_rnc(
+        no_cia=request.GET.get('no_cia', ''),
+        punto=_norm_punto(request.GET.get('punto', '')) or None,
+        activos=request.GET.get('activos', '1') in ('1', 'true', 'S'),
+        search=request.GET.get('search', ''),
+    )
+    return JsonResponse(rows, safe=False)
+
+
 @login_required
 @csrf_exempt
 @require_http_methods(['GET'])
