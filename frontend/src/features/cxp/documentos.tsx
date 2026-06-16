@@ -21,7 +21,7 @@ interface Documento {
 
 interface DocDetalle extends Documento {
   lineas: { cuenta: string; monto: number; tipo_movi: string }[]
-  rnc: string; posiciones_fijas_ncf: string; forma_pago: number
+  rnc: string; posiciones_fijas_ncf: string; ncf_dgi?: string; forma_pago: number
   debito: number; credito: number
 }
 
@@ -47,6 +47,16 @@ const STATUS_MAP: Record<string, { label: string; cls: string }> = {
 const fmt = (n: number) => n?.toLocaleString('es-DO', { minimumFractionDigits: 2 }) ?? '0.00'
 const fmtDate = (s: string) => s ? s.split('-').reverse().join('/') : ''
 const PAGE = 50
+
+// NCF DGI real = prefijo posiciones_fijas_ncf (B01..B15) + LPAD(NCF, 8, '0').
+// Mostrar solo el prefijo o solo el correlativo se ve como NCF incompleto al
+// validar contra DGI.
+function composeNcfDgi(prefix: string | null | undefined, ncf: number | null | undefined): string {
+  const p = (prefix || '').trim().toUpperCase()
+  const n = typeof ncf === 'number' ? ncf : Number(ncf)
+  if (!p || !n || n <= 0) return p || (n ? String(n) : '')
+  return `${p}${String(n).padStart(8, '0')}`
+}
 
 function diasVencidos(fechaVence: string): number | null {
   if (!fechaVence) return null
@@ -232,7 +242,7 @@ export function CxpDocumentos() {
               <div className="grid grid-cols-2 gap-2">
                 <div><span className="text-muted-foreground">Fecha:</span> {fmtDate(detalle.fecha)}</div>
                 <div><span className="text-muted-foreground">Vence:</span> {fmtDate(detalle.fecha_vence)}</div>
-                <div><span className="text-muted-foreground">NCF:</span> {detalle.posiciones_fijas_ncf || detalle.ncf}</div>
+                <div><span className="text-muted-foreground">NCF:</span> <span className="font-mono">{detalle.ncf_dgi || composeNcfDgi(detalle.posiciones_fijas_ncf, detalle.ncf) || '—'}</span></div>
                 <div><span className="text-muted-foreground">RNC:</span> {detalle.rnc}</div>
                 <div><span className="text-muted-foreground">Valor Original:</span> {fmt(detalle.valor_original)}</div>
                 <div><span className="text-muted-foreground">Saldo:</span> {fmt(detalle.saldo)}</div>

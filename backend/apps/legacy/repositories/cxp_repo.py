@@ -177,6 +177,10 @@ def get_documento(no_cia, punto, tipo_docu, no_docu):
     if not rows:
         return None
     doc = rows[0]
+    # NCF DGI compuesto (prefijo + LPAD(NCF,8,'0')) para que el frontend
+    # muestre el comprobante completo.
+    from .fat_repo import _compose_ncf_dgi
+    doc['ncf_dgi'] = _compose_ncf_dgi(doc.get('posiciones_fijas_ncf'), doc.get('ncf'))
     doc['lineas'] = client.fetch_dicts(sql_lineas, [no_cia, punto, tipo_docu, no_docu])
     return doc
 
@@ -205,7 +209,7 @@ def estado_cuenta(no_cia: str, no_proveedor: str, punto: str = ''):
         "       TO_CHAR(d.fecha,'YYYY-MM-DD') fecha, "
         "       TO_CHAR(d.fecha_vence,'YYYY-MM-DD') fecha_vence, "
         "       NVL(d.valor_original,0) valor, NVL(d.saldo,0) saldo, "
-        "       d.ncf, d.detalle, "
+        "       d.ncf, d.posiciones_fijas_ncf, d.detalle, "
         "       TRUNC(SYSDATE)-TRUNC(d.fecha) dias_vencido, "
         "       NVL(t.tipo_movi,'D') tipo_movi, "
         "       NVL(t.descri, d.tipo_docu) tipo_label "
@@ -213,6 +217,11 @@ def estado_cuenta(no_cia: str, no_proveedor: str, punto: str = ''):
         "LEFT JOIN CXP.TCXP_TDOCU t ON t.tipo_docu=d.tipo_docu "
         f"{where} ORDER BY d.fecha, d.no_docu",
         params)
+    # Componer NCF DGI: prefijo (B01..B15) + LPAD(NCF,8,'0') para que el
+    # frontend muestre el comprobante completo y no solo el correlativo.
+    from .fat_repo import _compose_ncf_dgi
+    for d in docs:
+        d['ncf'] = _compose_ncf_dgi(d.get('posiciones_fijas_ncf'), d.get('ncf')) or d.get('ncf')
 
     aging = {'d_0_30': 0.0, 'd_31_60': 0.0, 'd_61_90': 0.0, 'd_mas_90': 0.0}
     total_debito = 0.0
