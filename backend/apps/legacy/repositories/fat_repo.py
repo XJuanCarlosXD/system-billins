@@ -706,6 +706,39 @@ def get_conduce(no_cia: str, punto: str, tipo_conduce: str, no_conduce: str) -> 
 
 # ── Cuadre de Caja ────────────────────────────────────────────────────────────
 
+def find_cuadre_target_fecha(no_cia: str, punto: str) -> str | None:
+    """Devuelve la fecha (YYYY-MM-DD) que se debe mostrar por defecto al abrir
+    cuadre de caja.
+
+    Prioridad legacy:
+      1) MAX(TRUNC(fecha)) con no_cuadre_caja NULL → día en progreso (lo que
+         aún no se ha cuadrado todavía).
+      2) MAX(TRUNC(fecha)) total → último día con actividad aunque ya
+         estuviera cuadrado.
+      3) None si la empresa/punto no tiene historial — el caller decide
+         fallback (típicamente SYSDATE).
+    """
+    # Excluimos fechas en el futuro respecto a SYSDATE: hay data sucia con
+    # fechas futuras por errores de digitación y el día "en progreso" real
+    # nunca debe ser > hoy.
+    row = client.fetch_one(
+        "SELECT TO_CHAR(MAX(TRUNC(fecha)),'YYYY-MM-DD') "
+        "FROM FAT.TFAT_FACTURA "
+        "WHERE no_cia=:1 AND punto=:2 "
+        "  AND no_cuadre_caja IS NULL "
+        "  AND TRUNC(fecha) <= TRUNC(SYSDATE)",
+        [no_cia, punto])
+    if row and row[0]:
+        return row[0]
+    row = client.fetch_one(
+        "SELECT TO_CHAR(MAX(TRUNC(fecha)),'YYYY-MM-DD') "
+        "FROM FAT.TFAT_FACTURA "
+        "WHERE no_cia=:1 AND punto=:2 "
+        "  AND TRUNC(fecha) <= TRUNC(SYSDATE)",
+        [no_cia, punto])
+    return row[0] if row and row[0] else None
+
+
 def list_cuadre_caja(no_cia: str, punto: str, desde: str = '', hasta: str = '') -> list[dict]:
     # Group by date — includes FAT facturas + CXC cobros en el total.
     # Use named params so the UNION ALL can share param names.

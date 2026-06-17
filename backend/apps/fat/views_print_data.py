@@ -635,7 +635,14 @@ def fat_cuadre_caja_print_data(request):
     if err is not None:
         return err
     cia = _cia_payload(no_cia, request=request)
-    fecha = (request.GET.get('fecha') or '').strip() or _date.today().isoformat()
+    fecha_req = (request.GET.get('fecha') or '').strip()
+    # Auto-pick: día más reciente con facturas sin cuadrar (en progreso),
+    # si no, el último día con actividad; si tampoco, hoy. El legacy hace
+    # algo equivalente desde TFAT_PUNTO.PROX_CUADRE.
+    if not fecha_req or fecha_req.lower() == 'auto':
+        fecha = fat_repo.find_cuadre_target_fecha(no_cia, punto) or _date.today().isoformat()
+    else:
+        fecha = fecha_req
     incluir_detalle = request.GET.get('incluir_detalle', '0') in ('1', 'true', 'S', 's')
 
     try:
@@ -661,6 +668,7 @@ def fat_cuadre_caja_print_data(request):
     cuadre_dia = historial[0] if historial else {}
     usuario = (cuadre_dia.get('usuario') or '').strip()
     no_cuadre = int(cuadre_dia.get('no_cuadre_caja') or 0)
+    dia_en_progreso = bool(historial) and no_cuadre == 0
 
     facturas: list = []
     if incluir_detalle:
@@ -696,6 +704,8 @@ def fat_cuadre_caja_print_data(request):
         },
         'extra': {
             'fecha': fecha,
+            'fecha_solicitada': fecha_req,
+            'dia_en_progreso': dia_en_progreso,
             'usuario': usuario,
             'no_cuadre': no_cuadre,
             'incluir_detalle': bool(incluir_detalle),

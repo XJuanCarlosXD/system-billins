@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Calculator, FileSpreadsheet, Printer, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -27,6 +27,8 @@ type FacturaItem = {
 }
 type CuadreResp = {
   fecha: string
+  fecha_solicitada: string
+  dia_en_progreso: boolean
   usuario: string
   no_cuadre: number
   resumen_pago: ResumenItem[]
@@ -39,6 +41,46 @@ const API = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:800
 
 const fmtN = (n: number) =>
   Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+type FacturaGrupoData = { ncf_tipo: string; rows: FacturaItem[]; total: number; itbis: number; descuento: number }
+
+function FacturaGrupo({ g }: { g: FacturaGrupoData }) {
+  return (
+    <>
+      <TableRow className='bg-muted/30'>
+        <TableCell colSpan={7} className='font-semibold text-sm py-1.5'>
+          <span className='font-mono'>{g.ncf_tipo}</span>
+          <span className='ml-2 text-muted-foreground font-normal'>{labelNcf(g.ncf_tipo)}</span>
+          <span className='ml-2 text-xs text-muted-foreground'>({g.rows.length} facturas)</span>
+        </TableCell>
+      </TableRow>
+      {g.rows.map((f, i) => {
+        const anul = f.st_anulado === 'S'
+        return (
+          <TableRow key={`${f.tipo_factura}-${f.no_factura}-${i}`}
+                    className={anul ? 'text-red-600' : ''}>
+            <TableCell className='font-mono text-sm pl-6'>
+              {f.tipo_factura}-{f.no_factura}
+              {anul && <span className='ml-1 text-xs'>(ANUL)</span>}
+            </TableCell>
+            <TableCell className='text-sm'>{(f.nombre_cliente || '').slice(0, 60)}</TableCell>
+            <TableCell className='font-mono text-xs'>{f.ncf_dgi || '—'}</TableCell>
+            <TableCell className='text-xs'>{f.forma_pago}</TableCell>
+            <TableCell className='text-right font-mono tabular-nums'>{fmtN(f.descuento || 0)}</TableCell>
+            <TableCell className='text-right font-mono tabular-nums'>{fmtN(f.impuesto || 0)}</TableCell>
+            <TableCell className='text-right font-mono tabular-nums font-semibold'>{fmtN(f.total_neto || 0)}</TableCell>
+          </TableRow>
+        )
+      })}
+      <TableRow className='bg-muted/20 font-semibold text-sm'>
+        <TableCell colSpan={4} className='text-right pr-3'>Subtotal {g.ncf_tipo}</TableCell>
+        <TableCell className='text-right font-mono tabular-nums'>{fmtN(g.descuento)}</TableCell>
+        <TableCell className='text-right font-mono tabular-nums'>{fmtN(g.itbis)}</TableCell>
+        <TableCell className='text-right font-mono tabular-nums'>{fmtN(g.total)}</TableCell>
+      </TableRow>
+    </>
+  )
+}
 
 function labelNcf(ncf_tipo: string): string {
   const t = (ncf_tipo || '').toUpperCase()
@@ -59,9 +101,11 @@ function labelNcf(ncf_tipo: string): string {
 
 // Llama al endpoint print-data unificado: él calcula resumen, por NCF, matriz y
 // (opcionalmente) la lista de facturas del día. Una sola fetch por estado.
+// fecha='' o 'auto' → el backend escoge el día más reciente con actividad.
 async function fetchCuadreDia(noCia: string, punto: string, fecha: string,
                               incluirDetalle: boolean): Promise<CuadreResp> {
-  const p = new URLSearchParams({ no_cia: noCia, punto, fecha })
+  const p = new URLSearchParams({ no_cia: noCia, punto })
+  if (fecha) p.set('fecha', fecha)
   if (incluirDetalle) p.set('incluir_detalle', '1')
   const res = await fetch(`${API}/fat/reportes/cuadre-caja/print-data/?${p}`,
     { credentials: 'include' })
@@ -70,6 +114,8 @@ async function fetchCuadreDia(noCia: string, punto: string, fecha: string,
   const e = json.extra || {}
   return {
     fecha: e.fecha || fecha,
+    fecha_solicitada: e.fecha_solicitada || '',
+    dia_en_progreso: !!e.dia_en_progreso,
     usuario: e.usuario || '',
     no_cuadre: Number(e.no_cuadre || 0),
     resumen_pago: e.resumen_pago || [],
@@ -79,22 +125,28 @@ async function fetchCuadreDia(noCia: string, punto: string, fecha: string,
   }
 }
 
-const TODAY = new Date().toISOString().slice(0, 10)
-
 export function CuadreCajaFat({ noCia, punto }: Props) {
-  // Solo hay un cuadre por día: el día seleccionado (default hoy) se hala
-  // automáticamente al entrar. Sin historial, sin filtros de rango.
-  const [fecha, setFecha] = useState(TODAY)
+  // Solo hay un cuadre por día. Inicia con fecha='' para que el backend halé
+  // el día más reciente con actividad (legacy PROX_CUADRE). Cuando llega la
+  // primera respuesta sincronizamos el input con extra.fecha.
+  const [fecha, setFecha] = useState('')
   const [incluirDetalle, setIncluirDetalle] = useState(false)
 
   const q = useQuery({
     queryKey: ['fat-cuadre-dia', noCia, punto, fecha, incluirDetalle],
     queryFn: () => fetchCuadreDia(noCia, punto, fecha, incluirDetalle),
-    enabled: !!noCia && !!fecha,
+    enabled: !!noCia,
     staleTime: 60_000,
   })
 
   const data = q.data
+
+  // Si el usuario no eligió fecha, sincroniza el input con la que escogió
+  // el backend (día en progreso o último con actividad) — así el botón
+  // "Imprimir PDF" tiene la fecha real, no '' .
+  useEffect(() => {
+    if (!fecha && data?.fecha) setFecha(data.fecha)
+  }, [fecha, data?.fecha])
   const resumen = data?.resumen_pago ?? []
   const porNcf = data?.por_ncf ?? []
   const porNcfFormaPago = data?.por_ncf_forma_pago ?? []
@@ -110,6 +162,22 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
   const totalFormaPago = resumen.reduce((s, r) => s + r.total, 0)
   const totalPorNcf = porNcf.reduce((s, r) => s + r.total_neto, 0)
   const totalFacturas = facturas.reduce((s, f) => s + (f.total_neto || 0), 0)
+
+  // Agrupar las facturas por tipo NCF para reflejar los resúmenes del cuadre.
+  // El "—" representa facturas sin posiciones_fijas_ncf (raro pero posible).
+  const facturasPorNcf = (() => {
+    const groups = new Map<string, { ncf_tipo: string; rows: FacturaItem[]; total: number; itbis: number; descuento: number }>()
+    for (const f of facturas) {
+      const key = ((f.ncf_dgi || '').slice(0, 3) || '—').toUpperCase()
+      const g = groups.get(key) || { ncf_tipo: key, rows: [], total: 0, itbis: 0, descuento: 0 }
+      g.rows.push(f)
+      g.total += f.total_neto || 0
+      g.itbis += f.impuesto || 0
+      g.descuento += f.descuento || 0
+      groups.set(key, g)
+    }
+    return [...groups.values()].sort((a, b) => a.ncf_tipo.localeCompare(b.ncf_tipo))
+  })()
 
   // Matriz NCF × forma_pago.
   const ncfFormaPagoMatrix = (() => {
@@ -197,10 +265,19 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
           <h2 className='text-lg font-semibold flex items-center gap-2'>
             <Calculator className='h-5 w-5' /> Cuadre de Caja
           </h2>
-          <p className='text-sm text-muted-foreground'>
-            Empresa {noCia} / Punto {punto}
-            {data?.no_cuadre ? ` · Cuadre #${data.no_cuadre}` : ''}
-            {data?.usuario ? ` · ${data.usuario}` : ''}
+          <p className='text-sm text-muted-foreground flex flex-wrap items-center gap-x-2'>
+            <span>Empresa {noCia} / Punto {punto}</span>
+            {data?.fecha && <span>· {data.fecha}</span>}
+            {data?.no_cuadre ? (
+              <span className='rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-700'>
+                Cuadrado #{data.no_cuadre}
+              </span>
+            ) : data?.dia_en_progreso ? (
+              <span className='rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800'>
+                Día en progreso
+              </span>
+            ) : null}
+            {data?.usuario && <span>· {data.usuario}</span>}
           </p>
         </div>
         <div className='flex gap-2 flex-wrap'>
@@ -372,11 +449,12 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
           </div>
         )}
 
-        {/* Detalle de facturas — solo si el usuario lo activó */}
+        {/* Detalle de facturas — solo si el usuario lo activó.
+            Agrupado por tipo NCF (mismo grouping que los resúmenes del cuadre). */}
         {incluirDetalle && (
           <div className='rounded-md border'>
             <div className='px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-blue-700'>
-              Detalle de Facturas del Día ({facturas.length})
+              Detalle de Facturas del Día ({facturas.length}) · agrupado por NCF
             </div>
             <Table>
               <TableHeader>
@@ -394,30 +472,15 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
                 {q.isLoading && (
                   <TableRow><TableCell colSpan={7} className='py-6 text-center text-muted-foreground'>Cargando facturas…</TableCell></TableRow>
                 )}
-                {!q.isLoading && facturas.length === 0 && (
+                {!q.isLoading && facturasPorNcf.length === 0 && (
                   <TableRow><TableCell colSpan={7} className='py-6 text-center text-muted-foreground'>Sin facturas para el {fecha}.</TableCell></TableRow>
                 )}
-                {facturas.map((f, i) => {
-                  const anul = f.st_anulado === 'S'
-                  return (
-                    <TableRow key={`${f.tipo_factura}-${f.no_factura}-${i}`}
-                              className={anul ? 'text-red-600' : ''}>
-                      <TableCell className='font-mono text-sm'>
-                        {f.tipo_factura}-{f.no_factura}
-                        {anul && <span className='ml-1 text-xs'>(ANUL)</span>}
-                      </TableCell>
-                      <TableCell className='text-sm'>{(f.nombre_cliente || '').slice(0, 60)}</TableCell>
-                      <TableCell className='font-mono text-xs'>{f.ncf_dgi || '—'}</TableCell>
-                      <TableCell className='text-xs'>{f.forma_pago}</TableCell>
-                      <TableCell className='text-right font-mono tabular-nums'>{fmtN(f.descuento || 0)}</TableCell>
-                      <TableCell className='text-right font-mono tabular-nums'>{fmtN(f.impuesto || 0)}</TableCell>
-                      <TableCell className='text-right font-mono tabular-nums font-semibold'>{fmtN(f.total_neto || 0)}</TableCell>
-                    </TableRow>
-                  )
-                })}
-                {facturas.length > 0 && (
+                {facturasPorNcf.map((g) => (
+                  <FacturaGrupo key={g.ncf_tipo} g={g} />
+                ))}
+                {facturasPorNcf.length > 0 && (
                   <TableRow className='border-t-2 bg-muted/40 font-bold'>
-                    <TableCell colSpan={6} className='text-right'>TOTAL ({facturas.length})</TableCell>
+                    <TableCell colSpan={6} className='text-right'>TOTAL ({facturas.length} facturas)</TableCell>
                     <TableCell className='text-right font-mono tabular-nums'>{fmtN(totalFacturas)}</TableCell>
                   </TableRow>
                 )}
