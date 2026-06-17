@@ -636,11 +636,18 @@ def fat_cuadre_caja_print_data(request):
         return err
     cia = _cia_payload(no_cia, request=request)
     fecha_req = (request.GET.get('fecha') or '').strip()
-    # Auto-pick: día más reciente con facturas sin cuadrar (en progreso),
-    # si no, el último día con actividad; si tampoco, hoy. El legacy hace
-    # algo equivalente desde TFAT_PUNTO.PROX_CUADRE.
+    # Default = SYSDATE (Oracle "hoy"). El legacy Ffat266 trabaja sobre el día
+    # en curso (PROX_CUADRE de TFAT_PUNTO) y el cuadre se hace al cierre.
+    # Si no hay facturas para hoy se devuelve vacío con badge "Día en progreso".
+    sysdate_row = None
+    try:
+        sysdate_row = fat_repo.client.fetch_one(
+            "SELECT TO_CHAR(SYSDATE,'YYYY-MM-DD') FROM DUAL", [])
+    except Exception:
+        pass
+    sysdate_iso = (sysdate_row[0] if sysdate_row else None) or _date.today().isoformat()
     if not fecha_req or fecha_req.lower() == 'auto':
-        fecha = fat_repo.find_cuadre_target_fecha(no_cia, punto) or _date.today().isoformat()
+        fecha = sysdate_iso
     else:
         fecha = fecha_req
     incluir_detalle = request.GET.get('incluir_detalle', '0') in ('1', 'true', 'S', 's')
@@ -668,7 +675,10 @@ def fat_cuadre_caja_print_data(request):
     cuadre_dia = historial[0] if historial else {}
     usuario = (cuadre_dia.get('usuario') or '').strip()
     no_cuadre = int(cuadre_dia.get('no_cuadre_caja') or 0)
-    dia_en_progreso = bool(historial) and no_cuadre == 0
+    # Día en progreso = aún no se ha hecho cuadre para esa fecha Y la fecha
+    # no es posterior a SYSDATE. Para fechas pasadas sin cuadre se muestra
+    # también "en progreso" porque sigue abierto contablemente.
+    dia_en_progreso = no_cuadre == 0 and fecha <= sysdate_iso
 
     facturas: list = []
     if incluir_detalle:

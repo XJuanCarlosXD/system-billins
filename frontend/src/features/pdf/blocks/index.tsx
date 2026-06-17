@@ -709,6 +709,10 @@ function BloqueCuadreCaja({
   const porNcf = (extra.por_ncf as PorNcfItem[]) ?? []
   const porNcfFormaPago = (extra.por_ncf_forma_pago as NcfFormaPagoItem[]) ?? []
   const facturas = (extra.facturas as FacturaItem[]) ?? []
+  // El usuario activa "Incluir detalle" desde el switch de la pantalla —
+  // viaja como extra.incluir_detalle. Sobreescribe la plantilla.
+  const incluirDetalleFlag = !!extra.incluir_detalle
+  const renderDetalle = showDetalleFacturas || incluirDetalleFlag
 
   // Pivot NCF × forma_pago
   const formasSet = new Set<string>()
@@ -861,25 +865,26 @@ function BloqueCuadreCaja({
         </>
       )}
 
-      {showDetalleFacturas && (() => {
-        // Agrupar facturas por tipo NCF (mismo agrupamiento que los resúmenes).
-        type Grupo = { ncf_tipo: string; rows: FacturaItem[]; total: number; itbis: number; descuento: number }
+      {renderDetalle && (() => {
+        // Agrupar facturas por FORMA DE PAGO (mismo agrupamiento que el
+        // resumen principal del cuadre). Cada grupo muestra el subtotal.
+        type Grupo = { forma_pago: string; rows: FacturaItem[]; total: number; itbis: number; descuento: number }
         const groups = new Map<string, Grupo>()
         for (const f of facturas) {
-          const key = ((f.ncf_dgi || '').slice(0, 3) || '—').toUpperCase()
-          const g = groups.get(key) || { ncf_tipo: key, rows: [], total: 0, itbis: 0, descuento: 0 }
+          const key = (f.forma_pago || 'SIN FORMA DE PAGO').toUpperCase().trim() || 'SIN FORMA DE PAGO'
+          const g = groups.get(key) || { forma_pago: key, rows: [], total: 0, itbis: 0, descuento: 0 }
           g.rows.push(f)
           g.total += f.total_neto || 0
           g.itbis += f.impuesto || 0
           g.descuento += f.descuento || 0
           groups.set(key, g)
         }
-        const facturasPorNcf = [...groups.values()].sort((a, b) => a.ncf_tipo.localeCompare(b.ncf_tipo))
+        const facturasPorForma = [...groups.values()].sort((a, b) => a.forma_pago.localeCompare(b.forma_pago, 'es'))
         const grupoHdr: any = { ...td, background: '#e2e8f0', fontWeight: 700 }
         const subTotalRow: any = { ...td, background: '#f1f5f9', fontWeight: 700 }
         return (
           <>
-            <div style={sectionTitle}>Detalle de Facturas · agrupado por NCF</div>
+            <div style={sectionTitle}>Detalle de Facturas · agrupado por Forma de Pago</div>
             <table style={tableStyle}>
               <thead>
                 <tr>
@@ -893,14 +898,13 @@ function BloqueCuadreCaja({
                 </tr>
               </thead>
               <tbody>
-                {facturasPorNcf.length === 0 ? (
+                {facturasPorForma.length === 0 ? (
                   <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: '#777' }}>Sin facturas en el día.</td></tr>
-                ) : facturasPorNcf.map((g) => (
-                  <Fragment key={g.ncf_tipo}>
+                ) : facturasPorForma.map((g) => (
+                  <Fragment key={g.forma_pago}>
                     <tr>
                       <td colSpan={7} style={grupoHdr}>
-                        <span style={{ fontFamily: 'monospace' }}>{g.ncf_tipo}</span>
-                        <span style={{ marginLeft: 8, fontWeight: 400 }}>{labelNcfHuman(g.ncf_tipo)}</span>
+                        <span>{g.forma_pago}</span>
                         <span style={{ marginLeft: 8, fontSize: fontSize - 1, color: '#555' }}>({g.rows.length} facturas)</span>
                       </td>
                     </tr>
@@ -908,7 +912,7 @@ function BloqueCuadreCaja({
                       const num = `${f.tipo_factura || ''}-${f.no_factura || ''}`
                       const anul = (f.st_anulado === 'S')
                       return (
-                        <tr key={`${g.ncf_tipo}-${num}-${i}`} style={anul ? { color: '#b91c1c' } : undefined}>
+                        <tr key={`${g.forma_pago}-${num}-${i}`} style={anul ? { color: '#b91c1c' } : undefined}>
                           <td style={{ ...td, fontFamily: 'monospace', paddingLeft: 14 }}>{num}{anul ? ' (ANUL)' : ''}</td>
                           <td style={td}>{fmtDate(f.fecha)}</td>
                           <td style={td}>{(f.nombre_cliente || '').slice(0, 60)}</td>
@@ -920,14 +924,14 @@ function BloqueCuadreCaja({
                       )
                     })}
                     <tr>
-                      <td colSpan={4} style={{ ...subTotalRow, textAlign: 'right' }}>Subtotal {g.ncf_tipo}</td>
+                      <td colSpan={4} style={{ ...subTotalRow, textAlign: 'right' }}>Subtotal {g.forma_pago}</td>
                       <td style={{ ...subTotalRow, textAlign: 'right' }}>{money(g.descuento)}</td>
                       <td style={{ ...subTotalRow, textAlign: 'right' }}>{money(g.itbis)}</td>
                       <td style={{ ...subTotalRow, textAlign: 'right' }}>{money(g.total)}</td>
                     </tr>
                   </Fragment>
                 ))}
-                {facturasPorNcf.length > 0 && (
+                {facturasPorForma.length > 0 && (
                   <tr style={tfootRow}>
                     <td colSpan={6} style={tdR}>TOTAL FACTURAS ({facturas.length})</td>
                     <td style={tdR}>{money(totalFacturas)}</td>

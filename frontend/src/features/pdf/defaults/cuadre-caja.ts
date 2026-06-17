@@ -15,9 +15,12 @@ export const cuadreCajaDefault: any = {
     { type: 'BloqueCuadreCaja', props: {
       id: 'cc',
       showResumenPago: true,
-      showPorNcf: true,
+      // Quitado del default: el por_ncf se cubre con la matriz NCF×forma_pago.
+      showPorNcf: false,
       showMatrizNcfFormaPago: true,
-      showDetalleFacturas: true,
+      // Detalle de facturas off por default — solo si el usuario activa el
+      // toggle "Incluir detalle" o lo prende en la plantilla.
+      showDetalleFacturas: false,
       colorTitulo: '#0F172A',
       fontSize: 9,
     } },

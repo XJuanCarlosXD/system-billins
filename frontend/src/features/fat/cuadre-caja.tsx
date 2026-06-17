@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Calculator, FileSpreadsheet, Printer, RefreshCw } from 'lucide-react'
+import { Calculator, ChevronDown, ChevronRight, FileSpreadsheet, Printer, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
@@ -11,10 +11,6 @@ import { buildReportMeta, downloadCsv } from './fat-export'
 interface Props { noCia: string; punto: string; mes?: number; ano?: number }
 
 type ResumenItem = { tipo_pago: string; forma_pago: string; cantidad: number; total: number }
-type NcfItem = {
-  ncf_tipo: string; cantidad: number
-  total_linea: number; descuento: number; impuesto: number; total_neto: number
-}
 type NcfFormaPagoItem = {
   ncf_tipo: string; tipo_pago: string; forma_pago: string
   cantidad: number; total: number
@@ -32,7 +28,6 @@ type CuadreResp = {
   usuario: string
   no_cuadre: number
   resumen_pago: ResumenItem[]
-  por_ncf: NcfItem[]
   por_ncf_forma_pago: NcfFormaPagoItem[]
   facturas: FacturaItem[]
 }
@@ -42,66 +37,19 @@ const API = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:800
 const fmtN = (n: number) =>
   Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-type FacturaGrupoData = { ncf_tipo: string; rows: FacturaItem[]; total: number; itbis: number; descuento: number }
-
-function FacturaGrupo({ g }: { g: FacturaGrupoData }) {
-  return (
-    <>
-      <TableRow className='bg-muted/30'>
-        <TableCell colSpan={7} className='font-semibold text-sm py-1.5'>
-          <span className='font-mono'>{g.ncf_tipo}</span>
-          <span className='ml-2 text-muted-foreground font-normal'>{labelNcf(g.ncf_tipo)}</span>
-          <span className='ml-2 text-xs text-muted-foreground'>({g.rows.length} facturas)</span>
-        </TableCell>
-      </TableRow>
-      {g.rows.map((f, i) => {
-        const anul = f.st_anulado === 'S'
-        return (
-          <TableRow key={`${f.tipo_factura}-${f.no_factura}-${i}`}
-                    className={anul ? 'text-red-600' : ''}>
-            <TableCell className='font-mono text-sm pl-6'>
-              {f.tipo_factura}-{f.no_factura}
-              {anul && <span className='ml-1 text-xs'>(ANUL)</span>}
-            </TableCell>
-            <TableCell className='text-sm'>{(f.nombre_cliente || '').slice(0, 60)}</TableCell>
-            <TableCell className='font-mono text-xs'>{f.ncf_dgi || '—'}</TableCell>
-            <TableCell className='text-xs'>{f.forma_pago}</TableCell>
-            <TableCell className='text-right font-mono tabular-nums'>{fmtN(f.descuento || 0)}</TableCell>
-            <TableCell className='text-right font-mono tabular-nums'>{fmtN(f.impuesto || 0)}</TableCell>
-            <TableCell className='text-right font-mono tabular-nums font-semibold'>{fmtN(f.total_neto || 0)}</TableCell>
-          </TableRow>
-        )
-      })}
-      <TableRow className='bg-muted/20 font-semibold text-sm'>
-        <TableCell colSpan={4} className='text-right pr-3'>Subtotal {g.ncf_tipo}</TableCell>
-        <TableCell className='text-right font-mono tabular-nums'>{fmtN(g.descuento)}</TableCell>
-        <TableCell className='text-right font-mono tabular-nums'>{fmtN(g.itbis)}</TableCell>
-        <TableCell className='text-right font-mono tabular-nums'>{fmtN(g.total)}</TableCell>
-      </TableRow>
-    </>
-  )
-}
-
 function labelNcf(ncf_tipo: string): string {
   const t = (ncf_tipo || '').toUpperCase()
   const map: Record<string, string> = {
-    'B01': 'B01 — Crédito Fiscal',
-    'B02': 'B02 — Consumo',
-    'B03': 'B03 — Nota de Débito',
-    'B04': 'B04 — Nota de Crédito',
-    'B11': 'B11 — Proveedor Informal',
-    'B12': 'B12 — Registro Único',
-    'B13': 'B13 — Gastos Menores',
-    'B14': 'B14 — Régimen Especial',
-    'B15': 'B15 — Gubernamental',
-    'B16': 'B16 — Exportación',
+    'B01': 'B01 — Crédito Fiscal', 'B02': 'B02 — Consumo',
+    'B03': 'B03 — Nota de Débito', 'B04': 'B04 — Nota de Crédito',
+    'B11': 'B11 — Proveedor Informal', 'B12': 'B12 — Registro Único',
+    'B13': 'B13 — Gastos Menores', 'B14': 'B14 — Régimen Especial',
+    'B15': 'B15 — Gubernamental', 'B16': 'B16 — Exportación',
   }
   return map[t] || (t || '—')
 }
 
-// Llama al endpoint print-data unificado: él calcula resumen, por NCF, matriz y
-// (opcionalmente) la lista de facturas del día. Una sola fetch por estado.
-// fecha='' o 'auto' → el backend escoge el día más reciente con actividad.
+// fecha vacía = el backend usa SYSDATE (hoy en Oracle).
 async function fetchCuadreDia(noCia: string, punto: string, fecha: string,
                               incluirDetalle: boolean): Promise<CuadreResp> {
   const p = new URLSearchParams({ no_cia: noCia, punto })
@@ -119,38 +67,62 @@ async function fetchCuadreDia(noCia: string, punto: string, fecha: string,
     usuario: e.usuario || '',
     no_cuadre: Number(e.no_cuadre || 0),
     resumen_pago: e.resumen_pago || [],
-    por_ncf: e.por_ncf || [],
     por_ncf_forma_pago: e.por_ncf_forma_pago || [],
     facturas: e.facturas || [],
   }
 }
 
+const TODAY = new Date().toISOString().slice(0, 10)
+
+// Indexa facturas por (tipo_pago + '|' + forma_pago) para que cada fila del
+// resumen "Forma de Pago" pueda mostrar SUS facturas al expandir. Las facturas
+// que aparezcan en varios pagos (split tender) entran en cada grupo
+// proporcional a la asociación de TFAT_FORMA_PAGO; aquí usamos forma_pago
+// reportada por list_facturas como heurística simple.
+function groupFacturasPorFormaPago(facturas: FacturaItem[]): Record<string, FacturaItem[]> {
+  const out: Record<string, FacturaItem[]> = {}
+  for (const f of facturas) {
+    const key = (f.forma_pago || '').toUpperCase().trim()
+    if (!key) continue
+    ;(out[key] = out[key] || []).push(f)
+  }
+  return out
+}
+
 export function CuadreCajaFat({ noCia, punto }: Props) {
-  // Solo hay un cuadre por día. Inicia con fecha='' para que el backend halé
-  // el día más reciente con actividad (legacy PROX_CUADRE). Cuando llega la
-  // primera respuesta sincronizamos el input con extra.fecha.
-  const [fecha, setFecha] = useState('')
+  // Default = HOY (sysdate). El cuadre del día se hala automáticamente al
+  // entrar. Si hoy no tiene facturas, sale "Día en progreso" con sin
+  // movimientos — eso es lo correcto contra el legacy.
+  const [fecha, setFecha] = useState(TODAY)
   const [incluirDetalle, setIncluirDetalle] = useState(false)
+  const [expandida, setExpandida] = useState<Record<string, boolean>>({})
 
   const q = useQuery({
     queryKey: ['fat-cuadre-dia', noCia, punto, fecha, incluirDetalle],
     queryFn: () => fetchCuadreDia(noCia, punto, fecha, incluirDetalle),
-    enabled: !!noCia,
+    enabled: !!noCia && !!fecha,
+    staleTime: 60_000,
+  })
+
+  // Para poder expandir formas de pago necesitamos las facturas: forzamos
+  // que el backend siempre las devuelva. El switch "incluir detalle" sigue
+  // controlando si salen en el PDF.
+  const qDet = useQuery({
+    queryKey: ['fat-cuadre-dia-det', noCia, punto, fecha],
+    queryFn: () => fetchCuadreDia(noCia, punto, fecha, true),
+    enabled: !!noCia && !!fecha,
     staleTime: 60_000,
   })
 
   const data = q.data
-
-  // Si el usuario no eligió fecha, sincroniza el input con la que escogió
-  // el backend (día en progreso o último con actividad) — así el botón
-  // "Imprimir PDF" tiene la fecha real, no '' .
+  // Sincroniza el input si el backend devolvió una fecha distinta (ej. clamp).
   useEffect(() => {
-    if (!fecha && data?.fecha) setFecha(data.fecha)
-  }, [fecha, data?.fecha])
+    if (data?.fecha && data.fecha !== fecha) setFecha(data.fecha)
+  }, [data?.fecha])  // eslint-disable-line react-hooks/exhaustive-deps
+
   const resumen = data?.resumen_pago ?? []
-  const porNcf = data?.por_ncf ?? []
   const porNcfFormaPago = data?.por_ncf_forma_pago ?? []
-  const facturas = data?.facturas ?? []
+  const facturas = qDet.data?.facturas ?? []
 
   // Cobros de crédito al final, resto alfabético por forma_pago.
   const resumenSorted = [...resumen].sort((a, b) => {
@@ -160,24 +132,6 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
     return (a.forma_pago || '').localeCompare(b.forma_pago || '', 'es')
   })
   const totalFormaPago = resumen.reduce((s, r) => s + r.total, 0)
-  const totalPorNcf = porNcf.reduce((s, r) => s + r.total_neto, 0)
-  const totalFacturas = facturas.reduce((s, f) => s + (f.total_neto || 0), 0)
-
-  // Agrupar las facturas por tipo NCF para reflejar los resúmenes del cuadre.
-  // El "—" representa facturas sin posiciones_fijas_ncf (raro pero posible).
-  const facturasPorNcf = (() => {
-    const groups = new Map<string, { ncf_tipo: string; rows: FacturaItem[]; total: number; itbis: number; descuento: number }>()
-    for (const f of facturas) {
-      const key = ((f.ncf_dgi || '').slice(0, 3) || '—').toUpperCase()
-      const g = groups.get(key) || { ncf_tipo: key, rows: [], total: 0, itbis: 0, descuento: 0 }
-      g.rows.push(f)
-      g.total += f.total_neto || 0
-      g.itbis += f.impuesto || 0
-      g.descuento += f.descuento || 0
-      groups.set(key, g)
-    }
-    return [...groups.values()].sort((a, b) => a.ncf_tipo.localeCompare(b.ncf_tipo))
-  })()
 
   // Matriz NCF × forma_pago.
   const ncfFormaPagoMatrix = (() => {
@@ -203,13 +157,16 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
     return { formas, filas, totalesCol, totalMatrix }
   })()
 
+  // Facturas indexadas por forma de pago (para expandir filas del resumen).
+  const facturasPorFormaPago = groupFacturasPorFormaPago(facturas)
+
   const mesAno = (() => {
-    const d = new Date(fecha)
+    const d = new Date(fecha || TODAY)
     return `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`
   })()
 
   const exportCsv = async () => {
-    if (!resumen.length && !porNcf.length) return
+    if (!resumen.length) return
     const meta = await buildReportMeta(noCia, punto, mesAno)
     const rows: any[][] = []
     rows.push([`=== Cuadre de Caja del ${fecha} ${data?.usuario ? '· ' + data.usuario : ''} ===`])
@@ -220,36 +177,31 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
       rows.push([it.tipo_pago, it.forma_pago, it.cantidad, Number(it.total ?? 0).toFixed(2)])
     }
     rows.push(['', '', 'TOTAL', totalFormaPago.toFixed(2)])
-    rows.push([])
-    rows.push(['=== Resumen por Tipo NCF ==='])
-    rows.push(['Tipo NCF', 'Cantidad', 'Total Linea', 'Descuento', 'ITBIS', 'Total Neto'])
-    for (const r of porNcf) {
-      rows.push([r.ncf_tipo, r.cantidad,
-        r.total_linea.toFixed(2), r.descuento.toFixed(2),
-        r.impuesto.toFixed(2), r.total_neto.toFixed(2)])
-    }
-    rows.push(['', 'TOTAL', '', '', '', totalPorNcf.toFixed(2)])
     if (incluirDetalle && facturas.length) {
       rows.push([])
-      rows.push(['=== Detalle de Facturas ==='])
-      rows.push(['No. Factura', 'Fecha', 'Cliente', 'NCF', 'Forma Pago', 'Descuento', 'ITBIS', 'Total Neto', 'Anulada'])
-      for (const f of facturas) {
-        rows.push([
-          `${f.tipo_factura}-${f.no_factura}`,
-          (f.fecha || '').slice(0, 10),
-          f.nombre_cliente, f.ncf_dgi, f.forma_pago,
-          (f.descuento || 0).toFixed(2), (f.impuesto || 0).toFixed(2),
-          (f.total_neto || 0).toFixed(2),
-          f.st_anulado === 'S' ? 'SI' : '',
-        ])
+      rows.push(['=== Detalle por Forma de Pago ==='])
+      rows.push(['Forma Pago', 'No. Factura', 'Cliente', 'NCF', 'Descuento', 'ITBIS', 'Total Neto', 'Anulada'])
+      for (const it of resumenSorted) {
+        const list = facturasPorFormaPago[it.forma_pago.toUpperCase()] || []
+        if (!list.length) continue
+        rows.push([`=== ${it.forma_pago} ===`])
+        for (const f of list) {
+          rows.push([
+            it.forma_pago,
+            `${f.tipo_factura}-${f.no_factura}`,
+            f.nombre_cliente, f.ncf_dgi,
+            (f.descuento || 0).toFixed(2), (f.impuesto || 0).toFixed(2),
+            (f.total_neto || 0).toFixed(2),
+            f.st_anulado === 'S' ? 'SI' : '',
+          ])
+        }
       }
-      rows.push(['', '', '', '', '', '', 'TOTAL', totalFacturas.toFixed(2)])
     }
     downloadCsv(`cuadre-caja-${fecha}.csv`, [], rows, meta)
   }
 
-  // PDF nuevo sistema: abre /print/cuadre-caja/<fecha> que usa la plantilla
-  // Puck (logo + secciones configurables vía /settings/pdf-templates/cuadre-caja).
+  // Abre el PDF nuevo (Puck + logo). incluir_detalle viaja como search param
+  // y el bloque BloqueCuadreCaja decide si renderiza el detalle.
   const abrirPdf = () => {
     const u = new URLSearchParams({ no_cia: noCia, punto })
     if (incluirDetalle) u.set('incluir_detalle', '1')
@@ -257,6 +209,9 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
       `/print/cuadre-caja/${encodeURIComponent(fecha)}?${u.toString()}`,
       '_blank', 'noopener')
   }
+
+  const toggleRow = (key: string) =>
+    setExpandida((p) => ({ ...p, [key]: !p[key] }))
 
   return (
     <section className='space-y-4'>
@@ -282,14 +237,14 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
         </div>
         <div className='flex gap-2 flex-wrap'>
           <Button variant='outline' size='sm' onClick={abrirPdf}
-                  disabled={!resumen.length && !porNcf.length}>
+                  disabled={!resumen.length}>
             <Printer className='mr-1 h-4 w-4' /> Imprimir PDF
           </Button>
           <Button variant='outline' size='sm' onClick={exportCsv}
-                  disabled={!resumen.length && !porNcf.length}>
+                  disabled={!resumen.length}>
             <FileSpreadsheet className='mr-1 h-4 w-4' /> Excel
           </Button>
-          <Button variant='outline' size='sm' onClick={() => q.refetch()}>
+          <Button variant='outline' size='sm' onClick={() => { q.refetch(); qDet.refetch() }}>
             <RefreshCw className='mr-1 h-4 w-4' /> Actualizar
           </Button>
         </div>
@@ -306,19 +261,19 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
           <Switch id='inc-det' checked={incluirDetalle}
                   onCheckedChange={(v) => setIncluirDetalle(!!v)} />
           <Label htmlFor='inc-det' className='cursor-pointer text-sm'>
-            Incluir detalle de facturas
+            Incluir detalle en el PDF
           </Label>
         </div>
-        {q.isFetching && (
+        {(q.isFetching || qDet.isFetching) && (
           <span className='text-xs text-muted-foreground pb-2'>Cargando…</span>
         )}
-        {q.error && (
+        {(q.error || qDet.error) && (
           <span className='text-xs text-red-600 pb-2'>Error al cargar el cuadre.</span>
         )}
       </div>
 
       <div className='space-y-4'>
-        {/* Resumen por Forma de Pago */}
+        {/* Resumen por Forma de Pago — cada fila expandible muestra sus facturas */}
         <div className='rounded-md border'>
           <div className='px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-blue-700'>
             Resumen por Forma de Pago
@@ -326,6 +281,7 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className='w-8'></TableHead>
                 <TableHead className='w-32'>Tipo</TableHead>
                 <TableHead>Descripción</TableHead>
                 <TableHead className='w-20 text-right'>Cant.</TableHead>
@@ -334,68 +290,48 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
             </TableHeader>
             <TableBody>
               {q.isLoading && (
-                <TableRow><TableCell colSpan={4} className='py-8 text-center text-muted-foreground'>Cargando cuadre del día…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className='py-8 text-center text-muted-foreground'>Cargando cuadre del día…</TableCell></TableRow>
               )}
               {!q.isLoading && resumenSorted.length === 0 && (
-                <TableRow><TableCell colSpan={4} className='py-8 text-center text-muted-foreground'>Sin movimientos para el {fecha}.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className='py-8 text-center text-muted-foreground'>Sin movimientos para el {fecha}.</TableCell></TableRow>
               )}
-              {resumenSorted.map(it => (
-                <TableRow key={`${it.tipo_pago}-${it.forma_pago}`}>
-                  <TableCell className='font-mono text-sm'>{it.tipo_pago}</TableCell>
-                  <TableCell className='text-sm'>{it.forma_pago}</TableCell>
-                  <TableCell className='text-right font-mono'>{it.cantidad}</TableCell>
-                  <TableCell className='text-right font-mono tabular-nums'>{fmtN(it.total)}</TableCell>
-                </TableRow>
-              ))}
+              {resumenSorted.map(it => {
+                const key = it.forma_pago.toUpperCase()
+                const list = facturasPorFormaPago[key] || []
+                const open = !!expandida[key]
+                const hasDet = list.length > 0
+                return (
+                  <Fragment key={`${it.tipo_pago}-${it.forma_pago}`}>
+                    <TableRow
+                      className={hasDet ? 'cursor-pointer hover:bg-muted/40' : 'opacity-95'}
+                      onClick={hasDet ? () => toggleRow(key) : undefined}
+                    >
+                      <TableCell className='py-1.5'>
+                        {hasDet ? (
+                          open ? <ChevronDown className='h-4 w-4' /> : <ChevronRight className='h-4 w-4' />
+                        ) : null}
+                      </TableCell>
+                      <TableCell className='font-mono text-sm'>{it.tipo_pago}</TableCell>
+                      <TableCell className='text-sm'>{it.forma_pago}</TableCell>
+                      <TableCell className='text-right font-mono'>{it.cantidad}</TableCell>
+                      <TableCell className='text-right font-mono tabular-nums'>{fmtN(it.total)}</TableCell>
+                    </TableRow>
+                    {open && hasDet && (
+                      <TableRow className='bg-blue-50/40'>
+                        <TableCell></TableCell>
+                        <TableCell colSpan={4} className='p-0'>
+                          <FacturasSubTabla rows={list} />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                )
+              })}
               {resumenSorted.length > 0 && (
                 <TableRow className='border-t-2 bg-muted/40 font-bold'>
+                  <TableCell></TableCell>
                   <TableCell colSpan={3} className='text-right'>Total Ingresos</TableCell>
                   <TableCell className='text-right font-mono tabular-nums'>{fmtN(totalFormaPago)}</TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-
-        {/* Resumen por Tipo NCF (B01 / B02 / etc.) */}
-        <div className='rounded-md border'>
-          <div className='px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-blue-700'>
-            Resumen por Tipo NCF (DGII)
-          </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className='w-16'>Tipo</TableHead>
-                <TableHead>Descripción</TableHead>
-                <TableHead className='w-16 text-right'>Cant.</TableHead>
-                <TableHead className='w-28 text-right'>Total Línea</TableHead>
-                <TableHead className='w-24 text-right'>Descuento</TableHead>
-                <TableHead className='w-24 text-right'>ITBIS</TableHead>
-                <TableHead className='w-28 text-right'>Total Neto</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {q.isLoading && (
-                <TableRow><TableCell colSpan={7} className='py-6 text-center text-muted-foreground'>Cargando…</TableCell></TableRow>
-              )}
-              {!q.isLoading && porNcf.length === 0 && (
-                <TableRow><TableCell colSpan={7} className='py-6 text-center text-muted-foreground'>Sin facturas en el día.</TableCell></TableRow>
-              )}
-              {porNcf.map((r) => (
-                <TableRow key={r.ncf_tipo}>
-                  <TableCell className='font-mono font-semibold'>{r.ncf_tipo || '—'}</TableCell>
-                  <TableCell className='text-sm'>{labelNcf(r.ncf_tipo)}</TableCell>
-                  <TableCell className='text-right font-mono'>{r.cantidad}</TableCell>
-                  <TableCell className='text-right font-mono tabular-nums'>{fmtN(r.total_linea)}</TableCell>
-                  <TableCell className='text-right font-mono tabular-nums'>{fmtN(r.descuento)}</TableCell>
-                  <TableCell className='text-right font-mono tabular-nums'>{fmtN(r.impuesto)}</TableCell>
-                  <TableCell className='text-right font-mono tabular-nums font-semibold'>{fmtN(r.total_neto)}</TableCell>
-                </TableRow>
-              ))}
-              {porNcf.length > 0 && (
-                <TableRow className='border-t-2 bg-muted/40 font-bold'>
-                  <TableCell colSpan={6} className='text-right'>TOTAL</TableCell>
-                  <TableCell className='text-right font-mono tabular-nums'>{fmtN(totalPorNcf)}</TableCell>
                 </TableRow>
               )}
             </TableBody>
@@ -448,47 +384,58 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
             </Table>
           </div>
         )}
-
-        {/* Detalle de facturas — solo si el usuario lo activó.
-            Agrupado por tipo NCF (mismo grouping que los resúmenes del cuadre). */}
-        {incluirDetalle && (
-          <div className='rounded-md border'>
-            <div className='px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-blue-700'>
-              Detalle de Facturas del Día ({facturas.length}) · agrupado por NCF
-            </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className='w-28'>No.</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead className='w-32'>NCF</TableHead>
-                  <TableHead className='w-24'>Forma Pago</TableHead>
-                  <TableHead className='w-24 text-right'>Descuento</TableHead>
-                  <TableHead className='w-24 text-right'>ITBIS</TableHead>
-                  <TableHead className='w-28 text-right'>Total</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {q.isLoading && (
-                  <TableRow><TableCell colSpan={7} className='py-6 text-center text-muted-foreground'>Cargando facturas…</TableCell></TableRow>
-                )}
-                {!q.isLoading && facturasPorNcf.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className='py-6 text-center text-muted-foreground'>Sin facturas para el {fecha}.</TableCell></TableRow>
-                )}
-                {facturasPorNcf.map((g) => (
-                  <FacturaGrupo key={g.ncf_tipo} g={g} />
-                ))}
-                {facturasPorNcf.length > 0 && (
-                  <TableRow className='border-t-2 bg-muted/40 font-bold'>
-                    <TableCell colSpan={6} className='text-right'>TOTAL ({facturas.length} facturas)</TableCell>
-                    <TableCell className='text-right font-mono tabular-nums'>{fmtN(totalFacturas)}</TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        )}
       </div>
     </section>
+  )
+}
+
+// Sub-tabla mostrada al expandir una forma de pago.
+function FacturasSubTabla({ rows }: { rows: FacturaItem[] }) {
+  const sub = rows.reduce(
+    (s, f) => ({
+      total: s.total + (f.total_neto || 0),
+      itbis: s.itbis + (f.impuesto || 0),
+      desc: s.desc + (f.descuento || 0),
+    }),
+    { total: 0, itbis: 0, desc: 0 },
+  )
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow className='bg-muted/30'>
+          <TableHead className='w-28'>No.</TableHead>
+          <TableHead>Cliente</TableHead>
+          <TableHead className='w-32'>NCF</TableHead>
+          <TableHead className='w-24 text-right'>Descuento</TableHead>
+          <TableHead className='w-24 text-right'>ITBIS</TableHead>
+          <TableHead className='w-28 text-right'>Total</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map((f, i) => {
+          const anul = f.st_anulado === 'S'
+          return (
+            <TableRow key={`${f.tipo_factura}-${f.no_factura}-${i}`}
+                      className={anul ? 'text-red-600' : ''}>
+              <TableCell className='font-mono text-sm'>
+                {f.tipo_factura}-{f.no_factura}
+                {anul && <span className='ml-1 text-xs'>(ANUL)</span>}
+              </TableCell>
+              <TableCell className='text-sm'>{(f.nombre_cliente || '').slice(0, 60)}</TableCell>
+              <TableCell className='font-mono text-xs'>{f.ncf_dgi || '—'}</TableCell>
+              <TableCell className='text-right font-mono tabular-nums'>{fmtN(f.descuento || 0)}</TableCell>
+              <TableCell className='text-right font-mono tabular-nums'>{fmtN(f.impuesto || 0)}</TableCell>
+              <TableCell className='text-right font-mono tabular-nums font-semibold'>{fmtN(f.total_neto || 0)}</TableCell>
+            </TableRow>
+          )
+        })}
+        <TableRow className='bg-muted/20 font-semibold'>
+          <TableCell colSpan={3} className='text-right'>Subtotal ({rows.length})</TableCell>
+          <TableCell className='text-right font-mono tabular-nums'>{fmtN(sub.desc)}</TableCell>
+          <TableCell className='text-right font-mono tabular-nums'>{fmtN(sub.itbis)}</TableCell>
+          <TableCell className='text-right font-mono tabular-nums'>{fmtN(sub.total)}</TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
   )
 }
