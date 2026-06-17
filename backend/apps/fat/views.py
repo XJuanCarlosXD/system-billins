@@ -195,6 +195,7 @@ class FatFacturasView(APIView):
         forma_pago = request.data.get('forma_pago', '')
         no_lista = request.data.get('no_lista', '')
         nota = request.data.get('nota', '')
+        detalle = request.data.get('detalle', '')
         lineas = request.data.get('lineas', [])
         if not all([no_cia, tipo_factura, no_cliente, fecha]):
             return Response({'detail': 'no_cia, tipo_factura, no_cliente y fecha son requeridos'}, status=400)
@@ -210,7 +211,8 @@ class FatFacturasView(APIView):
                 no_cliente=int(no_cliente), fecha=str(fecha).strip(),
                 vendedor=str(vendedor).strip(), forma_pago=str(forma_pago).strip(),
                 no_lista=str(no_lista).strip(), nota=str(nota).strip(),
-                lineas=lineas, usuario=request.user.username,
+                detalle=str(detalle).strip(), lineas=lineas,
+                usuario=request.user.username,
                 codigo_ncf=str(request.data.get('codigo_ncf', '')).strip())
             return Response(res, status=201)
         except ValueError as e:
@@ -704,7 +706,8 @@ class FatConducesView(APIView):
                 tipo_conduce=str(tipo_conduce).strip(), no_cliente=int(no_cliente),
                 fecha=str(fecha).strip(), vendedor=str(vendedor).strip(),
                 clase=str(clase).strip(), no_lista=str(no_lista).strip(),
-                lineas=lineas, usuario=request.user.username)
+                lineas=lineas, usuario=request.user.username,
+                detalle=request.data.get('detalle'))
             return Response(res, status=201)
         except ValueError as e:
             return Response({'detail': str(e)}, status=400)
@@ -807,11 +810,14 @@ class FatCuadreCajaView(APIView):
             no_cuadre = request.query_params.get('no_cuadre', '')
             resumen = fat_repo.get_cuadre_caja_detalle(no_cia, punto, tipo_factura, desde, hasta, no_cuadre)
             historial = fat_repo.list_cuadre_caja(no_cia, punto, desde, hasta)
+            resumen_ventas = fat_repo.get_cuadre_caja_ventas_dia(
+                no_cia, punto, desde, hasta, no_cuadre)
             por_ncf = fat_repo.cuadre_caja_por_ncf(no_cia, punto, desde, hasta, tipo_factura, no_cuadre)
             por_ncf_forma_pago = fat_repo.cuadre_caja_por_ncf_forma_pago(
                 no_cia, punto, desde, hasta, tipo_factura, no_cuadre)
             return Response({
                 'resumen': resumen, 'historial': historial,
+                'resumen_ventas': resumen_ventas,
                 'por_ncf': por_ncf, 'por_ncf_forma_pago': por_ncf_forma_pago,
             })
         except Exception as e:

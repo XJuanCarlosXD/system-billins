@@ -2091,10 +2091,40 @@ def _insert_movimiento(cur, *, no_cia, punto, tipo_docu, no_docu, no_linea,
          no_cia, tipo_refe, no_refe])
 
 
+def _upsert_rme_header(cur, *, no_cia, punto, tipo_docu, no_docu, fecha,
+                       tipo_movi, tipo_transaccion, usuario, nota,
+                       total_linea):
+    cur.execute(
+        "UPDATE INV.TINV_RME SET nota=:1, total_linea=:2, total_neto=:2, "
+        "valor_bienes=:2, usuario=:3 "
+        "WHERE no_cia=:4 AND punto=:5 AND tipo_docu=:6 AND no_docu=:7",
+        [nota[:4000], total_linea, (usuario or '')[:30],
+         no_cia, punto, tipo_docu, no_docu])
+    if cur.rowcount:
+        return
+    cur.execute(
+        "INSERT INTO INV.TINV_RME("
+        "no_cia,punto,tipo_docu,no_docu,fecha,fecha_sysdate,"
+        "estado,usuario,st_impresion,st_anulado,st_generado_cnt,"
+        "tipo_transaccion,tipo_movi,detalle,nota,no_localidad,"
+        "tasa_us,porc_impuesto,impuesto,descuento,total_linea,total_neto,"
+        "valor_bienes,valor_servicio,isc,otros_impuestos,propina,entregado"
+        ") VALUES("
+        ":1,:2,:3,:4,TO_DATE(:5,'YYYY-MM-DD'),SYSDATE,"
+        "'A',:6,'N','N','N',"
+        ":7,:8,'',:9,:10,"
+        "1,0,0,0,:11,:11,"
+        ":11,0,0,0,0,'N'"
+        ")",
+        [no_cia, punto, tipo_docu, no_docu, fecha, (usuario or '')[:30],
+         tipo_transaccion, tipo_movi, nota[:4000], no_cia, total_linea])
+
+
 def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                                  fecha: str, almacen: str, lineas: list[dict],
                                  almacen_destino: str = '', usuario: str = 'API',
-                                 cuenta_contable: str = '', departamento: str = '') -> dict:
+                                 cuenta_contable: str = '', departamento: str = '',
+                                 nota: str = '') -> dict:
     """Crea un documento de inventario con N lineas.
 
     Soporta los 10 tipos del legado:
@@ -2106,6 +2136,7 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
     Si `costo` no se provee, se lee TINV_EPRODUCTO.costo_actual del almacen.
     """
     tipo_docu = (tipo_docu or '').strip().upper()
+    nota = (nota or '').strip()
     if not tipo_docu:
         raise ValueError("tipo_docu requerido")
     if not lineas:
@@ -2122,6 +2153,7 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
 
         no_docu = _next_inv_seq(cur, no_cia, punto, tipo_docu)
         creadas = 0
+        total_documento = 0.0
         for idx, lin in enumerate(lineas, start=1):
             no_produ = (lin.get('no_produ') or '').strip().upper()
             if not no_produ:
@@ -2146,6 +2178,7 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
             if not precio:
                 precio = costo
             empaque, cpe = _empaque_cpe(cur, no_produ)
+            total_documento += round(cantidad * costo, 2)
 
             _insert_movimiento(
                 cur, no_cia=no_cia, punto=punto, tipo_docu=tipo_docu,
@@ -2171,12 +2204,17 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                     empaque=empaque, cpe=cpe, usuario=usuario,
                     tipo_refe=tipo_docu, no_refe=no_docu)
                 creadas += 1
+        _upsert_rme_header(
+            cur, no_cia=no_cia, punto=punto, tipo_docu=tipo_docu,
+            no_docu=no_docu, fecha=fecha, tipo_movi=tipo_movi,
+            tipo_transaccion=tipo_transaccion, usuario=usuario, nota=nota,
+            total_linea=total_documento)
         cur.connection.commit()
 
     return {
         'no_cia': no_cia, 'punto': punto, 'tipo_docu': tipo_docu,
         'no_docu': no_docu, 'lineas_creadas': creadas,
-        'tipo_movi': tipo_movi, 'fecha': fecha,
+        'tipo_movi': tipo_movi, 'fecha': fecha, 'nota': nota,
     }
 
 

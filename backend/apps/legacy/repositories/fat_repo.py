@@ -850,6 +850,63 @@ def get_cuadre_caja_detalle(no_cia: str, punto: str, tipo_factura: str,
              'total': float(r['total'] or 0)} for r in rows]
 
 
+def get_cuadre_caja_ventas_dia(no_cia: str, punto: str, desde: str,
+                               hasta: str, no_cuadre: str = '') -> list[dict]:
+    params: dict = {'p_cia': no_cia, 'p_pto': punto}
+    where = []
+    if no_cuadre:
+        params['p_cuadre'] = int(no_cuadre)
+        where.append("AND f.NO_CUADRE_CAJA = :p_cuadre")
+    else:
+        if desde:
+            params['p_desde'] = desde
+            where.append("AND TRUNC(f.fecha) >= TO_DATE(:p_desde,'YYYY-MM-DD')")
+        if hasta:
+            params['p_hasta'] = hasta
+            where.append("AND TRUNC(f.fecha) <= TO_DATE(:p_hasta,'YYYY-MM-DD')")
+    extra = ' '.join(where)
+    sql = (
+        "SELECT clase_venta, COUNT(*) AS cantidad, SUM(total_neto) AS total "
+        "FROM ("
+        "  SELECT CASE "
+        "    WHEN NVL(f.afecta_cxc, NVL(td.afecta_cxc,'N')) = 'S' "
+        "      OR UPPER(NVL(td.descripcion,'')) LIKE '%CRED%' "
+        "      OR UPPER(f.tipo_factura) IN ('FC') "
+        "    THEN 'CREDITO' ELSE 'CONTADO' END AS clase_venta, "
+        "    NVL(f.total_neto,0) AS total_neto "
+        "  FROM FAT.TFAT_FACTURA f "
+        "  LEFT JOIN FAT.TFAT_TDOCU td "
+        "    ON td.no_cia=f.no_cia AND td.tipo_docu=f.tipo_factura "
+        "  WHERE f.no_cia=:p_cia AND f.punto=:p_pto "
+        "    AND NVL(f.st_anulado,'N')='N' "
+        f"    {extra} "
+        ") GROUP BY clase_venta"
+    )
+    rows = client.fetch_dicts(sql, params)
+    by_key = {
+        (r['clase_venta'] or '').strip().upper(): {
+            'clase': (r['clase_venta'] or '').strip().upper(),
+            'cantidad': int(r['cantidad'] or 0),
+            'total': float(r['total'] or 0),
+        }
+        for r in rows
+    }
+    labels = {
+        'CONTADO': 'Ventas de contado del dia',
+        'CREDITO': 'Ventas a credito del dia',
+    }
+    return [
+        {
+            'clase': key,
+            'descripcion': labels[key],
+            'cantidad': by_key.get(key, {}).get('cantidad', 0),
+            'total': by_key.get(key, {}).get('total', 0.0),
+            'impacta_ingreso': key == 'CONTADO',
+        }
+        for key in ('CONTADO', 'CREDITO')
+    ]
+
+
 # ── Cuadre de Caja · desglose por Tipo NCF (B01/B02/etc) ──────────────────────
 # El cuadre del sistema viejo necesita ver cuánto se vendió por cada tipo de
 # comprobante fiscal (Crédito Fiscal B01, Consumo B02, Notas de Crédito B04, etc.)
@@ -2047,9 +2104,10 @@ def list_empaques_producto(no_produ: str) -> list[dict]:
 
 def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
                    forma_pago, no_lista, nota, lineas, usuario,
-                   codigo_ncf: str = ""):
+                   codigo_ncf: str = "", detalle: str = ""):
     tf = tipo_factura.strip().upper()
     fp = forma_pago.strip().upper() if forma_pago else ""
+    detalle_s = str(detalle or '').strip()
     with client.cursor() as cur:
         cur.execute(
             "SELECT prox_formulario, prox_documento FROM FAT.TFAT_SECUENCIA "
@@ -2166,7 +2224,7 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
             "st_anulado,st_impresion,st_generado_cnt,"
             "usuario,nota,no_formulario,tipo_transaccion,"
             "tasa_us,porc_impuesto,no_condicion_pago,tipo_moneda,"
-            "propina,plazo_pago,afecta_cxc,forma_pago_fat,fecha_sysdate"
+            "propina,plazo_pago,afecta_cxc,forma_pago_fat,fecha_sysdate,detalle"
             ") VALUES("
             ":1,:2,:3,:4,:5,TO_DATE(:6,'YYYY-MM-DD'),:7,"
             ":8,:9,:10,:11,'A',"
@@ -2174,13 +2232,13 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
             "'N','N','N',"
             ":16,:17,:18,:19,"
             "57.5,18,'','RD',"
-            "0,0,:20,:21,SYSDATE"
+            "0,0,:20,:21,SYSDATE,:22"
             ")",
             [no_cia, punto, tf, new_no_factura, no_cliente, fecha, vendedor,
              total_linea, total_descuento, total_impuesto, total_neto,
              ncf_val, codigo_ncf_emitir, tipo_ncf_fiscal, posiciones_fijas_ncf,
              usuario, nota, str(prox_formulario), tipo_transaccion,
-             afecta_cxc, fp])
+             afecta_cxc, fp, detalle_s])
         for lin in lineas_calc:
             cur.execute(
                 "INSERT INTO FAT.TFAT_FACTURAL("
@@ -2340,9 +2398,10 @@ def anular_factura(no_cia, punto, tipo_factura, no_factura, usuario, motivo="", 
 # -- Crear Conduce / Cotizacion -----------------------------------------------
 
 def create_conduce(no_cia, punto, tipo_conduce, no_cliente, fecha, vendedor,
-                   clase, no_lista, lineas, usuario):
+                   clase, no_lista, lineas, usuario, detalle=None):
     tc = tipo_conduce.strip().upper()
     cl = clase.strip().upper() if clase else "C"
+    detalle_s = str(detalle or '').strip()
     # En el sistema legado conduces y cotizaciones NO mueven inventario;
     # el movimiento se aplica al facturar (FT/FC).
     with client.cursor() as cur:
@@ -2403,18 +2462,18 @@ def create_conduce(no_cia, punto, tipo_conduce, no_cliente, fecha, vendedor,
             "total_linea,descuento,impuesto,total_neto,"
             "st_anulado,st_impresion,tipo_factura,no_factura,"
             "no_condicion_pago,tipo_moneda,tasa_us,creado_por,"
-            "forma_pago,autorizado,procesado,txt_generado"
+            "forma_pago,autorizado,procesado,txt_generado,detalle"
             ") VALUES("
             ":1,:2,:3,:4,:5,TO_DATE(:6,'YYYY-MM-DD'),:7,:8,"
             ":9,:10,:11,:12,"
             "'N','N','','',"
             "'',:13,57.5,:14,"
-            "'1','N','N','N'"
+            "'1','N','N','N',:15"
             ")",
             [no_cia, punto, tc, no_conduce, no_cliente,
              fecha, vendedor, cl,
              total_linea, total_descuento, total_impuesto, total_neto,
-             "RD", usuario])
+             "RD", usuario, detalle_s])
         for lin in lineas_calc:
             cur.execute(
                 "INSERT INTO FAT.TFAT_CONDUCEL("

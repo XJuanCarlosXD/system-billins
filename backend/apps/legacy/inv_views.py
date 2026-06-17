@@ -265,6 +265,7 @@ def inv_movimientos(request):
                 usuario=getattr(request.user, 'username', '') or 'API',
                 cuenta_contable=str(payload.get('cuenta', '')).strip(),
                 departamento=str(payload.get('departamento', '')).strip(),
+                nota=str(payload.get('nota', '')).strip(),
             )
         except ValueError as e:
             return JsonResponse({"error": str(e)}, status=400)

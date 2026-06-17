@@ -658,6 +658,11 @@ def fat_cuadre_caja_print_data(request):
     except Exception:
         resumen_pago = []
     try:
+        resumen_ventas = fat_repo.get_cuadre_caja_ventas_dia(
+            no_cia, punto, fecha, fecha, '')
+    except Exception:
+        resumen_ventas = []
+    try:
         por_ncf = fat_repo.cuadre_caja_por_ncf(no_cia, punto, fecha, fecha, '', '')
     except Exception:
         por_ncf = []
@@ -692,6 +697,13 @@ def fat_cuadre_caja_print_data(request):
             facturas = []
 
     total_forma_pago = sum(_money(r.get('total')) for r in resumen_pago)
+    total_ventas = sum(_money(r.get('total')) for r in resumen_ventas)
+    total_ventas_contado = sum(
+        _money(r.get('total')) for r in resumen_ventas
+        if (r.get('clase') or '').upper() == 'CONTADO')
+    total_ventas_credito = sum(
+        _money(r.get('total')) for r in resumen_ventas
+        if (r.get('clase') or '').upper() == 'CREDITO')
     total_por_ncf = sum(_money(r.get('total_neto')) for r in por_ncf)
     total_facturas = sum(_money(r.get('total_neto')) for r in facturas)
 
@@ -719,12 +731,16 @@ def fat_cuadre_caja_print_data(request):
             'usuario': usuario,
             'no_cuadre': no_cuadre,
             'incluir_detalle': bool(incluir_detalle),
+            'resumen_ventas': resumen_ventas,
             'resumen_pago': resumen_pago,
             'por_ncf': por_ncf,
             'por_ncf_forma_pago': por_ncf_forma_pago,
             'facturas': facturas,
             'totales': {
                 'forma_pago': total_forma_pago,
+                'ventas': total_ventas,
+                'ventas_contado': total_ventas_contado,
+                'ventas_credito': total_ventas_credito,
                 'por_ncf': total_por_ncf,
                 'facturas': total_facturas,
                 'conteo_facturas': len(facturas),

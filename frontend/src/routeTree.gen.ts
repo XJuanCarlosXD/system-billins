@@ -55,6 +55,7 @@ import { Route as AuthenticatedChatsIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAppsIndexRouteImport } from './routes/_authenticated/apps/index'
 import { Route as AuthenticatedAcfIndexRouteImport } from './routes/_authenticated/acf/index'
 import { Route as AuthenticatedAccIndexRouteImport } from './routes/_authenticated/acc/index'
+import { Route as PrintCodigoIdRouteImport } from './routes/print/$codigo.$id'
 import { Route as ClerkAuthenticatedUserManagementRouteImport } from './routes/clerk/_authenticated/user-management'
 import { Route as ClerkauthSignUpRouteImport } from './routes/clerk/(auth)/sign-up'
 import { Route as ClerkauthSignInRouteImport } from './routes/clerk/(auth)/sign-in'
@@ -125,6 +126,7 @@ import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenti
 import { Route as AuthenticatedCxpUsuariosRouteImport } from './routes/_authenticated/cxp/usuarios'
 import { Route as AuthenticatedCxpTproveedoresRouteImport } from './routes/_authenticated/cxp/tproveedores'
 import { Route as AuthenticatedCxpTdocuRouteImport } from './routes/_authenticated/cxp/tdocu'
+import { Route as AuthenticatedCxpSaldosMenoresRouteImport } from './routes/_authenticated/cxp/saldos-menores'
 import { Route as AuthenticatedCxpReversarRouteImport } from './routes/_authenticated/cxp/reversar'
 import { Route as AuthenticatedCxpRepRetencionesRouteImport } from './routes/_authenticated/cxp/rep-retenciones'
 import { Route as AuthenticatedCxpRepMovimientosRouteImport } from './routes/_authenticated/cxp/rep-movimientos'
@@ -138,6 +140,7 @@ import { Route as AuthenticatedCxpProveedoresRouteImport } from './routes/_authe
 import { Route as AuthenticatedCxpMovimientosRouteImport } from './routes/_authenticated/cxp/movimientos'
 import { Route as AuthenticatedCxpLiberarDebitoRouteImport } from './routes/_authenticated/cxp/liberar-debito'
 import { Route as AuthenticatedCxpGenerarAsientoRouteImport } from './routes/_authenticated/cxp/generar-asiento'
+import { Route as AuthenticatedCxpEstadoCuentaRouteImport } from './routes/_authenticated/cxp/estado-cuenta'
 import { Route as AuthenticatedCxpEnvejecimientoRouteImport } from './routes/_authenticated/cxp/envejecimiento'
 import { Route as AuthenticatedCxpEntradaDocumentosRouteImport } from './routes/_authenticated/cxp/entrada-documentos'
 import { Route as AuthenticatedCxpDocumentosRouteImport } from './routes/_authenticated/cxp/documentos'
@@ -155,6 +158,7 @@ import { Route as AuthenticatedCxcTdocuRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedCxcTcontableRouteImport } from './routes/_authenticated/cxc/tcontable'
 import { Route as AuthenticatedCxcTcliRouteImport } from './routes/_authenticated/cxc/tcli'
 import { Route as AuthenticatedCxcSupervisoresRouteImport } from './routes/_authenticated/cxc/supervisores'
+import { Route as AuthenticatedCxcSaldosMenoresRouteImport } from './routes/_authenticated/cxc/saldos-menores'
 import { Route as AuthenticatedCxcRutasRouteImport } from './routes/_authenticated/cxc/rutas'
 import { Route as AuthenticatedCxcReversarRouteImport } from './routes/_authenticated/cxc/reversar'
 import { Route as AuthenticatedCxcRepNcfRouteImport } from './routes/_authenticated/cxc/rep-ncf'
@@ -224,6 +228,9 @@ import { Route as AuthenticatedAccCajasRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAccBeneficiariosRouteImport } from './routes/_authenticated/acc/beneficiarios'
 import { Route as AuthenticatedAccAsientoRouteImport } from './routes/_authenticated/acc/asiento'
 import { Route as AuthenticatedAccAnularRouteImport } from './routes/_authenticated/acc/anular'
+import { Route as AuthenticatedSettingsPdfTemplatesRouteRouteImport } from './routes/_authenticated/settings/pdf-templates/route'
+import { Route as AuthenticatedSettingsPdfTemplatesIndexRouteImport } from './routes/_authenticated/settings/pdf-templates/index'
+import { Route as AuthenticatedSettingsPdfTemplatesCodigoRouteImport } from './routes/_authenticated/settings/pdf-templates/$codigo'
 
 const ClerkRouteRoute = ClerkRouteRouteImport.update({
   id: '/clerk',
@@ -455,6 +462,11 @@ const AuthenticatedAccIndexRoute = AuthenticatedAccIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AuthenticatedAccRoute,
+} as any)
+const PrintCodigoIdRoute = PrintCodigoIdRouteImport.update({
+  id: '/print/$codigo/$id',
+  path: '/print/$codigo/$id',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ClerkAuthenticatedUserManagementRoute =
   ClerkAuthenticatedUserManagementRouteImport.update({
@@ -856,6 +868,12 @@ const AuthenticatedCxpTdocuRoute = AuthenticatedCxpTdocuRouteImport.update({
   path: '/tdocu',
   getParentRoute: () => AuthenticatedCxpRoute,
 } as any)
+const AuthenticatedCxpSaldosMenoresRoute =
+  AuthenticatedCxpSaldosMenoresRouteImport.update({
+    id: '/saldos-menores',
+    path: '/saldos-menores',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
 const AuthenticatedCxpReversarRoute =
   AuthenticatedCxpReversarRouteImport.update({
     id: '/reversar',
@@ -929,6 +947,12 @@ const AuthenticatedCxpGenerarAsientoRoute =
   AuthenticatedCxpGenerarAsientoRouteImport.update({
     id: '/generar-asiento',
     path: '/generar-asiento',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
+const AuthenticatedCxpEstadoCuentaRoute =
+  AuthenticatedCxpEstadoCuentaRouteImport.update({
+    id: '/estado-cuenta',
+    path: '/estado-cuenta',
     getParentRoute: () => AuthenticatedCxpRoute,
   } as any)
 const AuthenticatedCxpEnvejecimientoRoute =
@@ -1024,6 +1048,12 @@ const AuthenticatedCxcSupervisoresRoute =
   AuthenticatedCxcSupervisoresRouteImport.update({
     id: '/supervisores',
     path: '/supervisores',
+    getParentRoute: () => AuthenticatedCxcRoute,
+  } as any)
+const AuthenticatedCxcSaldosMenoresRoute =
+  AuthenticatedCxcSaldosMenoresRouteImport.update({
+    id: '/saldos-menores',
+    path: '/saldos-menores',
     getParentRoute: () => AuthenticatedCxcRoute,
   } as any)
 const AuthenticatedCxcRutasRoute = AuthenticatedCxcRutasRouteImport.update({
@@ -1410,6 +1440,24 @@ const AuthenticatedAccAnularRoute = AuthenticatedAccAnularRouteImport.update({
   path: '/anular',
   getParentRoute: () => AuthenticatedAccRoute,
 } as any)
+const AuthenticatedSettingsPdfTemplatesRouteRoute =
+  AuthenticatedSettingsPdfTemplatesRouteRouteImport.update({
+    id: '/pdf-templates',
+    path: '/pdf-templates',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedSettingsPdfTemplatesIndexRoute =
+  AuthenticatedSettingsPdfTemplatesIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedSettingsPdfTemplatesRouteRoute,
+  } as any)
+const AuthenticatedSettingsPdfTemplatesCodigoRoute =
+  AuthenticatedSettingsPdfTemplatesCodigoRouteImport.update({
+    id: '/$codigo',
+    path: '/$codigo',
+    getParentRoute: () => AuthenticatedSettingsPdfTemplatesRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -1440,6 +1488,7 @@ export interface FileRoutesByFullPath {
   '/ncf-alerts': typeof AuthenticatedNcfAlertsRoute
   '/odc': typeof AuthenticatedOdcRouteWithChildren
   '/sdn': typeof AuthenticatedSdnRouteWithChildren
+  '/settings/pdf-templates': typeof AuthenticatedSettingsPdfTemplatesRouteRouteWithChildren
   '/acc/anular': typeof AuthenticatedAccAnularRoute
   '/acc/asiento': typeof AuthenticatedAccAsientoRoute
   '/acc/beneficiarios': typeof AuthenticatedAccBeneficiariosRoute
@@ -1509,6 +1558,7 @@ export interface FileRoutesByFullPath {
   '/cxc/rep-ncf': typeof AuthenticatedCxcRepNcfRoute
   '/cxc/reversar': typeof AuthenticatedCxcReversarRoute
   '/cxc/rutas': typeof AuthenticatedCxcRutasRoute
+  '/cxc/saldos-menores': typeof AuthenticatedCxcSaldosMenoresRoute
   '/cxc/supervisores': typeof AuthenticatedCxcSupervisoresRoute
   '/cxc/tcli': typeof AuthenticatedCxcTcliRoute
   '/cxc/tcontable': typeof AuthenticatedCxcTcontableRoute
@@ -1526,6 +1576,7 @@ export interface FileRoutesByFullPath {
   '/cxp/documentos': typeof AuthenticatedCxpDocumentosRoute
   '/cxp/entrada-documentos': typeof AuthenticatedCxpEntradaDocumentosRoute
   '/cxp/envejecimiento': typeof AuthenticatedCxpEnvejecimientoRoute
+  '/cxp/estado-cuenta': typeof AuthenticatedCxpEstadoCuentaRoute
   '/cxp/generar-asiento': typeof AuthenticatedCxpGenerarAsientoRoute
   '/cxp/liberar-debito': typeof AuthenticatedCxpLiberarDebitoRoute
   '/cxp/movimientos': typeof AuthenticatedCxpMovimientosRoute
@@ -1539,6 +1590,7 @@ export interface FileRoutesByFullPath {
   '/cxp/rep-movimientos': typeof AuthenticatedCxpRepMovimientosRoute
   '/cxp/rep-retenciones': typeof AuthenticatedCxpRepRetencionesRoute
   '/cxp/reversar': typeof AuthenticatedCxpReversarRoute
+  '/cxp/saldos-menores': typeof AuthenticatedCxpSaldosMenoresRoute
   '/cxp/tdocu': typeof AuthenticatedCxpTdocuRoute
   '/cxp/tproveedores': typeof AuthenticatedCxpTproveedoresRoute
   '/cxp/usuarios': typeof AuthenticatedCxpUsuariosRoute
@@ -1609,6 +1661,7 @@ export interface FileRoutesByFullPath {
   '/clerk/sign-in': typeof ClerkauthSignInRoute
   '/clerk/sign-up': typeof ClerkauthSignUpRoute
   '/clerk/user-management': typeof ClerkAuthenticatedUserManagementRoute
+  '/print/$codigo/$id': typeof PrintCodigoIdRoute
   '/acc/': typeof AuthenticatedAccIndexRoute
   '/acf/': typeof AuthenticatedAcfIndexRoute
   '/apps/': typeof AuthenticatedAppsIndexRoute
@@ -1624,6 +1677,8 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/tasks/': typeof AuthenticatedTasksIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
+  '/settings/pdf-templates/$codigo': typeof AuthenticatedSettingsPdfTemplatesCodigoRoute
+  '/settings/pdf-templates/': typeof AuthenticatedSettingsPdfTemplatesIndexRoute
 }
 export interface FileRoutesByTo {
   '/clerk': typeof ClerkAuthenticatedRouteRouteWithChildren
@@ -1713,6 +1768,7 @@ export interface FileRoutesByTo {
   '/cxc/rep-ncf': typeof AuthenticatedCxcRepNcfRoute
   '/cxc/reversar': typeof AuthenticatedCxcReversarRoute
   '/cxc/rutas': typeof AuthenticatedCxcRutasRoute
+  '/cxc/saldos-menores': typeof AuthenticatedCxcSaldosMenoresRoute
   '/cxc/supervisores': typeof AuthenticatedCxcSupervisoresRoute
   '/cxc/tcli': typeof AuthenticatedCxcTcliRoute
   '/cxc/tcontable': typeof AuthenticatedCxcTcontableRoute
@@ -1730,6 +1786,7 @@ export interface FileRoutesByTo {
   '/cxp/documentos': typeof AuthenticatedCxpDocumentosRoute
   '/cxp/entrada-documentos': typeof AuthenticatedCxpEntradaDocumentosRoute
   '/cxp/envejecimiento': typeof AuthenticatedCxpEnvejecimientoRoute
+  '/cxp/estado-cuenta': typeof AuthenticatedCxpEstadoCuentaRoute
   '/cxp/generar-asiento': typeof AuthenticatedCxpGenerarAsientoRoute
   '/cxp/liberar-debito': typeof AuthenticatedCxpLiberarDebitoRoute
   '/cxp/movimientos': typeof AuthenticatedCxpMovimientosRoute
@@ -1743,6 +1800,7 @@ export interface FileRoutesByTo {
   '/cxp/rep-movimientos': typeof AuthenticatedCxpRepMovimientosRoute
   '/cxp/rep-retenciones': typeof AuthenticatedCxpRepRetencionesRoute
   '/cxp/reversar': typeof AuthenticatedCxpReversarRoute
+  '/cxp/saldos-menores': typeof AuthenticatedCxpSaldosMenoresRoute
   '/cxp/tdocu': typeof AuthenticatedCxpTdocuRoute
   '/cxp/tproveedores': typeof AuthenticatedCxpTproveedoresRoute
   '/cxp/usuarios': typeof AuthenticatedCxpUsuariosRoute
@@ -1813,6 +1871,7 @@ export interface FileRoutesByTo {
   '/clerk/sign-in': typeof ClerkauthSignInRoute
   '/clerk/sign-up': typeof ClerkauthSignUpRoute
   '/clerk/user-management': typeof ClerkAuthenticatedUserManagementRoute
+  '/print/$codigo/$id': typeof PrintCodigoIdRoute
   '/acc': typeof AuthenticatedAccIndexRoute
   '/acf': typeof AuthenticatedAcfIndexRoute
   '/apps': typeof AuthenticatedAppsIndexRoute
@@ -1828,6 +1887,8 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
+  '/settings/pdf-templates/$codigo': typeof AuthenticatedSettingsPdfTemplatesCodigoRoute
+  '/settings/pdf-templates': typeof AuthenticatedSettingsPdfTemplatesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -1862,6 +1923,7 @@ export interface FileRoutesById {
   '/_authenticated/odc': typeof AuthenticatedOdcRouteWithChildren
   '/_authenticated/sdn': typeof AuthenticatedSdnRouteWithChildren
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/settings/pdf-templates': typeof AuthenticatedSettingsPdfTemplatesRouteRouteWithChildren
   '/_authenticated/acc/anular': typeof AuthenticatedAccAnularRoute
   '/_authenticated/acc/asiento': typeof AuthenticatedAccAsientoRoute
   '/_authenticated/acc/beneficiarios': typeof AuthenticatedAccBeneficiariosRoute
@@ -1931,6 +1993,7 @@ export interface FileRoutesById {
   '/_authenticated/cxc/rep-ncf': typeof AuthenticatedCxcRepNcfRoute
   '/_authenticated/cxc/reversar': typeof AuthenticatedCxcReversarRoute
   '/_authenticated/cxc/rutas': typeof AuthenticatedCxcRutasRoute
+  '/_authenticated/cxc/saldos-menores': typeof AuthenticatedCxcSaldosMenoresRoute
   '/_authenticated/cxc/supervisores': typeof AuthenticatedCxcSupervisoresRoute
   '/_authenticated/cxc/tcli': typeof AuthenticatedCxcTcliRoute
   '/_authenticated/cxc/tcontable': typeof AuthenticatedCxcTcontableRoute
@@ -1948,6 +2011,7 @@ export interface FileRoutesById {
   '/_authenticated/cxp/documentos': typeof AuthenticatedCxpDocumentosRoute
   '/_authenticated/cxp/entrada-documentos': typeof AuthenticatedCxpEntradaDocumentosRoute
   '/_authenticated/cxp/envejecimiento': typeof AuthenticatedCxpEnvejecimientoRoute
+  '/_authenticated/cxp/estado-cuenta': typeof AuthenticatedCxpEstadoCuentaRoute
   '/_authenticated/cxp/generar-asiento': typeof AuthenticatedCxpGenerarAsientoRoute
   '/_authenticated/cxp/liberar-debito': typeof AuthenticatedCxpLiberarDebitoRoute
   '/_authenticated/cxp/movimientos': typeof AuthenticatedCxpMovimientosRoute
@@ -1961,6 +2025,7 @@ export interface FileRoutesById {
   '/_authenticated/cxp/rep-movimientos': typeof AuthenticatedCxpRepMovimientosRoute
   '/_authenticated/cxp/rep-retenciones': typeof AuthenticatedCxpRepRetencionesRoute
   '/_authenticated/cxp/reversar': typeof AuthenticatedCxpReversarRoute
+  '/_authenticated/cxp/saldos-menores': typeof AuthenticatedCxpSaldosMenoresRoute
   '/_authenticated/cxp/tdocu': typeof AuthenticatedCxpTdocuRoute
   '/_authenticated/cxp/tproveedores': typeof AuthenticatedCxpTproveedoresRoute
   '/_authenticated/cxp/usuarios': typeof AuthenticatedCxpUsuariosRoute
@@ -2031,6 +2096,7 @@ export interface FileRoutesById {
   '/clerk/(auth)/sign-in': typeof ClerkauthSignInRoute
   '/clerk/(auth)/sign-up': typeof ClerkauthSignUpRoute
   '/clerk/_authenticated/user-management': typeof ClerkAuthenticatedUserManagementRoute
+  '/print/$codigo/$id': typeof PrintCodigoIdRoute
   '/_authenticated/acc/': typeof AuthenticatedAccIndexRoute
   '/_authenticated/acf/': typeof AuthenticatedAcfIndexRoute
   '/_authenticated/apps/': typeof AuthenticatedAppsIndexRoute
@@ -2046,6 +2112,8 @@ export interface FileRoutesById {
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/tasks/': typeof AuthenticatedTasksIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
+  '/_authenticated/settings/pdf-templates/$codigo': typeof AuthenticatedSettingsPdfTemplatesCodigoRoute
+  '/_authenticated/settings/pdf-templates/': typeof AuthenticatedSettingsPdfTemplatesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -2078,6 +2146,7 @@ export interface FileRouteTypes {
     | '/ncf-alerts'
     | '/odc'
     | '/sdn'
+    | '/settings/pdf-templates'
     | '/acc/anular'
     | '/acc/asiento'
     | '/acc/beneficiarios'
@@ -2147,6 +2216,7 @@ export interface FileRouteTypes {
     | '/cxc/rep-ncf'
     | '/cxc/reversar'
     | '/cxc/rutas'
+    | '/cxc/saldos-menores'
     | '/cxc/supervisores'
     | '/cxc/tcli'
     | '/cxc/tcontable'
@@ -2164,6 +2234,7 @@ export interface FileRouteTypes {
     | '/cxp/documentos'
     | '/cxp/entrada-documentos'
     | '/cxp/envejecimiento'
+    | '/cxp/estado-cuenta'
     | '/cxp/generar-asiento'
     | '/cxp/liberar-debito'
     | '/cxp/movimientos'
@@ -2177,6 +2248,7 @@ export interface FileRouteTypes {
     | '/cxp/rep-movimientos'
     | '/cxp/rep-retenciones'
     | '/cxp/reversar'
+    | '/cxp/saldos-menores'
     | '/cxp/tdocu'
     | '/cxp/tproveedores'
     | '/cxp/usuarios'
@@ -2247,6 +2319,7 @@ export interface FileRouteTypes {
     | '/clerk/sign-in'
     | '/clerk/sign-up'
     | '/clerk/user-management'
+    | '/print/$codigo/$id'
     | '/acc/'
     | '/acf/'
     | '/apps/'
@@ -2262,6 +2335,8 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/tasks/'
     | '/users/'
+    | '/settings/pdf-templates/$codigo'
+    | '/settings/pdf-templates/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/clerk'
@@ -2351,6 +2426,7 @@ export interface FileRouteTypes {
     | '/cxc/rep-ncf'
     | '/cxc/reversar'
     | '/cxc/rutas'
+    | '/cxc/saldos-menores'
     | '/cxc/supervisores'
     | '/cxc/tcli'
     | '/cxc/tcontable'
@@ -2368,6 +2444,7 @@ export interface FileRouteTypes {
     | '/cxp/documentos'
     | '/cxp/entrada-documentos'
     | '/cxp/envejecimiento'
+    | '/cxp/estado-cuenta'
     | '/cxp/generar-asiento'
     | '/cxp/liberar-debito'
     | '/cxp/movimientos'
@@ -2381,6 +2458,7 @@ export interface FileRouteTypes {
     | '/cxp/rep-movimientos'
     | '/cxp/rep-retenciones'
     | '/cxp/reversar'
+    | '/cxp/saldos-menores'
     | '/cxp/tdocu'
     | '/cxp/tproveedores'
     | '/cxp/usuarios'
@@ -2451,6 +2529,7 @@ export interface FileRouteTypes {
     | '/clerk/sign-in'
     | '/clerk/sign-up'
     | '/clerk/user-management'
+    | '/print/$codigo/$id'
     | '/acc'
     | '/acf'
     | '/apps'
@@ -2466,6 +2545,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tasks'
     | '/users'
+    | '/settings/pdf-templates/$codigo'
+    | '/settings/pdf-templates'
   id:
     | '__root__'
     | '/_authenticated'
@@ -2499,6 +2580,7 @@ export interface FileRouteTypes {
     | '/_authenticated/odc'
     | '/_authenticated/sdn'
     | '/_authenticated/'
+    | '/_authenticated/settings/pdf-templates'
     | '/_authenticated/acc/anular'
     | '/_authenticated/acc/asiento'
     | '/_authenticated/acc/beneficiarios'
@@ -2568,6 +2650,7 @@ export interface FileRouteTypes {
     | '/_authenticated/cxc/rep-ncf'
     | '/_authenticated/cxc/reversar'
     | '/_authenticated/cxc/rutas'
+    | '/_authenticated/cxc/saldos-menores'
     | '/_authenticated/cxc/supervisores'
     | '/_authenticated/cxc/tcli'
     | '/_authenticated/cxc/tcontable'
@@ -2585,6 +2668,7 @@ export interface FileRouteTypes {
     | '/_authenticated/cxp/documentos'
     | '/_authenticated/cxp/entrada-documentos'
     | '/_authenticated/cxp/envejecimiento'
+    | '/_authenticated/cxp/estado-cuenta'
     | '/_authenticated/cxp/generar-asiento'
     | '/_authenticated/cxp/liberar-debito'
     | '/_authenticated/cxp/movimientos'
@@ -2598,6 +2682,7 @@ export interface FileRouteTypes {
     | '/_authenticated/cxp/rep-movimientos'
     | '/_authenticated/cxp/rep-retenciones'
     | '/_authenticated/cxp/reversar'
+    | '/_authenticated/cxp/saldos-menores'
     | '/_authenticated/cxp/tdocu'
     | '/_authenticated/cxp/tproveedores'
     | '/_authenticated/cxp/usuarios'
@@ -2668,6 +2753,7 @@ export interface FileRouteTypes {
     | '/clerk/(auth)/sign-in'
     | '/clerk/(auth)/sign-up'
     | '/clerk/_authenticated/user-management'
+    | '/print/$codigo/$id'
     | '/_authenticated/acc/'
     | '/_authenticated/acf/'
     | '/_authenticated/apps/'
@@ -2683,6 +2769,8 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/'
     | '/_authenticated/tasks/'
     | '/_authenticated/users/'
+    | '/_authenticated/settings/pdf-templates/$codigo'
+    | '/_authenticated/settings/pdf-templates/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -2698,6 +2786,7 @@ export interface RootRouteChildren {
   errors404Route: typeof errors404Route
   errors500Route: typeof errors500Route
   errors503Route: typeof errors503Route
+  PrintCodigoIdRoute: typeof PrintCodigoIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -3023,6 +3112,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/acc/'
       preLoaderRoute: typeof AuthenticatedAccIndexRouteImport
       parentRoute: typeof AuthenticatedAccRoute
+    }
+    '/print/$codigo/$id': {
+      id: '/print/$codigo/$id'
+      path: '/print/$codigo/$id'
+      fullPath: '/print/$codigo/$id'
+      preLoaderRoute: typeof PrintCodigoIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/clerk/_authenticated/user-management': {
       id: '/clerk/_authenticated/user-management'
@@ -3514,6 +3610,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCxpTdocuRouteImport
       parentRoute: typeof AuthenticatedCxpRoute
     }
+    '/_authenticated/cxp/saldos-menores': {
+      id: '/_authenticated/cxp/saldos-menores'
+      path: '/saldos-menores'
+      fullPath: '/cxp/saldos-menores'
+      preLoaderRoute: typeof AuthenticatedCxpSaldosMenoresRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
     '/_authenticated/cxp/reversar': {
       id: '/_authenticated/cxp/reversar'
       path: '/reversar'
@@ -3603,6 +3706,13 @@ declare module '@tanstack/react-router' {
       path: '/generar-asiento'
       fullPath: '/cxp/generar-asiento'
       preLoaderRoute: typeof AuthenticatedCxpGenerarAsientoRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/estado-cuenta': {
+      id: '/_authenticated/cxp/estado-cuenta'
+      path: '/estado-cuenta'
+      fullPath: '/cxp/estado-cuenta'
+      preLoaderRoute: typeof AuthenticatedCxpEstadoCuentaRouteImport
       parentRoute: typeof AuthenticatedCxpRoute
     }
     '/_authenticated/cxp/envejecimiento': {
@@ -3722,6 +3832,13 @@ declare module '@tanstack/react-router' {
       path: '/supervisores'
       fullPath: '/cxc/supervisores'
       preLoaderRoute: typeof AuthenticatedCxcSupervisoresRouteImport
+      parentRoute: typeof AuthenticatedCxcRoute
+    }
+    '/_authenticated/cxc/saldos-menores': {
+      id: '/_authenticated/cxc/saldos-menores'
+      path: '/saldos-menores'
+      fullPath: '/cxc/saldos-menores'
+      preLoaderRoute: typeof AuthenticatedCxcSaldosMenoresRouteImport
       parentRoute: typeof AuthenticatedCxcRoute
     }
     '/_authenticated/cxc/rutas': {
@@ -4207,10 +4324,50 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAccAnularRouteImport
       parentRoute: typeof AuthenticatedAccRoute
     }
+    '/_authenticated/settings/pdf-templates': {
+      id: '/_authenticated/settings/pdf-templates'
+      path: '/pdf-templates'
+      fullPath: '/settings/pdf-templates'
+      preLoaderRoute: typeof AuthenticatedSettingsPdfTemplatesRouteRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/settings/pdf-templates/': {
+      id: '/_authenticated/settings/pdf-templates/'
+      path: '/'
+      fullPath: '/settings/pdf-templates/'
+      preLoaderRoute: typeof AuthenticatedSettingsPdfTemplatesIndexRouteImport
+      parentRoute: typeof AuthenticatedSettingsPdfTemplatesRouteRoute
+    }
+    '/_authenticated/settings/pdf-templates/$codigo': {
+      id: '/_authenticated/settings/pdf-templates/$codigo'
+      path: '/$codigo'
+      fullPath: '/settings/pdf-templates/$codigo'
+      preLoaderRoute: typeof AuthenticatedSettingsPdfTemplatesCodigoRouteImport
+      parentRoute: typeof AuthenticatedSettingsPdfTemplatesRouteRoute
+    }
   }
 }
 
+interface AuthenticatedSettingsPdfTemplatesRouteRouteChildren {
+  AuthenticatedSettingsPdfTemplatesCodigoRoute: typeof AuthenticatedSettingsPdfTemplatesCodigoRoute
+  AuthenticatedSettingsPdfTemplatesIndexRoute: typeof AuthenticatedSettingsPdfTemplatesIndexRoute
+}
+
+const AuthenticatedSettingsPdfTemplatesRouteRouteChildren: AuthenticatedSettingsPdfTemplatesRouteRouteChildren =
+  {
+    AuthenticatedSettingsPdfTemplatesCodigoRoute:
+      AuthenticatedSettingsPdfTemplatesCodigoRoute,
+    AuthenticatedSettingsPdfTemplatesIndexRoute:
+      AuthenticatedSettingsPdfTemplatesIndexRoute,
+  }
+
+const AuthenticatedSettingsPdfTemplatesRouteRouteWithChildren =
+  AuthenticatedSettingsPdfTemplatesRouteRoute._addFileChildren(
+    AuthenticatedSettingsPdfTemplatesRouteRouteChildren,
+  )
+
 interface AuthenticatedSettingsRouteRouteChildren {
+  AuthenticatedSettingsPdfTemplatesRouteRoute: typeof AuthenticatedSettingsPdfTemplatesRouteRouteWithChildren
   AuthenticatedSettingsSlugRoute: typeof AuthenticatedSettingsSlugRoute
   AuthenticatedSettingsAccountRoute: typeof AuthenticatedSettingsAccountRoute
   AuthenticatedSettingsAppearanceRoute: typeof AuthenticatedSettingsAppearanceRoute
@@ -4221,6 +4378,8 @@ interface AuthenticatedSettingsRouteRouteChildren {
 
 const AuthenticatedSettingsRouteRouteChildren: AuthenticatedSettingsRouteRouteChildren =
   {
+    AuthenticatedSettingsPdfTemplatesRouteRoute:
+      AuthenticatedSettingsPdfTemplatesRouteRouteWithChildren,
     AuthenticatedSettingsSlugRoute: AuthenticatedSettingsSlugRoute,
     AuthenticatedSettingsAccountRoute: AuthenticatedSettingsAccountRoute,
     AuthenticatedSettingsAppearanceRoute: AuthenticatedSettingsAppearanceRoute,
@@ -4384,6 +4543,7 @@ interface AuthenticatedCxcRouteChildren {
   AuthenticatedCxcRepNcfRoute: typeof AuthenticatedCxcRepNcfRoute
   AuthenticatedCxcReversarRoute: typeof AuthenticatedCxcReversarRoute
   AuthenticatedCxcRutasRoute: typeof AuthenticatedCxcRutasRoute
+  AuthenticatedCxcSaldosMenoresRoute: typeof AuthenticatedCxcSaldosMenoresRoute
   AuthenticatedCxcSupervisoresRoute: typeof AuthenticatedCxcSupervisoresRoute
   AuthenticatedCxcTcliRoute: typeof AuthenticatedCxcTcliRoute
   AuthenticatedCxcTcontableRoute: typeof AuthenticatedCxcTcontableRoute
@@ -4421,6 +4581,7 @@ const AuthenticatedCxcRouteChildren: AuthenticatedCxcRouteChildren = {
   AuthenticatedCxcRepNcfRoute: AuthenticatedCxcRepNcfRoute,
   AuthenticatedCxcReversarRoute: AuthenticatedCxcReversarRoute,
   AuthenticatedCxcRutasRoute: AuthenticatedCxcRutasRoute,
+  AuthenticatedCxcSaldosMenoresRoute: AuthenticatedCxcSaldosMenoresRoute,
   AuthenticatedCxcSupervisoresRoute: AuthenticatedCxcSupervisoresRoute,
   AuthenticatedCxcTcliRoute: AuthenticatedCxcTcliRoute,
   AuthenticatedCxcTcontableRoute: AuthenticatedCxcTcontableRoute,
@@ -4445,6 +4606,7 @@ interface AuthenticatedCxpRouteChildren {
   AuthenticatedCxpDocumentosRoute: typeof AuthenticatedCxpDocumentosRoute
   AuthenticatedCxpEntradaDocumentosRoute: typeof AuthenticatedCxpEntradaDocumentosRoute
   AuthenticatedCxpEnvejecimientoRoute: typeof AuthenticatedCxpEnvejecimientoRoute
+  AuthenticatedCxpEstadoCuentaRoute: typeof AuthenticatedCxpEstadoCuentaRoute
   AuthenticatedCxpGenerarAsientoRoute: typeof AuthenticatedCxpGenerarAsientoRoute
   AuthenticatedCxpLiberarDebitoRoute: typeof AuthenticatedCxpLiberarDebitoRoute
   AuthenticatedCxpMovimientosRoute: typeof AuthenticatedCxpMovimientosRoute
@@ -4458,6 +4620,7 @@ interface AuthenticatedCxpRouteChildren {
   AuthenticatedCxpRepMovimientosRoute: typeof AuthenticatedCxpRepMovimientosRoute
   AuthenticatedCxpRepRetencionesRoute: typeof AuthenticatedCxpRepRetencionesRoute
   AuthenticatedCxpReversarRoute: typeof AuthenticatedCxpReversarRoute
+  AuthenticatedCxpSaldosMenoresRoute: typeof AuthenticatedCxpSaldosMenoresRoute
   AuthenticatedCxpTdocuRoute: typeof AuthenticatedCxpTdocuRoute
   AuthenticatedCxpTproveedoresRoute: typeof AuthenticatedCxpTproveedoresRoute
   AuthenticatedCxpUsuariosRoute: typeof AuthenticatedCxpUsuariosRoute
@@ -4476,6 +4639,7 @@ const AuthenticatedCxpRouteChildren: AuthenticatedCxpRouteChildren = {
   AuthenticatedCxpEntradaDocumentosRoute:
     AuthenticatedCxpEntradaDocumentosRoute,
   AuthenticatedCxpEnvejecimientoRoute: AuthenticatedCxpEnvejecimientoRoute,
+  AuthenticatedCxpEstadoCuentaRoute: AuthenticatedCxpEstadoCuentaRoute,
   AuthenticatedCxpGenerarAsientoRoute: AuthenticatedCxpGenerarAsientoRoute,
   AuthenticatedCxpLiberarDebitoRoute: AuthenticatedCxpLiberarDebitoRoute,
   AuthenticatedCxpMovimientosRoute: AuthenticatedCxpMovimientosRoute,
@@ -4489,6 +4653,7 @@ const AuthenticatedCxpRouteChildren: AuthenticatedCxpRouteChildren = {
   AuthenticatedCxpRepMovimientosRoute: AuthenticatedCxpRepMovimientosRoute,
   AuthenticatedCxpRepRetencionesRoute: AuthenticatedCxpRepRetencionesRoute,
   AuthenticatedCxpReversarRoute: AuthenticatedCxpReversarRoute,
+  AuthenticatedCxpSaldosMenoresRoute: AuthenticatedCxpSaldosMenoresRoute,
   AuthenticatedCxpTdocuRoute: AuthenticatedCxpTdocuRoute,
   AuthenticatedCxpTproveedoresRoute: AuthenticatedCxpTproveedoresRoute,
   AuthenticatedCxpUsuariosRoute: AuthenticatedCxpUsuariosRoute,
@@ -4770,6 +4935,7 @@ const rootRouteChildren: RootRouteChildren = {
   errors404Route: errors404Route,
   errors500Route: errors500Route,
   errors503Route: errors503Route,
+  PrintCodigoIdRoute: PrintCodigoIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
