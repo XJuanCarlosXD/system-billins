@@ -100,6 +100,7 @@ export type ReportePrintPayload = {
   reporte: ReportePayload
   filas: Array<Record<string, unknown>>
   totales?: TotalesPayload
+  extra?: Record<string, unknown>
 }
 
 export type PrintPayload = DocumentoPrintPayload | ReportePrintPayload

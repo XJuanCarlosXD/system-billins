@@ -612,28 +612,104 @@ def fat_lista_precios_print_data(request):
 @login_required
 @require_http_methods(["GET"])
 def fat_cuadre_caja_print_data(request):
+    """Cuadre de caja del día — un cuadre por día.
+
+    Query params:
+      fecha            YYYY-MM-DD (default: hoy server-side)
+      incluir_detalle  '1' para incluir lista de facturas del día
+      no_cia / punto   como siempre
+
+    Devuelve familia 'reporte' con un `extra` rico:
+      extra.fecha, extra.usuario, extra.no_cuadre
+      extra.resumen_pago         [{tipo_pago, forma_pago, cantidad, total}]
+      extra.por_ncf              [{ncf_tipo, cantidad, total_linea, descuento, impuesto, total_neto}]
+      extra.por_ncf_forma_pago   [{ncf_tipo, tipo_pago, forma_pago, cantidad, total}]
+      extra.facturas             [{...}] (solo si incluir_detalle=1)
+      extra.totales              {forma_pago, por_ncf, facturas, conteo_facturas}
+    """
+    from datetime import date as _date
+
     no_cia = request.GET.get('no_cia', '01')
     punto = request.GET.get('punto', '01')
     err = _check_fat_access(request, no_cia, punto)
     if err is not None:
         return err
     cia = _cia_payload(no_cia, request=request)
-    desde = request.GET.get('desde', '')
-    hasta = request.GET.get('hasta', '')
+    fecha = (request.GET.get('fecha') or '').strip() or _date.today().isoformat()
+    incluir_detalle = request.GET.get('incluir_detalle', '0') in ('1', 'true', 'S', 's')
+
     try:
-        rows = fat_repo.list_cuadre_caja(no_cia=no_cia, punto=punto, desde=desde, hasta=hasta)
+        resumen_pago = fat_repo.get_cuadre_caja_detalle(
+            no_cia, punto, '', fecha, fecha, '')
     except Exception:
-        rows = []
-    total = sum(_money(r.get('total') or r.get('total_neto')) for r in rows)
+        resumen_pago = []
+    try:
+        por_ncf = fat_repo.cuadre_caja_por_ncf(no_cia, punto, fecha, fecha, '', '')
+    except Exception:
+        por_ncf = []
+    try:
+        por_ncf_forma_pago = fat_repo.cuadre_caja_por_ncf_forma_pago(
+            no_cia, punto, fecha, fecha, '', '')
+    except Exception:
+        por_ncf_forma_pago = []
+
+    try:
+        historial = fat_repo.list_cuadre_caja(
+            no_cia=no_cia, punto=punto, desde=fecha, hasta=fecha)
+    except Exception:
+        historial = []
+    cuadre_dia = historial[0] if historial else {}
+    usuario = (cuadre_dia.get('usuario') or '').strip()
+    no_cuadre = int(cuadre_dia.get('no_cuadre_caja') or 0)
+
+    facturas: list = []
+    if incluir_detalle:
+        try:
+            res = fat_repo.list_facturas(
+                no_cia=no_cia, punto=punto,
+                fecha_desde=fecha, fecha_hasta=fecha,
+                page=1, page_size=10000)
+            facturas = res.get('items', [])
+        except Exception:
+            facturas = []
+
+    total_forma_pago = sum(_money(r.get('total')) for r in resumen_pago)
+    total_por_ncf = sum(_money(r.get('total_neto')) for r in por_ncf)
+    total_facturas = sum(_money(r.get('total_neto')) for r in facturas)
+
     return JsonResponse({
         'cia': cia,
         'reporte': {
-            'codigo': 'cuadre-caja', 'titulo': 'Cuadre de Caja',
+            'codigo': 'cuadre-caja',
+            'titulo': 'Cuadre de Caja',
             'fecha_generacion': None,
-            'filtros': {'Desde': desde, 'Hasta': hasta} if (desde or hasta) else {},
+            'filtros': {
+                'Fecha': fecha,
+                **({'Cuadre #': str(no_cuadre)} if no_cuadre else {}),
+                **({'Usuario': usuario} if usuario else {}),
+            },
         },
-        'filas': rows,
-        'totales': {'total': total, 'cantidad': len(rows)},
+        'filas': [],  # el detalle vive en extra.facturas para que el bloque cuadre lo pinte
+        'totales': {
+            'total': total_forma_pago,
+            'cantidad': len(resumen_pago),
+        },
+        'extra': {
+            'fecha': fecha,
+            'usuario': usuario,
+            'no_cuadre': no_cuadre,
+            'incluir_detalle': bool(incluir_detalle),
+            'resumen_pago': resumen_pago,
+            'por_ncf': por_ncf,
+            'por_ncf_forma_pago': por_ncf_forma_pago,
+            'facturas': facturas,
+            'totales': {
+                'forma_pago': total_forma_pago,
+                'por_ncf': total_por_ncf,
+                'facturas': total_facturas,
+                'conteo_facturas': len(facturas),
+            },
+        },
     })
 
 

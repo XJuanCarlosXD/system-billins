@@ -20,6 +20,7 @@ import { cxcDocumentoDefault } from './defaults/cxc-documento'
 import { cxpDocumentoDefault } from './defaults/cxp-documento'
 import { cxcEstadoCuentaDefault } from './defaults/cxc-estado-cuenta'
 import { cxpEstadoCuentaDefault } from './defaults/cxp-estado-cuenta'
+import { cuadreCajaDefault } from './defaults/cuadre-caja'
 
 export type DocFamily = 'documento' | 'reporte'
 
@@ -303,6 +304,34 @@ export const registry: Record<string, RegistryEntry> = {
       'doc.grupo', 'doc.ubicacion', 'doc.serial', 'doc.marca', 'doc.modelo',
       'extra.depreciacion_acum', 'extra.valor_residual', 'extra.vida_util',
     ]),
+  },
+  // ── FAT — reporte: Cuadre de Caja (familia 'reporte') ──────────────
+  // id = fecha YYYY-MM-DD. Para incluir detalle de facturas se pasa
+  // `incluir_detalle=1` en la qs (via extra de PrintPage).
+  'cuadre-caja': {
+    codigo: 'cuadre-caja', modulo: 'FAT', nombre: 'Cuadre de Caja', familia: 'reporte',
+    printDataPath: (id, qs) => {
+      const p = new URLSearchParams(qs)
+      p.set('fecha', id)
+      return `/fat/reportes/cuadre-caja/print-data/?${p.toString()}`
+    },
+    defaultTemplate: cuadreCajaDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: [
+      'cia.razon_social', 'cia.rnc', 'cia.direccion', 'cia.telefono', 'cia.logo_url',
+      'reporte.titulo', 'reporte.filtros',
+      'extra.fecha', 'extra.usuario', 'extra.no_cuadre',
+      'extra.resumen_pago[].tipo_pago', 'extra.resumen_pago[].forma_pago',
+      'extra.resumen_pago[].cantidad', 'extra.resumen_pago[].total',
+      'extra.por_ncf[].ncf_tipo', 'extra.por_ncf[].cantidad',
+      'extra.por_ncf[].total_linea', 'extra.por_ncf[].descuento',
+      'extra.por_ncf[].impuesto', 'extra.por_ncf[].total_neto',
+      'extra.por_ncf_forma_pago[].ncf_tipo', 'extra.por_ncf_forma_pago[].tipo_pago',
+      'extra.por_ncf_forma_pago[].forma_pago', 'extra.por_ncf_forma_pago[].total',
+      'extra.facturas[].no_factura', 'extra.facturas[].fecha',
+      'extra.facturas[].nombre_cliente', 'extra.facturas[].ncf_dgi',
+      'extra.facturas[].total_neto',
+    ],
   },
   // ── SDN ────────────────────────────────────────────────────────────
   'sdn-nomina': {

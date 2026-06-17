@@ -3,13 +3,14 @@ import { useQuery } from '@tanstack/react-query'
 import { Calculator, FileSpreadsheet, Printer, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { buildReportMeta, downloadCsv } from './fat-export'
 
 interface Props { noCia: string; punto: string; mes?: number; ano?: number }
 
 type ResumenItem = { tipo_pago: string; forma_pago: string; cantidad: number; total: number }
-type HistorialItem = { no_cuadre_caja: number; fecha: string | null; usuario: string; total_monto: number }
 type NcfItem = {
   ncf_tipo: string; cantidad: number
   total_linea: number; descuento: number; impuesto: number; total_neto: number
@@ -18,15 +19,27 @@ type NcfFormaPagoItem = {
   ncf_tipo: string; tipo_pago: string; forma_pago: string
   cantidad: number; total: number
 }
+type FacturaItem = {
+  tipo_factura: string; no_factura: string; nombre_cliente: string
+  ncf_dgi: string; fecha: string | null
+  total_linea: number; descuento: number; impuesto: number; total_neto: number
+  forma_pago: string; st_anulado: string
+}
+type CuadreResp = {
+  fecha: string
+  usuario: string
+  no_cuadre: number
+  resumen_pago: ResumenItem[]
+  por_ncf: NcfItem[]
+  por_ncf_forma_pago: NcfFormaPagoItem[]
+  facturas: FacturaItem[]
+}
 
 const API = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
 
 const fmtN = (n: number) =>
   Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const fmtDate = (d: any) => d ? String(d).slice(0, 10) : '—'
 
-
-// Etiqueta humana para B01/B02/B14/B15… si no la conocemos, devolvemos el código tal cual.
 function labelNcf(ncf_tipo: string): string {
   const t = (ncf_tipo || '').toUpperCase()
   const map: Record<string, string> = {
@@ -44,71 +57,61 @@ function labelNcf(ncf_tipo: string): string {
   return map[t] || (t || '—')
 }
 
-async function fetchCuadre(noCia: string, punto: string, desde: string, hasta: string, tipo: string, noCuadre = '') {
-  const p = new URLSearchParams({ no_cia: noCia, punto })
-  if (desde) p.set('desde', desde)
-  if (hasta) p.set('hasta', hasta)
-  if (tipo) p.set('tipo', tipo)
-  if (noCuadre) p.set('no_cuadre', noCuadre)
-  const res = await fetch(`${API}/fat/cuadre-caja/?${p}`, { credentials: 'include' })
+// Llama al endpoint print-data unificado: él calcula resumen, por NCF, matriz y
+// (opcionalmente) la lista de facturas del día. Una sola fetch por estado.
+async function fetchCuadreDia(noCia: string, punto: string, fecha: string,
+                              incluirDetalle: boolean): Promise<CuadreResp> {
+  const p = new URLSearchParams({ no_cia: noCia, punto, fecha })
+  if (incluirDetalle) p.set('incluir_detalle', '1')
+  const res = await fetch(`${API}/fat/reportes/cuadre-caja/print-data/?${p}`,
+    { credentials: 'include' })
   if (!res.ok) throw new Error(await res.text())
-  return res.json() as Promise<{
-    resumen: ResumenItem[]; historial: HistorialItem[];
-    por_ncf: NcfItem[]; por_ncf_forma_pago?: NcfFormaPagoItem[]
-  }>
+  const json = await res.json()
+  const e = json.extra || {}
+  return {
+    fecha: e.fecha || fecha,
+    usuario: e.usuario || '',
+    no_cuadre: Number(e.no_cuadre || 0),
+    resumen_pago: e.resumen_pago || [],
+    por_ncf: e.por_ncf || [],
+    por_ncf_forma_pago: e.por_ncf_forma_pago || [],
+    facturas: e.facturas || [],
+  }
 }
 
 const TODAY = new Date().toISOString().slice(0, 10)
 
 export function CuadreCajaFat({ noCia, punto }: Props) {
-  // Defaults: fecha = hoy. El resumen del día se carga directo al entrar a la
-  // vista (selectedFecha=TODAY, generado=true) — el usuario no tiene que dar
-  // click a Filtrar ni a una fila del historial para ver el cuadre.
-  const [filterDesde, setFilterDesde] = useState(TODAY)
-  const [filterHasta, setFilterHasta] = useState(TODAY)
-  const [filterTipo, setFilterTipo] = useState('')
-  const [generado, setGenerado] = useState(true)
-  const [aplicados, setAplicados] = useState({ desde: TODAY, hasta: TODAY, tipo: '' })
-  const [selectedFecha, setSelectedFecha] = useState<string | null>(TODAY)
+  // Solo hay un cuadre por día: el día seleccionado (default hoy) se hala
+  // automáticamente al entrar. Sin historial, sin filtros de rango.
+  const [fecha, setFecha] = useState(TODAY)
+  const [incluirDetalle, setIncluirDetalle] = useState(false)
 
-  // Historial: lista por fecha del rango filtrado.
-  const historialQ = useQuery({
-    queryKey: ['fat-cuadre-historial', noCia, punto, aplicados.desde, aplicados.hasta, aplicados.tipo],
-    queryFn: () => fetchCuadre(noCia, punto, aplicados.desde, aplicados.hasta, aplicados.tipo),
-    enabled: !!noCia && generado,
-    staleTime: 60_000,
-    select: (d) => d.historial,
-  })
-
-  // Detalle de la fecha seleccionada: resumen + por_ncf + matriz NCF×forma_pago.
-  const detalleQ = useQuery({
-    queryKey: ['fat-cuadre-detalle', noCia, punto, selectedFecha, aplicados.tipo],
-    queryFn: () => fetchCuadre(noCia, punto, selectedFecha!, selectedFecha!, aplicados.tipo, ''),
-    enabled: !!noCia && selectedFecha !== null,
+  const q = useQuery({
+    queryKey: ['fat-cuadre-dia', noCia, punto, fecha, incluirDetalle],
+    queryFn: () => fetchCuadreDia(noCia, punto, fecha, incluirDetalle),
+    enabled: !!noCia && !!fecha,
     staleTime: 60_000,
   })
 
-  const historial = historialQ.data ?? []
-  const resumenPago: ResumenItem[] = detalleQ.data?.resumen ?? []
-  const porNcf: NcfItem[] = detalleQ.data?.por_ncf ?? []
-  const porNcfFormaPago: NcfFormaPagoItem[] = detalleQ.data?.por_ncf_forma_pago ?? []
-  const selected = historial.find((h) => h.fecha === selectedFecha) ?? null
+  const data = q.data
+  const resumen = data?.resumen_pago ?? []
+  const porNcf = data?.por_ncf ?? []
+  const porNcfFormaPago = data?.por_ncf_forma_pago ?? []
+  const facturas = data?.facturas ?? []
 
-  // E.5/E.6/E.7: lista cada tipo_pago/forma_pago directo del backend sin buckets.
-  // Cobros de crédito (tipo_pago starts with 'C') van al final; el resto alfabético por forma_pago.
-  const resumenOrdenado = [...resumenPago].sort((a, b) => {
-    const aCredit = a.tipo_pago.startsWith('C')
-    const bCredit = b.tipo_pago.startsWith('C')
+  // Cobros de crédito al final, resto alfabético por forma_pago.
+  const resumenSorted = [...resumen].sort((a, b) => {
+    const aCredit = (a.tipo_pago || '').startsWith('C')
+    const bCredit = (b.tipo_pago || '').startsWith('C')
     if (aCredit !== bCredit) return aCredit ? 1 : -1
     return (a.forma_pago || '').localeCompare(b.forma_pago || '', 'es')
   })
-
-  const totalFormaPago = resumenPago.reduce((s, r) => s + r.total, 0)
+  const totalFormaPago = resumen.reduce((s, r) => s + r.total, 0)
   const totalPorNcf = porNcf.reduce((s, r) => s + r.total_neto, 0)
+  const totalFacturas = facturas.reduce((s, f) => s + (f.total_neto || 0), 0)
 
-  // Pivot NCF × forma_pago: filas = ncf_tipo, columnas = forma_pago, valores = total.
-  // Las columnas dinámicas son el conjunto de formas de pago presentes en la
-  // matriz (ordenadas alfabéticamente). Las filas conservan el orden por NCF tipo.
+  // Matriz NCF × forma_pago.
   const ncfFormaPagoMatrix = (() => {
     const formasSet = new Set<string>()
     const filaMap = new Map<string, { ncf_tipo: string; total: number; porForma: Record<string, { cantidad: number; total: number }> }>()
@@ -132,26 +135,20 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
     return { formas, filas, totalesCol, totalMatrix }
   })()
 
-  // E.3: Generar activa el historial por primera vez (o actualiza el rango).
-  const applyFilters = () => {
-    setSelectedFecha(null)
-    setAplicados({ desde: filterDesde, hasta: filterHasta, tipo: filterTipo })
-    setGenerado(true)
-  }
-
   const mesAno = (() => {
-    const now = new Date()
-    return `${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`
+    const d = new Date(fecha)
+    return `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`
   })()
 
   const exportCsv = async () => {
-    if (!resumenPago.length && !porNcf.length) return
+    if (!resumen.length && !porNcf.length) return
     const meta = await buildReportMeta(noCia, punto, mesAno)
-    // CSV combinado: primero forma de pago, después tipo NCF.
     const rows: any[][] = []
+    rows.push([`=== Cuadre de Caja del ${fecha} ${data?.usuario ? '· ' + data.usuario : ''} ===`])
+    rows.push([])
     rows.push(['=== Resumen por Forma de Pago ==='])
     rows.push(['Tipo', 'Descripcion', 'Cantidad', 'Total RD'])
-    for (const it of resumenOrdenado) {
+    for (const it of resumenSorted) {
       rows.push([it.tipo_pago, it.forma_pago, it.cantidad, Number(it.total ?? 0).toFixed(2)])
     }
     rows.push(['', '', 'TOTAL', totalFormaPago.toFixed(2)])
@@ -164,135 +161,33 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
         r.impuesto.toFixed(2), r.total_neto.toFixed(2)])
     }
     rows.push(['', 'TOTAL', '', '', '', totalPorNcf.toFixed(2)])
-    downloadCsv(
-      `cuadre-caja-${selectedFecha ?? 'general'}.csv`,
-      [],  // sin header global, escribimos secciones nosotros
-      rows,
-      meta,
-    )
+    if (incluirDetalle && facturas.length) {
+      rows.push([])
+      rows.push(['=== Detalle de Facturas ==='])
+      rows.push(['No. Factura', 'Fecha', 'Cliente', 'NCF', 'Forma Pago', 'Descuento', 'ITBIS', 'Total Neto', 'Anulada'])
+      for (const f of facturas) {
+        rows.push([
+          `${f.tipo_factura}-${f.no_factura}`,
+          (f.fecha || '').slice(0, 10),
+          f.nombre_cliente, f.ncf_dgi, f.forma_pago,
+          (f.descuento || 0).toFixed(2), (f.impuesto || 0).toFixed(2),
+          (f.total_neto || 0).toFixed(2),
+          f.st_anulado === 'S' ? 'SI' : '',
+        ])
+      }
+      rows.push(['', '', '', '', '', '', 'TOTAL', totalFacturas.toFixed(2)])
+    }
+    downloadCsv(`cuadre-caja-${fecha}.csv`, [], rows, meta)
   }
 
-  // PDF estructurado tipo Rfat237 — Resumen por Forma de Pago + Resumen por Tipo NCF.
-  const exportPdf = async () => {
-    if (!resumenPago.length && !porNcf.length) return
-    const meta = await buildReportMeta(noCia, punto, mesAno)
-    const fecha = new Date().toLocaleDateString('es-DO')
-    const cuadreNo = selected?.no_cuadre_caja ? `Cuadre No. ${selected.no_cuadre_caja} &mdash; ` : ''
-    const titulo = `${cuadreNo}${fmtDate(selectedFecha)}`
-    const usuario = selected?.usuario || ''
-
-    // Tabla forma de pago — una fila por item del backend, cobros de crédito al final.
-    const filasPago = resumenOrdenado.map(it => `<tr>
-      <td class="font-mono">${it.tipo_pago}</td>
-      <td>${it.forma_pago}</td>
-      <td class="r">${it.cantidad}</td>
-      <td class="r">${fmtN(it.total)}</td></tr>`).join('')
-
-    const filasNcf = porNcf.map(r => `<tr>
-      <td>${r.ncf_tipo || '—'}</td>
-      <td>${labelNcf(r.ncf_tipo)}</td>
-      <td class="r">${r.cantidad}</td>
-      <td class="r">${fmtN(r.total_linea)}</td>
-      <td class="r">${fmtN(r.descuento)}</td>
-      <td class="r">${fmtN(r.impuesto)}</td>
-      <td class="r"><b>${fmtN(r.total_neto)}</b></td></tr>`).join('')
-
-    // Matriz NCF × forma_pago para el PDF.
-    const { formas, filas: filasMx, totalesCol, totalMatrix } = ncfFormaPagoMatrix
-    const headMx = formas.map(f => `<th class="r">${f}</th>`).join('')
-    const cuerpoMx = filasMx.map(fila => {
-      const celdas = formas.map(f => {
-        const v = fila.porForma[f]?.total ?? 0
-        return `<td class="r">${v ? fmtN(v) : ''}</td>`
-      }).join('')
-      return `<tr><td><b>${fila.ncf_tipo || '—'}</b></td><td>${labelNcf(fila.ncf_tipo)}</td>${celdas}<td class="r"><b>${fmtN(fila.total)}</b></td></tr>`
-    }).join('')
-    const totalesMx = formas.map(f =>
-      `<td class="r"><b>${fmtN(totalesCol[f] ?? 0)}</b></td>`).join('')
-
-    const win = window.open('', '_blank')!
-    win.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/>
-    <title>Cuadre de Caja</title>
-    <style>
-    *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:Arial,sans-serif;font-size:9pt;color:#000;background:#fff;-webkit-print-color-adjust:exact;padding:18px}
-    .rh{display:flex;justify-content:space-between;margin-bottom:6px}
-    .co{font-size:12pt;font-weight:bold}.sub{font-size:8pt;color:#555;margin:2px 0}
-    .sep{border:none;border-top:2px solid #000;margin:6px 0}
-    h3{font-size:10pt;color:#1d4ed8;margin:14px 0 4px 0}
-    table{width:100%;border-collapse:collapse;font-size:8pt;margin-top:4px}
-    th,td{border:1px solid #333;padding:3px 6px;vertical-align:top}
-    th{background:#e8e8e8;font-weight:bold;text-align:left}
-    th.r,td.r{text-align:right;white-space:nowrap}
-    tr.grp td{background:#f3f4f6}
-    tr.sub td{color:#444;padding-left:14px}
-    tfoot td{font-weight:bold;background:#f0f0f0}
-    .muted{color:#888;font-size:7pt}
-    .firmas{margin-top:60px;display:flex;justify-content:space-between;gap:80px}
-    .firma{flex:1;text-align:center;border-top:1px solid #000;padding-top:4px;font-size:8pt;font-weight:bold}
-    .firma .lbl{font-weight:normal;color:#555;margin-top:2px}
-    @page{size:letter portrait;margin:1.5cm}
-    @media print{body{margin:0}}
-    </style></head><body>
-    <div class="rh">
-      <div>
-        <div class="co">${meta.company}</div>
-        ${meta.rnc ? `<div class="sub">RNC ${meta.rnc}</div>` : ''}
-        <div class="sub">Sistema de Facturación &mdash; Listado Cuadre de Caja</div>
-        <div class="sub">${titulo}</div>
-      </div>
-      <div style="text-align:right;font-size:8pt">
-        <div style="font-size:10pt;font-weight:bold">Rfat237</div>
-        <div>${fecha}</div>
-        <div>${mesAno}</div>
-      </div>
-    </div>
-    <hr class="sep"/>
-
-    <h3>Resumen por Forma de Pago</h3>
-    <table>
-      <thead><tr>
-        <th>Tipo Pago</th><th>Descripción</th>
-        <th class="r">Cant.</th><th class="r">Monto RD</th>
-      </tr></thead>
-      <tbody>${filasPago || '<tr><td colspan="4" style="text-align:center;color:#888">Sin movimientos.</td></tr>'}</tbody>
-      <tfoot><tr><td colspan="3" class="r"><b>Total Ingresos</b></td>
-        <td class="r"><b>${fmtN(totalFormaPago)}</b></td></tr></tfoot>
-    </table>
-
-    <h3>Resumen por Tipo NCF (DGII)</h3>
-    <table>
-      <thead><tr>
-        <th>Tipo</th><th>Descripción</th>
-        <th class="r">Cant.</th>
-        <th class="r">Total Línea</th>
-        <th class="r">Descuento</th>
-        <th class="r">ITBIS</th>
-        <th class="r">Total Neto</th>
-      </tr></thead>
-      <tbody>${filasNcf || '<tr><td colspan="7" style="text-align:center;color:#888">Sin facturas en el período.</td></tr>'}</tbody>
-      <tfoot><tr><td colspan="6" class="r"><b>TOTAL</b></td>
-        <td class="r"><b>${fmtN(totalPorNcf)}</b></td></tr></tfoot>
-    </table>
-
-    ${formas.length ? `
-    <h3>NCF × Forma de Pago</h3>
-    <table>
-      <thead><tr>
-        <th>NCF</th><th>Descripción</th>${headMx}
-        <th class="r">Total RD</th>
-      </tr></thead>
-      <tbody>${cuerpoMx || `<tr><td colspan="${3 + formas.length}" style="text-align:center;color:#888">Sin movimientos.</td></tr>`}</tbody>
-      <tfoot><tr><td colspan="2" class="r"><b>TOTAL</b></td>${totalesMx}<td class="r"><b>${fmtN(totalMatrix)}</b></td></tr></tfoot>
-    </table>` : ''}
-
-    <div class="firmas">
-      <div class="firma">${usuario || '&nbsp;'}<div class="lbl">Cajero / Usuario</div></div>
-      <div class="firma">&nbsp;<div class="lbl">Supervisor / Encargado</div></div>
-    </div>
-
-    </body></html>`)
-    win.document.close(); win.print()
+  // PDF nuevo sistema: abre /print/cuadre-caja/<fecha> que usa la plantilla
+  // Puck (logo + secciones configurables vía /settings/pdf-templates/cuadre-caja).
+  const abrirPdf = () => {
+    const u = new URLSearchParams({ no_cia: noCia, punto })
+    if (incluirDetalle) u.set('incluir_detalle', '1')
+    window.open(
+      `/print/cuadre-caja/${encodeURIComponent(fecha)}?${u.toString()}`,
+      '_blank', 'noopener')
   }
 
   return (
@@ -302,216 +197,234 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
           <h2 className='text-lg font-semibold flex items-center gap-2'>
             <Calculator className='h-5 w-5' /> Cuadre de Caja
           </h2>
-          <p className='text-sm text-muted-foreground'>Empresa {noCia} / Punto {punto}</p>
+          <p className='text-sm text-muted-foreground'>
+            Empresa {noCia} / Punto {punto}
+            {data?.no_cuadre ? ` · Cuadre #${data.no_cuadre}` : ''}
+            {data?.usuario ? ` · ${data.usuario}` : ''}
+          </p>
         </div>
         <div className='flex gap-2 flex-wrap'>
-          <Button variant='outline' size='sm' onClick={exportPdf} disabled={!resumenPago.length && !porNcf.length}>
-            <Printer className='mr-1 h-4 w-4' /> PDF
+          <Button variant='outline' size='sm' onClick={abrirPdf}
+                  disabled={!resumen.length && !porNcf.length}>
+            <Printer className='mr-1 h-4 w-4' /> Imprimir PDF
           </Button>
-          <Button variant='outline' size='sm' onClick={exportCsv} disabled={!resumenPago.length && !porNcf.length}>
+          <Button variant='outline' size='sm' onClick={exportCsv}
+                  disabled={!resumen.length && !porNcf.length}>
             <FileSpreadsheet className='mr-1 h-4 w-4' /> Excel
           </Button>
-          <Button variant='outline' size='sm' onClick={() => historialQ.refetch()}>
+          <Button variant='outline' size='sm' onClick={() => q.refetch()}>
             <RefreshCw className='mr-1 h-4 w-4' /> Actualizar
           </Button>
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className='flex gap-2 flex-wrap items-end'>
+      <div className='flex gap-4 flex-wrap items-end rounded-md border bg-muted/30 p-3'>
         <div className='space-y-1'>
-          <label className='text-xs text-muted-foreground'>Desde</label>
-          <Input type='date' value={filterDesde} onChange={(e) => setFilterDesde(e.target.value)} className='h-8 w-36' />
+          <Label htmlFor='cuadre-fecha' className='text-xs text-muted-foreground'>Fecha del cuadre</Label>
+          <Input id='cuadre-fecha' type='date' value={fecha}
+                 onChange={(e) => setFecha(e.target.value)}
+                 className='h-9 w-44' />
         </div>
-        <div className='space-y-1'>
-          <label className='text-xs text-muted-foreground'>Hasta</label>
-          <Input type='date' value={filterHasta} onChange={(e) => setFilterHasta(e.target.value)} className='h-8 w-36' />
+        <div className='flex items-center gap-2 pb-1'>
+          <Switch id='inc-det' checked={incluirDetalle}
+                  onCheckedChange={(v) => setIncluirDetalle(!!v)} />
+          <Label htmlFor='inc-det' className='cursor-pointer text-sm'>
+            Incluir detalle de facturas
+          </Label>
         </div>
-        <div className='space-y-1'>
-          <label className='text-xs text-muted-foreground'>Tipo doc.</label>
-          <Input value={filterTipo} onChange={(e) => setFilterTipo(e.target.value)} className='h-8 w-24' placeholder='Ej. FT' />
-        </div>
-        <Button size='sm' className='h-8' onClick={applyFilters}>Filtrar</Button>
+        {q.isFetching && (
+          <span className='text-xs text-muted-foreground pb-2'>Cargando…</span>
+        )}
+        {q.error && (
+          <span className='text-xs text-red-600 pb-2'>Error al cargar el cuadre.</span>
+        )}
       </div>
 
-      <div className='grid grid-cols-1 gap-4 lg:grid-cols-3'>
-        {/* Historial por fecha */}
-        <div className='lg:col-span-1'>
-          <h3 className='text-sm font-semibold mb-2'>Historial por Fecha</h3>
+      <div className='space-y-4'>
+        {/* Resumen por Forma de Pago */}
+        <div className='rounded-md border'>
+          <div className='px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-blue-700'>
+            Resumen por Forma de Pago
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className='w-32'>Tipo</TableHead>
+                <TableHead>Descripción</TableHead>
+                <TableHead className='w-20 text-right'>Cant.</TableHead>
+                <TableHead className='w-32 text-right'>Total RD</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {q.isLoading && (
+                <TableRow><TableCell colSpan={4} className='py-8 text-center text-muted-foreground'>Cargando cuadre del día…</TableCell></TableRow>
+              )}
+              {!q.isLoading && resumenSorted.length === 0 && (
+                <TableRow><TableCell colSpan={4} className='py-8 text-center text-muted-foreground'>Sin movimientos para el {fecha}.</TableCell></TableRow>
+              )}
+              {resumenSorted.map(it => (
+                <TableRow key={`${it.tipo_pago}-${it.forma_pago}`}>
+                  <TableCell className='font-mono text-sm'>{it.tipo_pago}</TableCell>
+                  <TableCell className='text-sm'>{it.forma_pago}</TableCell>
+                  <TableCell className='text-right font-mono'>{it.cantidad}</TableCell>
+                  <TableCell className='text-right font-mono tabular-nums'>{fmtN(it.total)}</TableCell>
+                </TableRow>
+              ))}
+              {resumenSorted.length > 0 && (
+                <TableRow className='border-t-2 bg-muted/40 font-bold'>
+                  <TableCell colSpan={3} className='text-right'>Total Ingresos</TableCell>
+                  <TableCell className='text-right font-mono tabular-nums'>{fmtN(totalFormaPago)}</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Resumen por Tipo NCF (B01 / B02 / etc.) */}
+        <div className='rounded-md border'>
+          <div className='px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-blue-700'>
+            Resumen por Tipo NCF (DGII)
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className='w-16'>Tipo</TableHead>
+                <TableHead>Descripción</TableHead>
+                <TableHead className='w-16 text-right'>Cant.</TableHead>
+                <TableHead className='w-28 text-right'>Total Línea</TableHead>
+                <TableHead className='w-24 text-right'>Descuento</TableHead>
+                <TableHead className='w-24 text-right'>ITBIS</TableHead>
+                <TableHead className='w-28 text-right'>Total Neto</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {q.isLoading && (
+                <TableRow><TableCell colSpan={7} className='py-6 text-center text-muted-foreground'>Cargando…</TableCell></TableRow>
+              )}
+              {!q.isLoading && porNcf.length === 0 && (
+                <TableRow><TableCell colSpan={7} className='py-6 text-center text-muted-foreground'>Sin facturas en el día.</TableCell></TableRow>
+              )}
+              {porNcf.map((r) => (
+                <TableRow key={r.ncf_tipo}>
+                  <TableCell className='font-mono font-semibold'>{r.ncf_tipo || '—'}</TableCell>
+                  <TableCell className='text-sm'>{labelNcf(r.ncf_tipo)}</TableCell>
+                  <TableCell className='text-right font-mono'>{r.cantidad}</TableCell>
+                  <TableCell className='text-right font-mono tabular-nums'>{fmtN(r.total_linea)}</TableCell>
+                  <TableCell className='text-right font-mono tabular-nums'>{fmtN(r.descuento)}</TableCell>
+                  <TableCell className='text-right font-mono tabular-nums'>{fmtN(r.impuesto)}</TableCell>
+                  <TableCell className='text-right font-mono tabular-nums font-semibold'>{fmtN(r.total_neto)}</TableCell>
+                </TableRow>
+              ))}
+              {porNcf.length > 0 && (
+                <TableRow className='border-t-2 bg-muted/40 font-bold'>
+                  <TableCell colSpan={6} className='text-right'>TOTAL</TableCell>
+                  <TableCell className='text-right font-mono tabular-nums'>{fmtN(totalPorNcf)}</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* NCF × Forma de Pago — matriz pivot */}
+        {ncfFormaPagoMatrix.formas.length > 0 && (
           <div className='rounded-md border'>
+            <div className='px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-blue-700'>
+              NCF × Forma de Pago
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead>Usuario</TableHead>
+                  <TableHead className='w-16'>NCF</TableHead>
+                  <TableHead>Descripción</TableHead>
+                  {ncfFormaPagoMatrix.formas.map((f) => (
+                    <TableHead key={f} className='text-right'>{f}</TableHead>
+                  ))}
                   <TableHead className='text-right'>Total</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {historialQ.isLoading && (
-                  <TableRow><TableCell colSpan={3} className='py-6 text-center text-muted-foreground'>Cargando...</TableCell></TableRow>
-                )}
-                {!historialQ.isLoading && historial.length === 0 && (
-                  <TableRow><TableCell colSpan={3} className='py-6 text-center text-muted-foreground'>Sin movimientos en este rango.</TableCell></TableRow>
-                )}
-                {historial.map((h) => (
-                  <TableRow
-                    key={h.fecha ?? h.no_cuadre_caja}
-                    className={`cursor-pointer hover:bg-blue-50 ${selectedFecha === h.fecha ? 'bg-blue-100 font-medium' : ''}`}
-                    onClick={() => setSelectedFecha(h.fecha ?? null)}
-                  >
-                    <TableCell className='text-sm font-semibold'>{fmtDate(h.fecha)}</TableCell>
-                    <TableCell className='text-sm'>{h.usuario}</TableCell>
-                    <TableCell className='text-right font-mono text-sm'>{fmtN(h.total_monto)}</TableCell>
+                {ncfFormaPagoMatrix.filas.map((fila) => (
+                  <TableRow key={fila.ncf_tipo}>
+                    <TableCell className='font-mono font-semibold'>{fila.ncf_tipo || '—'}</TableCell>
+                    <TableCell className='text-sm'>{labelNcf(fila.ncf_tipo)}</TableCell>
+                    {ncfFormaPagoMatrix.formas.map((f) => {
+                      const v = fila.porForma[f]?.total ?? 0
+                      return (
+                        <TableCell key={f} className='text-right font-mono tabular-nums'>
+                          {v ? fmtN(v) : <span className='text-muted-foreground/50'>—</span>}
+                        </TableCell>
+                      )
+                    })}
+                    <TableCell className='text-right font-mono tabular-nums font-semibold'>{fmtN(fila.total)}</TableCell>
                   </TableRow>
                 ))}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
-
-        {/* Detalle del día seleccionado: dos secciones apiladas */}
-        <div className='lg:col-span-2 space-y-4'>
-          <h3 className='text-sm font-semibold'>
-            {selected
-              ? `Detalle — ${fmtDate(selected.fecha)}${selected.no_cuadre_caja ? ` · Cuadre #${selected.no_cuadre_caja}` : ''} · ${selected.usuario}`
-              : 'Seleccione una fecha'}
-          </h3>
-
-          {/* Resumen por Forma de Pago */}
-          <div className='rounded-md border'>
-            <div className='px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-blue-700'>
-              Resumen por Forma de Pago
-            </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className='w-44'>Tipo</TableHead>
-                  <TableHead>Descripción</TableHead>
-                  <TableHead className='w-20 text-right'>Cant.</TableHead>
-                  <TableHead className='w-32 text-right'>Total RD</TableHead>
+                <TableRow className='border-t-2 bg-muted/40 font-bold'>
+                  <TableCell colSpan={2} className='text-right'>TOTAL</TableCell>
+                  {ncfFormaPagoMatrix.formas.map((f) => (
+                    <TableCell key={f} className='text-right font-mono tabular-nums'>
+                      {fmtN(ncfFormaPagoMatrix.totalesCol[f] ?? 0)}
+                    </TableCell>
+                  ))}
+                  <TableCell className='text-right font-mono tabular-nums'>{fmtN(ncfFormaPagoMatrix.totalMatrix)}</TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {detalleQ.isLoading && (
-                  <TableRow><TableCell colSpan={4} className='py-6 text-center text-muted-foreground'>Cargando...</TableCell></TableRow>
-                )}
-                {!detalleQ.isLoading && selectedFecha === null && (
-                  <TableRow><TableCell colSpan={4} className='py-10 text-center text-muted-foreground'>Haga clic en una fecha para ver el detalle.</TableCell></TableRow>
-                )}
-                {!detalleQ.isLoading && selectedFecha !== null && resumenOrdenado.length === 0 && (
-                  <TableRow><TableCell colSpan={4} className='py-6 text-center text-muted-foreground'>Sin movimientos.</TableCell></TableRow>
-                )}
-                {resumenOrdenado.map(it => (
-                  <TableRow key={`${it.tipo_pago}-${it.forma_pago}`}>
-                    <TableCell className='font-mono text-sm'>{it.tipo_pago}</TableCell>
-                    <TableCell className='text-sm'>{it.forma_pago}</TableCell>
-                    <TableCell className='text-right font-mono'>{it.cantidad}</TableCell>
-                    <TableCell className='text-right font-mono'>{fmtN(it.total)}</TableCell>
-                  </TableRow>
-                ))}
-                {resumenOrdenado.length > 0 && (
-                  <TableRow className='border-t-2 bg-muted/40 font-bold'>
-                    <TableCell colSpan={3} className='text-right'>Total Ingresos</TableCell>
-                    <TableCell className='text-right font-mono'>{fmtN(totalFormaPago)}</TableCell>
-                  </TableRow>
-                )}
               </TableBody>
             </Table>
           </div>
+        )}
 
-          {/* Resumen por Tipo NCF (B01 / B02 / etc.) */}
+        {/* Detalle de facturas — solo si el usuario lo activó */}
+        {incluirDetalle && (
           <div className='rounded-md border'>
             <div className='px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-blue-700'>
-              Resumen por Tipo NCF (DGII)
+              Detalle de Facturas del Día ({facturas.length})
             </div>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className='w-16'>Tipo</TableHead>
-                  <TableHead>Descripción</TableHead>
-                  <TableHead className='w-16 text-right'>Cant.</TableHead>
-                  <TableHead className='w-28 text-right'>Total Línea</TableHead>
+                  <TableHead className='w-28'>No.</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead className='w-32'>NCF</TableHead>
+                  <TableHead className='w-24'>Forma Pago</TableHead>
                   <TableHead className='w-24 text-right'>Descuento</TableHead>
                   <TableHead className='w-24 text-right'>ITBIS</TableHead>
-                  <TableHead className='w-28 text-right'>Total Neto</TableHead>
+                  <TableHead className='w-28 text-right'>Total</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {detalleQ.isLoading && (
-                  <TableRow><TableCell colSpan={7} className='py-6 text-center text-muted-foreground'>Cargando...</TableCell></TableRow>
+                {q.isLoading && (
+                  <TableRow><TableCell colSpan={7} className='py-6 text-center text-muted-foreground'>Cargando facturas…</TableCell></TableRow>
                 )}
-                {!detalleQ.isLoading && selectedFecha !== null && porNcf.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className='py-6 text-center text-muted-foreground'>Sin facturas en el período.</TableCell></TableRow>
+                {!q.isLoading && facturas.length === 0 && (
+                  <TableRow><TableCell colSpan={7} className='py-6 text-center text-muted-foreground'>Sin facturas para el {fecha}.</TableCell></TableRow>
                 )}
-                {porNcf.map((r) => (
-                  <TableRow key={r.ncf_tipo}>
-                    <TableCell className='font-mono font-semibold'>{r.ncf_tipo || '—'}</TableCell>
-                    <TableCell className='text-sm'>{labelNcf(r.ncf_tipo)}</TableCell>
-                    <TableCell className='text-right font-mono'>{r.cantidad}</TableCell>
-                    <TableCell className='text-right font-mono'>{fmtN(r.total_linea)}</TableCell>
-                    <TableCell className='text-right font-mono'>{fmtN(r.descuento)}</TableCell>
-                    <TableCell className='text-right font-mono'>{fmtN(r.impuesto)}</TableCell>
-                    <TableCell className='text-right font-mono font-semibold'>{fmtN(r.total_neto)}</TableCell>
-                  </TableRow>
-                ))}
-                {porNcf.length > 0 && (
+                {facturas.map((f, i) => {
+                  const anul = f.st_anulado === 'S'
+                  return (
+                    <TableRow key={`${f.tipo_factura}-${f.no_factura}-${i}`}
+                              className={anul ? 'text-red-600' : ''}>
+                      <TableCell className='font-mono text-sm'>
+                        {f.tipo_factura}-{f.no_factura}
+                        {anul && <span className='ml-1 text-xs'>(ANUL)</span>}
+                      </TableCell>
+                      <TableCell className='text-sm'>{(f.nombre_cliente || '').slice(0, 60)}</TableCell>
+                      <TableCell className='font-mono text-xs'>{f.ncf_dgi || '—'}</TableCell>
+                      <TableCell className='text-xs'>{f.forma_pago}</TableCell>
+                      <TableCell className='text-right font-mono tabular-nums'>{fmtN(f.descuento || 0)}</TableCell>
+                      <TableCell className='text-right font-mono tabular-nums'>{fmtN(f.impuesto || 0)}</TableCell>
+                      <TableCell className='text-right font-mono tabular-nums font-semibold'>{fmtN(f.total_neto || 0)}</TableCell>
+                    </TableRow>
+                  )
+                })}
+                {facturas.length > 0 && (
                   <TableRow className='border-t-2 bg-muted/40 font-bold'>
-                    <TableCell colSpan={6} className='text-right'>TOTAL</TableCell>
-                    <TableCell className='text-right font-mono'>{fmtN(totalPorNcf)}</TableCell>
+                    <TableCell colSpan={6} className='text-right'>TOTAL ({facturas.length})</TableCell>
+                    <TableCell className='text-right font-mono tabular-nums'>{fmtN(totalFacturas)}</TableCell>
                   </TableRow>
                 )}
               </TableBody>
             </Table>
           </div>
-
-          {/* NCF × Forma de Pago — matriz pivot */}
-          {ncfFormaPagoMatrix.formas.length > 0 && (
-            <div className='rounded-md border'>
-              <div className='px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-blue-700'>
-                NCF × Forma de Pago
-              </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className='w-16'>NCF</TableHead>
-                    <TableHead>Descripción</TableHead>
-                    {ncfFormaPagoMatrix.formas.map((f) => (
-                      <TableHead key={f} className='text-right'>{f}</TableHead>
-                    ))}
-                    <TableHead className='text-right'>Total</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {ncfFormaPagoMatrix.filas.map((fila) => (
-                    <TableRow key={fila.ncf_tipo}>
-                      <TableCell className='font-mono font-semibold'>{fila.ncf_tipo || '—'}</TableCell>
-                      <TableCell className='text-sm'>{labelNcf(fila.ncf_tipo)}</TableCell>
-                      {ncfFormaPagoMatrix.formas.map((f) => {
-                        const v = fila.porForma[f]?.total ?? 0
-                        return (
-                          <TableCell key={f} className='text-right font-mono'>
-                            {v ? fmtN(v) : <span className='text-muted-foreground/50'>—</span>}
-                          </TableCell>
-                        )
-                      })}
-                      <TableCell className='text-right font-mono font-semibold'>{fmtN(fila.total)}</TableCell>
-                    </TableRow>
-                  ))}
-                  <TableRow className='border-t-2 bg-muted/40 font-bold'>
-                    <TableCell colSpan={2} className='text-right'>TOTAL</TableCell>
-                    {ncfFormaPagoMatrix.formas.map((f) => (
-                      <TableCell key={f} className='text-right font-mono'>
-                        {fmtN(ncfFormaPagoMatrix.totalesCol[f] ?? 0)}
-                      </TableCell>
-                    ))}
-                    <TableCell className='text-right font-mono'>{fmtN(ncfFormaPagoMatrix.totalMatrix)}</TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </div>
+        )}
       </div>
     </section>
   )
