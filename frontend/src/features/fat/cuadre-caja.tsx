@@ -132,6 +132,7 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
     return (a.forma_pago || '').localeCompare(b.forma_pago || '', 'es')
   })
   const totalFormaPago = resumen.reduce((s, r) => s + r.total, 0)
+  const totalFacturas = facturas.reduce((s, f) => s + (f.total_neto || 0), 0)
 
   // Matriz NCF × forma_pago.
   const ncfFormaPagoMatrix = (() => {
@@ -379,6 +380,89 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
                     </TableCell>
                   ))}
                   <TableCell className='text-right font-mono tabular-nums'>{fmtN(ncfFormaPagoMatrix.totalMatrix)}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {/* Detalle de Facturas del Día — card al final, agrupado por forma de
+            pago (mismo agrupamiento que el resumen). Independiente del switch
+            "Incluir detalle en el PDF" — aquí siempre se muestra en pantalla
+            si hay facturas. */}
+        {facturas.length > 0 && (
+          <div className='rounded-md border'>
+            <div className='px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-blue-700 flex items-center justify-between'>
+              <span>Detalle de Facturas del Día ({facturas.length}) · agrupado por Forma de Pago</span>
+              <span className='text-xs font-normal text-muted-foreground'>
+                {incluirDetalle ? 'Saldrá en el PDF' : 'No saldrá en el PDF'}
+              </span>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className='w-28'>No.</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead className='w-32'>NCF</TableHead>
+                  <TableHead className='w-24'>Forma Pago</TableHead>
+                  <TableHead className='w-24 text-right'>Descuento</TableHead>
+                  <TableHead className='w-24 text-right'>ITBIS</TableHead>
+                  <TableHead className='w-28 text-right'>Total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {resumenSorted.map((it) => {
+                  const key = it.forma_pago.toUpperCase()
+                  const list = facturasPorFormaPago[key] || []
+                  if (!list.length) return null
+                  const sub = list.reduce(
+                    (s, f) => ({
+                      total: s.total + (f.total_neto || 0),
+                      itbis: s.itbis + (f.impuesto || 0),
+                      desc: s.desc + (f.descuento || 0),
+                    }),
+                    { total: 0, itbis: 0, desc: 0 },
+                  )
+                  return (
+                    <Fragment key={`det-${key}`}>
+                      <TableRow className='bg-muted/30'>
+                        <TableCell colSpan={7} className='py-1.5 font-semibold text-sm'>
+                          {it.forma_pago}
+                          <span className='ml-2 text-xs text-muted-foreground font-normal'>
+                            ({list.length} {list.length === 1 ? 'factura' : 'facturas'})
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                      {list.map((f, i) => {
+                        const anul = f.st_anulado === 'S'
+                        return (
+                          <TableRow key={`${key}-${f.tipo_factura}-${f.no_factura}-${i}`}
+                                    className={anul ? 'text-red-600' : ''}>
+                            <TableCell className='font-mono text-sm pl-6'>
+                              {f.tipo_factura}-{f.no_factura}
+                              {anul && <span className='ml-1 text-xs'>(ANUL)</span>}
+                            </TableCell>
+                            <TableCell className='text-sm'>{(f.nombre_cliente || '').slice(0, 60)}</TableCell>
+                            <TableCell className='font-mono text-xs'>{f.ncf_dgi || '—'}</TableCell>
+                            <TableCell className='text-xs'>{f.forma_pago}</TableCell>
+                            <TableCell className='text-right font-mono tabular-nums'>{fmtN(f.descuento || 0)}</TableCell>
+                            <TableCell className='text-right font-mono tabular-nums'>{fmtN(f.impuesto || 0)}</TableCell>
+                            <TableCell className='text-right font-mono tabular-nums font-semibold'>{fmtN(f.total_neto || 0)}</TableCell>
+                          </TableRow>
+                        )
+                      })}
+                      <TableRow className='bg-muted/20 font-semibold'>
+                        <TableCell colSpan={4} className='text-right pr-3'>Subtotal {it.forma_pago}</TableCell>
+                        <TableCell className='text-right font-mono tabular-nums'>{fmtN(sub.desc)}</TableCell>
+                        <TableCell className='text-right font-mono tabular-nums'>{fmtN(sub.itbis)}</TableCell>
+                        <TableCell className='text-right font-mono tabular-nums'>{fmtN(sub.total)}</TableCell>
+                      </TableRow>
+                    </Fragment>
+                  )
+                })}
+                <TableRow className='border-t-2 bg-muted/40 font-bold'>
+                  <TableCell colSpan={6} className='text-right'>TOTAL ({facturas.length} facturas)</TableCell>
+                  <TableCell className='text-right font-mono tabular-nums'>{fmtN(totalFacturas)}</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
