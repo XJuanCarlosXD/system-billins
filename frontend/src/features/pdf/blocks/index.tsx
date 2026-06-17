@@ -713,6 +713,13 @@ function BloqueCuadreCaja({
   // viaja como extra.incluir_detalle. Sobreescribe la plantilla.
   const incluirDetalleFlag = !!extra.incluir_detalle
   const renderDetalle = showDetalleFacturas || incluirDetalleFlag
+  // Switch "Ver detalle de NCF" del usuario — pinta la matriz NCF×forma_pago
+  // solo si está prendido. Si la plantilla lo trae prendido también pinta.
+  const showNcfDetailFlag = !!extra.show_ncf_detail
+  const renderMatrizNcf = showMatrizNcfFormaPago || showNcfDetailFlag
+  // Casilla manual "COBROS CRED. TRANSFERENCIA" (cobros a crédito recibidos
+  // por transferencia). El cajero la captura en pantalla.
+  const cobrosCredTransfer = Number(extra.cobros_cred_transfer || 0) || 0
 
   // Pivot NCF × forma_pago
   const formasSet = new Set<string>()
@@ -737,7 +744,14 @@ function BloqueCuadreCaja({
     if (ac !== bc) return ac ? 1 : -1
     return (a.forma_pago || '').localeCompare(b.forma_pago || '', 'es')
   })
-  const totalResumen = resumen.reduce((s, r) => s + (r.total || 0), 0)
+  // Separación contado vs crédito (sugerencia Roberto/Angel 2026-06-17).
+  const esCred = (tp: string) => (tp || '').toUpperCase().startsWith('C')
+  const ventasContado = resumenSorted.filter(r => !esCred(r.tipo_pago))
+  const ventasCredito = resumenSorted.filter(r => esCred(r.tipo_pago))
+  const totalContado = ventasContado.reduce((s, r) => s + (r.total || 0), 0)
+  const totalCredito = ventasCredito.reduce((s, r) => s + (r.total || 0), 0)
+  const totalVentas = totalContado + totalCredito
+  const totalCobrosDia = totalContado + cobrosCredTransfer
   const totalPorNcf = porNcf.reduce((s, r) => s + (r.total_neto || 0), 0)
   const totalFacturas = facturas.reduce((s, f) => s + (f.total_neto || 0), 0)
 
@@ -758,7 +772,33 @@ function BloqueCuadreCaja({
     <div className="pdf-cuadre-caja">
       {showResumenPago && (
         <>
-          <div style={sectionTitle}>Resumen por Forma de Pago</div>
+          {/* Card 1 — Ventas del Día (contado vs crédito) */}
+          <div style={sectionTitle}>Ventas del Día</div>
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={thBase}>Concepto</th>
+                <th style={{ ...thBase, textAlign: 'right', width: '25%' }}>Monto RD$</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={td}>Ventas en efectivo / cobradas hoy</td>
+                <td style={tdR}>{money(totalContado)}</td>
+              </tr>
+              <tr>
+                <td style={td}>Ventas a crédito del día (pendiente CxC)</td>
+                <td style={tdR}>{money(totalCredito)}</td>
+              </tr>
+              <tr style={tfootRow}>
+                <td style={tdR}>Total Ventas del Día</td>
+                <td style={tdR}>{money(totalVentas)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* Card 2 — Cobros del Día por Forma de Pago */}
+          <div style={sectionTitle}>Cobros del Día por Forma de Pago</div>
           <table style={tableStyle}>
             <thead>
               <tr>
@@ -769,24 +809,65 @@ function BloqueCuadreCaja({
               </tr>
             </thead>
             <tbody>
-              {resumenSorted.length === 0 ? (
-                <tr><td colSpan={4} style={{ ...td, textAlign: 'center', color: '#777' }}>Sin movimientos.</td></tr>
-              ) : resumenSorted.map((r, i) => (
-                <tr key={`${r.tipo_pago}-${r.forma_pago}-${i}`}>
-                  <td style={{ ...td, fontFamily: 'monospace' }}>{r.tipo_pago}</td>
-                  <td style={td}>{r.forma_pago}</td>
-                  <td style={tdR}>{r.cantidad}</td>
-                  <td style={tdR}>{money(r.total)}</td>
-                </tr>
-              ))}
-              {resumenSorted.length > 0 && (
-                <tr style={tfootRow}>
-                  <td colSpan={3} style={{ ...tdR }}>Total Ingresos</td>
-                  <td style={tdR}>{money(totalResumen)}</td>
-                </tr>
+              {ventasContado.length === 0 && cobrosCredTransfer === 0 ? (
+                <tr><td colSpan={4} style={{ ...td, textAlign: 'center', color: '#777' }}>Sin cobros.</td></tr>
+              ) : (
+                <>
+                  {ventasContado.map((r, i) => (
+                    <tr key={`${r.tipo_pago}-${r.forma_pago}-${i}`}>
+                      <td style={{ ...td, fontFamily: 'monospace' }}>{r.tipo_pago}</td>
+                      <td style={td}>{r.forma_pago}</td>
+                      <td style={tdR}>{r.cantidad}</td>
+                      <td style={tdR}>{money(r.total)}</td>
+                    </tr>
+                  ))}
+                  {cobrosCredTransfer > 0 && (
+                    <tr style={{ background: '#fef3c7' }}>
+                      <td style={{ ...td, fontFamily: 'monospace' }}>—</td>
+                      <td style={td}>COBROS CRED. TRANSFERENCIA</td>
+                      <td style={tdR}>—</td>
+                      <td style={tdR}>{money(cobrosCredTransfer)}</td>
+                    </tr>
+                  )}
+                  <tr style={tfootRow}>
+                    <td colSpan={3} style={tdR}>Total Cobros del Día</td>
+                    <td style={tdR}>{money(totalCobrosDia)}</td>
+                  </tr>
+                </>
               )}
             </tbody>
           </table>
+
+          {/* Card 3 — Facturación a Crédito (informativo) */}
+          {ventasCredito.length > 0 && (
+            <>
+              <div style={sectionTitle}>Facturación a Crédito (no entró plata — pendiente CxC)</div>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={{ ...thBase, width: '15%' }}>Tipo</th>
+                    <th style={thBase}>Descripción</th>
+                    <th style={{ ...thBase, textAlign: 'right', width: '12%' }}>Cant.</th>
+                    <th style={{ ...thBase, textAlign: 'right', width: '20%' }}>Monto RD$</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ventasCredito.map((r, i) => (
+                    <tr key={`cr-${r.tipo_pago}-${r.forma_pago}-${i}`}>
+                      <td style={{ ...td, fontFamily: 'monospace' }}>{r.tipo_pago}</td>
+                      <td style={td}>{r.forma_pago}</td>
+                      <td style={tdR}>{r.cantidad}</td>
+                      <td style={tdR}>{money(r.total)}</td>
+                    </tr>
+                  ))}
+                  <tr style={tfootRow}>
+                    <td colSpan={3} style={tdR}>Total Crédito</td>
+                    <td style={tdR}>{money(totalCredito)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </>
+          )}
         </>
       )}
 
@@ -830,9 +911,9 @@ function BloqueCuadreCaja({
         </>
       )}
 
-      {showMatrizNcfFormaPago && formas.length > 0 && (
+      {renderMatrizNcf && formas.length > 0 && (
         <>
-          <div style={sectionTitle}>NCF × Forma de Pago</div>
+          <div style={sectionTitle}>Cuadre de Caja por NCF · NCF × Forma de Pago</div>
           <table style={tableStyle}>
             <thead>
               <tr>
