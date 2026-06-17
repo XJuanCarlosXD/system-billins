@@ -1,13 +1,9 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import {
-  Banknote, Calculator, ChevronDown, ChevronRight,
-  CreditCard, FileSpreadsheet, Printer, RefreshCw,
-} from 'lucide-react'
+import { Calculator, ChevronDown, ChevronRight, FileSpreadsheet, Printer, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { buildReportMeta, downloadCsv } from './fat-export'
@@ -40,9 +36,6 @@ const API = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:800
 
 const fmtN = (n: number) =>
   Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
-// tipo_pago empezando con 'C' = crédito (no entra plata hoy, queda en CxC).
-const esCredito = (tipo_pago: string) => (tipo_pago || '').toUpperCase().startsWith('C')
 
 function labelNcf(ncf_tipo: string): string {
   const t = (ncf_tipo || '').toUpperCase()
@@ -81,8 +74,11 @@ async function fetchCuadreDia(noCia: string, punto: string, fecha: string,
 
 const TODAY = new Date().toISOString().slice(0, 10)
 
-// Indexa facturas por forma_pago para que cada fila del resumen muestre
-// SUS facturas al expandir.
+// Indexa facturas por (tipo_pago + '|' + forma_pago) para que cada fila del
+// resumen "Forma de Pago" pueda mostrar SUS facturas al expandir. Las facturas
+// que aparezcan en varios pagos (split tender) entran en cada grupo
+// proporcional a la asociación de TFAT_FORMA_PAGO; aquí usamos forma_pago
+// reportada por list_facturas como heurística simple.
 function groupFacturasPorFormaPago(facturas: FacturaItem[]): Record<string, FacturaItem[]> {
   const out: Record<string, FacturaItem[]> = {}
   for (const f of facturas) {
@@ -99,15 +95,7 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
   // movimientos — eso es lo correcto contra el legacy.
   const [fecha, setFecha] = useState(TODAY)
   const [incluirDetalle, setIncluirDetalle] = useState(false)
-  const [showNcfDetail, setShowNcfDetail] = useState(false)
   const [expandida, setExpandida] = useState<Record<string, boolean>>({})
-  // Por cada forma de pago, si su detalle de facturas sale en el PDF.
-  // Default: todas en true cuando aparece la forma de pago la primera vez.
-  const [pdfForma, setPdfForma] = useState<Record<string, boolean>>({})
-  // Cobros a crédito recibidos hoy por transferencia (no vienen del FAT del
-  // día — son cobros de CxC). El cajero los anota manualmente para que
-  // queden trazados en el cuadre.
-  const [cobrosCredTransfer, setCobrosCredTransfer] = useState<string>('')
 
   const q = useQuery({
     queryKey: ['fat-cuadre-dia', noCia, punto, fecha, incluirDetalle],
@@ -137,38 +125,17 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
   const facturas = qDet.data?.facturas ?? []
 
   // Cobros de crédito al final, resto alfabético por forma_pago.
-  const resumenSorted = useMemo(() => [...resumen].sort((a, b) => {
-    const aCredit = esCredito(a.tipo_pago)
-    const bCredit = esCredito(b.tipo_pago)
+  const resumenSorted = [...resumen].sort((a, b) => {
+    const aCredit = (a.tipo_pago || '').startsWith('C')
+    const bCredit = (b.tipo_pago || '').startsWith('C')
     if (aCredit !== bCredit) return aCredit ? 1 : -1
     return (a.forma_pago || '').localeCompare(b.forma_pago || '', 'es')
-  }), [resumen])
-
-  // Separación contado (entró plata hoy) vs crédito (queda pendiente en CxC).
-  const ventasContado = resumenSorted.filter(r => !esCredito(r.tipo_pago))
-  const ventasCredito = resumenSorted.filter(r => esCredito(r.tipo_pago))
-  const totalContado = ventasContado.reduce((s, r) => s + r.total, 0)
-  const totalCredito = ventasCredito.reduce((s, r) => s + r.total, 0)
-  const totalVentas = totalContado + totalCredito
-  const cobrosCredTransferNum = Number((cobrosCredTransfer || '0').replace(',', '.')) || 0
-  const totalCobrosDia = totalContado + cobrosCredTransferNum
+  })
+  const totalFormaPago = resumen.reduce((s, r) => s + r.total, 0)
   const totalFacturas = facturas.reduce((s, f) => s + (f.total_neto || 0), 0)
 
-  // Cuando aparece una forma de pago nueva, default = true (sale en el PDF).
-  useEffect(() => {
-    setPdfForma(prev => {
-      let changed = false
-      const next = { ...prev }
-      for (const r of ventasContado) {
-        const key = r.forma_pago.toUpperCase()
-        if (!(key in next)) { next[key] = true; changed = true }
-      }
-      return changed ? next : prev
-    })
-  }, [ventasContado.length])  // eslint-disable-line react-hooks/exhaustive-deps
-
   // Matriz NCF × forma_pago.
-  const ncfFormaPagoMatrix = useMemo(() => {
+  const ncfFormaPagoMatrix = (() => {
     const formasSet = new Set<string>()
     const filaMap = new Map<string, { ncf_tipo: string; total: number; porForma: Record<string, { cantidad: number; total: number }> }>()
     for (const r of porNcfFormaPago) {
@@ -189,21 +156,15 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
     }
     const totalMatrix = filas.reduce((s, f) => s + f.total, 0)
     return { formas, filas, totalesCol, totalMatrix }
-  }, [porNcfFormaPago])
+  })()
 
   // Facturas indexadas por forma de pago (para expandir filas del resumen).
-  const facturasPorFormaPago = useMemo(
-    () => groupFacturasPorFormaPago(facturas), [facturas])
+  const facturasPorFormaPago = groupFacturasPorFormaPago(facturas)
 
   const mesAno = (() => {
     const d = new Date(fecha || TODAY)
     return `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`
   })()
-
-  // Formas seleccionadas para que su detalle salga en el PDF (CSV).
-  const formasParaPdf = ventasContado
-    .filter(r => pdfForma[r.forma_pago.toUpperCase()] !== false)
-    .map(r => r.forma_pago.toUpperCase())
 
   const exportCsv = async () => {
     if (!resumen.length) return
@@ -211,44 +172,18 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
     const rows: any[][] = []
     rows.push([`=== Cuadre de Caja del ${fecha} ${data?.usuario ? '· ' + data.usuario : ''} ===`])
     rows.push([])
-
-    rows.push(['=== Ventas del Día ==='])
-    rows.push(['Concepto', 'Total RD'])
-    rows.push(['Ventas en efectivo / cobradas hoy', totalContado.toFixed(2)])
-    rows.push(['Ventas a crédito del día (pendiente CxC)', totalCredito.toFixed(2)])
-    rows.push(['TOTAL VENTAS', totalVentas.toFixed(2)])
-    rows.push([])
-
-    rows.push(['=== Cobros del Día por Forma de Pago ==='])
-    rows.push(['Tipo', 'Descripcion', 'Cantidad', 'Total RD', 'En PDF'])
-    for (const it of ventasContado) {
-      const key = it.forma_pago.toUpperCase()
-      rows.push([it.tipo_pago, it.forma_pago, it.cantidad, Number(it.total ?? 0).toFixed(2),
-                 pdfForma[key] === false ? 'NO' : 'SI'])
+    rows.push(['=== Resumen por Forma de Pago ==='])
+    rows.push(['Tipo', 'Descripcion', 'Cantidad', 'Total RD'])
+    for (const it of resumenSorted) {
+      rows.push([it.tipo_pago, it.forma_pago, it.cantidad, Number(it.total ?? 0).toFixed(2)])
     }
-    if (cobrosCredTransferNum > 0) {
-      rows.push(['', 'COBROS CRED. TRANSFERENCIA (manual)', '', cobrosCredTransferNum.toFixed(2), 'SI'])
-    }
-    rows.push(['', '', 'TOTAL COBROS DEL DÍA', totalCobrosDia.toFixed(2), ''])
-
-    if (ventasCredito.length) {
-      rows.push([])
-      rows.push(['=== Facturación a Crédito (no entró plata hoy) ==='])
-      rows.push(['Tipo', 'Descripcion', 'Cantidad', 'Total RD'])
-      for (const it of ventasCredito) {
-        rows.push([it.tipo_pago, it.forma_pago, it.cantidad, Number(it.total ?? 0).toFixed(2)])
-      }
-      rows.push(['', '', 'TOTAL CRÉDITO', totalCredito.toFixed(2)])
-    }
-
+    rows.push(['', '', 'TOTAL', totalFormaPago.toFixed(2)])
     if (incluirDetalle && facturas.length) {
       rows.push([])
       rows.push(['=== Detalle por Forma de Pago ==='])
       rows.push(['Forma Pago', 'No. Factura', 'Cliente', 'NCF', 'Descuento', 'ITBIS', 'Total Neto', 'Anulada'])
-      for (const it of ventasContado) {
-        const key = it.forma_pago.toUpperCase()
-        if (pdfForma[key] === false) continue
-        const list = facturasPorFormaPago[key] || []
+      for (const it of resumenSorted) {
+        const list = facturasPorFormaPago[it.forma_pago.toUpperCase()] || []
         if (!list.length) continue
         rows.push([`=== ${it.forma_pago} ===`])
         for (const f of list) {
@@ -266,17 +201,11 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
     downloadCsv(`cuadre-caja-${fecha}.csv`, [], rows, meta)
   }
 
-  // Abre el PDF nuevo (Puck + logo). El query string lleva:
-  //   incluir_detalle    — el switch general
-  //   show_ncf_detail    — el switch "Ver detalle de NCF"
-  //   formas_pago_pdf    — formas seleccionadas para que su detalle salga
-  //   cobros_cred_transfer — monto manual de cobros a crédito por transferencia
+  // Abre el PDF nuevo (Puck + logo). incluir_detalle viaja como search param
+  // y el bloque BloqueCuadreCaja decide si renderiza el detalle.
   const abrirPdf = () => {
     const u = new URLSearchParams({ no_cia: noCia, punto })
     if (incluirDetalle) u.set('incluir_detalle', '1')
-    if (showNcfDetail) u.set('show_ncf_detail', '1')
-    if (formasParaPdf.length) u.set('formas_pago_pdf', formasParaPdf.join(','))
-    if (cobrosCredTransferNum > 0) u.set('cobros_cred_transfer', cobrosCredTransferNum.toFixed(2))
     window.open(
       `/print/cuadre-caja/${encodeURIComponent(fecha)}?${u.toString()}`,
       '_blank', 'noopener')
@@ -333,14 +262,7 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
           <Switch id='inc-det' checked={incluirDetalle}
                   onCheckedChange={(v) => setIncluirDetalle(!!v)} />
           <Label htmlFor='inc-det' className='cursor-pointer text-sm'>
-            Incluir detalle de facturas en el PDF
-          </Label>
-        </div>
-        <div className='flex items-center gap-2 pb-1'>
-          <Switch id='show-ncf' checked={showNcfDetail}
-                  onCheckedChange={(v) => setShowNcfDetail(!!v)} />
-          <Label htmlFor='show-ncf' className='cursor-pointer text-sm'>
-            Ver detalle de NCF
+            Incluir detalle en el PDF
           </Label>
         </div>
         {(q.isFetching || qDet.isFetching) && (
@@ -352,112 +274,53 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
       </div>
 
       <div className='space-y-4'>
-        {/* Card 1 — Ventas del Día (sugerencia Roberto/Angel) */}
+        {/* Resumen por Forma de Pago — cada fila expandible muestra sus facturas */}
         <div className='rounded-md border'>
-          <div className='px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-blue-700 flex items-center gap-2'>
-            <Banknote className='h-4 w-4' /> Ventas del Día
-          </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Concepto</TableHead>
-                <TableHead className='w-32 text-right'>Total RD</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow>
-                <TableCell>
-                  <span className='font-medium'>Ventas en efectivo / cobradas hoy</span>
-                  <span className='ml-2 text-xs text-muted-foreground'>
-                    (entró plata: efectivo, transferencia, cheque, tarjeta)
-                  </span>
-                </TableCell>
-                <TableCell className='text-right font-mono tabular-nums'>{fmtN(totalContado)}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>
-                  <span className='font-medium'>Ventas a crédito del día</span>
-                  <span className='ml-2 text-xs text-muted-foreground'>
-                    (pendiente de cobro — queda en CxC)
-                  </span>
-                </TableCell>
-                <TableCell className='text-right font-mono tabular-nums'>{fmtN(totalCredito)}</TableCell>
-              </TableRow>
-              <TableRow className='border-t-2 bg-muted/40 font-bold'>
-                <TableCell className='text-right'>Total Ventas del Día</TableCell>
-                <TableCell className='text-right font-mono tabular-nums'>{fmtN(totalVentas)}</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </div>
-
-        {/* Card 2 — Cobros del Día por Forma de Pago, con expand + check PDF */}
-        <div className='rounded-md border'>
-          <div className='px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-blue-700 flex items-center gap-2'>
-            <CreditCard className='h-4 w-4' /> Cobros del Día por Forma de Pago
-            <span className='ml-auto text-xs font-normal text-muted-foreground'>
-              Marca el check para incluir el detalle de la forma en el PDF
-            </span>
+          <div className='px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-blue-700'>
+            Resumen por Forma de Pago
           </div>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className='w-8'></TableHead>
-                <TableHead className='w-20'>Tipo</TableHead>
+                <TableHead className='w-32'>Tipo</TableHead>
                 <TableHead>Descripción</TableHead>
                 <TableHead className='w-20 text-right'>Cant.</TableHead>
                 <TableHead className='w-32 text-right'>Total RD</TableHead>
-                <TableHead className='w-20 text-center'>En PDF</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {q.isLoading && (
-                <TableRow><TableCell colSpan={6} className='py-8 text-center text-muted-foreground'>Cargando cuadre del día…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className='py-8 text-center text-muted-foreground'>Cargando cuadre del día…</TableCell></TableRow>
               )}
-              {!q.isLoading && ventasContado.length === 0 && cobrosCredTransferNum === 0 && (
-                <TableRow><TableCell colSpan={6} className='py-8 text-center text-muted-foreground'>Sin cobros para el {fecha}.</TableCell></TableRow>
+              {!q.isLoading && resumenSorted.length === 0 && (
+                <TableRow><TableCell colSpan={5} className='py-8 text-center text-muted-foreground'>Sin movimientos para el {fecha}.</TableCell></TableRow>
               )}
-              {ventasContado.map(it => {
+              {resumenSorted.map(it => {
                 const key = it.forma_pago.toUpperCase()
                 const list = facturasPorFormaPago[key] || []
                 const open = !!expandida[key]
                 const hasDet = list.length > 0
-                const enPdf = pdfForma[key] !== false
                 return (
                   <Fragment key={`${it.tipo_pago}-${it.forma_pago}`}>
-                    <TableRow className={hasDet ? 'hover:bg-muted/40' : 'opacity-95'}>
-                      <TableCell
-                        className={hasDet ? 'py-1.5 cursor-pointer' : 'py-1.5'}
-                        onClick={hasDet ? () => toggleRow(key) : undefined}
-                      >
+                    <TableRow
+                      className={hasDet ? 'cursor-pointer hover:bg-muted/40' : 'opacity-95'}
+                      onClick={hasDet ? () => toggleRow(key) : undefined}
+                    >
+                      <TableCell className='py-1.5'>
                         {hasDet ? (
                           open ? <ChevronDown className='h-4 w-4' /> : <ChevronRight className='h-4 w-4' />
                         ) : null}
                       </TableCell>
-                      <TableCell
-                        className={hasDet ? 'font-mono text-sm cursor-pointer' : 'font-mono text-sm'}
-                        onClick={hasDet ? () => toggleRow(key) : undefined}
-                      >{it.tipo_pago}</TableCell>
-                      <TableCell
-                        className={hasDet ? 'text-sm cursor-pointer' : 'text-sm'}
-                        onClick={hasDet ? () => toggleRow(key) : undefined}
-                      >{it.forma_pago}</TableCell>
+                      <TableCell className='font-mono text-sm'>{it.tipo_pago}</TableCell>
+                      <TableCell className='text-sm'>{it.forma_pago}</TableCell>
                       <TableCell className='text-right font-mono'>{it.cantidad}</TableCell>
                       <TableCell className='text-right font-mono tabular-nums'>{fmtN(it.total)}</TableCell>
-                      <TableCell className='text-center'>
-                        <Checkbox
-                          checked={enPdf}
-                          onCheckedChange={(v) =>
-                            setPdfForma(p => ({ ...p, [key]: !!v }))
-                          }
-                          aria-label={`Incluir ${it.forma_pago} en PDF`}
-                        />
-                      </TableCell>
                     </TableRow>
                     {open && hasDet && (
                       <TableRow className='bg-blue-50/40'>
                         <TableCell></TableCell>
-                        <TableCell colSpan={5} className='p-0'>
+                        <TableCell colSpan={4} className='p-0'>
                           <FacturasSubTabla rows={list} />
                         </TableCell>
                       </TableRow>
@@ -465,83 +328,22 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
                   </Fragment>
                 )
               })}
-
-              {/* Casilla manual COBROS CRED. TRANSFERENCIA (sugerencia Angel) */}
-              <TableRow className='bg-amber-50/50'>
-                <TableCell></TableCell>
-                <TableCell className='font-mono text-sm'>—</TableCell>
-                <TableCell className='text-sm'>
-                  <span className='font-medium'>COBROS CRED. TRANSFERENCIA</span>
-                  <span className='ml-2 text-xs text-muted-foreground'>
-                    (cobros a crédito recibidos hoy por transferencia)
-                  </span>
-                </TableCell>
-                <TableCell className='text-right font-mono text-muted-foreground'>—</TableCell>
-                <TableCell className='text-right'>
-                  <Input
-                    type='number' step='0.01' min='0' placeholder='0.00'
-                    value={cobrosCredTransfer}
-                    onChange={(e) => setCobrosCredTransfer(e.target.value)}
-                    className='h-7 w-28 text-right font-mono tabular-nums ml-auto'
-                  />
-                </TableCell>
-                <TableCell className='text-center'>
-                  <Checkbox checked={cobrosCredTransferNum > 0} disabled aria-label='Manual' />
-                </TableCell>
-              </TableRow>
-
-              {(ventasContado.length > 0 || cobrosCredTransferNum > 0) && (
+              {resumenSorted.length > 0 && (
                 <TableRow className='border-t-2 bg-muted/40 font-bold'>
-                  <TableCell colSpan={4} className='text-right'>Total Cobros del Día</TableCell>
-                  <TableCell className='text-right font-mono tabular-nums'>{fmtN(totalCobrosDia)}</TableCell>
                   <TableCell></TableCell>
+                  <TableCell colSpan={3} className='text-right'>Total Ingresos</TableCell>
+                  <TableCell className='text-right font-mono tabular-nums'>{fmtN(totalFormaPago)}</TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
         </div>
 
-        {/* Card 3 — Facturación a crédito del día (informativo, no entró plata) */}
-        {ventasCredito.length > 0 && (
+        {/* NCF × Forma de Pago — matriz pivot */}
+        {ncfFormaPagoMatrix.formas.length > 0 && (
           <div className='rounded-md border'>
             <div className='px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-blue-700'>
-              Facturación a Crédito (no entró plata — pendiente CxC)
-            </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className='w-20'>Tipo</TableHead>
-                  <TableHead>Descripción</TableHead>
-                  <TableHead className='w-20 text-right'>Cant.</TableHead>
-                  <TableHead className='w-32 text-right'>Total RD</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {ventasCredito.map(it => (
-                  <TableRow key={`cr-${it.tipo_pago}-${it.forma_pago}`}>
-                    <TableCell className='font-mono text-sm'>{it.tipo_pago}</TableCell>
-                    <TableCell className='text-sm'>{it.forma_pago}</TableCell>
-                    <TableCell className='text-right font-mono'>{it.cantidad}</TableCell>
-                    <TableCell className='text-right font-mono tabular-nums'>{fmtN(it.total)}</TableCell>
-                  </TableRow>
-                ))}
-                <TableRow className='border-t-2 bg-muted/40 font-bold'>
-                  <TableCell colSpan={3} className='text-right'>Total Crédito</TableCell>
-                  <TableCell className='text-right font-mono tabular-nums'>{fmtN(totalCredito)}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
-        )}
-
-        {/* Card 4 — NCF × Forma de Pago (solo visible cuando el switch está prendido) */}
-        {showNcfDetail && ncfFormaPagoMatrix.formas.length > 0 && (
-          <div className='rounded-md border'>
-            <div className='px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-blue-700 flex items-center justify-between'>
-              <span>Cuadre de Caja por NCF · matriz NCF × Forma de Pago</span>
-              <span className='text-xs font-normal text-muted-foreground'>
-                Saldrá en el PDF
-              </span>
+              NCF × Forma de Pago
             </div>
             <Table>
               <TableHeader>
@@ -584,9 +386,10 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
           </div>
         )}
 
-        {/* Card 5 — Detalle de Facturas del Día, agrupado por forma de pago.
-            Independiente del switch "Incluir detalle en el PDF" — aquí
-            siempre se muestra en pantalla si hay facturas. */}
+        {/* Detalle de Facturas del Día — card al final, agrupado por forma de
+            pago (mismo agrupamiento que el resumen). Independiente del switch
+            "Incluir detalle en el PDF" — aquí siempre se muestra en pantalla
+            si hay facturas. */}
         {facturas.length > 0 && (
           <div className='rounded-md border'>
             <div className='px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-blue-700 flex items-center justify-between'>
@@ -608,7 +411,7 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ventasContado.map((it) => {
+                {resumenSorted.map((it) => {
                   const key = it.forma_pago.toUpperCase()
                   const list = facturasPorFormaPago[key] || []
                   if (!list.length) return null
@@ -627,9 +430,6 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
                           {it.forma_pago}
                           <span className='ml-2 text-xs text-muted-foreground font-normal'>
                             ({list.length} {list.length === 1 ? 'factura' : 'facturas'})
-                            {pdfForma[key] === false && (
-                              <span className='ml-2 text-amber-700'>· no saldrá en PDF</span>
-                            )}
                           </span>
                         </TableCell>
                       </TableRow>

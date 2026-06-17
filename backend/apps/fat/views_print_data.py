@@ -651,16 +651,6 @@ def fat_cuadre_caja_print_data(request):
     else:
         fecha = fecha_req
     incluir_detalle = request.GET.get('incluir_detalle', '0') in ('1', 'true', 'S', 's')
-    show_ncf_detail = request.GET.get('show_ncf_detail', '0') in ('1', 'true', 'S', 's')
-    # Lista de formas de pago cuyo detalle debe salir en el PDF (filtra
-    # facturas en el detalle). Si está vacío o no viene el param se incluyen
-    # todas — mantiene el comportamiento original.
-    formas_pago_pdf_raw = (request.GET.get('formas_pago_pdf') or '').strip()
-    formas_pago_pdf = [s.strip().upper() for s in formas_pago_pdf_raw.split(',') if s.strip()]
-    try:
-        cobros_cred_transfer = float(request.GET.get('cobros_cred_transfer') or '0')
-    except (TypeError, ValueError):
-        cobros_cred_transfer = 0.0
 
     try:
         resumen_pago = fat_repo.get_cuadre_caja_detalle(
@@ -700,12 +690,6 @@ def fat_cuadre_caja_print_data(request):
             facturas = res.get('items', [])
         except Exception:
             facturas = []
-        # Filtrar facturas por formas de pago elegidas por el usuario.
-        if formas_pago_pdf:
-            facturas = [
-                f for f in facturas
-                if (f.get('forma_pago') or '').upper().strip() in formas_pago_pdf
-            ]
 
     total_forma_pago = sum(_money(r.get('total')) for r in resumen_pago)
     total_por_ncf = sum(_money(r.get('total_neto')) for r in por_ncf)
@@ -735,9 +719,6 @@ def fat_cuadre_caja_print_data(request):
             'usuario': usuario,
             'no_cuadre': no_cuadre,
             'incluir_detalle': bool(incluir_detalle),
-            'show_ncf_detail': bool(show_ncf_detail),
-            'formas_pago_pdf': formas_pago_pdf,
-            'cobros_cred_transfer': cobros_cred_transfer,
             'resumen_pago': resumen_pago,
             'por_ncf': por_ncf,
             'por_ncf_forma_pago': por_ncf_forma_pago,
