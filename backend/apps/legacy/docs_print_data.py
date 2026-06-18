@@ -470,6 +470,9 @@ def odc_orden_print_data(request, no_orden: str):
     if not orden:
         return JsonResponse({'error': 'Orden no encontrada'}, status=404)
     lineas_raw = odc_repo.list_lineas_orden(no_cia, punto, no_orden)
+    estado_label = {
+        'I': 'Inicial', 'P': 'Pendiente', 'R': 'Recibida',
+    }.get((orden.get('estado') or '').strip().upper(), orden.get('estado') or '')
     doc = {
         'tipo': 'ODC', 'tipo_label': 'Orden de Compra',
         'no': orden.get('no_orden'),
@@ -477,11 +480,19 @@ def odc_orden_print_data(request, no_orden: str):
         'fecha': str(orden.get('fecha') or '')[:10],
         'fecha_venc': str(orden.get('fecha_entrega') or '')[:10] if orden.get('fecha_entrega') else None,
         'estado': orden.get('estado') or '',
-        'anulada': (orden.get('estado') or '').upper() in ('R', 'X', 'A'),
-        'impresion': 'IMPRESA',
-        'forma_pago': '', 'condicion_pago': '', 'plazo_pago': 0,
-        'vendedor': '', 'nota': orden.get('nota') or '',
-        'detalle': '', 'moneda': 'DOP', 'tasa': 0, 'porc_impuesto': 0,
+        'estado_label': estado_label,
+        # ODC.TODC_ORDEN.st_anulado: 'A'=Activa / 'N'=Anulada (NO confundir con estado R/P/I).
+        'anulada': (orden.get('st_anulado') or 'A').strip().upper() == 'N',
+        'impresion': 'IMPRESA' if (orden.get('st_impresion') or 'N') == 'S' else 'IMPRESA',
+        'forma_pago': '',
+        'condicion_pago': orden.get('condicion_pago') or '',
+        'plazo_pago': orden.get('plazo_pago') or 0,
+        'vendedor': orden.get('usuario') or '',
+        'nota': orden.get('nota') or orden.get('detalle') or '',
+        'detalle': orden.get('detalle') or '',
+        'moneda': 'DOP', 'tasa': orden.get('tasa_us') or 0,
+        'porc_impuesto': orden.get('porc_impuesto') or 0,
+        'autorizada_por': orden.get('autorizada_por') or '',
     }
     proveedor = {
         'no': orden.get('no_proveedor'),
