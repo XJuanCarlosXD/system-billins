@@ -19,11 +19,7 @@ export const requisicionCompraDefault: any = {
       columnas: ['codigo', 'descripcion', 'cantidad', 'unidad'],
       zebra: true, headerBg: '#0f766e', headerColor: '#ffffff', fontSize: 9,
     } },
-    { type: 'TextoLibre', props: {
-      id: 'observ',
-      html: '<div style="margin-top:8px;font-size:10px"><b>Justificación / observaciones:</b><br/>{{ default doc.nota "—" }}</div>',
-      fontSize: 10, textAlign: 'left',
-    } },
+    { type: 'NotaDetalle', props: { id: 'observ', titulo: 'Justificación / observaciones:', mostrarSiVacio: false } },
     { type: 'Spacer', props: { id: 'sp2', height: 6 } },
     { type: 'TextoLibre', props: {
       id: 'notas',

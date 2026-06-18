@@ -22,6 +22,7 @@ export const facturaPosDefault: any = {
       id: 'tot', showSubtotal: true, showDescuento: true, showItbis: true, showPropina: true,
       showOtros: false, showMontoLetras: false, align: 'right', colorTotal: '#000000',
     } },
+    { type: 'NotaDetalle', props: { id: 'nota', titulo: 'Nota:', mostrarSiVacio: false } },
     { type: 'QRCode', props: { id: 'qr', contenido: '{{ doc.ncf_dgi }}', size: 80, align: 'center' } },
     { type: 'TextoLibre', props: {
       id: 'pie',

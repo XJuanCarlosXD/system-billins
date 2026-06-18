@@ -24,6 +24,7 @@ export const ordenCompraDefault: any = {
       showPropina: false, showOtros: false, showMontoLetras: false,
       align: 'right', colorTotal: '#1e40af',
     } },
+    { type: 'NotaDetalle', props: { id: 'nota', titulo: 'Observaciones:', mostrarSiVacio: false } },
     { type: 'TextoLibre', props: {
       id: 'condiciones',
       html: '<div style="margin-top:8px;font-size:9px;color:#475569"><b>Condiciones:</b> Los precios incluyen ITBIS. El proveedor debe entregar copia firmada de esta orden con la mercancía. Cualquier diferencia debe reportarse en 48 horas.</div>',
