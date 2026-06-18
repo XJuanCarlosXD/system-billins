@@ -192,50 +192,52 @@ export function OdcRequisiciones() {
       )}
 
       <Dialog open={!!selected} onOpenChange={(v) => { if (!v) setSelected(null) }}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col gap-0 p-0 overflow-hidden">
+          <DialogHeader className="shrink-0 border-b px-6 py-4">
             <DialogTitle>Requisición REQ-{selected?.no_requisicion}</DialogTitle>
           </DialogHeader>
-          {detalleQ.data && (
-            <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-3 gap-3">
-                <div><span className="text-muted-foreground">Fecha:</span> {formatDate(detalleQ.data.cabecera.fecha)}</div>
-                <div><span className="text-muted-foreground">Tipo:</span> {detalleQ.data.cabecera.tipo_requisicion}</div>
-                <div><span className="text-muted-foreground">Localidad:</span> {detalleQ.data.cabecera.no_localidad}</div>
-                <div className="col-span-3"><span className="text-muted-foreground">Detalle:</span> {detalleQ.data.cabecera.detalle}</div>
-                <div><span className="text-muted-foreground">Aut. 1:</span> {detalleQ.data.cabecera.autorizacion_1 || '—'}</div>
-                <div><span className="text-muted-foreground">Aut. 2:</span> {detalleQ.data.cabecera.autorizacion_2 || '—'}</div>
-                <div><span className="text-muted-foreground">Aut. 3:</span> {detalleQ.data.cabecera.autorizacion_3 || '—'}</div>
-              </div>
-              <div className="rounded border overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-10">#</TableHead>
-                      <TableHead>Producto</TableHead>
-                      <TableHead>Descripción</TableHead>
-                      <TableHead className="text-right">Pedida</TableHead>
-                      <TableHead className="text-right">Pendiente</TableHead>
-                      <TableHead className="text-right">Autorizada</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {detalleQ.data.lineas.map((l: any) => (
-                      <TableRow key={l.no_linea}>
-                        <TableCell>{l.no_linea}</TableCell>
-                        <TableCell className="font-mono text-xs">{l.no_produ}</TableCell>
-                        <TableCell className="truncate max-w-[18rem]">{l.descripcion_producto}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatNum(l.cantidad_pedida)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatNum(l.cantidad_pendiente)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatNum(l.cantidad_autorizada)}</TableCell>
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+            {detalleQ.data && (
+              <div className="space-y-3 text-sm">
+                <div className="grid grid-cols-3 gap-3">
+                  <div><span className="text-muted-foreground">Fecha:</span> {formatDate(detalleQ.data.cabecera.fecha)}</div>
+                  <div><span className="text-muted-foreground">Tipo:</span> {detalleQ.data.cabecera.tipo_requisicion}</div>
+                  <div><span className="text-muted-foreground">Localidad:</span> {detalleQ.data.cabecera.no_localidad}</div>
+                  <div className="col-span-3"><span className="text-muted-foreground">Detalle:</span> {detalleQ.data.cabecera.detalle}</div>
+                  <div><span className="text-muted-foreground">Aut. 1:</span> {detalleQ.data.cabecera.autorizacion_1 || '—'}</div>
+                  <div><span className="text-muted-foreground">Aut. 2:</span> {detalleQ.data.cabecera.autorizacion_2 || '—'}</div>
+                  <div><span className="text-muted-foreground">Aut. 3:</span> {detalleQ.data.cabecera.autorizacion_3 || '—'}</div>
+                </div>
+                <div className="rounded border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-10">#</TableHead>
+                        <TableHead>Producto</TableHead>
+                        <TableHead>Descripción</TableHead>
+                        <TableHead className="text-right">Pedida</TableHead>
+                        <TableHead className="text-right">Pendiente</TableHead>
+                        <TableHead className="text-right">Autorizada</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {detalleQ.data.lineas.map((l: any) => (
+                        <TableRow key={l.no_linea}>
+                          <TableCell>{l.no_linea}</TableCell>
+                          <TableCell className="font-mono text-xs">{l.no_produ}</TableCell>
+                          <TableCell className="truncate max-w-[18rem]">{l.descripcion_producto}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatNum(l.cantidad_pedida)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatNum(l.cantidad_pendiente)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatNum(l.cantidad_autorizada)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
-            </div>
-          )}
-          <DialogFooter className="gap-2 items-center">
+            )}
+          </div>
+          <DialogFooter className="shrink-0 border-t bg-background px-6 py-3 gap-2 items-center sm:gap-2">
             {selected && (
               <Button size="sm" variant="outline" onClick={() => {
                 const qs = new URLSearchParams({ no_cia: selected.no_cia, punto: selected.punto }).toString()

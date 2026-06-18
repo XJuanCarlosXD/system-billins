@@ -223,59 +223,61 @@ export function OdcOrdenes() {
 
       {/* Detalle */}
       <Dialog open={!!selected} onOpenChange={(v) => { if (!v) setSelected(null) }}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col gap-0 p-0 overflow-hidden">
+          <DialogHeader className="shrink-0 border-b px-6 py-4">
             <DialogTitle>Orden ODC-{selected?.no_orden}</DialogTitle>
           </DialogHeader>
-          {detalleQ.isLoading && <div className="text-muted-foreground">Cargando…</div>}
-          {detalleQ.data && (
-            <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-3">
-                <div><span className="text-muted-foreground">Proveedor:</span> {detalleQ.data.cabecera.no_proveedor} — {detalleQ.data.cabecera.nombre_proveedor}</div>
-                <div><span className="text-muted-foreground">RNC:</span> {detalleQ.data.cabecera.rnc_proveedor}</div>
-                <div><span className="text-muted-foreground">Fecha:</span> {formatDate(detalleQ.data.cabecera.fecha)}</div>
-                <div><span className="text-muted-foreground">Entrega:</span> {formatDate(detalleQ.data.cabecera.fecha_entrega)}</div>
-                <div><span className="text-muted-foreground">Condición pago:</span> {detalleQ.data.cabecera.condicion_pago || `${detalleQ.data.cabecera.plazo_pago || 0} días`}</div>
-                <div><span className="text-muted-foreground">Tipo:</span> {detalleQ.data.cabecera.tipo_orden}</div>
-                <div className="col-span-2"><span className="text-muted-foreground">Detalle:</span> {detalleQ.data.cabecera.detalle}</div>
-              </div>
-              <div className="rounded border overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-10">#</TableHead>
-                      <TableHead>Producto</TableHead>
-                      <TableHead>Descripción</TableHead>
-                      <TableHead className="text-right">Pedida</TableHead>
-                      <TableHead className="text-right">Recibida</TableHead>
-                      <TableHead className="text-right">Costo</TableHead>
-                      <TableHead className="text-right">Monto</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {detalleQ.data.lineas.map((l: any) => (
-                      <TableRow key={l.no_linea}>
-                        <TableCell>{l.no_linea}</TableCell>
-                        <TableCell className="font-mono text-xs">{l.no_produ}</TableCell>
-                        <TableCell className="truncate max-w-[20rem]">{l.descripcion_producto}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatMoney(l.cantidad_pedida)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatMoney(l.cantidad_recibida)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatMoney(l.costo)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatMoney(l.monto_neto)}</TableCell>
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+            {detalleQ.isLoading && <div className="text-muted-foreground">Cargando…</div>}
+            {detalleQ.data && (
+              <div className="space-y-3 text-sm">
+                <div className="grid grid-cols-2 gap-3">
+                  <div><span className="text-muted-foreground">Proveedor:</span> {detalleQ.data.cabecera.no_proveedor} — {detalleQ.data.cabecera.nombre_proveedor}</div>
+                  <div><span className="text-muted-foreground">RNC:</span> {detalleQ.data.cabecera.rnc_proveedor}</div>
+                  <div><span className="text-muted-foreground">Fecha:</span> {formatDate(detalleQ.data.cabecera.fecha)}</div>
+                  <div><span className="text-muted-foreground">Entrega:</span> {formatDate(detalleQ.data.cabecera.fecha_entrega)}</div>
+                  <div><span className="text-muted-foreground">Condición pago:</span> {detalleQ.data.cabecera.condicion_pago || `${detalleQ.data.cabecera.plazo_pago || 0} días`}</div>
+                  <div><span className="text-muted-foreground">Tipo:</span> {detalleQ.data.cabecera.tipo_orden}</div>
+                  <div className="col-span-2"><span className="text-muted-foreground">Detalle:</span> {detalleQ.data.cabecera.detalle}</div>
+                </div>
+                <div className="rounded border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-10">#</TableHead>
+                        <TableHead>Producto</TableHead>
+                        <TableHead>Descripción</TableHead>
+                        <TableHead className="text-right">Pedida</TableHead>
+                        <TableHead className="text-right">Recibida</TableHead>
+                        <TableHead className="text-right">Costo</TableHead>
+                        <TableHead className="text-right">Monto</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {detalleQ.data.lineas.map((l: any) => (
+                        <TableRow key={l.no_linea}>
+                          <TableCell>{l.no_linea}</TableCell>
+                          <TableCell className="font-mono text-xs">{l.no_produ}</TableCell>
+                          <TableCell className="truncate max-w-[20rem]">{l.descripcion_producto}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatMoney(l.cantidad_pedida)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatMoney(l.cantidad_recibida)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatMoney(l.costo)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{formatMoney(l.monto_neto)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                <div className="grid grid-cols-4 gap-3 pt-2 border-t">
+                  <div><span className="text-muted-foreground">Subtotal:</span> {formatMoney(detalleQ.data.cabecera.total_linea)}</div>
+                  <div><span className="text-muted-foreground">Descuento:</span> {formatMoney(detalleQ.data.cabecera.descuento)}</div>
+                  <div><span className="text-muted-foreground">ITBIS:</span> {formatMoney(detalleQ.data.cabecera.impuesto)}</div>
+                  <div className="font-semibold"><span className="text-muted-foreground">Total:</span> {formatMoney(detalleQ.data.cabecera.total_neto)}</div>
+                </div>
               </div>
-              <div className="grid grid-cols-4 gap-3 pt-2 border-t">
-                <div><span className="text-muted-foreground">Subtotal:</span> {formatMoney(detalleQ.data.cabecera.total_linea)}</div>
-                <div><span className="text-muted-foreground">Descuento:</span> {formatMoney(detalleQ.data.cabecera.descuento)}</div>
-                <div><span className="text-muted-foreground">ITBIS:</span> {formatMoney(detalleQ.data.cabecera.impuesto)}</div>
-                <div className="font-semibold"><span className="text-muted-foreground">Total:</span> {formatMoney(detalleQ.data.cabecera.total_neto)}</div>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
+            )}
+          </div>
+          <DialogFooter className="shrink-0 border-t bg-background px-6 py-3 gap-2 sm:gap-2">
             {selected && (
               <Button size="sm" variant="outline" onClick={() => {
                 const qs = new URLSearchParams({ no_cia: selected.no_cia, punto: selected.punto }).toString()
