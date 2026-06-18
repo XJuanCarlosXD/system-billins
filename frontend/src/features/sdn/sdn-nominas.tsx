@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Search } from 'lucide-react'
+import { Search, Printer } from 'lucide-react'
 
 const fmtDate = (s: any) => s ? String(s).slice(0, 10) : ''
 
@@ -40,6 +40,7 @@ export function SdnNominas() {
             <TableHead>Nómina</TableHead><TableHead>Descripción</TableHead><TableHead>Punto</TableHead>
             <TableHead>Período</TableHead><TableHead>Inicial</TableHead><TableHead>Final</TableHead>
             <TableHead>Forma Pago</TableHead><TableHead>Cuenta Bco</TableHead><TableHead>Calc.</TableHead><TableHead>Estado</TableHead>
+            <TableHead className="text-right">PDF</TableHead>
           </TableRow></TableHeader>
           <TableBody>
             {rows.map((n: any) => (
@@ -54,10 +55,19 @@ export function SdnNominas() {
                 <TableCell className="font-mono text-xs">{n.cuenta_bancaria}</TableCell>
                 <TableCell>{n.calculo_nomina === 'S' ? '✓' : ''}</TableCell>
                 <TableCell><Badge variant={n.estado === 'A' ? 'default' : n.estado === 'C' ? 'outline' : 'secondary'}>{n.estado}</Badge></TableCell>
+                <TableCell className="text-right">
+                  <Button size="sm" variant="ghost" title="Imprimir PDF nómina"
+                    onClick={() => {
+                      const qs = new URLSearchParams({ no_cia: n.no_cia || selectedCompany, punto: n.punto || selectedPoint }).toString()
+                      window.open(`/print/sdn-nomina/${encodeURIComponent(n.nomina)}?${qs}`, '_blank')
+                    }}>
+                    <Printer className="h-4 w-4" />
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
             {rows.length === 0 && (
-              <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-6">Sin nóminas.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground py-6">Sin nóminas.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>

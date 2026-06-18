@@ -792,16 +792,52 @@ def sdn_nomina_print_data(request, nomina: str):
         'no': '', 'nombre': f"Resumen Nómina {nom.get('descripcion') or nomina}",
         'rnc': '', 'direccion': '', 'telefono': '', 'email': '', 'tipo_ncf': '',
     }
+    # Cargar el volante por empleado (TSDN_MOVIMIENTO o salario base si la
+    # nómina aún no se calculó) para listar el detalle en el PDF.
+    try:
+        vol = sdn_repo.volante_nomina(no_cia, punto, nomina)
+    except Exception:
+        vol = {'empleados': [], 'totales': {}}
+    lineas = []
+    for i, e in enumerate(vol.get('empleados') or [], start=1):
+        salario = _money_or_zero(e.get('salario_mensual'))
+        ingresos = _money_or_zero(e.get('total_ingresos'))
+        deducc = _money_or_zero(e.get('total_deducciones'))
+        neto = _money_or_zero(e.get('neto'))
+        lineas.append({
+            'no_linea': i,
+            'codigo': str(e.get('no_empleado') or '').zfill(4),
+            'descripcion': e.get('nombre_empleado') or '',
+            'cantidad': 1,
+            'unidad': '',
+            'precio': salario,
+            'descuento': deducc,
+            'itbis': ingresos,
+            'total': neto,
+            # Campos auxiliares específicos del dominio (uso en TextoLibre con {{#each}}).
+            'cedula': e.get('cedula') or '',
+            'salario_mensual': salario,
+            'total_ingresos': ingresos,
+            'total_deducciones': deducc,
+            'neto': neto,
+        })
+    vt = vol.get('totales') or {}
     return JsonResponse({
         'cia': cia, 'doc': doc, 'cliente': cliente,
-        'lineas': [],  # cabecera sin desglose — volante por empleado pendiente
+        'lineas': lineas,
         'totales': {
-            'subtotal': 0, 'descuento': 0, 'itbis': 0,
-            'propina': 0, 'otros': 0, 'total': 0, 'monto_letras': '',
+            'subtotal': _money_or_zero(vt.get('salario')),
+            'descuento': _money_or_zero(vt.get('deducciones')),
+            'itbis': _money_or_zero(vt.get('ingresos')),
+            'propina': 0, 'otros': 0,
+            'total': _money_or_zero(vt.get('neto')),
+            'monto_letras': '',
+            'empleados': int(vt.get('empleados') or len(lineas)),
         },
         'extra': {
             'cuenta_contable': nom.get('cuenta_contable') or '',
             'cuenta_bancaria': nom.get('cuenta_bancaria') or '',
+            'moneda_label': 'US$' if (nom.get('tipo_moneda') == 'D') else 'RD$',
         },
     })
 

@@ -1,5 +1,47 @@
-// Plantilla SDN — Cabecera de Nómina
-// Resumen ejecutivo de una nómina (no es el volante por empleado, eso queda pendiente).
+// Plantilla SDN — Cabecera de Nómina con desglose por empleado.
+// Usa TextoLibre + Handlebars {{#each lineas}} para tener etiquetas
+// (Salario / Ingresos / Deducciones / Neto) en lugar de las fijas de
+// TablaLineas (Precio / Desc / ITBIS / Total).
+const tablaEmpleados = `
+<table style="width:100%;border-collapse:collapse;font-size:9px;margin-top:8px">
+  <thead>
+    <tr style="background:#0e7490;color:#fff">
+      <th style="padding:6px 4px;text-align:left">Código</th>
+      <th style="padding:6px 4px;text-align:left">Empleado</th>
+      <th style="padding:6px 4px;text-align:left">Cédula</th>
+      <th style="padding:6px 4px;text-align:right">Salario base</th>
+      <th style="padding:6px 4px;text-align:right">Ingresos</th>
+      <th style="padding:6px 4px;text-align:right">Deducciones</th>
+      <th style="padding:6px 4px;text-align:right">Neto</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each lineas}}
+    <tr style="page-break-inside:avoid;border-bottom:1px solid #e2e8f0">
+      <td style="padding:4px;font-family:monospace">{{ codigo }}</td>
+      <td style="padding:4px">{{ descripcion }}</td>
+      <td style="padding:4px;font-family:monospace">{{ cedula }}</td>
+      <td style="padding:4px;text-align:right;font-family:monospace">{{ formatMoney salario_mensual }}</td>
+      <td style="padding:4px;text-align:right;font-family:monospace">{{ formatMoney total_ingresos }}</td>
+      <td style="padding:4px;text-align:right;font-family:monospace">{{ formatMoney total_deducciones }}</td>
+      <td style="padding:4px;text-align:right;font-family:monospace;font-weight:600">{{ formatMoney neto }}</td>
+    </tr>
+    {{/each}}
+  </tbody>
+  <tfoot>
+    <tr style="border-top:2px solid #0e7490;background:#ecfeff">
+      <td colspan="3" style="padding:6px 4px;font-weight:700">
+        {{ totales.empleados }} empleado(s) · {{ extra.moneda_label }}
+      </td>
+      <td style="padding:6px 4px;text-align:right;font-family:monospace;font-weight:700">{{ formatMoney totales.subtotal }}</td>
+      <td style="padding:6px 4px;text-align:right;font-family:monospace;font-weight:700">{{ formatMoney totales.itbis }}</td>
+      <td style="padding:6px 4px;text-align:right;font-family:monospace;font-weight:700">{{ formatMoney totales.descuento }}</td>
+      <td style="padding:6px 4px;text-align:right;font-family:monospace;font-weight:800;color:#0e7490">{{ formatMoney totales.total }}</td>
+    </tr>
+  </tfoot>
+</table>
+`
+
 export const sdnNominaDefault: any = {
   content: [
     { type: 'EncabezadoFactura', props: {
@@ -13,10 +55,11 @@ export const sdnNominaDefault: any = {
       fontSize: 10, textAlign: 'left',
     } },
     { type: 'TextoLibre', props: {
-      id: 'nota',
-      html: '<div style="margin-top:12px;font-size:9px;color:#475569"><i>Para el detalle individual de pagos por empleado, ver el volante de pago correspondiente.</i></div>',
+      id: 'detalle',
+      html: tablaEmpleados,
       fontSize: 9, textAlign: 'left',
     } },
+    { type: 'NotaDetalle', props: { id: 'nota', titulo: 'Observaciones:', mostrarSiVacio: false } },
     { type: 'Firmas', props: { id: 'fi', cantidad: 2, labels: 'Preparado por|Autorizado por', lineWidth: 70 } },
     { type: 'FooterEmpresa', props: {
       id: 'fo', texto: '{{ cia.razon_social }} | RNC {{ cia.rnc }}',

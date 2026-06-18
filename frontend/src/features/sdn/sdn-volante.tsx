@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/regal-general-api'
 import { useCompany } from '@/hooks/use-company'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
@@ -12,7 +13,7 @@ import {
 import {
   Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { FileSpreadsheet, Search } from 'lucide-react'
+import { FileSpreadsheet, Search, Printer } from 'lucide-react'
 
 const fmt = (n: any) =>
   Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -79,10 +80,22 @@ export function SdnVolante() {
       </div>
 
       <Card>
-        <CardHeader className="pb-2">
+        <CardHeader className="pb-2 flex flex-row items-center justify-between">
           <CardTitle className="text-sm flex items-center gap-2">
             <FileSpreadsheet className="h-4 w-4" /> Selección
           </CardTitle>
+          {nominaSel && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const qs = new URLSearchParams({ no_cia: selectedCompany, punto: selectedPoint }).toString()
+                window.open(`/print/sdn-nomina/${encodeURIComponent(nominaSel)}?${qs}`, '_blank')
+              }}
+            >
+              <Printer className="h-4 w-4 mr-1" /> Imprimir nómina
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
