@@ -165,3 +165,139 @@ def acc_rep_gastos_tipo(request):
         fecha_desde=request.GET.get('fecha_desde') or None,
         fecha_hasta=request.GET.get('fecha_hasta') or None,
     ), safe=False)
+
+
+# ---- Reposiciones (CRUD adicional) ----
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
+def acc_reposicion_detalle(request, no_cia, punto, no_reposicion):
+    cab = acc_repo.get_reposicion(no_cia, _norm_punto(punto), no_reposicion)
+    if not cab:
+        return JsonResponse({'error': 'not found'}, status=404)
+    docs = acc_repo.list_docs_reposicion(no_cia, _norm_punto(punto), no_reposicion)
+    return JsonResponse({'cabecera': cab, 'documentos': docs})
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
+def acc_docs_pendientes_reposicion(request):
+    rows = acc_repo.list_docs_pendientes_reposicion(
+        no_cia=request.GET.get('no_cia', ''),
+        punto=_norm_punto(request.GET.get('punto', '')) or '01',
+        no_caja=request.GET.get('no_caja') or None,
+    )
+    return JsonResponse(rows, safe=False)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def acc_reposicion_crear(request):
+    data = json.loads(request.body)
+    no_rep = acc_repo.crear_reposicion(
+        data['no_cia'], _norm_punto(data['punto']),
+        data, request.user.username,
+    )
+    return JsonResponse({'no_reposicion': no_rep}, status=201)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def acc_reposicion_anular(request):
+    data = json.loads(request.body)
+    acc_repo.anular_reposicion(
+        data['no_cia'], _norm_punto(data['punto']),
+        data['no_reposicion'], data.get('motivo', ''),
+        request.user.username,
+    )
+    return JsonResponse({'ok': True})
+
+
+# ---- Asiento contable mensual ----
+@login_required
+@csrf_exempt
+@require_http_methods(['GET', 'POST'])
+def acc_asiento(request):
+    if request.method == 'GET':
+        return JsonResponse(acc_repo.preview_asiento(
+            no_cia=request.GET.get('no_cia', ''),
+            punto=_norm_punto(request.GET.get('punto', '')) or '01',
+            ano=int(request.GET.get('ano') or 0),
+            mes=int(request.GET.get('mes') or 0),
+        ))
+    data = json.loads(request.body)
+    res = acc_repo.generar_asiento(
+        no_cia=data['no_cia'],
+        punto=_norm_punto(data['punto']),
+        ano=int(data['ano']),
+        mes=int(data['mes']),
+    )
+    return JsonResponse(res, status=200)
+
+
+# ---- Cierre mensual ----
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
+def acc_cierre_status(request):
+    return JsonResponse(acc_repo.cierre_status(
+        no_cia=request.GET.get('no_cia', ''),
+        punto=_norm_punto(request.GET.get('punto', '')) or '01',
+    ))
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
+def acc_cierre_list(request):
+    return JsonResponse(acc_repo.list_cierres(
+        no_cia=request.GET.get('no_cia', ''),
+        punto=_norm_punto(request.GET.get('punto', '')) or '01',
+        ano=int(request.GET.get('ano') or 0) or None,
+    ), safe=False)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def acc_cierre_aplicar(request):
+    data = json.loads(request.body)
+    try:
+        res = acc_repo.aplicar_cierre(
+            data['no_cia'], _norm_punto(data['punto']),
+            request.user.username,
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse(res, status=201)
+
+
+# ---- Beneficiarios / tipos (CRUD complementario) ----
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def acc_beneficiario_save(request):
+    data = json.loads(request.body)
+    no_bene = acc_repo.upsert_beneficiario(data, request.user.username)
+    return JsonResponse({'no_bene': no_bene}, status=201)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def acc_tipo_gasto_save(request):
+    data = json.loads(request.body)
+    tg = acc_repo.upsert_tipo_gasto(data)
+    return JsonResponse({'tipo_gasto': tg}, status=201)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def acc_tipo_bene_save(request):
+    data = json.loads(request.body)
+    tb = acc_repo.upsert_tipo_bene(data)
+    return JsonResponse({'tipo_bene': tb}, status=201)

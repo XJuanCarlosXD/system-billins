@@ -21,6 +21,29 @@ import { requisicionCompraDefault } from './defaults/requisicion-compra'
 import { invDocumentoDefault, reporteGenericoDefault } from './defaults/reporte-generico'
 import { sdnNominaDefault } from './defaults/sdn-nomina'
 import { volantePagoDefault } from './defaults/volante-pago'
+import { accReposicionDefault } from './defaults/acc-reposicion'
+
+const accListadoDocsDefault = reporteGenericoDefault('Listado de Documentos · Caja Chica', [
+  { campo: 'no_docu', label: 'No.', align: 'left' },
+  { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
+  { campo: 'no_caja', label: 'Caja', align: 'left' },
+  { campo: 'nombre_bene', label: 'Beneficiario', align: 'left' },
+  { campo: 'desc_gasto', label: 'Tipo gasto', align: 'left' },
+  { campo: 'ncf', label: 'NCF', align: 'left' },
+  { campo: 'rnc', label: 'RNC', align: 'left' },
+  { campo: 'valor', label: 'Valor', align: 'right', format: 'money' },
+  { campo: 'no_reposicion', label: 'Reposic.', align: 'left' },
+  { campo: 'estado', label: 'Estado', align: 'left' },
+])
+
+const accResumenGastosDefault = reporteGenericoDefault('Resumen de Gastos por Tipo · Caja Chica', [
+  { campo: 'tipo_gasto', label: 'Tipo', align: 'left' },
+  { campo: 'descripcion', label: 'Descripción', align: 'left' },
+  { campo: 'cuenta', label: 'Cuenta', align: 'left' },
+  { campo: 'centro_costo', label: 'Centro costo', align: 'left' },
+  { campo: 'cantidad', label: 'Cant.', align: 'right' },
+  { campo: 'total', label: 'Total', align: 'right', format: 'money' },
+])
 
 const sdnInformeNominaDefault = reporteGenericoDefault('Informe de Nómina (Fsdn207)', [
   { campo: 'no_empleado', label: 'No.', align: 'left' },
@@ -543,6 +566,55 @@ export const registry: Record<string, RegistryEntry> = {
     variables: docVarsBase.concat(['doc.banco', 'doc.cuenta']),
   },
   // ── ACC ────────────────────────────────────────────────────────────
+  'acc-reposicion': {
+    codigo: 'acc-reposicion',
+    modulo: 'ACC',
+    nombre: 'Reposición de Caja Chica',
+    familia: 'documento',
+    printDataPath: (id, qs) =>
+      `/acc/reposiciones/${encodeURIComponent(id)}/print-data/?${qs.toString()}`,
+    defaultTemplate: accReposicionDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'P',
+    variables: docVarsBase.concat([
+      'extra.cuenta_banco', 'extra.no_cheque',
+      'extra.tipo_docu_chc', 'extra.no_docu_chc',
+      'totales.efectivo', 'totales.valor_compro_prov', 'totales.cantidad_docs',
+      'cliente.no_caja', 'cliente.usuario',
+    ]),
+  },
+  'acc-listado-documentos': {
+    codigo: 'acc-listado-documentos',
+    modulo: 'ACC',
+    nombre: 'Listado de Documentos · Caja Chica',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/acc/documentos/listado/print-data/?${qs.toString()}`,
+    defaultTemplate: accListadoDocsDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].no_docu', 'filas[].fecha', 'filas[].nombre_bene',
+      'filas[].desc_gasto', 'filas[].ncf', 'filas[].rnc', 'filas[].valor',
+      'filas[].no_reposicion', 'filas[].estado',
+      'totales.cantidad', 'totales.activos', 'totales.anulados', 'totales.valor',
+    ],
+  },
+  'acc-resumen-gastos': {
+    codigo: 'acc-resumen-gastos',
+    modulo: 'ACC',
+    nombre: 'Resumen de Gastos por Tipo · Caja Chica',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/acc/rep-resumen/print-data/?${qs.toString()}`,
+    defaultTemplate: accResumenGastosDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'P',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].tipo_gasto', 'filas[].descripcion', 'filas[].cantidad', 'filas[].total',
+      'totales.cantidad', 'totales.monto_total', 'totales.impuesto_total',
+    ],
+  },
   'acc-documento': {
     codigo: 'acc-documento',
     modulo: 'ACC',

@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Search } from 'lucide-react'
+import { Search, Printer } from 'lucide-react'
 
 const fmt = (n: any) => Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })
 
@@ -29,6 +29,18 @@ export function AccReportes() {
         <div><Label className="text-xs">Desde</Label><Input type="date" className="h-9 w-40" value={f.fecha_desde} onChange={(e) => setF({ ...f, fecha_desde: e.target.value })} /></div>
         <div><Label className="text-xs">Hasta</Label><Input type="date" className="h-9 w-40" value={f.fecha_hasta} onChange={(e) => setF({ ...f, fecha_hasta: e.target.value })} /></div>
         <Button size="sm" variant="outline" onClick={() => { resQ.refetch(); gastosQ.refetch() }}><Search className="h-4 w-4 mr-1" /> Generar</Button>
+        <Button
+          size="sm" variant="outline"
+          onClick={() => {
+            const qs = new URLSearchParams({
+              no_cia: selectedCompany, punto: selectedPoint,
+              ...(f.fecha_desde ? { fecha_desde: f.fecha_desde } : {}),
+              ...(f.fecha_hasta ? { fecha_hasta: f.fecha_hasta } : {}),
+            }).toString()
+            window.open(`/print/acc-resumen-gastos/_?${qs}`, '_blank')
+          }}>
+          <Printer className="h-4 w-4 mr-1" /> PDF
+        </Button>
       </div>
       <TabsContent value="resumen" className="pt-4">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

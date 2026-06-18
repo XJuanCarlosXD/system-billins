@@ -109,6 +109,20 @@ export function AccDocumentos() {
         </div>
         <Button size="sm" variant="outline" onClick={() => listQ.refetch()}><Search className="h-4 w-4 mr-1" /> Buscar</Button>
         <Button size="sm" onClick={openCrear}><Plus className="h-4 w-4 mr-1" /> Nuevo Egreso</Button>
+        <Button
+          size="sm" variant="outline"
+          onClick={() => {
+            const qs = new URLSearchParams({
+              no_cia: selectedCompany, punto: selectedPoint,
+              ...(filtros.no_caja ? { no_caja: filtros.no_caja } : {}),
+              ...(filtros.fecha_desde ? { fecha_desde: filtros.fecha_desde } : {}),
+              ...(filtros.fecha_hasta ? { fecha_hasta: filtros.fecha_hasta } : {}),
+              ...(filtros.anulado ? { anulado: filtros.anulado } : {}),
+            }).toString()
+            window.open(`/print/acc-listado-documentos/_?${qs}`, '_blank')
+          }}>
+          <Printer className="h-4 w-4 mr-1" /> Listado PDF
+        </Button>
         <div className="ml-auto text-sm text-muted-foreground">{rows.length} documentos</div>
       </div>
 
@@ -143,7 +157,17 @@ export function AccDocumentos() {
                     : <Badge variant={d.st_generado_cnt === 'S' ? 'outline' : 'secondary'}>{d.st_generado_cnt === 'S' ? 'Contabilizado' : 'Pendiente CNT'}</Badge>}
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button size="sm" variant="ghost" onClick={() => setSelected(d)}><Eye className="h-4 w-4" /></Button>
+                  <div className="flex items-center justify-end gap-1">
+                    <Button size="sm" variant="ghost" title="Imprimir PDF"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const qs = new URLSearchParams({ no_cia: d.no_cia || selectedCompany, punto: d.punto || selectedPoint }).toString()
+                        window.open(`/print/acc-documento/${encodeURIComponent(d.no_docu)}?${qs}`, '_blank')
+                      }}>
+                      <Printer className="h-4 w-4" />
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setSelected(d)}><Eye className="h-4 w-4" /></Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

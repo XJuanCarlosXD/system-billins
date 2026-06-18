@@ -842,6 +842,219 @@ def sdn_nomina_print_data(request, nomina: str):
     })
 
 
+# ─── ACC — Reposición de Caja Chica ──────────────────────────────────────
+
+@login_required
+@require_http_methods(["GET"])
+def acc_reposicion_print_data(request, no_reposicion: str):
+    """GET /api/acc/reposiciones/<no_reposicion>/print-data/?no_cia=01&punto=01"""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    cia = _cia_payload(no_cia, request=request)
+    rep = acc_repo.get_reposicion(no_cia, punto, no_reposicion)
+    if not rep:
+        return JsonResponse({'error': 'Reposición no encontrada'}, status=404)
+    docs = acc_repo.list_docs_reposicion(no_cia, punto, no_reposicion) or []
+    anulada = bool(rep.get('anulada_por'))
+    _no_rep_str = str(rep.get('no_reposicion') or '').strip()
+    doc = {
+        'tipo': 'REP', 'tipo_label': 'Reposición de Caja Chica',
+        'no': _no_rep_str,
+        'numero_display': f"REP-{_no_rep_str}",
+        'fecha': str(rep.get('fecha') or '')[:10],
+        'fecha_venc': None,
+        'estado': 'Anulada' if anulada else 'Activa',
+        'estado_label': 'Anulada' if anulada else 'Activa',
+        'anulada': anulada,
+        'impresion': 'IMPRESA',
+        'forma_pago': str(rep.get('forma_pago') or ''),
+        'condicion_pago': '', 'plazo_pago': 0, 'vendedor': '',
+        'nota': rep.get('detalle') or '',
+        'detalle': rep.get('detalle') or '',
+        'moneda': 'DOP', 'tasa': 0, 'porc_impuesto': 0,
+        # Específicos de reposición
+        'cuenta_banco': rep.get('cuenta_banco') or '',
+        'no_cheque': rep.get('no_cheque') or '',
+        'tipo_docu_chc': rep.get('tipo_docu_chc') or '',
+        'no_docu_chc': rep.get('no_docu_chc') or '',
+        'ncf': _compose_ncf_dgi(rep.get('posiciones_fijas_ncf'), rep.get('ncf')) if rep.get('ncf') else '',
+        'ncf_dgi': _compose_ncf_dgi(rep.get('posiciones_fijas_ncf'), rep.get('ncf')) if rep.get('ncf') else '',
+    }
+    cliente = {
+        'no': rep.get('no_caja') or '',
+        'nombre': rep.get('desc_caja') or f"Caja {rep.get('no_caja') or ''}",
+        'rnc': '', 'direccion': '', 'telefono': '', 'email': '', 'tipo_ncf': '',
+        'no_caja': rep.get('no_caja') or '',
+        'usuario': rep.get('usuario') or '',
+    }
+    def _s(v):
+        return str(v).strip() if v is not None else ''
+    lineas = [{
+        'no_linea': i + 1,
+        'codigo': _s(d.get('no_docu')),
+        'descripcion': f"ACC-{_s(d.get('no_docu'))} · {_s(d.get('nombre_bene'))} · "
+                       f"{_s(d.get('desc_gasto'))}",
+        'cantidad': 1, 'unidad': '',
+        'precio': _money_or_zero(d.get('valor')),
+        'descuento': 0,
+        'itbis': _money_or_zero(d.get('impuesto')),
+        'total': _money_or_zero(d.get('valor')),
+        # auxiliares
+        'no_docu': _s(d.get('no_docu')),
+        'fecha_docu': str(d.get('fecha') or '')[:10],
+        'no_bene': _s(d.get('no_bene')),
+        'nombre_bene': _s(d.get('nombre_bene')),
+        'tipo_gasto': _s(d.get('tipo_gasto')),
+        'desc_gasto': _s(d.get('desc_gasto')),
+        'ncf': _s(d.get('ncf')),
+        'rnc': _s(d.get('rnc')),
+        'detalle': _s(d.get('detalle')),
+    } for i, d in enumerate(docs)]
+    subtotal = sum(l['precio'] for l in lineas)
+    itbis = sum(l['itbis'] for l in lineas)
+    total = _money_or_zero(rep.get('valor_reposicion'))
+    return JsonResponse({
+        'cia': cia, 'doc': doc, 'cliente': cliente,
+        'lineas': lineas,
+        'totales': {
+            'subtotal': subtotal,
+            'descuento': 0,
+            'itbis': itbis,
+            'propina': _money_or_zero(rep.get('propina')),
+            'otros': _money_or_zero(rep.get('otros_impuestos')),
+            'total': total,
+            'monto_letras': '',
+            'monto_caja': _money_or_zero(rep.get('monto_cc')),
+            'efectivo': _money_or_zero(rep.get('efectivo')),
+            'valor_compro_prov': _money_or_zero(rep.get('valor_compro_prov')),
+            'valor_ncf': _money_or_zero(rep.get('valor_ncf')),
+            'cantidad_docs': len(lineas),
+        },
+        'extra': {
+            'cuenta_banco': rep.get('cuenta_banco') or '',
+            'no_cheque': rep.get('no_cheque') or '',
+            'tipo_docu_chc': rep.get('tipo_docu_chc') or '',
+            'no_docu_chc': rep.get('no_docu_chc') or '',
+            'anulada_por': rep.get('anulada_por') or '',
+            'fecha_anulacion': str(rep.get('fecha_anulacion') or '')[:10],
+            'motivo_anulacion': rep.get('motivo_anulacion') or '',
+        },
+    })
+
+
+# ─── ACC — Listado de documentos / egresos (familia reporte) ─────────────
+
+@login_required
+@require_http_methods(["GET"])
+def acc_listado_docs_print_data(request):
+    """GET /api/acc/documentos/listado/print-data/?no_cia=01[&...]"""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    cia = _cia_payload(no_cia, request=request)
+    no_caja = request.GET.get('no_caja') or None
+    fecha_desde = request.GET.get('fecha_desde') or None
+    fecha_hasta = request.GET.get('fecha_hasta') or None
+    anulado = request.GET.get('anulado') or None
+    rows = acc_repo.list_documentos(
+        no_cia=no_cia, punto=punto, no_caja=no_caja,
+        fecha_desde=fecha_desde, fecha_hasta=fecha_hasta,
+        anulado=anulado, limit=2000,
+    ) or []
+    filas = []
+    total_valor = total_impuesto = 0.0
+    activos = 0
+    for r in rows:
+        val = _money_or_zero(r.get('valor'))
+        imp = _money_or_zero(r.get('impuesto'))
+        is_anul = (r.get('anulado') or 'N') == 'S'
+        if not is_anul:
+            total_valor += val; total_impuesto += imp; activos += 1
+        filas.append({
+            'no_docu': f"ACC-{(r.get('no_docu') or '').strip()}",
+            'fecha': str(r.get('fecha') or '')[:10],
+            'no_caja': r.get('no_caja') or '',
+            'no_bene': r.get('no_bene') or '',
+            'nombre_bene': r.get('nombre_bene') or '',
+            'tipo_gasto': r.get('tipo_gasto') or '',
+            'desc_gasto': r.get('desc_gasto') or '',
+            'ncf': r.get('ncf') or '',
+            'rnc': r.get('rnc') or '',
+            'valor': val,
+            'impuesto': imp,
+            'no_reposicion': (r.get('no_reposicion') or ''),
+            'estado': 'Anulado' if is_anul else 'Activo',
+        })
+    filtros = {
+        'Empresa': no_cia, 'Punto': punto,
+        **({'Caja': no_caja} if no_caja else {}),
+        **({'Desde': fecha_desde} if fecha_desde else {}),
+        **({'Hasta': fecha_hasta} if fecha_hasta else {}),
+        **({'Estado': 'Anulados' if anulado == 'S' else 'Activos'} if anulado else {}),
+    }
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'acc-listado-documentos',
+            'titulo': 'Listado de Documentos · Caja Chica',
+            'filtros': filtros,
+        },
+        'filas': filas,
+        'totales': {
+            'cantidad': len(filas),
+            'activos': activos,
+            'anulados': len(filas) - activos,
+            'valor': total_valor,
+            'impuesto': total_impuesto,
+            'total': total_valor,
+        },
+    })
+
+
+# ─── ACC — Resumen de gastos por tipo (familia reporte) ──────────────────
+
+@login_required
+@require_http_methods(["GET"])
+def acc_resumen_gastos_print_data(request):
+    """GET /api/acc/rep-resumen/print-data/?no_cia=01[&...]"""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    cia = _cia_payload(no_cia, request=request)
+    fecha_desde = request.GET.get('fecha_desde') or None
+    fecha_hasta = request.GET.get('fecha_hasta') or None
+    resumen = acc_repo.rep_resumen(no_cia, punto, fecha_desde, fecha_hasta) or {}
+    gastos = acc_repo.rep_gastos_por_tipo(no_cia, punto, fecha_desde, fecha_hasta) or []
+    filas = [{
+        'tipo_gasto': r.get('tipo_gasto') or '',
+        'descripcion': r.get('descripcion') or '',
+        'cuenta': r.get('cuenta') or '',
+        'centro_costo': r.get('centro_costo') or '',
+        'cantidad': int(r.get('cantidad') or 0),
+        'total': _money_or_zero(r.get('total')),
+    } for r in gastos]
+    filtros = {
+        'Empresa': no_cia, 'Punto': punto,
+        **({'Desde': fecha_desde} if fecha_desde else {}),
+        **({'Hasta': fecha_hasta} if fecha_hasta else {}),
+    }
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'acc-resumen-gastos',
+            'titulo': 'Resumen de Gastos por Tipo · Caja Chica',
+            'filtros': filtros,
+        },
+        'filas': filas,
+        'totales': {
+            'cantidad': len(filas),
+            'total_docs': int(resumen.get('total_docs') or 0),
+            'anulados': int(resumen.get('anulados') or 0),
+            'monto_total': _money_or_zero(resumen.get('monto_total')),
+            'impuesto_total': _money_or_zero(resumen.get('impuesto_total')),
+            'total': _money_or_zero(resumen.get('monto_total')),
+        },
+    })
+
+
 # ─── SDN — Volante individual por empleado (Fsdn206 individual) ──────────
 
 @login_required

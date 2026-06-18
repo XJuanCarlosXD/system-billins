@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Search } from 'lucide-react'
+import { Search, Printer } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 
 const fmt = (n: any) => Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })
 const fmtDate = (s: any) => s ? String(s).slice(0, 10) : ''
@@ -15,7 +16,8 @@ const fmtDate = (s: any) => s ? String(s).slice(0, 10) : ''
 export function AccReposiciones() {
   const { selectedCompany, selectedPoint } = useCompany()
   const [f, setF] = useState({ no_caja: '', fecha_desde: '', fecha_hasta: '' })
-  const cajasQ = useQuery({ queryKey: ['acc-caj-pick-rep', selectedCompany, selectedPoint], queryFn: () => api.accListCajas(selectedCompany, selectedPoint) })
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _cajasQ = useQuery({ queryKey: ['acc-caj-pick-rep', selectedCompany, selectedPoint], queryFn: () => api.accListCajas(selectedCompany, selectedPoint) })
   const q = useQuery({
     queryKey: ['acc-reposiciones', selectedCompany, selectedPoint, f],
     queryFn: () => api.accListReposiciones({ no_cia: selectedCompany, punto: selectedPoint, no_caja: f.no_caja || undefined, fecha_desde: f.fecha_desde || undefined, fecha_hasta: f.fecha_hasta || undefined, limit: 200 }),
@@ -42,11 +44,12 @@ export function AccReposiciones() {
               <TableHead>Cheque</TableHead><TableHead>Cuenta Bco</TableHead>
               <TableHead className="text-right">Monto Caja</TableHead><TableHead className="text-right">Valor Reposición</TableHead>
               <TableHead className="text-right">Efectivo</TableHead><TableHead>NCF</TableHead><TableHead>Estado</TableHead>
+              <TableHead className="text-right">PDF</TableHead>
             </TableRow></TableHeader>
             <TableBody>
               {rows.map((r: any) => (
                 <TableRow key={`${r.no_caja}-${r.no_reposicion}`}>
-                  <TableCell className="font-mono">{r.no_reposicion}</TableCell>
+                  <TableCell className="font-mono">REP-{r.no_reposicion}</TableCell>
                   <TableCell className="font-mono">{r.no_caja}</TableCell>
                   <TableCell>{fmtDate(r.fecha)}</TableCell>
                   <TableCell className="text-xs">{r.tipo_docu_chc}-{r.no_docu_chc}</TableCell>
@@ -55,11 +58,24 @@ export function AccReposiciones() {
                   <TableCell className="text-right tabular-nums">{fmt(r.valor_reposicion)}</TableCell>
                   <TableCell className="text-right tabular-nums">{fmt(r.efectivo)}</TableCell>
                   <TableCell className="font-mono text-xs">{r.ncf}</TableCell>
-                  <TableCell className="text-xs">{r.anulada_por ? `Anulada: ${r.motivo_anulacion || ''}` : 'Activa'}</TableCell>
+                  <TableCell>
+                    {r.anulada_por
+                      ? <Badge variant="destructive">Anulada</Badge>
+                      : <Badge>Activa</Badge>}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button size="sm" variant="ghost" title="Imprimir reposición"
+                      onClick={() => {
+                        const qs = new URLSearchParams({ no_cia: r.no_cia || selectedCompany, punto: r.punto || selectedPoint }).toString()
+                        window.open(`/print/acc-reposicion/${encodeURIComponent(r.no_reposicion)}?${qs}`, '_blank')
+                      }}>
+                      <Printer className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
               {!q.isLoading && rows.length === 0 && (
-                <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-6">Sin reposiciones.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground py-6">Sin reposiciones.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>

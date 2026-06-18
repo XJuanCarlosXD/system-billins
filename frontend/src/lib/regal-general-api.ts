@@ -1407,6 +1407,46 @@ export const regalGeneralApi = {
     ).toString()
     return request<any[]>(`/acc/rep-gastos-tipo/?${qs}`)
   },
+  accGetReposicion: (noCia: string, punto: string, noRep: string) =>
+    request<{ cabecera: any; documentos: any[] }>(`/acc/reposiciones/${noCia}/${punto}/${noRep}/`),
+  accDocsPendientesReposicion: (params: { no_cia: string; punto?: string; no_caja?: string }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any[]>(`/acc/docs-pendientes-reposicion/?${qs}`)
+  },
+  accCrearReposicion: (data: Record<string, unknown>) =>
+    request<{ no_reposicion: string }>('/acc/reposiciones/crear/', { method: 'POST', body: JSON.stringify(data) }),
+  accAnularReposicion: (data: { no_cia: string; punto: string; no_reposicion: string; motivo?: string }) =>
+    request<any>('/acc/reposiciones/anular/', { method: 'POST', body: JSON.stringify(data) }),
+  accPreviewAsiento: (params: { no_cia: string; punto: string; ano: number; mes: number }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<{ lineas: any[]; total_debito: number; total_credito: number; cuadra: boolean; documentos: number }>(`/acc/asiento/?${qs}`)
+  },
+  accGenerarAsiento: (data: { no_cia: string; punto: string; ano: number; mes: number }) =>
+    request<{ documentos_actualizados: number }>('/acc/asiento/', { method: 'POST', body: JSON.stringify(data) }),
+  accCierreStatus: (params: { no_cia: string; punto: string }) => {
+    const qs = new URLSearchParams(params).toString()
+    return request<{ punto: any; documentos_sin_contabilizar: number; documentos_sin_reposicion: number }>(`/acc/cierre/status/?${qs}`)
+  },
+  accListCierres: (params: { no_cia: string; punto: string; ano?: number }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any[]>(`/acc/cierre/?${qs}`)
+  },
+  accAplicarCierre: (data: { no_cia: string; punto: string }) =>
+    request<{ cerrado: string; nuevo_periodo: string }>('/acc/cierre/aplicar/', { method: 'POST', body: JSON.stringify(data) }),
+  accListTiposGasto: () => request<any[]>('/acc/tipos-gasto/'),
+  accSaveTipoGasto: (data: Record<string, unknown>) =>
+    request<{ tipo_gasto: string }>('/acc/tipos-gasto/save/', { method: 'POST', body: JSON.stringify(data) }),
+  accListTiposBene: () => request<any[]>('/acc/tipos-bene/'),
+  accSaveTipoBene: (data: Record<string, unknown>) =>
+    request<{ tipo_bene: string }>('/acc/tipos-bene/save/', { method: 'POST', body: JSON.stringify(data) }),
+  accSaveBeneficiario: (data: Record<string, unknown>) =>
+    request<{ no_bene: string }>('/acc/beneficiarios/save/', { method: 'POST', body: JSON.stringify(data) }),
 
   // ============================================================
   // Cheques / Bancos / Conciliación (CHC)
