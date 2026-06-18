@@ -18,8 +18,34 @@ import { facturaDefault } from './defaults/factura'
 import { facturaPosDefault } from './defaults/factura-pos'
 import { ordenCompraDefault } from './defaults/orden-compra'
 import { requisicionCompraDefault } from './defaults/requisicion-compra'
-import { invDocumentoDefault } from './defaults/reporte-generico'
+import { invDocumentoDefault, reporteGenericoDefault } from './defaults/reporte-generico'
 import { sdnNominaDefault } from './defaults/sdn-nomina'
+import { volantePagoDefault } from './defaults/volante-pago'
+
+const sdnInformeNominaDefault = reporteGenericoDefault('Informe de Nómina (Fsdn207)', [
+  { campo: 'no_empleado', label: 'No.', align: 'left' },
+  { campo: 'nombre_empleado', label: 'Empleado', align: 'left' },
+  { campo: 'cedula', label: 'Cédula', align: 'left' },
+  { campo: 'no_gerencia', label: 'Ger.', align: 'left' },
+  { campo: 'no_area', label: 'Área', align: 'left' },
+  { campo: 'no_depto', label: 'Depto', align: 'left' },
+  { campo: 'salario_mensual', label: 'Salario', align: 'right', format: 'money' },
+  { campo: 'total_ingresos', label: 'Ingresos', align: 'right', format: 'money' },
+  { campo: 'total_deducciones', label: 'Deducc.', align: 'right', format: 'money' },
+  { campo: 'neto', label: 'Neto', align: 'right', format: 'money' },
+])
+
+const sdnRncEmpleadosDefault = reporteGenericoDefault('RNC Empleados (DGII / TSS)', [
+  { campo: 'no_empleado', label: 'No.', align: 'left' },
+  { campo: 'cedula', label: 'Cédula', align: 'left' },
+  { campo: 'nss', label: 'NSS', align: 'left' },
+  { campo: 'nombre_completo', label: 'Nombre', align: 'left' },
+  { campo: 'nomina', label: 'Nómina', align: 'left' },
+  { campo: 'salario_mensual', label: 'Salario', align: 'right', format: 'money' },
+  { campo: 'afp', label: 'AFP', align: 'left' },
+  { campo: 'ars', label: 'ARS', align: 'left' },
+  { campo: 'fecha_ingreso', label: 'Ingreso', align: 'left', format: 'date' },
+])
 
 export type DocFamily = 'documento' | 'reporte'
 
@@ -640,6 +666,60 @@ export const registry: Record<string, RegistryEntry> = {
       'extra.cuenta_contable',
       'extra.cuenta_bancaria',
     ]),
+  },
+  'volante-pago': {
+    codigo: 'volante-pago',
+    modulo: 'SDN',
+    nombre: 'Volante de Pago (individual)',
+    familia: 'documento',
+    // id viene como `<nomina>__<no_empleado>` y se separa aquí.
+    printDataPath: (id, qs) => {
+      const [nom, emp] = (id || '').split('__')
+      return `/sdn/nominas/${encodeURIComponent(nom)}/empleado/${encodeURIComponent(emp || '')}/print-data/?${qs.toString()}`
+    },
+    defaultTemplate: volantePagoDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'P',
+    variables: docVarsBase.concat([
+      'doc.periodo', 'doc.nomina',
+      'cliente.cedula', 'cliente.nss', 'cliente.cargo', 'cliente.depto',
+      'totales.salario_base', 'totales.total_ingresos', 'totales.total_deducciones', 'totales.bruto',
+      'extra.cuenta_bancaria', 'extra.moneda_label',
+    ]),
+  },
+  'sdn-informe-nomina': {
+    codigo: 'sdn-informe-nomina',
+    modulo: 'SDN',
+    nombre: 'Informe de Nómina (Fsdn207)',
+    familia: 'reporte',
+    // id no se usa para reportes — la query lleva los filtros.
+    printDataPath: (_id, qs) => `/sdn/informe-nomina/print-data/?${qs.toString()}`,
+    defaultTemplate: sdnInformeNominaDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].no_empleado', 'filas[].nombre_empleado', 'filas[].cedula',
+      'filas[].salario_mensual', 'filas[].total_ingresos', 'filas[].total_deducciones', 'filas[].neto',
+      'totales.cantidad', 'totales.salario', 'totales.ingresos', 'totales.deducciones', 'totales.neto',
+    ],
+  },
+  'sdn-rnc-empleados': {
+    codigo: 'sdn-rnc-empleados',
+    modulo: 'SDN',
+    nombre: 'RNC Empleados (DGII / TSS)',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/sdn/rnc-empleados/print-data/?${qs.toString()}`,
+    defaultTemplate: sdnRncEmpleadosDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].no_empleado', 'filas[].cedula', 'filas[].nss', 'filas[].nombre_completo',
+      'filas[].nomina', 'filas[].salario_mensual', 'filas[].afp', 'filas[].ars',
+      'filas[].fecha_ingreso',
+      'totales.cantidad', 'totales.masa_salarial',
+    ],
   },
 }
 

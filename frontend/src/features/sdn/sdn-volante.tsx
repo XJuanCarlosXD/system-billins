@@ -162,6 +162,7 @@ export function SdnVolante() {
                 <TableHead className="w-32 text-right">Ingresos</TableHead>
                 <TableHead className="w-32 text-right">Deducciones</TableHead>
                 <TableHead className="w-32 text-right">Neto</TableHead>
+                <TableHead className="w-12 text-right">PDF</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -190,6 +191,21 @@ export function SdnVolante() {
                       <TableCell className={`text-right tabular-nums font-medium ${isNeg ? 'text-destructive' : ''}`}>
                         {fmt(neto)}
                       </TableCell>
+                      <TableCell className="text-right">
+                        <Button size="sm" variant="ghost" title="Volante individual PDF"
+                          onClick={() => {
+                            const qs = new URLSearchParams({
+                              no_cia: selectedCompany, punto: selectedPoint,
+                              ano: String(nomina?.ano_proceso || ''),
+                              mes: String(nomina?.mes_proceso || ''),
+                              periodo: String(nomina?.periodo || 1),
+                            }).toString()
+                            const id = `${nominaSel}__${e.no_empleado}`
+                            window.open(`/print/volante-pago/${encodeURIComponent(id)}?${qs}`, '_blank')
+                          }}>
+                          <Printer className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   )
                 })
@@ -213,6 +229,7 @@ export function SdnVolante() {
                   <TableCell className="text-right tabular-nums font-semibold">
                     {moneda} {fmt(totales.neto)}
                   </TableCell>
+                  <TableCell />
                 </TableRow>
               </TableFooter>
             )}

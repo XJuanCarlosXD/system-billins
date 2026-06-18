@@ -1,9 +1,18 @@
 from django.urls import path
 from apps.legacy import sdn_views
-from apps.legacy.docs_print_data import sdn_nomina_print_data
+from apps.legacy.docs_print_data import (
+    sdn_nomina_print_data,
+    sdn_volante_empleado_print_data,
+    sdn_informe_nomina_print_data,
+    sdn_rnc_empleados_print_data,
+)
 
 urlpatterns = [
     path('nominas/<str:nomina>/print-data/', sdn_nomina_print_data),
+    path('nominas/<str:nomina>/empleado/<str:no_empleado>/print-data/',
+         sdn_volante_empleado_print_data),
+    path('informe-nomina/print-data/', sdn_informe_nomina_print_data),
+    path('rnc-empleados/print-data/', sdn_rnc_empleados_print_data),
     path('cias/', sdn_views.sdn_cias),
     path('afp/', sdn_views.sdn_afp),
     path('ars/', sdn_views.sdn_ars),

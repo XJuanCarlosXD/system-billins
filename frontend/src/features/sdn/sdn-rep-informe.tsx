@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { Search, FileDown } from 'lucide-react'
+import { Search, FileDown, Printer } from 'lucide-react'
 import { toast } from 'sonner'
 
 const fmt = (n: number) =>
@@ -191,6 +191,24 @@ export function SdnRepInforme() {
         </Button>
         <Button size="sm" variant="outline" onClick={exportCsv} disabled={!data || filas.length === 0}>
           <FileDown className="h-4 w-4 mr-1" /> CSV
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!f.nomina}
+          onClick={() => {
+            const qs = new URLSearchParams({
+              no_cia: selectedCompany, punto: selectedPoint,
+              nomina: f.nomina, ano: String(f.ano), mes: String(f.mes), periodo: String(f.periodo),
+              ...(f.no_empleado ? { no_empleado: String(f.no_empleado) } : {}),
+              ...(f.no_gerencia ? { no_gerencia: f.no_gerencia } : {}),
+              ...(f.no_area ? { no_area: f.no_area } : {}),
+              ...(f.no_depto ? { no_depto: f.no_depto } : {}),
+            }).toString()
+            window.open(`/print/sdn-informe-nomina/_?${qs}`, '_blank')
+          }}
+        >
+          <Printer className="h-4 w-4 mr-1" /> PDF
         </Button>
       </div>
 

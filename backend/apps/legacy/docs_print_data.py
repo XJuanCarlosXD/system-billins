@@ -842,6 +842,246 @@ def sdn_nomina_print_data(request, nomina: str):
     })
 
 
+# ─── SDN — Volante individual por empleado (Fsdn206 individual) ──────────
+
+@login_required
+@require_http_methods(["GET"])
+def sdn_volante_empleado_print_data(request, nomina: str, no_empleado: str):
+    """GET /api/sdn/nominas/<nomina>/empleado/<no_empleado>/print-data/
+
+    Volante de pago de UN empleado para un período específico. Combina
+    cabecera de la nómina, datos del empleado y desglose de
+    ingresos/deducciones (TSDN_MOVIMIENTO).
+    """
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    cia = _cia_payload(no_cia, request=request)
+    nom = sdn_repo.get_nomina(no_cia, punto, nomina)
+    if not nom:
+        return JsonResponse({'error': 'Nómina no encontrada'}, status=404)
+    try:
+        no_emp = int(no_empleado)
+    except (TypeError, ValueError):
+        return JsonResponse({'error': 'no_empleado inválido'}, status=400)
+    emp = sdn_repo.get_empleado(no_cia, no_emp)
+    if not emp:
+        return JsonResponse({'error': 'Empleado no encontrado'}, status=404)
+
+    ano = int(request.GET.get('ano') or nom.get('ano_proceso') or 0)
+    mes = int(request.GET.get('mes') or nom.get('mes_proceso') or 0)
+    periodo = int(request.GET.get('periodo') or nom.get('periodo') or 1)
+
+    movs = sdn_repo.list_movimientos(
+        no_cia=no_cia, punto=punto, nomina=nomina,
+        ano=ano, mes=mes, periodo=periodo, no_empleado=no_emp,
+    ) or []
+
+    lineas = []
+    sum_ing = sum_ded = 0.0
+    for i, m in enumerate(movs, start=1):
+        tt = (m.get('tipo_transaccion') or '').upper()
+        monto = _money_or_zero(m.get('monto_transaccion'))
+        if tt == 'I':
+            sum_ing += monto
+            ing, ded = monto, 0
+        else:
+            sum_ded += monto
+            ing, ded = 0, monto
+        lineas.append({
+            'no_linea': i,
+            'codigo': (m.get('no_transaccion') or '').strip(),
+            'descripcion': (m.get('descri_concepto') or m.get('no_transaccion') or '').strip(),
+            'cantidad': 1, 'unidad': tt,
+            'precio': monto,
+            'descuento': ded,
+            'itbis': ing,
+            'total': ing - ded,
+            # auxiliares específicos para {{#each}} si se quiere reescribir el HTML
+            'tipo': 'Ingreso' if tt == 'I' else ('Deducción' if tt == 'D' else tt),
+            'origen': (m.get('origen') or '').upper(),
+            'monto_ingreso': ing,
+            'monto_deduccion': ded,
+        })
+    salario = _money_or_zero(emp.get('salario_mensual'))
+    bruto = sum_ing if sum_ing > 0 else salario
+    neto = bruto - sum_ded
+
+    estado_label = {'A': 'Abierta', 'C': 'Cerrada', 'P': 'Procesada'}.get(
+        (nom.get('estado') or '').strip().upper(), nom.get('estado') or '',
+    )
+    doc = {
+        'tipo': 'VOL', 'tipo_label': 'Volante de Pago',
+        'no': f"{nomina}-{no_emp}",
+        'numero_display': f"VOL-{nomina}-{str(no_emp).zfill(4)}",
+        'fecha': str(nom.get('fecha_inicial') or '')[:10],
+        'fecha_venc': str(nom.get('fecha_final') or '')[:10] if nom.get('fecha_final') else None,
+        'estado': nom.get('estado') or '', 'estado_label': estado_label, 'anulada': False,
+        'impresion': 'IMPRESA',
+        'forma_pago': nom.get('forma_pago') or '',
+        'condicion_pago': '', 'plazo_pago': 0,
+        'vendedor': '',
+        'nota': '', 'detalle': nom.get('descripcion') or '',
+        'moneda': nom.get('tipo_moneda') or 'DOP', 'tasa': 0, 'porc_impuesto': 0,
+        'periodo': f"{mes:02d}/{ano} P{periodo}",
+        'nomina': nomina,
+    }
+    cliente = {
+        'no': str(no_emp).zfill(4),
+        'nombre': f"{(emp.get('nombre') or '').strip()} {(emp.get('apellido') or '').strip()}".strip(),
+        'rnc': (emp.get('cedula') or '').strip(),
+        'direccion': (emp.get('direccion') or '').strip(),
+        'telefono': (emp.get('telefono') or '').strip(),
+        'email': (emp.get('email') or '').strip(),
+        'tipo_ncf': '',
+        # Auxiliares específicos
+        'cedula': (emp.get('cedula') or '').strip(),
+        'nss': (emp.get('nss') or '').strip(),
+        'cargo': (emp.get('cargo') or '').strip(),
+        'gerencia': (emp.get('no_gerencia') or '').strip(),
+        'area': (emp.get('no_area') or '').strip(),
+        'depto': (emp.get('no_depto') or '').strip(),
+        'salario_mensual': salario,
+    }
+    return JsonResponse({
+        'cia': cia, 'doc': doc, 'cliente': cliente,
+        'lineas': lineas,
+        'totales': {
+            'subtotal': salario,
+            'descuento': sum_ded,
+            'itbis': sum_ing,
+            'propina': 0, 'otros': 0,
+            'total': neto, 'monto_letras': '',
+            'salario_base': salario,
+            'total_ingresos': sum_ing,
+            'total_deducciones': sum_ded,
+            'bruto': bruto,
+        }, 'extra': {
+            'cuenta_bancaria': nom.get('cuenta_bancaria') or '',
+            'moneda_label': 'US$' if (nom.get('tipo_moneda') == 'D') else 'RD$',
+        },
+    })
+
+
+# ─── SDN — Informe de Nómina Fsdn207 (familia reporte) ───────────────────
+
+@login_required
+@require_http_methods(["GET"])
+def sdn_informe_nomina_print_data(request):
+    """GET /api/sdn/informe-nomina/print-data/?no_cia=01&punto=01&nomina=01&ano=2026&mes=5&periodo=1[&no_gerencia=&no_area=&no_depto=&no_empleado=]"""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = _norm_punto = request.GET.get('punto', '01')
+    cia = _cia_payload(no_cia, request=request)
+    try:
+        data = sdn_repo.rep_informe_nomina(
+            no_cia=no_cia, punto=punto,
+            nomina=(request.GET.get('nomina') or '').upper(),
+            ano=int(request.GET.get('ano') or 0),
+            mes=int(request.GET.get('mes') or 0),
+            periodo=int(request.GET.get('periodo') or 1),
+            no_empleado=int(request.GET.get('no_empleado') or 0) or None,
+            no_gerencia=request.GET.get('no_gerencia') or None,
+            no_area=request.GET.get('no_area') or None,
+            no_depto=request.GET.get('no_depto') or None,
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    filas = []
+    for r in data.get('empleados') or []:
+        filas.append({
+            'no_empleado': str(r.get('no_empleado') or '').zfill(4),
+            'nombre_empleado': r.get('nombre_empleado') or '',
+            'cedula': r.get('cedula') or '',
+            'no_gerencia': r.get('no_gerencia') or '',
+            'no_area': r.get('no_area') or '',
+            'no_depto': r.get('no_depto') or '',
+            'salario_mensual': _money_or_zero(r.get('salario_mensual')),
+            'total_ingresos': _money_or_zero(r.get('total_ingresos')),
+            'total_deducciones': _money_or_zero(r.get('total_deducciones')),
+            'bruto': _money_or_zero(r.get('bruto')),
+            'neto': _money_or_zero(r.get('neto')),
+        })
+    cab = data.get('cabecera') or {}
+    tot = data.get('totales') or {}
+    filtros = {
+        'Empresa': no_cia, 'Punto': punto,
+        'Nómina': f"{cab.get('nomina','')} — {cab.get('descripcion','')}",
+        'Período': f"{int(cab.get('mes_proceso') or 0):02d}/{cab.get('ano_proceso','')} P{cab.get('periodo','')}",
+    }
+    for k in ('no_gerencia', 'no_area', 'no_depto'):
+        v = request.GET.get(k)
+        if v: filtros[k.replace('no_', '').capitalize()] = v
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'sdn-informe-nomina',
+            'titulo': 'Informe de Nómina (Fsdn207)',
+            'filtros': filtros,
+        },
+        'filas': filas,
+        'totales': {
+            'cantidad': int(tot.get('empleados') or 0),
+            'salario': _money_or_zero(tot.get('salario')),
+            'ingresos': _money_or_zero(tot.get('ingresos')),
+            'deducciones': _money_or_zero(tot.get('deducciones')),
+            'neto': _money_or_zero(tot.get('neto')),
+            'total': _money_or_zero(tot.get('neto')),
+        },
+    })
+
+
+# ─── SDN — RNC Empleados DGII (familia reporte) ──────────────────────────
+
+@login_required
+@require_http_methods(["GET"])
+def sdn_rnc_empleados_print_data(request):
+    """GET /api/sdn/rnc-empleados/print-data/?no_cia=01[&punto=&activos=1&search=]"""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto') or None
+    cia = _cia_payload(no_cia, request=request)
+    activos_param = (request.GET.get('activos') or '1').strip()
+    activos = activos_param in ('1', 'true', 'S', 'true', 'yes')
+    search = request.GET.get('search') or ''
+    rows = sdn_repo.rep_empleados_rnc(
+        no_cia=no_cia, punto=punto, activos=activos, search=search,
+    ) or []
+    filas = []
+    total_sal = 0.0
+    for r in rows:
+        sal = _money_or_zero(r.get('salario_mensual'))
+        total_sal += sal
+        filas.append({
+            'no_empleado': str(r.get('no_empleado') or '').zfill(4),
+            'cedula': r.get('cedula') or '',
+            'nss': r.get('nss') or '',
+            'nombre_completo': f"{(r.get('nombre') or '').strip()} {(r.get('apellido') or '').strip()}".strip(),
+            'nomina': r.get('nomina') or '',
+            'salario_mensual': sal,
+            'afp': f"{r.get('no_afp') or ''} — {r.get('afp') or ''}".strip(' —'),
+            'ars': f"{r.get('no_ars') or ''} — {r.get('ars') or ''}".strip(' —'),
+            'fecha_ingreso': str(r.get('fecha_ingreso') or '')[:10],
+            'fecha_egreso': str(r.get('fecha_egreso') or '')[:10] if r.get('fecha_egreso') else '',
+        })
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'sdn-rnc-empleados',
+            'titulo': 'RNC Empleados (DGII/TSS)',
+            'filtros': {
+                'Empresa': no_cia,
+                'Punto': punto or 'Todos',
+                'Estado': 'Solo activos' if activos else 'Todos (activos + egresados)',
+                **({'Búsqueda': search} if search else {}),
+            },
+        },
+        'filas': filas,
+        'totales': {
+            'cantidad': len(filas),
+            'masa_salarial': total_sal,
+            'total': total_sal,
+        },
+    })
+
+
 # ─── ACC ─────────────────────────────────────────────────────────────────
 
 @login_required

@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { Search, FileDown } from 'lucide-react'
+import { Search, FileDown, Printer } from 'lucide-react'
 
 const fmt = (n: number) =>
   Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -94,6 +94,22 @@ export function SdnRepRnc() {
         </Button>
         <Button size="sm" variant="outline" onClick={exportCsv} disabled={rows.length === 0}>
           <FileDown className="h-4 w-4 mr-1" /> CSV
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={rows.length === 0}
+          onClick={() => {
+            const qs = new URLSearchParams({
+              no_cia: selectedCompany,
+              ...(selectedPoint ? { punto: selectedPoint } : {}),
+              activos: f.activos ? '1' : '0',
+              ...(f.search ? { search: f.search } : {}),
+            }).toString()
+            window.open(`/print/sdn-rnc-empleados/_?${qs}`, '_blank')
+          }}
+        >
+          <Printer className="h-4 w-4 mr-1" /> PDF
         </Button>
         <div className="ml-auto text-sm text-muted-foreground">
           {rows.length} empleados · masa salarial RD$ <span className="tabular-nums">{fmt(totalSalarios)}</span>
