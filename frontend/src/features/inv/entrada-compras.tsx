@@ -1,16 +1,18 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, Trash2, Search } from 'lucide-react'
+import { Plus, Trash2, Search, FileDown, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { BuscarProductoModal } from '@/features/fat/components/buscar-producto-modal'
 import { empaqueLabel } from '@/features/fat/utils/empaque-label'
-import { regalGeneralApi } from '@/lib/regal-general-api'
+import { regalGeneralApi, api } from '@/lib/regal-general-api'
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
 
@@ -94,6 +96,14 @@ export function EntradaCompras({ noCia, punto }: Props) {
   const [ncf, setNcf] = useState('')
   const [formaPago, setFormaPago] = useState('')
   const [fechaVcto, setFechaVcto] = useState('')
+
+  // Cargar desde Orden de Compra (ODC)
+  const [noOrdenOdc, setNoOrdenOdc] = useState('')
+  const [cargandoOdc, setCargandoOdc] = useState(false)
+  const [ordenCargada, setOrdenCargada] = useState<{ no_orden: string; nombre_proveedor: string; total: number } | null>(null)
+
+  // Comentario / nota del documento
+  const [nota, setNota] = useState('')
 
   // Totales
   const [pctDescuento, setPctDescuento] = useState('')
@@ -210,6 +220,67 @@ export function EntradaCompras({ noCia, punto }: Props) {
     setProductModalOpen(true)
   }
 
+  // Carga cabecera + líneas de una orden de compra (ODC) autorizada
+  // dentro del formulario. Equivalente al `extraer por número de orden`
+  // del legacy Finv. Sólo importa órdenes activas (st_anulado='A') del
+  // punto/empresa actuales.
+  const cargarDesdeOrden = useCallback(async () => {
+    const noOrden = noOrdenOdc.trim().padStart(8, '0')
+    if (!noOrden) {
+      toast.error('Ingrese un número de orden de compra')
+      return
+    }
+    setCargandoOdc(true)
+    try {
+      const data = await api.odcGetOrden(noCia, punto, noOrden)
+      if (!data?.cabecera) { toast.error(`Orden ODC-${noOrden} no encontrada`); return }
+      const c: any = data.cabecera
+      if ((c.st_anulado || 'A').toUpperCase() === 'N') {
+        toast.error(`Orden ODC-${noOrden} está anulada`); return
+      }
+      if (c.estado === 'R') {
+        toast.error(`Orden ODC-${noOrden} ya está cerrada / recibida`); return
+      }
+      setProveedor(c.no_proveedor || '')
+      if (c.plazo_pago && c.plazo_pago > 0) {
+        setFormaPago('credito')
+        const f = new Date(c.fecha || Date.now()); f.setDate(f.getDate() + Number(c.plazo_pago))
+        setFechaVcto(f.toISOString().slice(0, 10))
+      } else {
+        setFormaPago('contado')
+        setFechaVcto('')
+      }
+      const nuevasRows: ProductoRow[] = (data.lineas || []).map((l: any) => ({
+        id: rowIdCounter++,
+        noProdu: l.no_produ || '',
+        nombre: l.descripcion_producto || '',
+        cantidad: String(Number(l.cantidad_pedida || 0) - Number(l.cantidad_recibida || 0)),
+        costo: Number(l.costo || 0).toFixed(4),
+        almacen: almacenHeader,
+        empaque: 'UND',
+        empaques: [],
+        costoBase: Number(l.costo || 0),
+      }))
+      setRows(nuevasRows.length ? nuevasRows : [newRow(almacenHeader)])
+      setOrdenCargada({
+        no_orden: noOrden,
+        nombre_proveedor: c.nombre_proveedor || c.no_proveedor || '',
+        total: Number(c.total_neto || 0),
+      })
+      toast.success(`Orden ODC-${noOrden} cargada: ${(data.lineas || []).length} líneas`)
+    } catch (e: any) {
+      toast.error(`No se pudo cargar la orden: ${e?.detail?.error || e?.message || 'error'}`)
+    } finally {
+      setCargandoOdc(false)
+    }
+  }, [noOrdenOdc, noCia, punto, almacenHeader])
+
+  const limpiarOrden = () => {
+    setOrdenCargada(null)
+    setNoOrdenOdc('')
+    setRows([newRow(almacenHeader)])
+  }
+
   const addRow = () => setRows((prev) => {
     const next = [...prev, newRow(almacenHeader)]
     setTimeout(() => openProductModal(next.length - 1), 0)
@@ -261,6 +332,8 @@ export function EntradaCompras({ noCia, punto }: Props) {
       pct_descuento: parseFloat(pctDescuento) || 0,
       pct_itbis: parseFloat(pctItbis) || 0,
       tipo: 'compra',
+      nota,
+      no_orden: ordenCargada?.no_orden,
       detalle: validRows.map((r) => ({
         no_produ: r.noProdu,
         almacen: r.almacen || almacenHeader,
@@ -286,6 +359,7 @@ export function EntradaCompras({ noCia, punto }: Props) {
       setTipoDocu(''); setFecha(new Date().toISOString().slice(0, 10))
       setTasaUsd(''); setAlmacenHeader(''); setProveedor('')
       setNcf(''); setFormaPago(''); setFechaVcto(''); setPctDescuento('')
+      setNota(''); setOrdenCargada(null); setNoOrdenOdc('')
       setRows([newRow()])
     } catch (err: any) {
       toast.error(`Error al guardar: ${err.message ?? 'Error desconocido'}`)
@@ -363,6 +437,49 @@ export function EntradaCompras({ noCia, punto }: Props) {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Cargar desde Orden de Compra (paridad con SIGAF Finv) */}
+        <Card>
+          <CardHeader className='pb-2'>
+            <CardTitle className='text-base flex items-center gap-2'>
+              <FileDown className='h-4 w-4' /> Cargar desde Orden de Compra
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className='flex flex-wrap items-end gap-2'>
+              <div className='space-y-1'>
+                <Label htmlFor='ec-no-orden' className='text-xs'>No. Orden</Label>
+                <Input id='ec-no-orden' className='h-9 w-40 font-mono'
+                  placeholder='Ej. 4170'
+                  value={noOrdenOdc}
+                  onChange={(e) => setNoOrdenOdc(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') cargarDesdeOrden() }}
+                  disabled={!!ordenCargada || cargandoOdc} />
+              </div>
+              {!ordenCargada ? (
+                <Button size='sm' onClick={cargarDesdeOrden} disabled={cargandoOdc || !noOrdenOdc.trim()}>
+                  <FileDown className='h-4 w-4 mr-1' />
+                  {cargandoOdc ? 'Cargando…' : 'Cargar líneas'}
+                </Button>
+              ) : (
+                <>
+                  <div className='flex items-center gap-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm'>
+                    <CheckCircle2 className='h-4 w-4 text-emerald-600' />
+                    <span><b>ODC-{ordenCargada.no_orden}</b> {ordenCargada.nombre_proveedor}</span>
+                    <Badge variant='outline' className='font-mono tabular-nums text-[10px]'>
+                      RD$ {fmt(ordenCargada.total)}
+                    </Badge>
+                  </div>
+                  <Button size='sm' variant='ghost' onClick={limpiarOrden}>Quitar</Button>
+                </>
+              )}
+              <p className='basis-full text-xs text-muted-foreground'>
+                Al cargar, se traen proveedor, condición y líneas (cantidad pendiente) de la orden.
+                Sólo órdenes activas y no recibidas todavía.
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -582,6 +699,17 @@ export function EntradaCompras({ noCia, punto }: Props) {
                 <Label className='text-muted-foreground text-xs'>Total Neto</Label>
                 <div className='text-2xl font-bold tabular-nums font-mono'>{fmt(totalNeto)}</div>
               </div>
+            </div>
+            <div className='mt-4 space-y-1'>
+              <Label htmlFor='ec-nota'>Comentario</Label>
+              <Textarea
+                id='ec-nota'
+                value={nota}
+                onChange={(e) => setNota(e.target.value)}
+                placeholder='Información pertinente sobre la factura'
+                rows={2}
+                className='resize-none'
+              />
             </div>
           </CardContent>
         </Card>
