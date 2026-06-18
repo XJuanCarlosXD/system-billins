@@ -190,7 +190,11 @@ export function OdcOrdenes() {
             </TableHeader>
             <TableBody>
               {rows.map((o) => (
-                <TableRow key={`${o.no_cia}-${o.punto}-${o.no_orden}`}>
+                <TableRow
+                  key={`${o.no_cia}-${o.punto}-${o.no_orden}`}
+                  onClick={() => setSelected(o)}
+                  className="cursor-pointer hover:bg-muted/50"
+                >
                   <TableCell className="font-mono text-xs">ODC-{o.no_orden}</TableCell>
                   <TableCell>{formatDate(o.fecha)}</TableCell>
                   <TableCell className="font-mono text-xs">{o.no_proveedor}</TableCell>
@@ -204,8 +208,8 @@ export function OdcOrdenes() {
                         </Badge>}
                   </TableCell>
                   <TableCell className="text-xs">{o.usuario}</TableCell>
-                  <TableCell className="text-right">
-                    <Button size="sm" variant="ghost" onClick={() => setSelected(o)}>
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                    <Button size="sm" variant="ghost" onClick={() => setSelected(o)} title="Ver detalle">
                       <Eye className="h-4 w-4" />
                     </Button>
                   </TableCell>

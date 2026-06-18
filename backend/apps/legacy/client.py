@@ -95,6 +95,15 @@ def fetch_dicts(sql: str, params: list | dict | None = None) -> list[dict]:
         return [dict(zip(cols, row)) for row in cur.fetchall()]
 
 
+def execute(sql: str, params: list | dict | None = None) -> int:
+    """Ejecuta DML (INSERT/UPDATE/DELETE) y hace commit. Devuelve rowcount."""
+    with cursor() as cur:
+        cur.execute(sql, params or [])
+        rc = cur.rowcount
+        cur.connection.commit()
+        return rc
+
+
 def ping() -> dict:
     """Smoke test ligero: usa la conexión y devuelve metadata básica."""
     row = fetch_one(

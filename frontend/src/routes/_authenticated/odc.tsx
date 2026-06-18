@@ -4,7 +4,6 @@ import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ThemeSwitch } from '@/components/theme-switch'
-import { Search } from '@/components/search'
 
 export const Route = createFileRoute('/_authenticated/odc')({
   component: OdcLayout,
@@ -18,7 +17,6 @@ function OdcLayout() {
           <ShoppingCart className="h-5 w-5 shrink-0" />
           <h2 className="text-lg font-semibold">Órdenes de Compra (ODC)</h2>
         </div>
-        <Search placeholder="Buscar pantalla..." className="w-40 lg:w-52" />
         <ThemeSwitch />
         <ProfileDropdown />
       </Header>
