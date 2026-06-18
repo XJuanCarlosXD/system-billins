@@ -329,6 +329,12 @@ export function OdcNuevaOrden() {
     }),
     onSuccess: (res) => {
       toast.success(`Orden ODC-${res.no_orden} creada`)
+      const qs = new URLSearchParams({ no_cia: selectedCompany, punto: selectedPoint }).toString()
+      window.open(
+        `/print/orden-compra/${encodeURIComponent(res.no_orden)}?${qs}`,
+        '_blank',
+        'noopener',
+      )
       nav({ to: '/odc/ordenes' })
     },
     onError: (e: any) => toast.error(e?.detail?.error || 'No se pudo guardar la orden'),

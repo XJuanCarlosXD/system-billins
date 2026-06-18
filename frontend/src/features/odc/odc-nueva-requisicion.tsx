@@ -148,6 +148,12 @@ export function OdcNuevaRequisicion() {
     }),
     onSuccess: (res) => {
       toast.success(`Requisición REQ-${res.no_requisicion} creada`)
+      const qs = new URLSearchParams({ no_cia: selectedCompany, punto: selectedPoint }).toString()
+      window.open(
+        `/print/requisicion-compra/${encodeURIComponent(res.no_requisicion)}?${qs}`,
+        '_blank',
+        'noopener',
+      )
       nav({ to: '/odc/requisiciones' })
     },
     onError: (e: any) => toast.error(e?.detail?.error || 'No se pudo guardar la requisición'),

@@ -17,6 +17,7 @@ import { cxpEstadoCuentaDefault } from './defaults/cxp-estado-cuenta'
 import { facturaDefault } from './defaults/factura'
 import { facturaPosDefault } from './defaults/factura-pos'
 import { ordenCompraDefault } from './defaults/orden-compra'
+import { requisicionCompraDefault } from './defaults/requisicion-compra'
 import { invDocumentoDefault } from './defaults/reporte-generico'
 import { sdnNominaDefault } from './defaults/sdn-nomina'
 
@@ -486,6 +487,21 @@ export const registry: Record<string, RegistryEntry> = {
     defaultPageSize: 'A4',
     defaultPageOrientation: 'P',
     variables: docVarsBase.concat(['proveedor.nombre', 'proveedor.rnc']),
+  },
+  'requisicion-compra': {
+    codigo: 'requisicion-compra',
+    modulo: 'ODC',
+    nombre: 'Requisición Interna',
+    familia: 'documento',
+    printDataPath: (id, qs) =>
+      `/odc/requisiciones/${encodeURIComponent(id)}/print-data/?${qs.toString()}`,
+    defaultTemplate: requisicionCompraDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'P',
+    variables: docVarsBase.concat([
+      'doc.no_localidad', 'doc.no_depto', 'doc.estado_label',
+      'totales.cantidad_total', 'totales.lineas_total',
+    ]),
   },
   // ── CHC ────────────────────────────────────────────────────────────
   'cheque-caja-chica': {

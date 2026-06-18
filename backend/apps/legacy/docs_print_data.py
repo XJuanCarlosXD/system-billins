@@ -516,6 +516,72 @@ def odc_orden_print_data(request, no_orden: str):
     })
 
 
+@login_required
+@require_http_methods(["GET"])
+def odc_requisicion_print_data(request, no_requisicion: str):
+    """GET /api/odc/requisiciones/<no_requisicion>/print-data/?no_cia=01&punto=01
+
+    Requisición interna: sólo cantidades + notas (sin precios). Payload usa el
+    bloque "cliente" como solicitante (no aplica proveedor).
+    """
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    cia = _cia_payload(no_cia, request=request)
+    req = odc_repo.get_requisicion(no_cia, punto, no_requisicion)
+    if not req:
+        return JsonResponse({'error': 'Requisición no encontrada'}, status=404)
+    lineas_raw = odc_repo.list_lineas_requisicion(no_cia, punto, no_requisicion)
+    estado_label = {
+        'P': 'Pendiente', 'A': 'Autorizada', 'C': 'Cerrada', 'R': 'Recibida',
+    }.get((req.get('estado') or '').strip().upper(), req.get('estado') or '')
+    doc = {
+        'tipo': 'REQ', 'tipo_label': 'Requisición Interna',
+        'no': req.get('no_requisicion'),
+        'numero_display': f"REQ-{(req.get('no_requisicion') or '').strip()}",
+        'fecha': str(req.get('fecha') or '')[:10],
+        'fecha_venc': str(req.get('fecha_entrega') or '')[:10] if req.get('fecha_entrega') else None,
+        'estado': req.get('estado') or '',
+        'estado_label': estado_label,
+        'anulada': (req.get('st_anulado') or 'A').strip().upper() == 'N',
+        'impresion': 'IMPRESA' if (req.get('st_impresion') or 'N') == 'S' else 'IMPRESA',
+        'forma_pago': '', 'condicion_pago': '', 'plazo_pago': 0,
+        'vendedor': req.get('usuario') or '',
+        'nota': req.get('detalle') or '',
+        'detalle': req.get('detalle') or '',
+        'moneda': 'DOP', 'tasa': 0, 'porc_impuesto': 0,
+        'no_localidad': req.get('no_localidad') or '',
+        'no_depto': req.get('no_depto') or '',
+    }
+    solicitante = {
+        'nombre': req.get('usuario') or '',
+        'rnc': '', 'direccion': '', 'telefono': '', 'email': '', 'tipo_ncf': '',
+        'no_localidad': req.get('no_localidad') or '',
+        'no_depto': req.get('no_depto') or '',
+    }
+    lineas = [{
+        'no_linea': l.get('no_linea'),
+        'codigo': l.get('no_produ') or '',
+        'descripcion': l.get('descripcion_producto') or '',
+        'cantidad': _money_or_zero(l.get('cantidad_pedida')),
+        'cantidad_autorizada': _money_or_zero(l.get('cantidad_autorizada')),
+        'cantidad_pendiente': _money_or_zero(l.get('cantidad_pendiente')),
+        'unidad': l.get('empaque') or '',
+        'precio': 0, 'descuento': 0, 'itbis': 0, 'total': 0,
+        'nota': l.get('nota') or '',
+    } for l in lineas_raw]
+    return JsonResponse({
+        'cia': cia, 'doc': doc,
+        'cliente': solicitante, 'proveedor': solicitante,
+        'lineas': lineas,
+        'totales': {
+            'subtotal': 0, 'descuento': 0, 'itbis': 0,
+            'propina': 0, 'otros': 0, 'total': 0, 'monto_letras': '',
+            'cantidad_total': sum(l['cantidad'] for l in lineas),
+            'lineas_total': len(lineas),
+        }, 'extra': {},
+    })
+
+
 # ─── CHC ─────────────────────────────────────────────────────────────────
 
 @login_required

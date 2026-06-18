@@ -16,7 +16,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { Eye, CheckCircle2, XCircle, Lock, Loader2, Search } from 'lucide-react'
+import { Eye, CheckCircle2, XCircle, Lock, Loader2, Search, Printer } from 'lucide-react'
 
 interface Requisicion {
   no_cia: string; punto: string; no_requisicion: string
@@ -236,6 +236,14 @@ export function OdcRequisiciones() {
             </div>
           )}
           <DialogFooter className="gap-2 items-center">
+            {selected && (
+              <Button size="sm" variant="outline" onClick={() => {
+                const qs = new URLSearchParams({ no_cia: selected.no_cia, punto: selected.punto }).toString()
+                window.open(`/print/requisicion-compra/${encodeURIComponent(selected.no_requisicion)}?${qs}`, '_blank')
+              }}>
+                <Printer className="h-4 w-4 mr-1" /> Imprimir
+              </Button>
+            )}
             {selected && selected.st_anulado === 'A' && selected.estado === 'P' && (
               <>
                 <Label className="text-xs ml-2">Slot</Label>
