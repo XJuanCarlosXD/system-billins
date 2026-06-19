@@ -507,6 +507,15 @@ export const sidebarData: SidebarData = {
           icon: Coins,
           items: [
             {
+              title: 'Configuracion',
+              items: [
+                { title: 'Cajas Chicas', url: '/acc/cajas' },
+                { title: 'Tipos de Gasto (Cuentas)', url: '/acc/tipos-gasto' },
+                { title: 'Beneficiarios', url: '/acc/beneficiarios' },
+                { title: 'Tipos de Beneficiario', url: '/acc/tipos-bene' },
+              ],
+            },
+            {
               title: 'Procesos',
               items: [
                 { title: 'Entrada de Egreso', url: '/acc/nuevo-egreso' },
@@ -548,6 +557,7 @@ export const sidebarData: SidebarData = {
               title: 'Procesos',
               items: [
                 { title: 'Movimientos Manuales', url: '/sdn/movimientos' },
+                { title: 'Deduccion Masiva (AFP/ARS/ISR)', url: '/sdn/deduccion-masiva' },
                 { title: 'Calcular Nomina', url: '/sdn/calcular' },
                 { title: 'Generar Vacaciones', url: '/sdn/gen-vacaciones' },
                 { title: 'Generar Solicitud Cheques', url: '/sdn/gen-cheques' },

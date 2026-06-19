@@ -37,6 +37,8 @@ urlpatterns = [
     path('movimientos/', sdn_views.sdn_movimientos_list),
     path('movimientos/crear/', sdn_views.sdn_movimientos_crear),
     path('movimientos/eliminar/', sdn_views.sdn_movimientos_eliminar),
+    # Deducción masiva (AFP / ARS / ISR …)
+    path('deduccion-masiva/', sdn_views.sdn_deduccion_masiva),
     # Generar Vacaciones (Fsdn401)
     path('vacaciones/generar/', sdn_views.sdn_generar_vacaciones),
     # Solicitud de Cheques de Nómina (Fsdn409) — preview

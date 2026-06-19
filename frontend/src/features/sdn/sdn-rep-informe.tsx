@@ -20,14 +20,27 @@ import { toast } from 'sonner'
 const fmt = (n: number) =>
   Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+// Por defecto sugerimos el período inmediatamente anterior al actual: si hoy
+// estamos en la 2da quincena, mostramos la 1ra; si estamos en la 1ra del mes,
+// retrocedemos al mes anterior con su 2da quincena. Esto es lo que típicamente
+// el usuario quiere ver (la nómina ya cerrada).
+function periodoAnterior(d: Date) {
+  const ano0 = d.getFullYear()
+  const mes0 = d.getMonth() + 1
+  const dia0 = d.getDate()
+  if (dia0 > 15) return { ano: ano0, mes: mes0, periodo: 1 }
+  if (mes0 === 1) return { ano: ano0 - 1, mes: 12, periodo: 2 }
+  return { ano: ano0, mes: mes0 - 1, periodo: 2 }
+}
+
 export function SdnRepInforme() {
   const { selectedCompany, selectedPoint } = useCompany()
-  const hoy = new Date()
+  const def = periodoAnterior(new Date())
   const [f, setF] = useState({
     nomina: '',
-    ano: hoy.getFullYear(),
-    mes: hoy.getMonth() + 1,
-    periodo: 1,
+    ano: def.ano,
+    mes: def.mes,
+    periodo: def.periodo,
     no_gerencia: '',
     no_area: '',
     no_depto: '',

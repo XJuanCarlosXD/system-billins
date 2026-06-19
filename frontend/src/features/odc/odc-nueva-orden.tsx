@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { useNavigate } from '@tanstack/react-router'
 import { api, regalGeneralApi } from '@/lib/regal-general-api'
 import { useCompany } from '@/hooks/use-company'
+import { useEnterAdvancesFocus } from '@/hooks/use-enter-advances-focus'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -343,8 +344,10 @@ export function OdcNuevaOrden() {
   const puedeGuardar = !!proveedor && lineas.length > 0 &&
     lineas.every((l) => l.cantidad_pedida > 0 && l.costo >= 0) && !guardar.isPending
 
+  const formRef = useEnterAdvancesFocus<HTMLDivElement>()
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" ref={formRef}>
       <div>
         <h3 className="text-base font-semibold">Entrada de Orden de Compra</h3>
         <p className="text-sm text-muted-foreground">

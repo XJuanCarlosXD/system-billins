@@ -629,6 +629,168 @@ def crear_movimiento_manual(*, no_cia: str, punto: str, nomina: str,
     }
 
 
+def aplicar_deduccion_masiva(*, no_cia: str, punto: str, nomina: str,
+                             ano: int, mes: int, periodo: int,
+                             no_deduccion: str,
+                             empleados_ids: list[int] | None = None,
+                             usuario: str = '',
+                             dry_run: bool = False) -> dict:
+    """Aplica una deducción del catálogo (TSDN_DEDUCCIONES) en lote a todos
+    los empleados activos de la nómina/período. Útil para AFP/SFS/ARS/ISR.
+
+    Cálculo:
+      - Si la deducción tiene porciento_monto > 0 → monto = salario * %
+      - Si tiene valor > 0 (fijo) → monto = valor
+      - Si tiene ambos → prevalece % (legacy behavior)
+
+    Idempotente: salta empleados que ya tienen una fila con ese
+    no_deduccion en el período. Devuelve resumen.
+
+    Si dry_run=True: solo calcula y devuelve la previsualización, no
+    inserta nada en TSDN_MOVIMIENTO.
+    """
+    nomina = (nomina or '').upper()
+    no_ded = (no_deduccion or '').upper().strip()
+    if not no_ded:
+        raise ValueError("no_deduccion es obligatorio")
+
+    # Cabecera deducción
+    ded = client.fetch_dicts(
+        "SELECT no_deduccion, descripcion, descri_corta, porciento_monto, "
+        "       NVL(valor,0) AS valor, empleado_patrono, clase_deduccion, status "
+        "  FROM SDN.TSDN_DEDUCCIONES WHERE no_deduccion=:1",
+        [no_ded],
+    )
+    if not ded:
+        raise ValueError(f"Deducción {no_ded} no existe en el catálogo")
+    d = ded[0]
+    if (d.get('status') or 'A').upper() != 'A':
+        raise ValueError(f"Deducción {no_ded} está inactiva")
+
+    # En el legacy: porciento_monto es un FLAG (P/M), no un número.
+    #   P = el campo 'valor' es % a aplicar sobre el salario.
+    #   M = el campo 'valor' es monto fijo a deducir.
+    flag = str(d.get('porciento_monto') or '').strip().upper()
+    valor_cat = float(d.get('valor') or 0)
+    if flag == 'P':
+        porc = valor_cat; valor_fijo = 0.0
+    else:
+        porc = 0.0; valor_fijo = valor_cat
+    clase = (d.get('clase_deduccion') or 'L')
+    ep = (d.get('empleado_patrono') or 'E')
+
+    # Nómina activa
+    cab = get_nomina(no_cia, punto, nomina)
+    if not cab:
+        raise ValueError(f"Nómina {nomina} no existe")
+    if cab.get('estado') != 'A':
+        raise ValueError(f"Nómina {nomina} no está activa (estado={cab.get('estado')})")
+
+    # Empleados activos de la nómina
+    sql_emp = (
+        "SELECT e.no_empleado, e.nombre||' '||e.apellido AS nombre_empleado, "
+        "       NVL(e.salario_mensual,0) AS salario "
+        "  FROM SDN.TSDN_EMPLEADO e "
+        " WHERE e.no_cia=:1 AND e.punto=:2 AND e.nomina=:3 "
+        "   AND e.fecha_egreso IS NULL"
+    )
+    params: list = [no_cia, punto, nomina]
+    if empleados_ids:
+        ids = ','.join(str(int(i)) for i in empleados_ids if str(i).strip())
+        if ids:
+            sql_emp += f" AND e.no_empleado IN ({ids})"
+    sql_emp += " ORDER BY e.apellido, e.nombre"
+    empleados = client.fetch_dicts(sql_emp, params)
+
+    # Movimientos ya existentes en ese período (para no duplicar)
+    existentes = client.fetch_dicts(
+        "SELECT no_empleado FROM SDN.TSDN_MOVIMIENTO "
+        " WHERE no_cia=:1 AND punto=:2 AND nomina=:3 "
+        "   AND ano=:4 AND mes=:5 AND periodo=:6 "
+        "   AND no_transaccion=:7 AND tipo_transaccion='D'",
+        [no_cia, punto, nomina, int(ano), int(mes), int(periodo), no_ded],
+    )
+    ya = {int(e['no_empleado']) for e in existentes}
+
+    aplicados = []; saltados = []; preview = []
+    for e in empleados:
+        emp_id = int(e['no_empleado'])
+        sal = float(e.get('salario') or 0)
+        if porc > 0:
+            monto = round(sal * porc / 100.0, 2)
+        else:
+            monto = round(valor_fijo, 2)
+        item = {
+            'no_empleado': emp_id,
+            'nombre_empleado': e.get('nombre_empleado') or '',
+            'salario': sal,
+            'monto': monto,
+        }
+        if emp_id in ya:
+            saltados.append({**item, 'razon': 'ya tiene movimiento'})
+            continue
+        if monto <= 0:
+            saltados.append({**item, 'razon': 'monto cero (salario o porc 0)'})
+            continue
+        preview.append(item)
+
+    if dry_run:
+        return {
+            'deduccion': {'no_deduccion': no_ded, 'descripcion': d.get('descripcion'),
+                          'porciento_monto': porc, 'valor': valor_fijo, 'tipo': 'D'},
+            'periodo': f"{int(mes):02d}/{int(ano)} P{int(periodo)}",
+            'preview': preview,
+            'saltados': saltados,
+            'total_monto': sum(p['monto'] for p in preview),
+            'cantidad': len(preview),
+            'dry_run': True,
+        }
+
+    # Insert real
+    for it in preview:
+        # Próxima línea por empleado
+        row = client.fetch_one(
+            "SELECT NVL(MAX(linea),0)+1 FROM SDN.TSDN_MOVIMIENTO "
+            " WHERE no_cia=:1 AND punto=:2 AND nomina=:3 "
+            "   AND ano=:4 AND mes=:5 AND periodo=:6 AND no_empleado=:7",
+            [no_cia, punto, nomina, int(ano), int(mes), int(periodo), it['no_empleado']],
+        )
+        linea = int(row[0]) if row else 1
+        client.execute(
+            "INSERT INTO SDN.TSDN_MOVIMIENTO ("
+            " no_cia, punto, ano, mes, nomina, periodo, no_empleado, "
+            " no_transaccion, tipo_transaccion, origen, clase_transaccion, "
+            " fecha, monto_transaccion, salario_mensual, "
+            " valido_regalia, valido_bonificacion, tasa_transaccion, "
+            " empleado_patrono, genero_ed, linea "
+            ") VALUES ("
+            " :1, :2, :3, :4, :5, :6, :7, "
+            " :8, 'D', 'M', :9, "
+            " SYSDATE, :10, :11, "
+            " 'N', 'N', :12, :13, 'N', :14)",
+            [no_cia, punto, int(ano), int(mes), nomina, int(periodo), it['no_empleado'],
+             no_ded, clase, it['monto'], it['salario'], porc, ep, linea],
+        )
+        aplicados.append({**it, 'linea': linea})
+
+    # Reabrir cálculo
+    client.execute(
+        "UPDATE SDN.TSDN_NOMINA SET calculo_nomina='N' "
+        " WHERE no_cia=:1 AND punto=:2 AND nomina=:3",
+        [no_cia, punto, nomina],
+    )
+    return {
+        'deduccion': {'no_deduccion': no_ded, 'descripcion': d.get('descripcion'),
+                      'porciento_monto': porc, 'valor': valor_fijo, 'tipo': 'D'},
+        'periodo': f"{int(mes):02d}/{int(ano)} P{int(periodo)}",
+        'aplicados': aplicados,
+        'saltados': saltados,
+        'total_monto': sum(p['monto'] for p in aplicados),
+        'cantidad': len(aplicados),
+        'dry_run': False,
+    }
+
+
 def eliminar_movimiento_manual(*, no_cia: str, punto: str, nomina: str,
                                ano: int, mes: int, periodo: int,
                                no_empleado: int, linea: int) -> None:

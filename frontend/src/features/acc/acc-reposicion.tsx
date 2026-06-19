@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from '@/lib/regal-general-api'
 import { useCompany } from '@/hooks/use-company'
+import { useEnterAdvancesFocus } from '@/hooks/use-enter-advances-focus'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -138,8 +139,10 @@ export function AccReposicion() {
 
   const puedeGuardar = !!noCaja && seleccionados.length > 0 && totalSel > 0 && !crear.isPending
 
+  const formRef = useEnterAdvancesFocus<HTMLDivElement>()
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" ref={formRef}>
       <div>
         <h3 className="text-base font-semibold">Reposición de Caja Chica</h3>
         <p className="text-sm text-muted-foreground">

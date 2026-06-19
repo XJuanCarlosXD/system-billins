@@ -26,15 +26,27 @@ const fmt = (n: number) =>
 const periodoLabel = (p: number) =>
   p === 1 ? 'P1 (1ra quincena)' : p === 2 ? 'P2 (2da quincena)' : `P${p}`
 
+// Default al período inmediatamente anterior — donde típicamente ya existen
+// movimientos. Si hoy estamos después del 15 → 1ra quincena del mes actual.
+// Si estamos del 1 al 15 → 2da quincena del mes anterior.
+function periodoAnterior(d: Date) {
+  const ano = d.getFullYear()
+  const mes = d.getMonth() + 1
+  const dia = d.getDate()
+  if (dia > 15) return { ano, mes, periodo: 1 }
+  if (mes === 1) return { ano: ano - 1, mes: 12, periodo: 2 }
+  return { ano, mes: mes - 1, periodo: 2 }
+}
+
 export function SdnMovimientos() {
   const { selectedCompany, selectedPoint } = useCompany()
   const qc = useQueryClient()
-  const hoy = new Date()
+  const def = periodoAnterior(new Date())
   const [f, setF] = useState({
     nomina: '',
-    ano: hoy.getFullYear(),
-    mes: hoy.getMonth() + 1,
-    periodo: 1,
+    ano: def.ano,
+    mes: def.mes,
+    periodo: def.periodo,
     no_empleado: '',
   })
   const [dlg, setDlg] = useState(false)

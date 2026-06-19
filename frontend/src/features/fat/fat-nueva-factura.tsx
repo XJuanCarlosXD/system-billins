@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { useToast } from '@/hooks/use-toast'
+import { useEnterAdvancesFocus } from '@/hooks/use-enter-advances-focus'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -926,8 +927,9 @@ export function NuevaFactura({ noCia, punto }: Props) {
     `${a.almacen}${a.descripcion ? ' — ' + a.descripcion : ''}`
 
   // ── Render ─────────────────────────────────────────────────
+  const formRef = useEnterAdvancesFocus<HTMLDivElement>()
   return (
-    <div className='space-y-4 p-4'>
+    <div className='space-y-4 p-4' ref={formRef}>
       {/* ── Toolbar ── */}
       <div className='flex items-center justify-between'>
         <h1 className='text-xl font-bold'>Nueva Factura</h1>

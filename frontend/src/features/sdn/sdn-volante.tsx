@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/regal-general-api'
 import { useCompany } from '@/hooks/use-company'
@@ -44,6 +44,13 @@ export function SdnVolante() {
 
   const lista: Nomina[] = (nominasQ.data || [])
   const nomina = lista.find((n) => n.nomina === nominaSel)
+
+  // Auto-selecciona la primera nómina disponible para que el usuario no vea
+  // una pantalla vacía. Pilar reportó que no aparecía ningún registro porque
+  // el período actual aún no tiene movimientos calculados.
+  useEffect(() => {
+    if (!nominaSel && lista.length > 0) setNominaSel(lista[0].nomina)
+  }, [lista, nominaSel])
 
   const volanteQ = useQuery({
     queryKey: ['sdn-volante', selectedCompany, selectedPoint, nominaSel],

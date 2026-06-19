@@ -1523,6 +1523,17 @@ export const regalGeneralApi = {
   sdnListDeptos: () => request<any[]>('/sdn/deptos/'),
   sdnListIngresos: (status = 'A') => request<any[]>(`/sdn/ingresos/?status=${status}`),
   sdnListDeducciones: (status = 'A') => request<any[]>(`/sdn/deducciones/?status=${status}`),
+  sdnAplicarDeduccionMasiva: (data: {
+    no_cia: string; punto: string; nomina: string
+    ano: number; mes: number; periodo: number
+    no_deduccion: string
+    empleados_ids?: number[]
+    dry_run?: boolean
+  }) => request<{
+    deduccion: any; periodo: string
+    preview?: any[]; aplicados?: any[]; saltados: any[]
+    total_monto: number; cantidad: number; dry_run: boolean
+  }>('/sdn/deduccion-masiva/', { method: 'POST', body: JSON.stringify(data) }),
   sdnListEmpleados: (params: { no_cia: string; punto?: string; nomina?: string; activos?: string; search?: string; limit?: number }) => {
     const qs = new URLSearchParams(
       Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])

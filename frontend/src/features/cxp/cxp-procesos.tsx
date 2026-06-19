@@ -324,6 +324,11 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
     ncf: '',
     tipo_ncf: '',
   })
+  // ITBIS calculado a partir del valor con la tasa de la empresa (FAT.TFAT_CIAS)
+  // o 18% por defecto. Se descuenta si el proveedor está exento.
+  const [porcItbis, setPorcItbis] = useState(18)
+  const [impuesto, setImpuesto] = useState('')
+  const [editandoItbis, setEditandoItbis] = useState(false)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -349,6 +354,45 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
     if (proveedor?.rnc) setForm((f) => ({ ...f, rnc: proveedor.rnc }))
   }, [proveedor?.no_proveedor]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Trae el porcentaje de ITBIS configurado para la empresa (TCNT_CIAS.ITBIS).
+  useEffect(() => {
+    if (!noCia) return
+    api.cntGetCia(noCia)
+      .then((c: any) => {
+        const p = Number(c?.itbis ?? c?.porc_impuesto ?? 18)
+        if (p > 0) setPorcItbis(p)
+      })
+      .catch(() => { /* default 18 */ })
+  }, [noCia])
+
+  // Carga la cuenta contable del proveedor (TCXP_TPROVEEDOR.CUENTA según
+  // su TIPO_PROVEEDOR) para mostrarla al usuario antes de guardar.
+  const [cuentaProveedor, setCuentaProveedor] = useState<{ cuenta: string; cuenta_prima?: string; nombre?: string } | null>(null)
+  useEffect(() => {
+    if (!proveedor?.no_proveedor || !punto) { setCuentaProveedor(null); return }
+    api.cxpGetProveedorCuenta(proveedor.no_proveedor, noCia, punto)
+      .then((r: any) => setCuentaProveedor(r))
+      .catch(() => setCuentaProveedor(null))
+  }, [proveedor?.no_proveedor, noCia, punto])
+
+  // Auto-calcula el ITBIS desde el valor: el valor capturado es el total
+  // (con ITBIS incluido), así que se descompone como
+  //   base  = total / (1 + porc/100)
+  //   itbis = total − base
+  // Si el proveedor está exento o el ITBIS está siendo editado a mano,
+  // no recalcula.
+  useEffect(() => {
+    if (editandoItbis) return
+    const total = Number(form.valor_original || 0)
+    if (!total) { setImpuesto(''); return }
+    const exento = (proveedor?.excento_itbis || 'N').toUpperCase() === 'S'
+    if (exento) { setImpuesto('0'); return }
+    const factor = 1 + (porcItbis / 100)
+    const base = total / factor
+    const itbis = total - base
+    setImpuesto(itbis.toFixed(2))
+  }, [form.valor_original, porcItbis, proveedor?.no_proveedor, proveedor?.excento_itbis, editandoItbis])
+
   const onSave = async () => {
     if (!punto) {
       toast.error('Seleccione un punto de trabajo')
@@ -367,8 +411,9 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
         no_proveedor: proveedor.no_proveedor,
         ...form,
         valor_original: Number(form.valor_original),
+        impuesto: Number(impuesto || 0),
       })
-      toast.success(`Documento ${res.no_docu} creado`)
+      toast.success(`Documento ${res.no_docu} creado (ITBIS RD$ ${Number(impuesto || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })})`)
       setProveedor(null)
       setForm({
         fecha: today,
@@ -379,6 +424,8 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
         ncf: '',
         tipo_ncf: '',
       })
+      setImpuesto('')
+      setEditandoItbis(false)
       const next = await api.cxpGetSiguienteNoDocu(noCia, punto, tipoDocu)
       setSiguiente(next.siguiente || '')
     } catch (e: any) {
@@ -449,7 +496,7 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
             />
           </div>
           <div className='space-y-1'>
-            <Label className='text-xs'>Valor Original *</Label>
+            <Label className='text-xs'>Valor Total (con ITBIS) *</Label>
             <Input
               type='number'
               step='0.01'
@@ -458,6 +505,28 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
                 setForm((f) => ({ ...f, valor_original: e.target.value }))
               }
               className='h-10 text-right font-mono'
+            />
+            {form.valor_original && Number(impuesto) > 0 && (
+              <div className='text-[10px] text-muted-foreground'>
+                Base RD$ {(Number(form.valor_original) - Number(impuesto)).toLocaleString('es-DO', { minimumFractionDigits: 2 })}
+              </div>
+            )}
+          </div>
+          <div className='space-y-1'>
+            <Label className='text-xs flex items-center justify-between'>
+              <span>ITBIS ({porcItbis}%)</span>
+              <button type='button' onClick={() => setEditandoItbis(!editandoItbis)}
+                className='text-[10px] text-emerald-700 hover:underline'>
+                {editandoItbis ? 'auto' : 'editar'}
+              </button>
+            </Label>
+            <Input
+              type='number'
+              step='0.01'
+              value={impuesto}
+              onChange={(e) => { setEditandoItbis(true); setImpuesto(e.target.value) }}
+              className='h-10 text-right font-mono'
+              placeholder='auto'
             />
           </div>
           <div className='space-y-1'>
@@ -481,6 +550,18 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
               className='h-10'
             />
           </div>
+          {cuentaProveedor && (
+            <div className='space-y-1 md:col-span-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm'>
+              <span className='text-xs text-emerald-700'>Cuenta contable destino: </span>
+              <span className='font-mono font-semibold text-emerald-900'>{cuentaProveedor.cuenta}</span>
+              {cuentaProveedor.nombre && (
+                <span className='ml-2 text-emerald-800'>· {cuentaProveedor.nombre}</span>
+              )}
+              {cuentaProveedor.cuenta_prima && (
+                <span className='ml-2 text-xs text-emerald-700'>(prima: <span className='font-mono'>{cuentaProveedor.cuenta_prima}</span>)</span>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
       <div className='flex justify-end gap-2'>

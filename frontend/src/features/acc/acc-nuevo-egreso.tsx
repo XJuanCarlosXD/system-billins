@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from '@/lib/regal-general-api'
 import { useCompany } from '@/hooks/use-company'
+import { useEnterAdvancesFocus } from '@/hooks/use-enter-advances-focus'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -216,8 +217,10 @@ export function AccNuevoEgreso() {
   const total = valorNum + impuestoNum
   const puedeGuardar = !!noCaja && !!tipoGasto && !!beneficiario && !!fecha && valorNum > 0
 
+  const formRef = useEnterAdvancesFocus<HTMLDivElement>()
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" ref={formRef}>
       <div>
         <h3 className="text-base font-semibold">Nuevo Egreso de Caja Chica</h3>
         <p className="text-sm text-muted-foreground">

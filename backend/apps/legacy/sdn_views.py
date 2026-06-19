@@ -270,6 +270,39 @@ def sdn_movimientos_crear(request):
 
 @login_required
 @csrf_exempt
+@require_http_methods(['POST'])
+def sdn_deduccion_masiva(request):
+    """POST /api/sdn/deduccion-masiva/
+
+    Body:
+      no_cia, punto, nomina, ano, mes, periodo, no_deduccion
+      [empleados_ids]  list[int]  opcional, restringe los empleados
+      [dry_run]        bool       si true sólo devuelve el preview
+
+    Útil para AFP (TSS), ARS (SFS), ISR, etc. — aplica el % o valor
+    del catálogo TSDN_DEDUCCIONES a todos los empleados activos.
+    """
+    data = json.loads(request.body or '{}')
+    try:
+        out = sdn_repo.aplicar_deduccion_masiva(
+            no_cia=data['no_cia'],
+            punto=_norm_punto(data['punto']),
+            nomina=(data['nomina'] or '').upper(),
+            ano=int(data['ano']),
+            mes=int(data['mes']),
+            periodo=int(data.get('periodo', 1)),
+            no_deduccion=(data['no_deduccion'] or '').upper(),
+            empleados_ids=data.get('empleados_ids') or None,
+            usuario=request.user.username,
+            dry_run=bool(data.get('dry_run', False)),
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse(out, status=200 if out.get('dry_run') else 201)
+
+
+@login_required
+@csrf_exempt
 @require_http_methods(['DELETE', 'POST'])
 def sdn_movimientos_eliminar(request):
     data = json.loads(request.body or '{}')
