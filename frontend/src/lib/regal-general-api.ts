@@ -1649,6 +1649,39 @@ export const regalGeneralApi = {
     const qs = new URLSearchParams({ no_cia: noCia, ...(punto && { punto }) }).toString()
     return request<any[]>(`/acf/rep-por-grupo/?${qs}`)
   },
+  acfRepPorDepartamento: (noCia: string, punto?: string) => {
+    const qs = new URLSearchParams({ no_cia: noCia, ...(punto && { punto }) }).toString()
+    return request<any[]>(`/acf/rep-por-departamento/?${qs}`)
+  },
+  acfRepValuacion: (noCia: string, punto?: string) => {
+    const qs = new URLSearchParams({ no_cia: noCia, ...(punto && { punto }) }).toString()
+    return request<any>(`/acf/rep-valuacion/?${qs}`)
+  },
+  acfCrearCompra: (body: any) =>
+    request<{ no_activo: string; no_docu: string; tipo_docu: string }>(
+      '/acf/compra/', { method: 'POST', body: JSON.stringify(body) }),
+  acfCrearRetiro: (body: any) =>
+    request<{ no_activo: string; no_docu: string; tipo_docu: string; valor_libros: number }>(
+      '/acf/retiro/', { method: 'POST', body: JSON.stringify(body) }),
+  acfDepreciacionPreview: (noCia: string, punto: string) => {
+    const qs = new URLSearchParams({ no_cia: noCia, punto }).toString()
+    return request<{ periodo: string; metodo: string; cantidad: number; total_estimado: number; error?: string }>(
+      `/acf/depreciacion/preview/?${qs}`)
+  },
+  acfAplicarDepreciacion: (body: any) =>
+    request<{ periodo: string; procesados: number; total_depreciado: number }>(
+      '/acf/depreciacion/', { method: 'POST', body: JSON.stringify(body) }),
+  acfCierreStatus: (noCia: string, punto: string) => {
+    const qs = new URLSearchParams({ no_cia: noCia, punto }).toString()
+    return request<any>(`/acf/cierre/status/?${qs}`)
+  },
+  acfListCierres: (noCia: string, punto: string, ano?: number) => {
+    const qs = new URLSearchParams({ no_cia: noCia, punto, ...(ano && { ano: String(ano) }) }).toString()
+    return request<any[]>(`/acf/cierres/?${qs}`)
+  },
+  acfAplicarCierre: (body: { no_cia: string; punto: string }) =>
+    request<{ cerrado: string; nuevo_periodo: string }>(
+      '/acf/cierre/', { method: 'POST', body: JSON.stringify(body) }),
 
   // ============================================================
   // Manuales (MAN)
