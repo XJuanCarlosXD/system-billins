@@ -507,15 +507,6 @@ export const sidebarData: SidebarData = {
           icon: Coins,
           items: [
             {
-              title: 'Configuracion',
-              items: [
-                { title: 'Cajas Chicas', url: '/acc/cajas' },
-                { title: 'Tipos de Gasto (Cuentas)', url: '/acc/tipos-gasto' },
-                { title: 'Beneficiarios', url: '/acc/beneficiarios' },
-                { title: 'Tipos de Beneficiario', url: '/acc/tipos-bene' },
-              ],
-            },
-            {
               title: 'Procesos',
               items: [
                 { title: 'Entrada de Egreso', url: '/acc/nuevo-egreso' },
