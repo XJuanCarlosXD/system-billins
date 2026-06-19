@@ -26,9 +26,9 @@ export const sidebarData: SidebarData = {
   },
   teams: [
     {
-      name: 'Regal General Clon',
+      name: 'ZentoryERP',
       logo: Command,
-      plan: 'AbreGonza Â· Multi-empresa',
+      plan: 'ZentoryERP',
     },
   ],
   navGroups: [

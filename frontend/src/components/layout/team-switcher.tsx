@@ -110,7 +110,7 @@ export function TeamSwitcher({ teams }: TeamSwitcherProps) {
   }, [companies, selectedCompany, setSelectedCompany, setSelectedPoint])
 
   const activeCompany = companies.find(c => c.no_cia === selectedCompany) || companies[0]
-  const defaultTeam = teams?.[0] || { name: 'Regal General Clon', plan: 'Multi-empresa', logo: () => null }
+  const defaultTeam = teams?.[0] || { name: 'ZentoryERP', plan: 'ZentoryERP', logo: () => null }
 
   return (
     <SidebarMenu>
@@ -126,7 +126,14 @@ export function TeamSwitcher({ teams }: TeamSwitcherProps) {
                 <span className='truncate font-semibold'>
                   {activeCompany?.descripcion || defaultTeam.name}
                 </span>
-                <span className='truncate text-xs'>{defaultTeam.plan}</span>
+                <span className='flex items-center gap-1.5 truncate text-xs text-muted-foreground'>
+                  <img
+                    src='/images/zentory-logo.png'
+                    alt='ZentoryERP'
+                    className='size-4 rounded-full ring-1 ring-black/5 dark:ring-white/10'
+                  />
+                  <span className='truncate'>{defaultTeam.plan}</span>
+                </span>
               </div>
               <ChevronsUpDown className='ms-auto' />
             </SidebarMenuButton>
