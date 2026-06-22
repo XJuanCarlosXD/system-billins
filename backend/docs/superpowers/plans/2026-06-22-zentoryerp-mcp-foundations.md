@@ -1660,7 +1660,7 @@ git commit -m "feat(mcp): proxy memory-router + tools memoria_*"
 - Create: `backend/apps/mcp/tools/doc_types_tools.py`
 - Create: `backend/apps/mcp/tests/test_doc_types_tools.py`
 
-- [ ] **Step 1: Implementar `apps/mcp/doc_types.py` (registry vacío extensible)**
+- [x] **Step 1: Implementar `apps/mcp/doc_types.py` (registry vacío extensible)**
 
 ```python
 """Registry declarativo de tipos de documento por módulo.
@@ -1713,7 +1713,7 @@ def modulos_disponibles() -> list[str]:
     return sorted(_REGISTRY.keys())
 ```
 
-- [ ] **Step 2: Implementar `apps/mcp/tools/doc_types_tools.py`**
+- [x] **Step 2: Implementar `apps/mcp/tools/doc_types_tools.py`**
 
 ```python
 """Tools transversales doc_tipos_listar y doc_tipos_describir."""
@@ -1762,7 +1762,7 @@ def doc_tipos_describir(modulo: str, no_cia: str, tipo_documento: str,
     })
 ```
 
-- [ ] **Step 3: Write failing test `apps/mcp/tests/test_doc_types_tools.py`**
+- [x] **Step 3: Write failing test `apps/mcp/tests/test_doc_types_tools.py`**
 
 ```python
 from apps.mcp.doc_types import register_module, ModuleEntry, TipoDocSchema, _REGISTRY
@@ -1812,12 +1812,12 @@ def test_describir_unknown_type_returns_not_found():
     assert out["error_code"] == "NOT_FOUND"
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests** — 4 passed in 0.09s (VM)
 
 Run: `cd backend && pytest apps/mcp/tests/test_doc_types_tools.py -v`
 Expected: 4 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/apps/mcp/doc_types.py backend/apps/mcp/tools/doc_types_tools.py backend/apps/mcp/tests/test_doc_types_tools.py
