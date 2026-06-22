@@ -867,7 +867,7 @@ git commit -m "feat(mcp): auth Bearer → TokenContext con touch best-effort"
 - Create: `backend/apps/mcp/tests/test_audit.py`
 - Create: `backend/apps/mcp/tests/test_ratelimit.py`
 
-- [ ] **Step 1: Write failing test `apps/mcp/tests/test_ratelimit.py`**
+- [x] **Step 1: Write failing test `apps/mcp/tests/test_ratelimit.py`**
 
 ```python
 import time
@@ -905,7 +905,7 @@ def test_per_token_isolated():
     assert not rl.allow("b")
 ```
 
-- [ ] **Step 2: Implementar `apps/mcp/ratelimit.py`**
+- [x] **Step 2: Implementar `apps/mcp/ratelimit.py`**
 
 ```python
 """Sliding-window in-memory rate limiter (process-local). 60 calls/min default."""
@@ -946,7 +946,7 @@ def get_limiter() -> RateLimiter:
     return _global
 ```
 
-- [ ] **Step 3: Write failing test `apps/mcp/tests/test_audit.py`**
+- [x] **Step 3: Write failing test `apps/mcp/tests/test_audit.py`** — adaptado a mock de `apps.mcp.audit.oracle.execute` (audit usa apps.legacy.client, no django.db, igual que tokens.py)
 
 ```python
 from unittest.mock import patch, MagicMock
@@ -972,7 +972,7 @@ def test_log_usage_inserts_row():
         assert params[4] == "S"
 ```
 
-- [ ] **Step 4: Implementar `apps/mcp/audit.py`**
+- [x] **Step 4: Implementar `apps/mcp/audit.py`** — usa `apps.legacy.client.execute` con binding `:N` y placeholder de secuencia `SQ_TMCP_TOKEN_USO`
 
 ```python
 """Auditoría de uso del MCP en TMCP_TOKEN_USO."""
@@ -1013,12 +1013,12 @@ def log_usage(
         )
 ```
 
-- [ ] **Step 5: Run all tests**
+- [x] **Step 5: Run all tests** — 5 passed in 0.14s (VM)
 
 Run: `cd backend && pytest apps/mcp/tests/test_ratelimit.py apps/mcp/tests/test_audit.py -v`
 Expected: 5 tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/apps/mcp/audit.py backend/apps/mcp/ratelimit.py backend/apps/mcp/tests/test_audit.py backend/apps/mcp/tests/test_ratelimit.py
