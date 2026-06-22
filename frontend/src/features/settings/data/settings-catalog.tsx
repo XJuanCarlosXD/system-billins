@@ -67,7 +67,7 @@ import {
 // Master
 import { EmpresasPage } from '@/features/empresas'
 import { CondicionesPago } from '@/features/fat/condiciones-pago'
-import { ListasPrecioFat } from '@/features/fat/fat-listas-precio'
+import { ListasPrecioFat } from '@/features/fat/listas-precio'
 import { NotasFat } from '@/features/fat/fat-notas'
 import { TiposPagoFat } from '@/features/fat/fat-tipos-pago'
 import { TransportistasFat } from '@/features/fat/fat-transportistas'
