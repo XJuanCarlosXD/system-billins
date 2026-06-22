@@ -1287,7 +1287,7 @@ git commit -m "feat(mcp): endpoints admin tokens (list/create/revoke/usage)"
 - Create: `backend/apps/mcp/tests/test_admin_usage.py`
 - Modify: `backend/apps/mcp/urls.py`
 
-- [ ] **Step 1: Write failing test `apps/mcp/tests/test_admin_usage.py`**
+- [x] **Step 1: Write failing test `apps/mcp/tests/test_admin_usage.py`** — adaptado: mock `oracle.fetch_one`/`fetch_all` + force_authenticate (no seed real ni helper login_as_dba)
 
 ```python
 import pytest
@@ -1328,7 +1328,7 @@ def test_usage_returns_kpis_and_top_tools():
     assert "serie_temporal" in body
 ```
 
-- [ ] **Step 2: Implementar `apps/mcp/views_usage.py`**
+- [x] **Step 2: Implementar `apps/mcp/views_usage.py`** — DRF `UsageView(APIView)` + IsLegacyAdmin + apps.legacy.client. 5 queries: KPI, serie temporal, top tools, top usuarios, top errores, downloads.
 
 ```python
 """Endpoint de monitoreo del uso del MCP. Agregados directamente en Oracle."""
@@ -1466,7 +1466,7 @@ def usage(request):
     })
 ```
 
-- [ ] **Step 3: Agregar a `apps/mcp/urls.py`**
+- [x] **Step 3: Agregar a `apps/mcp/urls.py`** — `admin/mcp/usage/` -> `UsageView.as_view()`
 
 ```python
 from . import views_admin, views_usage
@@ -1479,12 +1479,12 @@ urlpatterns = [
 ]
 ```
 
-- [ ] **Step 4: Run test**
+- [x] **Step 4: Run test** — 3 passed (requires_dba + returns_kpis_and_top_tools + empty)
 
 Run: `cd backend && pytest apps/mcp/tests/test_admin_usage.py -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/apps/mcp/views_usage.py backend/apps/mcp/urls.py backend/apps/mcp/tests/test_admin_usage.py
