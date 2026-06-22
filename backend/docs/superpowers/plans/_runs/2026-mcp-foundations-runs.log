@@ -1,0 +1,59 @@
+# Runs log — Plan 2026-06-22-zentoryerp-mcp-foundations.md
+
+## 2026-06-22T (auto-run, Opus 4.7)
+
+Branch: `mcp/foundations` (pushed a origin).
+
+**Steps completados en este run:**
+- Task 4 (Context resolver + envelope): pasos 1..6.
+- Task 5 (Auth Bearer -> TokenContext): pasos 1..5.
+- Task 6 (Audit + rate limit): pasos 1..6. Adaptado: audit usa
+  `apps.legacy.client` (no django.db).
+- Task 7 (Endpoints admin tokens): pasos 1..6. Adaptado: DRF
+  `APIView` + `IsLegacyAdmin` (no JsonResponse / get_current_user).
+- Task 8 (Endpoint admin usage): pasos 1..5. Adaptado al mismo
+  patron DRF.
+- Task 9 (Memory proxy + memoria_* tools): pasos 1..6. Agregado
+  `pytest-asyncio>=0.23` a requirements.txt; httpx instalado en
+  container running.
+- Task 10 (Registry doc types + tools): pasos 1..5.
+
+**Tests:** suite MCP completa pasa en VM:
+- test_tokens.py: 4
+- test_context_resolver.py: 7
+- test_auth.py: 4
+- test_ratelimit.py: 4
+- test_audit.py: 1
+- test_admin_tokens.py: 4
+- test_admin_usage.py: 3
+- test_memory_proxy.py: 2
+- test_doc_types_tools.py: 4
+**Total: 33/33 PASS.**
+
+**Commits pushed (este run):** 7
+- 0095889 feat(mcp): resolver de contexto cia/punto + envelope uniforme
+- 85deeba feat(mcp): auth Bearer -> TokenContext con touch best-effort
+- 30f5dfb feat(mcp): audit log + rate limit por token
+- 77ac032 feat(mcp): endpoints admin tokens (list/create/revoke/usage)
+- aa3da86 feat(mcp): endpoint admin usage con KPIs, serie temporal y tops
+- 3141241 feat(mcp): proxy memory-router + tools memoria_*
+- d8809e6 feat(mcp): registry tipos de documento + tools doc_tipos_listar/describir
+
+**Proximo step pendiente:** Task 11 Step 1 — Implementar
+`apps/mcp/server.py` (montaje del servidor MCP sobre Streamable HTTP
+en `/mcp/`). Linea ~1836 del plan.
+
+**Blockers:** 0.
+
+**Notas para el siguiente run:**
+- El container backend tiene httpx y pytest-asyncio instalados via pip
+  install dentro del container; el rebuild formal con la nueva
+  requirements.txt sigue pendiente (Task 14 / sigaft-deploy-vm).
+- Task 11 introduce `server.py` con SDK MCP (`mcp.server` + Streamable
+  HTTP). Verificar que `mcp>=1.0` ya este disponible en el container
+  (NO en pip list actual; tambien require install + posiblemente
+  rebuild) antes de correr el smoke server.
+- Para Tasks 12 y 13 (frontend admin tokens + usage page), recordar
+  patrones de la skill `sigaft-crud-pagination` y `sigaft-ui-facturacion`.
+
+RUN_DONE | steps_done=27 | next_pending=Task 11 Step 1 (server.py) | blockers=0 | commits_pushed=7
