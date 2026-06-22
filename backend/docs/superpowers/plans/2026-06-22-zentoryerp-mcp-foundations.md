@@ -141,16 +141,18 @@ git commit -m "feat(mcp): bootstrap apps/mcp y dependencias base"
 
 ## Task 2: Migration Oracle para TMCP_TOKEN y TMCP_TOKEN_USO
 
+> **PIVOT 2026-06-22 (executor):** Django `default` DB del proyecto es SQLite (settings.py:70). El Oracle legado se accede vía `apps.legacy.client`, NO vía Django ORM/migrations — ninguna otra app tiene carpeta `migrations/`. Por eso la `RunSQL` original fallaba con `unknown database ABREGONZA` (intentaba ejecutar contra SQLite). Reemplazado por DDL plano `migrations/0001_initial.sql` aplicado con `apps.legacy.client.cursor()` (script Python en el container backend). El `.sql` queda versionado como source-of-truth del schema.
+
 **Files:**
 - Create: `backend/apps/mcp/migrations/__init__.py` (vacío)
-- Create: `backend/apps/mcp/migrations/0001_initial.py`
+- Create: `backend/apps/mcp/migrations/0001_initial.sql` (DDL Oracle, NO Django RunSQL)
 
-- [ ] **Step 1: Crear `migrations/__init__.py` vacío**
+- [x] **Step 1: Crear `migrations/__init__.py` vacío**
 
 ```python
 ```
 
-- [ ] **Step 2: Crear `migrations/0001_initial.py`**
+- [x] **Step 2: Crear `migrations/0001_initial.sql`** (pivot — ver nota arriba)
 
 ```python
 from django.db import migrations
@@ -237,7 +239,7 @@ class Migration(migrations.Migration):
     ]
 ```
 
-- [ ] **Step 3: Aplicar migration en VM (Oracle real)**
+- [x] **Step 3: Aplicar migration en VM (Oracle real)** — aplicado via `client.cursor()` en container backend
 
 Subir archivo y migrar:
 
@@ -248,12 +250,12 @@ plink -batch jcabreu@10.0.0.99 "cd /home/jcabreu/facturation-system && docker co
 
 Expected: `Applying mcp.0001_initial... OK`
 
-- [ ] **Step 4: Verificar tablas creadas vía sqlplus**
+- [x] **Step 4: Verificar tablas creadas** — `ALL_TABLES` devuelve `TMCP_TOKEN` y `TMCP_TOKEN_USO`
 
 Run: `plink -batch jcabreu@10.0.0.99 "echo 'SELECT TABLE_NAME FROM ALL_TABLES WHERE OWNER=\\'ABREGONZA\\' AND TABLE_NAME LIKE \\'TMCP_%\\';' | sqlplus -s JCABREU/508192003@AB"`
 Expected: dos filas `TMCP_TOKEN` y `TMCP_TOKEN_USO`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/apps/mcp/migrations/
