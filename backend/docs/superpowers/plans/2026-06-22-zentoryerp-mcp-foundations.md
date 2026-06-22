@@ -266,17 +266,20 @@ git commit -m "feat(mcp): migration tablas TMCP_TOKEN y TMCP_TOKEN_USO"
 
 ## Task 3: Tokens (generación, hash, lookup)
 
+> **PIVOT 2026-06-22 (executor):** Igual que Task 2, `tokens.py` usa `apps.legacy.client` (Oracle) en vez de `django.db.connection` (SQLite). Binding `:1, :2` en vez de `%s`. Tambien anadido `backend/pytest.ini` + `pytest`/`pytest-django` a requirements para poder correr la suite TDD del plan.
+
 **Files:**
 - Create: `backend/apps/mcp/tokens.py`
 - Create: `backend/apps/mcp/tests/__init__.py` (vacío)
 - Create: `backend/apps/mcp/tests/test_tokens.py`
+- Create: `backend/pytest.ini` (nuevo — pytest discovery)
 
-- [ ] **Step 1: Crear `apps/mcp/tests/__init__.py` vacío**
+- [x] **Step 1: Crear `apps/mcp/tests/__init__.py` vacío**
 
 ```python
 ```
 
-- [ ] **Step 2: Write the failing test `apps/mcp/tests/test_tokens.py`**
+- [x] **Step 2: Write the failing test `apps/mcp/tests/test_tokens.py`**
 
 ```python
 import hashlib
@@ -310,12 +313,9 @@ def test_extract_prefix_invalid_returns_none():
     assert tokens.extract_prefix("") is None
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- [x] **Step 3: Run test to verify it fails** — fall? con `ImportError: cannot import name 'tokens'`
 
-Run: `cd backend && pytest apps/mcp/tests/test_tokens.py -v`
-Expected: FAIL with `ModuleNotFoundError` o `AttributeError`.
-
-- [ ] **Step 4: Implementar `apps/mcp/tokens.py`**
+- [x] **Step 4: Implementar `apps/mcp/tokens.py`** (adaptado a apps.legacy.client + binding :N)
 
 ```python
 """Generación, hash y validación de tokens MCP.
@@ -500,17 +500,9 @@ def revoke_token(token_id: str) -> bool:
         return cur.rowcount > 0
 ```
 
-- [ ] **Step 5: Run test to verify it passes**
+- [x] **Step 5: Run test to verify it passes** — 4 passed in 0.14s
 
-Run: `cd backend && pytest apps/mcp/tests/test_tokens.py -v`
-Expected: 4 tests PASS.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add backend/apps/mcp/tokens.py backend/apps/mcp/tests/
-git commit -m "feat(mcp): tokens — generación, hash, lookup con cache"
-```
+- [x] **Step 6: Commit**
 
 ---
 
