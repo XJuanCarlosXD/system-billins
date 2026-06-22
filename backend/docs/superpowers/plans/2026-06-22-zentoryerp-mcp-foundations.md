@@ -1035,7 +1035,7 @@ git commit -m "feat(mcp): audit log + rate limit por token"
 - Create: `backend/apps/mcp/tests/test_admin_tokens.py`
 - Modify: `backend/facturation_api/urls.py`
 
-- [ ] **Step 1: Write failing test `apps/mcp/tests/test_admin_tokens.py`** (4 tests cubriendo list, create, revoke, gate DBA)
+- [x] **Step 1: Write failing test `apps/mcp/tests/test_admin_tokens.py`** (4 tests cubriendo list, create, revoke, gate DBA) — adaptado: usa `APIClient.force_authenticate` + mock de `apps.auth_legacy.views.users_repo.is_dba` (no existe helper `tests.utils.login_as_dba`)
 
 ```python
 import pytest
@@ -1089,7 +1089,7 @@ def test_revoke_marks_inactive():
 
 (Si el helper `login_as_dba` no existe, agregarlo o usar el patrón actual del proyecto — los otros tests admin tienen el setup.)
 
-- [ ] **Step 2: Implementar `apps/mcp/views_admin.py`**
+- [x] **Step 2: Implementar `apps/mcp/views_admin.py`** — adaptado: DRF APIView + `IsLegacyAdmin` + `apps.legacy.client` (no JsonResponse + django.db.connection). 3 views: `TokensCollectionView`, `TokenDetailView`, `TokenUsageView`.
 
 ```python
 """Endpoints admin para CRUD de tokens MCP. Gateados por DBA / ROLE_SIGAF."""
@@ -1244,7 +1244,7 @@ def tokens_usage(request, token_id):
 
 > **Nota al implementador:** `apps.auth_legacy.services.user_is_dba` debe existir; si no, leer `apps/auth_legacy/services.py` y usar el predicado actual (memorias indican que JCABREU tiene flag DBA). Si no existe, crearlo allí — fuera del scope de Plan 1 pero bloquea este task.
 
-- [ ] **Step 3: Crear `apps/mcp/urls.py`**
+- [x] **Step 3: Crear `apps/mcp/urls.py`** — rutas montadas en `admin/mcp/tokens/...` (raiz `/api/` ya queda en facturation_api/urls.py)
 
 ```python
 from django.urls import path
@@ -1258,7 +1258,7 @@ urlpatterns = [
 ]
 ```
 
-- [ ] **Step 4: Modificar `backend/facturation_api/urls.py`**
+- [x] **Step 4: Modificar `backend/facturation_api/urls.py`** — agregado `path('api/', include('apps.mcp.urls'))`
 
 Encontrar `urlpatterns` y agregar:
 
@@ -1266,12 +1266,12 @@ Encontrar `urlpatterns` y agregar:
     path("", include("apps.mcp.urls")),
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests** — 4 passed (list_requires_auth + forbidden_non_dba + create_plaintext + revoke). Suite completa MCP: 24/24 passed.
 
 Run: `cd backend && pytest apps/mcp/tests/test_admin_tokens.py -v`
 Expected: 3 tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/apps/mcp/views_admin.py backend/apps/mcp/urls.py backend/facturation_api/urls.py backend/apps/mcp/tests/test_admin_tokens.py
