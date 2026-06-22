@@ -755,7 +755,7 @@ git commit -m "feat(mcp): resolver de contexto cia/punto + envelope uniforme"
 - Create: `backend/apps/mcp/auth.py`
 - Create: `backend/apps/mcp/tests/test_auth.py`
 
-- [ ] **Step 1: Write the failing test `apps/mcp/tests/test_auth.py`**
+- [x] **Step 1: Write the failing test `apps/mcp/tests/test_auth.py`**
 
 ```python
 from unittest.mock import patch
@@ -803,12 +803,12 @@ def test_invalid_token_raises():
     assert exc.value.code == "INVALID_TOKEN"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails** — deterministic ImportError sin auth.py; skipped explicit fail-run
 
 Run: `cd backend && pytest apps/mcp/tests/test_auth.py -v`
 Expected: ImportError.
 
-- [ ] **Step 3: Implementar `apps/mcp/auth.py`**
+- [x] **Step 3: Implementar `apps/mcp/auth.py`**
 
 ```python
 """Middleware Bearer → TokenContext para tools MCP."""
@@ -845,12 +845,12 @@ def authenticate_bearer(authorization_header: Optional[str], *, ip: Optional[str
     return ctx
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes** — 4 passed in 0.18s (VM)
 
 Run: `cd backend && pytest apps/mcp/tests/test_auth.py -v`
 Expected: 4 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/apps/mcp/auth.py backend/apps/mcp/tests/test_auth.py
