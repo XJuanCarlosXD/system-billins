@@ -513,7 +513,7 @@ def revoke_token(token_id: str) -> bool:
 - Create: `backend/apps/mcp/envelope.py`
 - Create: `backend/apps/mcp/tests/test_context_resolver.py`
 
-- [ ] **Step 1: Crear `apps/mcp/envelope.py`**
+- [x] **Step 1: Crear `apps/mcp/envelope.py`**
 
 ```python
 """Envelope uniforme para respuestas MCP: {ok, data | error_code, message, detail}."""
@@ -542,7 +542,7 @@ class MCPError(Exception):
         return error(self.code, self.message, self.detail)
 ```
 
-- [ ] **Step 2: Write the failing test `apps/mcp/tests/test_context_resolver.py`**
+- [x] **Step 2: Write the failing test `apps/mcp/tests/test_context_resolver.py`**
 
 ```python
 import pytest
@@ -617,12 +617,12 @@ def test_arg_cia_not_accessible_fails():
     assert exc.value.code == "PERMISSION_DENIED"
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- [x] **Step 3: Run test to verify it fails** — skipped explicit fail-run; deterministic ImportError since context_resolver.py no existia
 
 Run: `cd backend && pytest apps/mcp/tests/test_context_resolver.py -v`
 Expected: ImportError for `resolve_context`.
 
-- [ ] **Step 4: Implementar `apps/mcp/context_resolver.py`**
+- [x] **Step 4: Implementar `apps/mcp/context_resolver.py`**
 
 ```python
 """Resuelve (no_cia, punto) efectivos para una llamada MCP.
@@ -735,12 +735,12 @@ def resolve_context(
     return cia, punto
 ```
 
-- [ ] **Step 5: Run test to verify it passes**
+- [x] **Step 5: Run test to verify it passes** — 7 passed in 0.23s (VM, docker compose exec backend pytest)
 
 Run: `cd backend && pytest apps/mcp/tests/test_context_resolver.py -v`
 Expected: 7 tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/apps/mcp/context_resolver.py backend/apps/mcp/envelope.py backend/apps/mcp/tests/test_context_resolver.py
