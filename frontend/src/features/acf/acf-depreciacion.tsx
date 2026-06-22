@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { Calculator, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react'
+import { Calculator, AlertTriangle, CheckCircle2, RefreshCw, Printer } from 'lucide-react'
 
 const fmt = (n: any) =>
   Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -54,6 +54,11 @@ export function AcfDepreciacion() {
 
   const p: any = previewQ.data || {}
   const tieneActivos = Number(p.cantidad || 0) > 0
+  const periodoId = (() => {
+    // Convierte "MM/YYYY" → "YYYY-MM" para usarlo como id del endpoint de impresión.
+    const m = String(p.periodo || '').match(/^(\d{2})\/(\d{4})$/)
+    return m ? `${m[2]}-${m[1]}` : ''
+  })()
 
   return (
     <div className="space-y-4">
@@ -95,6 +100,12 @@ export function AcfDepreciacion() {
             <Button size="sm" disabled={!tieneActivos}
                     onClick={() => setConfirm(true)}>
               <Calculator className="h-4 w-4 mr-1" /> Aplicar depreciación
+            </Button>
+            <Button variant="outline" size="sm" disabled={!periodoId}
+                    onClick={() => window.open(
+                      `/print/listado-depreciacion-acf/${encodeURIComponent(periodoId)}?no_cia=${selectedCompany}&punto=${selectedPoint}`,
+                      '_blank')}>
+              <Printer className="h-4 w-4 mr-1" /> Imprimir listado
             </Button>
           </CardContent></Card>
         </div>

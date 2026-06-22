@@ -15,7 +15,7 @@ import {
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { Lock, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Lock, AlertTriangle, CheckCircle2, Printer } from 'lucide-react'
 
 const fmtDt = (s: any) => s ? String(s).slice(0, 16).replace('T', ' ') : ''
 const MES_LABEL = ['',
@@ -120,26 +120,38 @@ export function AcfCierre() {
             <TableHead className="w-32">Mes</TableHead>
             <TableHead>Fecha cierre</TableHead>
             <TableHead>Usuario</TableHead>
+            <TableHead className="w-24 text-right">Imprimir</TableHead>
           </TableRow></TableHeader>
           <TableBody>
             {cierresQ.isLoading ? (
-              <TableRow><TableCell colSpan={4} className="py-6 text-center text-muted-foreground">Cargando…</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="py-6 text-center text-muted-foreground">Cargando…</TableCell></TableRow>
             ) : cierres.length === 0 ? (
-              <TableRow><TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
+              <TableRow><TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
                 Sin cierres registrados para esta empresa/punto.
               </TableCell></TableRow>
-            ) : cierres.map((c) => (
-              <TableRow key={`${c.ano}-${c.mes}`}>
-                <TableCell className="font-mono">{c.ano}</TableCell>
-                <TableCell>
-                  <Badge variant="outline">
-                    {String(c.mes).padStart(2, '0')} · {MES_LABEL[Number(c.mes)] || c.mes}
-                  </Badge>
-                </TableCell>
-                <TableCell>{fmtDt(c.fecha_cierre)}</TableCell>
-                <TableCell className="text-xs">{c.usuario}</TableCell>
-              </TableRow>
-            ))}
+            ) : cierres.map((c) => {
+              const id = `${c.ano}-${String(c.mes).padStart(2, '0')}`
+              return (
+                <TableRow key={`${c.ano}-${c.mes}`}>
+                  <TableCell className="font-mono">{c.ano}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">
+                      {String(c.mes).padStart(2, '0')} · {MES_LABEL[Number(c.mes)] || c.mes}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{fmtDt(c.fecha_cierre)}</TableCell>
+                  <TableCell className="text-xs">{c.usuario}</TableCell>
+                  <TableCell className="text-right">
+                    <Button size="sm" variant="ghost"
+                            onClick={() => window.open(
+                              `/print/comprobante-cierre-acf/${encodeURIComponent(id)}?no_cia=${selectedCompany}&punto=${selectedPoint}`,
+                              '_blank')}>
+                      <Printer className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
           </TableBody>
         </Table>
       </div>

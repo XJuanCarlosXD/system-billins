@@ -19,7 +19,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { Search, Save, Package } from 'lucide-react'
+import { Search, Save, Package, Printer } from 'lucide-react'
 
 const fmt = (n: any) =>
   Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -133,6 +133,7 @@ export function AcfCompra() {
   const [serie, setSerie] = useState('')
   const [cuenta, setCuenta] = useState('')
   const [detalle, setDetalle] = useState('')
+  const [ultimoDocu, setUltimoDocu] = useState<{ no_docu: string; no_activo: string } | null>(null)
 
   const reset = () => {
     setDescripcion(''); setTipoContable(''); setTipo(''); setGrupo(''); setSubgrupo('')
@@ -164,6 +165,7 @@ export function AcfCompra() {
       toast.success(`Activo ${res.no_activo} registrado por RD$ ${fmt(valor)}`)
       qc.invalidateQueries({ queryKey: ['acf-act'] })
       qc.invalidateQueries({ queryKey: ['acf-res'] })
+      setUltimoDocu({ no_docu: res.no_docu, no_activo: res.no_activo })
       reset()
     },
     onError: (e: any) => toast.error(e?.detail?.error || 'No se pudo registrar el activo'),
@@ -349,6 +351,21 @@ export function AcfCompra() {
                 <span className="tabular-nums">RD$ {fmt(valorNum / (Number(duracion) * 12))}</span></span>
             )}
           </div>
+
+          {ultimoDocu && (
+            <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm flex items-center justify-between">
+              <div>
+                <span className="text-emerald-700">Último registrado: </span>
+                <b>Activo {ultimoDocu.no_activo}</b> · doc CP-{ultimoDocu.no_docu}
+              </div>
+              <Button type="button" variant="outline" size="sm"
+                      onClick={() => window.open(
+                        `/print/comprobante-compra-acf/${encodeURIComponent(ultimoDocu.no_docu)}?no_cia=${selectedCompany}&punto=${selectedPoint}`,
+                        '_blank')}>
+                <Printer className="h-4 w-4 mr-1" /> Imprimir comprobante
+              </Button>
+            </div>
+          )}
 
           <div className="flex items-center justify-end gap-3 border-t pt-3">
             <Button type="button" variant="outline" onClick={reset} disabled={crear.isPending}>

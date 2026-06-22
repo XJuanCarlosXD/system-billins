@@ -22,6 +22,14 @@ import { invDocumentoDefault, reporteGenericoDefault } from './defaults/reporte-
 import { sdnNominaDefault } from './defaults/sdn-nomina'
 import { volantePagoDefault } from './defaults/volante-pago'
 import { accReposicionDefault } from './defaults/acc-reposicion'
+import { comprobanteCompraAcfDefault } from './defaults/comprobante-compra-acf'
+import { comprobanteRetiroAcfDefault } from './defaults/comprobante-retiro-acf'
+import { comprobanteCierreAcfDefault } from './defaults/comprobante-cierre-acf'
+import { listadoActivosAcfDefault } from './defaults/listado-activos-acf'
+import { listadoDepreciacionAcfDefault } from './defaults/listado-depreciacion-acf'
+import { valuacionAcfDefault } from './defaults/valuacion-acf'
+import { activosPorGrupoAcfDefault } from './defaults/activos-por-grupo-acf'
+import { activosPorDepartamentoAcfDefault } from './defaults/activos-por-departamento-acf'
 
 const accListadoDocsDefault = reporteGenericoDefault('Listado de Documentos · Caja Chica', [
   { campo: 'no_docu', label: 'No.', align: 'left' },
@@ -669,6 +677,127 @@ export const registry: Record<string, RegistryEntry> = {
       'extra.valor_residual',
       'extra.vida_util',
     ]),
+  },
+  'comprobante-compra-acf': {
+    codigo: 'comprobante-compra-acf',
+    modulo: 'ACF',
+    nombre: 'Comprobante de Compra · Activo Fijo',
+    familia: 'documento',
+    printDataPath: (id, qs) =>
+      `/acf/comprobante-compra/${encodeURIComponent(id)}/print-data/?${qs.toString()}`,
+    defaultTemplate: comprobanteCompraAcfDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'P',
+    variables: docVarsBase.concat([
+      'doc.no_activo', 'doc.descripcion_activo', 'doc.serie',
+      'doc.duracion_ano', 'doc.departamento', 'doc.responsable',
+      'doc.cuenta_contable',
+    ]),
+  },
+  'comprobante-retiro-acf': {
+    codigo: 'comprobante-retiro-acf',
+    modulo: 'ACF',
+    nombre: 'Comprobante de Retiro · Activo Fijo',
+    familia: 'documento',
+    printDataPath: (id, qs) =>
+      `/acf/comprobante-retiro/${encodeURIComponent(id)}/print-data/?${qs.toString()}`,
+    defaultTemplate: comprobanteRetiroAcfDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'P',
+    variables: docVarsBase.concat([
+      'doc.no_activo', 'doc.descripcion_activo', 'doc.serie',
+      'doc.departamento', 'doc.responsable', 'doc.cuenta_contable',
+      'extra.valor_original', 'extra.depre_acumu', 'extra.valor_libro',
+    ]),
+  },
+  'comprobante-cierre-acf': {
+    codigo: 'comprobante-cierre-acf',
+    modulo: 'ACF',
+    nombre: 'Comprobante de Cierre Mensual ACF',
+    familia: 'documento',
+    printDataPath: (id, qs) =>
+      `/acf/comprobante-cierre/${encodeURIComponent(id)}/print-data/?${qs.toString()}`,
+    defaultTemplate: comprobanteCierreAcfDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'P',
+    variables: docVarsBase.concat([
+      'doc.periodo', 'extra.usuario_cierre', 'extra.fecha_cierre',
+      'extra.activos_depreciados', 'extra.mes_label',
+    ]),
+  },
+  'listado-activos-acf': {
+    codigo: 'listado-activos-acf',
+    modulo: 'ACF',
+    nombre: 'Listado de Activos Fijos',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/acf/rep-listado/print-data/?${qs.toString()}`,
+    defaultTemplate: listadoActivosAcfDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'cia.razon_social', 'cia.rnc', 'reporte.titulo', 'reporte.filtros',
+      'totales.cantidad', 'totales.valor_original', 'totales.depre_acumu',
+      'totales.valor_libros',
+    ],
+  },
+  'listado-depreciacion-acf': {
+    codigo: 'listado-depreciacion-acf',
+    modulo: 'ACF',
+    nombre: 'Listado de Depreciación Mensual',
+    familia: 'reporte',
+    printDataPath: (id, qs) =>
+      `/acf/rep-depreciacion/${encodeURIComponent(id)}/print-data/?${qs.toString()}`,
+    defaultTemplate: listadoDepreciacionAcfDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'cia.razon_social', 'cia.rnc', 'reporte.titulo', 'reporte.filtros',
+      'totales.cantidad', 'totales.total_depreciado',
+    ],
+  },
+  'valuacion-acf': {
+    codigo: 'valuacion-acf',
+    modulo: 'ACF',
+    nombre: 'Valuación Contable · ACF',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/acf/rep-valuacion/print-data/?${qs.toString()}`,
+    defaultTemplate: valuacionAcfDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'P',
+    variables: [
+      'cia.razon_social', 'cia.rnc', 'reporte.titulo', 'reporte.filtros',
+      'totales.cantidad', 'totales.valor_original', 'totales.mejoras',
+      'totales.revalorizacion', 'totales.depre_acumu', 'totales.valor_libros',
+    ],
+  },
+  'activos-por-grupo-acf': {
+    codigo: 'activos-por-grupo-acf',
+    modulo: 'ACF',
+    nombre: 'Activos por Grupo',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/acf/rep-por-grupo/print-data/?${qs.toString()}`,
+    defaultTemplate: activosPorGrupoAcfDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'P',
+    variables: [
+      'cia.razon_social', 'cia.rnc', 'reporte.titulo', 'reporte.filtros',
+      'totales.cantidad',
+    ],
+  },
+  'activos-por-departamento-acf': {
+    codigo: 'activos-por-departamento-acf',
+    modulo: 'ACF',
+    nombre: 'Activos por Departamento',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/acf/rep-por-departamento/print-data/?${qs.toString()}`,
+    defaultTemplate: activosPorDepartamentoAcfDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'cia.razon_social', 'cia.rnc', 'reporte.titulo', 'reporte.filtros',
+      'totales.cantidad', 'totales.valor_original', 'totales.depre_acumu',
+      'totales.valor_libros',
+    ],
   },
   // ── FAT — reporte: Cuadre de Caja (familia 'reporte') ──────────────
   // id = fecha YYYY-MM-DD. Para incluir detalle de facturas se pasa

@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { PieChart, Building2, TrendingDown } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { PieChart, Building2, TrendingDown, Printer, FileText } from 'lucide-react'
 
 const fmt = (n: any) =>
   Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -40,15 +41,23 @@ export function AcfReportes() {
 
   const res: any = resQ.data || {}
   const val: any = valQ.data || {}
+  const qs = `no_cia=${selectedCompany}${selectedPoint ? `&punto=${selectedPoint}` : ''}`
+  const openPrint = (codigo: string, id = '-') =>
+    window.open(`/print/${codigo}/${encodeURIComponent(id)}?${qs}`, '_blank')
 
   return (
     <div className="space-y-4">
-      <div>
-        <h3 className="text-base font-semibold">Reportes de Activos Fijos</h3>
-        <p className="text-sm text-muted-foreground">
-          Resumen consolidado de inventario, valuación contable y distribución
-          por grupo / departamento.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-base font-semibold">Reportes de Activos Fijos</h3>
+          <p className="text-sm text-muted-foreground">
+            Resumen consolidado de inventario, valuación contable y distribución
+            por grupo / departamento.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => openPrint('listado-activos-acf')}>
+          <FileText className="h-4 w-4 mr-1" /> Listado completo
+        </Button>
       </div>
 
       {resQ.isLoading ? <Skeleton className="h-24 w-full" /> : (
@@ -73,9 +82,14 @@ export function AcfReportes() {
       )}
 
       <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2">
-          <TrendingDown className="h-4 w-4" /> Valuación contable
-        </CardTitle></CardHeader>
+        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <TrendingDown className="h-4 w-4" /> Valuación contable
+          </CardTitle>
+          <Button variant="ghost" size="sm" onClick={() => openPrint('valuacion-acf')}>
+            <Printer className="h-4 w-4" />
+          </Button>
+        </CardHeader>
         <CardContent>
           {valQ.isLoading ? <Skeleton className="h-20 w-full" /> : (
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
@@ -110,9 +124,14 @@ export function AcfReportes() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2">
-            <PieChart className="h-4 w-4" /> Por grupo
-          </CardTitle></CardHeader>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <PieChart className="h-4 w-4" /> Por grupo
+            </CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => openPrint('activos-por-grupo-acf')}>
+              <Printer className="h-4 w-4" />
+            </Button>
+          </CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader><TableRow>
@@ -136,9 +155,14 @@ export function AcfReportes() {
         </Card>
 
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2">
-            <Building2 className="h-4 w-4" /> Por departamento
-          </CardTitle></CardHeader>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Building2 className="h-4 w-4" /> Por departamento
+            </CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => openPrint('activos-por-departamento-acf')}>
+              <Printer className="h-4 w-4" />
+            </Button>
+          </CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader><TableRow>

@@ -149,6 +149,72 @@ def rep_activos_por_departamento(no_cia: str, punto: str | None = None) -> list[
     return client.fetch_dicts(sql, params)
 
 
+def rep_listado_completo(no_cia: str, punto: str | None = None,
+                         status: str | None = None) -> list[dict]:
+    """Listado de activos con todos los campos contables para PDF Facf501."""
+    sql = (
+        "SELECT no_cia, punto, no_activo, descripcion, tipo_contable, tipo, "
+        "       grupo, subgrupo, responsable, departamento, marca, "
+        "       fecha_compra, fecha_ingreso, fecha_retiro, fecha_ult_depre, "
+        "       serie, status, duracion_ano, "
+        "       valor_original, mejora, revalorizacion, depre_acumu, "
+        "       depre_mes, veces_depreciado, depreciable, "
+        "       no_proveedor, ano_modelo "
+        "  FROM ACF.TACF_ACTIVOS WHERE no_cia=:1"
+    )
+    params: list = [no_cia]
+    if punto:
+        sql += f" AND punto=:{len(params)+1}"; params.append(punto)
+    if status:
+        sql += f" AND status=:{len(params)+1}"; params.append(status)
+    sql += " ORDER BY no_activo"
+    return client.fetch_dicts(sql, params)
+
+
+def get_documento(no_cia: str, punto: str, tipo_docu: str, no_docu: str) -> dict | None:
+    rows = client.fetch_dicts(
+        "SELECT d.*, a.descripcion descripcion_activo, "
+        "       a.valor_original, a.duracion_ano, a.serie "
+        "  FROM ACF.TACF_DOCUMENTO d "
+        "  LEFT JOIN ACF.TACF_ACTIVOS a "
+        "    ON a.no_cia=d.no_cia AND a.punto=d.punto AND a.no_activo=d.no_activo "
+        " WHERE d.no_cia=:1 AND d.punto=:2 AND d.tipo_docu=:3 AND d.no_docu=:4",
+        [no_cia, punto, tipo_docu, no_docu],
+    )
+    return rows[0] if rows else None
+
+
+def list_documentos_periodo(no_cia: str, punto: str, tipo_docu: str,
+                            ano: int, mes: int) -> list[dict]:
+    """Documentos ACF de un tipo aplicados en un período (para listados)."""
+    return client.fetch_dicts(
+        "SELECT d.no_docu, d.no_activo, d.fecha, d.monto, d.depre_mes, "
+        "       d.depre_acumu, d.valor_libro, d.departamento, d.responsable, "
+        "       d.cuenta, d.detalle, a.descripcion descripcion_activo, "
+        "       a.grupo, a.valor_original "
+        "  FROM ACF.TACF_DOCUMENTO d "
+        "  LEFT JOIN ACF.TACF_ACTIVOS a "
+        "    ON a.no_cia=d.no_cia AND a.punto=d.punto AND a.no_activo=d.no_activo "
+        " WHERE d.no_cia=:1 AND d.punto=:2 AND d.tipo_docu=:3 "
+        "   AND TO_CHAR(d.fecha,'YYYY')=:4 AND TO_CHAR(d.fecha,'MM')=:5 "
+        "   AND (d.st_nulo<>'S' OR d.st_nulo IS NULL) "
+        " ORDER BY d.no_activo",
+        [no_cia, punto, tipo_docu, str(ano), str(mes).zfill(2)],
+    )
+
+
+def get_cierre(no_cia: str, punto: str, ano: int, mes: int) -> dict | None:
+    rows = client.fetch_dicts(
+        "SELECT no_cia, punto, ano, mes, "
+        "       TO_CHAR(fecha_cierre,'YYYY-MM-DD HH24:MI:SS') fecha_cierre, "
+        "       usuario "
+        "  FROM ACF.TACF_CIERRE "
+        " WHERE no_cia=:1 AND punto=:2 AND ano=:3 AND mes=:4",
+        [no_cia, punto, int(ano), int(mes)],
+    )
+    return rows[0] if rows else None
+
+
 def rep_valuacion(no_cia: str, punto: str | None = None) -> dict:
     """Valuación contable global: valor original, mejoras, depreciación y valor en libros."""
     sql = (

@@ -764,6 +764,362 @@ def acf_acta_print_data(request, no_activo: str):
     })
 
 
+# ─── ACF — Comprobante de Compra (familia documento) ─────────────────────
+
+MES_LABEL = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+             'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+
+
+def _acf_doc_payload(request, tipo_docu: str, no_docu: str, tipo_label: str,
+                     extra_lookup: dict | None = None):
+    """Genera el payload base para los 3 comprobantes de proceso ACF
+    (Compra/Retiro/Cierre). Devuelve (status, payload_dict)."""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    if len(punto) == 1:
+        punto = punto.zfill(2)
+    cia = _cia_payload(no_cia, request=request)
+    docu = acf_repo.get_documento(no_cia, punto, tipo_docu, no_docu)
+    if not docu:
+        return 404, {'error': f'Documento {tipo_docu}-{no_docu} no encontrado'}
+    monto = _money_or_zero(docu.get('monto'))
+    doc = {
+        'tipo': tipo_docu, 'tipo_label': tipo_label,
+        'no': docu.get('no_docu'),
+        'numero_display': f"{tipo_docu}-{(docu.get('no_docu') or '').strip()}",
+        'fecha': str(docu.get('fecha') or '')[:10],
+        'estado': docu.get('tipo_movi') or '',
+        'anulada': (docu.get('st_nulo') or 'N') == 'S',
+        'impresion': 'IMPRESA',
+        'nota': (docu.get('detalle') or '')[:200],
+        'detalle': (docu.get('detalle') or '')[:200],
+        'no_activo': docu.get('no_activo') or '',
+        'descripcion_activo': docu.get('descripcion_activo') or '',
+        'serie': docu.get('serie') or '',
+        'duracion_ano': docu.get('duracion_ano'),
+        'departamento': docu.get('departamento') or '',
+        'responsable': docu.get('responsable') or '',
+        'cuenta_contable': docu.get('cuenta') or '',
+        'moneda': 'DOP', 'tasa': 0, 'porc_impuesto': 0,
+    }
+    cliente = {
+        'no': docu.get('no_proveedor') or docu.get('no_cliente') or '',
+        'nombre': (extra_lookup or {}).get('contraparte_nombre')
+                  or docu.get('no_proveedor') or '—',
+        'rnc': '', 'direccion': '', 'telefono': '', 'email': '', 'tipo_ncf': '',
+    }
+    return 200, {
+        'cia': cia, 'doc': doc, 'cliente': cliente,
+        'lineas': [{
+            'no_linea': 1,
+            'codigo': docu.get('no_activo') or '',
+            'descripcion': docu.get('descripcion_activo') or docu.get('detalle') or '',
+            'cantidad': 1,
+            'precio': monto, 'descuento': 0, 'itbis': 0, 'total': monto,
+        }],
+        'totales': {
+            'subtotal': monto, 'descuento': 0, 'itbis': 0,
+            'propina': 0, 'otros': 0, 'total': monto, 'monto_letras': '',
+        },
+        'extra': {
+            'valor_original': _money_or_zero(docu.get('valor_original')),
+            'depre_acumu': _money_or_zero(docu.get('depre_acumu')),
+            'depre_mes': _money_or_zero(docu.get('depre_mes')),
+            'valor_libro': _money_or_zero(docu.get('valor_libro')),
+            'departamento': docu.get('departamento') or '',
+            'responsable': docu.get('responsable') or '',
+            'cuenta': docu.get('cuenta') or '',
+            'usuario': docu.get('usuario') or '',
+            'serie': docu.get('serie') or '',
+        },
+    }
+
+
+@login_required
+@require_http_methods(["GET"])
+def acf_comprobante_compra_print_data(request, no_docu: str):
+    """GET /api/acf/comprobante-compra/<no_docu>/print-data/?no_cia=01&punto=01"""
+    code, payload = _acf_doc_payload(request, 'CP', no_docu, 'Compra de Activo Fijo')
+    return JsonResponse(payload, status=code)
+
+
+@login_required
+@require_http_methods(["GET"])
+def acf_comprobante_retiro_print_data(request, no_docu: str):
+    """GET /api/acf/comprobante-retiro/<no_docu>/print-data/?no_cia=01&punto=01"""
+    code, payload = _acf_doc_payload(request, 'RT', no_docu, 'Retiro de Activo Fijo')
+    return JsonResponse(payload, status=code)
+
+
+@login_required
+@require_http_methods(["GET"])
+def acf_comprobante_cierre_print_data(request, ano_mes: str):
+    """GET /api/acf/comprobante-cierre/<YYYY-MM>/print-data/?no_cia=01&punto=01"""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    if len(punto) == 1:
+        punto = punto.zfill(2)
+    try:
+        ano, mes = ano_mes.split('-')
+        ano_i = int(ano); mes_i = int(mes)
+    except Exception:
+        return JsonResponse({'error': 'Formato esperado: YYYY-MM'}, status=400)
+    cia = _cia_payload(no_cia, request=request)
+    cierre = acf_repo.get_cierre(no_cia, punto, ano_i, mes_i)
+    if not cierre:
+        return JsonResponse({'error': f'Cierre {mes_i:02d}/{ano_i} no encontrado'}, status=404)
+    docs = acf_repo.list_documentos_periodo(no_cia, punto, 'DP', ano_i, mes_i)
+    total_depre = sum(_money_or_zero(d.get('depre_mes')) for d in docs)
+    doc = {
+        'tipo': 'CIE', 'tipo_label': 'Comprobante de Cierre Mensual ACF',
+        'no': f"{ano_i}-{mes_i:02d}",
+        'numero_display': f"CIE-ACF-{ano_i}-{mes_i:02d}",
+        'fecha': str(cierre.get('fecha_cierre') or '')[:10],
+        'estado': 'CERRADO', 'anulada': False, 'impresion': 'IMPRESA',
+        'detalle': f"Cierre del período {MES_LABEL[mes_i] if 1 <= mes_i <= 12 else mes_i} {ano_i}",
+        'nota': '', 'periodo': f"{mes_i:02d}/{ano_i}",
+        'moneda': 'DOP', 'tasa': 0, 'porc_impuesto': 0,
+    }
+    cliente = {
+        'no': punto, 'nombre': f"Punto {punto}",
+        'rnc': '', 'direccion': '', 'telefono': '', 'email': '', 'tipo_ncf': '',
+    }
+    return JsonResponse({
+        'cia': cia, 'doc': doc, 'cliente': cliente,
+        'lineas': [{
+            'no_linea': 1, 'codigo': 'DP',
+            'descripcion': f"Total depreciado en {MES_LABEL[mes_i]} {ano_i} ({len(docs)} activos)",
+            'cantidad': len(docs), 'precio': 0, 'descuento': 0, 'itbis': 0,
+            'total': total_depre,
+        }],
+        'totales': {
+            'subtotal': total_depre, 'descuento': 0, 'itbis': 0,
+            'propina': 0, 'otros': 0, 'total': total_depre, 'monto_letras': '',
+        },
+        'extra': {
+            'usuario_cierre': cierre.get('usuario') or '',
+            'fecha_cierre': cierre.get('fecha_cierre') or '',
+            'activos_depreciados': len(docs),
+            'periodo': f"{mes_i:02d}/{ano_i}",
+            'mes_label': MES_LABEL[mes_i] if 1 <= mes_i <= 12 else '',
+        },
+    })
+
+
+# ─── ACF — Reportes (familia reporte) ───────────────────────────────────
+
+@login_required
+@require_http_methods(["GET"])
+def acf_listado_activos_print_data(request):
+    """GET /api/acf/rep-listado/print-data/?no_cia=01&punto=01[&status=A]"""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto') or None
+    if punto and len(punto) == 1: punto = punto.zfill(2)
+    status = request.GET.get('status') or None
+    cia = _cia_payload(no_cia, request=request)
+    rows = acf_repo.rep_listado_completo(no_cia, punto, status) or []
+    filas = []
+    tot_valor = tot_depre = 0.0
+    for r in rows:
+        v = _money_or_zero(r.get('valor_original')) + _money_or_zero(r.get('mejora'))
+        d = _money_or_zero(r.get('depre_acumu'))
+        tot_valor += v; tot_depre += d
+        filas.append({
+            'no_activo': r.get('no_activo') or '',
+            'descripcion': (r.get('descripcion') or '')[:50],
+            'grupo': r.get('grupo') or '',
+            'departamento': r.get('departamento') or '',
+            'responsable': r.get('responsable') or '',
+            'fecha_compra': str(r.get('fecha_compra') or '')[:10],
+            'valor_original': v,
+            'depre_acumu': d,
+            'valor_libros': v - d,
+            'status': 'Activo' if r.get('status') == 'A' else 'Retirado',
+        })
+    filtros = {
+        'Empresa': no_cia,
+        **({'Punto': punto} if punto else {}),
+        **({'Estado': 'Activos' if status == 'A' else 'Retirados'} if status else {}),
+    }
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'listado-activos-acf',
+            'titulo': 'Listado de Activos Fijos',
+            'filtros': filtros,
+        },
+        'filas': filas,
+        'totales': {
+            'cantidad': len(filas),
+            'valor_original': tot_valor,
+            'depre_acumu': tot_depre,
+            'valor_libros': tot_valor - tot_depre,
+            'total': tot_valor - tot_depre,
+        },
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def acf_listado_depreciacion_print_data(request, ano_mes: str):
+    """GET /api/acf/rep-depreciacion/<YYYY-MM>/print-data/?no_cia=01&punto=01"""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    if len(punto) == 1: punto = punto.zfill(2)
+    try:
+        ano, mes = ano_mes.split('-')
+        ano_i = int(ano); mes_i = int(mes)
+    except Exception:
+        return JsonResponse({'error': 'Formato esperado: YYYY-MM'}, status=400)
+    cia = _cia_payload(no_cia, request=request)
+    docs = acf_repo.list_documentos_periodo(no_cia, punto, 'DP', ano_i, mes_i) or []
+    filas = []
+    total = 0.0
+    for d in docs:
+        cuota = _money_or_zero(d.get('depre_mes'))
+        total += cuota
+        filas.append({
+            'no_activo': d.get('no_activo') or '',
+            'descripcion': (d.get('descripcion_activo') or '')[:60],
+            'grupo': d.get('grupo') or '',
+            'departamento': d.get('departamento') or '',
+            'valor_original': _money_or_zero(d.get('valor_original')),
+            'depre_mes': cuota,
+            'depre_acumu': _money_or_zero(d.get('depre_acumu')),
+            'valor_libro': _money_or_zero(d.get('valor_libro')),
+            'cuenta': d.get('cuenta') or '',
+            'fecha': str(d.get('fecha') or '')[:10],
+        })
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'listado-depreciacion-acf',
+            'titulo': f"Depreciación Mensual · {MES_LABEL[mes_i]} {ano_i}",
+            'filtros': {
+                'Empresa': no_cia, 'Punto': punto,
+                'Período': f"{mes_i:02d}/{ano_i}",
+            },
+        },
+        'filas': filas,
+        'totales': {
+            'cantidad': len(filas),
+            'total_depreciado': total,
+            'total': total,
+        },
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def acf_rep_valuacion_print_data(request):
+    """GET /api/acf/rep-valuacion/print-data/?no_cia=01[&punto=01]"""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto') or None
+    if punto and len(punto) == 1: punto = punto.zfill(2)
+    cia = _cia_payload(no_cia, request=request)
+    v = acf_repo.rep_valuacion(no_cia, punto) or {}
+    grupos = acf_repo.rep_activos_por_grupo(no_cia, punto) or []
+    filas = []
+    for g in grupos:
+        filas.append({
+            'grupo': g.get('grupo') or '',
+            'cantidad': int(g.get('cantidad') or 0),
+        })
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'valuacion-acf',
+            'titulo': 'Valuación Contable de Activos Fijos',
+            'filtros': {
+                'Empresa': no_cia,
+                **({'Punto': punto} if punto else {}),
+            },
+        },
+        'filas': filas,
+        'totales': {
+            'cantidad': int(v.get('cantidad') or 0),
+            'valor_original': _money_or_zero(v.get('valor_original')),
+            'mejoras': _money_or_zero(v.get('mejoras')),
+            'revalorizacion': _money_or_zero(v.get('revalorizacion')),
+            'depre_acumu': _money_or_zero(v.get('depre_acumu')),
+            'valor_libros': _money_or_zero(v.get('valor_libros')),
+            'total': _money_or_zero(v.get('valor_libros')),
+        },
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def acf_rep_por_grupo_print_data(request):
+    """GET /api/acf/rep-por-grupo/print-data/?no_cia=01[&punto=01]"""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto') or None
+    if punto and len(punto) == 1: punto = punto.zfill(2)
+    cia = _cia_payload(no_cia, request=request)
+    rows = acf_repo.rep_activos_por_grupo(no_cia, punto) or []
+    filas = [{
+        'grupo': r.get('grupo') or '',
+        'cantidad': int(r.get('cantidad') or 0),
+    } for r in rows]
+    total = sum(f['cantidad'] for f in filas)
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'activos-por-grupo-acf',
+            'titulo': 'Activos Fijos por Grupo',
+            'filtros': {
+                'Empresa': no_cia,
+                **({'Punto': punto} if punto else {}),
+            },
+        },
+        'filas': filas,
+        'totales': {'cantidad': total, 'total': total},
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def acf_rep_por_departamento_print_data(request):
+    """GET /api/acf/rep-por-departamento/print-data/?no_cia=01[&punto=01]"""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto') or None
+    if punto and len(punto) == 1: punto = punto.zfill(2)
+    cia = _cia_payload(no_cia, request=request)
+    rows = acf_repo.rep_activos_por_departamento(no_cia, punto) or []
+    filas = []
+    tot_val = tot_dep = 0.0
+    for r in rows:
+        v = _money_or_zero(r.get('valor_original'))
+        d = _money_or_zero(r.get('depre_acumu'))
+        tot_val += v; tot_dep += d
+        filas.append({
+            'departamento': r.get('departamento') or '',
+            'cantidad': int(r.get('cantidad') or 0),
+            'valor_original': v,
+            'depre_acumu': d,
+            'valor_libros': v - d,
+        })
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'activos-por-departamento-acf',
+            'titulo': 'Activos Fijos por Departamento',
+            'filtros': {
+                'Empresa': no_cia,
+                **({'Punto': punto} if punto else {}),
+            },
+        },
+        'filas': filas,
+        'totales': {
+            'cantidad': sum(f['cantidad'] for f in filas),
+            'valor_original': tot_val,
+            'depre_acumu': tot_dep,
+            'valor_libros': tot_val - tot_dep,
+            'total': tot_val - tot_dep,
+        },
+    })
+
+
 # ─── SDN — Cabecera de Nómina (no volante individual aún) ─────────────────
 
 @login_required

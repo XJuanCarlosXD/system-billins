@@ -1,9 +1,27 @@
 from django.urls import path
 from apps.legacy import acf_views
-from apps.legacy.docs_print_data import acf_acta_print_data
+from apps.legacy.docs_print_data import (
+    acf_acta_print_data,
+    acf_comprobante_compra_print_data,
+    acf_comprobante_retiro_print_data,
+    acf_comprobante_cierre_print_data,
+    acf_listado_activos_print_data,
+    acf_listado_depreciacion_print_data,
+    acf_rep_valuacion_print_data,
+    acf_rep_por_grupo_print_data,
+    acf_rep_por_departamento_print_data,
+)
 
 urlpatterns = [
     path('activos/<str:no_activo>/print-data/', acf_acta_print_data),
+    path('comprobante-compra/<str:no_docu>/print-data/', acf_comprobante_compra_print_data),
+    path('comprobante-retiro/<str:no_docu>/print-data/', acf_comprobante_retiro_print_data),
+    path('comprobante-cierre/<str:ano_mes>/print-data/', acf_comprobante_cierre_print_data),
+    path('rep-listado/print-data/', acf_listado_activos_print_data),
+    path('rep-depreciacion/<str:ano_mes>/print-data/', acf_listado_depreciacion_print_data),
+    path('rep-valuacion/print-data/', acf_rep_valuacion_print_data),
+    path('rep-por-grupo/print-data/', acf_rep_por_grupo_print_data),
+    path('rep-por-departamento/print-data/', acf_rep_por_departamento_print_data),
     path('cias/', acf_views.acf_cias),
     path('puntos/', acf_views.acf_puntos),
     path('categorias/', acf_views.acf_categorias),

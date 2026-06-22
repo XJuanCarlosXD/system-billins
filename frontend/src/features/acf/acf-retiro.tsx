@@ -16,7 +16,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { Search, Archive, AlertTriangle } from 'lucide-react'
+import { Search, Archive, AlertTriangle, Printer } from 'lucide-react'
 
 const fmt = (n: any) =>
   Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -126,6 +126,7 @@ export function AcfRetiro() {
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10))
   const [motivo, setMotivo] = useState('')
   const [cuenta, setCuenta] = useState('')
+  const [ultimoDocu, setUltimoDocu] = useState<{ no_docu: string; no_activo: string } | null>(null)
 
   const valorLibros = activo
     ? Number(activo.valor_original || 0) - Number(activo.depre_acumu || 0)
@@ -147,6 +148,7 @@ export function AcfRetiro() {
         `Activo ${res.no_activo} retirado. Valor en libros RD$ ${fmt(res.valor_libros)}`)
       qc.invalidateQueries({ queryKey: ['acf-act'] })
       qc.invalidateQueries({ queryKey: ['acf-res'] })
+      setUltimoDocu({ no_docu: res.no_docu, no_activo: res.no_activo })
       reset()
     },
     onError: (e: any) => toast.error(e?.detail?.error || 'No se pudo retirar el activo'),
@@ -221,6 +223,21 @@ export function AcfRetiro() {
                 y dejará de aparecer en los reportes de depreciación. Esta acción no se reversa
                 desde la UI.
               </div>
+            </div>
+          )}
+
+          {ultimoDocu && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm flex items-center justify-between">
+              <div>
+                <span className="text-amber-700">Último retirado: </span>
+                <b>Activo {ultimoDocu.no_activo}</b> · doc RT-{ultimoDocu.no_docu}
+              </div>
+              <Button type="button" variant="outline" size="sm"
+                      onClick={() => window.open(
+                        `/print/comprobante-retiro-acf/${encodeURIComponent(ultimoDocu.no_docu)}?no_cia=${selectedCompany}&punto=${selectedPoint}`,
+                        '_blank')}>
+                <Printer className="h-4 w-4 mr-1" /> Imprimir comprobante
+              </Button>
             </div>
           )}
 
