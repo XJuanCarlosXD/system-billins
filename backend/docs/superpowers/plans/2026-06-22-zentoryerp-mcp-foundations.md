@@ -1501,12 +1501,12 @@ git commit -m "feat(mcp): endpoint admin usage con KPIs, serie temporal y tops"
 - Create: `backend/apps/mcp/tools/memoria.py`
 - Create: `backend/apps/mcp/tests/test_memory_proxy.py`
 
-- [ ] **Step 1: Crear `apps/mcp/tools/__init__.py` vacío**
+- [x] **Step 1: Crear `apps/mcp/tools/__init__.py` vacío**
 
 ```python
 ```
 
-- [ ] **Step 2: Write failing test `apps/mcp/tests/test_memory_proxy.py`**
+- [x] **Step 2: Write failing test `apps/mcp/tests/test_memory_proxy.py`**
 
 ```python
 import httpx
@@ -1540,7 +1540,7 @@ async def test_router_down_returns_upstream_unavailable():
     assert out["error_code"] == "UPSTREAM_UNAVAILABLE"
 ```
 
-- [ ] **Step 3: Implementar `apps/mcp/memory_proxy.py`**
+- [x] **Step 3: Implementar `apps/mcp/memory_proxy.py`** — agregado `pytest-asyncio>=0.23` a requirements.txt; instalado httpx/pytest-asyncio en container running para tests (rebuild formal queda en Task 14).
 
 ```python
 """Cliente HTTP hacia el MCP memory-router. Resiliente: errores propios no tumban el server."""
@@ -1592,7 +1592,7 @@ class MemoryProxy:
         return await self._call("memory_get_skill", {"name": nombre})
 ```
 
-- [ ] **Step 4: Implementar `apps/mcp/tools/memoria.py`**
+- [x] **Step 4: Implementar `apps/mcp/tools/memoria.py`**
 
 ```python
 """Tools MCP que envuelven memory-router con prefijo `memoria_*`."""
@@ -1639,12 +1639,12 @@ async def memoria_obtener_skill(nombre: str) -> dict:
     return await get_proxy().obtener_skill(nombre)
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests** — 2 passed in 0.11s (VM, asyncio-1.4.0 + httpx mock transport)
 
 Run: `cd backend && pytest apps/mcp/tests/test_memory_proxy.py -v`
 Expected: 2 tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/apps/mcp/memory_proxy.py backend/apps/mcp/tools/ backend/apps/mcp/tests/test_memory_proxy.py
