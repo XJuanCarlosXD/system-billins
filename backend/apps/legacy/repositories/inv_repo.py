@@ -319,6 +319,62 @@ def get_producto(no_produ: str, no_cia: str = '01') -> dict | None:
     return rows[0] if rows else None
 
 
+def update_producto(no_produ: str, payload: dict, usuario: str = '') -> dict:
+    """Actualiza un producto existente. Solo modifica campos presentes en payload.
+
+    Acepta los mismos nombres que create_producto. La PK no_produ no es editable.
+    """
+    no_produ = (no_produ or '').strip().upper()
+    if not no_produ:
+        raise ValueError("no_produ es requerido")
+
+    existing = client.fetch_one(
+        "SELECT 1 FROM INV.TINV_PRODUCTO WHERE no_produ = :1",
+        [no_produ],
+    )
+    if not existing:
+        raise ValueError(f"Producto {no_produ} no encontrado")
+
+    sets: list[str] = []
+    binds: dict = {'no_produ': no_produ}
+
+    field_map = {
+        'descripcion': ('descri', lambda v: (str(v) or '').strip()[:80]),
+        'linea': ('linea', lambda v: (str(v) or '').strip()),
+        'sub_linea': ('sub_linea', lambda v: (str(v) or '').strip()),
+        'grupo_produ': ('grupo_produ', lambda v: (str(v) or '').strip()),
+        'grupo_contable': ('grupo_contable', lambda v: (str(v) or '').strip()),
+        'servicio': ('servicio', lambda v: (str(v) or 'I').upper()[:1]),
+        'activo': ('activo', lambda v: (str(v) or 'S').upper()[:1]),
+        'tiene_impuesto': ('tiene_impuesto', lambda v: (str(v) or 'S').upper()[:1]),
+        'porciento_impuesto': ('porciento_impuesto', lambda v: float(v or 0)),
+        'costo': ('costo_mercado_rd', lambda v: float(v or 0)),
+        'marca': ('marca', lambda v: ((str(v) or '')[:60] or None)),
+        'referencia': ('referencia', lambda v: ((str(v) or '')[:30] or None)),
+        'no_proveedor': ('no_proveedor', lambda v: ((str(v) or '')[:6] or None)),
+    }
+
+    for k, (col, conv) in field_map.items():
+        if k in payload:
+            try:
+                binds[col] = conv(payload[k])
+            except (TypeError, ValueError):
+                raise ValueError(f"Valor inválido para {k}")
+            sets.append(f"{col} = :{col}")
+
+    if not sets:
+        return {'no_produ': no_produ, 'updated': 0}
+
+    sets.append("usuario = :usuario")
+    binds['usuario'] = (usuario or 'API')[:30]
+
+    sql = f"UPDATE INV.TINV_PRODUCTO SET {', '.join(sets)} WHERE no_produ = :no_produ"
+    with client.cursor() as cur:
+        cur.execute(sql, binds)
+
+    return {'no_produ': no_produ, 'updated': 1}
+
+
 def list_existencias(
     no_cia: str = '01',
     punto: str = '',
