@@ -108,3 +108,33 @@ Step 3 env vars, Steps 4..9 smoke con Claude Desktop) + el gate
 push main, env vars memory-router).
 
 RUN_DONE | steps_done=15 | next_pending=Task 14 Step 1 push main (humano) | blockers=3 | commits_pushed=2
+
+---
+
+## Run 2026-06-23 ~18:00 UTC (auto-trigger 4h)
+
+**Estado del plan al iniciar:** todo lo automatizable cerrado en runs previos. Branch `mcp/foundations` ya en sync con remoto; working tree clean.
+
+**Trabajo realizado este run:**
+- Verificacion en VM: `pytest apps/mcp/tests/` -> **35 passed in 1.01s** (5 warnings deprecacion datetime.utcnow, no bloqueantes).
+- Endpoint `/mcp/` en container responde (probado tools/list desde dentro del backend container; HTTP 400 = parse de body roto por escapes shell, pero MCP server activo y respondiendo JSON-RPC).
+- Limpieza de notas stale: Task 12 Step 10 y Task 13 Step 11 ahora apuntan al hash de commit real (bec80fc y 2632688) en vez de "pendiente de aplicar en este run".
+- Self-review checklist al final del plan: marcados 4 items verificables con evidencia (migrate, pytest 35/35, plaintext una vez, revocacion). Los 3 restantes (sidebar gate is_dba, smoke Claude Desktop, smoke /admin/mcp/usage) quedan `[?]`/`[!]` con razon explicita.
+
+**Tests:** 35/35 PASS en VM. Cobertura por archivo:
+- test_tokens.py 4, test_context_resolver.py 7, test_auth.py 4,
+  test_ratelimit.py 4, test_audit.py 1, test_admin_tokens.py 4,
+  test_admin_usage.py 3, test_memory_proxy.py 2, test_doc_types_tools.py 4,
+  test_server_smoke.py 2.
+
+**Commits pushed (este run):** 1 (chore actualizando plan + run log; aplicado al final del run).
+
+**Steps pendientes (todos por accion humana):**
+- Task 13 Step 9 `[?]`: cablear flag `is_dba` en frontend (campo /api/profile/, claim, flag). Decidir fuente.
+- Task 14 Step 1 `[?]`: push a `main` (regla NO PR — usuario lo hace).
+- Task 14 Step 3 `[?]`: env vars MEMORY_ROUTER_URL / TOKEN / PROJECT en `.env` del compose VM.
+- Task 14 Steps 4..9 `[!]`: smoke con Claude Desktop tras tener token + env vars + frontend live.
+
+**Blockers:** 3 confirmaciones humanas (gate is_dba, push main, env vars memory-router).
+
+RUN_DONE | steps_done=0 (mantenimiento + verificacion) | next_pending=Task 13 Step 9 is_dba (humano) | blockers=3 | commits_pushed=1

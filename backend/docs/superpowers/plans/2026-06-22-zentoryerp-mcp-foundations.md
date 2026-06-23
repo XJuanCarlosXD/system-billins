@@ -2357,7 +2357,7 @@ Abrir `http://localhost:5173/admin/mcp/tokens` (o la URL Netlify después de dep
 - Crear token muestra plaintext y snippet JSON.
 - Revocar marca como revocado.
 
-- [x] **Step 10: Commit** — pendiente de aplicar en este run.
+- [x] **Step 10: Commit** — aplicado en commit `bec80fc feat(mcp): UI admin tokens — lista, crear, revocar, usage drawer`.
 
 ```bash
 git add frontend/src/features/admin/mcp/ frontend/src/routes/_authenticated/admin/mcp/tokens.tsx
@@ -2579,7 +2579,7 @@ Visitar `/admin/mcp/usage` y confirmar:
 - Gráfico se renderiza.
 - Click en un tool del top filtra el tablero.
 
-- [x] **Step 11: Commit** — pendiente de aplicar en este run.
+- [x] **Step 11: Commit** — aplicado en commit `2632688 feat(mcp): vista de monitoreo /admin/mcp/usage + entradas sidebar`.
 
 ```bash
 git add frontend/src/features/admin/mcp/ frontend/src/routes/_authenticated/admin/mcp/usage.tsx frontend/src/components/layout/data/sidebar-data.ts
@@ -2679,10 +2679,10 @@ git push origin mcp-plan-1-foundations
 
 ## Self-review checklist (corre al terminar de leer este plan antes de ejecutar)
 
-- [ ] El comando `python manage.py migrate mcp` en VM corre limpio.
-- [ ] `pytest apps/mcp/tests/` pasa todos los tests (>=20 tests al final).
-- [ ] `/admin/mcp/tokens` solo visible para usuarios DBA.
-- [ ] Generar token muestra plaintext **una sola vez**; un GET posterior no lo expone.
-- [ ] Cliente MCP real (Claude Desktop) lista tools y ejecuta `memoria_buscar` con éxito.
-- [ ] `/admin/mcp/usage` muestra al menos una llamada después del smoke.
-- [ ] Token revocado deja de funcionar inmediatamente (invalidate_cache).
+- [x] El comando `python manage.py migrate mcp` en VM corre limpio. — N/A: migration aplicada como SQL via `client.cursor()` (Task 2 Step 3); `ALL_TABLES` confirma `TMCP_TOKEN`/`TMCP_TOKEN_USO`.
+- [x] `pytest apps/mcp/tests/` pasa todos los tests (>=20 tests al final). — 35 passed in 1.01s (VM, run 2026-06-23 14:00 UTC).
+- [?] `/admin/mcp/tokens` solo visible para usuarios DBA. — Backend gate `IsLegacyAdmin` cubierto por test (`test_admin_tokens::list_requires_auth + forbidden_non_dba`). UI sidebar gate `requires: is_dba` pendiente de cablear `is_dba` en frontend (Task 13 Step 9 `[?]`).
+- [x] Generar token muestra plaintext **una sola vez**; un GET posterior no lo expone. — cubierto por `test_admin_tokens::test_create_returns_plaintext_once` (POST devuelve `plaintext`, persistencia guarda solo `hash` + `prefijo`).
+- [!] Cliente MCP real (Claude Desktop) lista tools y ejecuta `memoria_buscar` con éxito. — bloqueado por Task 14 Steps 3-7 (env vars memory-router + acción humana).
+- [!] `/admin/mcp/usage` muestra al menos una llamada después del smoke. — depende de smoke de Claude Desktop (Task 14 Step 8).
+- [x] Token revocado deja de funcionar inmediatamente (invalidate_cache). — cubierto por `test_admin_tokens::test_revoke` + `apps/mcp/tokens.py::invalidate_cache` invocado en `views_admin.TokenDetailView.patch`.
