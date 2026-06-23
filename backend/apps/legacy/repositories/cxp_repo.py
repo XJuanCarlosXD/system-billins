@@ -774,38 +774,50 @@ def rep_607(no_cia: str, anio: int, mes: int, punto: str = ''):
 
 
 def get_siguiente_no_docu(no_cia, punto, tipo_docu):
-    """Preview del siguiente numero de doc (sin commit, solo lectura)."""
+    """Preview del siguiente numero de doc (sin commit, solo lectura).
+
+    SEMANTICA LEGACY: TCXP_SECUENCIA.ult_docu = 'siguiente a usar' (NO
+    'ultimo usado'). El form legacy lee ult_docu, lo usa como no_docu del
+    documento nuevo, y DESPUES incrementa. Por eso NO sumamos 1 aqui.
+    """
     rows = client.fetch_dicts(
-        "SELECT NVL(ult_docu,0)+1 AS siguiente FROM CXP.TCXP_SECUENCIA "
+        "SELECT NVL(ult_docu,0) AS siguiente FROM CXP.TCXP_SECUENCIA "
         "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3",
         [no_cia, punto, tipo_docu])
     n = int(rows[0]['siguiente']) if rows else 1
+    # Si el row no existe todavia, el primer no_docu sera 1.
+    if n == 0:
+        n = 1
     return str(n).zfill(7)
 
 
 def _next_no_docu(cur, no_cia, punto, tipo_docu):
-    """Obtiene siguiente numero de documento de TCXP_SECUENCIA (con FOR UPDATE)."""
+    """Reserva el siguiente no_docu y avanza TCXP_SECUENCIA (FOR UPDATE).
+
+    Semantica legacy: ult_docu = numero a usar AHORA. Tras la INSERT,
+    ult_docu pasa a ser el siguiente disponible (ult_docu + 1).
+    """
     rows = cur.execute(
         "SELECT ult_docu FROM CXP.TCXP_SECUENCIA "
         "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 FOR UPDATE",
         [no_cia, punto, tipo_docu]).fetchone()
     if rows:
-        nuevo = rows[0] + 1
+        a_usar = rows[0] or 1
         cur.execute(
             "UPDATE CXP.TCXP_SECUENCIA SET ult_docu=:1 "
             "WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4",
-            [nuevo, no_cia, punto, tipo_docu])
+            [a_usar + 1, no_cia, punto, tipo_docu])
     else:
         row_max = cur.execute(
             "SELECT NVL(MAX(TO_NUMBER(no_docu)),0) FROM CXP.TCXP_DOCUMENTO "
             "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3",
             [no_cia, punto, tipo_docu]).fetchone()
-        nuevo = (row_max[0] if row_max else 0) + 1
+        a_usar = (row_max[0] if row_max else 0) + 1
         cur.execute(
             "INSERT INTO CXP.TCXP_SECUENCIA(no_cia,punto,tipo_docu,ult_docu) "
             "VALUES(:1,:2,:3,:4)",
-            [no_cia, punto, tipo_docu, nuevo])
-    return str(int(nuevo)).zfill(7)
+            [no_cia, punto, tipo_docu, a_usar + 1])
+    return str(int(a_usar)).zfill(7)
 
 
 def entrada_documento(d):

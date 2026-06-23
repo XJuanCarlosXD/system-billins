@@ -118,7 +118,7 @@ export function CatalogoProductos() {
       })
       .catch(() => setSublineas([]))
 
-    apiFetch<any>(`/inv/grupo-contable/?no_cia=${selectedCompany}`)
+    apiFetch<any>(`/inv/grupos-contables/?no_cia=${selectedCompany}`)
       .then((data) => {
         const items = Array.isArray(data) ? data : data.items ?? data.results ?? []
         setGruposContables(items)
