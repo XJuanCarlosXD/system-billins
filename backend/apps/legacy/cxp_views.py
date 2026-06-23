@@ -155,6 +155,21 @@ def cxp_proveedor_cuenta(request, no):
 @login_required
 @csrf_exempt
 @require_http_methods(['GET'])
+def cxp_proveedor_ncf_info(request, no):
+    """GET /api/cxp/proveedores/<no>/ncf-info/?no_cia=&punto= → config NCF."""
+    no_cia = request.GET.get('no_cia', '01')
+    punto  = _norm_punto(request.GET.get('punto', '01'))
+    # Normaliza el codigo si viene corto
+    raw = (no or '').strip()
+    if raw.isdigit() and len(raw) < 6:
+        no = raw.zfill(6)
+    data = cxp_repo.get_proveedor_ncf_info(no_cia, punto, no)
+    return JsonResponse(data or {"codigo_ncf": None}, status=200)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
 def cxp_cuentas_proveedor(request, no):
     no_cia    = request.GET.get('no_cia', '01')
     punto     = _norm_punto(request.GET.get('punto', '01'))

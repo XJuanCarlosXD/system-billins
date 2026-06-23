@@ -375,6 +375,33 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
       .catch(() => setCuentaProveedor(null))
   }, [proveedor?.no_proveedor, noCia, punto])
 
+  // NCF del proveedor: si TCXP_BPROVEEDOR.codigo_ncf != null, el proveedor
+  // es informal y el sistema autoasigna NCF B11 desde CNT.TCNT_NCF. Si
+  // null → proveedor formal, el operador digita el NCF que viene en la
+  // factura.
+  const [ncfInfo, setNcfInfo] = useState<{
+    codigo_ncf: string | null
+    posiciones_fijas?: string
+    prox_ncf?: number
+    descripcion?: string
+  } | null>(null)
+  useEffect(() => {
+    if (!proveedor?.no_proveedor || !punto) { setNcfInfo(null); return }
+    api.cxpGetProveedorNcfInfo(proveedor.no_proveedor, noCia, punto)
+      .then((r) => {
+        setNcfInfo(r)
+        if (r?.codigo_ncf && r?.prox_ncf != null) {
+          // Pre-fill NCF (numero) y tipo_ncf (posiciones_fijas, p.ej. B11)
+          setForm((f) => ({
+            ...f,
+            ncf: String(r.prox_ncf!).padStart(8, '0'),
+            tipo_ncf: r.posiciones_fijas || f.tipo_ncf,
+          }))
+        }
+      })
+      .catch(() => setNcfInfo(null))
+  }, [proveedor?.no_proveedor, noCia, punto])
+
   // Auto-calcula el ITBIS desde el valor: el valor capturado es el total
   // (con ITBIS incluido), así que se descompone como
   //   base  = total / (1 + porc/100)
@@ -487,13 +514,50 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
             />
           </div>
           <div className='space-y-1'>
-            <Label className='text-xs'>NCF</Label>
-            <Input
-              value={form.ncf}
-              onChange={(e) => setForm((f) => ({ ...f, ncf: e.target.value }))}
-              className='h-10 font-mono'
-              placeholder='B01...'
-            />
+            <Label className='text-xs flex items-center justify-between'>
+              <span>NCF</span>
+              {ncfInfo?.codigo_ncf && (
+                <span className='inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800'>
+                  Auto {ncfInfo.posiciones_fijas} — {ncfInfo.descripcion}
+                </span>
+              )}
+            </Label>
+            <div className='flex gap-1'>
+              <Select
+                value={form.tipo_ncf || (ncfInfo?.posiciones_fijas ?? '')}
+                onValueChange={(v) => setForm((f) => ({ ...f, tipo_ncf: v }))}
+                disabled={!!ncfInfo?.codigo_ncf}
+              >
+                <SelectTrigger className='h-10 w-[88px] font-mono'>
+                  <SelectValue placeholder='B0X' />
+                </SelectTrigger>
+                <SelectContent>
+                  {['B01','B02','B03','B04','B11','B13','B14','B15','E31','E32'].map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                value={form.ncf}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/[^0-9]/g, '').slice(0, 8)
+                  setForm((f) => ({ ...f, ncf: raw }))
+                }}
+                onBlur={() => {
+                  const n = (form.ncf || '').replace(/[^0-9]/g, '')
+                  if (n) setForm((f) => ({ ...f, ncf: n.padStart(8, '0') }))
+                }}
+                className='h-10 font-mono flex-1'
+                placeholder={ncfInfo?.codigo_ncf ? 'auto' : 'ej. 281'}
+                inputMode='numeric'
+                maxLength={8}
+              />
+            </div>
+            {form.ncf && (
+              <div className='text-[10px] text-muted-foreground font-mono'>
+                NCF DGI: {(form.tipo_ncf || ncfInfo?.posiciones_fijas || '').toUpperCase()}{form.ncf.padStart(8, '0')}
+              </div>
+            )}
           </div>
           <div className='space-y-1'>
             <Label className='text-xs'>Valor Total (con ITBIS) *</Label>

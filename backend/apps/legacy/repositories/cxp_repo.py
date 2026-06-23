@@ -329,6 +329,30 @@ def get_aging(no_cia, punto='', no_proveedor=''):
     return client.fetch_dicts(sql, params)
 
 
+def get_proveedor_ncf_info(no_cia, punto, no_proveedor):
+    """Devuelve la configuracion NCF asignada al proveedor para (cia, punto).
+
+    Si TCXP_BPROVEEDOR.codigo_ncf esta NULL → proveedor formal (operador
+    digita el NCF que viene en la factura). Si esta lleno (PI-001, etc.)
+    → proveedor informal: el sistema toma POSICIONES_FIJAS (B11) y
+    PROX_NCF de CNT.TCNT_NCF y los pre-llena en el form.
+    """
+    rows = client.fetch_dicts(
+        "SELECT bp.codigo_ncf, n.posiciones_fijas, n.prox_ncf, "
+        "n.ncf_inicial, n.ncf_final, n.descripcion, n.ncf_manual, "
+        "n.ncf_opcional "
+        "FROM CXP.TCXP_BPROVEEDOR bp "
+        "LEFT JOIN CNT.TCNT_NCF n ON n.codigo_ncf = bp.codigo_ncf "
+        "WHERE bp.no_cia=:1 AND bp.punto=:2 AND bp.no_proveedor=:3",
+        [no_cia, punto, no_proveedor])
+    if not rows:
+        return {"codigo_ncf": None}
+    r = rows[0]
+    if not r.get('codigo_ncf'):
+        return {"codigo_ncf": None}
+    return r
+
+
 def get_proveedor_cuenta(no_cia, punto, no_proveedor):
     """Account summary for FCXP502/503 header"""
     prov = client.fetch_dicts(
@@ -872,19 +896,27 @@ def entrada_documento(d):
                 ])
         else:
             no_docu = _next_no_docu(cur, no_cia, punto, tipo_docu)
-            # debito = credito = valor_original always (Oracle constraint)
-            # saldo: positive for C (pending to pay), negative for D (payment applied)
+            # NCF: el usuario teclea solo los digitos (o el sistema autoasigna
+            # desde TCNT_NCF.PROX_NCF). Lo guardamos como NUMBER y el prefijo
+            # (B11/B01/etc) va en POSICIONES_FIJAS_NCF.
+            _ncf_raw = str(d.get("ncf") or '').strip()
+            _ncf_num = int(_ncf_raw) if _ncf_raw.isdigit() else None
+            _pos_ncf = (
+                d.get("posiciones_fijas_ncf")
+                or d.get("tipo_ncf")
+                or ''
+            ).strip().upper() or None
             cur.execute(
                 "INSERT INTO CXP.TCXP_DOCUMENTO("
                 "no_cia,punto,tipo_docu,no_docu,no_proveedor,tipo_movi,tipo_transaccion,"
                 "fecha,fecha_vence,status,valor_original,debito,credito,saldo,"
-                "impuesto,itbis_retenido,isr_retenido,rnc,ncf,detalle,"
+                "impuesto,itbis_retenido,isr_retenido,rnc,ncf,posiciones_fijas_ncf,detalle,"
                 "st_generado_cnt,pago_bloqueado,estado_encf,usuario,fecha_sysdate"
                 ") VALUES("
                 ":1,:2,:3,:4,:5,:6,:7,"
                 "TO_DATE(:8,'YYYY-MM-DD'),TO_DATE(:9,'YYYY-MM-DD'),'A',:10,:11,:12,:13,"
-                ":14,:15,:16,:17,:18,:19,"
-                "'N','N',0,:20,SYSDATE"
+                ":14,:15,:16,:17,:18,:19,:20,"
+                "'N','N',0,:21,SYSDATE"
                 ")",
                 [
                     no_cia, punto, tipo_docu, no_docu, no_proveedor,
@@ -897,7 +929,7 @@ def entrada_documento(d):
                     float(d.get("impuesto") or 0),
                     float(d.get("itbis_retenido") or 0),
                     float(d.get("isr_retenido") or 0),
-                    d.get("rnc", ""), d.get("ncf", ""), detalle,
+                    d.get("rnc", ""), _ncf_num, _pos_ncf, detalle,
                     d.get("usuario", "API"),
                 ])
 
