@@ -57,3 +57,54 @@ en `/mcp/`). Linea ~1836 del plan.
   patrones de la skill `sigaft-crud-pagination` y `sigaft-ui-facturacion`.
 
 RUN_DONE | steps_done=27 | next_pending=Task 11 Step 1 (server.py) | blockers=0 | commits_pushed=7
+
+---
+
+## Run 2026-06-23 ~14:30 UTC
+
+**Steps completados:**
+- Task 12 (UI admin tokens) steps 8, 9 (deferido a Netlify), 10 (commit).
+  Resultado: route TanStack `/admin/mcp/tokens` creada; commit
+  `feat(mcp): UI admin tokens — lista, crear, revocar, usage drawer`.
+- Task 13 (UI usage page) steps 1..11. Componentes:
+  `usage-kpis.tsx`, `usage-timeseries.tsx` (recharts),
+  `usage-top-tools.tsx`, `usage-top-users.tsx`, `usage-recent-errors.tsx`,
+  `mcp-usage-page.tsx`, route `/admin/mcp/usage`.
+  Sidebar: entradas `MCP Tokens` y `MCP Usage` agregadas bajo grupo Sistema.
+  Step 9 quedo marcado [?]: no existe gating `is_dba` en frontend, las
+  entradas son visibles a todo autenticado por ahora. Step 10 (smoke local)
+  diferido a Netlify.
+- Task 14 (deploy + smoke) step 2: backend ya en sync con VM (md5sum
+  identicos en server.py, views_admin.py, views_usage.py, urls.py,
+  settings.py, asgi.py, requirements.txt). Container Up, `/mcp/`
+  responde 406 sin Accept header (esperado).
+
+**Tests:** no se corrieron tests nuevos este run (todo trabajo frontend;
+las reglas indican no usar `npm run build` como validacion).
+
+**Commits pushed (este run):** 2
+- bec80fc feat(mcp): UI admin tokens — lista, crear, revocar, usage drawer
+- 2632688 feat(mcp): vista de monitoreo /admin/mcp/usage + entradas sidebar
+
+**Steps marcados [?] (necesitan confirmacion humana):**
+- Task 13 Step 9: como cablear `is_dba` (campo en /api/profile/, claim,
+  flag local). Por ahora las entradas son visibles a todos.
+- Task 14 Step 1: push a `main` queda al usuario (regla "NO PR").
+- Task 14 Step 3: env vars MEMORY_ROUTER_URL / TOKEN / PROJECT — el
+  usuario debe pegar valores reales en `.env` del compose y reiniciar.
+
+**Steps marcados [!] (diferidos a accion humana / post-deploy):**
+- Task 12 Step 9, Task 13 Step 10: smoke local frontend — diferido a
+  Netlify.
+- Task 14 Steps 4..9: requieren login UI, Claude Desktop, smoke con
+  llamadas reales — accion del usuario.
+
+**Proximo step pendiente:** todos los steps automatizables estan
+cerrados. Lo que queda son acciones humanas (Step 1 push main,
+Step 3 env vars, Steps 4..9 smoke con Claude Desktop) + el gate
+`is_dba` cuando el usuario decida la fuente del flag.
+
+**Blockers:** 3 confirmaciones humanas pendientes (gate is_dba,
+push main, env vars memory-router).
+
+RUN_DONE | steps_done=15 | next_pending=Task 14 Step 1 push main (humano) | blockers=3 | commits_pushed=2

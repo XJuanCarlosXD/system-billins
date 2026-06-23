@@ -2592,7 +2592,7 @@ git commit -m "feat(mcp): vista de monitoreo /admin/mcp/usage + entradas sidebar
 
 **Files:** ninguno — comandos.
 
-- [ ] **Step 1: Push frontend a `main` (Netlify)**
+- [?] **Step 1: Push frontend a `main` (Netlify)** — bloqueado por instrucción explícita del usuario ("NO abras PR — el usuario lo hará manualmente"). El branch `mcp/foundations` queda pushed; el merge a `main` (que dispara Netlify) lo hace el usuario.
 
 ```bash
 git push origin main
@@ -2600,7 +2600,7 @@ git push origin main
 
 Expected: Netlify build verde.
 
-- [ ] **Step 2: Deploy backend al VM (skill sigaft-deploy-vm)**
+- [x] **Step 2: Deploy backend al VM (skill sigaft-deploy-vm)** — verificado vía md5sum: `apps/mcp/*`, `facturation_api/settings.py`, `urls.py`, `asgi.py`, `requirements.txt` ya están sincronizados (hashes idénticos local vs VM, runs anteriores ya hicieron el push). Container `facturation_backend` Up 4h, endpoint `/mcp/` responde 406 sin Accept header (esperado, server montado OK).
 
 ```bash
 pscp -batch -r backend/apps/mcp        jcabreu@10.0.0.99:/home/jcabreu/facturation-system/backend/apps/
@@ -2611,7 +2611,7 @@ pscp -batch backend/requirements.txt            jcabreu@10.0.0.99:/home/jcabreu/
 plink -batch jcabreu@10.0.0.99 "cd /home/jcabreu/facturation-system && docker compose build backend && docker compose up -d backend"
 ```
 
-- [ ] **Step 3: Configurar env vars de memory-router en el VM**
+- [?] **Step 3: Configurar env vars de memory-router en el VM** — verificado que `MEMORY_ROUTER_*` no están en el env del container. Necesita confirmación humana con valores reales: (a) URL del memory-router que sirve el `facture-project`, (b) service-token, (c) nombre exacto del project. Sin esto, las tools `memoria_*` fallarán con error de conexión.
 
 Editar `.env` del compose, agregar:
 
@@ -2623,11 +2623,11 @@ MEMORY_ROUTER_PROJECT=facture-project
 
 Reiniciar: `docker compose restart backend`.
 
-- [ ] **Step 4: Crear token de prueba en `/admin/mcp/tokens`**
+- [!] **Step 4: Crear token de prueba en `/admin/mcp/tokens`** — requiere login UI tras deploy frontend (Step 1). Diferido a acción humana.
 
 Login JCABREU → "Nuevo token" → usuario JCABREU, nombre "Smoke test", empresa 01 (no bloquear), punto 01 (no bloquear), expira en 7 días → Generar. Copiar plaintext.
 
-- [ ] **Step 5: Configurar Claude Desktop**
+- [!] **Step 5: Configurar Claude Desktop** — acción humana en la máquina del usuario.
 
 `~/.config/Claude/claude_desktop_config.json`:
 
@@ -2645,22 +2645,22 @@ Login JCABREU → "Nuevo token" → usuario JCABREU, nombre "Smoke test", empres
 
 Reiniciar Claude Desktop.
 
-- [ ] **Step 6: Validar tools disponibles**
+- [!] **Step 6: Validar tools disponibles** — depende de Steps 1, 3, 4, 5. Acción humana.
 
 En Claude Desktop, abrir un chat y pedir: "lista las tools disponibles del MCP zentoryerp". Esperar: aparece `memoria_buscar`, `memoria_briefing`, `doc_tipos_listar`, etc.
 
-- [ ] **Step 7: Smoke calls reales**
+- [!] **Step 7: Smoke calls reales** — acción humana.
 
 Pedirle a Claude Desktop:
 1. "Usa `memoria_buscar` para encontrar memorias sobre NCF" → debe responder con resultados del proyecto.
 2. "Llama `doc_tipos_listar` modulo=fat no_cia=01" → en este plan el registry FAT aún no está poblado, debería devolver `data.tipos = []` o `VALIDATION_ERROR módulo desconocido` (esperado — Plan 2 lo poblará).
 
-- [ ] **Step 8: Verificar auditoría**
+- [!] **Step 8: Verificar auditoría** — acción humana tras Step 7.
 
 Abrir `/admin/mcp/usage` → ver KPIs ≥ 1 llamada, top_tools con `memoria_buscar`.
 Abrir drawer de uso del token → ver las llamadas registradas con duration_ms.
 
-- [ ] **Step 9: Commit del último ajuste si lo hubo, y tag**
+- [!] **Step 9: Commit del último ajuste si lo hubo, y tag** — diferido hasta que el smoke pase. El tag `mcp-plan-1-foundations` lo crea el usuario al validar.
 
 ```bash
 git tag mcp-plan-1-foundations
