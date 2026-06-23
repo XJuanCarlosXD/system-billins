@@ -115,9 +115,28 @@ def inv_productos(request):
 
 
 @login_required
-@require_http_methods(["GET"])
+@csrf_exempt
+@require_http_methods(["GET", "PATCH", "PUT"])
 def inv_producto(request, no_produ: str):
-    """GET /api/inv/productos/<no_produ>/?no_cia=01"""
+    """GET    /api/inv/productos/<no_produ>/?no_cia=01
+    PATCH  /api/inv/productos/<no_produ>/  body JSON con campos a modificar.
+    """
+    if request.method in ("PATCH", "PUT"):
+        try:
+            payload = json.loads(request.body.decode('utf-8') or '{}')
+        except Exception:
+            return JsonResponse({"error": "JSON invalido"}, status=400)
+        try:
+            res = inv_repo.update_producto(
+                no_produ=no_produ,
+                payload=payload,
+                usuario=getattr(request.user, 'username', '') or 'API',
+            )
+            return JsonResponse({"data": _jsonify(res)})
+        except ValueError as e:
+            return JsonResponse({"error": str(e)}, status=400)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
     try:
         no_cia = request.GET.get('no_cia', '01')
         item = inv_repo.get_producto(no_produ=no_produ, no_cia=no_cia)

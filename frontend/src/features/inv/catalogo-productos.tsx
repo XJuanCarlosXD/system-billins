@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, X, ChevronLeft, ChevronRight, History, Plus } from 'lucide-react'
+import { Search, X, ChevronLeft, ChevronRight, History, Plus, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { useCompany } from '@/context/company-context'
 import { regalGeneralApi } from '@/lib/regal-general-api'
@@ -69,7 +69,8 @@ export function CatalogoProductos() {
 
   const [selected, setSelected] = useState<Producto | null>(null)
   const [moviProdu, setMoviProdu] = useState<{ no_produ: string; descripcion: string } | null>(null)
-  const [createOpen, setCreateOpen] = useState(false)
+  const [formOpen, setFormOpen] = useState(false)
+  const [editingProdu, setEditingProdu] = useState<string | null>(null) // null = creando, no_produ = editando
   const [sublineas, setSublineas] = useState<any[]>([])
   const [gruposContables, setGruposContables] = useState<any[]>([])
 
@@ -163,8 +164,40 @@ export function CatalogoProductos() {
     setPage(1)
   }
 
-  const handleCreate = async () => {
-    if (!form.no_produ.trim()) return toast.error('Código del producto requerido')
+  const openCreate = () => {
+    setForm(emptyForm)
+    setEditingProdu(null)
+    setFormOpen(true)
+  }
+
+  const openEdit = async (p: Producto) => {
+    setEditingProdu(p.no_produ)
+    setSelected(null)
+    setFormOpen(true)
+    // Fetch detalle completo (la lista paginada no trae grupo_contable, costo_mercado_rd, etc.)
+    try {
+      const detail = await apiFetch<any>(`/inv/productos/${encodeURIComponent(p.no_produ)}/?no_cia=${selectedCompany}`)
+      const d = detail?.data ?? detail ?? {}
+      setForm({
+        no_produ: d.no_produ ?? p.no_produ ?? '',
+        descripcion: d.descripcion ?? p.descripcion ?? '',
+        linea: d.linea ?? p.linea ?? '',
+        sub_linea: d.sub_linea ?? p.sub_linea ?? '',
+        grupo_produ: d.grupo_produ ?? p.grupo_produ ?? p.grupo ?? '',
+        grupo_contable: d.grupo_contable ?? '',
+        servicio: d.servicio ?? p.servicio ?? 'I',
+        tiene_impuesto: (d.tiene_impuesto ?? p.tiene_impuesto ?? 'S') === 'S',
+        porciento_impuesto: String(d.porciento_impuesto ?? p.porciento_impuesto ?? p.itbis ?? '18'),
+        costo: String(d.costo_mercado_rd ?? d.costo_mercado ?? p.costo_mercado_rd ?? p.costo ?? ''),
+        activo: ((d.activo ?? p.activo ?? 'S') === 'N' ? 'N' : 'S') as 'S' | 'N',
+      })
+    } catch (err: any) {
+      toast.error(`No se pudo cargar el producto: ${err.message}`)
+    }
+  }
+
+  const handleSave = async () => {
+    if (!editingProdu && !form.no_produ.trim()) return toast.error('Código del producto requerido')
     if (!form.descripcion.trim()) return toast.error('Descripción requerida')
     if (!form.linea || !form.sub_linea) return toast.error('Línea y sub-línea requeridas')
     if (!form.grupo_produ) return toast.error('Grupo requerido')
@@ -173,32 +206,42 @@ export function CatalogoProductos() {
     setSaving(true)
     try {
       const csrf = (document.cookie.split('; ').find(c => c.startsWith('csrftoken=')) || '').split('=')[1] || ''
-      const res = await fetch(`${API_BASE}/inv/productos/`, {
-        method: 'POST',
+      const body: any = {
+        descripcion: form.descripcion.trim(),
+        linea: form.linea,
+        sub_linea: form.sub_linea,
+        grupo_produ: form.grupo_produ,
+        grupo_contable: form.grupo_contable,
+        servicio: form.servicio,
+        tiene_impuesto: form.tiene_impuesto ? 'S' : 'N',
+        porciento_impuesto: parseFloat(form.porciento_impuesto) || 0,
+        costo: parseFloat(form.costo) || 0,
+        activo: form.activo,
+      }
+
+      const isEdit = !!editingProdu
+      const url = isEdit
+        ? `${API_BASE}/inv/productos/${encodeURIComponent(editingProdu!)}/`
+        : `${API_BASE}/inv/productos/`
+      if (!isEdit) body.no_produ = form.no_produ.trim().toUpperCase()
+
+      const res = await fetch(url, {
+        method: isEdit ? 'PATCH' : 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-        body: JSON.stringify({
-          no_produ: form.no_produ.trim().toUpperCase(),
-          descripcion: form.descripcion.trim(),
-          linea: form.linea,
-          sub_linea: form.sub_linea,
-          grupo_produ: form.grupo_produ,
-          grupo_contable: form.grupo_contable,
-          servicio: form.servicio,
-          tiene_impuesto: form.tiene_impuesto ? 'S' : 'N',
-          porciento_impuesto: parseFloat(form.porciento_impuesto) || 0,
-          costo: parseFloat(form.costo) || 0,
-          activo: form.activo,
-        }),
+        body: JSON.stringify(body),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      toast.success(`Producto ${form.no_produ} creado`)
-      setCreateOpen(false)
+      toast.success(isEdit
+        ? `Producto ${editingProdu} actualizado`
+        : `Producto ${form.no_produ} creado`)
+      setFormOpen(false)
+      setEditingProdu(null)
       setForm(emptyForm)
       // Forzar refresh de la lista (re-trigger del useEffect)
       setSearch((s) => s)
-      setPage(1)
+      if (!isEdit) setPage(1)
     } catch (err: any) {
       toast.error(`Error: ${err.message}`)
     } finally {
@@ -220,7 +263,7 @@ export function CatalogoProductos() {
             {total > 0 ? `${total.toLocaleString()} productos` : 'Empresa: ' + selectedCompany}
           </p>
         </div>
-        <Button size='sm' className='gap-1' onClick={() => { setForm(emptyForm); setCreateOpen(true) }}>
+        <Button size='sm' className='gap-1' onClick={openCreate}>
           <Plus className='h-4 w-4' /> Nuevo Producto
         </Button>
       </div>
@@ -257,11 +300,14 @@ export function CatalogoProductos() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value='__all__'>Todos los grupos</SelectItem>
-            {grupos.map((g: any) => (
-              <SelectItem key={g.grupo ?? g.codigo ?? g.id} value={String(g.grupo ?? g.codigo ?? g.id)}>
-                {g.descripcion ?? g.grupo}
-              </SelectItem>
-            ))}
+            {grupos.map((g: any) => {
+              const code = String(g.grupo_produ ?? g.grupo ?? g.codigo ?? g.id ?? '')
+              return (
+                <SelectItem key={code} value={code}>
+                  {code} — {g.descripcion ?? ''}
+                </SelectItem>
+              )
+            })}
           </SelectContent>
         </Select>
 
@@ -367,17 +413,27 @@ export function CatalogoProductos() {
                   <span className='font-mono text-base'>{selected.no_produ}</span>
                   {selected.activo === 'N' && <Badge variant='secondary'>Inactivo</Badge>}
                 </DialogTitle>
-                <Button
-                  variant='outline'
-                  size='sm'
-                  className='gap-1.5'
-                  onClick={() => setMoviProdu({
-                    no_produ: selected.no_produ,
-                    descripcion: selected.descripcion || '',
-                  })}
-                >
-                  <History className='h-3.5 w-3.5' /> Ver movimientos
-                </Button>
+                <div className='flex items-center gap-2'>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='gap-1.5'
+                    onClick={() => openEdit(selected)}
+                  >
+                    <Pencil className='h-3.5 w-3.5' /> Editar
+                  </Button>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='gap-1.5'
+                    onClick={() => setMoviProdu({
+                      no_produ: selected.no_produ,
+                      descripcion: selected.descripcion || '',
+                    })}
+                  >
+                    <History className='h-3.5 w-3.5' /> Ver movimientos
+                  </Button>
+                </div>
               </div>
             </DialogHeader>
             <div className='space-y-3 text-sm'>
@@ -424,11 +480,11 @@ export function CatalogoProductos() {
         />
       )}
 
-      {/* Crear producto */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      {/* Crear / Editar producto */}
+      <Dialog open={formOpen} onOpenChange={(o) => { setFormOpen(o); if (!o) setEditingProdu(null) }}>
         <DialogContent className='max-w-2xl'>
           <DialogHeader>
-            <DialogTitle>Nuevo Producto</DialogTitle>
+            <DialogTitle>{editingProdu ? `Editar Producto ${editingProdu}` : 'Nuevo Producto'}</DialogTitle>
           </DialogHeader>
           <div className='grid grid-cols-2 gap-4 py-2'>
             <div className='space-y-1'>
@@ -438,6 +494,7 @@ export function CatalogoProductos() {
                 className='h-9 font-mono uppercase'
                 placeholder='00012345'
                 value={form.no_produ}
+                disabled={!!editingProdu}
                 onChange={(e) => setForm((f) => ({ ...f, no_produ: e.target.value.toUpperCase() }))}
               />
             </div>
@@ -472,11 +529,14 @@ export function CatalogoProductos() {
                   <SelectValue placeholder='Seleccionar...' />
                 </SelectTrigger>
                 <SelectContent>
-                  {grupos.map((g: any) => (
-                    <SelectItem key={String(g.grupo ?? g.codigo)} value={String(g.grupo ?? g.codigo)}>
-                      {g.grupo ?? g.codigo} — {g.descripcion}
-                    </SelectItem>
-                  ))}
+                  {grupos.map((g: any) => {
+                    const code = String(g.grupo_produ ?? g.grupo ?? g.codigo ?? '')
+                    return (
+                      <SelectItem key={code} value={code}>
+                        {code} — {g.descripcion ?? ''}
+                      </SelectItem>
+                    )
+                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -584,11 +644,11 @@ export function CatalogoProductos() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant='outline' onClick={() => setCreateOpen(false)} disabled={saving}>
+            <Button variant='outline' onClick={() => { setFormOpen(false); setEditingProdu(null) }} disabled={saving}>
               Cancelar
             </Button>
-            <Button onClick={handleCreate} disabled={saving}>
-              {saving ? 'Guardando...' : 'Crear Producto'}
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? 'Guardando...' : editingProdu ? 'Guardar Cambios' : 'Crear Producto'}
             </Button>
           </DialogFooter>
         </DialogContent>
