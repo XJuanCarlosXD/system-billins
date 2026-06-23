@@ -524,11 +524,11 @@ export function CatalogoProductos() {
 
       {/* Crear / Editar producto */}
       <Dialog open={formOpen} onOpenChange={(o) => { setFormOpen(o); if (!o) setEditingProdu(null) }}>
-        <DialogContent className='max-w-2xl'>
-          <DialogHeader>
+        <DialogContent className='flex flex-col max-w-2xl max-h-[90vh] gap-0 p-0'>
+          <DialogHeader className='shrink-0 border-b px-6 py-4'>
             <DialogTitle>{editingProdu ? `Editar Producto ${editingProdu}` : 'Nuevo Producto'}</DialogTitle>
           </DialogHeader>
-          <div className='grid grid-cols-2 gap-4 py-2'>
+          <div className='grid grid-cols-2 gap-4 px-6 py-4 overflow-y-auto flex-1'>
             <div className='space-y-1'>
               <Label htmlFor='np-codigo'>Código <span className='text-destructive'>*</span></Label>
               <Input
@@ -810,7 +810,7 @@ export function CatalogoProductos() {
               </>
             )}
           </div>
-          <DialogFooter>
+          <DialogFooter className='shrink-0 border-t bg-background px-6 py-3'>
             <Button variant='outline' onClick={() => { setFormOpen(false); setEditingProdu(null) }} disabled={saving}>
               Cancelar
             </Button>
