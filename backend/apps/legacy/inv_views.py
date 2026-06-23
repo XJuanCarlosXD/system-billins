@@ -57,6 +57,32 @@ def _jsonify(data):
 
 
 @login_required
+@csrf_exempt
+@require_http_methods(["GET", "PUT", "POST"])
+def inv_producto_empaques(request, no_produ: str):
+    """GET /api/inv/productos/<no_produ>/empaques-mant/  -> lista
+    PUT/POST /api/inv/productos/<no_produ>/empaques-mant/ {empaques:[...]}  -> replace all
+    """
+    if request.method == "GET":
+        try:
+            return JsonResponse({"items": _jsonify(inv_repo.list_empaques_producto(no_produ))})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except Exception:
+        return JsonResponse({"error": "JSON invalido"}, status=400)
+    try:
+        empaques = payload.get('empaques') if isinstance(payload, dict) else payload
+        res = inv_repo.save_empaques_producto(no_produ, empaques or [])
+        return JsonResponse({"data": _jsonify(res)})
+    except ValueError as e:
+        return JsonResponse({"error": str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
 @require_http_methods(["GET"])
 def inv_producto_next_codigo(request):
     """GET /api/inv/productos/next-codigo/ — preview del siguiente no_produ."""

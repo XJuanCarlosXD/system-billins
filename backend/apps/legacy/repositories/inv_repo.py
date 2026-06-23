@@ -461,6 +461,95 @@ def update_producto(no_produ: str, payload: dict, usuario: str = '') -> dict:
     return {'no_produ': no_produ, 'updated': 1}
 
 
+def list_empaques_producto(no_produ: str) -> list[dict]:
+    """Lista los empaques (TINV_EMPAQUE) de un producto con nombres de
+    unidad y referencia.
+    """
+    no_produ = (no_produ or '').strip().upper()
+    if not no_produ:
+        return []
+    return client.fetch_dicts(
+        "SELECT e.no_produ, e.empaque, e.unidad, u.descri AS unidad_desc, "
+        "e.referencia, r.descri AS referencia_desc, "
+        "e.cpe, e.por_defecto, e.para_reporte, e.permite_fraccion "
+        "FROM INV.TINV_EMPAQUE e "
+        "LEFT JOIN INV.TINV_UNIDAD u ON u.unidad = e.unidad "
+        "LEFT JOIN INV.TINV_REFERENCIA r ON r.referencia = e.referencia "
+        "WHERE e.no_produ = :1 ORDER BY e.empaque",
+        [no_produ],
+    )
+
+
+def save_empaques_producto(no_produ: str, empaques: list[dict]) -> dict:
+    """Reemplaza la lista de empaques de un producto (DELETE + INSERT).
+
+    Validaciones legacy FINV111: al menos 1 empaque; exactamente 1
+    por_defecto='S' y 1 para_reporte='S' (si no se marca ninguno se
+    asigna automáticamente al primero).
+    """
+    no_produ = (no_produ or '').strip().upper()
+    if not no_produ:
+        raise ValueError("no_produ es requerido")
+    if not client.fetch_one(
+        "SELECT 1 FROM INV.TINV_PRODUCTO WHERE no_produ = :1", [no_produ]
+    ):
+        raise ValueError(f"Producto {no_produ} no encontrado")
+
+    rows: list[dict] = []
+    for i, e in enumerate(empaques or [], start=1):
+        unidad = (e.get('unidad') or '').strip()
+        referencia = (e.get('referencia') or '').strip()
+        if not unidad:
+            raise ValueError(f"Empaque #{i}: unidad es requerida")
+        if not referencia:
+            raise ValueError(f"Empaque #{i}: referencia es requerida")
+        cpe = e.get('cpe')
+        try:
+            cpe = float(cpe) if cpe not in (None, '') else 0
+        except (TypeError, ValueError):
+            raise ValueError(f"Empaque #{i}: cpe (cantidad) inválida")
+        if cpe <= 0:
+            raise ValueError(f"Empaque #{i}: la cantidad debe ser mayor que cero")
+        rows.append({
+            'empaque': int(e.get('empaque') or i),
+            'unidad': unidad,
+            'referencia': referencia,
+            'cpe': cpe,
+            'por_defecto': (str(e.get('por_defecto') or 'N').upper()[:1]),
+            'para_reporte': (str(e.get('para_reporte') or 'N').upper()[:1]),
+            'permite_fraccion': (str(e.get('permite_fraccion') or 'N').upper()[:1]),
+        })
+
+    if not rows:
+        raise ValueError("Debe definir al menos un empaque")
+    n_def = sum(1 for r in rows if r['por_defecto'] == 'S')
+    n_rep = sum(1 for r in rows if r['para_reporte'] == 'S')
+    if n_def == 0:
+        rows[0]['por_defecto'] = 'S'
+    elif n_def > 1:
+        raise ValueError("Solo un empaque puede estar marcado como 'Por defecto'")
+    if n_rep == 0:
+        rows[0]['para_reporte'] = 'S'
+    elif n_rep > 1:
+        raise ValueError("Solo un empaque puede estar marcado como 'Para reporte'")
+
+    with client.cursor() as cur:
+        cur.execute("DELETE FROM INV.TINV_EMPAQUE WHERE no_produ = :1", [no_produ])
+        for r in rows:
+            cur.execute(
+                "INSERT INTO INV.TINV_EMPAQUE("
+                "no_produ, empaque, unidad, referencia, cpe, "
+                "por_defecto, para_reporte, permite_fraccion"
+                ") VALUES("
+                ":no_produ, :empaque, :unidad, :referencia, :cpe, "
+                ":por_defecto, :para_reporte, :permite_fraccion"
+                ")",
+                {'no_produ': no_produ, **r},
+            )
+        cur.connection.commit()
+    return {'no_produ': no_produ, 'count': len(rows)}
+
+
 def list_existencias(
     no_cia: str = '01',
     punto: str = '',

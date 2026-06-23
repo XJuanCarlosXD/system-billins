@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, X, ChevronLeft, ChevronRight, History, Plus, Pencil } from 'lucide-react'
+import { Search, X, ChevronLeft, ChevronRight, History, Plus, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useCompany } from '@/context/company-context'
 import { regalGeneralApi } from '@/lib/regal-general-api'
@@ -66,6 +66,19 @@ export function CatalogoProductos() {
   const [grupos, setGrupos] = useState<any[]>([])
   const [lineas, setLineas] = useState<any[]>([])
   const [almacenes, setAlmacenes] = useState<MovimientosProductoModalAlmacen[]>([])
+  const [unidades, setUnidades] = useState<{ unidad: string; descripcion?: string; descri?: string }[]>([])
+  const [refsEmpaque, setRefsEmpaque] = useState<{ referencia: string; descripcion?: string; descri?: string }[]>([])
+
+  type EmpaqueRow = {
+    empaque: number
+    unidad: string
+    referencia: string
+    cpe: string
+    por_defecto: boolean
+    para_reporte: boolean
+    permite_fraccion: boolean
+  }
+  const [empaques, setEmpaques] = useState<EmpaqueRow[]>([])
 
   const [selected, setSelected] = useState<Producto | null>(null)
   const [moviProdu, setMoviProdu] = useState<{ no_produ: string; descripcion: string } | null>(null)
@@ -132,6 +145,20 @@ export function CatalogoProductos() {
         setGruposContables(items)
       })
       .catch(() => setGruposContables([]))
+
+    apiFetch<any>(`/inv/unidades/`)
+      .then((data) => {
+        const items = Array.isArray(data) ? data : data.items ?? data.results ?? []
+        setUnidades(items)
+      })
+      .catch(() => setUnidades([]))
+
+    apiFetch<any>(`/inv/referencias-empaque/`)
+      .then((data) => {
+        const items = Array.isArray(data) ? data : data.items ?? data.results ?? []
+        setRefsEmpaque(items)
+      })
+      .catch(() => setRefsEmpaque([]))
   }, [selectedCompany, selectedPoint])
 
   // Load products
@@ -175,6 +202,7 @@ export function CatalogoProductos() {
   const openCreate = async () => {
     setForm(emptyForm)
     setEditingProdu(null)
+    setEmpaques([])
     setFormOpen(true)
     // Auto-pre-fill del codigo desde la secuencia legacy TINV_NEXT_PRODU
     try {
@@ -187,10 +215,64 @@ export function CatalogoProductos() {
     }
   }
 
+  const loadEmpaques = async (no_produ: string) => {
+    try {
+      const r = await apiFetch<{ items?: any[] }>(`/inv/productos/${encodeURIComponent(no_produ)}/empaques-mant/`)
+      const items = (r?.items ?? []).map((e: any) => ({
+        empaque: Number(e.empaque) || 1,
+        unidad: String(e.unidad ?? ''),
+        referencia: String(e.referencia ?? ''),
+        cpe: String(e.cpe ?? ''),
+        por_defecto: (e.por_defecto ?? 'N') === 'S',
+        para_reporte: (e.para_reporte ?? 'N') === 'S',
+        permite_fraccion: (e.permite_fraccion ?? 'N') === 'S',
+      }))
+      setEmpaques(items)
+    } catch {
+      setEmpaques([])
+    }
+  }
+
+  const addEmpaqueRow = () => {
+    setEmpaques((rows) => {
+      const next = rows.length + 1
+      return [
+        ...rows,
+        {
+          empaque: next,
+          unidad: unidades[0]?.unidad ?? '',
+          referencia: refsEmpaque[0]?.referencia ?? '',
+          cpe: '1',
+          por_defecto: rows.length === 0,  // primer renglón por defecto
+          para_reporte: rows.length === 0,
+          permite_fraccion: false,
+        },
+      ]
+    })
+  }
+
+  const updateEmpaqueRow = (idx: number, patch: Partial<EmpaqueRow>) => {
+    setEmpaques((rows) => rows.map((r, i) => {
+      if (i !== idx) {
+        // Si se está marcando por_defecto/para_reporte en otro, desmarcar este
+        const next = { ...r }
+        if (patch.por_defecto === true) next.por_defecto = false
+        if (patch.para_reporte === true) next.para_reporte = false
+        return next
+      }
+      return { ...r, ...patch }
+    }))
+  }
+
+  const removeEmpaqueRow = (idx: number) =>
+    setEmpaques((rows) => rows.filter((_, i) => i !== idx))
+
   const openEdit = async (p: Producto) => {
     setEditingProdu(p.no_produ)
     setSelected(null)
+    setEmpaques([])
     setFormOpen(true)
+    loadEmpaques(p.no_produ)
     // Fetch detalle completo (la lista paginada no trae grupo_contable, costo_mercado_rd, etc.)
     try {
       const detail = await apiFetch<any>(`/inv/productos/${encodeURIComponent(p.no_produ)}/?no_cia=${selectedCompany}`)
@@ -275,12 +357,46 @@ export function CatalogoProductos() {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+
+      // Si el usuario definió empaques, los guardamos en una segunda llamada.
+      // El backend reemplaza toda la lista (DELETE + INSERT) y valida que
+      // haya exactamente 1 por_defecto y 1 para_reporte.
+      const savedNoProdu = (data?.data?.no_produ as string | undefined)
+        || (isEdit ? editingProdu! : form.no_produ.trim().toUpperCase())
+      if (empaques.length > 0) {
+        const empRes = await fetch(
+          `${API_BASE}/inv/productos/${encodeURIComponent(savedNoProdu)}/empaques-mant/`,
+          {
+            method: 'PUT',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+            body: JSON.stringify({
+              empaques: empaques.map((e, i) => ({
+                empaque: e.empaque || i + 1,
+                unidad: e.unidad,
+                referencia: e.referencia,
+                cpe: parseFloat(e.cpe) || 0,
+                por_defecto: e.por_defecto ? 'S' : 'N',
+                para_reporte: e.para_reporte ? 'S' : 'N',
+                permite_fraccion: e.permite_fraccion ? 'S' : 'N',
+              })),
+            }),
+          },
+        )
+        const empData = await empRes.json().catch(() => ({}))
+        if (!empRes.ok) {
+          // El producto sí se guardó; solo el upsert de empaques falló.
+          toast.error(`Producto guardado, pero empaques: ${empData.error || `HTTP ${empRes.status}`}`)
+        }
+      }
+
       toast.success(isEdit
         ? `Producto ${editingProdu} actualizado`
-        : `Producto ${form.no_produ} creado`)
+        : `Producto ${savedNoProdu} creado`)
       setFormOpen(false)
       setEditingProdu(null)
       setForm(emptyForm)
+      setEmpaques([])
       // Forzar refresh de la lista (re-trigger del useEffect)
       setSearch((s) => s)
       if (!isEdit) setPage(1)
@@ -809,6 +925,130 @@ export function CatalogoProductos() {
                 </div>
               </>
             )}
+
+            {/* Empaques: tabla editable (TINV_EMPAQUE) */}
+            <div className='col-span-2 border-t pt-3 mt-1'>
+              <div className='flex items-center justify-between mb-2'>
+                <div>
+                  <Label className='text-sm font-medium'>Empaques</Label>
+                  <p className='text-xs text-muted-foreground mt-0.5'>
+                    Define unidades de venta (LB, FUNDA, CAJA…) con cantidad por empaque (CPE).
+                    Marca uno como <span className='font-semibold'>Por defecto</span> y otro como <span className='font-semibold'>Para reporte</span>.
+                  </p>
+                </div>
+                <Button
+                  type='button'
+                  size='sm'
+                  variant='outline'
+                  onClick={addEmpaqueRow}
+                  className='gap-1 shrink-0'
+                  disabled={unidades.length === 0 || refsEmpaque.length === 0}
+                >
+                  <Plus className='h-3.5 w-3.5' /> Agregar
+                </Button>
+              </div>
+              {empaques.length === 0 ? (
+                <p className='text-xs text-muted-foreground rounded border border-dashed py-3 px-3 text-center'>
+                  Sin empaques. Si no agregas ninguno, el producto se guardará sin tabla de empaques.
+                </p>
+              ) : (
+                <div className='rounded border overflow-x-auto'>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className='w-12'>#</TableHead>
+                        <TableHead className='min-w-[110px]'>Unidad</TableHead>
+                        <TableHead className='min-w-[110px]'>Referencia</TableHead>
+                        <TableHead className='w-24 text-right'>CPE</TableHead>
+                        <TableHead className='w-16 text-center'>Defecto</TableHead>
+                        <TableHead className='w-16 text-center'>Reporte</TableHead>
+                        <TableHead className='w-16 text-center'>Fracción</TableHead>
+                        <TableHead className='w-10'></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {empaques.map((e, idx) => (
+                        <TableRow key={`emp-${idx}`}>
+                          <TableCell className='font-mono text-xs'>{e.empaque || idx + 1}</TableCell>
+                          <TableCell>
+                            <Select value={e.unidad} onValueChange={(v) => updateEmpaqueRow(idx, { unidad: v })}>
+                              <SelectTrigger className='h-8'><SelectValue placeholder='—' /></SelectTrigger>
+                              <SelectContent>
+                                {unidades.map((u: any) => (
+                                  <SelectItem key={u.unidad} value={u.unidad}>
+                                    {u.unidad} — {u.descripcion ?? u.descri}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            <Select value={e.referencia} onValueChange={(v) => updateEmpaqueRow(idx, { referencia: v })}>
+                              <SelectTrigger className='h-8'><SelectValue placeholder='—' /></SelectTrigger>
+                              <SelectContent>
+                                {refsEmpaque.map((r: any) => (
+                                  <SelectItem key={r.referencia} value={r.referencia}>
+                                    {r.referencia} — {r.descripcion ?? r.descri}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type='number'
+                              min={0.0001}
+                              step='0.0001'
+                              value={e.cpe}
+                              onChange={(ev) => updateEmpaqueRow(idx, { cpe: ev.target.value })}
+                              className='h-8 text-right tabular-nums'
+                            />
+                          </TableCell>
+                          <TableCell className='text-center'>
+                            <input
+                              type='radio'
+                              name='emp-defecto'
+                              checked={e.por_defecto}
+                              onChange={() => updateEmpaqueRow(idx, { por_defecto: true })}
+                              className='h-4 w-4 cursor-pointer accent-emerald-600'
+                            />
+                          </TableCell>
+                          <TableCell className='text-center'>
+                            <input
+                              type='radio'
+                              name='emp-reporte'
+                              checked={e.para_reporte}
+                              onChange={() => updateEmpaqueRow(idx, { para_reporte: true })}
+                              className='h-4 w-4 cursor-pointer accent-emerald-600'
+                            />
+                          </TableCell>
+                          <TableCell className='text-center'>
+                            <input
+                              type='checkbox'
+                              checked={e.permite_fraccion}
+                              onChange={(ev) => updateEmpaqueRow(idx, { permite_fraccion: ev.target.checked })}
+                              className='h-4 w-4 cursor-pointer accent-emerald-600'
+                            />
+                          </TableCell>
+                          <TableCell className='text-right'>
+                            <Button
+                              size='icon'
+                              variant='ghost'
+                              type='button'
+                              onClick={() => removeEmpaqueRow(idx)}
+                              className='h-7 w-7 text-muted-foreground hover:text-destructive'
+                              title='Eliminar empaque'
+                            >
+                              <Trash2 className='h-3.5 w-3.5' />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter className='shrink-0 border-t bg-background px-6 py-3'>
             <Button variant='outline' onClick={() => { setFormOpen(false); setEditingProdu(null) }} disabled={saving}>
