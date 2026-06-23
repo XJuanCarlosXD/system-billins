@@ -80,9 +80,17 @@ export function CatalogoProductos() {
     grupo_produ: '', grupo_contable: '', servicio: 'I',
     tiene_impuesto: true, porciento_impuesto: '18',
     costo: '', activo: 'S' as 'S' | 'N',
+    // Detalles legacy FINV111
+    upc: '', referencia: '', marca: '', especificaciones: '',
+    peso: '', medida: '', maximo_descuento: '',
+    porciento_isc: '', porc_otros_impuestos: '',
+    permite_desc: true,
+    importado: 'L' as 'L' | 'I',  // L=Local, I=Importado
+    indi_lote: false,
   }
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [detallesOpen, setDetallesOpen] = useState(false)
 
   // Load catalogues once
   useEffect(() => {
@@ -199,6 +207,18 @@ export function CatalogoProductos() {
         porciento_impuesto: String(d.porciento_impuesto ?? p.porciento_impuesto ?? p.itbis ?? '18'),
         costo: String(d.costo_mercado_rd ?? d.costo_mercado ?? p.costo_mercado_rd ?? p.costo ?? ''),
         activo: ((d.activo ?? p.activo ?? 'S') === 'N' ? 'N' : 'S') as 'S' | 'N',
+        upc: d.upc ?? '',
+        referencia: d.referencia ?? '',
+        marca: d.marca ?? '',
+        especificaciones: d.especificaciones ?? '',
+        peso: d.peso != null ? String(d.peso) : '',
+        medida: d.medida != null ? String(d.medida) : '',
+        maximo_descuento: d.maximo_descuento != null ? String(d.maximo_descuento) : '',
+        porciento_isc: d.porciento_isc != null ? String(d.porciento_isc) : '',
+        porc_otros_impuestos: d.porc_otros_impuestos != null ? String(d.porc_otros_impuestos) : '',
+        permite_desc: (d.permite_desc ?? 'S') === 'S',
+        importado: ((d.importado ?? 'L') === 'I' ? 'I' : 'L') as 'L' | 'I',
+        indi_lote: (d.indi_lote ?? 'N') === 'S',
       })
     } catch (err: any) {
       toast.error(`No se pudo cargar el producto: ${err.message}`)
@@ -226,6 +246,19 @@ export function CatalogoProductos() {
         porciento_impuesto: parseFloat(form.porciento_impuesto) || 0,
         costo: parseFloat(form.costo) || 0,
         activo: form.activo,
+        // Detalles legacy FINV111
+        upc: form.upc.trim() || null,
+        referencia: form.referencia.trim() || null,
+        marca: form.marca.trim() || null,
+        especificaciones: form.especificaciones.trim() || null,
+        peso: form.peso ? parseFloat(form.peso) : null,
+        medida: form.medida ? parseFloat(form.medida) : null,
+        maximo_descuento: form.maximo_descuento ? parseFloat(form.maximo_descuento) : null,
+        porciento_isc: form.porciento_isc ? parseFloat(form.porciento_isc) : null,
+        porc_otros_impuestos: form.porc_otros_impuestos ? parseFloat(form.porc_otros_impuestos) : null,
+        permite_desc: form.permite_desc ? 'S' : 'N',
+        importado: form.importado,  // 'L' o 'I'
+        indi_lote: form.indi_lote ? 'S' : 'N',
       }
 
       const isEdit = !!editingProdu
@@ -665,6 +698,117 @@ export function CatalogoProductos() {
                 )}
               </div>
             </div>
+
+            {/* Acordeón Detalles del producto (legacy FINV111) */}
+            <div className='col-span-2 border-t pt-3 mt-1'>
+              <button
+                type='button'
+                onClick={() => setDetallesOpen((v) => !v)}
+                className='flex w-full items-center justify-between text-left text-sm font-medium text-foreground hover:text-primary transition'
+              >
+                <span>Detalles del producto</span>
+                <span className='text-xs text-muted-foreground'>{detallesOpen ? 'Ocultar' : 'Mostrar'}</span>
+              </button>
+            </div>
+            {detallesOpen && (
+              <>
+                <div className='space-y-1'>
+                  <Label htmlFor='np-upc'>Código de Barras (UPC)</Label>
+                  <Input id='np-upc' className='h-9 font-mono' maxLength={16}
+                    value={form.upc}
+                    onChange={(e) => setForm((f) => ({ ...f, upc: e.target.value }))}
+                  />
+                </div>
+                <div className='space-y-1'>
+                  <Label htmlFor='np-ref'>Referencia</Label>
+                  <Input id='np-ref' className='h-9' maxLength={25}
+                    value={form.referencia}
+                    onChange={(e) => setForm((f) => ({ ...f, referencia: e.target.value }))}
+                  />
+                </div>
+                <div className='space-y-1'>
+                  <Label htmlFor='np-marca'>Marca (código 4 chars)</Label>
+                  <Input id='np-marca' className='h-9 font-mono uppercase' maxLength={4}
+                    value={form.marca}
+                    onChange={(e) => setForm((f) => ({ ...f, marca: e.target.value.toUpperCase() }))}
+                  />
+                </div>
+                <div className='space-y-1'>
+                  <Label htmlFor='np-imp'>Clase</Label>
+                  <Select value={form.importado} onValueChange={(v) => setForm((f) => ({ ...f, importado: v as 'L' | 'I' }))}>
+                    <SelectTrigger id='np-imp' className='h-9'><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value='L'>Local</SelectItem>
+                      <SelectItem value='I'>Importado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className='col-span-2 space-y-1'>
+                  <div className='flex items-center justify-between'>
+                    <Label htmlFor='np-esp'>Especificaciones</Label>
+                    <span className={`text-xs tabular-nums ${form.especificaciones.length > 100 ? 'text-destructive' : form.especificaciones.length >= 90 ? 'text-amber-600' : 'text-muted-foreground'}`}>
+                      {form.especificaciones.length} / 100
+                    </span>
+                  </div>
+                  <Input id='np-esp' className='h-9' maxLength={100}
+                    placeholder='Ej. medidas, capacidad, normas técnicas…'
+                    value={form.especificaciones}
+                    onChange={(e) => setForm((f) => ({ ...f, especificaciones: e.target.value }))}
+                  />
+                </div>
+                <div className='space-y-1'>
+                  <Label htmlFor='np-peso'>Peso (Lbs)</Label>
+                  <Input id='np-peso' className='h-9 text-right tabular-nums' type='number' step='0.0001'
+                    value={form.peso}
+                    onChange={(e) => setForm((f) => ({ ...f, peso: e.target.value }))}
+                  />
+                </div>
+                <div className='space-y-1'>
+                  <Label htmlFor='np-med'>Medida (Pulgadas)</Label>
+                  <Input id='np-med' className='h-9 text-right tabular-nums' type='number' step='0.0001'
+                    value={form.medida}
+                    onChange={(e) => setForm((f) => ({ ...f, medida: e.target.value }))}
+                  />
+                </div>
+                <div className='space-y-1'>
+                  <Label htmlFor='np-maxd'>Máximo Descuento %</Label>
+                  <Input id='np-maxd' className='h-9 text-right tabular-nums' type='number' min={0} max={100} step='0.01'
+                    value={form.maximo_descuento}
+                    onChange={(e) => setForm((f) => ({ ...f, maximo_descuento: e.target.value }))}
+                  />
+                </div>
+                <div className='space-y-1'>
+                  <Label htmlFor='np-isc'>% ISC</Label>
+                  <Input id='np-isc' className='h-9 text-right tabular-nums' type='number' min={0} max={100} step='0.01'
+                    value={form.porciento_isc}
+                    onChange={(e) => setForm((f) => ({ ...f, porciento_isc: e.target.value }))}
+                  />
+                </div>
+                <div className='space-y-1'>
+                  <Label htmlFor='np-otros'>% Otros Impuestos</Label>
+                  <Input id='np-otros' className='h-9 text-right tabular-nums' type='number' min={0} max={100} step='0.01'
+                    value={form.porc_otros_impuestos}
+                    onChange={(e) => setForm((f) => ({ ...f, porc_otros_impuestos: e.target.value }))}
+                  />
+                </div>
+                <div className='col-span-2 flex flex-wrap items-center gap-6 pt-1'>
+                  <div className='flex items-center gap-2'>
+                    <Switch
+                      checked={form.permite_desc}
+                      onCheckedChange={(v) => setForm((f) => ({ ...f, permite_desc: !!v }))}
+                    />
+                    <Label className='cursor-pointer text-sm'>Permite Descuento</Label>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <Switch
+                      checked={form.indi_lote}
+                      onCheckedChange={(v) => setForm((f) => ({ ...f, indi_lote: !!v }))}
+                    />
+                    <Label className='cursor-pointer text-sm'>Controlar Lote</Label>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
           <DialogFooter>
             <Button variant='outline' onClick={() => { setFormOpen(false); setEditingProdu(null) }} disabled={saving}>

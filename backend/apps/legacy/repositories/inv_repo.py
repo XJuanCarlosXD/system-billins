@@ -127,9 +127,24 @@ def create_producto(payload: dict, usuario: str = '') -> dict:
     costo = float(payload.get('costo') or 0)
     servicio = str(payload.get('servicio') or 'I').upper()[:1]
     activo = str(payload.get('activo') or 'S').upper()[:1]
-    marca = (payload.get('marca') or '')[:60] or None
-    referencia = (payload.get('referencia') or '')[:30] or None
+    marca = (payload.get('marca') or '')[:4] or None
+    referencia = (payload.get('referencia') or '')[:25] or None
     no_proveedor = (payload.get('no_proveedor') or '')[:6] or None
+    upc = (payload.get('upc') or '')[:16] or None
+    especificaciones = (payload.get('especificaciones') or '')[:100] or None
+    permite_desc = str(payload.get('permite_desc') or 'S').upper()[:1]
+    importado = str(payload.get('importado') or 'L').upper()[:1]   # 'L'=Local, 'I'=Importado
+    indi_lote = str(payload.get('indi_lote') or 'N').upper()[:1]
+    max_desc = payload.get('maximo_descuento')
+    max_desc = float(max_desc) if max_desc not in (None, '') else None
+    peso = payload.get('peso')
+    peso = float(peso) if peso not in (None, '') else None
+    medida = payload.get('medida')
+    medida = float(medida) if medida not in (None, '') else None
+    porc_isc = payload.get('porciento_isc')
+    porc_isc = float(porc_isc) if porc_isc not in (None, '') else None
+    porc_otros = payload.get('porc_otros_impuestos')
+    porc_otros = float(porc_otros) if porc_otros not in (None, '') else None
 
     with client.cursor() as cur:
         if not no_produ:
@@ -142,15 +157,19 @@ def create_producto(payload: dict, usuario: str = '') -> dict:
             "  PERMITE_DESC, SERVICIO, SIMPLE, DESPACHAR_VENCIDO, "
             "  EN_PORCIONES, OFERTA, USA_ENVASE_RETORNABLE, IMPORTADO, "
             "  USA_SERIE, CONTROLAR_EXIST_SERIE, EDITABLE, "
-            "  MARCA, REFERENCIA, NO_PROVEEDOR "
+            "  MARCA, REFERENCIA, NO_PROVEEDOR, "
+            "  UPC, ESPECIFICACIONES, MAXIMO_DESCUENTO, PESO, MEDIDA, "
+            "  PORCIENTO_ISC, PORC_OTROS_IMPUESTOS"
             ") VALUES ("
             "  :no_produ, :descri, :linea, :sub_linea, :grupo_produ, "
             "  :tiene_imp, :porc_imp, :costo, "
-            "  :activo, 'N', SYSDATE, :usuario, :grupo_contable, "
-            "  'S', :servicio, 'S', 'N', "
-            "  'N', 'N', 'N', 'L', "
+            "  :activo, :indi_lote, SYSDATE, :usuario, :grupo_contable, "
+            "  :permite_desc, :servicio, 'S', 'N', "
+            "  'N', 'N', 'N', :importado, "
             "  'N', 'N', 'S', "
-            "  :marca, :referencia, :no_proveedor"
+            "  :marca, :referencia, :no_proveedor, "
+            "  :upc, :especificaciones, :max_desc, :peso, :medida, "
+            "  :porc_isc, :porc_otros"
             ")",
             {
                 'no_produ': no_produ, 'descri': descri, 'linea': linea,
@@ -160,6 +179,11 @@ def create_producto(payload: dict, usuario: str = '') -> dict:
                 'grupo_contable': grupo_contable, 'servicio': servicio,
                 'marca': marca, 'referencia': referencia,
                 'no_proveedor': no_proveedor,
+                'upc': upc, 'especificaciones': especificaciones,
+                'max_desc': max_desc, 'peso': peso, 'medida': medida,
+                'porc_isc': porc_isc, 'porc_otros': porc_otros,
+                'permite_desc': permite_desc, 'importado': importado,
+                'indi_lote': indi_lote,
             },
         )
         cur.connection.commit()
@@ -349,7 +373,11 @@ def get_producto(no_produ: str, no_cia: str = '01') -> dict | None:
         "SELECT p.no_produ, p.descri descripcion, p.linea, l.descri linea_desc, "
         "p.sub_linea, p.grupo_produ, g.descri grupo_desc, "
         "p.activo, p.tiene_impuesto, p.porciento_impuesto, "
-        "p.costo_mercado, p.costo_mercado_rd, p.grupo_contable, p.servicio "
+        "p.costo_mercado, p.costo_mercado_rd, p.grupo_contable, p.servicio, "
+        "p.marca, p.referencia, p.no_proveedor, "
+        "p.upc, p.especificaciones, p.maximo_descuento, p.peso, p.medida, "
+        "p.porciento_isc, p.porc_otros_impuestos, "
+        "p.permite_desc, p.importado, p.indi_lote "
         "FROM INV.TINV_PRODUCTO p "
         "LEFT JOIN INV.TINV_LINEA l ON l.linea = p.linea "
         "LEFT JOIN INV.TINV_GRUPO_PRODU g ON g.no_grupo = p.grupo_produ "
@@ -396,9 +424,19 @@ def update_producto(no_produ: str, payload: dict, usuario: str = '') -> dict:
         'tiene_impuesto': ('tiene_impuesto', lambda v: (str(v) or 'S').upper()[:1]),
         'porciento_impuesto': ('porciento_impuesto', lambda v: float(v or 0)),
         'costo': ('costo_mercado_rd', lambda v: float(v or 0)),
-        'marca': ('marca', lambda v: ((str(v) or '')[:60] or None)),
-        'referencia': ('referencia', lambda v: ((str(v) or '')[:30] or None)),
+        'marca': ('marca', lambda v: ((str(v) or '')[:4] or None)),
+        'referencia': ('referencia', lambda v: ((str(v) or '')[:25] or None)),
         'no_proveedor': ('no_proveedor', lambda v: ((str(v) or '')[:6] or None)),
+        'upc': ('upc', lambda v: ((str(v) or '')[:16] or None)),
+        'especificaciones': ('especificaciones', lambda v: ((str(v) or '')[:100] or None)),
+        'maximo_descuento': ('maximo_descuento', lambda v: float(v) if v not in (None, '') else None),
+        'peso': ('peso', lambda v: float(v) if v not in (None, '') else None),
+        'medida': ('medida', lambda v: float(v) if v not in (None, '') else None),
+        'porciento_isc': ('porciento_isc', lambda v: float(v) if v not in (None, '') else None),
+        'porc_otros_impuestos': ('porc_otros_impuestos', lambda v: float(v) if v not in (None, '') else None),
+        'permite_desc': ('permite_desc', lambda v: (str(v) or 'S').upper()[:1]),
+        'importado': ('importado', lambda v: (str(v) or 'L').upper()[:1]),
+        'indi_lote': ('indi_lote', lambda v: (str(v) or 'N').upper()[:1]),
     }
 
     for k, (col, conv) in field_map.items():
