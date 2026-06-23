@@ -2012,7 +2012,7 @@ Expected: HTTP 401 `MISSING_AUTH` (la lista de tools también requiere auth — 
 - Create: `frontend/src/features/admin/mcp/components/token-usage-drawer.tsx`
 - Create: `frontend/src/routes/_authenticated/admin/mcp/tokens.tsx`
 
-- [ ] **Step 1: `features/admin/mcp/types.ts`**
+- [x] **Step 1: `features/admin/mcp/types.ts`** — creado tal cual.
 
 ```typescript
 export type McpToken = {
@@ -2054,7 +2054,7 @@ export type McpTokenUsageItem = {
 };
 ```
 
-- [ ] **Step 2: `features/admin/mcp/api.ts`**
+- [x] **Step 2: `features/admin/mcp/api.ts`** — adaptado: el frontend usa `api.method()` desde `@/lib/regal-general-api` (no axios `api.get/post`). Agregadas tools `mcpListTokens/mcpCreateToken/mcpRevokeToken/mcpTokenUsage/mcpUsage` a `regal-general-api.ts`. Hooks React Query consumen esos metodos.
 
 ```typescript
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -2096,7 +2096,7 @@ export function useMcpTokenUsage(token_id: string | null) {
 }
 ```
 
-- [ ] **Step 3: `features/admin/mcp/components/new-token-dialog.tsx`**
+- [x] **Step 3: `features/admin/mcp/components/new-token-dialog.tsx`** — creado.
 
 ```tsx
 import { useState } from 'react';
@@ -2165,7 +2165,7 @@ export function NewTokenDialog({ open, onOpenChange, onCreated }: Props) {
 }
 ```
 
-- [ ] **Step 4: `features/admin/mcp/components/token-generated-dialog.tsx`**
+- [x] **Step 4: `features/admin/mcp/components/token-generated-dialog.tsx`** — creado.
 
 ```tsx
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -2203,7 +2203,7 @@ export function TokenGeneratedDialog({ open, onOpenChange, plaintext }: Props) {
 }
 ```
 
-- [ ] **Step 5: `features/admin/mcp/components/token-list.tsx`**
+- [x] **Step 5: `features/admin/mcp/components/token-list.tsx`** — creado.
 
 ```tsx
 import { Button } from '@/components/ui/button';
@@ -2256,7 +2256,7 @@ export function TokenList({ items, onRevoke, onShowUsage }: Props) {
 }
 ```
 
-- [ ] **Step 6: `features/admin/mcp/components/token-usage-drawer.tsx`**
+- [x] **Step 6: `features/admin/mcp/components/token-usage-drawer.tsx`** — creado.
 
 ```tsx
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -2298,7 +2298,7 @@ export function TokenUsageDrawer({ tokenId, onClose }: Props) {
 }
 ```
 
-- [ ] **Step 7: `features/admin/mcp/routes/mcp-tokens-page.tsx`**
+- [x] **Step 7: `features/admin/mcp/routes/mcp-tokens-page.tsx`** — creado.
 
 ```tsx
 import { useState } from 'react';
@@ -2338,7 +2338,7 @@ export function McpTokensPage() {
 }
 ```
 
-- [ ] **Step 8: Crear ruta TanStack `frontend/src/routes/_authenticated/admin/mcp/tokens.tsx`**
+- [x] **Step 8: Crear ruta TanStack `frontend/src/routes/_authenticated/admin/mcp/tokens.tsx`** — creado.
 
 ```tsx
 import { createFileRoute } from '@tanstack/react-router';
@@ -2349,7 +2349,7 @@ export const Route = createFileRoute('/_authenticated/admin/mcp/tokens')({
 });
 ```
 
-- [ ] **Step 9: `npm run dev` y smoke local**
+- [!] **Step 9: `npm run dev` y smoke local** — diferido a Netlify (deploy frontend = push a main). Smoke real se hace en Task 14.
 
 Abrir `http://localhost:5173/admin/mcp/tokens` (o la URL Netlify después de deploy), confirmar:
 - Lista se carga (vacía al inicio).
@@ -2357,7 +2357,7 @@ Abrir `http://localhost:5173/admin/mcp/tokens` (o la URL Netlify después de dep
 - Crear token muestra plaintext y snippet JSON.
 - Revocar marca como revocado.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit** — pendiente de aplicar en este run.
 
 ```bash
 git add frontend/src/features/admin/mcp/ frontend/src/routes/_authenticated/admin/mcp/tokens.tsx

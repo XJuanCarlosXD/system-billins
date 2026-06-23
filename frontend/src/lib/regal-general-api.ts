@@ -1689,6 +1689,33 @@ export const regalGeneralApi = {
   manListManuales: () => request<any[]>('/man/manuales/'),
   manListCsc: () => request<any[]>('/man/csc/'),
 
+  // ============================================================
+  // MCP — admin tokens y monitoreo de uso
+  // ============================================================
+  mcpListTokens: (filtros: { usuario?: string; activos?: string; q?: string } = {}) => {
+    const params: Record<string, string> = {}
+    if (filtros.usuario) params.usuario = filtros.usuario
+    if (filtros.activos) params.activos = filtros.activos
+    if (filtros.q) params.q = filtros.q
+    const qs = new URLSearchParams(params).toString()
+    return request<{ items: any[] }>(`/admin/mcp/tokens/${qs ? `?${qs}` : ''}`)
+  },
+  mcpCreateToken: (payload: any) =>
+    request<{ token_id: string; plaintext: string }>(
+      '/admin/mcp/tokens/', { method: 'POST', body: JSON.stringify(payload) }),
+  mcpRevokeToken: (token_id: string) =>
+    request<{ ok: boolean }>(
+      `/admin/mcp/tokens/${token_id}/`,
+      { method: 'PATCH', body: JSON.stringify({ st_activo: 'N' }) }),
+  mcpTokenUsage: (token_id: string) =>
+    request<{ items: any[] }>(`/admin/mcp/tokens/${token_id}/usage/`),
+  mcpUsage: (filtros: Record<string, string | undefined> = {}) => {
+    const params: Record<string, string> = {}
+    for (const [k, v] of Object.entries(filtros)) if (v) params[k] = v
+    const qs = new URLSearchParams(params).toString()
+    return request<any>(`/admin/mcp/usage/${qs ? `?${qs}` : ''}`)
+  },
+
 }
 
 export const api = regalGeneralApi
