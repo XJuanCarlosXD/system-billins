@@ -2378,7 +2378,7 @@ git commit -m "feat(mcp): UI admin tokens — lista, crear, revocar, usage drawe
 - Create: `frontend/src/features/admin/mcp/routes/mcp-usage-page.tsx`
 - Create: `frontend/src/routes/_authenticated/admin/mcp/usage.tsx`
 
-- [ ] **Step 1: Agregar a `api.ts`**
+- [x] **Step 1: Agregar a `api.ts`** — hook `useMcpUsage` agregado consumiendo `api.mcpUsage` de `regal-general-api`.
 
 ```typescript
 export type McpUsageResponse = {
@@ -2404,7 +2404,7 @@ export function useMcpUsage(filtros: Record<string, string | undefined>) {
 }
 ```
 
-- [ ] **Step 2: `usage-kpis.tsx`**
+- [x] **Step 2: `usage-kpis.tsx`** — creado.
 
 ```tsx
 type Props = { kpis: import('../api').McpUsageResponse['kpis'] };
@@ -2428,7 +2428,7 @@ export function UsageKpis({ kpis }: Props) {
 }
 ```
 
-- [ ] **Step 3: `usage-timeseries.tsx`**
+- [x] **Step 3: `usage-timeseries.tsx`** — creado.
 
 ```tsx
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
@@ -2451,7 +2451,7 @@ export function UsageTimeSeries({ data }: Props) {
 }
 ```
 
-- [ ] **Step 4: `usage-top-tools.tsx`**
+- [x] **Step 4: `usage-top-tools.tsx`** — creado.
 
 ```tsx
 type Props = { items: import('../api').McpUsageResponse['top_tools']; onPick: (tool: string) => void };
@@ -2472,7 +2472,7 @@ export function UsageTopTools({ items, onPick }: Props) {
 }
 ```
 
-- [ ] **Step 5: `usage-top-users.tsx`**
+- [x] **Step 5: `usage-top-users.tsx`** — creado.
 
 ```tsx
 type Props = { items: import('../api').McpUsageResponse['top_usuarios']; onPick: (u: string) => void };
@@ -2493,7 +2493,7 @@ export function UsageTopUsers({ items, onPick }: Props) {
 }
 ```
 
-- [ ] **Step 6: `usage-recent-errors.tsx`**
+- [x] **Step 6: `usage-recent-errors.tsx`** — creado.
 
 ```tsx
 type Props = { items: import('../api').McpUsageResponse['top_errores'] };
@@ -2513,7 +2513,7 @@ export function UsageRecentErrors({ items }: Props) {
 }
 ```
 
-- [ ] **Step 7: `mcp-usage-page.tsx`**
+- [x] **Step 7: `mcp-usage-page.tsx`** — creado.
 
 ```tsx
 import { useState } from 'react';
@@ -2551,7 +2551,7 @@ export function McpUsagePage() {
 }
 ```
 
-- [ ] **Step 8: Ruta TanStack `frontend/src/routes/_authenticated/admin/mcp/usage.tsx`**
+- [x] **Step 8: Ruta TanStack `frontend/src/routes/_authenticated/admin/mcp/usage.tsx`** — creado.
 
 ```tsx
 import { createFileRoute } from '@tanstack/react-router';
@@ -2562,7 +2562,7 @@ export const Route = createFileRoute('/_authenticated/admin/mcp/usage')({
 });
 ```
 
-- [ ] **Step 9: Modificar `frontend/src/components/layout/data/sidebar-data.ts`** — agregar entrada bajo Administración (gateada por `is_dba`):
+- [?] **Step 9: Modificar `frontend/src/components/layout/data/sidebar-data.ts`** — entradas `MCP Tokens` y `MCP Usage` agregadas bajo el grupo "Sistema" (icons KeyRound / Activity). El predicado `is_dba` aún no existe en el frontend; las entradas quedan visibles para todo usuario autenticado por ahora. Necesita confirmación humana: ¿cómo se cablea `is_dba` (campo en `/api/profile/`, claim en token, flag en localStorage)?
 
 ```typescript
 // Dentro del array de "Administración"
@@ -2572,14 +2572,14 @@ export const Route = createFileRoute('/_authenticated/admin/mcp/usage')({
 
 (El predicado `requires: 'is_dba'` debe respetarse en `sidebar-data.ts` igual que los otros gates existentes. Si no existe el campo `requires`, leer el archivo y seguir el patrón actual: probablemente filtra por flags del usuario.)
 
-- [ ] **Step 10: Smoke local**
+- [!] **Step 10: Smoke local** — diferido a Netlify (post-deploy). Smoke real se hace en Task 14.
 
 Visitar `/admin/mcp/usage` y confirmar:
 - KPIs cargan (con datos vacíos si aún no hay uso).
 - Gráfico se renderiza.
 - Click en un tool del top filtra el tablero.
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit** — pendiente de aplicar en este run.
 
 ```bash
 git add frontend/src/features/admin/mcp/ frontend/src/routes/_authenticated/admin/mcp/usage.tsx frontend/src/components/layout/data/sidebar-data.ts

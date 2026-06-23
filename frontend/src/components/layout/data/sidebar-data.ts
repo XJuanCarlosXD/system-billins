@@ -1,4 +1,5 @@
 import {
+  Activity,
   AlertTriangle,
   Banknote,
   BookOpen,
@@ -7,6 +8,7 @@ import {
   Coins,
   Command,
   CreditCard,
+  KeyRound,
   LayoutDashboard,
   Package,
   Receipt,
@@ -703,6 +705,16 @@ export const sidebarData: SidebarData = {
           title: 'Configuracion',
           url: '/settings',
           icon: Settings,
+        },
+        {
+          title: 'MCP Tokens',
+          url: '/admin/mcp/tokens',
+          icon: KeyRound,
+        },
+        {
+          title: 'MCP Usage',
+          url: '/admin/mcp/usage',
+          icon: Activity,
         },
       ],
     },
