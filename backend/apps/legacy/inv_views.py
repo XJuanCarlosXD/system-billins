@@ -57,6 +57,16 @@ def _jsonify(data):
 
 
 @login_required
+@require_http_methods(["GET"])
+def inv_producto_next_codigo(request):
+    """GET /api/inv/productos/next-codigo/ — preview del siguiente no_produ."""
+    try:
+        return JsonResponse({"siguiente": inv_repo.peek_next_producto()})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def inv_productos(request):

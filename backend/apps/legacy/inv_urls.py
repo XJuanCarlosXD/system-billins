@@ -9,6 +9,7 @@ from apps.legacy.inv_views_print_data import (
 urlpatterns = [
     # Existing
     path('productos/', inv_views.inv_productos),
+    path('productos/next-codigo/', inv_views.inv_producto_next_codigo),
     path('productos/<str:no_produ>/', inv_views.inv_producto),
     path('grupos/', inv_views.inv_grupos),
     path('grupos/<str:no_grupo>/', inv_views.inv_grupo_detail),

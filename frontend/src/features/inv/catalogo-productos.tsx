@@ -164,10 +164,19 @@ export function CatalogoProductos() {
     setPage(1)
   }
 
-  const openCreate = () => {
+  const openCreate = async () => {
     setForm(emptyForm)
     setEditingProdu(null)
     setFormOpen(true)
+    // Auto-pre-fill del codigo desde la secuencia legacy TINV_NEXT_PRODU
+    try {
+      const next = await apiFetch<{ siguiente?: string }>(`/inv/productos/next-codigo/`)
+      if (next?.siguiente) {
+        setForm((f) => ({ ...f, no_produ: next.siguiente! }))
+      }
+    } catch {
+      /* preview falla -> el usuario puede tipearlo manualmente */
+    }
   }
 
   const openEdit = async (p: Producto) => {
@@ -512,12 +521,26 @@ export function CatalogoProductos() {
             </div>
 
             <div className='col-span-2 space-y-1'>
-              <Label htmlFor='np-desc'>Descripción <span className='text-destructive'>*</span></Label>
+              <div className='flex items-center justify-between'>
+                <Label htmlFor='np-desc'>Descripción <span className='text-destructive'>*</span></Label>
+                <span
+                  className={`text-xs tabular-nums ${
+                    form.descripcion.length > 40
+                      ? 'text-destructive font-semibold'
+                      : form.descripcion.length >= 35
+                        ? 'text-amber-600'
+                        : 'text-muted-foreground'
+                  }`}
+                >
+                  {form.descripcion.length} / 40
+                </span>
+              </div>
               <Input
                 id='np-desc'
                 className='h-9'
                 placeholder='Nombre del producto'
                 value={form.descripcion}
+                maxLength={40}
                 onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
               />
             </div>

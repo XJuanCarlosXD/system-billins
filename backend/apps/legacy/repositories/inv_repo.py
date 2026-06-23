@@ -38,13 +38,46 @@ def count_productos(search: str = '', grupo: str = '', linea: str = '') -> int:
     return int(row[0]) if row else 0
 
 
+def peek_next_producto() -> str:
+    """Devuelve el siguiente no_produ del secuencial INV.TINV_NEXT_PRODU.
+
+    Solo lectura (preview). La reserva real ocurre dentro de create_producto
+    via FOR UPDATE para evitar carreras.
+    """
+    rows = client.fetch_dicts(
+        "SELECT NVL(MAX(next_produ),1) AS n FROM INV.TINV_NEXT_PRODU", []
+    )
+    n = int(rows[0]['n']) if rows else 1
+    return str(n).zfill(8)
+
+
+def _reserve_next_producto(cur) -> str:
+    """Reserva el siguiente no_produ y avanza TINV_NEXT_PRODU. Misma logica
+    que el legacy: SELECT FOR UPDATE -> usar valor -> UPDATE +1.
+    """
+    row = cur.execute(
+        "SELECT NVL(next_produ,1) FROM INV.TINV_NEXT_PRODU FOR UPDATE"
+    ).fetchone()
+    if row:
+        a_usar = int(row[0] or 1)
+        cur.execute(
+            "UPDATE INV.TINV_NEXT_PRODU SET next_produ = :1", [a_usar + 1]
+        )
+    else:
+        a_usar = 1
+        cur.execute(
+            "INSERT INTO INV.TINV_NEXT_PRODU(next_produ) VALUES(:1)", [a_usar + 1]
+        )
+    return str(a_usar).zfill(8)
+
+
 def create_producto(payload: dict, usuario: str = '') -> dict:
     """Crea un producto con campos mínimos. El resto se rellena con defaults
     sensatos para que cumpla los NOT NULL del schema legado.
 
     Campos del payload:
-      no_produ (str, requerido)
-      descripcion (str, requerido)
+      no_produ (str, opcional — si vacio se asigna desde TINV_NEXT_PRODU)
+      descripcion (str, requerido, max 40 chars)
       grupo_produ (str, requerido)
       linea (str, requerido)
       sub_linea (str, requerido)
@@ -65,10 +98,12 @@ def create_producto(payload: dict, usuario: str = '') -> dict:
     sub_linea = (payload.get('sub_linea') or '').strip()
     grupo_contable = (payload.get('grupo_contable') or '').strip()
 
-    if not no_produ:
-        raise ValueError("no_produ es requerido")
     if not descri:
         raise ValueError("descripcion es requerida")
+    if len(descri) > 40:
+        raise ValueError(
+            f"descripcion supera los 40 caracteres permitidos ({len(descri)})"
+        )
     if not grupo_produ:
         raise ValueError("grupo_produ es requerido")
     if not linea:
@@ -78,12 +113,14 @@ def create_producto(payload: dict, usuario: str = '') -> dict:
     if not grupo_contable:
         raise ValueError("grupo_contable es requerido")
 
-    # Existencia previa
-    if client.fetch_one(
-        "SELECT 1 FROM INV.TINV_PRODUCTO WHERE no_produ = :1",
-        [no_produ],
-    ):
-        raise ValueError(f"Ya existe un producto con código {no_produ}")
+    # Si el caller envió un código fijo, verifica que no exista; si no, se
+    # asignará desde TINV_NEXT_PRODU dentro de la misma transacción.
+    if no_produ:
+        if client.fetch_one(
+            "SELECT 1 FROM INV.TINV_PRODUCTO WHERE no_produ = :1",
+            [no_produ],
+        ):
+            raise ValueError(f"Ya existe un producto con código {no_produ}")
 
     tiene_imp = str(payload.get('tiene_impuesto') or 'S').upper()[:1]
     porc_imp = float(payload.get('porciento_impuesto') or (18 if tiene_imp == 'S' else 0))
@@ -95,6 +132,8 @@ def create_producto(payload: dict, usuario: str = '') -> dict:
     no_proveedor = (payload.get('no_proveedor') or '')[:6] or None
 
     with client.cursor() as cur:
+        if not no_produ:
+            no_produ = _reserve_next_producto(cur)
         cur.execute(
             "INSERT INTO INV.TINV_PRODUCTO ("
             "  NO_PRODU, DESCRI, LINEA, SUB_LINEA, GRUPO_PRODU, "
@@ -336,11 +375,18 @@ def update_producto(no_produ: str, payload: dict, usuario: str = '') -> dict:
     if not existing:
         raise ValueError(f"Producto {no_produ} no encontrado")
 
+    if 'descripcion' in payload:
+        _d = str(payload.get('descripcion') or '').strip()
+        if len(_d) > 40:
+            raise ValueError(
+                f"descripcion supera los 40 caracteres permitidos ({len(_d)})"
+            )
+
     sets: list[str] = []
     binds: dict = {'no_produ': no_produ}
 
     field_map = {
-        'descripcion': ('descri', lambda v: (str(v) or '').strip()[:80]),
+        'descripcion': ('descri', lambda v: (str(v) or '').strip()[:40]),
         'linea': ('linea', lambda v: (str(v) or '').strip()),
         'sub_linea': ('sub_linea', lambda v: (str(v) or '').strip()),
         'grupo_produ': ('grupo_produ', lambda v: (str(v) or '').strip()),
