@@ -323,6 +323,12 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
     rnc: '',
     ncf: '',
     tipo_ncf: '',
+    isc: '',
+    otros_impuestos: '',
+    propina: '',
+    tipo_gasto: '',
+    tipo_retencion: '',
+    forma_pago: '',
   })
   // ITBIS calculado a partir del valor con la tasa de la empresa (FAT.TFAT_CIAS)
   // o 18% por defecto. Se descuenta si el proveedor está exento.
@@ -331,11 +337,24 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
   const [editandoItbis, setEditandoItbis] = useState(false)
   const [saving, setSaving] = useState(false)
 
+  // Catálogos DGI para los selects opcionales (tipo_gasto, tipo_retencion, forma_pago).
+  const [tiposGasto, setTiposGasto] = useState<{ tipo_gasto: string; descripcion: string }[]>([])
+  const [tiposRetencion, setTiposRetencion] = useState<{ tipo_retencion: number; descripcion: string; por_defecto: string }[]>([])
+  const [formasPago, setFormasPago] = useState<{ forma_pago: number; descripcion: string; por_defecto: string }[]>([])
+
   useEffect(() => {
-    api
-      .cxpListTiposDocu(noCia)
-      .then(setTiposDocu)
-      .catch(() => {})
+    api.cxpListTiposDocu(noCia).then(setTiposDocu).catch(() => {})
+    api.cxpListTiposGasto().then(setTiposGasto).catch(() => {})
+    api.cxpListTiposRetencion().then((rows) => {
+      setTiposRetencion(rows)
+      const def = rows.find((r) => r.por_defecto === 'S')
+      if (def) setForm((f) => ({ ...f, tipo_retencion: String(def.tipo_retencion) }))
+    }).catch(() => {})
+    api.cxpListFormasPago().then((rows) => {
+      setFormasPago(rows)
+      const def = rows.find((r) => r.por_defecto === 'S')
+      if (def) setForm((f) => ({ ...f, forma_pago: String(def.forma_pago) }))
+    }).catch(() => {})
   }, [noCia])
 
   useEffect(() => {
@@ -439,9 +458,17 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
         ...form,
         valor_original: Number(form.valor_original),
         impuesto: Number(impuesto || 0),
+        isc:             form.isc             ? Number(form.isc)             : 0,
+        otros_impuestos: form.otros_impuestos ? Number(form.otros_impuestos) : 0,
+        propina:         form.propina         ? Number(form.propina)         : 0,
+        tipo_retencion:  form.tipo_retencion  ? Number(form.tipo_retencion)  : null,
+        forma_pago:      form.forma_pago      ? Number(form.forma_pago)      : null,
       })
       toast.success(`Documento ${res.no_docu} creado (ITBIS RD$ ${Number(impuesto || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })})`)
       setProveedor(null)
+      // reset preservando los defaults del catálogo
+      const defRet = tiposRetencion.find((r) => r.por_defecto === 'S')
+      const defFp  = formasPago.find((r) => r.por_defecto === 'S')
       setForm({
         fecha: today,
         fecha_vence: '',
@@ -450,6 +477,12 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
         rnc: '',
         ncf: '',
         tipo_ncf: '',
+        isc: '',
+        otros_impuestos: '',
+        propina: '',
+        tipo_gasto: '',
+        tipo_retencion: defRet ? String(defRet.tipo_retencion) : '',
+        forma_pago:    defFp  ? String(defFp.forma_pago) : '',
       })
       setImpuesto('')
       setEditandoItbis(false)
@@ -614,6 +647,95 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
               className='h-10'
             />
           </div>
+
+          {/* Impuestos/cargos adicionales DGI */}
+          <div className='space-y-1'>
+            <Label className='text-xs'>ISC (Selectivo)</Label>
+            <Input
+              type='number' step='0.01' placeholder='0.00'
+              value={form.isc}
+              onChange={(e) => setForm((f) => ({ ...f, isc: e.target.value }))}
+              className='h-10 text-right font-mono'
+            />
+          </div>
+          <div className='space-y-1'>
+            <Label className='text-xs'>Otros Impuestos</Label>
+            <Input
+              type='number' step='0.01' placeholder='0.00'
+              value={form.otros_impuestos}
+              onChange={(e) => setForm((f) => ({ ...f, otros_impuestos: e.target.value }))}
+              className='h-10 text-right font-mono'
+            />
+          </div>
+          <div className='space-y-1'>
+            <Label className='text-xs'>Propina Legal</Label>
+            <Input
+              type='number' step='0.01' placeholder='0.00'
+              value={form.propina}
+              onChange={(e) => setForm((f) => ({ ...f, propina: e.target.value }))}
+              className='h-10 text-right font-mono'
+            />
+          </div>
+
+          {/* Clasificaciones DGI 606/607 */}
+          <div className='space-y-1'>
+            <Label className='text-xs'>Tipo de Gasto (DGI)</Label>
+            <Select
+              value={form.tipo_gasto}
+              onValueChange={(v) => setForm((f) => ({ ...f, tipo_gasto: v === '__none__' ? '' : v }))}
+            >
+              <SelectTrigger className='h-10'>
+                <SelectValue placeholder='Sin clasificar' />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='__none__'>— Sin clasificar —</SelectItem>
+                {tiposGasto.map((t) => (
+                  <SelectItem key={t.tipo_gasto} value={t.tipo_gasto}>
+                    {t.tipo_gasto} — {t.descripcion}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className='space-y-1'>
+            <Label className='text-xs'>Tipo de Retención</Label>
+            <Select
+              value={form.tipo_retencion}
+              onValueChange={(v) => setForm((f) => ({ ...f, tipo_retencion: v === '__none__' ? '' : v }))}
+            >
+              <SelectTrigger className='h-10'>
+                <SelectValue placeholder='Ninguna' />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='__none__'>— Ninguna —</SelectItem>
+                {tiposRetencion.map((t) => (
+                  <SelectItem key={t.tipo_retencion} value={String(t.tipo_retencion)}>
+                    {t.tipo_retencion} — {t.descripcion}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className='space-y-1'>
+            <Label className='text-xs'>Forma de Pago</Label>
+            <Select
+              value={form.forma_pago}
+              onValueChange={(v) => setForm((f) => ({ ...f, forma_pago: v === '__none__' ? '' : v }))}
+            >
+              <SelectTrigger className='h-10'>
+                <SelectValue placeholder='No especificada' />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='__none__'>— No especificada —</SelectItem>
+                {formasPago.map((f) => (
+                  <SelectItem key={f.forma_pago} value={String(f.forma_pago)}>
+                    {f.forma_pago} — {f.descripcion}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {cuentaProveedor && (
             <div className='space-y-1 md:col-span-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm'>
               <span className='text-xs text-emerald-700'>Cuenta contable destino: </span>

@@ -16,6 +16,9 @@ urlpatterns = [
     path('aging/', cxp_views.cxp_aging),
     path('estado-cuenta/', cxp_views.cxp_estado_cuenta),
     path('tipos-docu/', cxp_views.cxp_tipos_docu),
+    path('tipos-gasto/', cxp_views.cxp_tipos_gasto),
+    path('tipos-retencion/', cxp_views.cxp_tipos_retencion),
+    path('formas-pago/', cxp_views.cxp_formas_pago),
     # Configuración
     path('cias/', cxp_views.cxp_cias),
     path('puntos/', cxp_views.cxp_puntos),

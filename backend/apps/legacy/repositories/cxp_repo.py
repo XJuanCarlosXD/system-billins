@@ -329,6 +329,24 @@ def get_aging(no_cia, punto='', no_proveedor=''):
     return client.fetch_dicts(sql, params)
 
 
+def list_tipos_gasto():
+    return client.fetch_dicts(
+        "SELECT tipo_gasto, descripcion FROM CXP.TCXP_TCOSTO_GASTO "
+        "ORDER BY tipo_gasto", [])
+
+
+def list_tipos_retencion():
+    return client.fetch_dicts(
+        "SELECT tipo_retencion, descripcion, por_defecto "
+        "FROM CXP.TCXP_TIPO_RETENCION_DGII ORDER BY tipo_retencion", [])
+
+
+def list_formas_pago():
+    return client.fetch_dicts(
+        "SELECT forma_pago, descripcion, por_defecto "
+        "FROM CXP.TCXP_FORMA_PAGO_DGII ORDER BY forma_pago", [])
+
+
 def get_proveedor_ncf_info(no_cia, punto, no_proveedor):
     """Devuelve la configuracion NCF asignada al proveedor para (cia, punto).
 
@@ -906,17 +924,28 @@ def entrada_documento(d):
                 or d.get("tipo_ncf")
                 or ''
             ).strip().upper() or None
+            # Campos DGI adicionales (opcionales, NULL si no se envian).
+            _isc        = float(d.get("isc") or 0) or None
+            _otros_imp  = float(d.get("otros_impuestos") or 0) or None
+            _propina    = float(d.get("propina") or 0) or None
+            _tipo_gasto = (str(d.get("tipo_gasto") or '').strip() or None)
+            _tipo_ret   = d.get("tipo_retencion")
+            _tipo_ret   = int(_tipo_ret) if _tipo_ret not in (None, '', 0) else None
+            _forma_pago = d.get("forma_pago")
+            _forma_pago = int(_forma_pago) if _forma_pago not in (None, '') else None
             cur.execute(
                 "INSERT INTO CXP.TCXP_DOCUMENTO("
                 "no_cia,punto,tipo_docu,no_docu,no_proveedor,tipo_movi,tipo_transaccion,"
                 "fecha,fecha_vence,status,valor_original,debito,credito,saldo,"
                 "impuesto,itbis_retenido,isr_retenido,rnc,ncf,posiciones_fijas_ncf,detalle,"
+                "isc,otros_impuestos,propina,tipo_gasto,tipo_retencion,forma_pago,"
                 "st_generado_cnt,pago_bloqueado,estado_encf,usuario,fecha_sysdate"
                 ") VALUES("
                 ":1,:2,:3,:4,:5,:6,:7,"
                 "TO_DATE(:8,'YYYY-MM-DD'),TO_DATE(:9,'YYYY-MM-DD'),'A',:10,:11,:12,:13,"
                 ":14,:15,:16,:17,:18,:19,:20,"
-                "'N','N',0,:21,SYSDATE"
+                ":21,:22,:23,:24,:25,:26,"
+                "'N','N',0,:27,SYSDATE"
                 ")",
                 [
                     no_cia, punto, tipo_docu, no_docu, no_proveedor,
@@ -930,6 +959,8 @@ def entrada_documento(d):
                     float(d.get("itbis_retenido") or 0),
                     float(d.get("isr_retenido") or 0),
                     d.get("rnc", ""), _ncf_num, _pos_ncf, detalle,
+                    _isc, _otros_imp, _propina,
+                    _tipo_gasto, _tipo_ret, _forma_pago,
                     d.get("usuario", "API"),
                 ])
 

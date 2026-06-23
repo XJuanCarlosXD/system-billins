@@ -1152,6 +1152,15 @@ export const regalGeneralApi = {
   cxpGetProveedorCuenta: (no: string, noCia: string, punto: string) =>
     request<any>(`/cxp/proveedores/${encodeURIComponent(no)}/cuenta/?no_cia=${noCia}&punto=${punto}`),
 
+  cxpListTiposGasto: () =>
+    request<{ tipo_gasto: string; descripcion: string }[]>(`/cxp/tipos-gasto/`),
+
+  cxpListTiposRetencion: () =>
+    request<{ tipo_retencion: number; descripcion: string; por_defecto: string }[]>(`/cxp/tipos-retencion/`),
+
+  cxpListFormasPago: () =>
+    request<{ forma_pago: number; descripcion: string; por_defecto: string }[]>(`/cxp/formas-pago/`),
+
   cxpGetProveedorNcfInfo: (no: string, noCia: string, punto: string) =>
     request<{
       codigo_ncf: string | null

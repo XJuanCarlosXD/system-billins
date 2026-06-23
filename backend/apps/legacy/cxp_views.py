@@ -155,6 +155,27 @@ def cxp_proveedor_cuenta(request, no):
 @login_required
 @csrf_exempt
 @require_http_methods(['GET'])
+def cxp_tipos_gasto(request):
+    return JsonResponse(cxp_repo.list_tipos_gasto(), safe=False)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
+def cxp_tipos_retencion(request):
+    return JsonResponse(cxp_repo.list_tipos_retencion(), safe=False)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
+def cxp_formas_pago(request):
+    return JsonResponse(cxp_repo.list_formas_pago(), safe=False)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
 def cxp_proveedor_ncf_info(request, no):
     """GET /api/cxp/proveedores/<no>/ncf-info/?no_cia=&punto= → config NCF."""
     no_cia = request.GET.get('no_cia', '01')
