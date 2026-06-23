@@ -57,6 +57,7 @@ def _jsonify(data):
 
 
 @login_required
+@csrf_exempt
 @require_http_methods(["GET", "POST"])
 def inv_productos(request):
     """GET /api/inv/productos/?no_cia=01&search=&grupo=&linea=&limit=50&offset=0

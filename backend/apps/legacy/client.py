@@ -69,13 +69,9 @@ def connection() -> Iterator[oracledb.Connection]:
             pass
         raise
     finally:
-        # Defensivo: si quedaron cambios sin commit (p.ej. el caller olvidó
-        # llamarlo), revertirlos antes de devolver la conexion al pool
-        # para que el proximo request no herede transaccion sucia.
-        try:
-            conn.rollback()
-        except Exception:
-            pass
+        # oracledb.SessionPool ya hace rollback de transacciones abiertas al
+        # release(); NO duplicar aqui porque rompe a callers que dependen del
+        # commit implicito al final del with (p.ej. create_producto).
         pool.release(conn)
 
 

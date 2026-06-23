@@ -123,6 +123,7 @@ def create_producto(payload: dict, usuario: str = '') -> dict:
                 'no_proveedor': no_proveedor,
             },
         )
+        cur.connection.commit()
     return {
         'no_produ': no_produ, 'descripcion': descri, 'linea': linea,
         'sub_linea': sub_linea, 'grupo_produ': grupo_produ,
@@ -371,6 +372,7 @@ def update_producto(no_produ: str, payload: dict, usuario: str = '') -> dict:
     sql = f"UPDATE INV.TINV_PRODUCTO SET {', '.join(sets)} WHERE no_produ = :no_produ"
     with client.cursor() as cur:
         cur.execute(sql, binds)
+        cur.connection.commit()
 
     return {'no_produ': no_produ, 'updated': 1}
 
