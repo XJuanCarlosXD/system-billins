@@ -26,17 +26,37 @@ def list_proveedores(search='', activo=''):
 
 
 def get_proveedor(no_proveedor):
-    sql = """
-        SELECT p.no_proveedor, p.nombre, p.rnc, p.cedula,
-               p.telefono, p.celular, p.fax, p.e_mail, p.web_site,
-               p.direccion, p.encargado, p.plazo_pago, p.activo,
-               p.excento_itbis, p.categoria, p.clasificacion,
-               p.cuenta_banco, p.codigo_banco, p.tipo_cuenta
-        FROM CXP.TCXP_DPROVEEDOR p
-        WHERE p.no_proveedor = :1
+    """Busca un proveedor por su código.
+
+    El usuario suele teclear `199` pero `TCXP_DPROVEEDOR.no_proveedor` está
+    almacenado con padding a 6 dígitos (`000199`). Para entradas puramente
+    numéricas probamos primero el valor literal y luego con LPAD a 6.
     """
-    rows = client.fetch_dicts(sql, [no_proveedor])
-    return rows[0] if rows else None
+    raw = (str(no_proveedor) if no_proveedor is not None else '').strip()
+    candidates: list[str] = []
+    if raw:
+        candidates.append(raw)
+        if raw.isdigit() and len(raw) < 6:
+            candidates.append(raw.zfill(6))
+        elif raw.isdigit() and len(raw) > 6:
+            candidates.append(str(int(raw)))  # quita ceros a la izquierda
+    sql = (
+        "SELECT p.no_proveedor, p.nombre, p.rnc, p.cedula, "
+        "p.telefono, p.celular, p.fax, p.e_mail, p.web_site, "
+        "p.direccion, p.encargado, p.plazo_pago, p.activo, "
+        "p.excento_itbis, p.categoria, p.clasificacion, "
+        "p.cuenta_banco, p.codigo_banco, p.tipo_cuenta "
+        "FROM CXP.TCXP_DPROVEEDOR p WHERE p.no_proveedor = :1"
+    )
+    seen: set[str] = set()
+    for cand in candidates:
+        if cand in seen:
+            continue
+        seen.add(cand)
+        rows = client.fetch_dicts(sql, [cand])
+        if rows:
+            return rows[0]
+    return None
 
 
 def save_proveedor(data: dict):

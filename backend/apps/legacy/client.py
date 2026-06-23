@@ -62,7 +62,20 @@ def connection() -> Iterator[oracledb.Connection]:
     conn = pool.acquire()
     try:
         yield conn
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
     finally:
+        # Defensivo: si quedaron cambios sin commit (p.ej. el caller olvidó
+        # llamarlo), revertirlos antes de devolver la conexion al pool
+        # para que el proximo request no herede transaccion sucia.
+        try:
+            conn.rollback()
+        except Exception:
+            pass
         pool.release(conn)
 
 
@@ -72,6 +85,15 @@ def cursor() -> Iterator[oracledb.Cursor]:
         cur = conn.cursor()
         try:
             yield cur
+        except Exception:
+            # Sin esto, un UPDATE/INSERT sin commit queda colgado en la conexión
+            # del pool y un commit() posterior de otro request lo persiste.
+            # Caso real: TCXP_SECUENCIA.ult_docu adelantado vs MAX(no_docu).
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            raise
         finally:
             cur.close()
 
