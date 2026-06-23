@@ -1833,7 +1833,7 @@ git commit -m "feat(mcp): registry tipos de documento + tools doc_tipos_listar/d
 - Modify: `backend/facturation_api/asgi.py`
 - Create: `backend/apps/mcp/tests/test_server_smoke.py`
 
-- [ ] **Step 1: Implementar `apps/mcp/server.py`**
+- [x] **Step 1: Implementar `apps/mcp/server.py`** — adaptado: `_wrap_tool` propaga `inspect.signature(fn)` para que FastMCP genere inputSchema con params reales (no kwargs). Sin `from __future__ import annotations` (pydantic necesita anotaciones evaluadas). `FastMCP(streamable_http_path="/")` para evitar `/mcp/mcp/` doble prefijo.
 
 ```python
 """Servidor MCP HTTP. Registra tools y construye la app ASGI.
@@ -1941,7 +1941,7 @@ def build_mcp() -> FastMCP:
     return _mcp
 ```
 
-- [ ] **Step 2: Modificar `backend/facturation_api/asgi.py`**
+- [x] **Step 2: Modificar `backend/facturation_api/asgi.py`** — adaptado: agregado `lifespan` async ctx que invoca `_mcp_server.session_manager.run()` (necesario para streamable_http; sin esto FastMCP lanza `Task group is not initialized`). Adicional: docker-compose.yml backend `command:` override a `uvicorn ... --reload` (runserver es WSGI y no sirve /mcp/), `uvicorn>=0.30` agregado a requirements.txt, imagen backend rebuilt.
 
 Después del `application = ...` actual añadir:
 
@@ -1963,7 +1963,7 @@ application = Starlette(
 
 (Si el archivo ya importa `application` de otra manera, mantener la cadena Django y montar `/mcp` antes.)
 
-- [ ] **Step 3: Write smoke test `apps/mcp/tests/test_server_smoke.py`**
+- [x] **Step 3: Write smoke test `apps/mcp/tests/test_server_smoke.py`** — adaptado: `server.list_tools()` es async (no `list_tools_sync` en SDK 1.28). Tests cubren: registry tiene 7 tools esperadas + `streamable_http_app()` se construye sin error.
 
 ```python
 from apps.mcp.server import build_mcp
@@ -1978,12 +1978,12 @@ def test_server_registers_expected_tools():
 
 (Si `list_tools_sync` no existe en la versión del SDK, leer del registry interno del `FastMCP`.)
 
-- [ ] **Step 4: Run smoke**
+- [x] **Step 4: Run smoke** — 2 passed in 0.68s (VM). Suite completa MCP: 35/35 passed.
 
 Run: `cd backend && pytest apps/mcp/tests/test_server_smoke.py -v`
 Expected: PASS.
 
-- [ ] **Step 5: Deploy a VM y smoke real**
+- [x] **Step 5: Deploy a VM y smoke real** — uploaded server.py + asgi.py + docker-compose.yml + requirements.txt + tests; `docker compose build backend` + recreate; `tools/list` POST a `/mcp/` devuelve 200 con los 7 tools y schemas correctos (query/limit, ids, nombre, modulo/no_cia/...); `tools/call memoria_briefing` sin Bearer devuelve envelope `{ok:false, error_code:"MISSING_AUTH"}`. Smoke validado dentro del docker network (backend container expose 8000 al network, no al host). El smoke contra `grupo-abregonza.hopto.org:8443/mcp/` queda pendiente para Task 14 (Caddy proxy + Netlify).
 
 ```bash
 pscp -batch -r backend/apps/mcp jcabreu@10.0.0.99:/home/jcabreu/facturation-system/backend/apps/
@@ -1995,12 +1995,7 @@ curl -i https://grupo-abregonza.hopto.org:8443/mcp/ -X POST -d '{"jsonrpc":"2.0"
 
 Expected: HTTP 401 `MISSING_AUTH` (la lista de tools también requiere auth — correcto).
 
-- [ ] **Step 6: Commit**
-
-```bash
-git add backend/apps/mcp/server.py backend/facturation_api/asgi.py backend/apps/mcp/tests/test_server_smoke.py
-git commit -m "feat(mcp): servidor MCP montado en /mcp/ con wrapper auth+audit+ratelimit"
-```
+- [x] **Step 6: Commit**
 
 ---
 
