@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { ChevronRight, Laptop, Moon, Sun } from 'lucide-react'
 import { useSearch } from '@/context/search-provider'
 import { useTheme } from '@/context/theme-provider'
+import { useMe } from '@/hooks/use-me'
 import {
   CommandDialog,
   CommandEmpty,
@@ -108,6 +109,7 @@ interface FlatItem {
   url: string
   search?: Record<string, unknown>
   keywords: string
+  requires?: 'is_dba'
 }
 
 function flattenNav(groups: NavGroup[]): FlatItem[] {
@@ -125,6 +127,7 @@ function flattenNav(groups: NavGroup[]): FlatItem[] {
           url,
           search: item.search,
           keywords: VIEW_KEYWORDS[url] ?? '',
+          requires: item.requires,
         })
         continue
       }
@@ -140,6 +143,7 @@ function flattenNav(groups: NavGroup[]): FlatItem[] {
               url,
               search: sub.search,
               keywords: VIEW_KEYWORDS[url] ?? '',
+              requires: item.requires ?? sub.requires,
             })
           } else if ('items' in sub && sub.items) {
             for (const leaf of sub.items) {
@@ -157,6 +161,7 @@ function flattenNav(groups: NavGroup[]): FlatItem[] {
                   search: leaf.search,
                   keywords:
                     VIEW_KEYWORDS[url] ?? VIEW_KEYWORDS[searchKey] ?? '',
+                  requires: item.requires ?? sub.requires ?? leaf.requires,
                 })
               }
             }
@@ -235,15 +240,23 @@ export function CommandMenu() {
   const navigate = useNavigate()
   const { setTheme } = useTheme()
   const { open, setOpen } = useSearch()
+  const { data: me } = useMe()
+  const isAdmin = me?.is_admin ?? false
   const [query, setQuery] = React.useState('')
 
+  const visibleItems = React.useMemo(
+    () => ALL_ITEMS.filter((it) => it.requires !== 'is_dba' || isAdmin),
+    [isAdmin]
+  )
+
   const filtered = React.useMemo(() => {
-    if (!query.trim()) return ALL_ITEMS
-    return ALL_ITEMS.map((item) => ({ item, s: score(item, query) }))
+    if (!query.trim()) return visibleItems
+    return visibleItems
+      .map((item) => ({ item, s: score(item, query) }))
       .filter(({ s }) => s > 0)
       .sort((a, b) => b.s - a.s)
       .map(({ item }) => item)
-  }, [query])
+  }, [query, visibleItems])
 
   const grouped = React.useMemo(() => groupByModule(filtered), [filtered])
 

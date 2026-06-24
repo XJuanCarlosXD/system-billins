@@ -2562,7 +2562,7 @@ export const Route = createFileRoute('/_authenticated/admin/mcp/usage')({
 });
 ```
 
-- [?] **Step 9: Modificar `frontend/src/components/layout/data/sidebar-data.ts`** — entradas `MCP Tokens` y `MCP Usage` agregadas bajo el grupo "Sistema" (icons KeyRound / Activity). El predicado `is_dba` aún no existe en el frontend; las entradas quedan visibles para todo usuario autenticado por ahora. Necesita confirmación humana: ¿cómo se cablea `is_dba` (campo en `/api/profile/`, claim en token, flag en localStorage)?
+- [x] **Step 9: Modificar `frontend/src/components/layout/data/sidebar-data.ts`** — entradas `MCP Tokens` y `MCP Usage` marcadas con `requires: 'is_dba'`. Gate cableado contra `me.is_admin` (que viene de `/api/auth/me/` populado por `users_repo.is_dba` en el backend, ver `apps/auth_legacy/views.py:56`). Implementación: campo opcional `requires?: 'is_dba'` agregado a `BaseNavItem` en `components/layout/types.ts`; `AppSidebar` filtra recursivamente via `useMe()`; `CommandMenu` también filtra resultados por `me.is_admin`. Si `me` aún no carga (queryFn pending), `isAdmin = false` por defecto — las entradas aparecen tras el primer fetch.
 
 ```typescript
 // Dentro del array de "Administración"
@@ -2681,7 +2681,7 @@ git push origin mcp-plan-1-foundations
 
 - [x] El comando `python manage.py migrate mcp` en VM corre limpio. — N/A: migration aplicada como SQL via `client.cursor()` (Task 2 Step 3); `ALL_TABLES` confirma `TMCP_TOKEN`/`TMCP_TOKEN_USO`.
 - [x] `pytest apps/mcp/tests/` pasa todos los tests (>=20 tests al final). — 35 passed in 1.01s (VM, run 2026-06-23 14:00 UTC).
-- [?] `/admin/mcp/tokens` solo visible para usuarios DBA. — Backend gate `IsLegacyAdmin` cubierto por test (`test_admin_tokens::list_requires_auth + forbidden_non_dba`). UI sidebar gate `requires: is_dba` pendiente de cablear `is_dba` en frontend (Task 13 Step 9 `[?]`).
+- [x] `/admin/mcp/tokens` solo visible para usuarios DBA. — Backend gate `IsLegacyAdmin` cubierto por test (`test_admin_tokens::list_requires_auth + forbidden_non_dba`). UI sidebar gate `requires: 'is_dba'` aplicado en `MCP Tokens` y `MCP Usage` (sidebar-data.ts); `AppSidebar` y `CommandMenu` filtran items con `requires === 'is_dba'` cuando `me.is_admin === false`.
 - [x] Generar token muestra plaintext **una sola vez**; un GET posterior no lo expone. — cubierto por `test_admin_tokens::test_create_returns_plaintext_once` (POST devuelve `plaintext`, persistencia guarda solo `hash` + `prefijo`).
 - [!] Cliente MCP real (Claude Desktop) lista tools y ejecuta `memoria_buscar` con éxito. — bloqueado por Task 14 Steps 3-7 (env vars memory-router + acción humana).
 - [!] `/admin/mcp/usage` muestra al menos una llamada después del smoke. — depende de smoke de Claude Desktop (Task 14 Step 8).

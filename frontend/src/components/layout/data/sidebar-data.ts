@@ -710,11 +710,13 @@ export const sidebarData: SidebarData = {
           title: 'MCP Tokens',
           url: '/admin/mcp/tokens',
           icon: KeyRound,
+          requires: 'is_dba',
         },
         {
           title: 'MCP Usage',
           url: '/admin/mcp/usage',
           icon: Activity,
+          requires: 'is_dba',
         },
       ],
     },
