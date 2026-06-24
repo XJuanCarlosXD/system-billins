@@ -236,12 +236,14 @@ export function CatalogoProductos() {
   const addEmpaqueRow = () => {
     setEmpaques((rows) => {
       const next = rows.length + 1
+      const firstUni = unidades[0] as any
+      const firstRef = refsEmpaque[0] as any
       return [
         ...rows,
         {
           empaque: next,
-          unidad: unidades[0]?.unidad ?? '',
-          referencia: refsEmpaque[0]?.referencia ?? '',
+          unidad: String(firstUni?.cod_unidad ?? firstUni?.unidad ?? ''),
+          referencia: String(firstRef?.cod_referencia ?? firstRef?.referencia ?? ''),
           cpe: '1',
           por_defecto: rows.length === 0,  // primer renglón por defecto
           para_reporte: rows.length === 0,
@@ -974,11 +976,15 @@ export function CatalogoProductos() {
                             <Select value={e.unidad} onValueChange={(v) => updateEmpaqueRow(idx, { unidad: v })}>
                               <SelectTrigger className='h-8'><SelectValue placeholder='—' /></SelectTrigger>
                               <SelectContent>
-                                {unidades.map((u: any) => (
-                                  <SelectItem key={u.unidad} value={u.unidad}>
-                                    {u.unidad} — {u.descripcion ?? u.descri}
-                                  </SelectItem>
-                                ))}
+                                {unidades.map((u: any) => {
+                                  const code = String(u.cod_unidad ?? u.unidad ?? '')
+                                  if (!code) return null
+                                  return (
+                                    <SelectItem key={code} value={code}>
+                                      {code} — {u.descripcion ?? u.descri ?? ''}
+                                    </SelectItem>
+                                  )
+                                })}
                               </SelectContent>
                             </Select>
                           </TableCell>
@@ -986,11 +992,15 @@ export function CatalogoProductos() {
                             <Select value={e.referencia} onValueChange={(v) => updateEmpaqueRow(idx, { referencia: v })}>
                               <SelectTrigger className='h-8'><SelectValue placeholder='—' /></SelectTrigger>
                               <SelectContent>
-                                {refsEmpaque.map((r: any) => (
-                                  <SelectItem key={r.referencia} value={r.referencia}>
-                                    {r.referencia} — {r.descripcion ?? r.descri}
-                                  </SelectItem>
-                                ))}
+                                {refsEmpaque.map((r: any) => {
+                                  const code = String(r.cod_referencia ?? r.referencia ?? '')
+                                  if (!code) return null
+                                  return (
+                                    <SelectItem key={code} value={code}>
+                                      {code} — {r.descripcion ?? r.descri ?? ''}
+                                    </SelectItem>
+                                  )
+                                })}
                               </SelectContent>
                             </Select>
                           </TableCell>
