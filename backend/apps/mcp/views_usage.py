@@ -2,7 +2,7 @@
 
 Adaptado al stack DRF + apps.legacy.client (no JsonResponse + django.db.connection).
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -26,10 +26,11 @@ class UsageView(APIView):
     def get(self, request):
         desde = request.query_params.get("desde")
         hasta = request.query_params.get("hasta")
+        now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
         if not desde:
-            desde = (datetime.utcnow() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M")
+            desde = (now_utc - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M")
         if not hasta:
-            hasta = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+            hasta = now_utc.strftime("%Y-%m-%d %H:%M")
         gran = request.query_params.get("granularidad", "hora")
         usuario_f = request.query_params.get("usuario")
         tool_f = request.query_params.get("tool")

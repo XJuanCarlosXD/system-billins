@@ -3,7 +3,7 @@
 Adaptado al patron DRF + apps.legacy.client del proyecto (no JsonResponse +
 django.db.connection como sugeria el plan).
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from rest_framework import status
@@ -22,7 +22,7 @@ def _parse_expira(payload) -> Optional[str]:
         return None
     dias = payload.get("expira_dias")
     if dias is not None:
-        dt = datetime.utcnow() + timedelta(days=int(dias))
+        dt = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=int(dias))
         return dt.strftime("%Y-%m-%dT%H:%M:%S")
     custom = payload.get("expira_fecha")
     if custom is not None:

@@ -215,3 +215,47 @@ humana o valores reales del usuario).
 **Blockers:** 2 confirmaciones humanas (push main, env vars memory-router).
 
 RUN_DONE | steps_done=0 (mantenimiento + verificacion) | next_pending=Task 14 Step 1 push main (humano) | blockers=2 | commits_pushed=1
+
+---
+
+## Run 2026-06-24 ~06:00 UTC (auto-trigger 4h)
+
+**Estado del plan al iniciar:** branch `mcp/foundations` sync con origin; working
+tree clean. Pendientes del run previo: Task 14 Steps 1, 3, 4..9 (todos accion
+humana o env vars). Mismo set de [?]/[!] que el run anterior.
+
+**Trabajo realizado este run:** mejora de mantenimiento — limpieza de los
+`DeprecationWarning: datetime.utcnow()` que aparecian de forma persistente en
+cada run de pytest (5 warnings, no bloqueantes pero ruidosos en CI/logs):
+- `apps/mcp/views_usage.py`: importa `timezone`; centraliza `now_utc =
+  datetime.now(timezone.utc).replace(tzinfo=None)` antes de los `if not desde`
+  / `if not hasta` y reutiliza la variable (no rompe el formato Oracle
+  `YYYY-MM-DD HH:MI` ni el binding `TO_DATE`).
+- `apps/mcp/views_admin.py`: misma sustitucion en `_parse_expira` para
+  `expira_dias` (sigue devolviendo string naive `YYYY-MM-DDTHH:MM:SS` que ya
+  consumen los tests / la columna `FECHA_EXPIRA`).
+
+**Deploy a VM:** scp -> `/tmp/` (permission denied en path final con user
+`jcabreu` directo desde pscp); copia via `cp /tmp/views_*.py
+/home/jcabreu/facturation-system/backend/apps/mcp/` dentro de plink session.
+`python -m py_compile` OK. `docker restart facturation_backend` OK.
+
+**Verificacion en VM:**
+- `pytest apps/mcp/tests/` -> **35 passed in 1.02s**, **0 warnings utcnow**
+  (antes 5). `grep -c 'utcnow'` sobre output completo -> `0`.
+- `/mcp/` JSON-RPC `tools/list` desde container -> **HTTP 200** tras restart.
+
+**Tests:** 35/35 PASS en VM. Sin cambios de cobertura (es refactor interno).
+
+**Commits pushed (este run):** 1 (este run, chore mantenimiento + log).
+
+**Steps pendientes (todos por accion humana, sin cambios desde run previo):**
+- Task 14 Step 1 `[?]`: push a `main` (regla NO PR — usuario lo hace).
+- Task 14 Step 3 `[?]`: env vars MEMORY_ROUTER_URL / TOKEN / PROJECT en `.env`
+  del compose VM.
+- Task 14 Steps 4..9 `[!]`: smoke con Claude Desktop tras tener token + env
+  vars + frontend live.
+
+**Blockers:** 2 confirmaciones humanas (push main, env vars memory-router).
+
+RUN_DONE | steps_done=0 (cleanup datetime.utcnow + verificacion) | next_pending=Task 14 Step 1 push main (humano) | blockers=2 | commits_pushed=1
