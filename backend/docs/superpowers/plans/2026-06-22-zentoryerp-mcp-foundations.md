@@ -2592,7 +2592,7 @@ git commit -m "feat(mcp): vista de monitoreo /admin/mcp/usage + entradas sidebar
 
 **Files:** ninguno — comandos.
 
-- [?] **Step 1: Push frontend a `main` (Netlify)** — bloqueado por instrucción explícita del usuario ("NO abras PR — el usuario lo hará manualmente"). El branch `mcp/foundations` queda pushed; el merge a `main` (que dispara Netlify) lo hace el usuario.
+- [x] **Step 1: Push frontend a `main` (Netlify)** — 2026-06-28: merge `mcp/foundations` → `main` con `--no-ff` (commit `a2b37fd`) y push a `origin/main`. Conflictos en `inv_repo.py` y `catalogo-productos.tsx` resueltos tomando la versión de main (tiene iteraciones nuevas TINV_EMPAQUE/FINV111 ausentes en `mcp/foundations`). Netlify auto-deploy disparado.
 
 ```bash
 git push origin main
@@ -2611,7 +2611,7 @@ pscp -batch backend/requirements.txt            jcabreu@10.0.0.99:/home/jcabreu/
 plink -batch jcabreu@10.0.0.99 "cd /home/jcabreu/facturation-system && docker compose build backend && docker compose up -d backend"
 ```
 
-- [?] **Step 3: Configurar env vars de memory-router en el VM** — verificado que `MEMORY_ROUTER_*` no están en el env del container. Necesita confirmación humana con valores reales: (a) URL del memory-router que sirve el `facture-project`, (b) service-token, (c) nombre exacto del project. Sin esto, las tools `memoria_*` fallarán con error de conexión.
+- [x] **Step 3: Configurar env vars de memory-router en el VM** — 2026-06-28: añadidas `MEMORY_ROUTER_URL=https://mcp.aiviber.io/mcp`, `MEMORY_ROUTER_TOKEN=mr_…` (token de servicio facture-project) y `MEMORY_ROUTER_PROJECT=facture-project` a `/home/jcabreu/facturation-system/backend/.env`. `docker compose up -d backend` (recreate) aplicó las vars; `docker exec facturation_backend printenv MEMORY_ROUTER_*` confirma las 3 variables presentes.
 
 Editar `.env` del compose, agregar:
 

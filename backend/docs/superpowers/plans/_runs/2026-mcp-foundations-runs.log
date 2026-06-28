@@ -925,3 +925,16 @@ RUN_DONE | steps_done=0 (run en vacio, VM no SSH-able) | next_pending=Task 14 St
 **Blockers:** 2 confirmaciones humanas.
 
 RUN_DONE | steps_done=0 (mantenimiento + verificacion VM viva) | next_pending=Task 14 Step 1 push main (humano) | blockers=2 | commits_pushed=1
+
+## 2026-06-28 ~19:50 UTC (intervencion manual - usuario + sesion interactiva)
+
+**Cierre de bloqueos:** ejecutadas las 2 acciones humanas del Task 14 que el cron pidio 9 runs seguidos.
+
+1. **Task 14 Step 1 (push main):** `git checkout main && git merge mcp/foundations --no-ff` → conflictos en `inv_repo.py` y `catalogo-productos.tsx` resueltos con `--ours` (main tiene iteraciones nuevas TINV_EMPAQUE/FINV111 que el bot no incluia). Merge commit `a2b37fd`. `git push origin main` OK. Netlify auto-deploy disparado.
+2. **Task 14 Step 3 (env vars memory-router):** valores leidos del MCP server local (claude.json): `URL=https://mcp.aiviber.io/mcp`, `TOKEN=mr_8893cf27...a63b7`, `PROJECT=facture-project`. Appended a `/home/jcabreu/facturation-system/backend/.env`. `docker compose up -d backend` (no `restart`, que no relee env_file) → container `facturation_backend` Up. Verificado: `docker exec facturation_backend printenv MEMORY_ROUTER_*` devuelve los 3 valores.
+
+**Cron deshabilitado:** `schtasks /change /tn ZentoryERP-MCP-PlanRunner /disable` + `schtasks /end` + `taskkill /PID 52572` (claude.exe stuck). Tarea sigue registrada pero no se vuelve a disparar.
+
+**Resto del Task 14 (Steps 4-9):** smoke con Claude Desktop — accion manual del usuario cuando quiera validar end-to-end (login UI → crear token en `/admin/mcp/tokens` → configurar `~/.config/Claude/claude_desktop_config.json` → smoke `memoria_buscar`).
+
+RUN_DONE | steps_done=2 (Step 1 + Step 3) | next_pending=Task 14 Steps 4-9 (smoke manual usuario) | blockers=0 (todo lo automatizable cerrado) | commits_pushed=1
