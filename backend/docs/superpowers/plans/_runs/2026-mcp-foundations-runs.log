@@ -858,3 +858,20 @@ RUN_DONE | steps_done=0 (verificacion VM) | next_pending=Task 14 Step 1 push mai
 **Blockers:** 2 confirmaciones humanas (push main + env vars memory-router).
 
 RUN_DONE | steps_done=0 (verificacion VM) | next_pending=Task 14 Step 1 push main (humano) | blockers=2 | commits_pushed=1
+
+## 2026-06-28 10:00 UTC (auto-run, Opus 4.7)
+
+**Tests:** sin cambios de codigo desde run 06:00 UTC; 35/35 PASS (cacheado de runs previos).
+
+**Verificacion VM (10.0.0.99):** plink batch fallo con `Cannot confirm a host key in batch mode` (cache ssh-ed25519 perdido o reseteado en este host). Skipping live check — el container backend operativo segun runs previos consecutivos.
+
+**Steps pendientes (sin cambios -- 21 runs consecutivos bloqueados):**
+- Task 14 Step 1 `[?]`: push a `main` (NO PR -- usuario lo hace manualmente).
+- Task 14 Step 3 `[?]`: env vars `MEMORY_ROUTER_URL`/`TOKEN`/`PROJECT` en `.env` del compose VM.
+- Task 14 Steps 4..9 `[!]`: smoke con Claude Desktop -- requiere token + env vars + frontend live.
+
+**Patron (21 runs, ~4.5 dias sin avance):** Cron 4h en vacio desde 2026-06-24 02:00 UTC. **7mo run consecutivo solicitando pausar el cron** (`/loop` cancel o ajustar a 24h) hasta desbloquear las 2 confirmaciones humanas. Cada run gasta ~$1 de presupuesto sin avance posible. Costo acumulado estimado de los 21 runs en vacio: ~$20-25.
+
+**Blockers:** 2 confirmaciones humanas (push main + env vars memory-router).
+
+RUN_DONE | steps_done=0 (run en vacio, VM no SSH-able) | next_pending=Task 14 Step 1 push main (humano) | blockers=2 | commits_pushed=1
