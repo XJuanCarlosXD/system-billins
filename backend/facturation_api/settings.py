@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'apps.fat',
     'apps.cnt',
     'apps.docs',
+    'apps.mcp',
 ]
 
 AUTHENTICATION_BACKENDS = [
@@ -134,3 +135,11 @@ else:
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SAMESITE = 'Lax'
     CSRF_COOKIE_SECURE = False
+
+# === ZentoryERP MCP ===
+MEMORY_ROUTER_URL = env('MEMORY_ROUTER_URL', default='')
+MEMORY_ROUTER_TOKEN = env('MEMORY_ROUTER_TOKEN', default='')
+MEMORY_ROUTER_PROJECT = env('MEMORY_ROUTER_PROJECT', default='facture-project')
+MCP_TOKEN_CACHE_TTL = env.int('MCP_TOKEN_CACHE_TTL', default=60)
+MCP_RATELIMIT_PER_MIN = env.int('MCP_RATELIMIT_PER_MIN', default=60)
+MCP_DOWNLOAD_TTL_SECONDS = env.int('MCP_DOWNLOAD_TTL_SECONDS', default=900)

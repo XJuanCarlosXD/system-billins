@@ -1,4 +1,36 @@
 services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: facturation_caddy
+    ports:
+      - "80:80"
+      - "8443:8443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  oracle-xe:
+    image: gvenzl/oracle-xe:21-slim-faststart
+    container_name: facturation_oracle
+    profiles: ["oracle"]
+    environment:
+      - ORACLE_PASSWORD=Temp1234Oracle
+      - ORACLE_CHARACTERSET=AL32UTF8
+      - APP_USER=sigaft
+      - APP_USER_PASSWORD=Temp1234Oracle
+    ports:
+      - "1525:1521"
+    volumes:
+      - oracle_data:/opt/oracle/oradata
+      - ./oracle_init:/container-entrypoint-initdb.d
+      - ./oracle_dump:/dump
+    shm_size: 1g
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -6,30 +38,17 @@ services:
     container_name: facturation_backend
     env_file:
       - ./backend/.env
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     volumes:
       - ./backend:/app
       - backend_data:/app/data
     restart: unless-stopped
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.dev
-    container_name: facturation_frontend
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      # node_modules en volumen anonimo: evita conflicto host vs contenedor.
-      - /app/node_modules
-    environment:
-      - CHOKIDAR_USEPOLLING=true
-      - VITE_API_BASE_URL=http://10.0.0.99:8000/api
-    depends_on:
-      - backend
-    restart: unless-stopped
+    # ASGI: Django runserver es WSGI y no sirve /mcp/. Usamos uvicorn con --reload.
+    command: ["uvicorn", "facturation_api.asgi:application", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 volumes:
   backend_data:
+  oracle_data:
+  caddy_data:
+  caddy_config:

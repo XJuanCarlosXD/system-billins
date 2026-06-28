@@ -17,6 +17,7 @@ type BaseNavItem = {
   badge?: string
   icon?: React.ElementType
   search?: Record<string, unknown>
+  requires?: 'is_dba'
 }
 
 type NavLink = BaseNavItem & {
