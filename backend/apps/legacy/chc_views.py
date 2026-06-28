@@ -194,3 +194,78 @@ def chc_rep_balance(request):
         request.GET.get('no_cia', ''),
         _norm_punto(request.GET.get('punto', '')) or None,
     ), safe=False)
+
+
+# ---- Bloque 5: Conciliar + Reportes ----
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def chc_conciliar_bulk(request):
+    """POST {no_cia, punto, items:[{tipo_docu,no_docu},...]} → marca conciliados."""
+    data = json.loads(request.body)
+    items = data.get('items') or []
+    if not items:
+        return JsonResponse({'error': 'items vacio'}, status=400)
+    n = chc_repo.marcar_conciliados_bulk(
+        data['no_cia'], _norm_punto(data['punto']), items,
+    )
+    return JsonResponse({'ok': True, 'afectados': n})
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def chc_cierre_conciliacion(request):
+    """POST {no_cia, punto, cuenta_banco, ano, mes} → registra cierre mensual."""
+    data = json.loads(request.body)
+    try:
+        chc_repo.cierre_conciliacion(
+            no_cia=data['no_cia'],
+            punto=_norm_punto(data['punto']),
+            cuenta_banco=data['cuenta_banco'],
+            ano=int(data['ano']),
+            mes=int(data['mes']),
+            usuario=request.user.username,
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse({'ok': True}, status=201)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
+def chc_rep_movimientos(request):
+    return JsonResponse(chc_repo.rep_movimientos_cuenta(
+        request.GET.get('no_cia', ''),
+        _norm_punto(request.GET.get('punto', '')),
+        request.GET.get('cuenta_banco', ''),
+        request.GET.get('fecha_desde', ''),
+        request.GET.get('fecha_hasta', ''),
+    ))
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
+def chc_rep_diario(request):
+    return JsonResponse(chc_repo.rep_diario_cheques(
+        no_cia=request.GET.get('no_cia', ''),
+        punto=_norm_punto(request.GET.get('punto', '')),
+        fecha_desde=request.GET.get('fecha_desde', ''),
+        fecha_hasta=request.GET.get('fecha_hasta', ''),
+        cuenta_banco=request.GET.get('cuenta_banco') or None,
+        tipo_docu=request.GET.get('tipo_docu') or None,
+        status=request.GET.get('status') or None,
+    ))
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
+def chc_rep_disponibilidad(request):
+    return JsonResponse(chc_repo.rep_disponibilidad(
+        request.GET.get('no_cia', ''),
+        _norm_punto(request.GET.get('punto', '')) or None,
+    ), safe=False)

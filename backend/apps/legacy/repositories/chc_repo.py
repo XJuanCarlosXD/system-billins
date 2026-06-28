@@ -356,3 +356,197 @@ def rep_balance_cuentas(no_cia: str, punto: str | None = None) -> list[dict]:
                 - float(c['che_mes'] or 0) + float(c['cre_mes'] or 0) - float(c['deb_mes'] or 0)
         out.append({**c, 'saldo_aprox': round(saldo, 2)})
     return out
+
+
+# ---- Reportes nuevos (Bloque 5) ----
+
+def rep_movimientos_cuenta(no_cia: str, punto: str, cuenta_banco: str,
+                           fecha_desde: str, fecha_hasta: str) -> dict:
+    """Movimientos de una cuenta en un rango (Rchc501 MOVIMIENTO CUENTA).
+
+    Devuelve saldo_inicial al cierre del mes anterior a fecha_desde + lista
+    cronologica de movimientos (con saldo corriente) + totales.
+    """
+    cab_rows = client.fetch_dicts(
+        "SELECT moneda, saldo_inicial, ano_proceso, mes_proceso "
+        "  FROM CHC.TCHC_BCUENTA "
+        " WHERE no_cia=:1 AND punto=:2 AND cuenta_banco=:3",
+        [no_cia, punto, cuenta_banco],
+    )
+    cab = cab_rows[0] if cab_rows else {}
+    # Saldo de apertura del periodo: saldo_inicial del año/mes proceso +
+    # movimientos previos a fecha_desde (mes en curso si fecha_desde >= 1er dia mes proceso).
+    # Para simplificar, partimos del saldo_inicial declarado en TCHC_BCUENTA y aplicamos
+    # los movimientos previos al rango pedido.
+    prev_rows = client.fetch_dicts(
+        "SELECT NVL(SUM(CASE WHEN tipo_movi='D' THEN valor_original "
+        "                    WHEN tipo_movi='C' THEN -valor_original ELSE 0 END),0) prev "
+        "  FROM CHC.TCHC_CHEQUE "
+        " WHERE no_cia=:1 AND punto=:2 AND cuenta_banco=:3 "
+        "   AND TRUNC(fecha_cheque) < TO_DATE(:4,'YYYY-MM-DD') "
+        "   AND st_nulo='A'",
+        [no_cia, punto, cuenta_banco, fecha_desde],
+    )
+    prev = prev_rows[0] if prev_rows else {'prev': 0}
+    saldo_inicial = float(cab.get('saldo_inicial') or 0) + float(prev.get('prev') or 0)
+
+    rows = client.fetch_dicts(
+        "SELECT c.tipo_docu, c.no_docu, "
+        "       TO_CHAR(c.fecha_cheque,'YYYY-MM-DD') fecha, "
+        "       c.beneficiario, c.no_proveedor, "
+        "       p.nombre nombre_proveedor, "
+        "       c.tipo_movi, c.valor_original, c.st_nulo, c.conciliado, "
+        "       c.entregado, c.detalle1 "
+        "  FROM CHC.TCHC_CHEQUE c "
+        "  LEFT JOIN CXP.TCXP_DPROVEEDOR p ON p.no_proveedor = c.no_proveedor "
+        " WHERE c.no_cia=:1 AND c.punto=:2 AND c.cuenta_banco=:3 "
+        "   AND TRUNC(c.fecha_cheque) BETWEEN TO_DATE(:4,'YYYY-MM-DD') AND TO_DATE(:5,'YYYY-MM-DD') "
+        " ORDER BY c.fecha_cheque, c.no_docu",
+        [no_cia, punto, cuenta_banco, fecha_desde, fecha_hasta],
+    )
+    saldo = saldo_inicial
+    total_d = total_c = 0.0
+    movs = []
+    for r in rows:
+        val = float(r.get('valor_original') or 0)
+        is_null = (r.get('st_nulo') or 'A') == 'N'
+        debito = val if (r.get('tipo_movi') == 'D' and not is_null) else 0.0
+        credito = val if (r.get('tipo_movi') == 'C' and not is_null) else 0.0
+        saldo += debito - credito
+        total_d += debito
+        total_c += credito
+        movs.append({**r, 'debito': debito, 'credito': credito,
+                     'saldo': round(saldo, 2), 'anulado': is_null})
+    return {
+        'cuenta_banco': cuenta_banco,
+        'moneda': cab.get('moneda') or 'P',
+        'saldo_inicial': round(saldo_inicial, 2),
+        'movimientos': movs,
+        'totales': {
+            'total_debito': round(total_d, 2),
+            'total_credito': round(total_c, 2),
+            'saldo_final': round(saldo, 2),
+            'cantidad': len(movs),
+        },
+    }
+
+
+def rep_diario_cheques(no_cia: str, punto: str, fecha_desde: str, fecha_hasta: str,
+                       cuenta_banco: str | None = None,
+                       tipo_docu: str | None = None,
+                       status: str | None = None,
+                       limit: int = 5000) -> dict:
+    """Libro diario debito/credito (Rchc202/Rchc203/Rchc218/Rchc219).
+
+    Lista cronologica de TODOS los movimientos del banco en el rango,
+    agrupado por cuenta con totales por cuenta + total general.
+    """
+    # TCHC_BCUENTA no tiene columna "nombre" en este esquema, asi que reportamos
+    # solo el numero de cuenta. El nombre/banco se podria resolver via
+    # TCHC_BANCO si la cuenta lo cruza, pero no esta cableado en TCHC_BCUENTA.
+    sql = (
+        "SELECT c.cuenta_banco, "
+        "       c.tipo_docu, c.no_docu, "
+        "       TO_CHAR(c.fecha_cheque,'YYYY-MM-DD') fecha, "
+        "       c.beneficiario, c.no_proveedor, "
+        "       p.nombre nombre_proveedor, "
+        "       c.tipo_movi, c.tipo_transaccion, "
+        "       c.valor_original, c.st_nulo, c.conciliado, c.entregado, "
+        "       c.detalle1 "
+        "  FROM CHC.TCHC_CHEQUE c "
+        "  LEFT JOIN CXP.TCXP_DPROVEEDOR p ON p.no_proveedor = c.no_proveedor "
+        " WHERE c.no_cia=:1 AND c.punto=:2 "
+        "   AND TRUNC(c.fecha_cheque) BETWEEN TO_DATE(:3,'YYYY-MM-DD') AND TO_DATE(:4,'YYYY-MM-DD')"
+    )
+    params: list = [no_cia, punto, fecha_desde, fecha_hasta]
+    if cuenta_banco:
+        sql += f" AND c.cuenta_banco=:{len(params)+1}"; params.append(cuenta_banco)
+    if tipo_docu:
+        sql += f" AND c.tipo_docu=:{len(params)+1}"; params.append(tipo_docu)
+    if status:  # 'A' activos / 'N' nulos
+        sql += f" AND c.st_nulo=:{len(params)+1}"; params.append(status)
+    sql += " ORDER BY c.cuenta_banco, c.fecha_cheque, c.no_docu"
+    sql = f"SELECT * FROM ({sql}) WHERE ROWNUM <= {int(limit)}"
+    rows = client.fetch_dicts(sql, params)
+
+    total_d = total_c = 0.0
+    activos = nulos = 0
+    movs = []
+    for r in rows:
+        val = float(r.get('valor_original') or 0)
+        is_null = (r.get('st_nulo') or 'A') == 'N'
+        debito = val if r.get('tipo_movi') == 'D' else 0.0
+        credito = val if r.get('tipo_movi') == 'C' else 0.0
+        if is_null:
+            nulos += 1
+        else:
+            activos += 1
+            total_d += debito
+            total_c += credito
+        movs.append({**r, 'debito': round(debito, 2), 'credito': round(credito, 2),
+                     'anulado': is_null})
+    return {
+        'movimientos': movs,
+        'totales': {
+            'total_debito': round(total_d, 2),
+            'total_credito': round(total_c, 2),
+            'cantidad': len(movs),
+            'activos': activos,
+            'nulos': nulos,
+            'neto': round(total_d - total_c, 2),
+        },
+    }
+
+
+def rep_disponibilidad(no_cia: str, punto: str | None = None) -> list[dict]:
+    """Disponibilidad bancaria (Rchc505).
+
+    Saldo disponible = saldo_aprox - che_por_entregar (lo ya solicitado pero
+    aun no debitado del banco). Sirve para decidir si autorizar mas cheques.
+    """
+    base = rep_balance_cuentas(no_cia, punto)
+    out = []
+    for c in base:
+        che_pe = float(c.get('che_por_entregar') or 0)
+        disp = float(c.get('saldo_aprox') or 0) - che_pe
+        out.append({**c, 'che_por_entregar': round(che_pe, 2),
+                    'disponible_neto': round(disp, 2)})
+    return out
+
+
+def marcar_conciliados_bulk(no_cia: str, punto: str,
+                            items: list[dict]) -> int:
+    """Marca conciliado='S' a una lista de (tipo_docu, no_docu). Devuelve cantidad afectada."""
+    n = 0
+    for it in items:
+        client.execute(
+            "UPDATE CHC.TCHC_CHEQUE SET conciliado='S' "
+            " WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4 "
+            "   AND NVL(conciliado,'N')='N'",
+            [no_cia, punto, it['tipo_docu'], it['no_docu']],
+        )
+        n += 1
+    return n
+
+
+def cierre_conciliacion(no_cia: str, punto: str, cuenta_banco: str,
+                        ano: int, mes: int, usuario: str) -> None:
+    """Inserta un cierre de conciliacion mensual en TCHC_CIERRE_CONCILIACION.
+
+    Falla si ya existe para (no_cia, punto, cuenta_banco, ano, mes).
+    """
+    existing = client.fetch_one(
+        "SELECT 1 FROM CHC.TCHC_CIERRE_CONCILIACION "
+        " WHERE no_cia=:1 AND punto=:2 AND cuenta_banco=:3 AND ano=:4 AND mes=:5",
+        [no_cia, punto, cuenta_banco, str(ano), str(mes).zfill(2)],
+    )
+    if existing:
+        raise ValueError(
+            f"Ya existe un cierre para {cuenta_banco} {str(mes).zfill(2)}/{ano}"
+        )
+    client.execute(
+        "INSERT INTO CHC.TCHC_CIERRE_CONCILIACION "
+        "  (no_cia, punto, ano, mes, cuenta_banco, fecha_sysdate, usuario) "
+        "VALUES (:1,:2,:3,:4,:5,SYSDATE,:6)",
+        [no_cia, punto, str(ano), str(mes).zfill(2), cuenta_banco, usuario],
+    )

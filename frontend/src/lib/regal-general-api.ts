@@ -1532,6 +1532,26 @@ export const regalGeneralApi = {
     ).toString()
     return request<any[]>(`/chc/rep-balance/?${qs}`)
   },
+  chcRepDisponibilidad: (params: { no_cia: string; punto?: string }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any[]>(`/chc/rep-disponibilidad/?${qs}`)
+  },
+  chcRepMovimientos: (params: { no_cia: string; punto: string; cuenta_banco: string; fecha_desde: string; fecha_hasta: string }) => {
+    const qs = new URLSearchParams(params).toString()
+    return request<any>(`/chc/rep-movimientos/?${qs}`)
+  },
+  chcRepDiario: (params: { no_cia: string; punto: string; fecha_desde: string; fecha_hasta: string; cuenta_banco?: string; tipo_docu?: string; status?: string }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any>(`/chc/rep-diario/?${qs}`)
+  },
+  chcConciliarBulk: (data: { no_cia: string; punto: string; items: { tipo_docu: string; no_docu: string }[] }) =>
+    request<any>('/chc/cheques/conciliar-bulk/', { method: 'POST', body: JSON.stringify(data) }),
+  chcCierreConciliacion: (data: { no_cia: string; punto: string; cuenta_banco: string; ano: number; mes: number }) =>
+    request<any>('/chc/cierres/conciliacion/', { method: 'POST', body: JSON.stringify(data) }),
 
   // ============================================================
   // Nómina (SDN)

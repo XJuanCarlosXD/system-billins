@@ -1697,3 +1697,176 @@ def acc_documento_print_data(request, no_docu: str):
             'propina': 0, 'otros': 0, 'total': total, 'monto_letras': '',
         }, 'extra': {},
     })
+
+
+# ─── CHC — Reportes (Bloque 5) ────────────────────────────────────────────
+
+from apps.legacy.repositories import chc_repo as _chc_repo
+
+
+@login_required
+@require_http_methods(["GET"])
+def chc_rep_movimientos_print_data(request):
+    """GET /api/chc/rep-movimientos/print-data/?no_cia=01&punto=01&cuenta_banco=...&fecha_desde=YYYY-MM-DD&fecha_hasta=YYYY-MM-DD"""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    cuenta_banco = request.GET.get('cuenta_banco') or ''
+    fecha_desde = request.GET.get('fecha_desde') or ''
+    fecha_hasta = request.GET.get('fecha_hasta') or ''
+    cia = _cia_payload(no_cia, request=request)
+    data = _chc_repo.rep_movimientos_cuenta(
+        no_cia=no_cia, punto=punto, cuenta_banco=cuenta_banco,
+        fecha_desde=fecha_desde, fecha_hasta=fecha_hasta,
+    )
+    filas = []
+    for m in data['movimientos']:
+        anul = bool(m.get('anulado'))
+        if anul:
+            estado = 'NULO'
+        elif (m.get('conciliado') or 'N') == 'S':
+            estado = 'CONC'
+        else:
+            estado = 'ACT'
+        filas.append({
+            'fecha': m.get('fecha') or '',
+            'tipo_docu': m.get('tipo_docu') or '',
+            'no_docu': (m.get('no_docu') or '').strip(),
+            'beneficiario': m.get('beneficiario') or m.get('nombre_proveedor') or '',
+            'detalle1': m.get('detalle1') or '',
+            'debito': _money_or_zero(m.get('debito')),
+            'credito': _money_or_zero(m.get('credito')),
+            'saldo': _money_or_zero(m.get('saldo')),
+            'estado': estado,
+        })
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'chc-rep-movimientos',
+            'titulo': 'Movimiento de Cuenta Bancaria',
+            'filtros': {
+                'Empresa': no_cia, 'Punto': punto,
+                'Cuenta': cuenta_banco,
+                'Moneda': 'RD$' if (data.get('moneda') or 'P') == 'P' else 'US$',
+                'Desde': fecha_desde, 'Hasta': fecha_hasta,
+            },
+        },
+        'filas': filas,
+        'totales': {
+            'cantidad': data['totales']['cantidad'],
+            'saldo_inicial': data['saldo_inicial'],
+            'total_debito': data['totales']['total_debito'],
+            'total_credito': data['totales']['total_credito'],
+            'saldo_final': data['totales']['saldo_final'],
+        },
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def chc_rep_diario_print_data(request):
+    """GET /api/chc/rep-diario/print-data/?no_cia=01&punto=01&fecha_desde=...&fecha_hasta=..."""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    fecha_desde = request.GET.get('fecha_desde') or ''
+    fecha_hasta = request.GET.get('fecha_hasta') or ''
+    cuenta_banco = request.GET.get('cuenta_banco') or None
+    tipo_docu = request.GET.get('tipo_docu') or None
+    status = request.GET.get('status') or None
+    cia = _cia_payload(no_cia, request=request)
+    data = _chc_repo.rep_diario_cheques(
+        no_cia=no_cia, punto=punto,
+        fecha_desde=fecha_desde, fecha_hasta=fecha_hasta,
+        cuenta_banco=cuenta_banco, tipo_docu=tipo_docu, status=status,
+    )
+    filas = []
+    for m in data['movimientos']:
+        anul = bool(m.get('anulado'))
+        if anul:
+            estado = 'NULO'
+        elif (m.get('conciliado') or 'N') == 'S':
+            estado = 'CONC'
+        else:
+            estado = 'ACT'
+        filas.append({
+            'cuenta_banco': m.get('cuenta_banco') or '',
+            'nombre_cuenta': m.get('nombre_cuenta') or '',
+            'fecha': m.get('fecha') or '',
+            'tipo_docu': m.get('tipo_docu') or '',
+            'no_docu': (m.get('no_docu') or '').strip(),
+            'beneficiario': m.get('beneficiario') or m.get('nombre_proveedor') or '',
+            'no_proveedor': (m.get('no_proveedor') or ''),
+            'detalle1': m.get('detalle1') or '',
+            'debito': _money_or_zero(m.get('debito')),
+            'credito': _money_or_zero(m.get('credito')),
+            'estado': estado,
+        })
+    filtros = {'Empresa': no_cia, 'Punto': punto, 'Desde': fecha_desde, 'Hasta': fecha_hasta}
+    if cuenta_banco:
+        filtros['Cuenta'] = cuenta_banco
+    if tipo_docu:
+        filtros['Tipo doc.'] = tipo_docu
+    if status:
+        filtros['Status'] = 'Activos' if status == 'A' else 'Nulos'
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'chc-rep-diario',
+            'titulo': 'Libro Diario de Debito/Credito Bancos',
+            'filtros': filtros,
+        },
+        'filas': filas,
+        'totales': {
+            'cantidad': data['totales']['cantidad'],
+            'activos': data['totales']['activos'],
+            'nulos': data['totales']['nulos'],
+            'total_debito': data['totales']['total_debito'],
+            'total_credito': data['totales']['total_credito'],
+            'neto': data['totales']['neto'],
+        },
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def chc_rep_disponibilidad_print_data(request):
+    """GET /api/chc/rep-disponibilidad/print-data/?no_cia=01[&punto=01]"""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto') or None
+    cia = _cia_payload(no_cia, request=request)
+    rows = _chc_repo.rep_disponibilidad(no_cia, punto)
+    filas = []
+    tot_saldo_dop = tot_che_pe_dop = tot_disp_dop = 0.0
+    for c in rows:
+        saldo = _money_or_zero(c.get('saldo_aprox'))
+        che_pe = _money_or_zero(c.get('che_por_entregar'))
+        disp = _money_or_zero(c.get('disponible_neto'))
+        if (c.get('moneda') or 'P') == 'P':
+            tot_saldo_dop += saldo
+            tot_che_pe_dop += che_pe
+            tot_disp_dop += disp
+        filas.append({
+            'cuenta_banco': c.get('cuenta_banco') or '',
+            'moneda': 'RD$' if (c.get('moneda') or 'P') == 'P' else 'US$',
+            'periodo': f"{str(c.get('mes_proceso') or '').zfill(2)}/{c.get('ano_proceso') or ''}",
+            'saldo_aprox': saldo,
+            'che_por_entregar': che_pe,
+            'disponible_neto': disp,
+        })
+    filtros = {'Empresa': no_cia}
+    if punto:
+        filtros['Punto'] = punto
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'chc-rep-disponibilidad',
+            'titulo': 'Disponibilidad Bancaria',
+            'filtros': filtros,
+        },
+        'filas': filas,
+        'totales': {
+            'cantidad': len(filas),
+            'total_saldo_dop': round(tot_saldo_dop, 2),
+            'total_che_por_entregar_dop': round(tot_che_pe_dop, 2),
+            'total_disponible_dop': round(tot_disp_dop, 2),
+        },
+    })

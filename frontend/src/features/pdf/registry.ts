@@ -31,6 +31,39 @@ import { valuacionAcfDefault } from './defaults/valuacion-acf'
 import { activosPorGrupoAcfDefault } from './defaults/activos-por-grupo-acf'
 import { activosPorDepartamentoAcfDefault } from './defaults/activos-por-departamento-acf'
 
+const chcRepMovimientosDefault = reporteGenericoDefault('Movimiento de Cuenta Bancaria', [
+  { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
+  { campo: 'tipo_docu', label: 'Tipo', align: 'left' },
+  { campo: 'no_docu', label: 'No.', align: 'left' },
+  { campo: 'beneficiario', label: 'Beneficiario', align: 'left' },
+  { campo: 'detalle1', label: 'Detalle', align: 'left' },
+  { campo: 'debito', label: 'Débito', align: 'right', format: 'money' },
+  { campo: 'credito', label: 'Crédito', align: 'right', format: 'money' },
+  { campo: 'saldo', label: 'Saldo', align: 'right', format: 'money' },
+  { campo: 'estado', label: 'Estado', align: 'left' },
+])
+
+const chcRepDiarioDefault = reporteGenericoDefault('Libro Diario Débito/Crédito', [
+  { campo: 'cuenta_banco', label: 'Cuenta', align: 'left' },
+  { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
+  { campo: 'tipo_docu', label: 'Tipo', align: 'left' },
+  { campo: 'no_docu', label: 'No.', align: 'left' },
+  { campo: 'beneficiario', label: 'Beneficiario', align: 'left' },
+  { campo: 'detalle1', label: 'Detalle', align: 'left' },
+  { campo: 'debito', label: 'Débito', align: 'right', format: 'money' },
+  { campo: 'credito', label: 'Crédito', align: 'right', format: 'money' },
+  { campo: 'estado', label: 'Estado', align: 'left' },
+])
+
+const chcRepDisponibilidadDefault = reporteGenericoDefault('Disponibilidad Bancaria', [
+  { campo: 'cuenta_banco', label: 'Cuenta', align: 'left' },
+  { campo: 'moneda', label: 'Moneda', align: 'left' },
+  { campo: 'periodo', label: 'Período', align: 'left' },
+  { campo: 'saldo_aprox', label: 'Saldo aprox.', align: 'right', format: 'money' },
+  { campo: 'che_por_entregar', label: 'Cheques por entregar', align: 'right', format: 'money' },
+  { campo: 'disponible_neto', label: 'Disponible neto', align: 'right', format: 'money' },
+])
+
 const accListadoDocsDefault = reporteGenericoDefault('Listado de Documentos · Caja Chica', [
   { campo: 'no_docu', label: 'No.', align: 'left' },
   { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
@@ -590,6 +623,58 @@ export const registry: Record<string, RegistryEntry> = {
       'totales.efectivo', 'totales.valor_compro_prov', 'totales.cantidad_docs',
       'cliente.no_caja', 'cliente.usuario',
     ]),
+  },
+  'chc-rep-movimientos': {
+    codigo: 'chc-rep-movimientos',
+    modulo: 'CHC',
+    nombre: 'Movimiento de Cuenta Bancaria (Rchc501)',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/chc/rep-movimientos/print-data/?${qs.toString()}`,
+    defaultTemplate: chcRepMovimientosDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].fecha', 'filas[].tipo_docu', 'filas[].no_docu', 'filas[].beneficiario',
+      'filas[].detalle1', 'filas[].debito', 'filas[].credito', 'filas[].saldo', 'filas[].estado',
+      'totales.cantidad', 'totales.saldo_inicial', 'totales.total_debito',
+      'totales.total_credito', 'totales.saldo_final',
+    ],
+  },
+  'chc-rep-diario': {
+    codigo: 'chc-rep-diario',
+    modulo: 'CHC',
+    nombre: 'Libro Diario Débito/Crédito (Rchc202/203/218/219)',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/chc/rep-diario/print-data/?${qs.toString()}`,
+    defaultTemplate: chcRepDiarioDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].cuenta_banco', 'filas[].fecha', 'filas[].tipo_docu', 'filas[].no_docu',
+      'filas[].beneficiario', 'filas[].detalle1',
+      'filas[].debito', 'filas[].credito', 'filas[].estado',
+      'totales.cantidad', 'totales.activos', 'totales.nulos',
+      'totales.total_debito', 'totales.total_credito', 'totales.neto',
+    ],
+  },
+  'chc-rep-disponibilidad': {
+    codigo: 'chc-rep-disponibilidad',
+    modulo: 'CHC',
+    nombre: 'Disponibilidad Bancaria (Rchc505)',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/chc/rep-disponibilidad/print-data/?${qs.toString()}`,
+    defaultTemplate: chcRepDisponibilidadDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'P',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].cuenta_banco', 'filas[].moneda', 'filas[].periodo',
+      'filas[].saldo_aprox', 'filas[].che_por_entregar', 'filas[].disponible_neto',
+      'totales.cantidad', 'totales.total_saldo_dop',
+      'totales.total_che_por_entregar_dop', 'totales.total_disponible_dop',
+    ],
   },
   'acc-listado-documentos': {
     codigo: 'acc-listado-documentos',
