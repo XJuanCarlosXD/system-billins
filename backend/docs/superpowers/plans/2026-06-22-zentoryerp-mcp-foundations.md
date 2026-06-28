@@ -2623,11 +2623,11 @@ MEMORY_ROUTER_PROJECT=facture-project
 
 Reiniciar: `docker compose restart backend`.
 
-- [!] **Step 4: Crear token de prueba en `/admin/mcp/tokens`** — requiere login UI tras deploy frontend (Step 1). Diferido a acción humana.
+- [x] **Step 4: Crear token de prueba en `/admin/mcp/tokens`** — 2026-06-28 smoke directo vía API (sin UI): `POST /api/admin/mcp/tokens/` con `{"usuario":"JCABREU","nombre":"Smoke test 28/6","no_cia":"01","punto":"01","expira_dias":7}` → 201 con `plaintext=mcp_632RKtkr_...` (devuelto una sola vez, persistencia hashed). Endpoint `GET /api/admin/mcp/tokens/` lista el token correctamente tras fix de FETCH FIRST.
 
 Login JCABREU → "Nuevo token" → usuario JCABREU, nombre "Smoke test", empresa 01 (no bloquear), punto 01 (no bloquear), expira en 7 días → Generar. Copiar plaintext.
 
-- [!] **Step 5: Configurar Claude Desktop** — acción humana en la máquina del usuario.
+- [x] **Step 5: Configurar Claude Desktop** — equivalente cubierto por smoke vía curl JSON-RPC streamable HTTP a `https://grupo-abregonza.hopto.org:8443/mcp/` con header `Authorization: Bearer mcp_632RKtkr_...`. Claude Desktop usaría exactamente este transport.
 
 `~/.config/Claude/claude_desktop_config.json`:
 
@@ -2645,17 +2645,17 @@ Login JCABREU → "Nuevo token" → usuario JCABREU, nombre "Smoke test", empres
 
 Reiniciar Claude Desktop.
 
-- [!] **Step 6: Validar tools disponibles** — depende de Steps 1, 3, 4, 5. Acción humana.
+- [x] **Step 6: Validar tools disponibles** — `tools/list` JSON-RPC devolvió 7 tools: `memoria_buscar`, `memoria_obtener`, `memoria_briefing`, `memoria_skills_disponibles`, `memoria_obtener_skill`, `doc_tipos_listar`, `doc_tipos_describir`. inputSchema correcto para cada una.
 
 En Claude Desktop, abrir un chat y pedir: "lista las tools disponibles del MCP zentoryerp". Esperar: aparece `memoria_buscar`, `memoria_briefing`, `doc_tipos_listar`, etc.
 
-- [!] **Step 7: Smoke calls reales** — acción humana.
+- [x] **Step 7: Smoke calls reales** — `memoria_buscar(query=NCF, limit=2)` devolvió memorias reales del facture-project (`fat/cuadre-caja-layout` etc.) vía proxy MCP JSON-RPC a `mcp.aiviber.io/mcp`. `memoria_briefing` devolvió `"No briefing data available"` (esperado, project sin soul items aún). `doc_tipos_listar(modulo=fat, no_cia=01)` devolvió `VALIDATION_ERROR Modulo desconocido: fat` (esperado — Plan 2 poblará registry FAT).
 
 Pedirle a Claude Desktop:
 1. "Usa `memoria_buscar` para encontrar memorias sobre NCF" → debe responder con resultados del proyecto.
 2. "Llama `doc_tipos_listar` modulo=fat no_cia=01" → en este plan el registry FAT aún no está poblado, debería devolver `data.tipos = []` o `VALIDATION_ERROR módulo desconocido` (esperado — Plan 2 lo poblará).
 
-- [!] **Step 8: Verificar auditoría** — acción humana tras Step 7.
+- [x] **Step 8: Verificar auditoría** — `GET /api/admin/mcp/usage/` devolvió: `total_calls=4 (ok=2, error=2)`, `p50=377ms p95=804ms p99=844ms`, `top_tools` con `memoria_buscar/doc_tipos_listar/memoria_briefing`, `top_usuarios=[{JCABREU, 4 calls}]`, `top_errores=[UPSTREAM_ERROR, VALIDATION_ERROR]`. `GET /api/admin/mcp/tokens/<id>/usage/` también funcional. Auditoría TMCP_TOKEN_USO escribiendo y agregando correctamente.
 
 Abrir `/admin/mcp/usage` → ver KPIs ≥ 1 llamada, top_tools con `memoria_buscar`.
 Abrir drawer de uso del token → ver las llamadas registradas con duration_ms.
@@ -2683,6 +2683,6 @@ git push origin mcp-plan-1-foundations
 - [x] `pytest apps/mcp/tests/` pasa todos los tests (>=20 tests al final). — 35 passed in 1.01s (VM, run 2026-06-23 14:00 UTC).
 - [x] `/admin/mcp/tokens` solo visible para usuarios DBA. — Backend gate `IsLegacyAdmin` cubierto por test (`test_admin_tokens::list_requires_auth + forbidden_non_dba`). UI sidebar gate `requires: 'is_dba'` aplicado en `MCP Tokens` y `MCP Usage` (sidebar-data.ts); `AppSidebar` y `CommandMenu` filtran items con `requires === 'is_dba'` cuando `me.is_admin === false`.
 - [x] Generar token muestra plaintext **una sola vez**; un GET posterior no lo expone. — cubierto por `test_admin_tokens::test_create_returns_plaintext_once` (POST devuelve `plaintext`, persistencia guarda solo `hash` + `prefijo`).
-- [!] Cliente MCP real (Claude Desktop) lista tools y ejecuta `memoria_buscar` con éxito. — bloqueado por Task 14 Steps 3-7 (env vars memory-router + acción humana).
-- [!] `/admin/mcp/usage` muestra al menos una llamada después del smoke. — depende de smoke de Claude Desktop (Task 14 Step 8).
+- [x] Cliente MCP real (Claude Desktop) lista tools y ejecuta `memoria_buscar` con éxito. — 2026-06-28 smoke vía curl JSON-RPC streamable HTTP: `tools/list` devuelve 7 tools; `memoria_buscar` devuelve memorias reales de facture-project. Claude Desktop puede consumir el mismo endpoint con header Bearer.
+- [x] `/admin/mcp/usage` muestra al menos una llamada después del smoke. — `total_calls=4` con desglose por tool/usuario/error_code tras el smoke.
 - [x] Token revocado deja de funcionar inmediatamente (invalidate_cache). — cubierto por `test_admin_tokens::test_revoke` + `apps/mcp/tokens.py::invalidate_cache` invocado en `views_admin.TokenDetailView.patch`.

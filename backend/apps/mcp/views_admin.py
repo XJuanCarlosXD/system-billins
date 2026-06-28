@@ -63,7 +63,9 @@ class TokensCollectionView(APIView):
             like = f"%{q.lower()}%"
             params += [like, like]
             i += 2
-        sql += " ORDER BY FECHA_CREACION DESC FETCH FIRST 200 ROWS ONLY"
+        # Oracle 11g no soporta FETCH FIRST: wrap en subquery + ROWNUM.
+        sql += " ORDER BY FECHA_CREACION DESC"
+        sql = f"SELECT * FROM ({sql}) WHERE ROWNUM <= 200"
 
         rows = oracle.fetch_all(sql, params)
         cols = [
@@ -132,14 +134,16 @@ class TokenUsageView(APIView):
     permission_classes = [IsAuthenticated, IsLegacyAdmin]
 
     def get(self, request, token_id):
+        # Oracle 11g no soporta FETCH FIRST: wrap en subquery + ROWNUM.
         rows = oracle.fetch_all(
             """
-            SELECT TO_CHAR(FECHA, 'YYYY-MM-DD HH24:MI:SS'),
-                   TOOL, OK, ERROR_CODE, DURATION_MS, IP
-              FROM ABREGONZA.TMCP_TOKEN_USO
-             WHERE TOKEN_ID = :1
-             ORDER BY FECHA DESC
-             FETCH FIRST 100 ROWS ONLY
+            SELECT * FROM (
+              SELECT TO_CHAR(FECHA, 'YYYY-MM-DD HH24:MI:SS'),
+                     TOOL, OK, ERROR_CODE, DURATION_MS, IP
+                FROM ABREGONZA.TMCP_TOKEN_USO
+               WHERE TOKEN_ID = :1
+               ORDER BY FECHA DESC
+            ) WHERE ROWNUM <= 100
             """,
             [token_id],
         )

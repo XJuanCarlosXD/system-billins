@@ -88,14 +88,17 @@ class UsageView(APIView):
             for r in serie_rows
         ]
 
+        # Oracle 11g no soporta FETCH FIRST: usar subselect + ROWNUM.
         tools_rows = oracle.fetch_all(
             f"""
-            SELECT u.TOOL, COUNT(*) calls,
-                   ROUND(SUM(CASE WHEN u.OK='N' THEN 1 ELSE 0 END) / COUNT(*), 4) error_rate,
-                   PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY u.DURATION_MS) p95
-            {join}
-            GROUP BY u.TOOL
-            ORDER BY calls DESC FETCH FIRST 10 ROWS ONLY
+            SELECT * FROM (
+              SELECT u.TOOL, COUNT(*) calls,
+                     ROUND(SUM(CASE WHEN u.OK='N' THEN 1 ELSE 0 END) / COUNT(*), 4) error_rate,
+                     PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY u.DURATION_MS) p95
+              {join}
+              GROUP BY u.TOOL
+              ORDER BY calls DESC
+            ) WHERE ROWNUM <= 10
             """,
             p,
         )
@@ -106,11 +109,13 @@ class UsageView(APIView):
 
         users_rows = oracle.fetch_all(
             f"""
-            SELECT t.USUARIO, COUNT(*) calls,
-                   TO_CHAR(MAX(u.FECHA),'YYYY-MM-DD"T"HH24:MI')
-            {join}
-            GROUP BY t.USUARIO
-            ORDER BY calls DESC FETCH FIRST 10 ROWS ONLY
+            SELECT * FROM (
+              SELECT t.USUARIO, COUNT(*) calls,
+                     TO_CHAR(MAX(u.FECHA),'YYYY-MM-DD"T"HH24:MI') ultimo
+              {join}
+              GROUP BY t.USUARIO
+              ORDER BY calls DESC
+            ) WHERE ROWNUM <= 10
             """,
             p,
         )
@@ -121,12 +126,14 @@ class UsageView(APIView):
 
         err_rows = oracle.fetch_all(
             f"""
-            SELECT NVL(u.ERROR_CODE,'N/A') ec, COUNT(*) calls,
-                   MAX(u.TOOL) KEEP (DENSE_RANK FIRST ORDER BY u.FECHA DESC) ultima_tool
-            {join}
-              AND u.OK = 'N'
-            GROUP BY u.ERROR_CODE
-            ORDER BY calls DESC FETCH FIRST 10 ROWS ONLY
+            SELECT * FROM (
+              SELECT NVL(u.ERROR_CODE,'N/A') ec, COUNT(*) calls,
+                     MAX(u.TOOL) KEEP (DENSE_RANK FIRST ORDER BY u.FECHA DESC) ultima_tool
+              {join}
+                AND u.OK = 'N'
+              GROUP BY u.ERROR_CODE
+              ORDER BY calls DESC
+            ) WHERE ROWNUM <= 10
             """,
             p,
         )

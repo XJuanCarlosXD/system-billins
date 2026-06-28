@@ -10,6 +10,7 @@ import time
 from typing import Any, Awaitable, Callable, Optional
 
 from mcp.server.fastmcp import FastMCP, Context
+from mcp.server.transport_security import TransportSecuritySettings
 
 from . import auth as auth_mod
 from . import audit as audit_mod
@@ -21,11 +22,28 @@ from .tools import memoria, doc_types_tools
 _mcp: Optional[FastMCP] = None
 
 
-def _request_ip(ctx: Optional[Context]) -> Optional[str]:
+def _http_request(ctx: Optional[Context]):
+    """Saca el starlette.Request del Context de FastMCP (stateless_http)."""
+    if ctx is None:
+        return None
     try:
-        req = getattr(ctx, "request", None) or getattr(ctx, "request_context", None)
-        if req is None:
-            return None
+        # Camino moderno: ctx.request_context.request es el starlette.Request.
+        rc = getattr(ctx, "request_context", None)
+        if rc is not None:
+            req = getattr(rc, "request", None)
+            if req is not None:
+                return req
+        # Fallback por si Context expone request directo (clientes antiguos/tests).
+        return getattr(ctx, "request", None)
+    except Exception:
+        return None
+
+
+def _request_ip(ctx: Optional[Context]) -> Optional[str]:
+    req = _http_request(ctx)
+    if req is None:
+        return None
+    try:
         client = getattr(req, "client", None)
         return client.host if client else None
     except Exception:
@@ -33,10 +51,10 @@ def _request_ip(ctx: Optional[Context]) -> Optional[str]:
 
 
 def _request_auth_header(ctx: Optional[Context]) -> Optional[str]:
+    req = _http_request(ctx)
+    if req is None:
+        return None
     try:
-        req = getattr(ctx, "request", None) or getattr(ctx, "request_context", None)
-        if req is None:
-            return None
         headers = getattr(req, "headers", None)
         if headers is None:
             return None
@@ -121,7 +139,16 @@ def build_mcp() -> FastMCP:
 
     # streamable_http_path='/' para que cuando Starlette monte este app en
     # '/mcp' la URL final sea '/mcp/' (sin doble prefijo /mcp/mcp).
-    server = FastMCP(name="ZentoryERP MCP", stateless_http=True, streamable_http_path="/")
+    # DNS-rebinding protection deshabilitado: estamos detras de Caddy con TLS y
+    # exigimos Bearer token + rate-limit + audit en cada tool. ALLOWED_HOSTS de
+    # Django ya filtra a nivel de proxy. La proteccion por host del SDK colisiona
+    # con el reverse proxy publico (grupo-abregonza.hopto.org:8443 -> uvicorn).
+    server = FastMCP(
+        name="ZentoryERP MCP",
+        stateless_http=True,
+        streamable_http_path="/",
+        transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+    )
 
     # === Memoria (proxy a memory-router) ===
     server.add_tool(
