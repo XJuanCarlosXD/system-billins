@@ -820,3 +820,22 @@ RUN_DONE | steps_done=0 (verificacion VM) | next_pending=Task 14 Step 1 push mai
 **Blockers:** 2 confirmaciones humanas (push main + env vars memory-router).
 
 RUN_DONE | steps_done=0 (verificacion VM) | next_pending=Task 14 Step 1 push main (humano) | blockers=2 | commits_pushed=1
+
+## 2026-06-28 02:00 UTC (auto-run, Opus 4.7)
+
+**Tests:** 35/35 PASS en VM (`docker compose exec -T backend pytest apps/mcp/tests/ -q` -> 35 dots [100%]). Sin cambios de codigo.
+
+**Verificacion VM (10.0.0.99):**
+- `env | grep -ic MEMORY_ROUTER` -> **0** (sigue sin configurarse).
+- Container backend operativo.
+
+**Steps pendientes (sin cambios -- 19 runs consecutivos bloqueados):**
+- Task 14 Step 1 `[?]`: push a `main` (NO PR -- usuario lo hace manualmente).
+- Task 14 Step 3 `[?]`: env vars `MEMORY_ROUTER_URL`/`TOKEN`/`PROJECT` en `.env` del compose VM.
+- Task 14 Steps 4..9 `[!]`: smoke con Claude Desktop -- requiere token + env vars + frontend live.
+
+**Patron (19 runs, ~4 dias sin avance):** Cron 4h en vacio desde 2026-06-24 02:00 UTC. **5to run consecutivo solicitando pausar el cron** (`/loop` cancel o ajustar a 24h) hasta desbloquear las 2 confirmaciones humanas. Cada run gasta ~$1-$2 de presupuesto sin avance posible.
+
+**Blockers:** 2 confirmaciones humanas (push main + env vars memory-router).
+
+RUN_DONE | steps_done=0 (verificacion VM) | next_pending=Task 14 Step 1 push main (humano) | blockers=2 | commits_pushed=1
