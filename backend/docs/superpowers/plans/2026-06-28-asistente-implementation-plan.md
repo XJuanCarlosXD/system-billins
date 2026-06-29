@@ -270,11 +270,11 @@ git commit -m "feat(asistente): sistema de skills (read + CRUD admin)"
 
 ### Task 22: Botón flotante
 
-- [ ] **Step 1**: `frontend/src/features/asistente/floating-button.tsx`.
-- [ ] **Step 2**: montar en `routes/_authenticated.tsx` (layout root authenticated).
-- [ ] **Step 3**: estados (idle / busy / pending-confirm) — el badge `pending-confirm` se hidrata via polling cada 30s a `GET /api/asistente/conversaciones/?has_pending=1`.
-- [ ] **Step 4**: tooltip + atajo Ctrl+K.
-- [ ] **Step 5**: ocultar en `/asistente`, `/print/*`, `/login`.
+- [x] **Step 1**: `frontend/src/features/asistente/floating-button.tsx` con icono `Bot` (lucide).
+- [x] **Step 2**: montado en `components/layout/authenticated-layout.tsx` (al final del `SidebarProvider`, dentro del `LayoutProvider` para tener contexto de auth/layout). No se monta cuando `?bare=1`.
+- [?] **Step 3**: estados idle implementado; `busy/pending-confirm` con polling diferido (necesita endpoint `?has_pending=1` que aún no existe — agregar en futura iteración del backend).
+- [x] **Step 4**: tooltip `Asistente · Ctrl+K` + listener global de teclado (Ctrl+K / Cmd+K) que navega a `/asistente`.
+- [x] **Step 5**: oculto en prefijos `/asistente`, `/print`, `/sign-in`, `/sign-up`.
 
 ### Task 23: Página /asistente layout
 
