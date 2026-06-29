@@ -306,13 +306,13 @@ git commit -m "feat(asistente): sistema de skills (read + CRUD admin)"
 
 ### Task 27: Skill picker + chip activo
 
-- [ ] **Step 1**: chip "Skill: X" en header del chat → click abre dropdown con skills disponibles para el usuario.
-- [ ] **Step 2**: al seleccionar, POST `/api/asistente/conversaciones/<id>/skill/` con `{skill: 'facturar'}` (activación manual) — el backend hace el equivalente de `skill_cargar` server-side.
-- [ ] **Step 3**: auto-sugerencia: regex local sobre el último mensaje del usuario → si matchea triggers, mostrar banner sutil "💡 ¿Activo modo facturar?".
+- [x] **Step 1**: `features/asistente/skill-picker.tsx` con chip variant default/outline; dropdown lista skills via `listSkills()` con descripcion.
+- [?] **Step 2**: endpoint `POST /asistente/conversaciones/<id>/skill/` server-side no existe — por ahora el skill seleccionado se pasa como `skill` en el body del POST /chat/ (mismo efecto: el backend ya soporta `skill_activa` por turno). Endpoint dedicado server-side queda pendiente si se quiere persistir el skill_activo en la conv entre reloads.
+- [x] **Step 3**: auto-sugerencia con `SUGGEST_TRIGGERS` (6 regex → skills); banner amarillo aparece cuando matchea el ultimo mensaje del usuario y la skill esta disponible; boton X descarta el sugerido por sesion.
 
 ### Task 28: Atajos globales
 
-- [ ] **Step 1**: hook `useGlobalShortcuts` con Ctrl+K (toggle /asistente), Esc (cancel stream), Ctrl+/ (focus search), Ctrl+N (nueva conv).
+- [x] **Step 1**: `features/asistente/use-shortcuts.ts::useAsistenteShortcuts` — Esc (cancel stream), Ctrl+N (nueva conv), Ctrl+/ (focus search), Ctrl+K (toggle, opcional). Ignora cuando el target es input/textarea salvo Esc o combos con Ctrl/Meta. Wired en `chat.tsx` para Esc=cancel (resto de handlers expuestos a futuras integraciones).
 
 ### Task 29: Página de admin skills
 

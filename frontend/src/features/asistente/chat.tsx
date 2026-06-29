@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Bot, Loader2, Send, User, X } from 'lucide-react'
 import {
@@ -8,11 +8,12 @@ import {
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { SkillPicker } from './skill-picker'
 import { type ChatMessage, useChatStream } from './use-chat-stream'
+import { useAsistenteShortcuts } from './use-shortcuts'
 
 type Props = {
   convId: number
-  skillActiva?: string | null
   onToolsChange?: (tools: any) => void
 }
 
@@ -37,10 +38,19 @@ function mensajeToChatMessage(m: AsistenteMensaje): ChatMessage | null {
   return null
 }
 
-export function AsistenteChat({ convId, skillActiva, onToolsChange }: Props) {
+export function AsistenteChat({ convId, onToolsChange }: Props) {
   const { state, send, cancel, reset } = useChatStream(convId)
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const [skillActiva, setSkillActiva] = useState<string | null>(null)
+
+  const lastUserMessage = useMemo(() => {
+    for (let i = state.messages.length - 1; i >= 0; i--) {
+      const m = state.messages[i]
+      if (m.role === 'user') return m.content
+    }
+    return null
+  }, [state.messages])
 
   // Hidratacion inicial: cargar historico desde el backend.
   const { data: convData } = useQuery({
@@ -64,6 +74,12 @@ export function AsistenteChat({ convId, skillActiva, onToolsChange }: Props) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [state.messages, state.streaming])
+
+  useAsistenteShortcuts({
+    onCancelStream: () => {
+      if (state.streaming) cancel()
+    },
+  })
 
   function handleSubmit(e?: React.FormEvent) {
     if (e) e.preventDefault()
@@ -91,6 +107,17 @@ export function AsistenteChat({ convId, skillActiva, onToolsChange }: Props) {
 
   return (
     <div className='flex h-full flex-col'>
+      <header className='flex flex-none items-center justify-between gap-2 border-b bg-card/40 px-4 py-2'>
+        <div className='flex items-center gap-2'>
+          <Bot size={16} />
+          <span className='text-sm font-medium'>Asistente</span>
+        </div>
+        <SkillPicker
+          active={skillActiva}
+          onChange={setSkillActiva}
+          lastUserMessage={lastUserMessage}
+        />
+      </header>
       <ScrollArea className='flex-1'>
         <div className='mx-auto flex max-w-3xl flex-col gap-4 p-4'>
           {state.messages.length === 0 && !state.streaming && (
