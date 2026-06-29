@@ -278,10 +278,10 @@ git commit -m "feat(asistente): sistema de skills (read + CRUD admin)"
 
 ### Task 23: Página /asistente layout
 
-- [ ] **Step 1**: `routes/_authenticated/asistente.tsx` (layout 3 columnas).
-- [ ] **Step 2**: `routes/_authenticated/asistente/index.tsx` redirige a `?conv_id=new` o última activa.
-- [ ] **Step 3**: `features/asistente/asistente-page.tsx` orquestador (sidebar + chat + tool-log).
-- [ ] **Step 4**: `features/asistente/sidebar.tsx` con búsqueda + agrupación por fecha + nueva conv + selector modelo.
+- [x] **Step 1**: `routes/_authenticated/asistente.tsx` convertido a layout shell (Outlet, sin Header — el chat usa pantalla completa).
+- [x] **Step 2**: `routes/_authenticated/asistente/index.tsx` con `validateSearch` (conv_id zod) → renderiza `AsistentePage`. El auto-select de la ultima conv vive en el componente (efecto), no en `loader`/redirect, porque depende de react-query.
+- [x] **Step 3**: `features/asistente/asistente-page.tsx` orquestador (3 columnas: sidebar + main + tool-log placeholder). Main muestra placeholder hasta Task 24; tool-log placeholder hasta Task 25.
+- [x] **Step 4**: `features/asistente/sidebar.tsx` con react-query (`listConversaciones`), busqueda local, agrupacion Hoy/Ayer/fecha, boton + (crea via `createConversacion`), selector de modelo (Opus/Sonnet/Haiku), boton trash por fila.
 
 ### Task 24: Chat principal
 

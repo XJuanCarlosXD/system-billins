@@ -1,18 +1,12 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Outlet } from '@tanstack/react-router'
 
+// Layout shell del asistente. Las paginas hijas (index, admin/skills, etc.)
+// renderizan dentro del <Outlet/>. Sin Header global: el asistente usa pantalla
+// completa con su propio shell de 3 columnas.
 export const Route = createFileRoute('/_authenticated/asistente')({
-  component: AsistentePage,
+  component: AsistenteLayout,
 })
 
-function AsistentePage() {
-  return (
-    <div className='flex h-svh flex-col items-center justify-center gap-4 px-6 text-center'>
-      <h1 className='text-2xl font-semibold'>Asistente</h1>
-      <p className='max-w-md text-sm text-muted-foreground'>
-        El chat del asistente estará disponible en la próxima entrega. Por
-        ahora puedes abrir esta página y los endpoints del backend ya están en
-        línea para hacer smoke tests.
-      </p>
-    </div>
-  )
+function AsistenteLayout() {
+  return <Outlet />
 }
