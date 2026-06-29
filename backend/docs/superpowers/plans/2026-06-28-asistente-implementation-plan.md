@@ -65,13 +65,10 @@
 
 ### Task 2: DDL Oracle
 
-- [ ] **Step 1**: escribir `apps/asistente/sql/001_create_tchat.sql` con las 4 tablas (`TCHAT_CONVERSACION`, `TCHAT_MENSAJE`, `TCHAT_TOOL_PENDING`, `TCHAT_TOOL_LOG`) según spec § Data model.
-- [ ] **Step 2**: ejecutar contra Oracle real:
-  ```
-  sqlplus JCABREU/508192003@AB @backend/apps/asistente/sql/001_create_tchat.sql
-  ```
-- [ ] **Step 3**: verificar con `ALL_TABLES WHERE TABLE_NAME LIKE 'TCHAT_%'` que las 4 tablas existen.
-- [ ] **Step 4**: commit el SQL al repo. NO se ejecuta automáticamente, queda como referencia.
+- [x] **Step 1**: escribir `apps/asistente/sql/001_create_tchat.sql` con las 4 tablas (`TCHAT_CONVERSACION`, `TCHAT_MENSAJE`, `TCHAT_TOOL_PENDING`, `TCHAT_TOOL_LOG`) según spec § Data model.
+- [x] **Step 2**: ejecutar contra Oracle real (sin sqlplus en container → usé `apps/asistente/sql/_run_001.py` con `apps.legacy.client`).
+- [x] **Step 3**: verificado con `_verify_001.py`: las 4 tablas existen en `ABREGONZA`.
+- [x] **Step 4**: SQL committeado como referencia.
 
 ### Task 3: Provider interface + ClaudeProvider
 
