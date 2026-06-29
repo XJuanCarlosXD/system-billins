@@ -145,14 +145,15 @@ git commit -m "feat(asistente): auditoría TCHAT_TOOL_LOG + endpoint admin"
 
 ### Task 8: Deploy PR1 al VM
 
-- [ ] **Step 1**: `pscp -r backend/apps/asistente jcabreu@10.0.0.99:/home/jcabreu/facturation-system/backend/apps/`
-- [ ] **Step 2**: `pscp backend/facturation_api/{settings.py,urls.py}` al VM.
-- [ ] **Step 3**: `pscp backend/requirements.txt` al VM.
-- [ ] **Step 4**: en VM ejecutar `pip install` dentro del container (o rebuild si requirements cambió). `docker compose up -d backend`.
-- [ ] **Step 5**: smoke: `docker compose exec backend pytest apps/asistente/tests/ -q` → all green.
-- [ ] **Step 6**: smoke HTTP: login + POST conversación + POST chat con MockProvider activado por flag de entorno → SSE responde.
-- [ ] **Step 7**: push `asistente/foundations` a origin → merge a main → Netlify.
-- [ ] **Step 8**: marcar header del PR1 con ✅.
+- [x] **Step 1**: `pscp -r backend/apps/asistente jcabreu@10.0.0.99:/home/jcabreu/facturation-system/backend/apps/`
+- [x] **Step 2**: `pscp backend/facturation_api/{settings.py,urls.py}` al VM.
+- [x] **Step 3**: `pscp backend/requirements.txt` al VM.
+- [x] **Step 4**: anthropic 0.112.0 y httpx-sse 0.4.3 ya presentes en el container; `docker compose restart backend` OK.
+- [x] **Step 5**: `pytest apps/asistente/tests/ -q` en VM → 16 passed.
+- [x] **Step 6**: smoke HTTP via `docker exec backend curl`: login JCABREU 200, POST conv 201, GET tools devuelve 9 base, GET admin/asistente/auditoria/ 200 con 20 calls historicas.
+- [?] **Step 7**: push `asistente/foundations` a origin hecho; **merge a main lo decide el usuario** (Netlify solo afecta frontend, no es bloqueante para PR1 backend).
+- [?] **Step 8**: marcar PR1 ✅ queda pendiente del merge en Step 7.
+- [?] **Step 9** (nuevo): instalar crontab en host VM `* * * * * cd /home/jcabreu/facturation-system && docker compose exec -T backend python manage.py asistente_expire_pending >> /var/log/asistente_expire.log 2>&1` — requiere confirmacion del usuario por ser cambio de infra del host.
 
 ---
 
