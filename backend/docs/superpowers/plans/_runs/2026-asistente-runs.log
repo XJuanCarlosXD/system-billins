@@ -1,0 +1,33 @@
+## 2026-06-28T22:25Z — Asistente run #1
+
+**Branch:** asistente/foundations (pushed)
+**Commits en este run:** 6
+  - 2f2e4b2 feat(asistente): bootstrap apps/asistente (PR1 Task 1)
+  - 8235628 feat(asistente): DDL Oracle TCHAT_* + runner/verifier (PR1 Task 2)
+  - f16b4f1 feat(asistente): provider interface + ClaudeProvider con prompt cache (PR1 Task 3)
+  - 9744f66 feat(asistente): tool registry + dispatch con gates de permisos (PR1 Task 4)
+  - aaa864a feat(asistente): agent loop con SSE + pause-on-write + caps (PR1 Task 5)
+  - d31c7e1 feat(asistente): endpoints REST + SSE para conversaciones y chat (PR1 Task 6)
+
+**Steps completados:** Tasks 1-6 del PR1.
+  - Task 1 (5 steps): bootstrap apps/asistente + env vars + requirements + smoke anthropic 0.112
+  - Task 2 (4 steps): DDL TCHAT_* aplicado a Oracle ABREGONZA (4 tablas)
+  - Task 3 (8 steps): ClaudeProvider con prompt cache + ToolUse + Ollama stub (3 tests verdes)
+  - Task 4 (9 steps): ToolSpec/REGISTRY + permissions + dispatch_tool con 4 gates (3 tests verdes; 9 tools base)
+  - Task 5 (10 steps): AgentLoop.run async SSE + pause-on-write + caps (4 tests verdes)
+  - Task 6 (steps 1-6): Oracle persistencia + ConversacionesView + ChatStreamView SSE + ConfirmView + ToolsView (smoke HTTP OK)
+  - Task 6 step 7 (test integración SSE): diferido (necesita ASGI test client + mockprovider).
+
+**Estado de tests:** 10/10 pytest verdes en `apps/asistente/tests/`.
+**Estado HTTP smoke:** login JCABREU → POST conversaciones → GET list → GET tools = OK.
+
+**Próximo step pendiente:**
+  - Task 6 Step 7 (test integración SSE) — `- [!]`
+  - Task 7 (auditoría TCHAT_TOOL_LOG + endpoint admin + cron expirar pending) — todos los steps
+  - Task 8 (deploy PR1: pscp + rebuild + smoke pytest in-VM + push main + merge)
+
+**Blockers:** 0
+**Commits pushed:** 6 a origin/asistente/foundations
+**Budget usado:** ~$7.02/$8 (~88%)
+
+---
