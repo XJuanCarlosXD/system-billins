@@ -220,7 +220,7 @@ git commit -m "feat(asistente): tools CNT y INV"
 - [x] **Step 3**: `tools/skills.py::_skill_cargar(user, args)` con gate + warning si tools_used faltan.
 - [x] **Step 4**: register `skill_listar` y `skill_cargar` en REGISTRY (en `_register_all()`).
 - [x] **Step 5**: 7 tests verdes (`test_tools_skills.py`): parse FM, listar filtra por modulo, cargar autorizado, cargar FORBIDDEN_MODULE, SKILL_NOT_FOUND, warnings tools.
-- [ ] **Step 6**: endpoint `GET/PUT/POST/DELETE /api/asistente/skills/...` con gate DBA en mutaciones (actualmente stub 501 en `views_skills.py`).
+- [x] **Step 6**: endpoints `/api/asistente/skills/` (GET list / POST create) + `/api/asistente/skills/<name>/` (GET detail / PUT update / DELETE) con gate DBA en mutaciones via `users_repo.is_dba`. Smoke via Django Client en VM: GET 200, POST 201, GET detail 200, PUT 200, DELETE 200, GET detail 404. Naming sanitizado con `_NAME_RE` (`[a-z0-9-_]{1,64}`).
 
 ```bash
 git commit -m "feat(asistente): sistema de skills (read + CRUD admin)"
