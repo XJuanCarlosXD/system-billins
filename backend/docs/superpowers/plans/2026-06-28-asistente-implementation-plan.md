@@ -72,18 +72,14 @@
 
 ### Task 3: Provider interface + ClaudeProvider
 
-- [ ] **Step 1**: failing test `tests/test_providers_claude.py::test_stream_emits_text_deltas` con `MockAnthropic` que devuelve tokens secuenciales.
-- [ ] **Step 2**: implementar `providers/base.py` con `BaseProvider`, `ProviderEvent` (dataclass union: TextDelta / ToolUse / MessageComplete / Error).
-- [ ] **Step 3**: implementar `providers/claude.py::ClaudeProvider`:
-  - Usa `anthropic.AsyncAnthropic`.
-  - `stream()` llama `messages.stream()`.
-  - Activa prompt cache: `cache_control={"type":"ephemeral"}` en system y en el último tool.
-  - Convierte chunks `RawContentBlockDeltaEvent` etc. en `ProviderEvent`.
-- [ ] **Step 4**: pasa el test del Step 1.
-- [ ] **Step 5**: failing test `test_tool_use_emitted_when_model_calls_tool` con MockAnthropic que devuelve un `tool_use` block.
-- [ ] **Step 6**: implementa el handling de `ToolUseBlock` → emite `ProviderEvent.ToolUse(call_id, name, args)`.
-- [ ] **Step 7**: pasa el test del Step 5.
-- [ ] **Step 8**: implementar `providers/ollama.py::OllamaProvider.stream` que sólo hace `raise NotImplementedError(...)`.
+- [x] **Step 1**: failing test `tests/test_providers_claude.py::test_stream_emits_text_deltas` con `MockAnthropic` que devuelve tokens secuenciales.
+- [x] **Step 2**: implementar `providers/base.py` con `BaseProvider`, `ProviderEvent` (dataclass union: TextDelta / ToolUse / MessageComplete / Error).
+- [x] **Step 3**: implementar `providers/claude.py::ClaudeProvider` (AsyncAnthropic, `messages.create(stream=True)`, prompt cache en system + último tool, traduce raw events → `ProviderEvent`).
+- [x] **Step 4**: pasa el test del Step 1.
+- [x] **Step 5**: failing test `test_tool_use_emitted_when_model_calls_tool` con MockAnthropic.
+- [x] **Step 6**: handling de `tool_use`: acumula `input_json_delta` por índice y emite `ToolUse(call_id, name, args)` al `content_block_stop`.
+- [x] **Step 7**: pasa el test del Step 5.
+- [x] **Step 8**: `providers/ollama.py::OllamaProvider.stream` con `raise NotImplementedError(...)`.
 
 ```bash
 git commit -m "feat(asistente): provider interface + ClaudeProvider con prompt cache"
