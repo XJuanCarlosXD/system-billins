@@ -30,7 +30,9 @@ def get_user_module_flags(user) -> dict[str, str]:
     flags: dict[str, str] = {}
     for r in rows:
         if r.get("activo"):
-            flags[r["modulo"]] = "S"
+            # Normalizamos a UPPER porque las ToolSpec usan codigos mayuscula
+            # ('FAT','CHC',...). El repo devuelve los codigos en lowercase.
+            flags[(r["modulo"] or "").upper()] = "S"
     return flags
 
 

@@ -13,3 +13,4 @@ class AsistenteConfig(AppConfig):
         from apps.asistente.tools import memoria   # noqa: F401
         from apps.asistente.tools import doc_types  # noqa: F401
         from apps.asistente.tools import skills    # noqa: F401
+        from apps.asistente.tools import fat       # noqa: F401

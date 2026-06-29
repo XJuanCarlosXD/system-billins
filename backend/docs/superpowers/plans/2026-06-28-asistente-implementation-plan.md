@@ -161,9 +161,9 @@ git commit -m "feat(asistente): auditoría TCHAT_TOOL_LOG + endpoint admin"
 
 ### Task 9: Tools FAT
 
-- [ ] **Step 1**: `tools/fat.py` con handlers read (buscar_cliente, proximo_ncf, buscar_producto, listar_facturas, cuadre_caja). Cada uno wrappea `apps.legacy.repositories.fat_repo.*` o `apps.fat.*`.
-- [ ] **Step 2**: register en REGISTRY con `modules_required=['FAT']`.
-- [ ] **Step 3**: failing test por handler. Pasarlos.
+- [x] **Step 1**: `tools/fat.py` con handlers read (buscar_cliente, proximo_ncf, buscar_producto, listar_facturas, cuadre_caja). Wrappea `fat_repo.{list_clientes, get_proximo_ncf, search_productos, list_facturas, list_cuadre_caja}`.
+- [x] **Step 2**: registradas en REGISTRY con `modules_required=['FAT']`. Wire-up en `apps.py::ready()`.
+- [x] **Step 3**: 7 tests verdes (incluye 1 que verifica que un usuario sin FAT recibe FORBIDDEN_MODULE). Bonus: fix de bug en `get_user_module_flags` — el repo devolvia codigos en lowercase pero ToolSpec usa UPPER; ahora se normaliza.
 - [ ] **Step 4**: handlers write (crear_factura, crear_cotizacion, cerrar_caja). Cada uno valida `has_doc_permission` antes de llamar al repo.
 - [ ] **Step 5**: tests con DB real (factura test ZZTEST que se borra después).
 - [ ] **Step 6**: smoke vía curl SSE con MockProvider que llama `fat_buscar_cliente`.
