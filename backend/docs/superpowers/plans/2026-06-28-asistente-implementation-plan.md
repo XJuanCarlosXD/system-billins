@@ -120,13 +120,13 @@ git commit -m "feat(asistente): agent loop con SSE + pause-on-write + caps"
 
 ### Task 6: Endpoints HTTP
 
-- [ ] **Step 1**: `views_conversaciones.ConversacionesView` (GET list + POST create). Usa `IsAuthenticated`.
-- [ ] **Step 2**: `views_conversaciones.ConversacionDetailView` (GET + DELETE).
-- [ ] **Step 3**: `views_chat.ChatStreamView` (POST → `StreamingHttpResponse` con SSE). Es una vista async — verificar que está dentro del mount asgi correcto.
-- [ ] **Step 4**: `views_chat.ConfirmView` (POST `/confirm/<sig>/`). Despierta el future del agent_loop si está esperando.
-- [ ] **Step 5**: `views_admin.ToolsView` (GET `/api/asistente/tools/`).
-- [ ] **Step 6**: smoke con curl: login JCABREU → POST a `/api/asistente/conversaciones/` → POST a `/chat/` → leer SSE eventos.
-- [ ] **Step 7**: tests de integración: `test_views_chat::test_full_round_trip_with_mock_provider`.
+- [x] **Step 1**: `views_conversaciones.ConversacionesView` (GET list + POST create) sobre `ABREGONZA.TCHAT_CONVERSACION`. Oracle 11g → `ROWNUM` envolvente.
+- [x] **Step 2**: `views_conversaciones.ConversacionDetailView` (GET con mensajes inline + DELETE soft).
+- [x] **Step 3**: `views_chat.ChatStreamView` (POST → `StreamingHttpResponse` SSE). Drena el async generator via `asyncio.new_event_loop()` para compatibilidad con WSGI/runserver; refactor a vista async pura queda pendiente.
+- [x] **Step 4**: `views_chat.ConfirmView` (POST `/confirm/<sig>/`) marca la fila en TCHAT_TOOL_PENDING + `signal_confirm` despierta el future.
+- [x] **Step 5**: `views_admin.ToolsView` (GET `/api/asistente/tools/`) filtra por `list_for_user`.
+- [x] **Step 6**: smoke `_smoke_http.sh` OK — login JCABREU → POST conv → GET list devuelve la conv → GET tools lista las 9 base.
+- [!] **Step 7**: tests de integración SSE end-to-end (`test_full_round_trip_with_mock_provider`): pendiente; el cliente de test de Django requiere ASGI test client + monkeypatch del provider. Diferido al próximo run.
 
 ```bash
 git commit -m "feat(asistente): endpoints REST + SSE para conversaciones y chat"
