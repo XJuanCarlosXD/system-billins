@@ -19,7 +19,7 @@
 
 ### Task 1: bootstrap apps/asistente
 
-- [ ] **Step 1**: crear estructura.
+- [x] **Step 1**: crear estructura.
   ```
   backend/apps/asistente/
   ├── __init__.py
@@ -58,10 +58,10 @@
   git commit -m "feat(asistente): bootstrap apps/asistente"
   ```
 
-- [ ] **Step 2**: añadir `apps.asistente` a `INSTALLED_APPS` en `facturation_api/settings.py` y `path('api/', include('apps.asistente.urls'))` en `facturation_api/urls.py`.
-- [ ] **Step 3**: variables de entorno en `settings.py` (`ANTHROPIC_API_KEY`, `ASISTENTE_DEFAULT_MODEL`, `ASISTENTE_MAX_TURNS`, `ASISTENTE_DAILY_BUDGET_USD`, `ASISTENTE_TOOL_PENDING_TTL_SEC`).
-- [ ] **Step 4**: añadir `anthropic>=0.40` y `httpx-sse` a `backend/requirements.txt`.
-- [ ] **Step 5**: smoke `docker compose exec backend python -c "import anthropic; print(anthropic.__version__)"` en VM.
+- [x] **Step 2**: añadir `apps.asistente` a `INSTALLED_APPS` en `facturation_api/settings.py` y `path('api/', include('apps.asistente.urls'))` en `facturation_api/urls.py`.
+- [x] **Step 3**: variables de entorno en `settings.py` (`ANTHROPIC_API_KEY`, `ASISTENTE_DEFAULT_MODEL`, `ASISTENTE_MAX_TURNS`, `ASISTENTE_DAILY_BUDGET_USD`, `ASISTENTE_TOOL_PENDING_TTL_SEC`).
+- [x] **Step 4**: añadir `anthropic>=0.40` y `httpx-sse` a `backend/requirements.txt`.
+- [x] **Step 5**: smoke `docker compose exec backend python -c "import anthropic; print(anthropic.__version__)"` en VM.
 
 ### Task 2: DDL Oracle
 

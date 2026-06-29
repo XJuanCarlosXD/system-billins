@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'apps.cnt',
     'apps.docs',
     'apps.mcp',
+    'apps.asistente',
 ]
 
 AUTHENTICATION_BACKENDS = [
@@ -143,3 +144,10 @@ MEMORY_ROUTER_PROJECT = env('MEMORY_ROUTER_PROJECT', default='facture-project')
 MCP_TOKEN_CACHE_TTL = env.int('MCP_TOKEN_CACHE_TTL', default=60)
 MCP_RATELIMIT_PER_MIN = env.int('MCP_RATELIMIT_PER_MIN', default=60)
 MCP_DOWNLOAD_TTL_SECONDS = env.int('MCP_DOWNLOAD_TTL_SECONDS', default=900)
+
+# === Asistente en pagina (apps.asistente) ===
+ANTHROPIC_API_KEY = env('ANTHROPIC_API_KEY', default='')
+ASISTENTE_DEFAULT_MODEL = env('ASISTENTE_DEFAULT_MODEL', default='claude-haiku-4-5')
+ASISTENTE_MAX_TURNS = env.int('ASISTENTE_MAX_TURNS_PER_CONVERSATION', default=200)
+ASISTENTE_DAILY_BUDGET_USD = env.float('ASISTENTE_DAILY_BUDGET_USD_PER_USER', default=2.0)
+ASISTENTE_TOOL_PENDING_TTL_SEC = env.int('ASISTENTE_TOOL_PENDING_TTL_SEC', default=300)

@@ -19,4 +19,5 @@ urlpatterns = [
     path('api/man/', include('apps.legacy.man_urls')),
     path('api/settings/', include('apps.legacy.plantillas_pdf_urls')),
     path('api/', include('apps.mcp.urls')),
+    path('api/', include('apps.asistente.urls')),
 ]
