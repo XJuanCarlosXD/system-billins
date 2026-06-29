@@ -285,18 +285,18 @@ git commit -m "feat(asistente): sistema de skills (read + CRUD admin)"
 
 ### Task 24: Chat principal
 
-- [ ] **Step 1**: `features/asistente/chat.tsx` con lista de mensajes + composer.
-- [ ] **Step 2**: hook `useChatStream(convId)` que abre `EventSource('/api/asistente/conversaciones/<id>/chat/')` y consume eventos.
-- [ ] **Step 3**: estado en `useReducer` que acumula mensajes y tokens.
-- [ ] **Step 4**: composer con auto-resize, Enter/Shift+Enter, botón send con loader inline.
-- [ ] **Step 5**: render markdown en mensajes con `react-markdown` + tabla/code highlighting.
+- [x] **Step 1**: `features/asistente/chat.tsx` con scroll area + composer; hidrata historico via `getConversacion(id)` con react-query.
+- [x] **Step 2**: hook `use-chat-stream.ts` usa `fetch + ReadableStream` (NO EventSource — el endpoint es POST con body, no GET); parsea `event:`/`data:` lines manualmente. Soporta cancel via `AbortController`.
+- [x] **Step 3**: estado en `useReducer` con acciones `add_user / turn_started / token / tool_call / tool_pending / tool_result / tool_error / message_complete / done / error`.
+- [x] **Step 4**: composer con auto-resize (height = scrollHeight capado a 240px), Enter envia, Shift+Enter newline, boton send + boton cancel inline, loader durante streaming.
+- [?] **Step 5**: render markdown diferido — `react-markdown` no esta instalado en el bundle; por ahora `whitespace-pre-wrap` rinde el texto. Anadir react-markdown + remark-gfm en una iteracion posterior (npm install requiere coordinacion con Netlify).
 
 ### Task 25: Tool log
 
-- [ ] **Step 1**: `features/asistente/tool-log.tsx` panel derecho colapsable.
-- [ ] **Step 2**: filas con icono (ok/pending/error), nombre, duración, expand para ver args/result JSON.
-- [ ] **Step 3**: para filas `pending`: botones inline `[Confirmar] [Cancelar]` que disparan `POST /api/asistente/confirm/<sig>/`.
-- [ ] **Step 4**: footer "Auditoría" con tokens + costo acumulado.
+- [x] **Step 1**: `features/asistente/tool-log.tsx` panel derecho colapsable (`PanelRightClose/Open`); colapsa a aside de 1 col solo con icono.
+- [x] **Step 2**: filas muestran StatusIcon (ok/pending/error/running), nombre tool, duracion en ms; click expande args/result JSON con `<details>`.
+- [x] **Step 3**: filas `pending` muestran preview en lenguaje natural + botones inline `Confirmar/Cancelar` que llaman `confirmTool(sig, approved)` via mutation.
+- [?] **Step 4**: footer "Auditoria" con tokens + costo acumulado diferido — el `useChatStream` aun no acumula totales por turno (los eventos `message_complete` traen tokens pero no estan agregados en el reducer). Iteracion siguiente.
 
 ### Task 26: Modal de confirmación detallada
 

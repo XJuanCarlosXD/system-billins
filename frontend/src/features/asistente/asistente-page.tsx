@@ -3,7 +3,10 @@ import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { Bot } from 'lucide-react'
 import { listConversaciones } from '@/lib/api-client-asistente'
+import { AsistenteChat } from './chat'
 import { AsistenteSidebar } from './sidebar'
+import { AsistenteToolLog } from './tool-log'
+import { type ToolEntry } from './use-chat-stream'
 
 const DEFAULT_MODEL = 'claude-sonnet-4-6'
 
@@ -13,6 +16,7 @@ export function AsistentePage() {
     conv_id?: string | number
   }
   const [model, setModel] = useState<string>(DEFAULT_MODEL)
+  const [tools, setTools] = useState<Record<string, ToolEntry>>({})
 
   const selectedConvId =
     search.conv_id && search.conv_id !== 'new' ? Number(search.conv_id) : null
@@ -63,20 +67,15 @@ export function AsistentePage() {
             </p>
           </div>
         ) : (
-          <div className='flex h-full items-center justify-center text-sm text-muted-foreground'>
-            Chat de conv #{selectedConvId} (UI en construccion - Task 24).
-          </div>
+          <AsistenteChat
+            key={selectedConvId}
+            convId={selectedConvId}
+            onToolsChange={setTools}
+          />
         )}
       </main>
 
-      <aside className='hidden w-72 flex-col border-s bg-card/40 lg:flex'>
-        <div className='border-b p-3'>
-          <h2 className='text-base font-semibold'>Tool log</h2>
-        </div>
-        <div className='flex-1 p-4 text-xs text-muted-foreground'>
-          Aun no hay tools ejecutadas (Task 25).
-        </div>
-      </aside>
+      <AsistenteToolLog tools={tools} />
     </div>
   )
 }
