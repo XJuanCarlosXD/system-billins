@@ -103,28 +103,16 @@ git commit -m "feat(asistente): tool registry + dispatch con gates de permisos"
 
 ### Task 5: Agent loop
 
-- [ ] **Step 1**: failing test `test_agent_loop::test_simple_text_response_no_tools` con MockProvider.
-- [ ] **Step 2**: implementar `agent_loop.py::AgentLoop.run(conv_id, user_message)`:
-  - Load history desde Oracle (`load_messages(conv_id)`).
-  - Llama `provider.stream(...)` con tools del registry.
-  - Itera eventos del provider:
-    - `TextDelta` → yield SSE `token`.
-    - `ToolUse` → dispatch + yield SSE `tool_call` o `tool_pending`.
-    - `MessageComplete` → break.
-  - Si recibió tool_use, hace segundo `provider.stream(...)` con el resultado del tool.
-  - Persiste mensaje assistant al final.
-- [ ] **Step 3**: pasa el test del Step 1.
-- [ ] **Step 4**: failing test `test_agent_loop::test_tool_use_then_text` (MockProvider que pide tool, recibe result, devuelve texto).
-- [ ] **Step 5**: pasa el test del Step 4.
-- [ ] **Step 6**: failing test `test_agent_loop::test_write_tool_pauses_for_confirm`.
-- [ ] **Step 7**: implementar pause-on-write:
-  - Si `tool.write == True`, INSERT `TCHAT_TOOL_PENDING` y yield SSE `tool_pending`.
-  - Wait en `asyncio.Future` indexed por `sig`.
-  - Cuando llega confirm/reject, resume.
-  - Si expira, devuelve `USER_TIMEOUT` como tool_result.
-- [ ] **Step 8**: pasa el test del Step 6.
-- [ ] **Step 9**: failing test `test_agent_loop::test_max_turns_safety_cap` (presupuesto y max_turns).
-- [ ] **Step 10**: implementar caps por `ASISTENTE_MAX_TURNS` y `ASISTENTE_DAILY_BUDGET_USD_PER_USER`.
+- [x] **Step 1**: failing test `test_agent_loop::test_simple_text_response_no_tools` con MockProvider.
+- [x] **Step 2**: `agent_loop.py::AgentLoop.run(conv_id, user_message, user)` async generator (history via `HistoryStore` DI; provider.stream; itera events; persist assistant message; segundo turno con tool_results).
+- [x] **Step 3**: pasa el test del Step 1.
+- [x] **Step 4**: failing test `test_agent_loop::test_tool_use_then_text`.
+- [x] **Step 5**: pasa el test del Step 4.
+- [x] **Step 6**: failing test `test_agent_loop::test_write_tool_pauses_for_confirm`.
+- [x] **Step 7**: pause-on-write con `PendingStore.create` + `asyncio.Future` indexed por sig + `signal_confirm(sig, approved, by)` + timeout → USER_TIMEOUT.
+- [x] **Step 8**: pasa el test del Step 6.
+- [x] **Step 9**: failing test `test_agent_loop::test_max_turns_safety_cap`.
+- [x] **Step 10**: caps `ASISTENTE_MAX_TURNS` y `ASISTENTE_DAILY_BUDGET_USD_PER_USER` aplicados al inicio de cada turno.
 
 ```bash
 git commit -m "feat(asistente): agent loop con SSE + pause-on-write + caps"
