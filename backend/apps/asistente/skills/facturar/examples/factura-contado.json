@@ -1,0 +1,14 @@
+{
+  "descripcion": "Factura de contado al consumidor final con NCF B02.",
+  "args_ejemplo": {
+    "no_cia": "01",
+    "punto": "01",
+    "no_cliente": "CF000001",
+    "tipo_ncf": "B02",
+    "condicion_pago": "X",
+    "items": [
+      {"codigo": "PROD050", "cantidad": 2, "precio": 350.00}
+    ]
+  },
+  "notas": "Consumidor final no requiere RNC. Tipo NCF B02. Pago contado (X = sin credito)."
+}

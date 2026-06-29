@@ -228,34 +228,34 @@ git commit -m "feat(asistente): sistema de skills (read + CRUD admin)"
 
 ### Task 15: Skill `facturar`
 
-- [ ] **Step 1**: `apps/asistente/skills/facturar/SKILL.md` con frontmatter completo + cuerpo paso-a-paso (ver spec § Skills).
-- [ ] **Step 2**: examples/factura-credito.json + factura-contado.json con args válidos de ejemplo.
-- [ ] **Step 3**: test que un agent_loop con MockProvider que llama `skill_cargar('facturar')` recibe el cuerpo correcto y la conversación queda con `SKILL_ACTIVA='facturar'`.
+- [x] **Step 1**: `apps/asistente/skills/facturar/SKILL.md` con frontmatter completo + cuerpo paso-a-paso (cliente → NCF → productos → resumen → crear → resultado).
+- [x] **Step 2**: examples/factura-credito.json + factura-contado.json con args válidos de ejemplo.
+- [?] **Step 3**: test agent_loop+MockProvider+skill_cargar — pendiente (no bloquea; el smoke HTTP ya confirma que la skill se carga y devuelve body).
 
 ### Task 16: Skill `cotizar`
 
-- [ ] **Step 1**: SKILL.md.
-- [ ] **Step 2**: test.
+- [x] **Step 1**: SKILL.md (cliente → productos → validez → resumen → crear).
+- [?] **Step 2**: test diferido (igual razón que Task 15 Step 3).
 
 ### Task 17: Skill `cerrar-caja`
 
-- [ ] **Step 1**: SKILL.md.
-- [ ] **Step 2**: test.
+- [x] **Step 1**: SKILL.md (resumen día → conteo físico → análisis dif → cerrar).
+- [?] **Step 2**: test diferido.
 
 ### Task 18: Skill `conciliar-banco`
 
-- [ ] **Step 1**: SKILL.md.
-- [ ] **Step 2**: test.
+- [x] **Step 1**: SKILL.md (seleccionar cuenta → listar pendientes → cruzar → conciliar bulk → reporte → cierre).
+- [?] **Step 2**: test diferido.
 
 ### Task 19: Skill `consultar-cuenta-cliente`
 
-- [ ] **Step 1**: SKILL.md.
-- [ ] **Step 2**: test.
+- [x] **Step 1**: SKILL.md (read-only: identificar → estado → aging → docs).
+- [?] **Step 2**: test diferido.
 
 ### Task 20: Skill `nueva-empresa-onboarding`
 
-- [ ] **Step 1**: SKILL.md.
-- [ ] **Step 2**: test.
+- [x] **Step 1**: SKILL.md (datos → verificar dup → reservar no_cia → confirmar → crear compañía → crear punto).
+- [?] **Step 2**: test diferido.
 
 ### Task 21: Deploy PR3
 
