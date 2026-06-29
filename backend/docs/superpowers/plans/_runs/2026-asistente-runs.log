@@ -125,3 +125,61 @@ NOTA: el run #2 continuo en PR2 antes de cerrar, ver detalles abajo.
 **Commits a pushear:** 3 (HEAD pendiente).
 **Budget usado en este run:** ~$3.33/$8 (~42%); restantes ~$4.67.
 
+
+---
+
+## Run 2026-06-29 (cron 4h) - PR4 frontend Tasks 23-28
+
+**Timestamp UTC:** 2026-06-29
+**Commits creados en este run:** 3
+- 705a140 feat(asistente): PR4 Task 23 - layout 3 columnas + sidebar conversaciones
+- d3e11c3 feat(asistente): PR4 Tasks 24-25 - chat principal + tool log
+- 04ad134 feat(asistente): PR4 Tasks 27-28 - skill picker + atajos globales
+
+**Pushed:** SI, origin/asistente/foundations actualizado (52e633d..04ad134).
+
+**Steps completados en este run (14 steps):**
+  - **Task 23 (Pagina /asistente layout)** - 4/4:
+    - Step 1: routes/_authenticated/asistente.tsx convertido a layout shell (Outlet, sin Header).
+    - Step 2: routes/_authenticated/asistente/index.tsx con validateSearch(conv_id).
+    - Step 3: features/asistente/asistente-page.tsx orquestador 3 columnas.
+    - Step 4: features/asistente/sidebar.tsx con react-query, busqueda, agrupacion Hoy/Ayer, selector de modelo.
+  - **Task 24 (Chat principal)** - 4/5 + 1 deferido:
+    - Steps 1-4: chat.tsx + use-chat-stream.ts (fetch+ReadableStream porque SSE endpoint es POST, no GET → no EventSource). Reducer con acciones token/tool_*/message_complete/etc. Composer auto-resize, Enter/Shift+Enter, cancel via AbortController.
+    - Step 5 [?]: markdown rendering diferido (react-markdown no instalado en bundle).
+  - **Task 25 (Tool log)** - 3/4 + 1 deferido:
+    - Steps 1-3: tool-log.tsx panel colapsable, StatusIcon, expand args/result, botones inline Confirmar/Cancelar para pending.
+    - Step 4 [?]: footer auditoria (tokens+costo) diferido — el reducer aun no agrega totales.
+  - **Task 27 (Skill picker)** - 2/3 + 1 deferido:
+    - Steps 1, 3: chip+dropdown listSkills + auto-sugerencia con 6 regex triggers.
+    - Step 2 [?]: endpoint POST /conversaciones/<id>/skill/ no existe — se pasa body.skill al POST /chat/.
+  - **Task 28 (Atajos globales)** - 1/1:
+    - use-shortcuts.ts: Esc=cancel, Ctrl+N/Ctrl+/, ref-stable handlers. Wired Esc en chat.tsx.
+
+**Archivos nuevos:**
+  - frontend/src/lib/api-client-asistente.ts
+  - frontend/src/features/asistente/{asistente-page,sidebar,chat,tool-log,skill-picker}.tsx
+  - frontend/src/features/asistente/{use-chat-stream,use-shortcuts}.ts
+  - frontend/src/routes/_authenticated/asistente/index.tsx
+
+**Estado de tests:** N/A en este run (cambios solo frontend; pytest backend = 37 verde de runs previos).
+**Validacion:** sin npm build local; Netlify regenera routeTree.gen.ts al hacer build de main.
+
+**Proximo step automatizable:**
+  - Task 26 (Modal de confirmacion detallada) — 3 steps, mejora UX sobre inline confirm existente.
+  - Task 29 (Admin skills) — list + Monaco editor con gate DBA. Monaco no esta instalado, requiere npm install.
+  - Task 30 (Admin auditoria) — KPIs sobre endpoint /admin/asistente/auditoria/.
+  - Task 31 (Deploy PR4) — push a main lo decide el usuario, no automatizable.
+
+**Tasks backend aun pendientes (no tocadas en este run):**
+  - Task 9 Steps 4-6: FAT writes (necesita confirmacion de schema para cotizar/cerrar_caja).
+  - Task 10 Step 2: CHC writes (conciliar_bulk, cierre_conciliacion).
+  - Task 12 Step 1: CNT writes (crear_compania, crear_punto).
+
+**Blockers:** 0 tecnicos. Deferidos por dependencias humanas:
+  - Markdown library install (Task 24 Step 5).
+  - Monaco editor install (Task 29 Step 2).
+  - Merge a main + crontab host VM (Task 8 Steps 7-9).
+  - Decisiones de schema para FAT writes.
+
+**Budget usado en este run:** ~$4.69/$8 (~59%); restantes ~$3.31.
