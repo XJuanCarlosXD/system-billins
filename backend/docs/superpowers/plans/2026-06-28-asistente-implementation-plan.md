@@ -87,15 +87,15 @@ git commit -m "feat(asistente): provider interface + ClaudeProvider con prompt c
 
 ### Task 4: Tool registry + permissions
 
-- [ ] **Step 1**: failing test `test_tool_registry::test_list_for_user_filters_by_module_flags`.
-- [ ] **Step 2**: implementar `tools/registry.py::ToolSpec` (dataclass) y `REGISTRY` global vacío al inicio.
-- [ ] **Step 3**: implementar `tools/permissions.py::get_user_module_flags(user)` reusando `apps.auth_legacy.permissions_repo`.
-- [ ] **Step 4**: implementar `list_for_user(user)` con filtrado.
-- [ ] **Step 5**: pasa el test del Step 1.
-- [ ] **Step 6**: añadir tools básicos (memoria + doc_types + skills) al REGISTRY.
-- [ ] **Step 7**: failing test `test_dispatch_rejects_forbidden_cia`.
-- [ ] **Step 8**: implementar `agent_loop::dispatch_tool(user, name, args)` con las 4 capas iniciales (registry, no_cia, punto, USUARIOD).
-- [ ] **Step 9**: pasa el test del Step 7.
+- [x] **Step 1**: failing test `test_tool_registry::test_list_for_user_filters_by_module_flags`.
+- [x] **Step 2**: `tools/registry.py::ToolSpec` (dataclass) y `REGISTRY` global.
+- [x] **Step 3**: `tools/permissions.py::get_user_module_flags(user)` reusa `apps.legacy.repositories.permissions_repo.list_user_modules`.
+- [x] **Step 4**: `list_for_user(user)` con filtrado por `modules_required`.
+- [x] **Step 5**: tests verdes (3 tests).
+- [x] **Step 6**: tools base registradas: 5 memoria + 2 doc_types + 2 skills = 9.
+- [x] **Step 7**: failing test `test_dispatch_rejects_forbidden_cia`.
+- [x] **Step 8**: `agent_loop::dispatch_tool(user, name, args)` con las 4 capas (registry / no_cia / punto / USUARIOD).
+- [x] **Step 9**: pasa el test del Step 7.
 
 ```bash
 git commit -m "feat(asistente): tool registry + dispatch con gates de permisos"

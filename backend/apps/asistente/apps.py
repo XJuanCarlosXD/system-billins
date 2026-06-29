@@ -8,5 +8,8 @@ class AsistenteConfig(AppConfig):
     verbose_name = "Asistente en pagina (ZentoryERP)"
 
     def ready(self):
-        # Import side-effect: registra tools en REGISTRY.
+        # Import side-effect: cada modulo registra sus tools en REGISTRY.
         from apps.asistente.tools import registry  # noqa: F401
+        from apps.asistente.tools import memoria   # noqa: F401
+        from apps.asistente.tools import doc_types  # noqa: F401
+        from apps.asistente.tools import skills    # noqa: F401
