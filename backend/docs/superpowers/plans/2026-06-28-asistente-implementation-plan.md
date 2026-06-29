@@ -204,10 +204,10 @@ git commit -m "feat(asistente): tools CNT y INV"
 
 ### Task 13: Deploy PR2
 
-- [ ] **Step 1**: pscp `apps/asistente/tools/*.py` al VM.
-- [ ] **Step 2**: pytest in-VM, all green.
-- [ ] **Step 3**: smoke con curl SSE: el agente puede hacer una conversación que use 2+ tools (ej. "lista mis facturas pendientes y dime el RNC del primer cliente").
-- [ ] **Step 4**: push a main, marcar PR2 ✅.
+- [x] **Step 1**: tools `fat.py`/`chc.py`/`cxc.py`/`cxp.py`/`cnt_inv.py` ya estaban deployadas en VM via los syncs incrementales de Tasks 9–12 (cada task incluyó pscp + smoke individual).
+- [x] **Step 2**: `pytest apps/asistente/tests/ -q` en VM → **37 passed** (incluye tests de FAT/CHC/CXC/CXP read + skills sistema + agent loop + providers).
+- [?] **Step 3**: smoke SSE con 2+ tools encadenadas — diferido (mismo bloqueo: tests SSE end-to-end requieren ASGI test client / Anthropic real).
+- [?] **Step 4**: push main + marcar PR2 ✅ — merge manual del usuario.
 
 ---
 
@@ -259,10 +259,10 @@ git commit -m "feat(asistente): sistema de skills (read + CRUD admin)"
 
 ### Task 21: Deploy PR3
 
-- [ ] **Step 1**: pscp `apps/asistente/skills/` recursivo al VM.
-- [ ] **Step 2**: smoke: `curl GET /api/asistente/skills/` lista las 6.
-- [ ] **Step 3**: smoke SSE: el agente carga `skill_cargar('facturar')` y la siguiente respuesta sigue el playbook.
-- [ ] **Step 4**: push main, marcar PR3 ✅.
+- [x] **Step 1**: pscp `apps/asistente/skills/` recursivo al VM — los 6 dirs + SKILL.md + ejemplos JSON presentes en VM (`find` confirma 8 files + .gitkeep).
+- [x] **Step 2**: smoke `GET /api/asistente/skills/` via Django test Client en VM como JCABREU: STATUS 200, devuelve las 6 skills (cerrar-caja, conciliar-banco, consultar-cuenta-cliente, cotizar, facturar, nueva-empresa-onboarding) con frontmatter completo (modules_required + tools_used).
+- [?] **Step 3**: smoke SSE end-to-end con MockProvider que cargue `skill_cargar('facturar')` — diferido: requiere infra de tests SSE async (mismo bloqueo que Task 6 Step 7).
+- [?] **Step 4**: push main + marcar PR3 ✅ — decisión del usuario (merge manual).
 
 ---
 
