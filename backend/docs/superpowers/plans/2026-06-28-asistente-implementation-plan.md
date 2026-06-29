@@ -194,9 +194,9 @@ git commit -m "feat(asistente): tools CXC y CXP (read)"
 
 ### Task 12: Tools CNT + INV
 
-- [ ] **Step 1**: `tools/cnt.py`: listar_companias (read), crear_compania, crear_punto (write).
-- [ ] **Step 2**: `tools/inv.py`: buscar_producto (con existencia y precios), listar_movimientos.
-- [ ] **Step 3**: tests + smoke.
+- [x] **Step 1 (parcial)**: `tools/cnt_inv.py` con `cnt_listar_companias` (read). Writes crear_compania/crear_punto deferidos al proximo iter (necesitan tests DB real).
+- [x] **Step 2**: `inv_buscar_producto` (wrappea inv_repo.list_productos) e `inv_listar_movimientos` (inv_repo.list_movimientos).
+- [x] **Step 3 (parcial)**: smoke en VM — JCABREU ve 24 tools (9 base + 5 FAT + 4 CXC + 3 CXP + 1 CNT + 2 INV). Tests dedicados deferidos (la registracion ya esta cubierta indirectamente; el patron de dispatch ya tiene cobertura por test_tools_fat/cxc/cxp).
 
 ```bash
 git commit -m "feat(asistente): tools CNT y INV"

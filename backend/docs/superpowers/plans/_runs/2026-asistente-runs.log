@@ -31,3 +31,60 @@
 **Budget usado:** ~$7.02/$8 (~88%)
 
 ---
+
+## 2026-06-29T15:30Z — Asistente run #2
+
+**Branch:** asistente/foundations (pushed)
+**Commits en este run:** 2
+  - 47df2db feat(asistente): auditoria TCHAT_TOOL_LOG + endpoint admin + expire cmd
+  - 5fb0951 chore(asistente): plan run log - Task 7 + Task 8 deploy + smokes
+
+**Steps completados:** Task 7 + Task 8 PR1.
+  - Task 7 (4 steps): audit sink en dispatch_tool con audit_ctx; AuditoriaView con gate DBA y agregados ?days/?no_cia; management cmd asistente_expire_pending. 6 tests nuevos verdes.
+  - Task 8: pscp recursivo apps/asistente + facturation_api/{settings,urls}.py + requirements.txt al VM; container restart; pytest in-VM 16/16; smokes HTTP completos via docker exec backend curl: login JCABREU 200, POST conversaciones 201, GET tools 9, GET admin/asistente/auditoria/ 200 con 20 calls historicas (de las corridas de pytest), mgmt cmd asistente_expire_pending OK.
+
+**Estado de tests:** 16/16 pytest verdes en `apps/asistente/tests/`.
+
+**Pendientes del PR1 (acciones de usuario, no automatizables):**
+  - Step 7: merge a main (push a origin/asistente/foundations hecho).
+  - Step 8: marcar PR1 ✅ tras merge.
+  - Step 9 (nuevo): instalar crontab en host VM para `asistente_expire_pending` cada 1 min.
+
+**Próximo step automatizable:**
+  - PR2 Task 9 (Tools FAT: buscar_cliente, proximo_ncf, buscar_producto, listar_facturas, cuadre_caja + writes crear_factura/cotizacion/cerrar_caja).
+
+**Blockers:** 0
+**Commits pushed:** 2 a origin/asistente/foundations (HEAD = 5fb0951)
+**Budget usado en este run:** ~$3.18/$8 (~40%); restantes ~$4.82 para continuar con PR2 si hay tiempo.
+
+NOTA: el run #2 continuo en PR2 antes de cerrar, ver detalles abajo.
+
+---
+
+## 2026-06-29T16:15Z — Asistente run #2 (continuacion: PR2 tools por modulo)
+
+**Branch:** asistente/foundations (pushed)
+**Commits adicionales:** 3 (HEAD = ver siguiente push)
+  - 6407638 feat(asistente): tools FAT read (5) + fix case en module flags
+  - b5d6a13 feat(asistente): tools CXC (4) y CXP (3) read
+  - TBD       feat(asistente): tools CNT (1) e INV (2) read
+
+**Steps completados (PR2):**
+  - Task 9 steps 1-3: 5 FAT reads + tests (7 verdes). Bugfix lateral: get_user_module_flags ahora normaliza UPPER (las tools FAT no aparecian para JCABREU porque permissions_repo devuelve 'fat' lowercase).
+  - Task 11 (full): tools CXC (4 reads) + CXP (3 reads). 4 tests verdes.
+  - Task 12 (parcial): cnt_listar_companias + inv_buscar_producto + inv_listar_movimientos. Tests dedicados deferidos.
+
+**Estado de tests:** 27/27 pytest verdes en `apps/asistente/tests/`.
+**Smoke HTTP:** JCABREU ve 24 tools = 9 base + 5 FAT + 4 CXC + 3 CXP + 1 CNT + 2 INV.
+
+**Pendientes:**
+  - Task 9 steps 4-6: handlers write FAT (crear_factura, crear_cotizacion, cerrar_caja) + tests DB real + smoke SSE con MockProvider.
+  - Task 10 (full): tools CHC (read + write).
+  - Task 12 steps 1.write: crear_compania, crear_punto (CNT writes).
+  - Task 13: deploy PR2 final + smoke con 2+ tools encadenadas.
+  - PR3 (skills) + PR4 (frontend) sin tocar.
+
+**Blockers:** 0
+**Budget usado en este run total:** ~$7.20/$8 (~90%).
+
+---
