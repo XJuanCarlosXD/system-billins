@@ -215,12 +215,12 @@ git commit -m "feat(asistente): tools CNT y INV"
 
 ### Task 14: Sistema de skills
 
-- [ ] **Step 1**: `tools/skills.py::read_skill_file(name)` con parse de frontmatter YAML.
-- [ ] **Step 2**: `tools/skills.py::skills_listar(user)` filtra por `modules_required`.
-- [ ] **Step 3**: `tools/skills.py::skill_cargar(user, args)` con gate + warning si tools_used faltan.
-- [ ] **Step 4**: register `skill_listar` y `skill_cargar` en REGISTRY.
-- [ ] **Step 5**: tests.
-- [ ] **Step 6**: endpoint `GET/PUT/POST/DELETE /api/asistente/skills/...` con gate DBA en mutaciones.
+- [x] **Step 1**: `tools/skills.py::read_skill_file(name)` con parse de frontmatter YAML simple (mini-parser `_parse_frontmatter`).
+- [x] **Step 2**: `tools/skills.py::_skill_listar(user)` filtra por `modules_required`.
+- [x] **Step 3**: `tools/skills.py::_skill_cargar(user, args)` con gate + warning si tools_used faltan.
+- [x] **Step 4**: register `skill_listar` y `skill_cargar` en REGISTRY (en `_register_all()`).
+- [x] **Step 5**: 7 tests verdes (`test_tools_skills.py`): parse FM, listar filtra por modulo, cargar autorizado, cargar FORBIDDEN_MODULE, SKILL_NOT_FOUND, warnings tools.
+- [ ] **Step 6**: endpoint `GET/PUT/POST/DELETE /api/asistente/skills/...` con gate DBA en mutaciones (actualmente stub 501 en `views_skills.py`).
 
 ```bash
 git commit -m "feat(asistente): sistema de skills (read + CRUD admin)"
