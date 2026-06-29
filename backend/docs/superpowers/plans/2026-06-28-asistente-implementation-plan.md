@@ -184,9 +184,9 @@ git commit -m "feat(asistente): tools CHC (read + write)"
 
 ### Task 11: Tools CXC + CXP
 
-- [ ] **Step 1**: `tools/cxc.py`: buscar_cliente, estado_cuenta, aging, listar_documentos.
-- [ ] **Step 2**: `tools/cxp.py`: buscar_proveedor, estado_cuenta, aging.
-- [ ] **Step 3**: tests + smoke.
+- [x] **Step 1**: `tools/cxc.py`: buscar_cliente, estado_cuenta, aging, listar_documentos. Wrappea cxc_repo.{search_clientes, estado_cuenta, rep_envejecimiento, list_documentos}.
+- [x] **Step 2**: `tools/cxp.py`: buscar_proveedor, estado_cuenta, aging. Wrappea cxp_repo.{list_proveedores, estado_cuenta, get_aging}.
+- [x] **Step 3**: 4 tests verdes. Smoke en VM: JCABREU ve 21 tools (9 base + 5 FAT + 4 CXC + 3 CXP).
 
 ```bash
 git commit -m "feat(asistente): tools CXC y CXP (read)"
