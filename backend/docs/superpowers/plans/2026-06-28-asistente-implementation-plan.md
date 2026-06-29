@@ -134,10 +134,10 @@ git commit -m "feat(asistente): endpoints REST + SSE para conversaciones y chat"
 
 ### Task 7: Auditoría TCHAT_TOOL_LOG
 
-- [ ] **Step 1**: hook en `dispatch_tool` para INSERT en `TCHAT_TOOL_LOG` con args_hash + preview + duration_ms + ok/error + was_write + confirmed_by.
-- [ ] **Step 2**: `views_admin.AuditoriaView` (GET `/api/admin/asistente/auditoria/`) — agregados por usuario/tool/día.
-- [ ] **Step 3**: gate sólo DBA.
-- [ ] **Step 4**: cron job (1 min) que marca `TCHAT_TOOL_PENDING` expirados.
+- [x] **Step 1**: hook en `dispatch_tool` para INSERT en `TCHAT_TOOL_LOG` con args_hash + preview + duration_ms + ok/error + was_write + confirmed_by.
+- [x] **Step 2**: `views_admin.AuditoriaView` (GET `/api/admin/asistente/auditoria/`) — agregados por usuario/tool/día.
+- [x] **Step 3**: gate sólo DBA.
+- [x] **Step 4**: management command `asistente_expire_pending` (cron `* * * * * docker compose exec -T backend python manage.py asistente_expire_pending`). El crontab del host se programa en Task 8.
 
 ```bash
 git commit -m "feat(asistente): auditoría TCHAT_TOOL_LOG + endpoint admin"

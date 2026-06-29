@@ -70,10 +70,9 @@ class ToolResult:
     was_write: bool = False
 
 
-async def dispatch_tool(
-    user, name: str, args: dict | None = None
+async def _dispatch_tool_inner(
+    user, name: str, args: dict
 ) -> ToolResult:
-    args = dict(args or {})
     started = time.monotonic()
 
     spec: ToolSpec | None = get_tool(name)
@@ -149,6 +148,50 @@ async def dispatch_tool(
             duration_ms=int((time.monotonic() - started) * 1000),
             was_write=spec.write,
         )
+
+
+async def dispatch_tool(
+    user,
+    name: str,
+    args: dict | None = None,
+    *,
+    audit_ctx: dict | None = None,
+) -> ToolResult:
+    """Dispatch con gates + auditoria opcional.
+
+    audit_ctx: si se provee, escribe via apps.asistente.audit.log_tool_call.
+        Claves esperadas: conv_id, mensaje_id, confirmed_by, no_cia, punto.
+    """
+    args = dict(args or {})
+    result = await _dispatch_tool_inner(user, name, args)
+
+    if audit_ctx is not None:
+        from apps.asistente import audit as _audit
+        try:
+            row = _audit.make_row(
+                usuario=getattr(user, "username", "") or "",
+                tool_name=name,
+                args=args,
+                preview=_preview(name, args),
+                ok=result.ok,
+                duration_ms=result.duration_ms,
+                was_write=result.was_write,
+                error_code=result.error_code,
+                conv_id=audit_ctx.get("conv_id"),
+                mensaje_id=audit_ctx.get("mensaje_id"),
+                no_cia=audit_ctx.get("no_cia")
+                or args.get("no_cia")
+                or args.get("NO_CIA"),
+                punto=audit_ctx.get("punto")
+                or args.get("punto")
+                or args.get("PUNTO"),
+                confirmed_by=audit_ctx.get("confirmed_by"),
+            )
+            _audit.log_tool_call(row)
+        except Exception:  # noqa: BLE001
+            pass
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -408,6 +451,7 @@ class AgentLoop:
                 spec = get_tool(tu.name)
                 is_write = bool(spec and spec.write)
                 preview = _preview(tu.name, tu.args)
+                confirmed_by: str | None = None
 
                 if is_write:
                     sig = _new_sig()
@@ -456,12 +500,20 @@ class AgentLoop:
                         stopped_for_confirm = True
                         continue
                     self.pending_store.resolve(sig, approved=True, by=decision["by"])
+                    confirmed_by = decision["by"]
 
                 # Ejecutar (read directo o write tras confirm).
                 yield {"event": "tool_call",
                        "data": {"call_id": tu.call_id, "tool": tu.name,
                                 "args": tu.args}}
-                result = await dispatch_tool(user, tu.name, tu.args)
+                result = await dispatch_tool(
+                    user, tu.name, tu.args,
+                    audit_ctx={
+                        "conv_id": conv_id,
+                        "mensaje_id": assistant_mid,
+                        "confirmed_by": confirmed_by,
+                    },
+                )
                 if result.ok:
                     payload = result.data
                     if not isinstance(payload, (str, bytes)):
