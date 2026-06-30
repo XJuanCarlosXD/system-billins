@@ -317,3 +317,37 @@ decision de las pendientes (merge a main es la mas valiosa porque desbloquea
 Netlify build del frontend y Task 31).
 
 **Budget usado en este run:** ~$1.05/$8 (~13%); restantes ~$6.95.
+
+---
+
+## Run 2026-06-30T22:00Z (cron 4h) - self-review checklist + Task 31 status
+
+**Branch:** asistente/foundations (HEAD = a1584bc; working tree limpio al inicio)
+**Commits creados en este run:** 1 (este log + edits del plan).
+
+**Steps completados en este run:**
+  - Self-review checklist (10 items): 9 marcados `[x]` con referencia al archivo:linea o test que lo prueba; 1 marcado `[!]` (ANTHROPIC_API_KEY). Verificacion hecha por inspeccion de codigo + tests existentes + comprobacion en container backend del VM.
+  - Task 31 Steps 1-4 reclasificados: Steps 1,2,4 = `[?]` (dependen de merge manual a main); Step 3 = `[!]` (bloqueado por API key faltante + topologia de red Netlify->VM privado).
+
+**Hallazgo nuevo:**
+  - `docker compose exec backend env | grep ANTHROPIC` en VM 10.0.0.99: vacio.
+  - `ls .env` en /home/jcabreu/facturation-system/{,backend/}: no existe ningun .env.
+  - settings.py:149 `ANTHROPIC_API_KEY = env('ANTHROPIC_API_KEY', default='')`.
+  - Implicacion: el chat funciona en tests con MockProvider, pero contra Claude real fallaria con 401.
+
+**Acciones requeridas del usuario (sigue pendiente):**
+  1. Setear `ANTHROPIC_API_KEY=sk-ant-...` en VM y reiniciar container (necesario para Task 31 Step 3 + uso real del asistente).
+  2. Merge `asistente/foundations` -> `main` (desbloquea Task 8 Step 7, Task 13 Step 4, Task 21 Step 4, Task 31 Steps 1-2,4).
+  3. (Opcional) Decidir naming `fat_cerrar_caja` (Task 9 Step 4b).
+  4. (Opcional) `npm install react-markdown remark-gfm` (Task 24 Step 5).
+  5. (Opcional) Instalar Monaco editor (Task 29 Step 2).
+  6. (Opcional) Crontab en host VM para `asistente_expire_pending` cada 1 min (Task 8 Step 9).
+
+**Steps automatizables nuevos:** 0.
+
+**Recomendacion:** **Pausar cron.** El plan completo esta en estado `[x]/[?]/[!]`,
+sin `[ ]` automatizables restantes. El proximo paso de valor es del usuario:
+proveer ANTHROPIC_API_KEY + decidir merge a main.
+
+**Budget usado en este run:** ~$1.00/$8 (~12%).
+

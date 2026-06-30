@@ -328,25 +328,25 @@ git commit -m "feat(asistente): sistema de skills (read + CRUD admin)"
 
 ### Task 31: Deploy PR4
 
-- [ ] **Step 1**: push a `main` → Netlify build.
-- [ ] **Step 2**: verificar netlify-status del commit.
-- [ ] **Step 3**: smoke E2E con Playwright (si disponible): login → click botón flotante → /asistente abre → escribir "lista mis facturas de hoy" → el bot responde con tool_call visible en el log → no console errors.
-- [ ] **Step 4**: marcar PR4 ✅.
+- [?] **Step 1**: push a `main` → Netlify build. (Necesita merge manual del usuario; rama `asistente/foundations` ya pusheada con todo el PR4.)
+- [?] **Step 2**: verificar netlify-status del commit. (Depende de Step 1.)
+- [!] **Step 3**: smoke E2E con Playwright. **Bloqueador:** `ANTHROPIC_API_KEY` no esta seteada en el container backend del VM (verificado 2026-06-30T22Z: `env | grep ANTHROPIC` vacio en `docker compose exec backend`). Sin la key el agente no puede responder. Adicionalmente, Netlify (publico) no alcanza al VM (10.0.0.99 privado), por lo que el smoke necesita correrse desde la red corporativa contra una build local del frontend o un tunel al backend. Acciones requeridas del usuario: (a) `echo "ANTHROPIC_API_KEY=sk-ant-..." >> /home/jcabreu/facturation-system/.env` + `docker compose restart backend`; (b) decidir si el smoke corre en frontend Netlify (con tunel/VPN al backend) o frontend local apuntando al VM.
+- [?] **Step 4**: marcar PR4 ✅. (Depende de Steps 1-3.)
 
 ---
 
 ## Self-review checklist (corre al terminar de leer este plan antes de ejecutar)
 
-- [ ] El DDL Oracle del Step 2 del Task 2 se ejecutó manualmente en sqlplus y las 4 tablas existen.
-- [ ] `apps/asistente` está en `INSTALLED_APPS`, `path('api/', include(...))` registrado.
-- [ ] `ANTHROPIC_API_KEY` está definida en `.env` del VM (no committeada al repo).
-- [ ] El agente responde texto con MockProvider sin tocar Anthropic.
-- [ ] El agente respeta `FORBIDDEN_CIA` cuando el usuario pide datos de empresas que no tiene.
-- [ ] Un write requiere clic en confirmar — no se ejecuta sin él.
-- [ ] Una skill que requiere módulo FAT no se activa para un usuario sin FAT.
-- [ ] `/admin/asistente/auditoria` muestra al menos 1 llamada después del smoke.
-- [ ] El botón flotante se oculta en `/print/*`.
-- [ ] El composer envía con Enter y rompe línea con Shift+Enter.
+- [x] El DDL Oracle del Step 2 del Task 2 se ejecutó manualmente en sqlplus y las 4 tablas existen. (Task 2 Step 3: `_verify_001.py` confirmó 4 tablas en ABREGONZA.)
+- [x] `apps/asistente` está en `INSTALLED_APPS`, `path('api/', include(...))` registrado. (settings.py:31 + urls.py:22.)
+- [!] `ANTHROPIC_API_KEY` está definida en `.env` del VM (no committeada al repo). **No esta seteada** (verificado 2026-06-30T22Z en container backend). Default `''` en settings.py:149. Bloquea Task 31 Step 3.
+- [x] El agente responde texto con MockProvider sin tocar Anthropic. (`test_simple_text_response_no_tools` verde.)
+- [x] El agente respeta `FORBIDDEN_CIA` cuando el usuario pide datos de empresas que no tiene. (`test_dispatch_rejects_forbidden_cia` verde + cubierto en test_audit.)
+- [x] Un write requiere clic en confirmar — no se ejecuta sin él. (`test_write_tool_pauses_for_confirm` verde.)
+- [x] Una skill que requiere módulo FAT no se activa para un usuario sin FAT. (`test_tools_fat` + `test_tools_skills` cubren FORBIDDEN_MODULE.)
+- [x] `/admin/asistente/auditoria` muestra al menos 1 llamada después del smoke. (Task 8 Step 6: 20 calls historicas reportadas tras pytest in-VM.)
+- [x] El botón flotante se oculta en `/print/*`. (floating-button.tsx:10 `HIDDEN_PREFIXES` incluye `/print`.)
+- [x] El composer envía con Enter y rompe línea con Shift+Enter. (chat.tsx:111-112 `handleKey` con `e.key === 'Enter' && !e.shiftKey`.)
 
 ## Notas para futuras iteraciones
 
