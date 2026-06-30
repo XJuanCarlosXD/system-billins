@@ -195,7 +195,7 @@ git commit -m "feat(asistente): tools CXC y CXP (read)"
 
 ### Task 12: Tools CNT + INV
 
-- [x] **Step 1 (parcial)**: `tools/cnt_inv.py` con `cnt_listar_companias` (read). Writes crear_compania/crear_punto deferidos al proximo iter (necesitan tests DB real).
+- [x] **Step 1**: `tools/cnt_inv.py` con `cnt_listar_companias` (read) + `cnt_crear_compania` y `cnt_crear_punto` (write, gate `_perm_modulo='CNT'`). 4 tests verdes en `test_tools_cnt.py` (registro + dispatch_compania + dispatch_punto + FORBIDDEN_MODULE). `cnt_crear_punto` usa `nuevo_punto` (no `punto`) para evitar gate `user_has_punto` sobre un punto que aun no existe.
 - [x] **Step 2**: `inv_buscar_producto` (wrappea inv_repo.list_productos) e `inv_listar_movimientos` (inv_repo.list_movimientos).
 - [x] **Step 3 (parcial)**: smoke en VM — JCABREU ve 24 tools (9 base + 5 FAT + 4 CXC + 3 CXP + 1 CNT + 2 INV). Tests dedicados deferidos (la registracion ya esta cubierta indirectamente; el patron de dispatch ya tiene cobertura por test_tools_fat/cxc/cxp).
 
