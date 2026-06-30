@@ -747,6 +747,31 @@ export const settingsCatalog: SettingsCategory[] = [
           },
         ],
       },
+      {
+        title: 'MCP (Model Context Protocol)',
+        items: [
+          {
+            slug: 'sis-mcp-tokens',
+            title: 'Tokens MCP',
+            description:
+              'Generar y revocar tokens para que clientes MCP externos (Claude Desktop, agentes) accedan al servidor.',
+            keywords: ['mcp', 'tokens', 'api', 'bearer', 'claude desktop'],
+            render: () => (
+              <PlaceholderLink href='/admin/mcp/tokens' label='Tokens MCP' />
+            ),
+          },
+          {
+            slug: 'sis-mcp-usage',
+            title: 'Auditoría MCP',
+            description:
+              'Llamadas registradas: KPIs por tool, usuario y código de error. Tiempos de respuesta y tasa de fallas.',
+            keywords: ['mcp', 'auditoria', 'uso', 'logs', 'kpis'],
+            render: () => (
+              <PlaceholderLink href='/admin/mcp/usage' label='Auditoría MCP' />
+            ),
+          },
+        ],
+      },
     ],
   },
 ]
