@@ -6,7 +6,7 @@ import { listConversaciones } from '@/lib/api-client-asistente'
 import { AsistenteChat } from './chat'
 import { AsistenteSidebar } from './sidebar'
 import { AsistenteToolLog } from './tool-log'
-import { type ToolEntry } from './use-chat-stream'
+import { type ChatTotals, type ToolEntry } from './use-chat-stream'
 
 const DEFAULT_MODEL = 'claude-sonnet-4-6'
 
@@ -17,6 +17,7 @@ export function AsistentePage() {
   }
   const [model, setModel] = useState<string>(DEFAULT_MODEL)
   const [tools, setTools] = useState<Record<string, ToolEntry>>({})
+  const [totals, setTotals] = useState<ChatTotals | undefined>(undefined)
 
   const selectedConvId =
     search.conv_id && search.conv_id !== 'new' ? Number(search.conv_id) : null
@@ -71,11 +72,12 @@ export function AsistentePage() {
             key={selectedConvId}
             convId={selectedConvId}
             onToolsChange={setTools}
+            onTotalsChange={setTotals}
           />
         )}
       </main>
 
-      <AsistenteToolLog tools={tools} />
+      <AsistenteToolLog tools={tools} totals={totals} />
     </div>
   )
 }

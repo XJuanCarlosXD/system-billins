@@ -16,10 +16,23 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ToolConfirmModal } from './tool-confirm-modal'
-import { type ToolEntry } from './use-chat-stream'
+import { type ChatTotals, type ToolEntry } from './use-chat-stream'
 
 type Props = {
   tools: Record<string, ToolEntry>
+  totals?: ChatTotals
+}
+
+function fmtCost(usd: number): string {
+  if (!usd) return '$0.00'
+  if (usd < 0.01) return `$${usd.toFixed(4)}`
+  return `$${usd.toFixed(2)}`
+}
+
+function fmtTokens(n: number): string {
+  if (n < 1000) return String(n)
+  if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`
+  return `${(n / 1_000_000).toFixed(2)}M`
 }
 
 function StatusIcon({ status }: { status: ToolEntry['status'] }) {
@@ -32,9 +45,10 @@ function StatusIcon({ status }: { status: ToolEntry['status'] }) {
   return <CheckCircle2 size={14} className='text-emerald-500' />
 }
 
-export function AsistenteToolLog({ tools }: Props) {
+export function AsistenteToolLog({ tools, totals }: Props) {
   const [collapsed, setCollapsed] = useState(false)
   const entries = Object.values(tools).sort((a, b) => a.ts - b.ts)
+  const hasTotals = !!totals && totals.turns > 0
 
   if (collapsed) {
     return (
@@ -84,6 +98,23 @@ export function AsistenteToolLog({ tools }: Props) {
           ))}
         </div>
       </ScrollArea>
+
+      {hasTotals && totals && (
+        <div className='border-t bg-card/60 px-3 py-2 text-[11px] text-muted-foreground'>
+          <div className='mb-1 flex items-center justify-between'>
+            <span className='font-medium'>Auditoria</span>
+            <span>{totals.turns} {totals.turns === 1 ? 'turno' : 'turnos'}</span>
+          </div>
+          <div className='flex items-center justify-between'>
+            <span>
+              In <span className='font-mono'>{fmtTokens(totals.tokens_in)}</span>
+              {' / Out '}
+              <span className='font-mono'>{fmtTokens(totals.tokens_out)}</span>
+            </span>
+            <span className='font-mono'>{fmtCost(totals.cost_usd)}</span>
+          </div>
+        </div>
+      )}
     </aside>
   )
 }

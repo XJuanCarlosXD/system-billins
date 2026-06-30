@@ -80,6 +80,16 @@ export async function deleteConversacion(id: number) {
   return request<void>(`/asistente/conversaciones/${id}/`, { method: 'DELETE' })
 }
 
+export async function patchConversacion(
+  id: number,
+  data: { titulo?: string; model?: string; skill_activa?: string | null },
+) {
+  return request<{ ok: boolean }>(`/asistente/conversaciones/${id}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
 // ---- Tools ----
 export async function listTools(): Promise<AsistenteTool[]> {
   return request<AsistenteTool[]>('/asistente/tools/')

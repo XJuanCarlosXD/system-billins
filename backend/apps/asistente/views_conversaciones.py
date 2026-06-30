@@ -117,3 +117,36 @@ class ConversacionDetailView(APIView):
             )
             cur.connection.commit()
         return Response({"ok": True})
+
+    def patch(self, request, conv_id):
+        body = request.data or {}
+        fields = []
+        params = []
+        if "titulo" in body:
+            fields.append("TITULO = :{}".format(len(params) + 1))
+            params.append(str(body["titulo"])[:200])
+        if "model" in body:
+            fields.append("MODEL = :{}".format(len(params) + 1))
+            params.append(str(body["model"])[:50])
+        if "skill_activa" in body:
+            val = body["skill_activa"]
+            fields.append("SKILL_ACTIVA = :{}".format(len(params) + 1))
+            params.append(str(val)[:64] if val else None)
+        if not fields:
+            return Response({"detail": "no_fields"}, status=400)
+        fields.append("FECHA_ULTIMO = SYSDATE")
+        params.append(conv_id)
+        params.append(_u(request))
+        with client.cursor() as cur:
+            cur.execute(
+                "UPDATE ABREGONZA.TCHAT_CONVERSACION SET "
+                + ", ".join(fields)
+                + " WHERE CONV_ID = :{} AND UPPER(USUARIO) = :{}".format(
+                    len(params) - 1, len(params)
+                ),
+                params,
+            )
+            if cur.rowcount == 0:
+                return Response({"detail": "not_found"}, status=404)
+            cur.connection.commit()
+        return Response({"ok": True})

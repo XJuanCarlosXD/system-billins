@@ -22,11 +22,19 @@ export type ChatMessage =
   | { id: string; role: 'user'; content: string; ts: number }
   | { id: string; role: 'assistant'; content: string; ts: number; streaming?: boolean }
 
+export type ChatTotals = {
+  tokens_in: number
+  tokens_out: number
+  cost_usd: number
+  turns: number
+}
+
 type State = {
   messages: ChatMessage[]
   tools: Record<string, ToolEntry>
   streaming: boolean
   error: string | null
+  totals: ChatTotals
 }
 
 type Action =
@@ -47,6 +55,7 @@ const initialState: State = {
   tools: {},
   streaming: false,
   error: null,
+  totals: { tokens_in: 0, tokens_out: 0, cost_usd: 0, turns: 0 },
 }
 
 function newId() {
@@ -173,7 +182,15 @@ function reducer(state: State, action: Action): State {
       if (last?.role === 'assistant' && last.streaming) {
         msgs[msgs.length - 1] = { ...last, streaming: false }
       }
-      return { ...state, messages: msgs }
+      const d = action.data || {}
+      // El backend emite totales acumulados por turno (no incrementos).
+      const totals: ChatTotals = {
+        tokens_in: Number(d.tokens_in) || state.totals.tokens_in,
+        tokens_out: Number(d.tokens_out) || state.totals.tokens_out,
+        cost_usd: Number(d.cost_usd) || state.totals.cost_usd,
+        turns: state.totals.turns + 1,
+      }
+      return { ...state, messages: msgs, totals }
     }
     case 'done':
       return { ...state, streaming: false }

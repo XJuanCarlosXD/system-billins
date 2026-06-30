@@ -4,6 +4,7 @@ import { Bot, Loader2, Send, User, X } from 'lucide-react'
 import {
   type AsistenteMensaje,
   getConversacion,
+  patchConversacion,
 } from '@/lib/api-client-asistente'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -15,6 +16,7 @@ import { useAsistenteShortcuts } from './use-shortcuts'
 type Props = {
   convId: number
   onToolsChange?: (tools: any) => void
+  onTotalsChange?: (totals: any) => void
 }
 
 function mensajeToChatMessage(m: AsistenteMensaje): ChatMessage | null {
@@ -38,7 +40,7 @@ function mensajeToChatMessage(m: AsistenteMensaje): ChatMessage | null {
   return null
 }
 
-export function AsistenteChat({ convId, onToolsChange }: Props) {
+export function AsistenteChat({ convId, onToolsChange, onTotalsChange }: Props) {
   const { state, send, cancel, reset } = useChatStream(convId)
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -65,11 +67,25 @@ export function AsistenteChat({ convId, onToolsChange }: Props) {
       .map(mensajeToChatMessage)
       .filter((m): m is ChatMessage => m !== null)
     reset(seed)
+    // Hidrata skill activa persistida server-side.
+    const sv = (convData as any).skill_activa as string | null | undefined
+    if (sv !== undefined) setSkillActiva(sv || null)
   }, [convData, reset])
+
+  function handleSkillChange(s: string | null) {
+    setSkillActiva(s)
+    // Persistir best-effort; falla silenciosa porque la skill ya viaja en el
+    // body del POST /chat/ por turno.
+    patchConversacion(convId, { skill_activa: s }).catch(() => {})
+  }
 
   useEffect(() => {
     if (onToolsChange) onToolsChange(state.tools)
   }, [state.tools, onToolsChange])
+
+  useEffect(() => {
+    if (onTotalsChange) onTotalsChange(state.totals)
+  }, [state.totals, onTotalsChange])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
@@ -114,7 +130,7 @@ export function AsistenteChat({ convId, onToolsChange }: Props) {
         </div>
         <SkillPicker
           active={skillActiva}
-          onChange={setSkillActiva}
+          onChange={handleSkillChange}
           lastUserMessage={lastUserMessage}
         />
       </header>

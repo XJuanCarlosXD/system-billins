@@ -297,7 +297,7 @@ git commit -m "feat(asistente): sistema de skills (read + CRUD admin)"
 - [x] **Step 1**: `features/asistente/tool-log.tsx` panel derecho colapsable (`PanelRightClose/Open`); colapsa a aside de 1 col solo con icono.
 - [x] **Step 2**: filas muestran StatusIcon (ok/pending/error/running), nombre tool, duracion en ms; click expande args/result JSON con `<details>`.
 - [x] **Step 3**: filas `pending` muestran preview en lenguaje natural + botones inline `Confirmar/Cancelar` que llaman `confirmTool(sig, approved)` via mutation.
-- [?] **Step 4**: footer "Auditoria" con tokens + costo acumulado diferido — el `useChatStream` aun no acumula totales por turno (los eventos `message_complete` traen tokens pero no estan agregados en el reducer). Iteracion siguiente.
+- [x] **Step 4**: footer "Auditoria" en `tool-log.tsx` con tokens in/out + costo acumulado + numero de turnos. Reducer ahora agrega `ChatTotals` desde el evento `message_complete` (backend emite acumulados por turno). Cableado: `chat.tsx` → `asistente-page.tsx` → `tool-log.tsx`.
 
 ### Task 26: Modal de confirmación detallada
 
@@ -308,7 +308,7 @@ git commit -m "feat(asistente): sistema de skills (read + CRUD admin)"
 ### Task 27: Skill picker + chip activo
 
 - [x] **Step 1**: `features/asistente/skill-picker.tsx` con chip variant default/outline; dropdown lista skills via `listSkills()` con descripcion.
-- [?] **Step 2**: endpoint `POST /asistente/conversaciones/<id>/skill/` server-side no existe — por ahora el skill seleccionado se pasa como `skill` en el body del POST /chat/ (mismo efecto: el backend ya soporta `skill_activa` por turno). Endpoint dedicado server-side queda pendiente si se quiere persistir el skill_activo en la conv entre reloads.
+- [x] **Step 2**: `PATCH /api/asistente/conversaciones/<id>/` implementado en `ConversacionDetailView.patch` (campos `titulo`, `model`, `skill_activa`). `chat.tsx` hidrata `skillActiva` desde `convData.skill_activa` y persiste cada cambio via `patchConversacion(id, {skill_activa})`. Smoke `_smoke_patch_skill.py` OK en VM (CREATE/PATCH/GET/empty=400/clear).
 - [x] **Step 3**: auto-sugerencia con `SUGGEST_TRIGGERS` (6 regex → skills); banner amarillo aparece cuando matchea el ultimo mensaje del usuario y la skill esta disponible; boton X descarta el sugerido por sesion.
 
 ### Task 28: Atajos globales
