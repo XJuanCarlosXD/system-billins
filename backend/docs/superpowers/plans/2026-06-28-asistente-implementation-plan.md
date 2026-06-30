@@ -323,8 +323,8 @@ git commit -m "feat(asistente): sistema de skills (read + CRUD admin)"
 
 ### Task 30: Página de admin auditoría
 
-- [ ] **Step 1**: `routes/_authenticated/admin/asistente/usage.tsx` con KPIs (calls, costo, top tools, top users).
-- [ ] **Step 2**: filtros por fecha + tabla detallada paginada.
+- [x] **Step 1**: `features/asistente/admin-usage-page.tsx` con KPIs (Calls/Errores/Writes/Avg ms) + dos tablas (top users, top tools). Route `routes/_authenticated/admin/asistente/usage.tsx`. Consume `GET /admin/asistente/auditoria/` via `fetchAuditoria()`. Gate DBA ya esta en el backend (403 si no DBA → la UI muestra `error.body.detail`).
+- [x] **Step 2**: filtros `?days=` (default 7) + `?no_cia=` con `Input + Button refrescar`. Tabla "Por dia" expone el series `by_day`. Las tablas top mostradas con slice(0,30).
 
 ### Task 31: Deploy PR4
 

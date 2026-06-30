@@ -90,6 +90,26 @@ export async function listSkills(): Promise<AsistenteSkill[]> {
   return request<AsistenteSkill[]>('/asistente/skills/')
 }
 
+// ---- Auditoria admin ----
+export type AsistenteAuditoria = {
+  by_user: { usuario: string; calls: number; errors: number; writes: number; avg_ms: number }[]
+  by_tool: { tool_name: string; calls: number; errors: number; writes: number }[]
+  by_day: { dia: string; calls: number; errors: number }[]
+  totals: { calls: number; errors: number; writes: number; avg_ms: number }
+}
+
+export async function fetchAuditoria(
+  params: { days?: number; no_cia?: string } = {},
+): Promise<AsistenteAuditoria> {
+  const search = new URLSearchParams()
+  if (params.days != null) search.set('days', String(params.days))
+  if (params.no_cia) search.set('no_cia', params.no_cia)
+  const qs = search.toString()
+  return request<AsistenteAuditoria>(
+    `/admin/asistente/auditoria/${qs ? '?' + qs : ''}`,
+  )
+}
+
 // ---- Confirm ----
 export async function confirmTool(sig: string, approved: boolean) {
   return request<{ ok: boolean }>(`/asistente/confirm/${sig}/`, {
