@@ -92,6 +92,83 @@ class MyPermissionsView(APIView):
         return Response(perms.to_dict())
 
 
+class MyAccessView(APIView):
+    """GET /api/me/access/ — payload denso con módulos, flags y tipos_docu del usuario.
+
+    Devuelve una sola respuesta consumida por `useAccess()` en el frontend
+    para evitar N requests por flag.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        username = request.user.username.upper()
+        try:
+            is_admin = users_repo.is_dba(username)
+        except Exception:
+            is_admin = False
+
+        modules_rows = permissions_repo.list_user_modules(username)
+        all_companies = {c.no_cia: c for c in companies_repo.list_active()}
+
+        companies: dict = {}
+        modules: dict = {}
+        flags: dict = {}
+        tipos_docu: dict = {}
+
+        for row in modules_rows:
+            if not row.get('activo'):
+                continue
+            mod = row['modulo']
+            no_cia = row['no_cia']
+            punto = row['punto']
+
+            cia_descripcion = ''
+            cia = all_companies.get(no_cia)
+            if cia is not None:
+                cia_descripcion = cia.descripcion or ''
+            if no_cia not in companies:
+                companies[no_cia] = {
+                    'no_cia': no_cia,
+                    'descripcion': cia_descripcion,
+                    'puntos': set(),
+                }
+            companies[no_cia]['puntos'].add(punto)
+
+            if mod not in modules:
+                modules[mod] = {'no_cias': set(), 'puntos': {}}
+            modules[mod]['no_cias'].add(no_cia)
+            modules[mod]['puntos'].setdefault(no_cia, set()).add(punto)
+
+            key = f'{mod}:{no_cia}:{punto}'
+            try:
+                flag_map = permissions_repo.get_user_flags(username, mod, no_cia, punto)
+                flags[key] = sorted([f for f, v in flag_map.items() if v])
+            except Exception:
+                flags[key] = []
+            try:
+                docs = permissions_repo.list_user_doc_perms(username, mod, no_cia, punto)
+                tipos_docu[key] = [d['tipo_docu'] for d in docs]
+            except Exception:
+                tipos_docu[key] = []
+
+        return Response({
+            'username': username,
+            'is_admin': is_admin,
+            'companies': [
+                {'no_cia': c['no_cia'], 'descripcion': c['descripcion'],
+                 'puntos': sorted(c['puntos'])}
+                for c in sorted(companies.values(), key=lambda x: x['no_cia'])
+            ],
+            'modules': {
+                m: {'no_cias': sorted(v['no_cias']),
+                    'puntos': {k: sorted(p) for k, p in v['puntos'].items()}}
+                for m, v in modules.items()
+            },
+            'flags': flags,
+            'tipos_docu': tipos_docu,
+        })
+
+
 class ChangeOwnPasswordView(APIView):
     """POST /api/auth/change-password/ — el usuario logueado cambia su propia clave."""
     permission_classes = [IsAuthenticated]

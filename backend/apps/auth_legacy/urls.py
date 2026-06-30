@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import (
-    LoginView, LogoutView, MeView, MyPermissionsView,
+    LoginView, LogoutView, MeView, MyPermissionsView, MyAccessView,
     ChangeOwnPasswordView, AdminUserListView, AdminUserDetailView,
     AdminUserAccessView, AdminUserDocPermsView, AdminUserModuleFlagsView,
     AdminCompaniesListView, AdminCompanyModulesView,
@@ -12,6 +12,7 @@ urlpatterns = [
     path('auth/change-password/', ChangeOwnPasswordView.as_view(), name='legacy-change-password'),
     path('me/', MeView.as_view(), name='me'),
     path('me/permissions/', MyPermissionsView.as_view(), name='me-permissions'),
+    path('me/access/', MyAccessView.as_view(), name='me-access'),
     path('admin/users/', AdminUserListView.as_view(), name='admin-users'),
     path('admin/users/<str:username>/', AdminUserDetailView.as_view(), name='admin-user-detail'),
     path('admin/users/<str:username>/access/', AdminUserAccessView.as_view(), name='admin-user-access'),
