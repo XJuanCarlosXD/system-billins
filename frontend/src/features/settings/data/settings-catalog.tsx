@@ -65,6 +65,10 @@ import {
   CxpBarrios,
 } from '@/features/cxp/cxp-catalogos'
 // Master
+import { McpTokensPage } from '@/features/admin/mcp/routes/mcp-tokens-page'
+import { McpUsagePage } from '@/features/admin/mcp/routes/mcp-usage-page'
+import { UsersAdminPage } from '@/features/auth-mgmt/users-admin'
+import { ManManuales, ManManualDocsPage } from '@/features/man/man-manuales'
 import { EmpresasPage } from '@/features/empresas'
 import { CondicionesPago } from '@/features/fat/condiciones-pago'
 import { ListasPrecioFat } from '@/features/fat/listas-precio'
@@ -714,19 +718,10 @@ export const settingsCatalog: SettingsCategory[] = [
           {
             slug: 'sis-usuarios',
             title: 'Usuarios',
-            render: () => (
-              <PlaceholderLink href='/sistema/usuarios' label='Usuarios' />
-            ),
-          },
-          {
-            slug: 'sis-permisos',
-            title: 'Matriz de accesos',
-            render: () => (
-              <PlaceholderLink
-                href='/sistema/permisos'
-                label='Matriz de accesos'
-              />
-            ),
+            description:
+              'Crear, editar y revocar usuarios. Asignar empresas, puntos, módulos y permisos por documento.',
+            keywords: ['usuarios', 'permisos', 'roles', 'accesos'],
+            render: () => <UsersAdminPage />,
           },
         ],
       },
@@ -736,14 +731,16 @@ export const settingsCatalog: SettingsCategory[] = [
           {
             slug: 'sis-manuales',
             title: 'Manuales',
-            render: () => <PlaceholderLink href='/man' label='Manuales' />,
+            description: 'Manuales de usuario por módulo.',
+            keywords: ['manuales', 'ayuda', 'documentacion'],
+            render: () => <ManManuales />,
           },
           {
             slug: 'sis-docs',
             title: 'Documentación técnica',
-            render: () => (
-              <PlaceholderLink href='/docs' label='Documentación técnica' />
-            ),
+            description: 'Documentación técnica del sistema.',
+            keywords: ['docs', 'tecnica', 'api', 'integracion'],
+            render: () => <ManManualDocsPage />,
           },
         ],
       },
@@ -756,9 +753,7 @@ export const settingsCatalog: SettingsCategory[] = [
             description:
               'Generar y revocar tokens para que clientes MCP externos (Claude Desktop, agentes) accedan al servidor.',
             keywords: ['mcp', 'tokens', 'api', 'bearer', 'claude desktop'],
-            render: () => (
-              <PlaceholderLink href='/admin/mcp/tokens' label='Tokens MCP' />
-            ),
+            render: () => <McpTokensPage />,
           },
           {
             slug: 'sis-mcp-usage',
@@ -766,9 +761,7 @@ export const settingsCatalog: SettingsCategory[] = [
             description:
               'Llamadas registradas: KPIs por tool, usuario y código de error. Tiempos de respuesta y tasa de fallas.',
             keywords: ['mcp', 'auditoria', 'uso', 'logs', 'kpis'],
-            render: () => (
-              <PlaceholderLink href='/admin/mcp/usage' label='Auditoría MCP' />
-            ),
+            render: () => <McpUsagePage />,
           },
         ],
       },
