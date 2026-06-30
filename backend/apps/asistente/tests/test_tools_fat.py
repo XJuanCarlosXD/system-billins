@@ -18,17 +18,22 @@ from apps.asistente.tools.registry import REGISTRY
 
 
 def test_fat_tools_registered():
-    expected = {
+    expected_read = {
         "fat_buscar_cliente",
         "fat_proximo_ncf",
         "fat_buscar_producto",
         "fat_listar_facturas",
         "fat_cuadre_caja",
     }
-    assert expected.issubset(set(REGISTRY.keys()))
-    for name in expected:
+    expected_write = {"fat_crear_factura", "fat_crear_cotizacion"}
+    assert expected_read.issubset(set(REGISTRY.keys()))
+    assert expected_write.issubset(set(REGISTRY.keys()))
+    for name in expected_read:
         assert REGISTRY[name].modules_required == ["FAT"]
         assert REGISTRY[name].write is False
+    for name in expected_write:
+        assert REGISTRY[name].modules_required == ["FAT"]
+        assert REGISTRY[name].write is True
 
 
 @pytest.mark.asyncio
@@ -168,6 +173,142 @@ async def test_fat_listar_facturas_passes_filters(monkeypatch):
     assert seen["fecha_desde"] == "2026-06-01"
     assert seen["tipo"] == "F"
     assert seen["vendedor"] == "001"
+
+
+@pytest.mark.asyncio
+async def test_fat_crear_factura_dispatches_and_injects_user(monkeypatch):
+    """El handler de write debe inyectar `user.username` como `usuario` y
+    delegar a fat_repo.create_factura. dispatch_tool aplica gates antes.
+    """
+    from apps.asistente import agent_loop
+    from apps.legacy.repositories import fat_repo
+
+    seen: dict = {}
+
+    def fake_create(**kw):
+        seen.update(kw)
+        return {"no_factura": "0000123", "tipo_factura": "FA",
+                "ncf": 42, "total_neto": 1180.0}
+
+    monkeypatch.setattr(fat_repo, "create_factura", fake_create)
+    monkeypatch.setattr(
+        "apps.asistente.tools.permissions.get_user_module_flags",
+        lambda u: {"FAT": "S"},
+    )
+    monkeypatch.setattr(
+        "apps.asistente.tools.permissions.user_has_cia", lambda u, c: True,
+    )
+    monkeypatch.setattr(
+        "apps.asistente.tools.permissions.user_has_punto",
+        lambda u, c, p: True,
+    )
+
+    user = SimpleNamespace(username="JCABREU")
+    res = await agent_loop.dispatch_tool(
+        user, "fat_crear_factura",
+        {"no_cia": "01", "punto": "01", "tipo_factura": "FA",
+         "no_cliente": "1", "fecha": "2026-06-29", "vendedor": "01",
+         "forma_pago": "EF", "no_lista": "01", "nota": "test",
+         "lineas": [{"no_produ": "X", "almacen": "01", "cantidad": 1,
+                     "precio": 1000, "porc_descuento": 0,
+                     "porciento_impuesto": 18, "descripcion": "test"}]},
+    )
+    assert res.ok is True
+    assert res.was_write is True
+    assert res.data["no_factura"] == "0000123"
+    assert seen["usuario"] == "JCABREU"
+    assert seen["tipo_factura"] == "FA"
+    assert len(seen["lineas"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_fat_crear_factura_rejects_empty_lineas(monkeypatch):
+    from apps.asistente import agent_loop
+
+    monkeypatch.setattr(
+        "apps.asistente.tools.permissions.get_user_module_flags",
+        lambda u: {"FAT": "S"},
+    )
+    monkeypatch.setattr(
+        "apps.asistente.tools.permissions.user_has_cia", lambda u, c: True,
+    )
+    monkeypatch.setattr(
+        "apps.asistente.tools.permissions.user_has_punto",
+        lambda u, c, p: True,
+    )
+
+    user = SimpleNamespace(username="JCABREU")
+    res = await agent_loop.dispatch_tool(
+        user, "fat_crear_factura",
+        {"no_cia": "01", "punto": "01", "tipo_factura": "FA",
+         "no_cliente": "1", "fecha": "2026-06-29", "vendedor": "01",
+         "lineas": []},
+    )
+    assert res.ok is False
+    assert res.error_code == "HANDLER_ERROR"
+    assert "linea" in res.error_message.lower()
+
+
+@pytest.mark.asyncio
+async def test_fat_crear_cotizacion_dispatches(monkeypatch):
+    from apps.asistente import agent_loop
+    from apps.legacy.repositories import fat_repo
+
+    seen: dict = {}
+
+    def fake_create(**kw):
+        seen.update(kw)
+        return {"no_factura": "0000077", "tipo_factura": "CO",
+                "ncf": None, "total_neto": 590.0}
+
+    monkeypatch.setattr(fat_repo, "create_factura", fake_create)
+    monkeypatch.setattr(
+        "apps.asistente.tools.permissions.get_user_module_flags",
+        lambda u: {"FAT": "S"},
+    )
+    monkeypatch.setattr(
+        "apps.asistente.tools.permissions.user_has_cia", lambda u, c: True,
+    )
+    monkeypatch.setattr(
+        "apps.asistente.tools.permissions.user_has_punto",
+        lambda u, c, p: True,
+    )
+
+    user = SimpleNamespace(username="JCABREU")
+    res = await agent_loop.dispatch_tool(
+        user, "fat_crear_cotizacion",
+        {"no_cia": "01", "punto": "01", "tipo_factura": "CO",
+         "no_cliente": "1", "fecha": "2026-06-29", "vendedor": "01",
+         "nota": "Cot test",
+         "lineas": [{"no_produ": "X", "almacen": "01", "cantidad": 1,
+                     "precio": 500, "porc_descuento": 0,
+                     "porciento_impuesto": 18, "descripcion": "x"}]},
+    )
+    assert res.ok is True
+    assert res.was_write is True
+    assert seen["forma_pago"] == ""  # cotizacion no lleva forma_pago
+    assert seen["codigo_ncf"] == ""  # cotizacion no reserva NCF
+
+
+@pytest.mark.asyncio
+async def test_fat_crear_factura_blocked_without_module(monkeypatch):
+    from apps.asistente import agent_loop
+
+    monkeypatch.setattr(
+        "apps.asistente.tools.permissions.get_user_module_flags",
+        lambda u: {},
+    )
+
+    user = SimpleNamespace(username="ZZNOFAT")
+    res = await agent_loop.dispatch_tool(
+        user, "fat_crear_factura",
+        {"no_cia": "01", "punto": "01", "tipo_factura": "FA",
+         "no_cliente": "1", "fecha": "2026-06-29", "vendedor": "01",
+         "lineas": [{"no_produ": "X"}]},
+    )
+    assert res.ok is False
+    assert res.error_code == "FORBIDDEN_MODULE"
+    assert res.was_write is True
 
 
 @pytest.mark.asyncio

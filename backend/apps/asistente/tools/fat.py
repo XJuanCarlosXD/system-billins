@@ -98,6 +98,73 @@ def _fat_cuadre_caja(
 
 
 # ---------------------------------------------------------------------------
+# Handlers write. dispatch_tool inyecta `user` automaticamente y aplica los
+# gates de modulo/no_cia/punto. El gate de tipo_docu (USUARIOD) se aplica con
+# las claves magicas `_perm_modulo`/`_perm_tipo_docu`/`_perm_accion`.
+# ---------------------------------------------------------------------------
+
+
+def _fat_crear_factura(
+    user,
+    no_cia: str,
+    punto: str,
+    tipo_factura: str,
+    no_cliente: str,
+    fecha: str,
+    vendedor: str,
+    forma_pago: str = "",
+    no_lista: str = "",
+    nota: str = "",
+    lineas: list | None = None,
+    codigo_ncf: str = "",
+    detalle: str = "",
+) -> dict[str, Any]:
+    from apps.legacy.repositories import fat_repo
+
+    if not lineas:
+        raise ValueError("crear_factura requiere al menos una linea")
+
+    return fat_repo.create_factura(
+        no_cia=no_cia, punto=punto, tipo_factura=tipo_factura,
+        no_cliente=str(no_cliente), fecha=fecha, vendedor=vendedor,
+        forma_pago=forma_pago, no_lista=no_lista, nota=nota,
+        lineas=lineas, usuario=getattr(user, "username", "") or "",
+        codigo_ncf=codigo_ncf, detalle=detalle,
+    )
+
+
+def _fat_crear_cotizacion(
+    user,
+    no_cia: str,
+    punto: str,
+    tipo_factura: str,
+    no_cliente: str,
+    fecha: str,
+    vendedor: str,
+    no_lista: str = "",
+    nota: str = "",
+    lineas: list | None = None,
+    detalle: str = "",
+) -> dict[str, Any]:
+    """Crea una cotizacion. Reutiliza `create_factura` con tipo_factura del
+    catalogo `TFAT_TDOCU` configurado como cotizacion (tipo_transaccion='C').
+    El backend valida via la secuencia + tdocu; aqui solo delegamos.
+    """
+    from apps.legacy.repositories import fat_repo
+
+    if not lineas:
+        raise ValueError("crear_cotizacion requiere al menos una linea")
+
+    return fat_repo.create_factura(
+        no_cia=no_cia, punto=punto, tipo_factura=tipo_factura,
+        no_cliente=str(no_cliente), fecha=fecha, vendedor=vendedor,
+        forma_pago="", no_lista=no_lista, nota=nota,
+        lineas=lineas, usuario=getattr(user, "username", "") or "",
+        codigo_ncf="", detalle=detalle,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Registro.
 # ---------------------------------------------------------------------------
 
@@ -190,6 +257,77 @@ def _register_all() -> None:
             "required": ["no_cia"],
         },
         handler=_fat_listar_facturas,
+        modules_required=["FAT"],
+    ))
+
+    register_tool(ToolSpec(
+        name="fat_crear_factura",
+        description=(
+            "Crea una factura en FAT (write). Requiere tipo_factura del "
+            "catalogo TFAT_TDOCU + lineas {no_produ, almacen, cantidad, "
+            "precio, porc_descuento, porciento_impuesto, descripcion}. "
+            "Asigna NCF automaticamente si codigo_ncf no se especifica."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "no_cia": {"type": "string"},
+                "punto": {"type": "string"},
+                "tipo_factura": {"type": "string"},
+                "no_cliente": {"type": "string"},
+                "fecha": {"type": "string", "description": "YYYY-MM-DD"},
+                "vendedor": {"type": "string"},
+                "forma_pago": {"type": "string"},
+                "no_lista": {"type": "string"},
+                "nota": {"type": "string"},
+                "codigo_ncf": {"type": "string"},
+                "detalle": {"type": "string"},
+                "lineas": {"type": "array"},
+                "_perm_modulo": {"type": "string", "default": "FAT"},
+                "_perm_tipo_docu": {"type": "string"},
+                "_perm_accion": {"type": "string", "default": "escritura"},
+            },
+            "required": [
+                "no_cia", "punto", "tipo_factura", "no_cliente",
+                "fecha", "vendedor", "lineas",
+            ],
+        },
+        handler=_fat_crear_factura,
+        write=True,
+        modules_required=["FAT"],
+    ))
+
+    register_tool(ToolSpec(
+        name="fat_crear_cotizacion",
+        description=(
+            "Crea una cotizacion en FAT (write). tipo_factura debe ser un "
+            "tipo configurado en TFAT_TDOCU con tipo_transaccion='C'. "
+            "No reserva NCF ni afecta inventario."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "no_cia": {"type": "string"},
+                "punto": {"type": "string"},
+                "tipo_factura": {"type": "string"},
+                "no_cliente": {"type": "string"},
+                "fecha": {"type": "string", "description": "YYYY-MM-DD"},
+                "vendedor": {"type": "string"},
+                "no_lista": {"type": "string"},
+                "nota": {"type": "string"},
+                "detalle": {"type": "string"},
+                "lineas": {"type": "array"},
+                "_perm_modulo": {"type": "string", "default": "FAT"},
+                "_perm_tipo_docu": {"type": "string"},
+                "_perm_accion": {"type": "string", "default": "escritura"},
+            },
+            "required": [
+                "no_cia", "punto", "tipo_factura", "no_cliente",
+                "fecha", "vendedor", "lineas",
+            ],
+        },
+        handler=_fat_crear_cotizacion,
+        write=True,
         modules_required=["FAT"],
     ))
 

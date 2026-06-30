@@ -164,9 +164,10 @@ git commit -m "feat(asistente): auditoría TCHAT_TOOL_LOG + endpoint admin"
 - [x] **Step 1**: `tools/fat.py` con handlers read (buscar_cliente, proximo_ncf, buscar_producto, listar_facturas, cuadre_caja). Wrappea `fat_repo.{list_clientes, get_proximo_ncf, search_productos, list_facturas, list_cuadre_caja}`.
 - [x] **Step 2**: registradas en REGISTRY con `modules_required=['FAT']`. Wire-up en `apps.py::ready()`.
 - [x] **Step 3**: 7 tests verdes (incluye 1 que verifica que un usuario sin FAT recibe FORBIDDEN_MODULE). Bonus: fix de bug en `get_user_module_flags` — el repo devolvia codigos en lowercase pero ToolSpec usa UPPER; ahora se normaliza.
-- [ ] **Step 4**: handlers write (crear_factura, crear_cotizacion, cerrar_caja). Cada uno valida `has_doc_permission` antes de llamar al repo.
-- [ ] **Step 5**: tests con DB real (factura test ZZTEST que se borra después).
-- [ ] **Step 6**: smoke vía curl SSE con MockProvider que llama `fat_buscar_cliente`.
+- [x] **Step 4**: handlers write `fat_crear_factura` y `fat_crear_cotizacion` (ambos wrappean `fat_repo.create_factura`; cotizacion delega con `tipo_factura` de `TFAT_TDOCU` que tenga `tipo_transaccion='C'`). Gate via `_perm_modulo='FAT'` + `_perm_tipo_docu`. 4 tests verdes (registro write=True, dispatch+inject `user.username`, FORBIDDEN_MODULE para no-FAT, rechazo de lineas vacias). 41 tests totales en suite asistente.
+- [?] **Step 4b** `fat_cerrar_caja`: necesita confirmacion humana — `fat_repo` no expone una funcion de cierre diario (solo `cierre_mensual(no_cia, punto, ano, mes, usuario)`). ¿Mapear cerrar_caja al cierre mensual, o crear una nueva funcion que UPDATE un flag `st_cerrado` en TFAT_FACTURA del dia? Pregunta para el usuario.
+- [?] **Step 5**: tests con DB real (factura test ZZTEST que se borra despues) — diferido; requiere decidir tipo_factura+vendedor+cliente seguros para insertar/anular en Oracle real sin contaminar reportes.
+- [?] **Step 6**: smoke via curl SSE con MockProvider — diferido; mismo bloqueo que Task 6 Step 7 (ASGI test client + Anthropic mock end-to-end aun sin scaffolding).
 
 ```bash
 git commit -m "feat(asistente): tools FAT (read + write)"
