@@ -220,3 +220,68 @@ NOTA: el run #2 continuo en PR2 antes de cerrar, ver detalles abajo.
 
 **Blockers:** 0 tecnicos.
 **Budget usado en este run:** ~$6.17/$8 (~77%); restantes ~$1.83.
+
+---
+
+## Run 2026-06-30T14:00Z (cron 4h) - footer tokens + PATCH skill + CNT writes
+
+**Branch:** asistente/foundations (pushed origin/asistente/foundations = 6d1c875)
+**Commits creados en este run:** 2
+- dd5a3ff feat(asistente): footer tokens/cost + PATCH skill_activa
+- 6d1c875 feat(asistente): CNT writes - crear_compania + crear_punto
+
+**Steps completados:**
+  - **Task 25 Step 4** (footer auditoria en tool-log): `useChatStream` agrega
+    `ChatTotals { tokens_in, tokens_out, cost_usd, turns }` desde `message_complete`.
+    `AsistenteToolLog` renderiza footer "Auditoria" con tokens/costo/turnos.
+    Cableado chat.tsx -> asistente-page.tsx -> tool-log.tsx via prop drilling.
+  - **Task 27 Step 2** (PATCH skill server-side): `ConversacionDetailView.patch`
+    acepta titulo/model/skill_activa. Smoke `_smoke_patch_skill.py` OK en VM
+    (CREATE 201, PATCH skill 200, GET skill_activa==facturar, empty=400, clear=200).
+    Frontend: `patchConversacion()` en api-client, `chat.tsx` hidrata
+    `skillActiva` desde `convData.skill_activa` y persiste en cada cambio.
+  - **Task 12 Step 1** writes (CNT): `cnt_crear_compania` y `cnt_crear_punto`
+    en `tools/cnt_inv.py`. write=True, modules_required=['CNT'].
+    `cnt_crear_punto` usa `nuevo_punto` (no `punto`) para evitar el gate
+    `user_has_punto` que verifica un punto que aun no existe.
+    4 tests nuevos en `test_tools_cnt.py` (registro + 2 dispatch + forbidden).
+
+**Estado de tests:** 48/48 pytest verdes en VM (44 previos + 4 CNT).
+
+**Smoke HTTP en VM:** PATCH /api/asistente/conversaciones/<id>/ devuelve 200
+con `{"ok":true}` para skill_activa/titulo/clear; 400 con body vacio.
+
+**Archivos nuevos:**
+  - backend/apps/asistente/tests/_smoke_patch_skill.py
+  - backend/apps/asistente/tests/test_tools_cnt.py
+
+**Archivos modificados:**
+  - backend/apps/asistente/views_conversaciones.py (+patch method)
+  - backend/apps/asistente/tools/cnt_inv.py (+2 write handlers)
+  - frontend/src/features/asistente/{use-chat-stream.ts, tool-log.tsx,
+    asistente-page.tsx, chat.tsx, skill-picker (via chat handler)}
+  - frontend/src/lib/api-client-asistente.ts (+patchConversacion)
+  - backend/docs/superpowers/plans/2026-06-28-asistente-implementation-plan.md
+    (Tasks 25.4, 27.2, 12.1 marcados [x])
+
+**Tasks aun pendientes (todas requieren decision humana o infra externa):**
+  - **Task 24 Step 5** [?] markdown rendering: requiere `npm install react-markdown
+    remark-gfm` coordinado con Netlify.
+  - **Task 9 Step 4b** [?] `fat_cerrar_caja`: decision schema (cierre_mensual o
+    nueva fn que marca st_cerrado en TFAT_FACTURA del dia).
+  - **Task 9 Step 5-6** [?] FAT writes test DB real: requiere decidir tipo_factura
+    + vendedor + cliente seguros para insertar/anular en Oracle real sin contaminar.
+  - **Task 6 Step 7 / Task 9 Step 6 / Task 13 Step 3 / Task 21 Step 3** [!] smoke
+    SSE end-to-end con MockProvider: requiere infra ASGI test client.
+  - **Task 8 Steps 7-9** [?] merge PR1 a main + crontab host VM (decision usuario).
+  - **Task 31** [-] Deploy PR4: push main + Netlify (decision usuario).
+  - **Task 29 Step 2** [?] Monaco editor: requiere npm install.
+
+**Conclusion:** TODOS los steps automatizables del plan estan completados.
+Lo que queda son decisiones humanas (merge, npm install, schema choices) o
+infra externa (Netlify, host crontab). **Recomendado pausar cron** hasta que
+el usuario decida una de las acciones pendientes.
+
+**Blockers:** 0 tecnicos. 6 deferred por dependencia humana.
+**Commits pushed:** 2 a origin/asistente/foundations.
+**Budget usado en este run:** ~$6.24/$8 (~78%); restantes ~$1.76.
