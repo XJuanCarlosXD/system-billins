@@ -86,8 +86,38 @@ export async function listTools(): Promise<AsistenteTool[]> {
 }
 
 // ---- Skills ----
+export type AsistenteSkillDetail = AsistenteSkill & {
+  body: string
+  frontmatter: Record<string, unknown>
+}
+
 export async function listSkills(): Promise<AsistenteSkill[]> {
   return request<AsistenteSkill[]>('/asistente/skills/')
+}
+
+export async function getSkill(name: string): Promise<AsistenteSkillDetail> {
+  return request<AsistenteSkillDetail>(`/asistente/skills/${encodeURIComponent(name)}/`)
+}
+
+export async function createSkill(data: { name: string; body: string }) {
+  return request<{ ok: boolean; name: string }>('/asistente/skills/', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateSkill(name: string, body: string) {
+  return request<{ ok: boolean; name: string }>(
+    `/asistente/skills/${encodeURIComponent(name)}/`,
+    { method: 'PUT', body: JSON.stringify({ body }) },
+  )
+}
+
+export async function deleteSkill(name: string) {
+  return request<{ ok: boolean; name: string }>(
+    `/asistente/skills/${encodeURIComponent(name)}/`,
+    { method: 'DELETE' },
+  )
 }
 
 // ---- Auditoria admin ----

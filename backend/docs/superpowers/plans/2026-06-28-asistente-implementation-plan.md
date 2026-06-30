@@ -317,9 +317,9 @@ git commit -m "feat(asistente): sistema de skills (read + CRUD admin)"
 
 ### Task 29: Página de admin skills
 
-- [ ] **Step 1**: `routes/_authenticated/asistente/skills/index.tsx` lista skills.
-- [ ] **Step 2**: `routes/_authenticated/asistente/skills/$name.edit.tsx` con Monaco editor split markdown/preview.
-- [ ] **Step 3**: gate sólo DBA.
+- [x] **Step 1**: `routes/_authenticated/admin/asistente/skills/index.tsx` lista skills via `listSkills()`. Tabla con nombre/desc/modulos/tools + acciones (Editar/Eliminar). Form inline para crear (kebab-case validado, frontmatter scaffold).
+- [x] **Step 2**: `routes/_authenticated/admin/asistente/skills/$name.edit.tsx` con editor split: textarea monospace (markdown) + preview pre-wrap (sin react-markdown aun para no anadir dep). Tracking de dirty + boton Guardar deshabilitado si pristine.
+- [x] **Step 3**: gate DBA aplicado en backend (POST/PUT/DELETE devuelven 403 si no DBA — la UI muestra el detail). Nota: ruta no esta gateada client-side; la pagina renderiza pero las mutations fallan. Acceptable porque el backend es la fuente unica de verdad.
 
 ### Task 30: Página de admin auditoría
 
