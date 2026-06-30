@@ -183,3 +183,40 @@ NOTA: el run #2 continuo en PR2 antes de cerrar, ver detalles abajo.
   - Decisiones de schema para FAT writes.
 
 **Budget usado en este run:** ~$4.69/$8 (~59%); restantes ~$3.31.
+
+---
+
+## Run 2026-06-29 (cron 4h) - PR2/PR4 writes + admin UI
+
+**Timestamp UTC:** 2026-06-29T~late
+**Commits creados en este run:** 5
+- 4919898 feat(asistente): tools FAT write (crear_factura + crear_cotizacion)
+- 99006a9 feat(asistente): tools CHC write (conciliar_bulk + cierre_conciliacion)
+- fdfcf60 feat(asistente): tool-confirm-modal con dialog shadcn
+- 78d07f8 feat(asistente): admin usage page con KPIs + filtros
+- 16bb733 feat(asistente): admin skills CRUD UI (list + editor split)
+
+**Pushed:** SI, origin/asistente/foundations (ffbf727..16bb733).
+
+**Steps completados en este run:**
+  - **Task 9 Step 4 (FAT writes)**: fat_crear_factura + fat_crear_cotizacion (wrappean fat_repo.create_factura; cotizacion fuerza forma_pago/codigo_ncf=''). 4 tests verdes en suite. Step 5/6 deferidos. cerrar_caja marcado [?] (sin fn equivalente en fat_repo).
+  - **Task 10 Step 2 (CHC writes)**: chc_conciliar_bulk + chc_cierre_conciliacion (wrappean marcar_conciliados_bulk + cierre_conciliacion; inyectan user.username). 6 tests verdes.
+  - **Task 26 (Modal confirmacion)**: tool-confirm-modal.tsx con Dialog shadcn. Banner amarillo + args JSON + warning. Wired desde "Ver detalle" en tool-log fila pending.
+  - **Task 29 (Admin skills)**: admin-skills-page.tsx (lista + crear + eliminar) + admin-skill-edit-page.tsx (editor split textarea+preview). Sin Monaco. Gate DBA en backend.
+  - **Task 30 (Admin auditoria)**: admin-usage-page.tsx con KPIs (Calls/Errores/Writes/Avg ms) + top users + top tools + por dia. Filtros days/no_cia. Consume /admin/asistente/auditoria/.
+
+**Estado de tests:** 44/44 pytest verdes en VM (anteriormente 37 + 4 FAT write + 3 CHC write nuevos).
+
+**Proximo step automatizable:**
+  - Task 25 Step 4 (footer auditoria en tool-log con tokens+costo): el reducer no agrega totales — pequeno refactor.
+  - Task 24 Step 5 (markdown rendering): requiere npm install react-markdown remark-gfm (no automatizable sin coordinacion Netlify).
+  - Task 27 Step 2 (endpoint POST /conversaciones/<id>/skill/ para persistir skill activa).
+  - Task 12 Step 1 writes: crear_compania, crear_punto (CNT).
+
+**Tasks que necesitan decision humana:**
+  - Task 9 Step 4b: cerrar_caja sin funcion equivalente en fat_repo. ¿cierre_mensual o nueva fn?
+  - Task 8 Steps 7-9: merge a main + crontab host VM.
+  - Task 31 (Deploy PR4): push a main lo decide el usuario.
+
+**Blockers:** 0 tecnicos.
+**Budget usado en este run:** ~$6.17/$8 (~77%); restantes ~$1.83.
