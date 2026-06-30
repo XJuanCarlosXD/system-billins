@@ -156,6 +156,18 @@ export const regalGeneralApi = {
     request<ModulePermissions>(
       `/me/permissions/?modulo=${modulo}&no_cia=${no_cia}&punto=${punto}`,
     ),
+  meAccess: () =>
+    request<{
+      username: string
+      is_admin: boolean
+      companies: Array<{ no_cia: string; descripcion: string; puntos: string[] }>
+      modules: Record<
+        string,
+        { no_cias: string[]; puntos: Record<string, string[]> }
+      >
+      flags: Record<string, string[]>
+      tipos_docu: Record<string, string[]>
+    }>('/me/access/'),
 
   fatNcf: (no_cia: string, punto: string) =>
     request<{

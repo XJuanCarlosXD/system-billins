@@ -206,7 +206,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 - Modify: `frontend/src/lib/regal-general-api.ts` (agregar `meAccess`)
 - Create: `frontend/src/hooks/use-access.ts`
 
-- [ ] **Step 2.2.1: Agregar método al api client**
+- [x] **Step 2.2.1: Agregar método al api client**
 
 En `regal-general-api.ts` cerca de los otros métodos `admin*`:
 
@@ -221,7 +221,7 @@ meAccess: () => request<{
 }>('/me/access/'),
 ```
 
-- [ ] **Step 2.2.2: Crear `hooks/use-access.ts`**
+- [x] **Step 2.2.2: Crear `hooks/use-access.ts`**
 
 ```ts
 import { useQuery } from '@tanstack/react-query'
@@ -253,7 +253,7 @@ export function useAccess() {
 }
 ```
 
-- [ ] **Step 2.2.3: Commit**
+- [x] **Step 2.2.3: Commit**
 
 ```bash
 git add frontend/src/lib/regal-general-api.ts frontend/src/hooks/use-access.ts
@@ -269,7 +269,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 - Create: `frontend/src/components/cierre/alert-irreversible.tsx`
 - Create: `frontend/src/components/cierre/index.ts`
 
-- [ ] **Step 2.3.1: Crear `periodo-badge.tsx`**
+- [x] **Step 2.3.1: Crear `periodo-badge.tsx`**
 
 ```tsx
 import { Badge } from '@/components/ui/badge'
@@ -296,7 +296,7 @@ export function PeriodoBadge({ mes, ano, loading }: Props) {
 }
 ```
 
-- [ ] **Step 2.3.2: Crear `alert-irreversible.tsx`**
+- [x] **Step 2.3.2: Crear `alert-irreversible.tsx`**
 
 ```tsx
 import { AlertTriangle } from 'lucide-react'
@@ -315,14 +315,14 @@ export function AlertIrreversible({ children, tone = 'amber' }: { children: Reac
 }
 ```
 
-- [ ] **Step 2.3.3: Crear `index.ts` con re-exports**
+- [x] **Step 2.3.3: Crear `index.ts` con re-exports**
 
 ```ts
 export { PeriodoBadge } from './periodo-badge'
 export { AlertIrreversible } from './alert-irreversible'
 ```
 
-- [ ] **Step 2.3.4: Commit + push (cierra PR2)**
+- [x] **Step 2.3.4: Commit + push (cierra PR2)**
 
 ```bash
 git add frontend/src/components/cierre/
