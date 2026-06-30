@@ -15,6 +15,7 @@ import { confirmTool } from '@/lib/api-client-asistente'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { ToolConfirmModal } from './tool-confirm-modal'
 import { type ToolEntry } from './use-chat-stream'
 
 type Props = {
@@ -89,6 +90,7 @@ export function AsistenteToolLog({ tools }: Props) {
 
 function ToolRow({ tool }: { tool: ToolEntry }) {
   const [open, setOpen] = useState(false)
+  const [modalOpen, setModalOpen] = useState(false)
   const confirmMut = useMutation({
     mutationFn: (approved: boolean) =>
       confirmTool(tool.sig!, approved),
@@ -137,6 +139,18 @@ function ToolRow({ tool }: { tool: ToolEntry }) {
               Cancelar
             </Button>
           </div>
+          <button
+            type='button'
+            className='mt-2 w-full text-[10px] text-amber-700 underline-offset-2 hover:underline dark:text-amber-300'
+            onClick={() => setModalOpen(true)}
+          >
+            Ver detalle
+          </button>
+          <ToolConfirmModal
+            tool={tool}
+            open={modalOpen}
+            onOpenChange={setModalOpen}
+          />
         </div>
       )}
 

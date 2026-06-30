@@ -301,9 +301,9 @@ git commit -m "feat(asistente): sistema de skills (read + CRUD admin)"
 
 ### Task 26: Modal de confirmación detallada
 
-- [ ] **Step 1**: `features/asistente/tool-confirm-modal.tsx` que se abre al hacer click en "Ver detalle" de una fila pending.
-- [ ] **Step 2**: muestra args JSON formateado + preview en lenguaje natural + warning visual amarillo.
-- [ ] **Step 3**: botones `[Confirmar y ejecutar]` `[Cancelar]`.
+- [x] **Step 1**: `features/asistente/tool-confirm-modal.tsx` con `Dialog` (shadcn/ui). Se abre desde el link "Ver detalle" en una fila `pending` del tool-log.
+- [x] **Step 2**: muestra preview en banner amarillo + args JSON en `<pre>` scrollable + texto explicativo de irreversibilidad.
+- [x] **Step 3**: `[Confirmar y ejecutar]` + `[Cancelar]` ambos llaman `confirmTool(sig, approved)` via mutation y cierran el modal `onSuccess`.
 
 ### Task 27: Skill picker + chip activo
 
