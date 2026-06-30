@@ -176,7 +176,7 @@ git commit -m "feat(asistente): tools FAT (read + write)"
 ### Task 10: Tools CHC
 
 - [x] **Step 1**: `tools/chc.py` con read (listar_cheques, listar_cuentas, rep_disponibilidad, rep_movimientos) wrappeando `chc_repo`. Wire-up en `apps.py::ready()`.
-- [ ] **Step 2**: write (conciliar_bulk, cierre_conciliacion).
+- [x] **Step 2**: write `chc_conciliar_bulk` (wrappea `chc_repo.marcar_conciliados_bulk`) y `chc_cierre_conciliacion` (wrappea `chc_repo.cierre_conciliacion`, inyecta `user.username`). Gates write=True + `_perm_modulo='CHC'`. 6 tests verdes (registro + dispatch bulk + dispatch cierre + reject empty items + forbidden module + previous read). Suite asistente total: 44 tests.
 - [x] **Step 3**: 3 tests verdes (registro + dispatch + forbidden). Smoke en VM: JCABREU ve 28 tools (24 previos + 4 CHC). py_compile OK.
 
 ```bash
