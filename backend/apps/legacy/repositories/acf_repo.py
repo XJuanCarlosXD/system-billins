@@ -37,30 +37,287 @@ def list_puntos(no_cia: str) -> list[dict]:
 
 # ---- Catálogos ----
 def list_categorias() -> list[dict]:
-    rows = client.fetch_dicts(
-        "SELECT * FROM ACF.TACF_CATEGORIA ORDER BY 1"
+    return client.fetch_dicts(
+        "SELECT categoria, descripcion, porciento FROM ACF.TACF_CATEGORIA "
+        "ORDER BY categoria"
     )
-    return rows
 
 
 def list_grupos() -> list[dict]:
-    return client.fetch_dicts("SELECT * FROM ACF.TACF_GRUPO ORDER BY 1")
+    return client.fetch_dicts(
+        "SELECT tipo, grupo, descripcion FROM ACF.TACF_GRUPO ORDER BY tipo, grupo"
+    )
 
 
 def list_subgrupos() -> list[dict]:
-    return client.fetch_dicts("SELECT * FROM ACF.TACF_SUBGRUPO ORDER BY 1")
+    return client.fetch_dicts(
+        "SELECT tipo, grupo, subgrupo, descripcion FROM ACF.TACF_SUBGRUPO "
+        "ORDER BY tipo, grupo, subgrupo"
+    )
 
 
 def list_marcas() -> list[dict]:
-    return client.fetch_dicts("SELECT * FROM ACF.TACF_MARCA ORDER BY 1")
+    return client.fetch_dicts(
+        "SELECT marca, descripcion FROM ACF.TACF_MARCA ORDER BY marca"
+    )
 
 
 def list_responsables() -> list[dict]:
-    return client.fetch_dicts("SELECT * FROM ACF.TACF_RESPONSABLE ORDER BY 1")
+    return client.fetch_dicts(
+        "SELECT responsable, nombre FROM ACF.TACF_RESPONSABLE ORDER BY responsable"
+    )
 
 
 def list_departamentos() -> list[dict]:
-    return client.fetch_dicts("SELECT * FROM ACF.TACF_DEPARTAMENTO ORDER BY 1")
+    return client.fetch_dicts(
+        "SELECT departamento, descripcion FROM ACF.TACF_DEPARTAMENTO ORDER BY departamento"
+    )
+
+
+# ---- Catálogos CRUD ----
+
+def _exists(sql: str, params: list) -> bool:
+    r = client.fetch_one(sql, params)
+    return bool(r)
+
+
+def create_categoria(data: dict) -> dict:
+    categoria = str(data.get('categoria') or '').strip()
+    descripcion = str(data.get('descripcion') or '').strip()
+    porciento = data.get('porciento')
+    if not categoria or not descripcion:
+        raise ValueError('categoria y descripcion son requeridos')
+    if _exists("SELECT 1 FROM ACF.TACF_CATEGORIA WHERE categoria=:1", [categoria]):
+        raise ValueError(f'categoría {categoria} ya existe')
+    client.execute(
+        "INSERT INTO ACF.TACF_CATEGORIA (categoria, descripcion, porciento) "
+        "VALUES (:1, :2, :3)",
+        [int(categoria), descripcion[:40], float(porciento or 0)],
+    )
+    return {'categoria': int(categoria), 'descripcion': descripcion, 'porciento': float(porciento or 0)}
+
+
+def update_categoria(categoria: str, data: dict) -> dict:
+    descripcion = str(data.get('descripcion') or '').strip()
+    porciento = data.get('porciento')
+    if not descripcion:
+        raise ValueError('descripcion requerida')
+    n = client.execute(
+        "UPDATE ACF.TACF_CATEGORIA SET descripcion=:1, porciento=:2 WHERE categoria=:3",
+        [descripcion[:40], float(porciento or 0), int(categoria)],
+    )
+    if not n:
+        raise ValueError(f'categoría {categoria} no existe')
+    return {'categoria': int(categoria), 'descripcion': descripcion, 'porciento': float(porciento or 0)}
+
+
+def delete_categoria(categoria: str) -> None:
+    if _exists("SELECT 1 FROM ACF.TACF_ACTIVOS WHERE tipo_contable=:1", [str(categoria)]):
+        raise ValueError('categoría en uso por activos')
+    n = client.execute("DELETE FROM ACF.TACF_CATEGORIA WHERE categoria=:1", [int(categoria)])
+    if not n:
+        raise ValueError(f'categoría {categoria} no existe')
+
+
+def create_grupo(data: dict) -> dict:
+    tipo = str(data.get('tipo') or '').strip().upper()
+    grupo = str(data.get('grupo') or '').strip().upper()
+    descripcion = str(data.get('descripcion') or '').strip()
+    if not tipo or not grupo or not descripcion:
+        raise ValueError('tipo, grupo y descripcion son requeridos')
+    if _exists("SELECT 1 FROM ACF.TACF_GRUPO WHERE tipo=:1 AND grupo=:2", [tipo, grupo]):
+        raise ValueError(f'grupo {tipo}/{grupo} ya existe')
+    client.execute(
+        "INSERT INTO ACF.TACF_GRUPO (tipo, grupo, descripcion) VALUES (:1, :2, :3)",
+        [tipo, grupo, descripcion[:40]],
+    )
+    return {'tipo': tipo, 'grupo': grupo, 'descripcion': descripcion}
+
+
+def update_grupo(tipo: str, grupo: str, data: dict) -> dict:
+    descripcion = str(data.get('descripcion') or '').strip()
+    if not descripcion:
+        raise ValueError('descripcion requerida')
+    n = client.execute(
+        "UPDATE ACF.TACF_GRUPO SET descripcion=:1 WHERE tipo=:2 AND grupo=:3",
+        [descripcion[:40], tipo, grupo],
+    )
+    if not n:
+        raise ValueError('grupo no existe')
+    return {'tipo': tipo, 'grupo': grupo, 'descripcion': descripcion}
+
+
+def delete_grupo(tipo: str, grupo: str) -> None:
+    if _exists(
+        "SELECT 1 FROM ACF.TACF_SUBGRUPO WHERE tipo=:1 AND grupo=:2", [tipo, grupo]
+    ):
+        raise ValueError('grupo tiene subgrupos')
+    if _exists(
+        "SELECT 1 FROM ACF.TACF_ACTIVOS WHERE tipo=:1 AND grupo=:2", [tipo, grupo]
+    ):
+        raise ValueError('grupo en uso por activos')
+    n = client.execute(
+        "DELETE FROM ACF.TACF_GRUPO WHERE tipo=:1 AND grupo=:2", [tipo, grupo]
+    )
+    if not n:
+        raise ValueError('grupo no existe')
+
+
+def create_subgrupo(data: dict) -> dict:
+    tipo = str(data.get('tipo') or '').strip().upper()
+    grupo = str(data.get('grupo') or '').strip().upper()
+    subgrupo = str(data.get('subgrupo') or '').strip().upper()
+    descripcion = str(data.get('descripcion') or '').strip()
+    if not tipo or not grupo or not subgrupo or not descripcion:
+        raise ValueError('tipo, grupo, subgrupo y descripcion son requeridos')
+    if _exists(
+        "SELECT 1 FROM ACF.TACF_SUBGRUPO WHERE tipo=:1 AND grupo=:2 AND subgrupo=:3",
+        [tipo, grupo, subgrupo],
+    ):
+        raise ValueError(f'subgrupo {tipo}/{grupo}/{subgrupo} ya existe')
+    client.execute(
+        "INSERT INTO ACF.TACF_SUBGRUPO (tipo, grupo, subgrupo, descripcion) "
+        "VALUES (:1, :2, :3, :4)",
+        [tipo, grupo, subgrupo, descripcion[:40]],
+    )
+    return {'tipo': tipo, 'grupo': grupo, 'subgrupo': subgrupo, 'descripcion': descripcion}
+
+
+def update_subgrupo(tipo: str, grupo: str, subgrupo: str, data: dict) -> dict:
+    descripcion = str(data.get('descripcion') or '').strip()
+    if not descripcion:
+        raise ValueError('descripcion requerida')
+    n = client.execute(
+        "UPDATE ACF.TACF_SUBGRUPO SET descripcion=:1 "
+        " WHERE tipo=:2 AND grupo=:3 AND subgrupo=:4",
+        [descripcion[:40], tipo, grupo, subgrupo],
+    )
+    if not n:
+        raise ValueError('subgrupo no existe')
+    return {'tipo': tipo, 'grupo': grupo, 'subgrupo': subgrupo, 'descripcion': descripcion}
+
+
+def delete_subgrupo(tipo: str, grupo: str, subgrupo: str) -> None:
+    if _exists(
+        "SELECT 1 FROM ACF.TACF_ACTIVOS WHERE tipo=:1 AND grupo=:2 AND subgrupo=:3",
+        [tipo, grupo, subgrupo],
+    ):
+        raise ValueError('subgrupo en uso por activos')
+    n = client.execute(
+        "DELETE FROM ACF.TACF_SUBGRUPO WHERE tipo=:1 AND grupo=:2 AND subgrupo=:3",
+        [tipo, grupo, subgrupo],
+    )
+    if not n:
+        raise ValueError('subgrupo no existe')
+
+
+def create_marca(data: dict) -> dict:
+    marca = str(data.get('marca') or '').strip().upper()
+    descripcion = str(data.get('descripcion') or '').strip()
+    if not marca or not descripcion:
+        raise ValueError('marca y descripcion son requeridos')
+    if _exists("SELECT 1 FROM ACF.TACF_MARCA WHERE marca=:1", [marca]):
+        raise ValueError(f'marca {marca} ya existe')
+    client.execute(
+        "INSERT INTO ACF.TACF_MARCA (marca, descripcion) VALUES (:1, :2)",
+        [marca, descripcion[:40]],
+    )
+    return {'marca': marca, 'descripcion': descripcion}
+
+
+def update_marca(marca: str, data: dict) -> dict:
+    descripcion = str(data.get('descripcion') or '').strip()
+    if not descripcion:
+        raise ValueError('descripcion requerida')
+    n = client.execute(
+        "UPDATE ACF.TACF_MARCA SET descripcion=:1 WHERE marca=:2",
+        [descripcion[:40], marca],
+    )
+    if not n:
+        raise ValueError(f'marca {marca} no existe')
+    return {'marca': marca, 'descripcion': descripcion}
+
+
+def delete_marca(marca: str) -> None:
+    if _exists("SELECT 1 FROM ACF.TACF_ACTIVOS WHERE marca=:1", [marca]):
+        raise ValueError('marca en uso por activos')
+    n = client.execute("DELETE FROM ACF.TACF_MARCA WHERE marca=:1", [marca])
+    if not n:
+        raise ValueError(f'marca {marca} no existe')
+
+
+def create_responsable(data: dict) -> dict:
+    responsable = str(data.get('responsable') or '').strip().upper()
+    nombre = str(data.get('nombre') or '').strip()
+    if not responsable or not nombre:
+        raise ValueError('responsable y nombre son requeridos')
+    if _exists("SELECT 1 FROM ACF.TACF_RESPONSABLE WHERE responsable=:1", [responsable]):
+        raise ValueError(f'responsable {responsable} ya existe')
+    client.execute(
+        "INSERT INTO ACF.TACF_RESPONSABLE (responsable, nombre) VALUES (:1, :2)",
+        [responsable, nombre[:50]],
+    )
+    return {'responsable': responsable, 'nombre': nombre}
+
+
+def update_responsable(responsable: str, data: dict) -> dict:
+    nombre = str(data.get('nombre') or '').strip()
+    if not nombre:
+        raise ValueError('nombre requerido')
+    n = client.execute(
+        "UPDATE ACF.TACF_RESPONSABLE SET nombre=:1 WHERE responsable=:2",
+        [nombre[:50], responsable],
+    )
+    if not n:
+        raise ValueError(f'responsable {responsable} no existe')
+    return {'responsable': responsable, 'nombre': nombre}
+
+
+def delete_responsable(responsable: str) -> None:
+    if _exists("SELECT 1 FROM ACF.TACF_ACTIVOS WHERE responsable=:1", [responsable]):
+        raise ValueError('responsable en uso por activos')
+    n = client.execute(
+        "DELETE FROM ACF.TACF_RESPONSABLE WHERE responsable=:1", [responsable]
+    )
+    if not n:
+        raise ValueError(f'responsable {responsable} no existe')
+
+
+def create_departamento(data: dict) -> dict:
+    departamento = str(data.get('departamento') or '').strip().upper()
+    descripcion = str(data.get('descripcion') or '').strip()
+    if not departamento or not descripcion:
+        raise ValueError('departamento y descripcion son requeridos')
+    if _exists("SELECT 1 FROM ACF.TACF_DEPARTAMENTO WHERE departamento=:1", [departamento]):
+        raise ValueError(f'departamento {departamento} ya existe')
+    client.execute(
+        "INSERT INTO ACF.TACF_DEPARTAMENTO (departamento, descripcion) VALUES (:1, :2)",
+        [departamento, descripcion[:40]],
+    )
+    return {'departamento': departamento, 'descripcion': descripcion}
+
+
+def update_departamento(departamento: str, data: dict) -> dict:
+    descripcion = str(data.get('descripcion') or '').strip()
+    if not descripcion:
+        raise ValueError('descripcion requerida')
+    n = client.execute(
+        "UPDATE ACF.TACF_DEPARTAMENTO SET descripcion=:1 WHERE departamento=:2",
+        [descripcion[:40], departamento],
+    )
+    if not n:
+        raise ValueError(f'departamento {departamento} no existe')
+    return {'departamento': departamento, 'descripcion': descripcion}
+
+
+def delete_departamento(departamento: str) -> None:
+    if _exists("SELECT 1 FROM ACF.TACF_ACTIVOS WHERE departamento=:1", [departamento]):
+        raise ValueError('departamento en uso por activos')
+    n = client.execute(
+        "DELETE FROM ACF.TACF_DEPARTAMENTO WHERE departamento=:1", [departamento]
+    )
+    if not n:
+        raise ValueError(f'departamento {departamento} no existe')
 
 
 # ---- Activos ----

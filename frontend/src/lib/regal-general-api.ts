@@ -1681,11 +1681,52 @@ export const regalGeneralApi = {
   acfListCias: () => request<any[]>('/acf/cias/'),
   acfListPuntos: (noCia: string) => request<any[]>(`/acf/puntos/?no_cia=${noCia}`),
   acfListCategorias: () => request<any[]>('/acf/categorias/'),
+  acfCreateCategoria: (d: { categoria: number | string; descripcion: string; porciento?: number }) =>
+    request<any>('/acf/categorias/', { method: 'POST', body: JSON.stringify(d) }),
+  acfUpdateCategoria: (categoria: string | number, d: { descripcion: string; porciento?: number }) =>
+    request<any>(`/acf/categorias/${categoria}/`, { method: 'PATCH', body: JSON.stringify(d) }),
+  acfDeleteCategoria: (categoria: string | number) =>
+    request<any>(`/acf/categorias/${categoria}/`, { method: 'DELETE' }),
+
   acfListGrupos: () => request<any[]>('/acf/grupos/'),
+  acfCreateGrupo: (d: { tipo: string; grupo: string; descripcion: string }) =>
+    request<any>('/acf/grupos/', { method: 'POST', body: JSON.stringify(d) }),
+  acfUpdateGrupo: (tipo: string, grupo: string, d: { descripcion: string }) =>
+    request<any>(`/acf/grupos/${encodeURIComponent(tipo)}/${encodeURIComponent(grupo)}/`, { method: 'PATCH', body: JSON.stringify(d) }),
+  acfDeleteGrupo: (tipo: string, grupo: string) =>
+    request<any>(`/acf/grupos/${encodeURIComponent(tipo)}/${encodeURIComponent(grupo)}/`, { method: 'DELETE' }),
+
   acfListSubgrupos: () => request<any[]>('/acf/subgrupos/'),
+  acfCreateSubgrupo: (d: { tipo: string; grupo: string; subgrupo: string; descripcion: string }) =>
+    request<any>('/acf/subgrupos/', { method: 'POST', body: JSON.stringify(d) }),
+  acfUpdateSubgrupo: (tipo: string, grupo: string, subgrupo: string, d: { descripcion: string }) =>
+    request<any>(`/acf/subgrupos/${encodeURIComponent(tipo)}/${encodeURIComponent(grupo)}/${encodeURIComponent(subgrupo)}/`, { method: 'PATCH', body: JSON.stringify(d) }),
+  acfDeleteSubgrupo: (tipo: string, grupo: string, subgrupo: string) =>
+    request<any>(`/acf/subgrupos/${encodeURIComponent(tipo)}/${encodeURIComponent(grupo)}/${encodeURIComponent(subgrupo)}/`, { method: 'DELETE' }),
+
   acfListMarcas: () => request<any[]>('/acf/marcas/'),
+  acfCreateMarca: (d: { marca: string; descripcion: string }) =>
+    request<any>('/acf/marcas/', { method: 'POST', body: JSON.stringify(d) }),
+  acfUpdateMarca: (marca: string, d: { descripcion: string }) =>
+    request<any>(`/acf/marcas/${encodeURIComponent(marca)}/`, { method: 'PATCH', body: JSON.stringify(d) }),
+  acfDeleteMarca: (marca: string) =>
+    request<any>(`/acf/marcas/${encodeURIComponent(marca)}/`, { method: 'DELETE' }),
+
   acfListResponsables: () => request<any[]>('/acf/responsables/'),
+  acfCreateResponsable: (d: { responsable: string; nombre: string }) =>
+    request<any>('/acf/responsables/', { method: 'POST', body: JSON.stringify(d) }),
+  acfUpdateResponsable: (responsable: string, d: { nombre: string }) =>
+    request<any>(`/acf/responsables/${encodeURIComponent(responsable)}/`, { method: 'PATCH', body: JSON.stringify(d) }),
+  acfDeleteResponsable: (responsable: string) =>
+    request<any>(`/acf/responsables/${encodeURIComponent(responsable)}/`, { method: 'DELETE' }),
+
   acfListDepartamentos: () => request<any[]>('/acf/departamentos/'),
+  acfCreateDepartamento: (d: { departamento: string; descripcion: string }) =>
+    request<any>('/acf/departamentos/', { method: 'POST', body: JSON.stringify(d) }),
+  acfUpdateDepartamento: (departamento: string, d: { descripcion: string }) =>
+    request<any>(`/acf/departamentos/${encodeURIComponent(departamento)}/`, { method: 'PATCH', body: JSON.stringify(d) }),
+  acfDeleteDepartamento: (departamento: string) =>
+    request<any>(`/acf/departamentos/${encodeURIComponent(departamento)}/`, { method: 'DELETE' }),
   acfListActivos: (params: {
     no_cia: string; punto?: string; status?: string; tipo?: string
     grupo?: string; departamento?: string; search?: string; limit?: number

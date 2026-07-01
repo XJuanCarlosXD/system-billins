@@ -868,21 +868,15 @@ invListCierres: (no_cia: string, punto: string) =>
 - Modify: `frontend/src/features/acf/acf-simple-tables.tsx` (convertir cada export a CRUD completo) o split en archivos por catálogo
 - Backend endpoints: verificar/crear `POST/PUT/DELETE /api/acf/categorias/`, `…/grupos/`, `…/subgrupos/`, `…/marcas/`, `…/departamentos/`, `…/responsables/`, `…/puntos/`
 
-- [ ] **Step 10.1: Auditar endpoints backend existentes**
+- [x] **Step 10.1: Auditar endpoints backend existentes** — sólo GET list, sin CRUD. 6 catálogos objetivo: categorías, grupos, subgrupos, marcas, responsables, departamentos. (CIAs/Puntos read-only)
 
-Run: `grep -n 'def acf_' backend/apps/legacy/acf_views.py | head -30`
+- [x] **Step 10.2: CRUD backend implementado** — `acf_repo.py` extendido con create/update/delete para 6 catálogos + validaciones referencial (no borrar si en uso en TACF_ACTIVOS/TACF_SUBGRUPO). `acf_views.py` con helpers `_crud_list`/`_crud_detail` + funciones GET+POST y PATCH+DELETE. `acf_urls.py` con `path('<catalogo>/<pk>/', ...)`. `COMPILE_OK` en VM.
 
-- [ ] **Step 10.2: Para cada catálogo SIN endpoints, crear `POST/PUT/DELETE`**
+- [x] **Step 10.3: Métodos api client** — `acfCreate/Update/Delete` para las 6 catálogos en `regal-general-api.ts`
 
-Patrón en `cxc_views.py`/`fat_views.py`. Validar empresa+punto+username con `_check_acf_access`. Soft-delete cuando la columna `activo` exista.
+- [x] **Step 10.4: Frontend CRUD** — `acf-simple-tables.tsx` reescrito con componente genérico `CatalogCrud` (Dialog crear/editar + AlertDialog eliminar + toast success/error via React Query mutations). AcfCategorias/Grupos/Subgrupos/Marcas/Responsables/Departamentos usan CatalogCrud; AcfCias/AcfPuntos siguen read-only.
 
-- [ ] **Step 10.3: Agregar métodos al api client** (`acfSaveCategoria`, `acfDeleteCategoria`, etc.)
-
-- [ ] **Step 10.4: Reescribir cada componente** con botón Nueva + dialog crear/editar + acción eliminar por fila
-
-Plantilla en `features/fat/fat-condiciones-pago.tsx` o `features/odc/odc-config.tsx` (CiasTab).
-
-- [ ] **Step 10.5: Commit por catálogo (1 commit cada 2 catálogos) + push final**
+- [x] **Step 10.5: Commit + push** — commit único (PR10 completo)
 
 ---
 

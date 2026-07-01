@@ -42,46 +42,138 @@ def acf_puntos(request):
     return JsonResponse(acf_repo.list_puntos(request.GET.get('no_cia', '')), safe=False)
 
 
+def _crud_list(request, list_fn, create_fn):
+    if request.method == 'POST':
+        try:
+            row = create_fn(_body(request))
+            return JsonResponse(row, status=201)
+        except ValueError as e:
+            return JsonResponse({'error': str(e)}, status=400)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    return JsonResponse(list_fn(), safe=False)
+
+
+def _crud_detail(request, update_fn, delete_fn):
+    try:
+        if request.method == 'PATCH':
+            return JsonResponse(update_fn(_body(request)))
+        if request.method == 'DELETE':
+            delete_fn()
+            return JsonResponse({'ok': True})
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+    return JsonResponse({'error': 'method not allowed'}, status=405)
+
+
 @login_required
 @csrf_exempt
-@require_http_methods(['GET'])
+@require_http_methods(['GET', 'POST'])
 def acf_categorias(request):
-    return JsonResponse(acf_repo.list_categorias(), safe=False)
+    return _crud_list(request, acf_repo.list_categorias, acf_repo.create_categoria)
 
 
 @login_required
 @csrf_exempt
-@require_http_methods(['GET'])
+@require_http_methods(['PATCH', 'DELETE'])
+def acf_categoria_detail(request, categoria):
+    return _crud_detail(
+        request,
+        lambda data: acf_repo.update_categoria(categoria, data),
+        lambda: acf_repo.delete_categoria(categoria),
+    )
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET', 'POST'])
 def acf_grupos(request):
-    return JsonResponse(acf_repo.list_grupos(), safe=False)
+    return _crud_list(request, acf_repo.list_grupos, acf_repo.create_grupo)
 
 
 @login_required
 @csrf_exempt
-@require_http_methods(['GET'])
+@require_http_methods(['PATCH', 'DELETE'])
+def acf_grupo_detail(request, tipo, grupo):
+    return _crud_detail(
+        request,
+        lambda data: acf_repo.update_grupo(tipo, grupo, data),
+        lambda: acf_repo.delete_grupo(tipo, grupo),
+    )
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET', 'POST'])
 def acf_subgrupos(request):
-    return JsonResponse(acf_repo.list_subgrupos(), safe=False)
+    return _crud_list(request, acf_repo.list_subgrupos, acf_repo.create_subgrupo)
 
 
 @login_required
 @csrf_exempt
-@require_http_methods(['GET'])
+@require_http_methods(['PATCH', 'DELETE'])
+def acf_subgrupo_detail(request, tipo, grupo, subgrupo):
+    return _crud_detail(
+        request,
+        lambda data: acf_repo.update_subgrupo(tipo, grupo, subgrupo, data),
+        lambda: acf_repo.delete_subgrupo(tipo, grupo, subgrupo),
+    )
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET', 'POST'])
 def acf_marcas(request):
-    return JsonResponse(acf_repo.list_marcas(), safe=False)
+    return _crud_list(request, acf_repo.list_marcas, acf_repo.create_marca)
 
 
 @login_required
 @csrf_exempt
-@require_http_methods(['GET'])
+@require_http_methods(['PATCH', 'DELETE'])
+def acf_marca_detail(request, marca):
+    return _crud_detail(
+        request,
+        lambda data: acf_repo.update_marca(marca, data),
+        lambda: acf_repo.delete_marca(marca),
+    )
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET', 'POST'])
 def acf_responsables(request):
-    return JsonResponse(acf_repo.list_responsables(), safe=False)
+    return _crud_list(request, acf_repo.list_responsables, acf_repo.create_responsable)
 
 
 @login_required
 @csrf_exempt
-@require_http_methods(['GET'])
+@require_http_methods(['PATCH', 'DELETE'])
+def acf_responsable_detail(request, responsable):
+    return _crud_detail(
+        request,
+        lambda data: acf_repo.update_responsable(responsable, data),
+        lambda: acf_repo.delete_responsable(responsable),
+    )
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET', 'POST'])
 def acf_departamentos(request):
-    return JsonResponse(acf_repo.list_departamentos(), safe=False)
+    return _crud_list(request, acf_repo.list_departamentos, acf_repo.create_departamento)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['PATCH', 'DELETE'])
+def acf_departamento_detail(request, departamento):
+    return _crud_detail(
+        request,
+        lambda data: acf_repo.update_departamento(departamento, data),
+        lambda: acf_repo.delete_departamento(departamento),
+    )
 
 
 @login_required
