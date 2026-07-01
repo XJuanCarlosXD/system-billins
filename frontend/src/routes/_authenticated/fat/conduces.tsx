@@ -8,15 +8,10 @@ export const Route = createFileRoute('/_authenticated/fat/conduces')({
 
 function _Page() {
   const { selectedCompany, selectedPoint } = useCompany()
-  const noCia = selectedCompany ?? ''
-  const punto  = selectedPoint  ?? ''
-  const now = new Date()
   return (
     <ConducesFat
-      noCia={noCia}
-      punto={punto}
-      ano={now.getFullYear()}
-      mes={now.getMonth() + 1}
+      noCia={selectedCompany ?? ''}
+      punto={selectedPoint ?? ''}
     />
   )
 }

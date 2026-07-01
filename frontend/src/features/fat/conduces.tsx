@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
 import {
+  Calendar,
   Eye,
   FileSpreadsheet,
   FileText,
@@ -40,9 +42,14 @@ import { buildReportMeta, downloadCsv } from './fat-export'
 interface Props {
   noCia: string
   punto: string
-  ano: number
-  mes: number
+  // ano/mes son opcionales — si no se pasan, se usa "Todos los periodos" como default
+  // y el usuario puede filtrar con los selectores de mes/ano de la barra.
+  ano?: number
+  mes?: number
 }
+
+const MESES_NAMES = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
 type Conduce = {
   no_cia: string
@@ -98,7 +105,7 @@ const fmtN = (n: number) =>
     maximumFractionDigits: 2,
   })
 
-export function ConducesFat({ noCia, punto, ano, mes }: Props) {
+export function ConducesFat({ noCia, punto, ano: anoProp, mes: mesProp }: Props) {
   const navigate = useNavigate()
   const [rows, setRows] = useState<Conduce[]>([])
   const [loading, setLoading] = useState(false)
@@ -108,6 +115,23 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = 10
+
+  // Filtro de periodo: por defecto "Todos" para que los conduces historicos no
+  // desaparezcan tras un cierre. El usuario puede filtrar por mes/ano cuando quiera.
+  const [anoFiltro, setAnoFiltro] = useState<number>(anoProp ?? 0)
+  const [mesFiltro, setMesFiltro] = useState<number>(mesProp ?? 0)
+
+  // Lee el periodo activo de TFAT_PUNTO para mostrarlo en un badge informativo.
+  const periodoQ = useQuery({
+    queryKey: ['fat-punto', noCia, punto],
+    queryFn: async () => {
+      const d: any = await regalGeneralApi.fatListPuntos(noCia)
+      const items: any[] = d.items ?? d
+      return items.find((p) => String(p.punto) === String(punto)) ?? null
+    },
+    enabled: !!noCia && !!punto,
+  })
+  const periodoActivo = periodoQ.data as { mes_proceso?: number; ano_proceso?: number } | null
 
   const [selected, setSelected] = useState<ConduceDetalle | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
@@ -124,8 +148,8 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
         pageSize,
         search,
         tipo === 'ALL' ? '' : tipo,
-        ano,
-        mes
+        anoFiltro,
+        mesFiltro
       )
       .then((d) => {
         setRows((d.items ?? []) as Conduce[])
@@ -138,7 +162,18 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
   useEffect(() => {
     setPage(1)
     load(1)
-  }, [noCia, punto, ano, mes, tipo])
+  }, [noCia, punto, anoFiltro, mesFiltro, tipo])
+
+  const usarPeriodoActivo = () => {
+    if (!periodoActivo) return
+    setAnoFiltro(Number(periodoActivo.ano_proceso) || 0)
+    setMesFiltro(Number(periodoActivo.mes_proceso) || 0)
+  }
+
+  const limpiarPeriodo = () => {
+    setAnoFiltro(0)
+    setMesFiltro(0)
+  }
 
   useEffect(() => {
     if (!noCia) return
@@ -184,14 +219,23 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
     }
   }
 
+  const periodoLabel = (() => {
+    if (anoFiltro && mesFiltro) return `${String(mesFiltro).padStart(2, '0')}/${anoFiltro}`
+    if (anoFiltro) return `${anoFiltro}`
+    if (mesFiltro) return `Mes ${String(mesFiltro).padStart(2, '0')}`
+    return 'Todos los periodos'
+  })()
+  const periodoSlug = (() => {
+    if (anoFiltro && mesFiltro) return `${anoFiltro}${String(mesFiltro).padStart(2, '0')}`
+    if (anoFiltro) return `${anoFiltro}`
+    if (mesFiltro) return `mes${String(mesFiltro).padStart(2, '0')}`
+    return 'todos'
+  })()
+
   const exportCsv = async () => {
-    const meta = await buildReportMeta(
-      noCia,
-      punto,
-      `${String(mes).padStart(2, '0')}/${ano}`
-    )
+    const meta = await buildReportMeta(noCia, punto, periodoLabel)
     downloadCsv(
-      `fat-conduces-${ano}${String(mes).padStart(2, '0')}.csv`,
+      `fat-conduces-${periodoSlug}.csv`,
       [
         'No. Conduce',
         'Tipo',
@@ -221,11 +265,7 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
   }
 
   const exportPdf = async () => {
-    const meta = await buildReportMeta(
-      noCia,
-      punto,
-      `${String(mes).padStart(2, '0')}/${ano}`
-    )
+    const meta = await buildReportMeta(noCia, punto, periodoLabel)
     const win = window.open('', '_blank')!
     win.document.write(`<html><head><title>Conduces / Cotizaciones</title>
     <style>body{font-family:Arial,sans-serif;font-size:10px;padding:20px}
@@ -258,12 +298,18 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
     const API_BASE =
       (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
     const params = new URLSearchParams({ no_cia: noCia, punto })
-    // periodo basado en ano/mes (primer dia al ultimo dia del mes)
-    const desde = `${ano}-${String(mes).padStart(2, '0')}-01`
-    const lastDay = new Date(ano, mes, 0).getDate()
-    const hasta = `${ano}-${String(mes).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
-    params.set('desde', desde)
-    params.set('hasta', hasta)
+    // Si hay filtro por mes+ano, restringimos por rango; si no, dejamos que el
+    // backend devuelva todo (sin desde/hasta) para no ocultar historicos.
+    if (anoFiltro && mesFiltro) {
+      const desde = `${anoFiltro}-${String(mesFiltro).padStart(2, '0')}-01`
+      const lastDay = new Date(anoFiltro, mesFiltro, 0).getDate()
+      const hasta = `${anoFiltro}-${String(mesFiltro).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+      params.set('desde', desde)
+      params.set('hasta', hasta)
+    } else if (anoFiltro) {
+      params.set('desde', `${anoFiltro}-01-01`)
+      params.set('hasta', `${anoFiltro}-12-31`)
+    }
     if (tipo && tipo !== 'ALL') params.set('tipo', tipo)
     if (search) params.set('search', search)
     window.open(
@@ -295,9 +341,15 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
           <h2 className='flex items-center gap-2 text-lg font-semibold'>
             <PackageOpen className='h-5 w-5' /> Cotizaciones / Conduces
           </h2>
-          <p className='text-sm text-muted-foreground'>
-            FFAT — Empresa {noCia} &middot; Punto {punto}
-          </p>
+          <div className='mt-0.5 flex flex-wrap items-center gap-2 text-sm text-muted-foreground'>
+            <span>Empresa {noCia} &middot; Punto {punto}</span>
+            {periodoActivo && (
+              <Badge variant='outline' className='text-xs'>
+                <Calendar className='mr-1 h-3 w-3' />
+                Periodo activo: {MESES_NAMES[Number(periodoActivo.mes_proceso) || 0]} {periodoActivo.ano_proceso}
+              </Badge>
+            )}
+          </div>
         </div>
         <div className='flex gap-2'>
           <Button variant='outline' size='sm' onClick={exportPdf}>
@@ -312,7 +364,7 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
         </div>
       </div>
 
-      <div className='flex flex-wrap gap-2'>
+      <div className='flex flex-wrap items-end gap-2'>
         <Select value={tipo} onValueChange={setTipo}>
           <SelectTrigger className='h-9 w-56 text-sm'>
             <SelectValue placeholder='Tipo' />
@@ -326,7 +378,57 @@ export function ConducesFat({ noCia, punto, ano, mes }: Props) {
             ))}
           </SelectContent>
         </Select>
+
+        <div className='flex flex-col gap-1'>
+          <Label className='text-[10px] uppercase tracking-wide text-muted-foreground'>Mes</Label>
+          <Select
+            value={mesFiltro ? String(mesFiltro) : 'ALL'}
+            onValueChange={(v) => setMesFiltro(v === 'ALL' ? 0 : Number(v))}
+          >
+            <SelectTrigger className='h-9 w-40 text-sm'>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='ALL'>Todos los meses</SelectItem>
+              {MESES_NAMES.slice(1).map((n, i) => (
+                <SelectItem key={i + 1} value={String(i + 1)}>{n}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className='flex flex-col gap-1'>
+          <Label className='text-[10px] uppercase tracking-wide text-muted-foreground'>Año</Label>
+          <Input
+            type='number'
+            className='h-9 w-24 text-sm'
+            placeholder='Todos'
+            value={anoFiltro || ''}
+            min={2000}
+            max={2099}
+            onChange={(e) => setAnoFiltro(e.target.value ? Number(e.target.value) : 0)}
+          />
+        </div>
+
         <div className='flex gap-1'>
+          <Button
+            variant='outline'
+            size='sm'
+            className='h-9'
+            onClick={usarPeriodoActivo}
+            disabled={!periodoActivo}
+            title='Filtrar por el periodo activo de FAT'
+          >
+            <Calendar className='mr-1 h-4 w-4' /> Activo
+          </Button>
+          {(anoFiltro || mesFiltro) ? (
+            <Button variant='ghost' size='sm' className='h-9' onClick={limpiarPeriodo}>
+              Limpiar
+            </Button>
+          ) : null}
+        </div>
+
+        <div className='ml-auto flex gap-1'>
           <Input
             placeholder='Nombre, codigo cliente o no. conduce...'
             value={search}
