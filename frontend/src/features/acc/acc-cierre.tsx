@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog'
 import { Lock, CheckCircle2 } from 'lucide-react'
 import { PeriodoBadge, AlertIrreversible } from '@/components/cierre'
+import { GuardedButton } from '@/components/access'
 
 const fmtDt = (s: any) => s ? String(s).slice(0, 16).replace('T', ' ') : ''
 
@@ -100,10 +101,11 @@ export function AccCierre() {
           </CardContent></Card>
           <Card><CardContent className="py-3 flex flex-col gap-2">
             <div className="text-xs text-muted-foreground">Acción</div>
-            <Button onClick={() => setConfirm(true)} disabled={!puedeCerrar}
+            <GuardedButton modulo="acc" flag="HACER_CIERRE"
+              onClick={() => setConfirm(true)} disabled={!puedeCerrar}
               variant={puedeCerrar ? 'default' : 'outline'}>
               <Lock className="h-4 w-4 mr-1" /> Aplicar cierre
-            </Button>
+            </GuardedButton>
           </CardContent></Card>
         </div>
       )}

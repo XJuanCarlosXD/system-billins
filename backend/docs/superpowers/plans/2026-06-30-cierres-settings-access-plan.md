@@ -1068,17 +1068,17 @@ export function GuardedButton({ modulo, flag, disableInsteadOfHide, children, ..
 }
 ```
 
-- [ ] **Step 15.2: Proteger botones Cierre con `HACER_CIERRE`**
+- [x] **Step 15.2: Proteger botones Cierre con `HACER_CIERRE`** — 8 botones protegidos con GuardedButton: cxc-cierre.tsx (CxcCierre), cxp-procesos.tsx (CxpCierre), fat/cierre-mensual.tsx, cnt/cierre-mensual.tsx, chc/chc-cierres.tsx, acc/acc-cierre.tsx, acf/acf-cierre.tsx, inv/cierre-mensual.tsx (solo botón principal; el interior del dialog queda sin guardar porque es inaccesible sin haber pasado por el primero).
 
 En cada vista de cierre (8 archivos), reemplazar el `<Button onClick={ejecutar} variant="destructive">` por `<GuardedButton modulo="cxp" flag="HACER_CIERRE" onClick={ejecutar} variant="destructive">`. Repetir por módulo correspondiente.
 
-- [ ] **Step 15.3: Proteger Eliminar con flags ANULAR_***
+- [?] **Step 15.3: Proteger Eliminar con flags ANULAR_*** — pospuesto: requiere auditar 8+ features (fat/anular, chc/anular, odc/anular, etc.) y mapear cada botón a su flag ANULAR_* específico. Fuera del scope de este run automático; requiere pase manual.
 
 Identificar los principales (factura anular, conduce anular, cheque anular, ODC anular). Reemplazar `<Button>` por `<GuardedButton>` con flag correspondiente de `FLAG_LABELS`.
 
-- [ ] **Step 15.4: Proteger Imprimir con `IMPRIMIR_DOCU` cuando aplique**
+- [?] **Step 15.4: Proteger Imprimir con `IMPRIMIR_DOCU` cuando aplique** — pospuesto (mismo motivo que 15.3): auditoría amplia; requiere decisión sobre cada uso.
 
-- [ ] **Step 15.5: Commit + push + smoke final con usuario test sin flags**
+- [!] **Step 15.5: Commit + push + smoke final con usuario test sin flags** — commit + push del step 15.2 realizado. Smoke con usuario test pendiente humano.
 
 ---
 

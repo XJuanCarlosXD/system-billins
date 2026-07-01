@@ -18,6 +18,7 @@ import {
 import { Printer, ChevronRight, CheckCircle2, Lock } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { PeriodoBadge, AlertIrreversible } from '@/components/cierre'
+import { GuardedButton } from '@/components/access'
 
 interface P { noCia: string; punto?: string }
 
@@ -354,10 +355,11 @@ export function FatCierre({ noCia, punto = '01' }: P) {
             </div>
           )}
 
-          <Button onClick={() => setConfirm(true)} disabled={yaCerrado}
+          <GuardedButton modulo="fat" flag="HACER_CIERRE"
+                  onClick={() => setConfirm(true)} disabled={yaCerrado}
                   variant="destructive" className="w-full gap-2">
             <Lock className="h-4 w-4" /> Cerrar {MESES[mes - 1]} {ano}
-          </Button>
+          </GuardedButton>
         </CardContent>
       </Card>
 

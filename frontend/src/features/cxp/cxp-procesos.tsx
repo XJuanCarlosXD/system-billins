@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PeriodoBadge, AlertIrreversible } from '@/components/cierre'
+import { GuardedButton } from '@/components/access'
 import { buildReportMeta } from '../cnt/export-utils'
 import {
   Dialog,
@@ -1598,11 +1599,12 @@ export function CxpCierre({ noCia, punto = '' }: P) {
             </div>
           )}
 
-          <Button onClick={ejecutar} disabled={cerrarMut.isPending || !periodoQ.data}
+          <GuardedButton modulo="cxp" flag="HACER_CIERRE"
+                  onClick={ejecutar} disabled={cerrarMut.isPending || !periodoQ.data}
                   variant='destructive' className='w-full gap-2'>
             <CheckCircle2 className='h-4 w-4' />
             {cerrarMut.isPending ? 'Procesando…' : 'Ejecutar Cierre'}
-          </Button>
+          </GuardedButton>
         </CardContent>
       </Card>
     </div>

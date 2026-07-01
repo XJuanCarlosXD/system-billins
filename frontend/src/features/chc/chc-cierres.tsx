@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/dialog'
 import { Lock, CheckCircle2 } from 'lucide-react'
 import { AlertIrreversible } from '@/components/cierre'
+import { GuardedButton } from '@/components/access'
 
 const MESES = [
   '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -138,14 +139,16 @@ export function ChcCierres() {
             </div>
           )}
 
-          <Button
+          <GuardedButton
+            modulo="chc"
+            flag="HACER_CIERRE"
             onClick={() => setConfirm(true)}
             disabled={!cuenta || !selectedPoint || yaCerrada}
             variant='destructive'
             className='w-full gap-2'
           >
             <Lock className='h-4 w-4' /> Cerrar Conciliación
-          </Button>
+          </GuardedButton>
         </CardContent>
       </Card>
 

@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PeriodoBadge, AlertIrreversible } from '@/components/cierre'
+import { GuardedButton } from '@/components/access'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
@@ -104,10 +105,11 @@ export function AcfCierre() {
           </CardContent></Card>
           <Card><CardContent className="py-3 flex flex-col gap-2">
             <div className="text-xs text-muted-foreground">Acción</div>
-            <Button onClick={() => setConfirm(true)} disabled={!puedeCerrar}
+            <GuardedButton modulo="acf" flag="HACER_CIERRE"
+                    onClick={() => setConfirm(true)} disabled={!puedeCerrar}
                     variant={puedeCerrar ? 'default' : 'outline'}>
               <Lock className="h-4 w-4 mr-1" /> Aplicar cierre
-            </Button>
+            </GuardedButton>
           </CardContent></Card>
         </div>
       )}

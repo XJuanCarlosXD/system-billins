@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { GuardedButton } from '@/components/access'
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
 
@@ -208,7 +209,9 @@ export function CierreMensual({ noCia, punto }: Props) {
 
           {/* Acción */}
           <div className='pt-2'>
-            <Button
+            <GuardedButton
+              modulo="inv"
+              flag="HACER_CIERRE"
               variant='destructive'
               onClick={() => { setConfirmInput(''); setShowConfirm(true) }}
               disabled={loading}
@@ -216,7 +219,7 @@ export function CierreMensual({ noCia, punto }: Props) {
             >
               <BookOpenCheck className='h-4 w-4' />
               {loading ? 'Procesando...' : 'Ejecutar Cierre'}
-            </Button>
+            </GuardedButton>
           </div>
 
         </CardContent>

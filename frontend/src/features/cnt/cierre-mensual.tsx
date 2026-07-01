@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { PeriodoBadge, AlertIrreversible } from '@/components/cierre'
+import { GuardedButton } from '@/components/access'
 import { toast } from 'sonner'
 
 interface Props {
@@ -150,7 +151,9 @@ export function CierreMensual({ noCia, punto }: Props) {
           )}
 
           <div className='flex justify-center pt-2'>
-            <Button
+            <GuardedButton
+              modulo="cnt"
+              flag="HACER_CIERRE"
               size='lg'
               disabled={!canClose || cerrarMut.isPending}
               onClick={handleCerrar}
@@ -159,7 +162,7 @@ export function CierreMensual({ noCia, punto }: Props) {
             >
               <Lock className='mr-2 h-4 w-4' />
               {cerrarMut.isPending ? 'Cerrando…' : 'Ejecutar Cierre'}
-            </Button>
+            </GuardedButton>
           </div>
         </CardContent>
       </Card>

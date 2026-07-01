@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Printer, ChevronRight, CheckCircle2, AlertTriangle, Calendar } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { buildReportMeta } from '../cnt/export-utils'
+import { GuardedButton } from '@/components/access'
 
 interface P { noCia: string; punto?: string; mes?: number; ano?: number }
 
@@ -370,11 +371,12 @@ export function CxcCierre({ noCia, punto = '01' }: P) {
             </div>
           )}
 
-          <Button onClick={ejecutar} disabled={cerrarMut.isPending || !periodoQ.data}
+          <GuardedButton modulo="cxc" flag="HACER_CIERRE"
+                  onClick={ejecutar} disabled={cerrarMut.isPending || !periodoQ.data}
                   variant="destructive" className="w-full gap-2">
             <CheckCircle2 className="h-4 w-4" />
             {cerrarMut.isPending ? 'Procesando…' : 'Ejecutar Cierre'}
-          </Button>
+          </GuardedButton>
         </CardContent>
       </Card>
     </div>
