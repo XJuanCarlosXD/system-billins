@@ -1,6 +1,7 @@
 import z from 'zod'
 import { createFileRoute } from '@tanstack/react-router'
 import { InvPage } from '@/features/inv'
+import { RequireModule } from '@/components/access'
 
 export const Route = createFileRoute('/_authenticated/inv')({
   validateSearch: z.object({
@@ -10,5 +11,13 @@ export const Route = createFileRoute('/_authenticated/inv')({
       .catch('configuracion'),
     view: z.string().optional().catch(undefined),
   }),
-  component: InvPage,
+  component: GuardedInvPage,
 })
+
+function GuardedInvPage() {
+  return (
+    <RequireModule modulo="inv">
+      <InvPage />
+    </RequireModule>
+  )
+}

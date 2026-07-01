@@ -4,6 +4,7 @@ import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ThemeSwitch } from '@/components/theme-switch'
+import { RequireModule } from '@/components/access'
 
 export const Route = createFileRoute('/_authenticated/sdn')({
   component: SdnLayout,
@@ -11,7 +12,7 @@ export const Route = createFileRoute('/_authenticated/sdn')({
 
 function SdnLayout() {
   return (
-    <>
+    <RequireModule modulo="sdn">
       <Header>
         <div className="me-auto flex items-center gap-2">
           <Users className="h-5 w-5 shrink-0" />
@@ -23,6 +24,6 @@ function SdnLayout() {
       <Main>
         <Outlet />
       </Main>
-    </>
+    </RequireModule>
   )
 }

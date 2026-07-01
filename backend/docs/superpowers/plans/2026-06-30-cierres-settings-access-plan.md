@@ -1016,7 +1016,7 @@ function ForbiddenPage() {
 }
 ```
 
-- [ ] **Step 14.3: Envolver layouts de cada módulo con `RequireModule`**
+- [x] **Step 14.3: Envolver layouts de cada módulo con `RequireModule`** — 10 layouts envueltos: fat, cxc, cxp, chc, acc, acf, odc, sdn (usan Outlet), inv y cnt (usan CntPage/InvPage directamente via wrapper `GuardedCntPage`/`GuardedInvPage`).
 
 Para cada `routes/_authenticated/<m>.tsx` (layout):
 
@@ -1033,7 +1033,7 @@ function _Layout() {
 }
 ```
 
-- [ ] **Step 14.4: Commit + push + smoke**
+- [!] **Step 14.4: Commit + push + smoke** — commit + push hecho. Smoke con usuario no-admin pendiente de verificación humana.
 
 ---
 

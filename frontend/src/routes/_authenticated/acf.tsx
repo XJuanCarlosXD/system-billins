@@ -4,6 +4,7 @@ import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ThemeSwitch } from '@/components/theme-switch'
+import { RequireModule } from '@/components/access'
 
 export const Route = createFileRoute('/_authenticated/acf')({
   component: AcfLayout,
@@ -11,7 +12,7 @@ export const Route = createFileRoute('/_authenticated/acf')({
 
 function AcfLayout() {
   return (
-    <>
+    <RequireModule modulo="acf">
       <Header>
         <div className="me-auto flex items-center gap-2">
           <Package className="h-5 w-5 shrink-0" />
@@ -23,6 +24,6 @@ function AcfLayout() {
       <Main>
         <Outlet />
       </Main>
-    </>
+    </RequireModule>
   )
 }
