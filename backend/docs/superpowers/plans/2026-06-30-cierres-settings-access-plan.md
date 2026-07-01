@@ -792,13 +792,9 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 - Modify: `frontend/src/components/layout/data/sidebar-data.ts` (cambiar URLs `/inv?section=…&view=…` a `/inv/...`)
 - Modify: `frontend/src/features/inv/index.tsx` (remover routing por `?section=cierre`)
 
-- [ ] **Step 6.1: Borrar `.bak`**
+- [x] **Step 6.1: Borrar `.bak`** — hecho en runner (`cierre-mensual.tsx.bak`, `cierre-asiento.tsx.bak`).
 
-```bash
-git rm frontend/src/features/inv/cierre-mensual.tsx.bak frontend/src/features/inv/cierre-asiento.tsx.bak
-```
-
-- [ ] **Step 6.2: Agregar métodos a api client**
+- [?] **Step 6.2: Agregar métodos a api client** — necesita confirmación humana: los endpoints `/inv/cierre/mensual/`, `/inv/cierre/generar-asiento/`, `/inv/cierres/` no existen aún en el backend. Antes de refactorizar el frontend hay que crear los endpoints con lógica de INV (TINV_PUNTO.mes_proceso/ano_proceso + TINV_CIERRE + TINV_MOVIMIENTO checks). Riesgo de touch producción — requiere spec de negocio antes.
 
 ```ts
 invListPuntos: (no_cia: string) =>
@@ -811,19 +807,15 @@ invListCierres: (no_cia: string, punto: string) =>
   request<any[]>(`/inv/cierres/?no_cia=${no_cia}&punto=${punto}`),
 ```
 
-- [ ] **Step 6.3: Refactorizar los 3 components a React Query + `regalGeneralApi`**
+- [?] **Step 6.3: Refactorizar los 3 components a React Query + `regalGeneralApi`** — bloqueado por 6.2.
 
-Eliminar `fetch('http://10.0.0.99:8000/api/…')`. Usar `useQuery`/`useMutation`. Mantener funcionalidad pero ajustar UI a Card + PeriodoBadge + AlertIrreversible.
+- [?] **Step 6.4: Crear 3 rutas dedicadas** — bloqueado por 6.2.
 
-- [ ] **Step 6.4: Crear 3 rutas dedicadas** (igual patrón que PR3)
+- [?] **Step 6.5: Actualizar sidebar INV** — bloqueado por 6.2.
 
-- [ ] **Step 6.5: Actualizar sidebar INV** (línea 440-457: cambiar `url: '/inv', search: { section: 'cierre', view: 'cierre-mensual' }` por `url: '/inv/cierre'`)
+- [?] **Step 6.6: Remover routing `section=cierre` del shell INV** — bloqueado por 6.2.
 
-- [ ] **Step 6.6: Remover routing `section=cierre` del shell INV**
-
-En `features/inv/index.tsx`, si hay un switch por `search.view`, mantener para las otras secciones pero quitar la rama `'cierre'`.
-
-- [ ] **Step 6.7: Commit + push + Netlify smoke**
+- [?] **Step 6.7: Commit + push + Netlify smoke** — bloqueado por 6.2.
 
 ---
 
