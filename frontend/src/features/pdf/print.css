@@ -65,16 +65,23 @@
     background: #fff !important;
     margin: 0 !important;
     padding: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
   }
   /* En impresión la .pdf-page debe llenar exactamente el @page — sin margin
      auto (que en algunos browsers se traduce en centrado horizontal + margen
      extra) y con box-shadow apagada. Se conservan los 15mm de padding
-     interior (área imprimible) porque el @page margin es 0. */
+     interior (área imprimible) porque el @page margin es 0.
+     min-height se pone en 0 para que el div no fuerce ocupar 297mm exactos
+     y así evite generar una hoja 2 en blanco cuando el contenido llega
+     justo al borde inferior. El @page ya define el tamaño de la hoja. */
   .pdf-page {
     box-shadow: none !important;
     margin: 0 !important;
     max-width: none !important;
     padding: 15mm;
+    min-height: 0 !important;
+    height: auto !important;
   }
   /* Cada tamaño/orientación aterriza en su @page nombrado. */
   .pdf-page--A4    { page: portraitA4; }
@@ -82,6 +89,13 @@
   .pdf-page--POS80 { page: portraitPOS80; }
   .pdf-page--landscape.pdf-page--A4    { page: landscapeA4; }
   .pdf-page--landscape.pdf-page--LETTER { page: landscapeLETTER; }
+
+  /* Evitar page-break residual del ultimo hijo (footer, firmas) que a veces
+     inyecta un salto de pagina fantasma. */
+  .pdf-page > *:last-child {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
 
   .pdf-noprint { display: none !important; }
 }
