@@ -17,6 +17,7 @@
 .pdf-page--POS80 { width: 80mm; min-height: 200mm; padding: 4mm; font-size: 10px; max-width: 80mm; }
 
 .pdf-page--landscape.pdf-page--A4 { width: 297mm; min-height: 210mm; max-width: 297mm; }
+.pdf-page--landscape.pdf-page--LETTER { width: 279mm; min-height: 216mm; max-width: 279mm; }
 
 .pdf-canvas { display: flex; flex-direction: column; gap: 6px; }
 .pdf-text-sm { font-size: 10px; color: #334155; line-height: 1.3; }
@@ -44,17 +45,45 @@
 .pdf-firmas { page-break-inside: avoid; }
 .pdf-footer { page-break-inside: avoid; }
 
-/* Numeración de páginas — counters de @page no aplican; usamos un span con counter */
+/* ─── Reglas @page: una por combinación tamaño × orientación ────────────────
+   Usamos "named pages" via `page:` en @media print para que cada plantilla
+   aterrice en la hoja correcta. El navegador respeta la orientación del
+   @page nombrado que la clase de la .pdf-page pida.                          */
 @page {
   size: A4 portrait;
   margin: 0;
 }
+@page portraitA4    { size: A4 portrait;    margin: 0; }
+@page landscapeA4   { size: A4 landscape;   margin: 0; }
+@page portraitLETTER  { size: Letter portrait;  margin: 0; }
+@page landscapeLETTER { size: Letter landscape; margin: 0; }
+@page portraitPOS80 { size: 80mm 200mm; margin: 0; }
 
 @media print {
-  html, body { background: #fff; margin: 0; padding: 0; }
-  .pdf-page { box-shadow: none; padding: 15mm; }
+  /* Cero todo alrededor de la hoja para que ni HTML ni body inyecten margen. */
+  html, body {
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  /* En impresión la .pdf-page debe llenar exactamente el @page — sin margin
+     auto (que en algunos browsers se traduce en centrado horizontal + margen
+     extra) y con box-shadow apagada. Se conservan los 15mm de padding
+     interior (área imprimible) porque el @page margin es 0. */
+  .pdf-page {
+    box-shadow: none !important;
+    margin: 0 !important;
+    max-width: none !important;
+    padding: 15mm;
+  }
+  /* Cada tamaño/orientación aterriza en su @page nombrado. */
+  .pdf-page--A4    { page: portraitA4; }
+  .pdf-page--LETTER { page: portraitLETTER; }
+  .pdf-page--POS80 { page: portraitPOS80; }
+  .pdf-page--landscape.pdf-page--A4    { page: landscapeA4; }
+  .pdf-page--landscape.pdf-page--LETTER { page: landscapeLETTER; }
+
   .pdf-noprint { display: none !important; }
-  body.pdf-pagesize-LETTER { /* hint solamente */ }
 }
 
 /* Sólo en pantalla: marco visual para distinguir la hoja */
