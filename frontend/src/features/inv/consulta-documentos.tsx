@@ -79,6 +79,13 @@ const TIPO_DOCU_FALLBACK: Record<string, string> = {
   SA: 'Salida de Almacén',
   SP: 'Salida de Producción',
   TA: 'Transferencia de Almacén',
+  // Tipos originados en FAT/CxC que impactan inventario (no viven en TINV_TDOCU,
+  // por eso el endpoint /inv/tipos-docu/ no los devuelve, pero sí aparecen en
+  // TINV_MOVIMIENTO y el usuario los necesita seleccionar).
+  FT: 'Factura',
+  FC: 'Factura Contado',
+  CO: 'Conduce',
+  CT: 'Cotización',
 }
 
 function tipoMoviIcon(tipo: string | undefined) {
@@ -448,6 +455,39 @@ export function ConsultaDocumentos() {
       .finally(() => setLoading(false))
   }, [noCia, tipoDocu, almacen, desde, hasta, estado])
 
+  // Lista combinada de tipos para el dropdown: los que trae el backend de
+  // TINV_TDOCU + los que aparecen en las filas cargadas + los tipos "cross-modulo"
+  // conocidos (FT, FC, CO, CT — que impactan inventario aunque vivan en TFAT).
+  // Sin esto el usuario no podía seleccionar FT porque el endpoint /inv/tipos-docu/
+  // solo devuelve tipos del módulo INV.
+  const tiposDocuMerged = useMemo(() => {
+    const map = new Map<string, { tipo_docu: string; descripcion: string }>()
+    // 1) los del backend (prioridad — traen la descripción real)
+    for (const t of tiposDocu) {
+      const code = String(t.tipo_docu ?? t.codigo ?? t.id ?? '').trim().toUpperCase()
+      if (!code) continue
+      map.set(code, {
+        tipo_docu: code,
+        descripcion: t.descripcion ?? TIPO_DOCU_FALLBACK[code] ?? '',
+      })
+    }
+    // 2) los que aparecen en las filas ya cargadas (pueden no estar en TINV_TDOCU)
+    for (const r of rows) {
+      const code = String(r.tipo_docu ?? '').trim().toUpperCase()
+      if (!code || map.has(code)) continue
+      map.set(code, {
+        tipo_docu: code,
+        descripcion: r.desc_tipo_docu ?? TIPO_DOCU_FALLBACK[code] ?? '',
+      })
+    }
+    // 3) los tipos cross-módulo conocidos (garantiza FT/FC/CO/CT siempre visibles)
+    for (const code of NO_INV_TIPOS) {
+      if (map.has(code)) continue
+      map.set(code, { tipo_docu: code, descripcion: TIPO_DOCU_FALLBACK[code] ?? '' })
+    }
+    return Array.from(map.values()).sort((a, b) => a.tipo_docu.localeCompare(b.tipo_docu))
+  }, [tiposDocu, rows])
+
   // Filtro client-side por tipo movimiento + búsqueda por código de tipo doc.
   // Si el usuario no está filtrando por tipo_docu (ni con select ni con búsqueda),
   // se ocultan por defecto los tipos de FAT/CxC (FT, FC, CO, CT) para que la
@@ -530,27 +570,22 @@ export function ConsultaDocumentos() {
         </Select>
 
         <Select value={tipoDocu} onValueChange={setTipoDocu}>
-          <SelectTrigger className='h-9 w-[200px]'>
+          <SelectTrigger className='h-9 w-[220px]'>
             <SelectValue placeholder='Tipo Documento' />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value='__all__'>Todos los tipos</SelectItem>
-            {tiposDocu
-              .filter((t: any) => {
+            {tiposDocuMerged
+              .filter((t) => {
                 if (!tipoDocuSearch.trim()) return true
                 const s = tipoDocuSearch.trim().toUpperCase()
-                const code = String(t.tipo_docu ?? t.codigo ?? t.id ?? '').toUpperCase()
-                const desc = String(t.descripcion ?? '').toUpperCase()
-                return code.includes(s) || desc.includes(s)
+                return t.tipo_docu.includes(s) || t.descripcion.toUpperCase().includes(s)
               })
-              .map((t: any) => {
-                const key = t.tipo_docu ?? t.codigo ?? t.id
-                return (
-                  <SelectItem key={key} value={String(key)}>
-                    {String(key)} - {t.descripcion ?? TIPO_DOCU_FALLBACK[String(key).toUpperCase()] ?? '—'}
-                  </SelectItem>
-                )
-              })}
+              .map((t) => (
+                <SelectItem key={t.tipo_docu} value={t.tipo_docu}>
+                  {t.tipo_docu} — {t.descripcion || '—'}
+                </SelectItem>
+              ))}
           </SelectContent>
         </Select>
 
