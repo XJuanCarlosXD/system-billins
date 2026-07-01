@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useLayout } from '@/context/layout-provider'
 import { useMe } from '@/hooks/use-me'
+import { useAccess } from '@/hooks/use-access'
 import {
   Sidebar,
   SidebarContent,
@@ -17,12 +18,32 @@ import { NavUser } from './nav-user'
 import { TeamSwitcher } from './team-switcher'
 import type { NavItem } from './types'
 
-function filterNavItems(items: NavItem[], isAdmin: boolean): NavItem[] {
+const MODULE_PREFIXES = ['fat', 'cxc', 'cxp', 'inv', 'cnt', 'chc', 'acc', 'acf', 'odc', 'sdn']
+
+function inferModule(item: NavItem): string | null {
+  const url =
+    'url' in item && item.url
+      ? String(item.url)
+      : 'items' in item && item.items?.[0] && 'url' in item.items[0] && item.items[0].url
+        ? String(item.items[0].url)
+        : null
+  if (!url || !url.startsWith('/')) return null
+  const first = url.split('/')[1]?.split('?')[0]
+  return first && MODULE_PREFIXES.includes(first) ? first : null
+}
+
+function filterNavItems(
+  items: NavItem[],
+  isAdmin: boolean,
+  hasModule: (m: string) => boolean
+): NavItem[] {
   const out: NavItem[] = []
   for (const item of items) {
     if (item.requires === 'is_dba' && !isAdmin) continue
+    const mod = inferModule(item)
+    if (mod && !hasModule(mod)) continue
     if ('items' in item && item.items) {
-      const children = filterNavItems(item.items, isAdmin)
+      const children = filterNavItems(item.items, isAdmin, hasModule)
       if (children.length === 0) continue
       out.push({ ...item, items: children })
     } else {
@@ -45,13 +66,17 @@ function SidebarSearch() {
 export function AppSidebar() {
   const { collapsible, variant } = useLayout()
   const { data: me } = useMe()
-  const isAdmin = me?.is_admin ?? false
+  const { hasModule, isAdmin: accessIsAdmin, isLoading: accessLoading } = useAccess()
+  const isAdmin = accessIsAdmin || (me?.is_admin ?? false)
+  // While /api/me/access/ is loading, do not filter by module (would hide
+  // everything for non-admins). Fall back to the previous isAdmin-only rule.
+  const modGate = accessLoading ? () => true : hasModule
   const navGroups = useMemo(
     () =>
       sidebarData.navGroups
-        .map((g) => ({ ...g, items: filterNavItems(g.items, isAdmin) }))
+        .map((g) => ({ ...g, items: filterNavItems(g.items, isAdmin, modGate) }))
         .filter((g) => g.items.length > 0),
-    [isAdmin]
+    [isAdmin, modGate]
   )
   return (
     <Sidebar collapsible={collapsible} variant={variant}>

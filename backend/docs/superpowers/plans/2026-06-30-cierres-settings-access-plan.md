@@ -916,11 +916,11 @@ Plantilla en `features/fat/fat-condiciones-pago.tsx` o `features/odc/odc-config.
 - Modify: `frontend/src/components/layout/app-sidebar.tsx` o donde se renderiza el sidebar
 - Modify: `frontend/src/components/layout/data/sidebar-data.ts` (sin cambios estructurales, sólo asegurar URLs)
 
-- [ ] **Step 13.1: Localizar componente que renderiza sidebar**
+- [x] **Step 13.1: Localizar componente que renderiza sidebar** — `frontend/src/components/layout/app-sidebar.tsx`; filtro `filterNavItems` ya existia y solo consultaba `is_dba`
 
 Run: `grep -rn 'sidebarData\|navGroups' frontend/src/components/layout/`
 
-- [ ] **Step 13.2: Inyectar filtro**
+- [x] **Step 13.2: Inyectar filtro** — `filterNavItems` extendido con `hasModule` (infiere modulo del primer segmento de la URL) y `useAccess` inyectado en `AppSidebar`
 
 ```tsx
 const { hasModule, isLoading } = useAccess()
@@ -951,13 +951,9 @@ const visibleGroups = sidebarData.navGroups.map(group => ({
 })).filter(g => g.items.length > 0)
 ```
 
-- [ ] **Step 13.3: Manejar loading state**
+- [x] **Step 13.3: Manejar loading state** — durante `accessLoading` se sustituye `hasModule` por `() => true` para no ocultar todo el sidebar mientras carga /api/me/access/
 
-```tsx
-if (isLoading) return <SidebarSkeleton />
-```
-
-- [ ] **Step 13.4: Commit + push + smoke con usuario no-admin**
+- [!] **Step 13.4: Commit + push + smoke con usuario no-admin** — commit hecho; smoke con usuario test pendiente (necesita usuario Oracle con acceso parcial en TSDN_USUARIO_ACCESO). Marcado como bloqueado hasta test humano.
 
 Crear usuario test con acceso solo a FAT, login, confirmar que sidebar solo muestra FAT (+settings/admin que no son de módulo).
 
