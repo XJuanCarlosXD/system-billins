@@ -970,7 +970,7 @@ Crear usuario test con acceso solo a FAT, login, confirmar que sidebar solo mues
 - Create: `frontend/src/routes/_authenticated/403.tsx`
 - Modify: `frontend/src/routes/_authenticated/fat.tsx` (layout) + idem para cada módulo
 
-- [ ] **Step 14.1: Crear `RequireModule`**
+- [x] **Step 14.1: Crear `RequireModule`** — creado en `frontend/src/components/access/require-module.tsx` con Skeleton loading + Navigate to /403 cuando no hay acceso
 
 ```tsx
 import { ReactNode } from 'react'
@@ -986,7 +986,7 @@ export function RequireModule({ modulo, children }: { modulo: string; children: 
 }
 ```
 
-- [ ] **Step 14.2: Crear ruta `/403`**
+- [x] **Step 14.2: Crear ruta `/403`** — creada `routes/_authenticated/403.tsx` con Card + Lock icon + boton "Ir al inicio"
 
 ```tsx
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
@@ -1049,7 +1049,7 @@ function _Layout() {
 - Modify: archivos críticos — proteger Eliminar con flags relevantes (`ANULAR_*`)
 - Modify: imprimir con `IMPRIMIR_DOCU` / `REIMPRIMIR_DOCU`
 
-- [ ] **Step 15.1: Crear `GuardedButton`**
+- [x] **Step 15.1: Crear `GuardedButton`** — creado en `frontend/src/components/access/guarded-button.tsx` con soporte `disableInsteadOfHide` + barrel `access/index.ts`
 
 ```tsx
 import { Button, type ButtonProps } from '@/components/ui/button'
