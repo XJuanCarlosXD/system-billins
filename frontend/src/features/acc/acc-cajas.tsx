@@ -9,7 +9,11 @@ import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Pencil, Plus } from 'lucide-react'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Pencil, Plus, Trash2 } from 'lucide-react'
 
 const fmt = (n: any) => Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })
 
@@ -22,11 +26,22 @@ export function AccCajas() {
   })
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<any>(null)
+  const [toDelete, setToDelete] = useState<any | null>(null)
 
   const save = useMutation({
     mutationFn: () => api.accSaveCaja(form),
     onSuccess: () => { toast.success('Caja guardada'); qc.invalidateQueries({ queryKey: ['acc-cajas'] }); setOpen(false) },
     onError: (e: any) => toast.error(e?.detail?.error || 'Error'),
+  })
+
+  const del = useMutation({
+    mutationFn: (r: any) => api.accDeleteCaja(r.no_cia, r.punto, r.no_caja),
+    onSuccess: () => {
+      toast.success('Caja eliminada')
+      qc.invalidateQueries({ queryKey: ['acc-cajas'] })
+      setToDelete(null)
+    },
+    onError: (e: any) => toast.error(e?.detail?.error || 'No se pudo eliminar'),
   })
 
   return (
@@ -48,7 +63,7 @@ export function AccCajas() {
               <TableHead className="text-right">Monto</TableHead>
               <TableHead>Activa</TableHead>
               <TableHead>Usuario</TableHead>
-              <TableHead className="text-right">Editar</TableHead>
+              <TableHead className="w-24 text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -62,7 +77,12 @@ export function AccCajas() {
                 <TableCell>{c.activa === 'S' ? 'Sí' : 'No'}</TableCell>
                 <TableCell className="text-xs">{c.usuario}</TableCell>
                 <TableCell className="text-right">
-                  <Button size="sm" variant="ghost" onClick={() => { setForm(c); setOpen(true) }}><Pencil className="h-4 w-4" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => { setForm(c); setOpen(true) }} title="Editar">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => setToDelete(c)} title="Eliminar">
+                    <Trash2 className="h-4 w-4 text-red-600" />
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -95,6 +115,23 @@ export function AccCajas() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!toDelete} onOpenChange={(o) => { if (!o) setToDelete(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar caja chica?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminará la caja <span className="font-mono">{toDelete?.no_caja}</span> del punto{' '}
+              <span className="font-mono">{toDelete?.no_cia}/{toDelete?.punto}</span>. No se podrá
+              eliminar si tiene documentos registrados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => toDelete && del.mutate(toDelete)}>Eliminar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

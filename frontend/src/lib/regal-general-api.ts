@@ -1483,6 +1483,14 @@ export const regalGeneralApi = {
     request<{ tipo_bene: string }>('/acc/tipos-bene/save/', { method: 'POST', body: JSON.stringify(data) }),
   accSaveBeneficiario: (data: Record<string, unknown>) =>
     request<{ no_bene: string }>('/acc/beneficiarios/save/', { method: 'POST', body: JSON.stringify(data) }),
+  accDeleteBeneficiario: (noBene: string) =>
+    request<{ ok: boolean }>(`/acc/beneficiarios/${encodeURIComponent(noBene)}/`, { method: 'DELETE' }),
+  accDeleteTipoBene: (tipoBene: string) =>
+    request<{ ok: boolean }>(`/acc/tipos-bene/${encodeURIComponent(tipoBene)}/`, { method: 'DELETE' }),
+  accDeleteTipoGasto: (tipoGasto: string) =>
+    request<{ ok: boolean }>(`/acc/tipos-gasto/${encodeURIComponent(tipoGasto)}/`, { method: 'DELETE' }),
+  accDeleteCaja: (noCia: string, punto: string, noCaja: string) =>
+    request<{ ok: boolean }>(`/acc/cajas/${encodeURIComponent(noCia)}/${encodeURIComponent(punto)}/${encodeURIComponent(noCaja)}/`, { method: 'DELETE' }),
 
   // ============================================================
   // Cheques / Bancos / Conciliación (CHC)

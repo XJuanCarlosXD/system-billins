@@ -301,3 +301,52 @@ def acc_tipo_bene_save(request):
     data = json.loads(request.body)
     tb = acc_repo.upsert_tipo_bene(data)
     return JsonResponse({'tipo_bene': tb}, status=201)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def acc_caja_save(request):
+    data = json.loads(request.body)
+    if not data.get('usuario'):
+        data['usuario'] = request.user.username
+    acc_repo.upsert_caja_chica(data)
+    return JsonResponse({'no_caja': data['no_caja']}, status=201)
+
+
+def _delete_view(fn):
+    try:
+        fn()
+        return JsonResponse({'ok': True})
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['DELETE'])
+def acc_beneficiario_delete(request, no_bene):
+    return _delete_view(lambda: acc_repo.delete_beneficiario(no_bene))
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['DELETE'])
+def acc_tipo_bene_delete(request, tipo_bene):
+    return _delete_view(lambda: acc_repo.delete_tipo_bene(tipo_bene))
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['DELETE'])
+def acc_tipo_gasto_delete(request, tipo_gasto):
+    return _delete_view(lambda: acc_repo.delete_tipo_gasto(tipo_gasto))
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['DELETE'])
+def acc_caja_delete(request, no_cia, punto, no_caja):
+    return _delete_view(lambda: acc_repo.delete_caja_chica(no_cia, punto, no_caja))

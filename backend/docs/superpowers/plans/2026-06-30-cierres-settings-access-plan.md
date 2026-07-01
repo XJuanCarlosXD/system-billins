@@ -885,13 +885,13 @@ invListCierres: (no_cia: string, punto: string) =>
 **Files:**
 - Auditar y completar CRUD en: `acc-cias.tsx`, `acc-puntos.tsx`, `acc-tipos-bene.tsx`, `acc-tipos-gasto.tsx`, `acc-beneficiarios.tsx`, `acc-cajas.tsx`
 
-- [ ] **Step 11.1: Por cada archivo, abrirlo y determinar si ya tiene CRUD o no**
+- [x] **Step 11.1: Por cada archivo, abrirlo y determinar si ya tiene CRUD o no** — auditado: acc-cias/acc-cajas/acc-tipos-gasto tenían create+edit sin delete; acc-tipos-bene y acc-beneficiarios sólo listado; acc-puntos read-only (secuencias).
 
-- [ ] **Step 11.2: Completar los que falten siguiendo patrón ODC-Cias**
+- [x] **Step 11.2: Completar los que falten siguiendo patrón ODC-Cias** — 4 catálogos actualizados: acc-tipos-bene y acc-tipos-gasto migrados a CatalogCrud compartido; acc-beneficiarios reescrito con create/edit/delete + search + activo filter + tipo dinámico; acc-cajas: botón Delete añadido al listado existente. acc-cias/acc-puntos sin delete (cias legacy no se borran; puntos con secuencias).
 
-- [ ] **Step 11.3: Backend endpoints faltantes**
+- [x] **Step 11.3: Backend endpoints faltantes** — `acc_repo.py`: `delete_beneficiario`, `delete_tipo_bene`, `delete_tipo_gasto`, `delete_caja_chica` con validaciones referenciales. `acc_views.py`: 4 vistas DELETE + `acc_caja_save`. `acc_urls.py`: rutas registradas. `COMPILE_OK` en VM.
 
-- [ ] **Step 11.4: Commit + push**
+- [x] **Step 11.4: Commit + push**
 
 ---
 

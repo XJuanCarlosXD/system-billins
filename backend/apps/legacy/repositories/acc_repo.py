@@ -736,3 +736,64 @@ def upsert_tipo_bene(data: dict) -> str:
             [tb, data['descripcion'], data.get('activo', 'S')],
         )
     return tb
+
+
+# ---------------------------------------------------------------------------
+# CRUD DELETE con validaciones referenciales
+# ---------------------------------------------------------------------------
+
+def _exists(sql: str, params: list) -> bool:
+    r = client.fetch_one(sql, params)
+    return bool(r)
+
+
+def delete_beneficiario(no_bene: str) -> None:
+    if _exists(
+        "SELECT 1 FROM ACC.TACC_DOCUMENTO WHERE no_bene=:1", [no_bene]
+    ):
+        raise ValueError('beneficiario en uso por documentos')
+    n = client.execute(
+        "DELETE FROM ACC.TACC_BENEFICIARIO WHERE no_bene=:1", [no_bene]
+    )
+    if not n:
+        raise ValueError(f'beneficiario {no_bene} no existe')
+
+
+def delete_tipo_bene(tipo_bene: str) -> None:
+    if _exists(
+        "SELECT 1 FROM ACC.TACC_BENEFICIARIO WHERE tipo_bene=:1", [tipo_bene]
+    ):
+        raise ValueError('tipo de beneficiario en uso')
+    n = client.execute(
+        "DELETE FROM ACC.TACC_TBENEFICIARIO WHERE tipo_bene=:1", [tipo_bene]
+    )
+    if not n:
+        raise ValueError(f'tipo {tipo_bene} no existe')
+
+
+def delete_tipo_gasto(tipo_gasto: str) -> None:
+    if _exists(
+        "SELECT 1 FROM ACC.TACC_DOCUMENTO WHERE tipo_gasto=:1", [tipo_gasto]
+    ):
+        raise ValueError('tipo de gasto en uso por documentos')
+    n = client.execute(
+        "DELETE FROM ACC.TACC_TGASTOS WHERE tipo_gasto=:1", [tipo_gasto]
+    )
+    if not n:
+        raise ValueError(f'tipo {tipo_gasto} no existe')
+
+
+def delete_caja_chica(no_cia: str, punto: str, no_caja: str) -> None:
+    if _exists(
+        "SELECT 1 FROM ACC.TACC_DOCUMENTO "
+        "WHERE no_cia=:1 AND punto=:2 AND no_caja=:3",
+        [no_cia, punto, no_caja],
+    ):
+        raise ValueError('caja chica con documentos registrados')
+    n = client.execute(
+        "DELETE FROM ACC.TACC_CAJA_CHICA "
+        "WHERE no_cia=:1 AND punto=:2 AND no_caja=:3",
+        [no_cia, punto, no_caja],
+    )
+    if not n:
+        raise ValueError(f'caja {no_caja} no existe en {no_cia}/{punto}')

@@ -12,13 +12,18 @@ urlpatterns = [
     path('cias/', acc_views.acc_cias),
     path('puntos/', acc_views.acc_puntos),
     path('cajas/', acc_views.acc_cajas),
+    path('cajas/save/', acc_views.acc_caja_save),
+    path('cajas/<str:no_cia>/<str:punto>/<str:no_caja>/', acc_views.acc_caja_delete),
     # Beneficiarios / tipos
     path('beneficiarios/', acc_views.acc_beneficiarios),
     path('beneficiarios/save/', acc_views.acc_beneficiario_save),
+    path('beneficiarios/<str:no_bene>/', acc_views.acc_beneficiario_delete),
     path('tipos-bene/', acc_views.acc_tipos_bene),
     path('tipos-bene/save/', acc_views.acc_tipo_bene_save),
+    path('tipos-bene/<str:tipo_bene>/', acc_views.acc_tipo_bene_delete),
     path('tipos-gasto/', acc_views.acc_tipos_gasto),
     path('tipos-gasto/save/', acc_views.acc_tipo_gasto_save),
+    path('tipos-gasto/<str:tipo_gasto>/', acc_views.acc_tipo_gasto_delete),
     # Documentos / egresos — orden importa: paths estáticos antes del wildcard
     path('documentos/', acc_views.acc_documentos),
     path('documentos/crear/', acc_views.acc_documento_crear),
