@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   X, FileText, ExternalLink, ArrowDownToLine, ArrowUpFromLine,
-  ArrowLeftRight, Minus, Package, TrendingUp, TrendingDown, Wallet,
+  ArrowLeftRight, Minus, Package, TrendingUp, TrendingDown, Wallet, Search,
 } from 'lucide-react'
 import { useCompany } from '@/context/company-context'
 import { Badge } from '@/components/ui/badge'
@@ -396,11 +396,18 @@ export function ConsultaDocumentos() {
   thirtyAgo.setDate(today.getDate() - 30)
 
   const [tipoDocu, setTipoDocu] = useState('__all__')
+  const [tipoDocuSearch, setTipoDocuSearch] = useState('')
   const [almacen, setAlmacen] = useState('__all__')
   const [tipoMovi, setTipoMovi] = useState('__all__')
   const [desde, setDesde] = useState(toInputDate(thirtyAgo))
   const [hasta, setHasta] = useState(toInputDate(today))
   const [estado, setEstado] = useState('__all__')
+
+  // Tipos de documento originados en FAT/CxC que NO representan un movimiento
+  // "puro" de inventario. Se ocultan por defecto para que la consulta muestre
+  // los movimientos de inventario (entradas/salidas/transferencias/ajustes)
+  // en vez de facturas de venta.
+  const NO_INV_TIPOS = ['FT', 'FC', 'CO', 'CT']
 
   const [tiposDocu, setTiposDocu] = useState<any[]>([])
   const [almacenes, setAlmacenes] = useState<any[]>([])
@@ -441,11 +448,21 @@ export function ConsultaDocumentos() {
       .finally(() => setLoading(false))
   }, [noCia, tipoDocu, almacen, desde, hasta, estado])
 
-  // Filtro client-side por tipo movimiento
+  // Filtro client-side por tipo movimiento + búsqueda por código de tipo doc.
+  // Si el usuario no está filtrando por tipo_docu (ni con select ni con búsqueda),
+  // se ocultan por defecto los tipos de FAT/CxC (FT, FC, CO, CT) para que la
+  // consulta muestre los movimientos de inventario en vez de facturas de venta.
   const filteredRows = useMemo(() => {
-    if (tipoMovi === '__all__') return rows
-    return rows.filter((r) => (r.tipo_movi || '').toUpperCase() === tipoMovi)
-  }, [rows, tipoMovi])
+    const search = tipoDocuSearch.trim().toUpperCase()
+    const noTipoFilter = tipoDocu === '__all__' && !search
+    return rows.filter((r) => {
+      const t = (r.tipo_docu || '').toUpperCase()
+      if (noTipoFilter && NO_INV_TIPOS.includes(t)) return false
+      if (search && !t.includes(search)) return false
+      if (tipoMovi !== '__all__' && (r.tipo_movi || '').toUpperCase() !== tipoMovi) return false
+      return true
+    })
+  }, [rows, tipoMovi, tipoDocu, tipoDocuSearch])
 
   function openDetalle(doc: Documento) {
     setDetalleDoc(doc)
@@ -470,6 +487,7 @@ export function ConsultaDocumentos() {
 
   const reset = () => {
     setTipoDocu('__all__')
+    setTipoDocuSearch('')
     setAlmacen('__all__')
     setTipoMovi('__all__')
     setDesde(toInputDate(thirtyAgo))
@@ -478,7 +496,8 @@ export function ConsultaDocumentos() {
   }
 
   const hasFilters =
-    tipoDocu !== '__all__' || almacen !== '__all__' ||
+    tipoDocu !== '__all__' || tipoDocuSearch !== '' ||
+    almacen !== '__all__' ||
     tipoMovi !== '__all__' || estado !== '__all__'
 
   const detalleLineas = detalle?.lines ?? detalle?.lineas ?? []
@@ -488,7 +507,10 @@ export function ConsultaDocumentos() {
       <div>
         <h2 className='text-lg font-semibold'>Consulta de Documentos</h2>
         <p className='text-sm text-muted-foreground'>
-          Buscar documentos de inventario por tipo, almacén y período
+          Buscar documentos de inventario por tipo, almacén y período. Por
+          defecto se muestran movimientos de inventario (entradas, salidas,
+          transferencias, ajustes). Para ver facturas (FT) escríbelo en el
+          buscador de código o selecciónalo en el filtro.
         </p>
       </div>
 
@@ -513,16 +535,45 @@ export function ConsultaDocumentos() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value='__all__'>Todos los tipos</SelectItem>
-            {tiposDocu.map((t: any) => {
-              const key = t.tipo_docu ?? t.codigo ?? t.id
-              return (
-                <SelectItem key={key} value={String(key)}>
-                  {t.descripcion ?? TIPO_DOCU_FALLBACK[String(key).toUpperCase()] ?? key}
-                </SelectItem>
-              )
-            })}
+            {tiposDocu
+              .filter((t: any) => {
+                if (!tipoDocuSearch.trim()) return true
+                const s = tipoDocuSearch.trim().toUpperCase()
+                const code = String(t.tipo_docu ?? t.codigo ?? t.id ?? '').toUpperCase()
+                const desc = String(t.descripcion ?? '').toUpperCase()
+                return code.includes(s) || desc.includes(s)
+              })
+              .map((t: any) => {
+                const key = t.tipo_docu ?? t.codigo ?? t.id
+                return (
+                  <SelectItem key={key} value={String(key)}>
+                    {String(key)} - {t.descripcion ?? TIPO_DOCU_FALLBACK[String(key).toUpperCase()] ?? '—'}
+                  </SelectItem>
+                )
+              })}
           </SelectContent>
         </Select>
+
+        <div className='relative'>
+          <Search className='absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none' />
+          <Input
+            className='h-9 w-[170px] pl-7 text-sm'
+            placeholder='Código tipo doc.'
+            value={tipoDocuSearch}
+            onChange={(e) => setTipoDocuSearch(e.target.value)}
+            title='Buscar por código de tipo de documento (AE, SA, EC...)'
+          />
+          {tipoDocuSearch && (
+            <button
+              type='button'
+              onClick={() => setTipoDocuSearch('')}
+              className='absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-muted'
+              aria-label='Limpiar búsqueda'
+            >
+              <X className='h-3 w-3' />
+            </button>
+          )}
+        </div>
 
         <Select value={almacen} onValueChange={setAlmacen}>
           <SelectTrigger className='h-9 w-[180px]'>
