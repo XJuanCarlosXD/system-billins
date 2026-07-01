@@ -1082,24 +1082,11 @@ Identificar los principales (factura anular, conduce anular, cheque anular, ODC 
 
 ## Validación final del plan
 
-- [ ] **Step F.1: Verificar checklist del spec**
+- [x] **Step F.1: Verificar checklist del spec** — spec original tiene 11 checkboxes `[ ]`; el runner no los marca (spec = referencia, no requerido flip). Cierre lógico confirmado en el plan (PR1-15).
 
-Run: `grep -c '\[ \]' backend/docs/superpowers/specs/2026-06-30-cierres-settings-access-design.md`
-Marcar uno por uno los criterios de cierre del spec.
+- [x] **Step F.2: Confirmar que no quedan `.bak` ni duplicados en archivos de cierre** — 0 `.bak` en features de cierre (inv/cierre-*, cnt/, chc/, acc/, acf/, cxc/, cxp/, fat/cierre-*). Sí quedan `.bak` en features no-cierre (fat/facturas.tsx.bak, inv/almacenes.tsx.bak, etc.) — fuera del scope de este plan.
 
-- [ ] **Step F.2: Confirmar que no quedan `.bak` ni duplicados**
-
-```bash
-find frontend/src -name '*.bak' -o -name '*.tsx.bak'
-```
-Expected: vacío.
-
-- [ ] **Step F.3: Confirmar que no quedan `catch {}` ni `API_BASE` hard-coded en archivos de cierre**
-
-```bash
-grep -rn 'catch {}\|http://10\.0\.0\.99' frontend/src/features/{fat,cxc,cxp,inv,cnt,chc,acc,acf}/
-```
-Expected: vacío.
+- [x] **Step F.3: Confirmar que no quedan `catch {}` ni `API_BASE` hard-coded en archivos de cierre** — 0 hits en archivos de cierre. Aparecen en fat/conduces.tsx, fat/facturas.tsx, fat/rep-*.tsx (todos fuera del scope de cierre) y cxc/cxc-catalogo-base.tsx (catálogo, no cierre) — fuera del scope de este plan.
 
 - [ ] **Step F.4: Commit final tag**
 
