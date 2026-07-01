@@ -732,7 +732,7 @@ git rm frontend/src/features/fat/fat-cierre-mensual.tsx
 Run: `grep -rn 'fat-cierre-mensual' frontend/src/`
 Expected: 0 matches (si hay, ajustar imports al archivo `cierre-mensual.tsx`).
 
-- [ ] **Step 5.3: Crear endpoints backend FAT asiento + generar-mayor**
+- [x] **Step 5.3: Crear endpoints backend FAT asiento + generar-mayor** — `FatAsientoContableView` + `get_asiento_contable` en fat_repo (agrupa TFAT_FACTURA por tipo_factura → 3 líneas D/C por serie). Endpoints existentes de cierre y generar-asientos ya cumplen. `COMPILE_OK` en VM.
 
 Investigar primero en CxC cómo está implementado `cxcAsientoContable` y `cxcGenerarAsiento`:
 
@@ -745,7 +745,7 @@ Replicar el patrón para FAT en `backend/apps/legacy/fat_views.py` y `fat_repo.p
 
 Smoke + commit (igual patrón a PR2).
 
-- [ ] **Step 5.4: Agregar métodos al api client**
+- [x] **Step 5.4: Agregar métodos al api client** — `fatAsientoContable`. `fatListCierres`, `fatCierreMensual`, `fatGenerarAsientos` (con `mode: 'preview'|'generar'`) ya existían.
 
 En `regal-general-api.ts`:
 
@@ -757,15 +757,15 @@ fatGenerarAsiento: (d: { no_cia: string; punto: string; mes_proceso: number; ano
   request<any>('/fat/generar-asiento/', { method: 'POST', body: JSON.stringify(d) }),
 ```
 
-- [ ] **Step 5.5: Reescribir `cierre-mensual.tsx` con 3 exports siguiendo patrón CxC**
+- [x] **Step 5.5: Reescribir `cierre-mensual.tsx` con 3 exports siguiendo patrón CxC** — `FatAsientoContable`, `FatGenerarAsiento`, `FatCierre` con React Query, PeriodoBadge, AlertIrreversible, dialog confirm. Borrado `catch{}` silencioso.
 
 Igual estructura que PR3 step 3.3-3.5 pero para FAT. Borrar el `catch {}` silencioso.
 
-- [ ] **Step 5.6: Crear las 2 rutas nuevas** (asiento-contable.tsx, generar-asiento.tsx)
+- [x] **Step 5.6: Crear las 2 rutas nuevas** — creada `routes/_authenticated/fat/asiento-contable.tsx`. `generar-asientos.tsx` (plural, ya existente) actualizada a `FatGenerarAsiento`. Borrados features/fat/generar-asientos.tsx y fat-generar-asientos.tsx (dead code).
 
-- [ ] **Step 5.7: Actualizar sidebar FAT** (3 items en sección Cierre cerca de línea 104)
+- [x] **Step 5.7: Actualizar sidebar FAT** — sección Cierres ahora tiene 3 items: Imprimir Asiento Contable, Generar Asiento al Mayor, Cierre Mensual.
 
-- [ ] **Step 5.8: Commit + push + Netlify smoke**
+- [x] **Step 5.8: Commit + push + Netlify smoke** — commit + push hecho por runner. Netlify smoke: pendiente de verificación humana tras deploy.
 
 ```bash
 git commit -m "feat(fat): cierre con 3 vistas al patrón CxC + endpoints backend

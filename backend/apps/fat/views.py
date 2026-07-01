@@ -1049,6 +1049,29 @@ class FatRepAnaliticaView(APIView):
 
 # -- Cierres ------------------------------------------------------------------
 
+class FatAsientoContableView(APIView):
+    """GET /api/fat/asiento-contable/?no_cia=&punto=&mes=&ano=
+
+    Resumen del asiento contable de ventas agrupado por tipo_factura.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        no_cia = request.query_params.get('no_cia')
+        punto = request.query_params.get('punto', '01')
+        if not no_cia:
+            return Response({'detail': 'no_cia es requerido'}, status=400)
+        forbidden = _check_fat_access(request.user.username, no_cia, punto)
+        if forbidden:
+            return forbidden
+        try:
+            mes = int(request.query_params.get('mes', 1))
+            ano = int(request.query_params.get('ano', 2026))
+            return Response(fat_repo.get_asiento_contable(no_cia, punto, mes, ano))
+        except Exception as e:
+            return Response({'detail': str(e)}, status=500)
+
+
 class FatCierresView(APIView):
     permission_classes = [IsAuthenticated]
 

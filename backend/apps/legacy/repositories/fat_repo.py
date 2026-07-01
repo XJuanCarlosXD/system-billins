@@ -1389,6 +1389,42 @@ def cierre_mensual(no_cia: str, punto: str, ano: int, mes: int, usuario: str) ->
 
 # ── Asientos Contabilidad ─────────────────────────────────────────────────────
 
+def get_asiento_contable(no_cia: str, punto: str, mes: int, ano: int) -> list[dict]:
+    """Resumen del asiento contable de ventas del período.
+
+    FAT no tiene detalle contable por línea como CxC (TCXC_DCDOCU). El asiento
+    de ventas es siempre de la forma:
+        DR Cuentas por Cobrar         = total_neto
+        CR Ventas                     = total_neto - impuesto
+        CR ITBIS por Pagar            = impuesto
+    Agrupamos por tipo_factura para que el usuario vea el desglose por serie.
+    """
+    rows = client.fetch_dicts(
+        "SELECT tipo_factura, "
+        "SUM(NVL(total_neto,0)) AS total_neto, "
+        "SUM(NVL(impuesto,0)) AS impuesto "
+        "FROM FAT.TFAT_FACTURA "
+        "WHERE no_cia=:1 AND punto=:2 "
+        "AND EXTRACT(MONTH FROM fecha)=:3 AND EXTRACT(YEAR FROM fecha)=:4 "
+        "AND NVL(st_anulado,'N')='N' "
+        "GROUP BY tipo_factura ORDER BY tipo_factura",
+        [no_cia, punto, mes, ano])
+    out: list[dict] = []
+    for r in rows:
+        total = float(r['total_neto'] or 0)
+        itbis = float(r['impuesto'] or 0)
+        subtotal = total - itbis
+        tipo = (r['tipo_factura'] or '').strip()
+        out.append({'cuenta': f'CxC-{tipo}', 'centro_costo': punto, 'tipo_movi': 'D',
+                    'total_debito': total, 'total_credito': 0.0})
+        out.append({'cuenta': f'Ventas-{tipo}', 'centro_costo': punto, 'tipo_movi': 'C',
+                    'total_debito': 0.0, 'total_credito': subtotal})
+        if itbis:
+            out.append({'cuenta': f'ITBIS-{tipo}', 'centro_costo': punto, 'tipo_movi': 'C',
+                        'total_debito': 0.0, 'total_credito': itbis})
+    return out
+
+
 def list_facturas_pendientes_cnt(no_cia: str, punto: str, mes: int, ano: int) -> list[dict]:
     """Facturas autorizadas que aún no tienen asiento en CNT."""
     rows = client.fetch_dicts(

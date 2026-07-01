@@ -1032,6 +1032,9 @@ export const regalGeneralApi = {
   cxcAsientoContable: (noCia: string, punto: string, mes: number, ano: number) => request<any[]>(`/cxc/asiento-contable/?no_cia=${noCia}&punto=${punto}&mes=${mes}&ano=${ano}`),
   cxcGenerarAsiento: (d: any) => request<any>('/cxc/generar-asiento/', { method: 'POST', body: JSON.stringify(d) }),
   cxcCierre: (d: any) => request<any>('/cxc/cierre/', { method: 'POST', body: JSON.stringify(d) }),
+  fatAsientoContable: (no_cia: string, punto: string, mes: number, ano: number) =>
+    request<any[]>(`/fat/asiento-contable/?no_cia=${encodeURIComponent(no_cia)}&punto=${encodeURIComponent(punto)}&mes=${mes}&ano=${ano}`),
+
   fatListCierres: (no_cia: string, punto: string) =>
     request<{ items: Array<Record<string, any>> }>(`/fat/cierres/?no_cia=${encodeURIComponent(no_cia)}&punto=${encodeURIComponent(punto)}`),
 

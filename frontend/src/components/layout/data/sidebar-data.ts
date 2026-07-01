@@ -97,10 +97,8 @@ export const sidebarData: SidebarData = {
             {
               title: 'Cierres',
               items: [
-                {
-                  title: 'Generar Asiento a Contabilidad',
-                  url: '/fat/generar-asientos',
-                },
+                { title: 'Imprimir Asiento Contable', url: '/fat/asiento-contable' },
+                { title: 'Generar Asiento al Mayor', url: '/fat/generar-asientos' },
                 { title: 'Cierre Mensual', url: '/fat/cierre-mensual' },
               ],
             },

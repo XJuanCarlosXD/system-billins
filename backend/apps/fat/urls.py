@@ -9,7 +9,8 @@ from .views import (
     FatRepVentasView, FatRep607View, FatRepNcfNulosView, FatRepFacturasRncView,
     FatRepMargenBrutoView,
     FatRepVentasVendedorView, FatRepVentasClienteView, FatRepAnaliticaView,
-    FatCierresView, FatGenerarAsientosView, FatProximoNcfView, FatNcfUsadoView,
+    FatAsientoContableView, FatCierresView, FatGenerarAsientosView,
+    FatProximoNcfView, FatNcfUsadoView,
     FatProximoNoFacturaView, DashboardVentasMesView,
 )
 from .views_print import (
@@ -58,6 +59,7 @@ urlpatterns = [
     path('fat/rep-ventas-vendedor/', FatRepVentasVendedorView.as_view()),
     path('fat/rep-ventas-cliente/', FatRepVentasClienteView.as_view()),
     path('fat/rep-analitica/', FatRepAnaliticaView.as_view()),
+    path('fat/asiento-contable/', FatAsientoContableView.as_view()),
     path('fat/cierres/', FatCierresView.as_view()),
     path('fat/generar-asientos/', FatGenerarAsientosView.as_view()),
     path('fat/proximo-ncf/', FatProximoNcfView.as_view()),

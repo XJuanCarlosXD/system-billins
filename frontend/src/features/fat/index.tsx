@@ -25,8 +25,7 @@ import { RepVentasCliente } from './fat-rep-ventas-cliente'
 import { RepAnaliticaVentas } from './fat-rep-analitica'
 import { RepNcf607 } from './rep-607'
 import { RepNcfNulos } from './rep-ncf-nulos'
-import { CierreMensualFat } from './cierre-mensual'
-import { GenerarAsientosFat } from './generar-asientos'
+import { FatCierre, FatAsientoContable, FatGenerarAsiento } from './cierre-mensual'
 import { NuevaFactura } from './fat-nueva-factura'
 import { NuevoConduce } from './fat-nuevo-conduce'
 import { AnularFactura } from './fat-anular-factura'
@@ -136,10 +135,13 @@ function renderView(view: string, ctx: { noCia: string; punto: string; ano: numb
       return <RepVentasCliente noCia={ctx.noCia} punto={ctx.punto} mes={ctx.mes} ano={ctx.ano} />
     case 'rep-analitica':
       return <RepAnaliticaVentas noCia={ctx.noCia} punto={ctx.punto} ano={ctx.ano} />
+    case 'asiento-contable':
+      return <FatAsientoContable noCia={ctx.noCia} punto={ctx.punto} />
     case 'generar-asientos':
-      return <GenerarAsientosFat noCia={ctx.noCia} punto={ctx.punto} mes={ctx.mes} ano={ctx.ano} />
+    case 'generar-asiento':
+      return <FatGenerarAsiento noCia={ctx.noCia} punto={ctx.punto} />
     case 'cierre-mensual':
-      return <CierreMensualFat noCia={ctx.noCia} punto={ctx.punto} mes={ctx.mes} ano={ctx.ano} />
+      return <FatCierre noCia={ctx.noCia} punto={ctx.punto} />
     case 'companias':
       return <Companias noCia={ctx.noCia} />
     case 'puntos':
