@@ -721,13 +721,13 @@ git push origin main
 - Create backend: `/api/fat/asiento-contable/` y `/api/fat/generar-asiento/`
 - Modify: `frontend/src/components/layout/data/sidebar-data.ts` (3 items en FAT Cierre)
 
-- [ ] **Step 5.1: Borrar duplicado**
+- [x] **Step 5.1: Borrar duplicado** — done
 
 ```bash
 git rm frontend/src/features/fat/fat-cierre-mensual.tsx
 ```
 
-- [ ] **Step 5.2: Buscar referencias al duplicado**
+- [x] **Step 5.2: Buscar referencias al duplicado** — 0 imports encontrados; safe delete
 
 Run: `grep -rn 'fat-cierre-mensual' frontend/src/`
 Expected: 0 matches (si hay, ajustar imports al archivo `cierre-mensual.tsx`).
@@ -834,15 +834,13 @@ En `features/inv/index.tsx`, si hay un switch por `search.view`, mantener para l
 - Modify: `frontend/src/features/cnt/cierre-mensual.tsx` (React Query + Card + PeriodoBadge, exportar `CntCierre`)
 - Modify: `frontend/src/components/layout/data/sidebar-data.ts` (mantener entrada CNT cierre apuntando a `/cnt/cierre`)
 
-- [ ] **Step 7.1: Refactor `cierre-mensual.tsx`**
+- [x] **Step 7.1: Refactor `cierre-mensual.tsx`** — done (useQuery + useMutation, Card+CardHeader+PeriodoBadge, AlertIrreversible, botón destructive con "Ejecutar Cierre")
 
-Reemplazar `useEffect + fetch` por `useQuery({ queryKey: ['cnt-cierre-info', noCia, punto], queryFn: () => api.cntCierreMensualInfo(noCia, punto) })`. Reemplazar `handleCerrar` por `useMutation` con `qc.invalidateQueries`. Mantener `Row` component pero envolver en `Card + CardHeader + CardContent`. Agregar `PeriodoBadge` al header.
+- [?] **Step 7.2: Crear ruta `/cnt/cierre`** — pospuesto (CNT sidebar entry usa /cnt con search-params y refactor a ruta dedicada tocaría el CNT shell; funcional actual mantiene la vista refactorizada)
 
-- [ ] **Step 7.2: Crear ruta `/cnt/cierre`** (idéntica estructura a otras)
+- [x] **Step 7.3: Verificar/actualizar sidebar** — entrada actual en línea 681 sirve al componente refactorizado
 
-- [ ] **Step 7.3: Verificar/actualizar sidebar**
-
-- [ ] **Step 7.4: Commit + push**
+- [x] **Step 7.4: Commit + push** — commit hecho en runner
 
 ---
 
@@ -851,15 +849,15 @@ Reemplazar `useEffect + fetch` por `useQuery({ queryKey: ['cnt-cierre-info', noC
 **Files:**
 - Modify: `frontend/src/features/acc/acc-cierre.tsx`
 
-- [ ] **Step 8.1: Reemplazar el `<Card><CardContent>` plano por `Card + CardHeader + PeriodoBadge`**
+- [x] **Step 8.1: Reemplazar el `<Card><CardContent>` plano por `Card + CardHeader + PeriodoBadge`** — done
 
-- [ ] **Step 8.2: Reemplazar `AlertTriangle` inline por `AlertIrreversible`**
+- [x] **Step 8.2: Reemplazar `AlertTriangle` inline por `AlertIrreversible`** — done
 
-- [ ] **Step 8.3: Ajustar layout a `<div className="p-6 space-y-4 max-w-4xl mx-auto">`**
+- [x] **Step 8.3: Ajustar layout a `<div className="p-6 space-y-4 max-w-4xl mx-auto">`** — done
 
-- [ ] **Step 8.4: Mantener funcionalidad (status, dialog confirm, histórico)**
+- [x] **Step 8.4: Mantener funcionalidad (status, dialog confirm, histórico)** — done
 
-- [ ] **Step 8.5: Commit + push**
+- [x] **Step 8.5: Commit + push** — commit hecho en runner
 
 ---
 
@@ -868,7 +866,7 @@ Reemplazar `useEffect + fetch` por `useQuery({ queryKey: ['cnt-cierre-info', noC
 **Files:**
 - Modify: `frontend/src/features/acf/acf-cierre.tsx`
 
-- [ ] **Step 9.1-9.5: Mismo patrón que PR8** + mantener botón "Imprimir comprobante"
+- [x] **Step 9.1-9.5: Mismo patrón que PR8** + mantener botón "Imprimir comprobante" — done (Card+CardHeader+PeriodoBadge+AlertIrreversible, botón Printer en cada row del histórico intacto)
 
 ---
 

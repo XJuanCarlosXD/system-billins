@@ -8,14 +8,15 @@ import { useCompany } from '@/hooks/use-company'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { PeriodoBadge, AlertIrreversible } from '@/components/cierre'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { Lock, AlertTriangle, CheckCircle2, Printer } from 'lucide-react'
+import { Lock, CheckCircle2, Printer } from 'lucide-react'
 
 const fmtDt = (s: any) => s ? String(s).slice(0, 16).replace('T', ' ') : ''
 const MES_LABEL = ['',
@@ -63,15 +64,25 @@ export function AcfCierre() {
   const puedeCerrar = sinDepre === 0
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-base font-semibold">Cierre Mensual</h3>
-        <p className="text-sm text-muted-foreground">
-          Cierra el período de Activos Fijos. Equivale a <i>Facf403 — Cierre Mensual</i>.
-          Solo permite cerrar cuando todos los activos depreciables del mes
-          fueron procesados.
-        </p>
-      </div>
+    <div className="p-6 space-y-4 max-w-4xl mx-auto">
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-lg">Cierre Mensual de Activos Fijos</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Registra el cierre del período activo y avanza el mes de proceso.
+                Solo permite cerrar cuando todos los activos depreciables del mes fueron procesados.
+              </p>
+            </div>
+            <PeriodoBadge
+              mes={punto ? Number(punto.mes_proceso) : undefined}
+              ano={punto ? Number(punto.ano_proceso) : undefined}
+              loading={statusQ.isLoading}
+            />
+          </div>
+        </CardHeader>
+      </Card>
 
       {statusQ.isLoading ? <Skeleton className="h-40 w-full" /> : (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -102,14 +113,11 @@ export function AcfCierre() {
       )}
 
       {!puedeCerrar && punto && (
-        <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 flex gap-2 items-start">
-          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-          <div>
-            Hay <b>{sinDepre}</b> activos pendientes de depreciar en{' '}
-            {periodoActual}. Aplica la depreciación del mes en{' '}
-            <i>Procesos → Depreciación Mensual</i> y vuelve aquí para cerrar.
-          </div>
-        </div>
+        <AlertIrreversible tone="amber">
+          Hay <b>{sinDepre}</b> activos pendientes de depreciar en{' '}
+          {periodoActual}. Aplica la depreciación del mes en{' '}
+          <i>Procesos → Depreciación Mensual</i> y vuelve aquí para cerrar.
+        </AlertIrreversible>
       )}
 
       <div className="rounded border">

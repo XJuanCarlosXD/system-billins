@@ -15,9 +15,9 @@ import {
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { Lock, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Lock, CheckCircle2 } from 'lucide-react'
+import { PeriodoBadge, AlertIrreversible } from '@/components/cierre'
 
-const fmtDate = (s: any) => s ? String(s).slice(0, 10) : ''
 const fmtDt = (s: any) => s ? String(s).slice(0, 16).replace('T', ' ') : ''
 
 const MES_LABEL = ['',
@@ -64,16 +64,25 @@ export function AccCierre() {
   const puedeCerrar = sinCnt === 0
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-base font-semibold">Cierre Mensual</h3>
-        <p className="text-sm text-muted-foreground">
-          Equivale a <i>Facc403 — Cierre Mensual</i>. Registra el cierre del
-          período activo en <code>TACC_CIERRE</code> y avanza el mes en
-          <code>TACC_PUNTO</code>. Sólo permite cerrar cuando no hay documentos
-          sin contabilizar.
-        </p>
-      </div>
+    <div className="p-6 space-y-4 max-w-4xl mx-auto">
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-lg">Cierre Mensual de Caja Chica</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Registra el cierre del período activo y avanza el mes de proceso.
+                Sólo permite cerrar cuando no hay documentos sin contabilizar.
+              </p>
+            </div>
+            <PeriodoBadge
+              mes={punto ? Number(punto.mes_proceso) : undefined}
+              ano={punto ? Number(punto.ano_proceso) : undefined}
+              loading={statusQ.isLoading}
+            />
+          </div>
+        </CardHeader>
+      </Card>
 
       {statusQ.isLoading ? <Skeleton className="h-40 w-full" /> : (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -100,14 +109,11 @@ export function AccCierre() {
       )}
 
       {!puedeCerrar && status && (
-        <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 flex gap-2 items-start">
-          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-          <div>
-            Hay <b>{sinCnt}</b> documentos sin contabilizar en el período actual.
-            Genera primero el asiento contable en <i>Cierre → Asiento Contable</i>{' '}
-            y vuelve aquí para aplicar el cierre.
-          </div>
-        </div>
+        <AlertIrreversible tone="amber">
+          Hay <b>{sinCnt}</b> documentos sin contabilizar en el período actual.
+          Genera primero el asiento contable en <i>Cierre → Asiento Contable</i>{' '}
+          y vuelve aquí para aplicar el cierre.
+        </AlertIrreversible>
       )}
 
       {/* Histórico de cierres */}
