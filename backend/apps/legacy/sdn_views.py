@@ -22,37 +22,103 @@ def sdn_cias(request):
 
 @login_required
 @csrf_exempt
-@require_http_methods(['GET'])
+@require_http_methods(['GET', 'POST'])
 def sdn_afp(request):
-    return JsonResponse(sdn_repo.list_afp(), safe=False)
+    if request.method == 'GET':
+        return JsonResponse(sdn_repo.list_afp(), safe=False)
+    data = json.loads(request.body or '{}')
+    return JsonResponse({'no_afp': sdn_repo.upsert_afp(data)}, status=201)
 
 
 @login_required
 @csrf_exempt
-@require_http_methods(['GET'])
+@require_http_methods(['DELETE'])
+def sdn_afp_delete(request, no_afp):
+    return _crud_delete(lambda: sdn_repo.delete_afp(no_afp))
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET', 'POST'])
 def sdn_ars(request):
-    return JsonResponse(sdn_repo.list_ars(), safe=False)
+    if request.method == 'GET':
+        return JsonResponse(sdn_repo.list_ars(), safe=False)
+    data = json.loads(request.body or '{}')
+    return JsonResponse({'no_ars': sdn_repo.upsert_ars(data)}, status=201)
 
 
 @login_required
 @csrf_exempt
-@require_http_methods(['GET'])
+@require_http_methods(['DELETE'])
+def sdn_ars_delete(request, no_ars):
+    return _crud_delete(lambda: sdn_repo.delete_ars(no_ars))
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET', 'POST'])
 def sdn_gerencias(request):
-    return JsonResponse(sdn_repo.list_gerencias(), safe=False)
+    if request.method == 'GET':
+        return JsonResponse(sdn_repo.list_gerencias(), safe=False)
+    data = json.loads(request.body or '{}')
+    return JsonResponse({'no_gerencia': sdn_repo.upsert_gerencia(data)}, status=201)
 
 
 @login_required
 @csrf_exempt
-@require_http_methods(['GET'])
+@require_http_methods(['DELETE'])
+def sdn_gerencia_delete(request, no_gerencia):
+    return _crud_delete(lambda: sdn_repo.delete_gerencia(no_gerencia))
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET', 'POST'])
 def sdn_areas(request):
-    return JsonResponse(sdn_repo.list_areas(), safe=False)
+    if request.method == 'GET':
+        return JsonResponse(sdn_repo.list_areas(), safe=False)
+    data = json.loads(request.body or '{}')
+    ng, na = sdn_repo.upsert_area(data)
+    return JsonResponse({'no_gerencia': ng, 'no_area': na}, status=201)
 
 
 @login_required
 @csrf_exempt
-@require_http_methods(['GET'])
+@require_http_methods(['DELETE'])
+def sdn_area_delete(request, no_gerencia, no_area):
+    return _crud_delete(lambda: sdn_repo.delete_area(no_gerencia, no_area))
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET', 'POST'])
 def sdn_deptos(request):
-    return JsonResponse(sdn_repo.list_deptos(), safe=False)
+    if request.method == 'GET':
+        return JsonResponse(sdn_repo.list_deptos(), safe=False)
+    data = json.loads(request.body or '{}')
+    ng, na, nd = sdn_repo.upsert_depto(data)
+    return JsonResponse(
+        {'no_gerencia': ng, 'no_area': na, 'no_depto': nd}, status=201
+    )
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['DELETE'])
+def sdn_depto_delete(request, no_gerencia, no_area, no_depto):
+    return _crud_delete(
+        lambda: sdn_repo.delete_depto(no_gerencia, no_area, no_depto)
+    )
+
+
+def _crud_delete(fn):
+    try:
+        fn()
+        return JsonResponse({'ok': True})
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 @login_required

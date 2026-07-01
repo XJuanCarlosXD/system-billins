@@ -900,7 +900,11 @@ invListCierres: (no_cia: string, punto: string) =>
 **Files:**
 - Auditar: `sdn-areas.tsx`, `sdn-deptos.tsx`, `sdn-gerencias.tsx`, `sdn-afp.tsx`, `sdn-ars.tsx`, `sdn-catalogos.tsx`, `sdn-cias.tsx`
 
-- [ ] **Step 12.1-12.4: Mismo patrón que PR11**
+- [x] **Step 12.1-12.4: Mismo patrón que PR11** — backend `sdn_repo` con upsert/delete + validaciones referenciales (empleados/áreas/deptos) para 5 catálogos organizacionales: AFP, ARS, Gerencias, Áreas, Deptos. `sdn_views` con GET+POST + DELETE. `sdn_urls` con rutas por PK. Api client con 10 métodos nuevos. `sdn-simple-tables.tsx` migra AFP/ARS/Gerencias/Areas/Deptos a `CatalogCrud` con options dinámicos para FK.
+
+  - [?] **Step 12.5: CRUD para Cias/Ingresos/Deducciones** — pospuesto: requieren spec dedicado por cantidad de flags (`valido_regalia`, `no_cotiza_tss`, `antes_isr`, `frecuencia`, `empleado_patrono`, topes ISR/AFP, salario mínimo). Actualmente read-only con nota visible en UI.
+
+- [x] **Step 12.6: Commit + push**
 
 ---
 

@@ -86,6 +86,165 @@ def list_deducciones(status: str = 'A') -> list[dict]:
     return client.fetch_dicts(sql, params)
 
 
+# ---------------------------------------------------------------------------
+# CRUD upsert/delete para catálogos organizacionales
+# ---------------------------------------------------------------------------
+
+def _exists(sql: str, params: list) -> bool:
+    r = client.fetch_one(sql, params)
+    return bool(r)
+
+
+def upsert_afp(data: dict) -> str:
+    no_afp = str(data['no_afp']).zfill(2)
+    if _exists("SELECT 1 FROM SDN.TSDN_AFP WHERE no_afp=:1", [no_afp]):
+        client.execute(
+            "UPDATE SDN.TSDN_AFP SET descripcion=:1 WHERE no_afp=:2",
+            [data['descripcion'], no_afp],
+        )
+    else:
+        client.execute(
+            "INSERT INTO SDN.TSDN_AFP (no_afp, descripcion) VALUES (:1, :2)",
+            [no_afp, data['descripcion']],
+        )
+    return no_afp
+
+
+def delete_afp(no_afp: str) -> None:
+    if _exists("SELECT 1 FROM SDN.TSDN_EMPLEADO WHERE no_afp=:1", [no_afp]):
+        raise ValueError('AFP en uso por empleados')
+    n = client.execute("DELETE FROM SDN.TSDN_AFP WHERE no_afp=:1", [no_afp])
+    if not n:
+        raise ValueError(f'AFP {no_afp} no existe')
+
+
+def upsert_ars(data: dict) -> str:
+    no_ars = str(data['no_ars']).zfill(2)
+    if _exists("SELECT 1 FROM SDN.TSDN_ARS WHERE no_ars=:1", [no_ars]):
+        client.execute(
+            "UPDATE SDN.TSDN_ARS SET descripcion=:1 WHERE no_ars=:2",
+            [data['descripcion'], no_ars],
+        )
+    else:
+        client.execute(
+            "INSERT INTO SDN.TSDN_ARS (no_ars, descripcion) VALUES (:1, :2)",
+            [no_ars, data['descripcion']],
+        )
+    return no_ars
+
+
+def delete_ars(no_ars: str) -> None:
+    if _exists("SELECT 1 FROM SDN.TSDN_EMPLEADO WHERE no_ars=:1", [no_ars]):
+        raise ValueError('ARS en uso por empleados')
+    n = client.execute("DELETE FROM SDN.TSDN_ARS WHERE no_ars=:1", [no_ars])
+    if not n:
+        raise ValueError(f'ARS {no_ars} no existe')
+
+
+def upsert_gerencia(data: dict) -> str:
+    no_gerencia = str(data['no_gerencia']).zfill(2)
+    if _exists("SELECT 1 FROM SDN.TSDN_GERENCIA WHERE no_gerencia=:1", [no_gerencia]):
+        client.execute(
+            "UPDATE SDN.TSDN_GERENCIA SET descripcion=:1 WHERE no_gerencia=:2",
+            [data['descripcion'], no_gerencia],
+        )
+    else:
+        client.execute(
+            "INSERT INTO SDN.TSDN_GERENCIA (no_gerencia, descripcion) VALUES (:1, :2)",
+            [no_gerencia, data['descripcion']],
+        )
+    return no_gerencia
+
+
+def delete_gerencia(no_gerencia: str) -> None:
+    if _exists("SELECT 1 FROM SDN.TSDN_AREA WHERE no_gerencia=:1", [no_gerencia]):
+        raise ValueError('gerencia con áreas asignadas')
+    if _exists("SELECT 1 FROM SDN.TSDN_EMPLEADO WHERE no_gerencia=:1", [no_gerencia]):
+        raise ValueError('gerencia en uso por empleados')
+    n = client.execute("DELETE FROM SDN.TSDN_GERENCIA WHERE no_gerencia=:1", [no_gerencia])
+    if not n:
+        raise ValueError(f'gerencia {no_gerencia} no existe')
+
+
+def upsert_area(data: dict) -> tuple[str, str]:
+    ng = str(data['no_gerencia']).zfill(2)
+    na = str(data['no_area']).zfill(2)
+    if _exists(
+        "SELECT 1 FROM SDN.TSDN_AREA WHERE no_gerencia=:1 AND no_area=:2", [ng, na]
+    ):
+        client.execute(
+            "UPDATE SDN.TSDN_AREA SET descripcion=:1 "
+            "WHERE no_gerencia=:2 AND no_area=:3",
+            [data['descripcion'], ng, na],
+        )
+    else:
+        client.execute(
+            "INSERT INTO SDN.TSDN_AREA (no_gerencia, no_area, descripcion) "
+            "VALUES (:1, :2, :3)",
+            [ng, na, data['descripcion']],
+        )
+    return ng, na
+
+
+def delete_area(no_gerencia: str, no_area: str) -> None:
+    if _exists(
+        "SELECT 1 FROM SDN.TSDN_DEPTO WHERE no_gerencia=:1 AND no_area=:2",
+        [no_gerencia, no_area],
+    ):
+        raise ValueError('área con departamentos asignados')
+    if _exists(
+        "SELECT 1 FROM SDN.TSDN_EMPLEADO WHERE no_gerencia=:1 AND no_area=:2",
+        [no_gerencia, no_area],
+    ):
+        raise ValueError('área en uso por empleados')
+    n = client.execute(
+        "DELETE FROM SDN.TSDN_AREA WHERE no_gerencia=:1 AND no_area=:2",
+        [no_gerencia, no_area],
+    )
+    if not n:
+        raise ValueError(f'área {no_gerencia}/{no_area} no existe')
+
+
+def upsert_depto(data: dict) -> tuple[str, str, str]:
+    ng = str(data['no_gerencia']).zfill(2)
+    na = str(data['no_area']).zfill(2)
+    nd = str(data['no_depto']).zfill(2)
+    if _exists(
+        "SELECT 1 FROM SDN.TSDN_DEPTO "
+        "WHERE no_gerencia=:1 AND no_area=:2 AND no_depto=:3",
+        [ng, na, nd],
+    ):
+        client.execute(
+            "UPDATE SDN.TSDN_DEPTO SET descripcion=:1 "
+            "WHERE no_gerencia=:2 AND no_area=:3 AND no_depto=:4",
+            [data['descripcion'], ng, na, nd],
+        )
+    else:
+        client.execute(
+            "INSERT INTO SDN.TSDN_DEPTO "
+            "(no_gerencia, no_area, no_depto, descripcion) "
+            "VALUES (:1, :2, :3, :4)",
+            [ng, na, nd, data['descripcion']],
+        )
+    return ng, na, nd
+
+
+def delete_depto(no_gerencia: str, no_area: str, no_depto: str) -> None:
+    if _exists(
+        "SELECT 1 FROM SDN.TSDN_EMPLEADO "
+        "WHERE no_gerencia=:1 AND no_area=:2 AND no_depto=:3",
+        [no_gerencia, no_area, no_depto],
+    ):
+        raise ValueError('departamento en uso por empleados')
+    n = client.execute(
+        "DELETE FROM SDN.TSDN_DEPTO "
+        "WHERE no_gerencia=:1 AND no_area=:2 AND no_depto=:3",
+        [no_gerencia, no_area, no_depto],
+    )
+    if not n:
+        raise ValueError(f'departamento {no_gerencia}/{no_area}/{no_depto} no existe')
+
+
 # ---- Empleados ----
 def count_empleados(no_cia: str) -> int:
     row = client.fetch_one(

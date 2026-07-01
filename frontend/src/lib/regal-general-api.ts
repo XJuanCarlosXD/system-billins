@@ -1581,10 +1581,36 @@ export const regalGeneralApi = {
   // ============================================================
   sdnListCias: () => request<any[]>('/sdn/cias/'),
   sdnListAfp: () => request<any[]>('/sdn/afp/'),
+  sdnSaveAfp: (d: Record<string, unknown>) =>
+    request<{ no_afp: string }>('/sdn/afp/', { method: 'POST', body: JSON.stringify(d) }),
+  sdnDeleteAfp: (noAfp: string) =>
+    request<{ ok: boolean }>(`/sdn/afp/${encodeURIComponent(noAfp)}/`, { method: 'DELETE' }),
   sdnListArs: () => request<any[]>('/sdn/ars/'),
+  sdnSaveArs: (d: Record<string, unknown>) =>
+    request<{ no_ars: string }>('/sdn/ars/', { method: 'POST', body: JSON.stringify(d) }),
+  sdnDeleteArs: (noArs: string) =>
+    request<{ ok: boolean }>(`/sdn/ars/${encodeURIComponent(noArs)}/`, { method: 'DELETE' }),
   sdnListGerencias: () => request<any[]>('/sdn/gerencias/'),
+  sdnSaveGerencia: (d: Record<string, unknown>) =>
+    request<{ no_gerencia: string }>('/sdn/gerencias/', { method: 'POST', body: JSON.stringify(d) }),
+  sdnDeleteGerencia: (noGerencia: string) =>
+    request<{ ok: boolean }>(`/sdn/gerencias/${encodeURIComponent(noGerencia)}/`, { method: 'DELETE' }),
   sdnListAreas: () => request<any[]>('/sdn/areas/'),
+  sdnSaveArea: (d: Record<string, unknown>) =>
+    request<any>('/sdn/areas/', { method: 'POST', body: JSON.stringify(d) }),
+  sdnDeleteArea: (noGerencia: string, noArea: string) =>
+    request<{ ok: boolean }>(
+      `/sdn/areas/${encodeURIComponent(noGerencia)}/${encodeURIComponent(noArea)}/`,
+      { method: 'DELETE' },
+    ),
   sdnListDeptos: () => request<any[]>('/sdn/deptos/'),
+  sdnSaveDepto: (d: Record<string, unknown>) =>
+    request<any>('/sdn/deptos/', { method: 'POST', body: JSON.stringify(d) }),
+  sdnDeleteDepto: (noGerencia: string, noArea: string, noDepto: string) =>
+    request<{ ok: boolean }>(
+      `/sdn/deptos/${encodeURIComponent(noGerencia)}/${encodeURIComponent(noArea)}/${encodeURIComponent(noDepto)}/`,
+      { method: 'DELETE' },
+    ),
   sdnListIngresos: (status = 'A') => request<any[]>(`/sdn/ingresos/?status=${status}`),
   sdnListDeducciones: (status = 'A') => request<any[]>(`/sdn/deducciones/?status=${status}`),
   sdnAplicarDeduccionMasiva: (data: {
