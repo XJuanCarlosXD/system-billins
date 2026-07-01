@@ -39,7 +39,11 @@
   margin-bottom: 4px;
 }
 
-.pdf-tabla-lineas thead { display: table-header-group; }
+/* thead como table-header-group hacia que el encabezado oscuro de la tabla
+   se repitiera al inicio de cada hoja impresa; en documentos de una sola
+   pagina eso se veia como una linea/divisoria arriba de la hoja 2 cuando
+   la browser paginaba por un overflow minimo. Se deja como default para
+   no repetirlo; el thead sale una sola vez en la hoja 1. */
 .pdf-tabla-lineas tr { page-break-inside: avoid; }
 
 .pdf-firmas { page-break-inside: avoid; }
@@ -49,15 +53,23 @@
    Usamos "named pages" via `page:` en @media print para que cada plantilla
    aterrice en la hoja correcta. El navegador respeta la orientación del
    @page nombrado que la clase de la .pdf-page pida.                          */
+/* Dimensiones explicitas (mm) — mas robustas que el enum "A4 portrait" que
+   algunos browsers no honran del todo. Los margenes 0 en los cuatro lados
+   evitan que el navegador reserve espacio para su header/footer, que suele
+   dibujarse como una linea gris fina arriba de cada hoja. */
 @page {
-  size: A4 portrait;
-  margin: 0;
+  size: 210mm 297mm;
+  margin: 0 !important;
 }
-@page portraitA4    { size: A4 portrait;    margin: 0; }
-@page landscapeA4   { size: A4 landscape;   margin: 0; }
-@page portraitLETTER  { size: Letter portrait;  margin: 0; }
-@page landscapeLETTER { size: Letter landscape; margin: 0; }
-@page portraitPOS80 { size: 80mm 200mm; margin: 0; }
+@page :first { margin: 0 !important; }
+@page :left  { margin: 0 !important; }
+@page :right { margin: 0 !important; }
+
+@page portraitA4     { size: 210mm 297mm; margin: 0 !important; }
+@page landscapeA4    { size: 297mm 210mm; margin: 0 !important; }
+@page portraitLETTER { size: 216mm 279mm; margin: 0 !important; }
+@page landscapeLETTER{ size: 279mm 216mm; margin: 0 !important; }
+@page portraitPOS80  { size: 80mm  200mm; margin: 0 !important; }
 
 @media print {
   /* Cero todo alrededor de la hoja para que ni HTML ni body inyecten margen. */
@@ -79,9 +91,24 @@
     box-shadow: none !important;
     margin: 0 !important;
     max-width: none !important;
-    padding: 15mm;
+    padding: 15mm 15mm 5mm 15mm; /* padding-bottom 5mm da respiro para
+                                     que un overflow minimo no cree hoja 2 */
     min-height: 0 !important;
     height: auto !important;
+    border: 0 !important;      /* Tailwind base * { border-color: --border }
+                                  hereda color; explicito border: 0 evita que
+                                  algun wrapper (Puck) pinte 1px al tope */
+    outline: 0 !important;
+  }
+  /* Puck envuelve cada bloque en un div; en imprimir no queremos que ningun
+     descendiente directo dibuje una linea al tope de la hoja. */
+  .pdf-page > div { border-top: 0 !important; }
+  /* Suprime el header/footer visible que Chrome deja como una linea gris
+     cuando "Encabezados y pies" esta activo. No podemos apagarlo desde CSS
+     pero el color-adjust exact fuerza pinta consistente. */
+  .pdf-page, .pdf-page * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
   /* Cada tamaño/orientación aterriza en su @page nombrado. */
   .pdf-page--A4    { page: portraitA4; }
