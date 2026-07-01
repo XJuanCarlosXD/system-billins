@@ -492,12 +492,12 @@ Después de que Netlify build termine, abrir `https://abregonza.netlify.app/cxp/
 - Possibly modify: `frontend/src/lib/regal-general-api.ts` (verificar `chcCierreConciliacion`)
 - Possibly create backend: `backend/apps/legacy/chc_views.py` (función cierre conciliación)
 
-- [ ] **Step 4.1: Verificar que el endpoint backend existe**
+- [x] **Step 4.1: Verificar que el endpoint backend existe** — sí, `cerrar_conciliacion` en `chc_repo.py`, view + url ya en `chc_views.py` y `chc_urls.py`; api client tiene `chcCierreConciliacion`, `chcListCuentas`, `chcListCierres`
 
 Run: `grep -n 'chc_cierre_conciliacion\|chc/cierres/conciliacion' backend/apps/legacy/chc_*.py backend/apps/legacy/repositories/chc_repo.py`
 Si no existe, ver step 4.2. Si sí existe, saltar a 4.3.
 
-- [ ] **Step 4.2: Crear endpoint backend (si falta)**
+- [x] **Step 4.2: Crear endpoint backend (si falta)** — N/A, ya existía
 
 En `backend/apps/legacy/chc_views.py`:
 
@@ -530,7 +530,7 @@ path('chc/cierres/conciliacion/', chc_cierre_conciliacion),
 
 Deploy + py_compile + smoke (igual que PR2 step 2.1.4).
 
-- [ ] **Step 4.3: Reescribir `chc-cierres.tsx`**
+- [x] **Step 4.3: Reescribir `chc-cierres.tsx`** — done (cierre con selector cuenta+mes+año, dialog confirm, AlertIrreversible, histórico con badge)
 
 ```tsx
 import { useState } from 'react'
@@ -695,7 +695,7 @@ export function ChcCierres() {
 }
 ```
 
-- [ ] **Step 4.4: Commit + push**
+- [x] **Step 4.4: Commit + push** — commit hecho en runner
 
 ```bash
 git add frontend/src/features/chc/chc-cierres.tsx
