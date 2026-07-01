@@ -343,15 +343,15 @@ git push origin main
 - Modify: `frontend/src/features/cxp/cxp-procesos.tsx` (refactor 3 exports a patrón CxC con React Query)
 - Modify: `frontend/src/components/layout/data/sidebar-data.ts` (3 items en sección Cierre)
 
-- [ ] **Step 3.1: Memoria check**
+- [x] **Step 3.1: Memoria check** — hecho en runner
 
 Run: `memory_search "CxP cierre asiento generar"` para revisar contexto previo.
 
-- [ ] **Step 3.2: Leer cxc-cierre.tsx como referencia**
+- [x] **Step 3.2: Leer cxc-cierre.tsx como referencia** — leído
 
 Run: `cat frontend/src/features/cxc/cxc-cierre.tsx` y mantener abierto como plantilla.
 
-- [ ] **Step 3.3: Refactorizar `CxpAsientoContable` en cxp-procesos.tsx**
+- [x] **Step 3.3: Refactorizar `CxpAsientoContable` en cxp-procesos.tsx** — done (patrón CxC, PeriodoBadge, Card+CardHeader, Balanceado badge, printPdf)
 
 Reemplazar el componente actual con la estructura de `CxcAsientoContable`:
 - Hook `useCxpPeriodo(noCia, punto)` que lee `TCXP_PUNTO` via `api.cxpListPuntos(noCia)` o crear endpoint si no existe
@@ -411,17 +411,17 @@ export function CxpAsientoContable({ noCia, punto = '01' }: { noCia: string; pun
 }
 ```
 
-- [ ] **Step 3.4: Refactorizar `CxpGenerarAsiento` en cxp-procesos.tsx**
+- [x] **Step 3.4: Refactorizar `CxpGenerarAsiento` en cxp-procesos.tsx** — done (React Query, AlertIrreversible amber, período proceso)
 
 Copiar la estructura de `CxcGenerarAsiento` (líneas 197-307 de cxc-cierre.tsx). Cambiar:
 - `cxcGenerarAsiento` → `cxpGenerarAsiento` (verificar que existe en api client; si no, agregar)
 - Texto: "Cuentas por Cobrar" → "Cuentas por Pagar"
 
-- [ ] **Step 3.5: Refactorizar `CxpCierre` en cxp-procesos.tsx**
+- [x] **Step 3.5: Refactorizar `CxpCierre` en cxp-procesos.tsx** — done (React Query, AlertIrreversible red, CheckCircle2 success)
 
 Copiar estructura de `CxcCierre` (líneas 310-382). Cambiar `cxcCierre` → `cxpCierre`.
 
-- [ ] **Step 3.6: Crear ruta `/cxp/asiento-contable`**
+- [x] **Step 3.6: Crear ruta `/cxp/asiento-contable`** — ya existe en `routes/_authenticated/cxp/asiento-contable.tsx`
 
 ```tsx
 import { createFileRoute } from '@tanstack/react-router'
@@ -438,11 +438,11 @@ function _Page() {
 }
 ```
 
-- [ ] **Step 3.7: Crear ruta `/cxp/generar-asiento`** (igual estructura, con `CxpGenerarAsiento`)
+- [x] **Step 3.7: Crear ruta `/cxp/generar-asiento`** — ya existe
 
-- [ ] **Step 3.8: Verificar `/cxp/cierre` apunta a la nueva versión de `CxpCierre`**
+- [x] **Step 3.8: Verificar `/cxp/cierre` apunta a la nueva versión de `CxpCierre`** — verificado (usa export refactorizado)
 
-- [ ] **Step 3.9: Sidebar — agregar 3 items en sección Cierre de CxP**
+- [x] **Step 3.9: Sidebar — agregar 3 items en sección Cierre de CxP** — ya existían en sidebar-data.ts:257-263
 
 En `sidebar-data.ts` cerca de línea 263, reemplazar el item único por:
 
@@ -457,7 +457,7 @@ En `sidebar-data.ts` cerca de línea 263, reemplazar el item único por:
 },
 ```
 
-- [ ] **Step 3.10: Commit + push**
+- [x] **Step 3.10: Commit + push** — commit hecho en runner
 
 ```bash
 git add frontend/src/features/cxp/cxp-procesos.tsx \
@@ -475,7 +475,7 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 git push origin main
 ```
 
-- [ ] **Step 3.11: Smoke en Netlify**
+- [!] **Step 3.11: Smoke en Netlify** — pendiente de smoke tras Netlify build (usuario verificará)
 
 Después de que Netlify build termine, abrir `https://abregonza.netlify.app/cxp/asiento-contable`, `/cxp/generar-asiento`, `/cxp/cierre` y verificar:
 - PeriodoBadge muestra el período activo

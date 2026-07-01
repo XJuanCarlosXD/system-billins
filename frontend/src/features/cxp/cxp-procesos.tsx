@@ -2,7 +2,8 @@
 // asiento-contable, generar-asiento, cierre.
 //
 // Cada componente conecta a un endpoint ya existente en apps/legacy/cxp_views.py.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import {
   Save,
   RotateCcw,
@@ -10,14 +11,18 @@ import {
   Unlock,
   FileText,
   Play,
-  AlertTriangle,
   Search,
+  Printer,
+  ChevronRight,
+  CheckCircle2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { regalGeneralApi as api } from '@/lib/regal-general-api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { PeriodoBadge, AlertIrreversible } from '@/components/cierre'
+import { buildReportMeta } from '../cnt/export-utils'
 import {
   Dialog,
   DialogContent,
@@ -1253,281 +1258,351 @@ export function CxpBloquearPago({ noCia, punto = '' }: P) {
   )
 }
 
-// ─── FCXP301 — Imprimir Asiento Contable ─────────────────────────────────────
+// ─── Hook período activo (TCXP_PUNTO) ────────────────────────────────────────
+const MESES_CXP = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+]
+
+function usePeriodoCxP(noCia: string, punto: string) {
+  return useQuery({
+    queryKey: ['cxp-punto', noCia, punto],
+    queryFn: async () => {
+      const all = await api.cxpListPuntos(noCia)
+      return (all as any[]).find((p) => String(p.punto) === String(punto)) || null
+    },
+    enabled: !!noCia && !!punto,
+  })
+}
+
+// ─── Imprimir Asiento Contable (FCXP301) ─────────────────────────────────────
 export function CxpAsientoContable({ noCia, punto = '' }: P) {
-  const [mes, setMes] = useState(curMonth)
-  const [ano, setAno] = useState(curYear)
-  const [items, setItems] = useState<any[]>([])
-  const [loading, setLoading] = useState(false)
+  const periodoQ = usePeriodoCxP(noCia, punto)
+  const [mesVal, setMesVal] = useState(curMonth)
+  const [anoVal, setAnoVal] = useState(curYear)
+  const [tipoImpresion, setTipoImpresion] = useState<'detallado' | 'diario'>('detallado')
 
-  const cargar = async () => {
-    if (!punto) return toast.error('Seleccione un punto de trabajo')
-    setLoading(true)
-    try {
-      setItems(await api.cxpAsientoContable(noCia, punto, mes, ano))
-    } catch (e: any) {
-      toast.error(e?.message || 'Error')
-    } finally {
-      setLoading(false)
+  useMemo(() => {
+    if (periodoQ.data) {
+      setMesVal(periodoQ.data.mes_proceso || curMonth)
+      setAnoVal(periodoQ.data.ano_proceso || curYear)
     }
-  }
+  }, [periodoQ.data])
 
-  // Backend cxp_repo.get_asiento_contable_cxp devuelve:
-  //   { cuenta, centro_costo, tipo_movi, total_debito, total_credito }
-  // Tolerante a otros nombres por si cambia el shape.
-  const norm = (r: any) => {
-    const tipo = (r.tipo_movi ?? '').toString().toUpperCase()
-    const monto = Number(r.monto ?? r.valor ?? 0)
-    const debe =
-      r.total_debito != null
-        ? Number(r.total_debito)
-        : r.debe != null
-          ? Number(r.debe)
-          : tipo === 'D'
-            ? monto
-            : 0
-    const haber =
-      r.total_credito != null
-        ? Number(r.total_credito)
-        : r.haber != null
-          ? Number(r.haber)
-          : tipo === 'C'
-            ? monto
-            : 0
-    return {
-      cuenta: r.cuenta ?? '',
-      descripcion:
-        r.descripcion ??
-        r.cuenta_desc ??
-        (r.centro_costo && r.centro_costo !== '0000000000'
-          ? `CC ${r.centro_costo}`
-          : ''),
-      debe,
-      haber,
-    }
+  const cargarMut = useMutation({
+    mutationFn: () => {
+      if (!punto) throw new Error('Seleccione un punto de trabajo')
+      return api.cxpAsientoContable(noCia, punto, mesVal, anoVal)
+    },
+    onError: (e: any) => toast.error(e?.detail?.error || e?.message || 'Error'),
+  })
+
+  const rows: any[] = (cargarMut.data as any[]) ?? []
+  const totalDebito = rows.reduce((s, r) => s + (Number(r.total_debito) || 0), 0)
+  const totalCredito = rows.reduce((s, r) => s + (Number(r.total_credito) || 0), 0)
+  const balanceado = Math.abs(totalDebito - totalCredito) < 0.001
+
+  const printPdf = async () => {
+    if (!rows.length) return
+    const meta = await buildReportMeta(noCia, punto, `${String(mesVal).padStart(2, '0')}-${anoVal}`)
+    const win = window.open('', '_blank')
+    if (!win) return
+    win.document.write(`<html><head><title>Asiento Contable CxP</title>
+      <style>body{font-family:Arial,sans-serif;font-size:9pt}table{border-collapse:collapse;width:100%}
+      th,td{border:1px solid #333;padding:4px 7px}th{background:#0F172A;color:#fff}
+      .r{text-align:right}.tot{font-weight:700;background:#f1f5f9}</style></head>
+      <body><h3>${meta.company}</h3>
+      <p><b>Asiento Contable CxP</b> — ${MESES_CXP[mesVal - 1]} ${anoVal} · Tipo: ${tipoImpresion}</p>
+      <table><thead><tr><th>Cuenta</th><th>Centro Costo</th><th class=r>Débito</th><th class=r>Crédito</th></tr></thead>
+      <tbody>${rows.map((r) => `<tr><td>${r.cuenta}</td><td>${r.centro_costo || ''}</td>
+        <td class=r>${Number(r.total_debito) > 0 ? fmt(r.total_debito) : ''}</td>
+        <td class=r>${Number(r.total_credito) > 0 ? fmt(r.total_credito) : ''}</td></tr>`).join('')}
+        <tr class=tot><td colspan=2>TOTALES</td><td class=r>${fmt(totalDebito)}</td>
+        <td class=r>${fmt(totalCredito)}</td></tr></tbody></table></body></html>`)
+    win.document.close()
+    setTimeout(() => win.print(), 300)
   }
-  const rows = items.map(norm)
-  const totalDebe = rows.reduce((s, r) => s + r.debe, 0)
-  const totalHaber = rows.reduce((s, r) => s + r.haber, 0)
 
   return (
-    <div className='space-y-4 p-6'>
-      <h1 className='text-2xl font-semibold'>
-        FCXP301 — Imprimir Asiento Contable
-      </h1>
+    <div className='p-6 space-y-4 max-w-4xl mx-auto'>
       <Card>
-        <CardContent className='flex flex-wrap items-end gap-3 pt-6'>
-          <div className='space-y-1'>
-            <Label className='text-xs'>Mes</Label>
-            <Input
-              type='number'
-              min={1}
-              max={12}
-              value={mes}
-              onChange={(e) => setMes(Number(e.target.value))}
-              className='h-9 w-20'
+        <CardHeader className='pb-3'>
+          <div className='flex flex-wrap items-center justify-between gap-3'>
+            <div>
+              <CardTitle className='text-lg'>Imprimir Asiento Contable</CardTitle>
+              <p className='text-xs text-muted-foreground mt-0.5'>
+                Resumen del asiento contable de Cuentas por Pagar por cuenta del período seleccionado.
+              </p>
+            </div>
+            <PeriodoBadge
+              mes={periodoQ.data?.mes_proceso}
+              ano={periodoQ.data?.ano_proceso}
+              loading={periodoQ.isLoading}
             />
           </div>
-          <div className='space-y-1'>
-            <Label className='text-xs'>Año</Label>
-            <Input
-              type='number'
-              value={ano}
-              onChange={(e) => setAno(Number(e.target.value))}
-              className='h-9 w-28'
+        </CardHeader>
+        <CardContent className='space-y-4'>
+          <div className='grid grid-cols-3 gap-3'>
+            <div className='space-y-1.5'>
+              <Label className='text-xs'>Mes</Label>
+              <Select value={String(mesVal)} onValueChange={(v) => setMesVal(Number(v))}>
+                <SelectTrigger className='h-9'><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MESES_CXP.map((m, i) => (
+                    <SelectItem key={i + 1} value={String(i + 1)}>{i + 1} — {m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className='space-y-1.5'>
+              <Label className='text-xs'>Año</Label>
+              <Input type='number' min={2000} max={2099} value={anoVal}
+                onChange={(e) => setAnoVal(Number(e.target.value))} className='h-9' />
+            </div>
+            <div className='space-y-1.5'>
+              <Label className='text-xs'>Tipo de impresión</Label>
+              <Select value={tipoImpresion} onValueChange={(v) => setTipoImpresion(v as any)}>
+                <SelectTrigger className='h-9'><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='detallado'>Soporte detallado</SelectItem>
+                  <SelectItem value='diario'>Entrada de diario</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className='flex gap-2'>
+            <Button onClick={() => cargarMut.mutate()} variant='secondary' disabled={cargarMut.isPending}>
+              {cargarMut.isPending ? 'Cargando…' : 'Previsualizar'}
+            </Button>
+            <Button onClick={printPdf} disabled={!rows.length} className='gap-1'>
+              <Printer className='h-4 w-4' /> Imprimir
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {rows.length > 0 && (
+        <Card>
+          <CardHeader className='pb-2'>
+            <div className='flex items-center justify-between'>
+              <CardTitle className='text-base'>Previsualización</CardTitle>
+              {balanceado
+                ? <Badge variant='default' className='bg-green-600'>Balanceado</Badge>
+                : <Badge variant='destructive'>Desbalanceado</Badge>}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className='border rounded-lg overflow-hidden'>
+              <Table>
+                <TableHeader>
+                  <TableRow className='bg-muted/40'>
+                    <TableHead>Cuenta</TableHead>
+                    <TableHead className='w-32'>Centro Costo</TableHead>
+                    <TableHead className='w-36 text-right'>Débito</TableHead>
+                    <TableHead className='w-36 text-right'>Crédito</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((r, i) => (
+                    <TableRow key={i}>
+                      <TableCell className='font-mono text-xs'>{r.cuenta}</TableCell>
+                      <TableCell className='font-mono text-xs'>{r.centro_costo}</TableCell>
+                      <TableCell className='text-right tabular-nums'>
+                        {Number(r.total_debito) > 0 ? fmt(r.total_debito) : ''}
+                      </TableCell>
+                      <TableCell className='text-right tabular-nums'>
+                        {Number(r.total_credito) > 0 ? fmt(r.total_credito) : ''}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className='font-bold bg-muted/60 border-t-2'>
+                    <TableCell colSpan={2}>TOTALES</TableCell>
+                    <TableCell className='text-right tabular-nums'>RD$ {fmt(totalDebito)}</TableCell>
+                    <TableCell className='text-right tabular-nums'>RD$ {fmt(totalCredito)}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  )
+}
+
+// ─── Generar Asiento al Mayor (FCXP302) ──────────────────────────────────────
+export function CxpGenerarAsiento({ noCia, punto = '' }: P) {
+  const periodoQ = usePeriodoCxP(noCia, punto)
+  const [mesProceso, setMesProceso] = useState<number | null>(null)
+  const [anoProceso, setAnoProceso] = useState<number | null>(null)
+  const [fecha, setFecha] = useState(today)
+
+  useMemo(() => {
+    if (periodoQ.data && mesProceso === null) {
+      setMesProceso(periodoQ.data.mes_proceso || curMonth)
+      setAnoProceso(periodoQ.data.ano_proceso || curYear)
+    }
+  }, [periodoQ.data, mesProceso])
+
+  const generarMut = useMutation({
+    mutationFn: () => {
+      if (!punto) throw new Error('Seleccione un punto de trabajo')
+      return api.cxpGenerarAsiento({
+        no_cia: noCia,
+        punto,
+        mes_proceso: mesProceso!,
+        ano_proceso: anoProceso!,
+      })
+    },
+    onSuccess: () =>
+      toast.success(`Asiento generado para ${String(mesProceso).padStart(2, '0')}/${anoProceso}`),
+    onError: (e: any) => toast.error(e?.detail?.error || e?.message || 'Error al generar el asiento'),
+  })
+
+  const ejecutar = () => {
+    if (!confirm('¿Generar asiento al mayor? Esta operación es irreversible.')) return
+    generarMut.mutate()
+  }
+
+  if (periodoQ.isLoading || mesProceso === null) {
+    return <div className='p-6 text-muted-foreground'>Cargando período…</div>
+  }
+
+  return (
+    <div className='p-6 space-y-4 max-w-2xl mx-auto'>
+      <Card>
+        <CardHeader className='pb-3'>
+          <div className='flex flex-wrap items-center justify-between gap-3'>
+            <div>
+              <CardTitle className='text-lg'>Generar Asiento al Mayor</CardTitle>
+              <p className='text-xs text-muted-foreground mt-0.5'>
+                Marca los documentos de CxP del mes como contabilizados y los envía a Contabilidad.
+              </p>
+            </div>
+            <PeriodoBadge
+              mes={periodoQ.data?.mes_proceso}
+              ano={periodoQ.data?.ano_proceso}
+              loading={periodoQ.isLoading}
             />
           </div>
-          <Button onClick={cargar} disabled={loading}>
-            <FileText className='mr-2 h-4 w-4' />
-            Generar
+        </CardHeader>
+        <CardContent className='space-y-4'>
+          <AlertIrreversible tone='amber'>
+            Esta operación marca los documentos como generados en contabilidad y NO puede deshacerse.
+            Asegúrese de haber revisado el asiento contable previamente.
+          </AlertIrreversible>
+
+          <div className='grid grid-cols-2 gap-3'>
+            <div className='space-y-1.5'>
+              <Label className='text-xs'>Período de Proceso</Label>
+              <div className='flex gap-2'>
+                <Select value={String(mesProceso)} onValueChange={(v) => setMesProceso(Number(v))}>
+                  <SelectTrigger className='h-9'><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {MESES_CXP.map((m, i) => (
+                      <SelectItem key={i + 1} value={String(i + 1)}>{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input type='number' min={2000} max={2099} value={anoProceso || ''}
+                  onChange={(e) => setAnoProceso(Number(e.target.value))} className='h-9 w-24' />
+              </div>
+            </div>
+            <div className='space-y-1.5'>
+              <Label className='text-xs'>Fecha del Asiento</Label>
+              <Input type='date' value={fecha} onChange={(e) => setFecha(e.target.value)} className='h-9' />
+            </div>
+          </div>
+
+          <Button onClick={ejecutar} disabled={generarMut.isPending} className='w-full gap-2'>
+            <ChevronRight className='h-4 w-4' />
+            {generarMut.isPending ? 'Generando…' : 'Generar Asiento'}
           </Button>
         </CardContent>
       </Card>
-      <div className='rounded border'>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Cuenta</TableHead>
-              <TableHead>Descripción</TableHead>
-              <TableHead className='text-right'>Debe</TableHead>
-              <TableHead className='text-right'>Haber</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading && (
-              <TableRow>
-                <TableCell colSpan={4} className='py-6 text-center'>
-                  Cargando…
-                </TableCell>
-              </TableRow>
-            )}
-            {!loading && rows.length === 0 && (
-              <TableRow>
-                <TableCell
-                  colSpan={4}
-                  className='py-6 text-center text-muted-foreground'
-                >
-                  Sin datos para el periodo
-                </TableCell>
-              </TableRow>
-            )}
-            {rows.map((r, i: number) => (
-              <TableRow key={i}>
-                <TableCell className='font-mono text-sm'>{r.cuenta}</TableCell>
-                <TableCell className='text-sm'>{r.descripcion}</TableCell>
-                <TableCell className='text-right'>
-                  {r.debe > 0 ? fmt(r.debe) : ''}
-                </TableCell>
-                <TableCell className='text-right'>
-                  {r.haber > 0 ? fmt(r.haber) : ''}
-                </TableCell>
-              </TableRow>
-            ))}
-            {rows.length > 0 && (
-              <TableRow className='border-t-2 bg-muted/50 font-bold'>
-                <TableCell colSpan={2}>TOTALES</TableCell>
-                <TableCell className='text-right'>{fmt(totalDebe)}</TableCell>
-                <TableCell className='text-right'>{fmt(totalHaber)}</TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
     </div>
   )
 }
 
-// ─── FCXP302 — Generar Asiento a Contabilidad ────────────────────────────────
-export function CxpGenerarAsiento({ noCia, punto = '' }: P) {
-  const [mes, setMes] = useState(curMonth)
-  const [ano, setAno] = useState(curYear)
-  const [busy, setBusy] = useState(false)
-  const [result, setResult] = useState<any>(null)
-
-  const ejecutar = async () => {
-    if (!punto) return toast.error('Seleccione un punto de trabajo')
-    if (
-      !confirm(
-        `¿Generar asiento al mayor del periodo ${mes}/${ano}? IRREVERSIBLE sobre datos reales.`
-      )
-    )
-      return
-    setBusy(true)
-    try {
-      const r = await api.cxpGenerarAsiento({
-        no_cia: noCia,
-        punto,
-        mes_proceso: mes,
-        ano_proceso: ano,
-      })
-      setResult(r)
-      toast.success('Asiento generado')
-    } catch (e: any) {
-      toast.error(e?.message || 'Error generando asiento')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className='space-y-4 p-6'>
-      <h1 className='text-2xl font-semibold'>
-        FCXP302 — Generar Asiento a Contabilidad
-      </h1>
-      <Card>
-        <CardContent className='space-y-3 pt-6'>
-          <div className='flex items-start gap-2 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800'>
-            <AlertTriangle className='mt-0.5 h-4 w-4' />
-            <div>
-              Esta acción marca los documentos del periodo como generados al
-              mayor.
-              <b> IRREVERSIBLE sobre datos reales.</b>
-            </div>
-          </div>
-          <div className='flex flex-wrap items-end gap-3'>
-            <div className='space-y-1'>
-              <Label className='text-xs'>Mes</Label>
-              <Input
-                type='number'
-                min={1}
-                max={12}
-                value={mes}
-                onChange={(e) => setMes(Number(e.target.value))}
-                className='h-9 w-20'
-              />
-            </div>
-            <div className='space-y-1'>
-              <Label className='text-xs'>Año</Label>
-              <Input
-                type='number'
-                value={ano}
-                onChange={(e) => setAno(Number(e.target.value))}
-                className='h-9 w-28'
-              />
-            </div>
-            <Button onClick={ejecutar} disabled={busy} variant='destructive'>
-              <Play className='mr-2 h-4 w-4' />{' '}
-              {busy ? 'Ejecutando…' : 'Ejecutar'}
-            </Button>
-          </div>
-          {result && (
-            <div className='mt-2 rounded border border-emerald-200 bg-emerald-50 p-3 text-sm'>
-              <b>OK.</b> {JSON.stringify(result)}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
-
-// ─── FCXP303 — Cierre Mensual ────────────────────────────────────────────────
+// ─── Cierre Mensual de CxP (FCXP303) ─────────────────────────────────────────
 export function CxpCierre({ noCia, punto = '' }: P) {
-  const [busy, setBusy] = useState(false)
-  const [result, setResult] = useState<any>(null)
+  const periodoQ = usePeriodoCxP(noCia, punto)
+  const [fecha, setFecha] = useState(today)
 
-  const ejecutar = async () => {
-    if (!punto) return toast.error('Seleccione un punto de trabajo')
-    if (
-      !confirm('¿Avanzar el mes de proceso? IRREVERSIBLE sobre datos reales.')
-    )
-      return
-    setBusy(true)
-    try {
-      const r = await api.cxpCierre({ no_cia: noCia, punto })
-      setResult(r)
-      toast.success('Cierre ejecutado')
-    } catch (e: any) {
-      toast.error(e?.message || 'Error')
-    } finally {
-      setBusy(false)
-    }
+  const cerrarMut = useMutation({
+    mutationFn: () => {
+      if (!punto) throw new Error('Seleccione un punto de trabajo')
+      return api.cxpCierre({ no_cia: noCia, punto })
+    },
+    onSuccess: (r: any) => {
+      const m = MESES_CXP[(r?.mes || 1) - 1]
+      toast.success(`Cierre ejecutado. Nuevo período: ${m} ${r?.ano || ''}`)
+    },
+    onError: (e: any) => toast.error(e?.detail?.error || e?.message || 'Error al ejecutar el cierre'),
+  })
+
+  const ejecutar = () => {
+    if (!periodoQ.data) return
+    const m = MESES_CXP[(periodoQ.data.mes_proceso || 1) - 1]
+    if (!confirm(`¿Ejecutar cierre de CxP para ${m} ${periodoQ.data.ano_proceso}?\n\nEsta operación avanzará el período y NO puede deshacerse.`)) return
+    cerrarMut.mutate()
   }
 
   return (
-    <div className='space-y-4 p-6'>
-      <h1 className='text-2xl font-semibold'>FCXP303 — Cierre Mensual</h1>
+    <div className='p-6 space-y-4 max-w-xl mx-auto'>
       <Card>
-        <CardContent className='space-y-3 pt-6'>
-          <div className='flex items-start gap-2 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800'>
-            <AlertTriangle className='mt-0.5 h-4 w-4' />
+        <CardHeader className='pb-3'>
+          <div className='flex flex-wrap items-center justify-between gap-3'>
             <div>
-              Esta acción <b>avanza el mes de proceso</b> en TCXP_PUNTO.
-              <b> IRREVERSIBLE sobre datos reales.</b> Asegúrese de haber
-              generado el asiento antes.
+              <CardTitle className='text-lg'>Cierre Mensual de Cuentas por Pagar</CardTitle>
+              <p className='text-xs text-muted-foreground mt-0.5'>
+                Avanza el período activo del módulo al siguiente mes.
+              </p>
             </div>
+            <PeriodoBadge
+              mes={periodoQ.data?.mes_proceso}
+              ano={periodoQ.data?.ano_proceso}
+              loading={periodoQ.isLoading}
+            />
           </div>
-          <div>
-            <Button onClick={ejecutar} disabled={busy} variant='destructive'>
-              <Play className='mr-2 h-4 w-4' />{' '}
-              {busy ? 'Ejecutando…' : 'Ejecutar Cierre'}
-            </Button>
-          </div>
-          {result && (
-            <div className='mt-2 rounded border border-emerald-200 bg-emerald-50 p-3 text-sm'>
-              <b>OK.</b> {JSON.stringify(result)}
+        </CardHeader>
+        <CardContent className='space-y-4'>
+          <AlertIrreversible tone='red'>
+            <b>Operación irreversible.</b> Asegúrese de haber generado el asiento contable
+            y revisado los reportes del período antes de continuar.
+          </AlertIrreversible>
+
+          {periodoQ.data && (
+            <div className='grid grid-cols-1 gap-3'>
+              <div className='flex items-center justify-between p-3 border rounded bg-muted/40'>
+                <span className='text-sm text-muted-foreground'>Período actual</span>
+                <span className='font-semibold'>
+                  {MESES_CXP[(periodoQ.data.mes_proceso || 1) - 1]} {periodoQ.data.ano_proceso}
+                </span>
+              </div>
+              <div className='space-y-1.5'>
+                <Label className='text-xs'>Fecha del cierre</Label>
+                <Input type='date' value={fecha} onChange={(e) => setFecha(e.target.value)} className='h-9' />
+              </div>
             </div>
           )}
+
+          {cerrarMut.isSuccess && (
+            <div className='bg-green-50 border border-green-300 rounded-lg p-3 flex items-center gap-2'>
+              <CheckCircle2 className='h-5 w-5 text-green-600 flex-shrink-0' />
+              <div className='text-sm text-green-800'>
+                Cierre completado. El nuevo período es{' '}
+                <b>{MESES_CXP[((cerrarMut.data as any)?.mes || 1) - 1]} {(cerrarMut.data as any)?.ano}</b>
+              </div>
+            </div>
+          )}
+
+          <Button onClick={ejecutar} disabled={cerrarMut.isPending || !periodoQ.data}
+                  variant='destructive' className='w-full gap-2'>
+            <CheckCircle2 className='h-4 w-4' />
+            {cerrarMut.isPending ? 'Procesando…' : 'Ejecutar Cierre'}
+          </Button>
         </CardContent>
       </Card>
     </div>
