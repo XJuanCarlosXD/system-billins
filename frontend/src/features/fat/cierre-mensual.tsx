@@ -1,6 +1,6 @@
 // FAT Cierre — asiento contable + generar al mayor + cierre mensual.
 // Refactor al patrón CxC: React Query, PeriodoBadge, AlertIrreversible.
-import { useState, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -19,6 +19,7 @@ import { Printer, ChevronRight, CheckCircle2, Lock } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { PeriodoBadge, AlertIrreversible } from '@/components/cierre'
 import { GuardedButton } from '@/components/access'
+import { buildReportMeta } from '../cnt/export-utils'
 
 interface P { noCia: string; punto?: string }
 
@@ -42,13 +43,17 @@ export function FatAsientoContable({ noCia, punto = '01' }: P) {
   const periodoQ = usePeriodoFat(noCia, punto)
   const [mesVal, setMesVal] = useState(new Date().getMonth() + 1)
   const [anoVal, setAnoVal] = useState(new Date().getFullYear())
+  const [initialized, setInitialized] = useState(false)
 
-  useMemo(() => {
-    if (periodoQ.data) {
+  // Init una sola vez: sincroniza con el periodo activo al primer render con data.
+  // Sin este guard, cambiar mes/año se revertía al periodo cada re-render.
+  useEffect(() => {
+    if (periodoQ.data && !initialized) {
       setMesVal(periodoQ.data.mes_proceso || new Date().getMonth() + 1)
       setAnoVal(periodoQ.data.ano_proceso || new Date().getFullYear())
+      setInitialized(true)
     }
-  }, [periodoQ.data])
+  }, [periodoQ.data, initialized])
 
   const cargarMut = useMutation({
     mutationFn: () => regalGeneralApi.fatAsientoContable(noCia, punto, mesVal, anoVal),
@@ -59,19 +64,24 @@ export function FatAsientoContable({ noCia, punto = '01' }: P) {
   const totalCredito = rows.reduce((s, r) => s + (Number(r.total_credito) || 0), 0)
   const balanceado = Math.abs(totalDebito - totalCredito) < 0.001
 
-  const printPdf = () => {
+  const printPdf = async () => {
     if (!rows.length) return
+    const meta = await buildReportMeta(noCia, punto, `${String(mesVal).padStart(2, '0')}-${anoVal}`)
     const win = window.open('', '_blank')
     if (!win) return
     win.document.write(`<html><head><title>Asiento Contable Facturación</title>
-      <style>body{font-family:Arial,sans-serif;font-size:9pt}table{border-collapse:collapse;width:100%}
+      <style>body{font-family:Arial,sans-serif;font-size:9pt;padding:20px}
+      table{border-collapse:collapse;width:100%;margin-top:8px}
       th,td{border:1px solid #333;padding:4px 7px}th{background:#0F172A;color:#fff}
-      .r{text-align:right}.tot{font-weight:700;background:#f1f5f9}</style></head>
-      <body><p><b>Asiento Contable de Facturación</b> — Empresa ${noCia} · Punto ${punto} · ${MESES[mesVal - 1]} ${anoVal}</p>
+      .r{text-align:right}.tot{font-weight:700;background:#f1f5f9}
+      h3{margin:0;font-size:12pt}.sub{color:#555;font-size:9pt}</style></head>
+      <body><h3>${meta.company}</h3>
+      <div class="sub">Empresa ${noCia} · Punto ${punto} · Generado ${meta.date}</div>
+      <p><b>Asiento Contable de Facturación</b> — ${MESES[mesVal - 1]} ${anoVal}</p>
       <table><thead><tr><th>Cuenta</th><th>Centro Costo</th><th class=r>Débito</th><th class=r>Crédito</th></tr></thead>
-      <tbody>${rows.map(r => `<tr><td>${r.cuenta}</td><td>${r.centro_costo || ''}</td>
-        <td class=r>${r.total_debito > 0 ? fmt(r.total_debito) : ''}</td>
-        <td class=r>${r.total_credito > 0 ? fmt(r.total_credito) : ''}</td></tr>`).join('')}
+      <tbody>${rows.map(r => `<tr><td>${r.cuenta ?? ''}</td><td>${r.centro_costo || ''}</td>
+        <td class=r>${Number(r.total_debito) > 0 ? fmt(r.total_debito) : ''}</td>
+        <td class=r>${Number(r.total_credito) > 0 ? fmt(r.total_credito) : ''}</td></tr>`).join('')}
         <tr class=tot><td colspan=2>TOTALES</td><td class=r>${fmt(totalDebito)}</td>
         <td class=r>${fmt(totalCredito)}</td></tr></tbody></table></body></html>`)
     win.document.close()
@@ -177,7 +187,7 @@ export function FatGenerarAsiento({ noCia, punto = '01' }: P) {
   const [ano, setAno] = useState<number | null>(null)
   const [confirm, setConfirm] = useState(false)
 
-  useMemo(() => {
+  useEffect(() => {
     if (periodoQ.data && mes === null) {
       setMes(periodoQ.data.mes_proceso || new Date().getMonth() + 1)
       setAno(periodoQ.data.ano_proceso || new Date().getFullYear())
@@ -287,18 +297,30 @@ export function FatCierre({ noCia, punto = '01' }: P) {
   const [mes, setMes] = useState<number>(new Date().getMonth() + 1)
   const [ano, setAno] = useState<number>(new Date().getFullYear())
   const [confirm, setConfirm] = useState(false)
+  const [initialized, setInitialized] = useState(false)
 
-  useMemo(() => {
-    if (periodoQ.data) {
+  useEffect(() => {
+    if (periodoQ.data && !initialized) {
       setMes(periodoQ.data.mes_proceso || new Date().getMonth() + 1)
       setAno(periodoQ.data.ano_proceso || new Date().getFullYear())
+      setInitialized(true)
     }
-  }, [periodoQ.data])
+  }, [periodoQ.data, initialized])
 
   const cierresQ = useQuery({
     queryKey: ['fat-cierres', noCia, punto],
     queryFn: () => regalGeneralApi.fatListCierres(noCia, punto),
     enabled: !!noCia,
+  })
+  const asientosQ = useQuery({
+    queryKey: ['fat-asientos-generados', noCia, punto],
+    queryFn: () => regalGeneralApi.fatAsientosGenerados(noCia, punto),
+    enabled: !!noCia,
+  })
+  const pendientesQ = useQuery({
+    queryKey: ['fat-pendientes', noCia, punto, mes, ano],
+    queryFn: () => regalGeneralApi.fatGenerarAsientos(noCia, punto, ano, mes, 'preview'),
+    enabled: !!noCia && !!mes && !!ano,
   })
 
   const cerrarMut = useMutation({
@@ -307,12 +329,19 @@ export function FatCierre({ noCia, punto = '01' }: P) {
       toast.success(`Cierre de ${MESES[mes - 1]} ${ano} registrado`)
       setConfirm(false)
       qc.invalidateQueries({ queryKey: ['fat-cierres'] })
+      qc.invalidateQueries({ queryKey: ['fat-asientos-generados'] })
+      qc.invalidateQueries({ queryKey: ['fat-punto'] })
     },
     onError: (e: any) => toast.error(e?.detail || e?.message || 'Error al cerrar'),
   })
 
   const cierres: any[] = (cierresQ.data as any)?.items ?? []
+  const asientos: any[] = (asientosQ.data as any[]) ?? []
+  const pendientes: any[] = (pendientesQ.data as any)?.items ?? []
   const yaCerrado = cierres.some(r => r.ano === ano && r.mes === mes)
+  const hayPendientes = pendientes.length > 0
+
+  const fmtD = (s: any) => s ? String(s).slice(0, 10) : '—'
 
   return (
     <div className="p-6 space-y-4 max-w-4xl mx-auto">
@@ -355,17 +384,87 @@ export function FatCierre({ noCia, punto = '01' }: P) {
             </div>
           )}
 
+          {!yaCerrado && hayPendientes && (
+            <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Hay <b>{pendientes.length}</b> factura{pendientes.length === 1 ? '' : 's'} pendiente{pendientes.length === 1 ? '' : 's'} de contabilizar en {MESES[mes - 1]} {ano}. Ejecuta primero <i>Generar Asiento al Mayor</i>.
+            </div>
+          )}
+
           <GuardedButton modulo="fat" flag="HACER_CIERRE"
-                  onClick={() => setConfirm(true)} disabled={yaCerrado}
+                  onClick={() => setConfirm(true)}
+                  disabled={yaCerrado || hayPendientes}
                   variant="destructive" className="w-full gap-2">
             <Lock className="h-4 w-4" /> Cerrar {MESES[mes - 1]} {ano}
           </GuardedButton>
         </CardContent>
       </Card>
 
+      {/* Asientos generados (derivados de TFAT_FACTURA.st_generado_cnt='S'). */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base">Asientos generados</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Períodos con facturas ya posteadas a contabilidad.
+              </p>
+            </div>
+            <Badge variant="outline" className="text-xs">
+              {asientos.length} período{asientos.length === 1 ? '' : 's'}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/40">
+                <TableHead className="w-20 text-center">Año</TableHead>
+                <TableHead className="w-28">Mes</TableHead>
+                <TableHead className="w-24 text-center">Facturas</TableHead>
+                <TableHead className="text-right">Total Neto</TableHead>
+                <TableHead className="text-right">ITBIS</TableHead>
+                <TableHead className="w-40">Rango fechas</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {asientosQ.isLoading && (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-6 text-center text-muted-foreground">Cargando…</TableCell>
+                </TableRow>
+              )}
+              {!asientosQ.isLoading && asientos.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-6 text-center text-muted-foreground">
+                    Aún no hay períodos con asientos generados para esta empresa y punto.
+                  </TableCell>
+                </TableRow>
+              )}
+              {asientos.map((r, i) => (
+                <TableRow key={`${r.ano}-${r.mes}-${i}`}>
+                  <TableCell className="text-center font-mono">{r.ano}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-xs">
+                      {String(r.mes).padStart(2, '0')} · {MESES[r.mes - 1]}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-center font-mono tabular-nums">{r.facturas}</TableCell>
+                  <TableCell className="text-right tabular-nums">{fmt(r.total_neto)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{fmt(r.impuesto)}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {fmtD(r.fecha_desde)}
+                    {r.fecha_desde && r.fecha_hasta ? ' → ' : ''}
+                    {fmtD(r.fecha_hasta)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-base">Histórico de Cierres</CardTitle></CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -402,10 +501,20 @@ export function FatCierre({ noCia, punto = '01' }: P) {
               Confirmar cierre {MESES[mes - 1]} {ano}
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm">Operación irreversible.</p>
+          <div className="text-sm space-y-2 py-2">
+            <p>
+              Se registrará el cierre de <b>{MESES[mes - 1]} {ano}</b> en el histórico
+              de Facturación para la empresa <b>{noCia}</b> punto <b>{punto}</b>.
+            </p>
+            <ul className="list-disc list-inside text-muted-foreground text-xs">
+              <li>El período quedará bloqueado y no podrán crearse ni anularse facturas de este mes.</li>
+              <li>La operación es irreversible desde el sistema.</li>
+            </ul>
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirm(false)}>Cancelar</Button>
-            <Button onClick={() => cerrarMut.mutate()} disabled={cerrarMut.isPending}>
+            <Button onClick={() => cerrarMut.mutate()} disabled={cerrarMut.isPending} variant="destructive">
+              <Lock className="h-4 w-4 mr-1" />
               {cerrarMut.isPending ? 'Cerrando…' : 'Sí, cerrar'}
             </Button>
           </DialogFooter>

@@ -1142,6 +1142,27 @@ class FatGenerarAsientosView(APIView):
             return Response({'detail': str(e)}, status=500)
 
 
+class FatAsientosGeneradosView(APIView):
+    """GET /api/fat/asientos-generados/?no_cia=01&punto=01[&limit=24]
+    Historial de periodos con asiento contable ya generado (st_generado_cnt='S').
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        no_cia = request.query_params.get('no_cia')
+        punto = request.query_params.get('punto', '01')
+        if not no_cia:
+            return Response({'detail': 'no_cia es requerido'}, status=400)
+        forbidden = _check_fat_access(request.user.username, no_cia, punto)
+        if forbidden:
+            return forbidden
+        try:
+            limit = int(request.query_params.get('limit', 24))
+            return Response(fat_repo.list_periodos_generados(no_cia, punto, limit))
+        except Exception as e:
+            return Response({'detail': str(e)}, status=500)
+
+
 class FatProximoNcfView(APIView):
     """Devuelve el próximo NCF disponible para una empresa + código NCF."""
     permission_classes = [IsAuthenticated]

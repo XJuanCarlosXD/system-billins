@@ -1036,6 +1036,9 @@ export const regalGeneralApi = {
   fatAsientoContable: (no_cia: string, punto: string, mes: number, ano: number) =>
     request<any[]>(`/fat/asiento-contable/?no_cia=${encodeURIComponent(no_cia)}&punto=${encodeURIComponent(punto)}&mes=${mes}&ano=${ano}`),
 
+  fatAsientosGenerados: (no_cia: string, punto: string, limit = 24) =>
+    request<any[]>(`/fat/asientos-generados/?no_cia=${encodeURIComponent(no_cia)}&punto=${encodeURIComponent(punto)}&limit=${limit}`),
+
   fatListCierres: (no_cia: string, punto: string) =>
     request<{ items: Array<Record<string, any>> }>(`/fat/cierres/?no_cia=${encodeURIComponent(no_cia)}&punto=${encodeURIComponent(punto)}`),
 

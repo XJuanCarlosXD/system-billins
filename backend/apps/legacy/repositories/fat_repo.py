@@ -1444,6 +1444,37 @@ def list_facturas_pendientes_cnt(no_cia: str, punto: str, mes: int, ano: int) ->
              'nombre_cliente': (r['nombre_cliente'] or '').strip()} for r in rows]
 
 
+def list_periodos_generados(no_cia: str, punto: str, limit: int = 24) -> list[dict]:
+    """Historial de periodos cuyas facturas ya fueron marcadas como generadas
+    en contabilidad (st_generado_cnt='S'). Se agrupa TFAT_FACTURA por
+    (ano, mes) para reflejar cada asiento posteado al mayor."""
+    rows = client.fetch_dicts(
+        "SELECT * FROM ("
+        "  SELECT EXTRACT(YEAR FROM fecha) AS ano, "
+        "         EXTRACT(MONTH FROM fecha) AS mes, "
+        "         COUNT(*) AS facturas, "
+        "         SUM(NVL(total_neto,0)) AS total_neto, "
+        "         SUM(NVL(impuesto,0)) AS impuesto, "
+        "         MIN(fecha) AS fecha_desde, "
+        "         MAX(fecha) AS fecha_hasta "
+        "  FROM FAT.TFAT_FACTURA "
+        "  WHERE no_cia=:1 AND punto=:2 "
+        "  AND NVL(st_generado_cnt,'N')='S' AND NVL(st_anulado,'N')='N' "
+        "  GROUP BY EXTRACT(YEAR FROM fecha), EXTRACT(MONTH FROM fecha) "
+        "  ORDER BY 1 DESC, 2 DESC"
+        ") WHERE ROWNUM <= :3",
+        [no_cia, punto, limit])
+    return [{
+        'ano': int(r['ano']),
+        'mes': int(r['mes']),
+        'facturas': int(r['facturas']),
+        'total_neto': float(r['total_neto'] or 0),
+        'impuesto': float(r['impuesto'] or 0),
+        'fecha_desde': str(r['fecha_desde'])[:10] if r.get('fecha_desde') else None,
+        'fecha_hasta': str(r['fecha_hasta'])[:10] if r.get('fecha_hasta') else None,
+    } for r in rows]
+
+
 def marcar_generado_cnt(no_cia: str, punto: str, mes: int, ano: int) -> dict:
     """Marca las facturas pendientes del mes/ano como generadas en CNT."""
     pendientes = list_facturas_pendientes_cnt(no_cia, punto, mes, ano)
