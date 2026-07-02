@@ -26,7 +26,7 @@ interface EmpaqueOpt {
   permite_fraccion?: boolean
 }
 
-const ENDPOINT_READY = false
+const ENDPOINT_READY = true
 
 interface Props {
   noCia: string
@@ -344,10 +344,15 @@ export function EntradaCompras({ noCia, punto }: Props) {
 
     setSaving(true)
     try {
-      const res = await fetch(`${API_BASE}/inv/entradas/`, {
+      const csrf =
+        (
+          document.cookie.split('; ').find((c) => c.startsWith('csrftoken=')) ||
+          ''
+        ).split('=')[1] || ''
+      const res = await fetch(`${API_BASE}/inv/movimientos/`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
         body: JSON.stringify(payload),
       })
       if (!res.ok) {
@@ -355,7 +360,13 @@ export function EntradaCompras({ noCia, punto }: Props) {
         throw new Error(errData.detail ?? errData.error ?? `HTTP ${res.status}`)
       }
       const created = await res.json()
-      toast.success(`Documento ${created.no_doc ?? ''} guardado correctamente`)
+      const docNo =
+        created.no_doc ??
+        created.no_docu ??
+        created.data?.no_doc ??
+        created.data?.no_docu ??
+        ''
+      toast.success(`Documento ${docNo} guardado correctamente`)
       setTipoDocu(''); setFecha(new Date().toISOString().slice(0, 10))
       setTasaUsd(''); setAlmacenHeader(''); setProveedor('')
       setNcf(''); setFormaPago(''); setFechaVcto(''); setPctDescuento('')
@@ -731,7 +742,7 @@ export function EntradaCompras({ noCia, punto }: Props) {
             </TooltipTrigger>
             {!ENDPOINT_READY && (
               <TooltipContent side='left'>
-                <p>Endpoint en construcción — POST /api/inv/entradas/</p>
+                <p>Endpoint en construccion - POST /api/inv/movimientos/</p>
               </TooltipContent>
             )}
           </Tooltip>

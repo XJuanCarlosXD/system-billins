@@ -2322,26 +2322,6 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
                  lin["porc_descuento"], lin["descuento"],
                  lin["porciento_impuesto"], lin["impuesto"], lin["monto_neto"],
                  lin["descripcion"]])
-            # Movimiento de inventario: salida por la cantidad facturada.
-            # Sin esto la existencia (calculada desde TINV_MOVIMIENTO) no baja.
-            cur.execute(
-                "INSERT INTO INV.TINV_MOVIMIENTO("
-                "  no_cia, punto, tipo_docu, no_docu, no_linea,"
-                "  almacen, no_produ, tipo_movi, tipo_transaccion, servicio,"
-                "  fecha, cantidad, precio, costo,"
-                "  st_anulado, empaque, cpe, usuario, monto_neto,"
-                "  no_localidad, fecha_sysdate, aumento_cxc"
-                ") VALUES("
-                "  :1, :2, :3, :4, :5,"
-                "  :6, :7, 'S', :8, 'I',"
-                "  TO_DATE(:9,'YYYY-MM-DD'), :10, :11, :12,"
-                "  'N', :13, :14, :15, :16,"
-                "  :1, SYSDATE, 0)",
-                [no_cia, punto, tf, new_no_factura, lin["no_linea"],
-                 lin["almacen"], lin["no_produ"], tipo_transaccion,
-                 fecha, lin["cantidad"], lin["precio"], lin["costo"],
-                 lin["empaque"], lin["cpe"], usuario[:30],
-                 round(lin["cantidad"] * lin["costo"], 2)])
         if fp:
             cur.execute(
                 "INSERT INTO FAT.TFAT_FORMA_PAGO("

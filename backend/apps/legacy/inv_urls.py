@@ -18,6 +18,8 @@ urlpatterns = [
     path('lineas/<str:linea>/', inv_views.inv_linea_detail),
     path('existencia/', inv_views.inv_existencias),
     path('movimientos/', inv_views.inv_movimientos),
+    # Compatibilidad con la primera UI de Entrada de Compras.
+    path('entradas/', inv_views.inv_movimientos),
     path('movimientos/reversar/', inv_views.inv_reversar_documento),
     path('almacenes/', inv_views.inv_almacenes),
     path('almacenes/<str:almacen>/', inv_views.inv_almacen_detail),
