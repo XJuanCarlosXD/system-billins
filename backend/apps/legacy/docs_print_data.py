@@ -203,7 +203,10 @@ def cxc_documento_print_data(request, no_docu: str):
     documentos_afectados = []
     try:
         refes = client.fetch_dicts(
-            "SELECT r.tipo_refe, r.no_refe, r.monto, d.fecha, d.saldo, "
+            "SELECT r.tipo_refe, r.no_refe, r.monto, "
+            "       NVL(r.itbis_retenido,0) itbis_retenido, "
+            "       NVL(r.isr_retenido,0) isr_retenido, "
+            "       d.fecha, d.saldo, "
             "       d.posiciones_fijas_ncf, d.ncf "
             "  FROM CXC.TCXC_REFEDOCU r "
             "  LEFT JOIN CXC.TCXC_DOCUMENTO d "
@@ -227,8 +230,8 @@ def cxc_documento_print_data(request, no_docu: str):
                 'numero_display': f"{(r.get('tipo_refe') or '').strip()}-{str(r.get('no_refe') or '').strip()}",
                 'fecha': str(r.get('fecha') or '')[:10] if r.get('fecha') else '',
                 'saldo': _money_or_zero(r.get('saldo')),
-                'itbis_retenido': 0,
-                'isr_retenido': 0,
+                'itbis_retenido': _money_or_zero(r.get('itbis_retenido')),
+                'isr_retenido': _money_or_zero(r.get('isr_retenido')),
                 'valor_aplicado': _money_or_zero(r.get('monto')),
                 'ncf_dgi': ncf_dgi,
             })

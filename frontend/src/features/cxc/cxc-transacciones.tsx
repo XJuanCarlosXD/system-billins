@@ -108,6 +108,7 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
   const [detalle, setDetalle] = useState('')
   const [valorDoc, setValorDoc] = useState(0)
   const [aplicaciones, setAplicaciones] = useState<Record<string, number>>({})
+  const [retenciones, setRetenciones] = useState<Record<string, { itbis: number; isr: number }>>({})
   const [ultimoNoDoc, setUltimoNoDoc] = useState<string | null>(null)
 
   const tdocusActivos = useMemo(() => (tdocusQ.data ?? []).filter((t: any) => t.activo === 'S'), [tdocusQ.data])
@@ -123,6 +124,7 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
       if (cliente.cobrador && !cobrador) setCobrador(String(cliente.cobrador).trim())
     }
     setAplicaciones({})
+    setRetenciones({})
   }, [cliente?.no_cliente])
 
   // ── Facturas pendientes del cliente ──────────────────────────────
@@ -139,7 +141,17 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
     [aplicaciones],
   )
   // Si el usuario no fijó manualmente Valor D., usar el total aplicado
+  const totalItbisRetenido = useMemo(
+    () => Object.values(retenciones).reduce((s, r) => s + (Number(r.itbis) || 0), 0),
+    [retenciones],
+  )
+  const totalIsrRetenido = useMemo(
+    () => Object.values(retenciones).reduce((s, r) => s + (Number(r.isr) || 0), 0),
+    [retenciones],
+  )
+  const totalRetenido = totalItbisRetenido + totalIsrRetenido
   const valorEfectivo = valorDoc > 0 ? valorDoc : totalAplicado
+  const pagoEnEfectivo = Math.max(valorEfectivo - totalRetenido, 0)
   const diferencia = valorEfectivo - totalAplicado
 
   const periodoMesAno = puntoQ.data
@@ -165,8 +177,20 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
       cuentaTipoDoc && {
         cuenta: cuentaTipoDoc, centro_costo: ccTipoDoc,
         nombre: '(cuenta default del tipo de documento)',
-        debito: tipoMov === 'C' ? valorEfectivo : 0,
+        debito: tipoMov === 'C' ? pagoEnEfectivo : 0,
         credito: tipoMov === 'D' ? valorEfectivo : 0,
+      },
+      totalItbisRetenido > 0 && {
+        cuenta: '2106-02', centro_costo: ccTipoDoc,
+        nombre: 'ITBIS retenido',
+        debito: totalItbisRetenido,
+        credito: 0,
+      },
+      totalIsrRetenido > 0 && {
+        cuenta: '2106-01', centro_costo: ccTipoDoc,
+        nombre: 'ISR retenido',
+        debito: totalIsrRetenido,
+        credito: 0,
       },
       cliente && {
         cuenta: cuentaCxC, centro_costo: '0000000000',
@@ -175,7 +199,7 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
         credito: tipoMov === 'C' ? valorEfectivo : 0,
       },
     ].filter(Boolean) as Array<{ cuenta: string; centro_costo: string; nombre: string; debito: number; credito: number }>
-  }, [tipoDocSel, valorEfectivo, tipoMov, cliente])
+  }, [tipoDocSel, valorEfectivo, tipoMov, cliente, pagoEnEfectivo, totalItbisRetenido, totalIsrRetenido])
 
   const totalDistribDR = distribContable.reduce((s, l) => s + l.debito, 0)
   const totalDistribCR = distribContable.reduce((s, l) => s + l.credito, 0)
@@ -188,11 +212,24 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
         .map(p => {
           const key = `${p.tipo_doc}-${p.no_doc}`
           const monto = Number(aplicaciones[key] || 0)
+          const reten = retenciones[key] || { itbis: 0, isr: 0 }
           return monto > 0
-            ? { tipo_ref: p.tipo_doc, no_ref: p.no_doc, monto }
+            ? {
+                tipo_ref: p.tipo_doc,
+                no_ref: p.no_doc,
+                monto,
+                itbis_retenido: Number(reten.itbis || 0),
+                isr_retenido: Number(reten.isr || 0),
+              }
             : null
         })
-        .filter(Boolean) as Array<{ tipo_ref: string; no_ref: string; monto: number }>
+        .filter(Boolean) as Array<{
+          tipo_ref: string
+          no_ref: string
+          monto: number
+          itbis_retenido: number
+          isr_retenido: number
+        }>
       return regalGeneralApi.cxcCrearRecibo({
         no_cia: noCia, punto,
         tipo_doc: tipoDoc, no_cliente: String(cliente!.no_cliente),
@@ -210,7 +247,7 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
       qc.invalidateQueries({ queryKey: ['cxc-pendientes', noCia, cliente?.no_cliente] })
       qc.invalidateQueries({ queryKey: ['cxc-documentos'] })
       setCliente(null); setNcf(''); setDetalle('')
-      setAplicaciones({}); setValorDoc(0); setFecha(today)
+      setAplicaciones({}); setRetenciones({}); setValorDoc(0); setFecha(today)
       setPlazo(0)
     },
     onError: (e: Error) => toast.error(e.message || 'Error al grabar'),
@@ -225,6 +262,15 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
     for (const p of pendientes) {
       const key = `${p.tipo_doc}-${p.no_doc}`
       const m = Number(aplicaciones[key] || 0)
+      const reten = retenciones[key] || { itbis: 0, isr: 0 }
+      const itbis = Number(reten.itbis || 0)
+      const isr = Number(reten.isr || 0)
+      if (itbis < 0 || isr < 0) {
+        return `Retencion negativa en ${p.no_doc_display}`
+      }
+      if (itbis + isr > m + 0.001) {
+        return `La retencion en ${p.no_doc_display} no puede exceder el valor aplicado`
+      }
       if (m > p.saldo + 0.001) {
         return `Monto en ${p.no_doc_display} (RD$ ${fmt(m)}) excede su saldo (RD$ ${fmt(p.saldo)})`
       }
@@ -238,6 +284,11 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
   // Acciones tabla
   const setMonto = (key: string, m: number) =>
     setAplicaciones(prev => ({ ...prev, [key]: m }))
+  const setRetencion = (key: string, field: 'itbis' | 'isr', value: number) =>
+    setRetenciones(prev => ({
+      ...prev,
+      [key]: { itbis: 0, isr: 0, ...(prev[key] || {}), [field]: value },
+    }))
   const toggleFactura = (p: FacturaPendiente, check: boolean) =>
     setMonto(`${p.tipo_doc}-${p.no_doc}`, check ? p.saldo : 0)
   const seleccionarTodo = () => {
@@ -245,7 +296,10 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
     for (const p of pendientes) next[`${p.tipo_doc}-${p.no_doc}`] = p.saldo
     setAplicaciones(next)
   }
-  const limpiarTodo = () => setAplicaciones({})
+  const limpiarTodo = () => {
+    setAplicaciones({})
+    setRetenciones({})
+  }
 
   // Mapea el tipo legacy al codigo del registry de plantillas PDF.
   const codigoPlantillaPorTipo = (tipo: string): string => {
@@ -462,8 +516,13 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
                   {pendientes.map(p => {
                     const key = `${p.tipo_doc}-${p.no_doc}`
                     const monto = Number(aplicaciones[key] || 0)
+                    const reten = retenciones[key] || { itbis: 0, isr: 0 }
+                    const itbisRetenido = Number(reten.itbis || 0)
+                    const isrRetenido = Number(reten.isr || 0)
+                    const valorSinReten = Math.max(monto - itbisRetenido - isrRetenido, 0)
                     const checked = monto > 0
                     const excedeSaldo = monto > p.saldo + 0.001
+                    const excedeReten = itbisRetenido + isrRetenido > monto + 0.001
                     return (
                       <TableRow key={key} className={checked ? 'bg-green-50/40 dark:bg-green-950/10' : ''}>
                         <TableCell className="text-center">
@@ -476,9 +535,23 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
                         <TableCell className="text-right tabular-nums font-medium text-amber-700">
                           {fmt(p.saldo)}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">0.00</TableCell>
-                        <TableCell className="text-right tabular-nums">0.00</TableCell>
-                        <TableCell className="text-right tabular-nums">{fmt(monto)}</TableCell>
+                        <TableCell>
+                          <Input type="number" step="0.01" min="0" max={monto}
+                            value={itbisRetenido || ''}
+                            onChange={e => setRetencion(key, 'itbis', Number(e.target.value || 0))}
+                            placeholder="0.00"
+                            className={`h-8 text-right tabular-nums font-mono ${excedeReten ? 'border-destructive' : ''}`}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input type="number" step="0.01" min="0" max={monto}
+                            value={isrRetenido || ''}
+                            onChange={e => setRetencion(key, 'isr', Number(e.target.value || 0))}
+                            placeholder="0.00"
+                            className={`h-8 text-right tabular-nums font-mono ${excedeReten ? 'border-destructive' : ''}`}
+                          />
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{fmt(valorSinReten)}</TableCell>
                         <TableCell>
                           <Input type="number" step="0.01" min="0" max={p.saldo}
                             value={monto || ''}
@@ -495,8 +568,14 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
                     <TableCell className="text-right tabular-nums">
                       {fmt(pendientes.reduce((s, p) => s + p.saldo, 0))}
                     </TableCell>
-                    <TableCell colSpan={3} className="text-right text-xs text-muted-foreground">
-                      Total Aplicado:
+                    <TableCell className="text-right tabular-nums font-mono">
+                      {fmt(totalItbisRetenido)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-mono">
+                      {fmt(totalIsrRetenido)}
+                    </TableCell>
+                    <TableCell className="text-right text-xs text-muted-foreground">
+                      Efectivo RD$ {fmt(pagoEnEfectivo)}
                     </TableCell>
                     <TableCell className="text-right tabular-nums font-mono">
                       RD$ {fmt(totalAplicado)}
@@ -580,6 +659,11 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
         <div className="space-y-0.5">
           <div className="text-xs text-muted-foreground">Valor del documento</div>
           <div className="text-2xl font-bold tabular-nums font-mono">RD$ {fmt(valorEfectivo)}</div>
+          {totalRetenido > 0 && (
+            <div className="text-[11px] text-muted-foreground">
+              Efectivo RD$ {fmt(pagoEnEfectivo)} · Retenido RD$ {fmt(totalRetenido)}
+            </div>
+          )}
           {Math.abs(diferencia) > 0.01 && (
             <div className="text-[11px] text-amber-700">
               Diferencia vs aplicado: RD$ {fmt(Math.abs(diferencia))}

@@ -802,9 +802,14 @@ def crear_recibo_cobro(
     aplicaciones = aplicaciones or []
     aplicaciones_validas = [a for a in aplicaciones if float(a.get('monto') or 0) > 0]
     total_apl = sum(float(a.get('monto') or 0) for a in aplicaciones_validas)
+    total_itbis_retenido = sum(float(a.get('itbis_retenido') or 0) for a in aplicaciones_validas)
+    total_isr_retenido = sum(float(a.get('isr_retenido') or 0) for a in aplicaciones_validas)
+    total_retenido = total_itbis_retenido + total_isr_retenido
     valor_doc = float(valor_doc or total_apl)
     if valor_doc <= 0 and total_apl <= 0:
         raise ValueError("El recibo no puede tener valor 0. Indique el valor del documento o aplique a alguna factura.")
+    if total_retenido - valor_doc > 0.001:
+        raise ValueError("La retencion no puede ser mayor que el valor aplicado del recibo.")
     no_doc = get_next_no_doc(no_cia, punto)
 
     with client.cursor() as cur:
@@ -828,6 +833,20 @@ def crear_recibo_cobro(
         cli_row = cur.fetchone()
         cuenta_cliente = cli_row[0] if cli_row else ''
 
+        cuenta_itbis_retenido = '2106-02'
+        cuenta_isr_retenido = '2106-01'
+        try:
+            cur.execute(
+                "SELECT NVL(cuenta_itbis_retenido,'2106-02'), NVL(cuenta_isr,'2106-01') "
+                "FROM CNT.TCNT_CIA WHERE no_cia=:1",
+                [no_cia])
+            cia_row = cur.fetchone()
+            if cia_row:
+                cuenta_itbis_retenido = cia_row[0] or cuenta_itbis_retenido
+                cuenta_isr_retenido = cia_row[1] or cuenta_isr_retenido
+        except Exception:
+            pass
+
         # 3. Cabecera del recibo
         # tipo_movi: 'C' (recibo) → en el documento se guarda como 'C' porque CXC tiene saldo opuesto
         # Para tipos AD/AC depende; aquí confiamos en TCXC_TDOCU.tipo_movi
@@ -845,14 +864,31 @@ def crear_recibo_cobro(
         # 4. Distribución contable auto-generada:
         #    Cuenta del tipo_doc (ej. CAJA) — DR por el valor
         #    Cuenta del cliente (ej. CxC)   — CR por el valor
-        if cuenta_default:
+        pago_efectivo = max(valor_doc - total_retenido, 0)
+        if cuenta_default and pago_efectivo > 0:
             cur.execute(
                 "INSERT INTO CXC.TCXC_DCDOCU ("
                 " no_cia, punto, tipo_docu, no_docu, cuenta, "
                 " tipo_movi, monto, centro_costo, no_cliente"
                 ") VALUES (:1,:2,:3,:4,:5,'D',:6,:7,:8)",
                 [no_cia, punto, tipo_doc, no_doc, cuenta_default,
-                 valor_doc, centro_costo, str(no_cliente)])
+                 pago_efectivo, centro_costo, str(no_cliente)])
+        if total_itbis_retenido > 0:
+            cur.execute(
+                "INSERT INTO CXC.TCXC_DCDOCU ("
+                " no_cia, punto, tipo_docu, no_docu, cuenta, "
+                " tipo_movi, monto, centro_costo, no_cliente"
+                ") VALUES (:1,:2,:3,:4,:5,'D',:6,:7,:8)",
+                [no_cia, punto, tipo_doc, no_doc, cuenta_itbis_retenido,
+                 total_itbis_retenido, centro_costo, str(no_cliente)])
+        if total_isr_retenido > 0:
+            cur.execute(
+                "INSERT INTO CXC.TCXC_DCDOCU ("
+                " no_cia, punto, tipo_docu, no_docu, cuenta, "
+                " tipo_movi, monto, centro_costo, no_cliente"
+                ") VALUES (:1,:2,:3,:4,:5,'D',:6,:7,:8)",
+                [no_cia, punto, tipo_doc, no_doc, cuenta_isr_retenido,
+                 total_isr_retenido, centro_costo, str(no_cliente)])
         if cuenta_cliente:
             cur.execute(
                 "INSERT INTO CXC.TCXC_DCDOCU ("
@@ -865,10 +901,16 @@ def crear_recibo_cobro(
         # 5. Aplicaciones (TCXC_REFEDOCU) — actualiza saldo de cada factura
         for a in aplicaciones_validas:
             monto = float(a.get('monto') or 0)
+            itbis_retenido = float(a.get('itbis_retenido') or 0)
+            isr_retenido = float(a.get('isr_retenido') or 0)
             tipo_ref = (a.get('tipo_ref') or a.get('tipo_doc') or '').strip().upper()
             no_ref = str(a.get('no_ref') or a.get('no_doc') or '').strip()
             if not tipo_ref or not no_ref:
                 continue
+            if itbis_retenido < 0 or isr_retenido < 0:
+                raise ValueError("La retencion no puede ser negativa.")
+            if itbis_retenido + isr_retenido - monto > 0.001:
+                raise ValueError(f"La retencion no puede exceder el valor aplicado de {tipo_ref}-{no_ref}.")
             cur.execute(
                 "UPDATE CXC.TCXC_DOCUMENTO "
                 "   SET saldo = NVL(saldo,0) - :1 "
@@ -876,13 +918,18 @@ def crear_recibo_cobro(
                 [monto, no_cia, punto, tipo_ref, no_ref])
             cur.execute(
                 "INSERT INTO CXC.TCXC_REFEDOCU "
-                "(no_cia, punto, tipo_docu, no_docu, no_cliente, tipo_refe, no_refe, monto) "
-                "VALUES (:1, :2, :3, :4, :5, :6, :7, :8)",
-                [no_cia, punto, tipo_doc, no_doc, str(no_cliente), tipo_ref, no_ref, monto])
+                "(no_cia, punto, tipo_docu, no_docu, no_cliente, tipo_refe, no_refe, "
+                " monto, valor_nc, itbis_retenido, isr_retenido) "
+                "VALUES (:1, :2, :3, :4, :5, :6, :7, :8, 0, :9, :10)",
+                [no_cia, punto, tipo_doc, no_doc, str(no_cliente), tipo_ref, no_ref,
+                 monto, itbis_retenido, isr_retenido])
 
         cur.connection.commit()
     return {
         'no_doc': no_doc, 'tipo_doc': tipo_doc, 'total': valor_doc,
+        'pago_efectivo': pago_efectivo,
+        'itbis_retenido': total_itbis_retenido,
+        'isr_retenido': total_isr_retenido,
         'aplicaciones_count': len(aplicaciones_validas),
         'cuenta_default': cuenta_default,
         'cuenta_cliente': cuenta_cliente,
