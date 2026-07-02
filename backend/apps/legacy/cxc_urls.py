@@ -13,6 +13,7 @@ from .cxc_views import (
     CxcEstadoCuentaView, CxcBalanceClientesView, CxcHistoricoView, CxcLibroVentasView,
     CxcRepEnvejecimientoView, CxcRepCobrosVendedorView, CxcRepComisionesView, CxcRepNcfView,
     CxcAsientoContableView, CxcGenerarAsientoView, CxcCierreView,
+    CxcAsientosGeneradosView,
     CxcFacturasPendientesClienteView, CxcCrearReciboView,
     CxcSaldosMenoresView,
 )
@@ -66,6 +67,7 @@ urlpatterns = [
     path('rep-ncf/', CxcRepNcfView.as_view()),
     # Cierre
     path('asiento-contable/', CxcAsientoContableView.as_view()),
+    path('asientos-generados/', CxcAsientosGeneradosView.as_view()),
     path('generar-asiento/', CxcGenerarAsientoView.as_view()),
     path('cierre/', CxcCierreView.as_view()),
 ]

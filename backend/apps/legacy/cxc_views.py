@@ -677,3 +677,16 @@ class CxcCierreView(APIView):
             return Response({"ok": True, **result})
         except Exception as e:
             return Response({"error": str(e)}, status=400)
+
+
+@_auth
+class CxcAsientosGeneradosView(APIView):
+    """GET /api/cxc/asientos-generados/?no_cia=01&punto=01[&limit=24]
+    Historial de periodos con asiento contable ya generado (st_generado_cnt='S').
+    """
+    def get(self, request):
+        return Response(repo.list_periodos_generados(
+            request.query_params.get("no_cia", "01"),
+            request.query_params.get("punto", "01"),
+            int(request.query_params.get("limit", 24)),
+        ))

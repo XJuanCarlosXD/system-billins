@@ -1030,6 +1030,7 @@ export const regalGeneralApi = {
   cxcRepComisiones: (noCia: string, desde: string, hasta: string, punto?: string) => request<any>(`/cxc/rep-comisiones/?no_cia=${noCia}&desde=${desde}&hasta=${hasta}${punto ? '&punto='+punto : ''}`),
   cxcRepNcf: (noCia: string, desde: string, hasta: string, punto?: string) => request<any>(`/cxc/rep-ncf/?no_cia=${noCia}&desde=${desde}&hasta=${hasta}${punto ? '&punto='+punto : ''}`),
   cxcAsientoContable: (noCia: string, punto: string, mes: number, ano: number) => request<any[]>(`/cxc/asiento-contable/?no_cia=${noCia}&punto=${punto}&mes=${mes}&ano=${ano}`),
+  cxcAsientosGenerados: (noCia: string, punto: string, limit = 24) => request<any[]>(`/cxc/asientos-generados/?no_cia=${noCia}&punto=${punto}&limit=${limit}`),
   cxcGenerarAsiento: (d: any) => request<any>('/cxc/generar-asiento/', { method: 'POST', body: JSON.stringify(d) }),
   cxcCierre: (d: any) => request<any>('/cxc/cierre/', { method: 'POST', body: JSON.stringify(d) }),
   fatAsientoContable: (no_cia: string, punto: string, mes: number, ano: number) =>

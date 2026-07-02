@@ -1419,6 +1419,30 @@ def generar_asiento_mayor(no_cia: str, punto: str, mes_proceso: int,
         cur.connection.commit()
     return {'ok': True}
 
+def list_periodos_generados(no_cia: str, punto: str, limit: int = 24):
+    """Historico de periodos cuyo asiento contable ya fue generado.
+    Como CxC no tiene tabla de cierres, derivamos el historial de
+    TCXC_DOCUMENTO agrupando por (ano, mes) donde st_generado_cnt='S'.
+    """
+    return client.fetch_dicts(
+        "SELECT * FROM ("
+        "  SELECT EXTRACT(YEAR FROM d.fecha) AS ano, "
+        "         EXTRACT(MONTH FROM d.fecha) AS mes, "
+        "         COUNT(*) AS documentos, "
+        "         SUM(CASE WHEN l.tipo_movi='D' THEN NVL(l.monto,0) ELSE 0 END) AS total_debito, "
+        "         SUM(CASE WHEN l.tipo_movi='C' THEN NVL(l.monto,0) ELSE 0 END) AS total_credito, "
+        "         MIN(d.fecha) AS fecha_desde, "
+        "         MAX(d.fecha) AS fecha_hasta "
+        "  FROM CXC.TCXC_DOCUMENTO d "
+        "  LEFT JOIN CXC.TCXC_DCDOCU l ON l.no_cia=d.no_cia AND l.no_docu=d.no_docu "
+        "  WHERE d.no_cia=:1 AND d.punto=:2 "
+        "  AND NVL(d.st_generado_cnt,'N')='S' AND NVL(d.st_anulado,'N')='N' "
+        "  GROUP BY EXTRACT(YEAR FROM d.fecha), EXTRACT(MONTH FROM d.fecha) "
+        "  ORDER BY 1 DESC, 2 DESC"
+        ") WHERE ROWNUM <= :3",
+        [no_cia, punto, limit])
+
+
 def cierre_cxc(no_cia: str, punto: str):
     row = client.fetch_one(
         "SELECT NVL(mes_proceso,1), NVL(ano_proceso,2025) "
