@@ -23,7 +23,25 @@ _MODULES = {
     'sdn': ('SDN', 'TSDN_USUARIO', None, None),
     'cnt': ('CNT', 'TCNT_USUARIO', None, None),
     'acc': ('ACC', 'TACC_USUARIO', None, None),
+    'acf': ('ACF', 'TACF_USUARIO', 'TACF_USUARIOD', 'TACF_TDOCU'),
 }
+
+# Cache de columnas por tabla — los TDOCU legados NO son homogéneos:
+# INV/CXP/CHC no tienen NO_CIA (catálogo global), INV/CXP/CHC usan DESCRI
+# en vez de DESCRIPCION, y solo FAT/CHC tienen ACTIVO.
+_COLS_CACHE: dict[str, set[str]] = {}
+
+
+def _table_columns(schema: str, table: str) -> set[str]:
+    key = f'{schema}.{table}'
+    if key not in _COLS_CACHE:
+        rows = client.fetch_dicts(
+            "SELECT column_name FROM all_tab_columns "
+            "WHERE owner=:1 AND table_name=:2",
+            [schema, table],
+        )
+        _COLS_CACHE[key] = {r['column_name'] for r in rows}
+    return _COLS_CACHE[key]
 
 # Columnas que NO son flags S/N (claves o valores no-booleanos).
 _NON_FLAG_COLS = {
@@ -252,12 +270,25 @@ def list_available_doc_types(modulo: str, no_cia: str) -> list[dict]:
     schema, _tab, _tabd, tdocu = _MODULES[modulo]
     if not tdocu:
         return []
-    rows = client.fetch_dicts(
-        f"SELECT tipo_docu, descripcion, NVL(activo,'S') AS activo "
-        f"FROM {schema}.{tdocu} WHERE no_cia = :1 AND NVL(activo,'S')='S' "
-        "ORDER BY tipo_docu",
-        [no_cia],
-    )
+    cols = _table_columns(schema, tdocu)
+    if 'DESCRIPCION' in cols:
+        desc_col = 'descripcion'
+    elif 'DESCRI' in cols:
+        desc_col = 'descri'
+    else:
+        desc_col = 'tipo_docu'
+    where = []
+    binds: list = []
+    if 'NO_CIA' in cols:
+        where.append('no_cia = :1')
+        binds.append(no_cia)
+    if 'ACTIVO' in cols:
+        where.append("NVL(activo,'S')='S'")
+    sql = f"SELECT tipo_docu, {desc_col} AS descripcion FROM {schema}.{tdocu}"
+    if where:
+        sql += ' WHERE ' + ' AND '.join(where)
+    sql += ' ORDER BY tipo_docu'
+    rows = client.fetch_dicts(sql, binds)
     return [{'tipo_docu': r['tipo_docu'], 'descripcion': r['descripcion'] or ''} for r in rows]
 
 
@@ -305,9 +336,16 @@ def grant_doc_access(usuario: str, modulo: str, no_cia: str, punto: str,
             )
             action = 'updated'
         else:
+            # TCXC_USUARIOD tiene ademas VARIAR_FECHA NOT NULL
+            extra_cols = ''
+            extra_vals = ''
+            if 'VARIAR_FECHA' in _table_columns(schema, tabd):
+                extra_cols = ', variar_fecha'
+                extra_vals = ", 'N'"
             cur.execute(
-                f"INSERT INTO {schema}.{tabd} (no_cia, punto, usuario, tipo_docu, por_defecto) "
-                "VALUES (:1, :2, :3, :4, :5)",
+                f"INSERT INTO {schema}.{tabd} "
+                f"(no_cia, punto, usuario, tipo_docu, por_defecto{extra_cols}) "
+                f"VALUES (:1, :2, :3, :4, :5{extra_vals})",
                 [no_cia, punto, u, td, 'S' if por_defecto else 'N'],
             )
             action = 'created'
