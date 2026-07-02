@@ -829,13 +829,27 @@ def get_existencia_producto(no_cia: str, no_produ: str) -> list[dict]:
 
     Verificado 2026-05-30 contra producto 00000001 alm 01: bal = 2.000 (PDF).
     """
+    # Misma regla que list_existencias (verificada 2026-05-28): almacén
+    # "controlado" (ctrl_exist_min/max='S') → TINV_EPRODUCTO.exist_actual;
+    # almacén no controlado (consignación/custodio) → SUM E−S de movimientos.
+    # El ledger de movimientos del clon no tiene el histórico completo de
+    # compras, por lo que en almacenes controlados daba negativos falsos
+    # (caso producto 00006798 alm 01 → mostraba -37).
+    exist_expr = (
+        "CASE WHEN NVL(a.ctrl_exist_min,'N')='S' OR NVL(a.ctrl_exist_max,'N')='S' "
+        "     THEN NVL(ep.exist_actual, 0) ELSE NVL(mov.net, 0) END"
+    )
+    fuente_expr = (
+        "CASE WHEN NVL(a.ctrl_exist_min,'N')='S' OR NVL(a.ctrl_exist_max,'N')='S' "
+        "     THEN 'eproducto' ELSE 'movimientos' END"
+    )
     sql = (
         "SELECT a.no_cia, a.punto, a.almacen, a.descri almacen_desc, "
         "       :p_prod AS no_produ, p.descri descripcion, "
-        "       NVL(mov.net, 0) AS existencia, "
-        "       'movimientos' AS fuente_existencia, "
+        f"       {exist_expr} AS existencia, "
+        f"       {fuente_expr} AS fuente_existencia, "
         "       NVL(ep.costo_actual, 0) costo_actual, "
-        "       ROUND(NVL(mov.net, 0) * NVL(ep.costo_actual, 0), 2) valor, "
+        f"       ROUND(({exist_expr}) * NVL(ep.costo_actual, 0), 2) valor, "
         "       NVL(ep.exist_minima, 0) exist_minima, "
         "       NVL(ep.exist_maxima, 0) exist_maxima "
         "FROM   INV.TINV_ALMACEN a "
@@ -864,10 +878,9 @@ def get_existencia_producto(no_cia: str, no_produ: str) -> list[dict]:
         "       GROUP BY m.no_cia, m.punto, m.almacen "
         ") mov ON mov.no_cia=a.no_cia AND mov.punto=a.punto AND mov.almacen=a.almacen "
         "WHERE a.no_cia = :p_cia AND NVL(a.activo,'S')='S' "
-        # Solo almacenes que tengan historial de movimientos para este producto
-        "  AND mov.net IS NOT NULL "
-        # Saldo neto redondeado a 6 decimales para evitar ruido de punto flotante
-        "  AND ROUND(NVL(mov.net, 0), 6) != 0 "
+        # Solo almacenes con algún dato para este producto (snapshot o ledger),
+        # redondeado a 6 decimales para evitar ruido de punto flotante.
+        f"  AND ROUND({exist_expr}, 6) != 0 "
         "ORDER BY a.punto, a.almacen"
     )
     return client.fetch_dicts(sql, {"p_cia": no_cia, "p_prod": no_produ})
