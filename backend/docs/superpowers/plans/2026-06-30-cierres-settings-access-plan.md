@@ -1088,16 +1088,9 @@ Identificar los principales (factura anular, conduce anular, cheque anular, ODC 
 
 - [x] **Step F.3: Confirmar que no quedan `catch {}` ni `API_BASE` hard-coded en archivos de cierre** — 0 hits en archivos de cierre. Aparecen en fat/conduces.tsx, fat/facturas.tsx, fat/rep-*.tsx (todos fuera del scope de cierre) y cxc/cxc-catalogo-base.tsx (catálogo, no cierre) — fuera del scope de este plan.
 
-- [ ] **Step F.4: Commit final tag**
+- [x] **Step F.4: Commit final tag** — tag `v-cierres-settings-access-2026-06-30` creado y pusheado a origin (runner 2026-07-01).
 
-```bash
-git tag -a v-cierres-settings-access-2026-06-30 -m "Cierres, Settings CRUD y Access Control completados"
-git push origin v-cierres-settings-access-2026-06-30
-```
-
-- [ ] **Step F.5: Actualizar memoria MCP con resumen**
-
-`mcp__memory-router__memory_create_project` o similar para registrar el cierre del plan.
+- [x] **Step F.5: Actualizar memoria MCP con resumen** — memoria `facture-project.plan/cierres-settings-access-2026-06-30` creada vía `memory_propose` (auto-aprobada, score 1.0).
 
 ---
 
