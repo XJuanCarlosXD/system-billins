@@ -2322,6 +2322,22 @@ def _insert_movimiento(cur, *, no_cia, punto, tipo_docu, no_docu, no_linea,
          no_cia, tipo_refe, no_refe])
 
 
+def _adjust_eproducto_stock(cur, *, no_cia, punto, almacen, no_produ,
+                            tipo_movi, cantidad):
+    """Mantiene sincronizada la existencia que consume el Forms legado."""
+    delta = float(cantidad or 0)
+    if (tipo_movi or '').upper() == 'S':
+        delta = -delta
+    cur.execute(
+        "UPDATE INV.TINV_EPRODUCTO "
+        "SET exist_actual = NVL(exist_actual, 0) + :1 "
+        "WHERE no_cia=:2 AND punto=:3 AND almacen=:4 AND no_produ=:5",
+        [delta, no_cia, punto, almacen, no_produ])
+    if cur.rowcount == 0:
+        raise ValueError(
+            f"Producto {no_produ} no esta asignado al almacen {almacen}")
+
+
 def _upsert_rme_header(cur, *, no_cia, punto, tipo_docu, no_docu, fecha,
                        tipo_movi, tipo_transaccion, usuario, nota,
                        total_linea):
@@ -2418,6 +2434,9 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                 tipo_movi=tipo_movi, tipo_transaccion=tipo_transaccion,
                 fecha=fecha, cantidad=cantidad, precio=precio, costo=costo,
                 empaque=empaque, cpe=cpe, usuario=usuario)
+            _adjust_eproducto_stock(
+                cur, no_cia=no_cia, punto=punto, almacen=almacen_origen,
+                no_produ=no_produ, tipo_movi=tipo_movi, cantidad=cantidad)
             creadas += 1
 
             if es_transferencia:
@@ -2434,6 +2453,10 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                     fecha=fecha, cantidad=cantidad, precio=precio, costo=costo,
                     empaque=empaque, cpe=cpe, usuario=usuario,
                     tipo_refe=tipo_docu, no_refe=no_docu)
+                _adjust_eproducto_stock(
+                    cur, no_cia=no_cia, punto=punto,
+                    almacen=(lin.get('almacen_destino') or almacen_destino).strip(),
+                    no_produ=no_produ, tipo_movi='E', cantidad=cantidad)
                 creadas += 1
         _upsert_rme_header(
             cur, no_cia=no_cia, punto=punto, tipo_docu=tipo_docu,
@@ -2498,6 +2521,10 @@ def reversar_documento_inv(*, no_cia: str, punto: str, tipo_docu: str,
                 costo=float(costo or 0),
                 empaque=int(emp or 1), cpe=int(cpe or 1),
                 usuario=usuario, tipo_refe=tipo_docu, no_refe=no_docu)
+            _adjust_eproducto_stock(
+                cur, no_cia=no_cia, punto=punto, almacen=almacen_o,
+                no_produ=no_produ_o, tipo_movi=tipo_opuesto,
+                cantidad=float(cant or 0))
         cur.connection.commit()
 
     return {

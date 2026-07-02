@@ -2341,6 +2341,15 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
                  fecha, lin["cantidad"], lin["precio"], lin["costo"],
                  lin["empaque"], lin["cpe"], usuario[:30],
                  round(lin["cantidad"] * lin["costo"], 2)])
+            cur.execute(
+                "UPDATE INV.TINV_EPRODUCTO "
+                "SET exist_actual = NVL(exist_actual, 0) - :1 "
+                "WHERE no_cia=:2 AND punto=:3 AND almacen=:4 AND no_produ=:5",
+                [lin["cantidad"], no_cia, punto, lin["almacen"], lin["no_produ"]])
+            if cur.rowcount == 0:
+                raise ValueError(
+                    "Producto {} no esta asignado al almacen {}".format(
+                        lin["no_produ"], lin["almacen"]))
         if fp:
             cur.execute(
                 "INSERT INTO FAT.TFAT_FORMA_PAGO("
@@ -2445,6 +2454,15 @@ def anular_factura(no_cia, punto, tipo_factura, no_factura, usuario, motivo="", 
                      empaque_m, cpe_m, usuario[:30],
                      round((cant_m or 0) * (costo_m or 0), 2),
                      no_cia, tf, nf])
+                cur.execute(
+                    "UPDATE INV.TINV_EPRODUCTO "
+                    "SET exist_actual = NVL(exist_actual, 0) + :1 "
+                    "WHERE no_cia=:2 AND punto=:3 AND almacen=:4 AND no_produ=:5",
+                    [cant_m or 0, no_cia, punto, almacen_m, no_produ_m])
+                if cur.rowcount == 0:
+                    raise ValueError(
+                        "Producto {} no esta asignado al almacen {}".format(
+                            no_produ_m, almacen_m))
             cur.execute(
                 "UPDATE FAT.TFAT_SECUENCIA SET prox_documento=:1 "
                 "WHERE no_cia=:2 AND punto=:3 AND tipo_docu='AF'",
