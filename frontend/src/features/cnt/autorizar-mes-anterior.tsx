@@ -41,7 +41,7 @@ export function AutorizarMesAnterior({ noCia, punto, ano, mes }: Props) {
     if (!noCia || !punto || !a || !m) return
     setLoading(true)
     regalGeneralApi
-      .cntAsientos({ no_cia: noCia, punto, ano: a, mes: m, page: 1, page_size: 1, autorizado: false })
+      .cntAsientos(noCia, punto, a, m, { page: 1, pageSize: 1, autorizado: false })
       .then((r) => setPendientes(r.total))
       .catch(() => setPendientes(null))
       .finally(() => setLoading(false))
