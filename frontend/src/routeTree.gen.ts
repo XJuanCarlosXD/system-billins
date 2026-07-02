@@ -27,6 +27,7 @@ import { Route as AuthenticatedChcRouteImport } from './routes/_authenticated/ch
 import { Route as AuthenticatedCambiarClaveRouteImport } from './routes/_authenticated/cambiar-clave'
 import { Route as AuthenticatedAcfRouteImport } from './routes/_authenticated/acf'
 import { Route as AuthenticatedAccRouteImport } from './routes/_authenticated/acc'
+import { Route as AuthenticatedAsistenteRouteImport } from './routes/_authenticated/asistente'
 import { Route as errors503RouteImport } from './routes/(errors)/503'
 import { Route as errors500RouteImport } from './routes/(errors)/500'
 import { Route as errors404RouteImport } from './routes/(errors)/404'
@@ -55,6 +56,7 @@ import { Route as AuthenticatedChatsIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAppsIndexRouteImport } from './routes/_authenticated/apps/index'
 import { Route as AuthenticatedAcfIndexRouteImport } from './routes/_authenticated/acf/index'
 import { Route as AuthenticatedAccIndexRouteImport } from './routes/_authenticated/acc/index'
+import { Route as AuthenticatedAsistenteIndexRouteImport } from './routes/_authenticated/asistente/index'
 import { Route as PrintCodigoIdRouteImport } from './routes/print/$codigo.$id'
 import { Route as ClerkAuthenticatedUserManagementRouteImport } from './routes/clerk/_authenticated/user-management'
 import { Route as ClerkauthSignUpRouteImport } from './routes/clerk/(auth)/sign-up'
@@ -322,6 +324,11 @@ const AuthenticatedAccRoute = AuthenticatedAccRouteImport.update({
   path: '/acc',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAsistenteRoute = AuthenticatedAsistenteRouteImport.update({
+  id: '/asistente',
+  path: '/asistente',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const errors503Route = errors503RouteImport.update({
   id: '/(errors)/503',
   path: '/503',
@@ -463,6 +470,12 @@ const AuthenticatedAccIndexRoute = AuthenticatedAccIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedAccRoute,
 } as any)
+const AuthenticatedAsistenteIndexRoute =
+  AuthenticatedAsistenteIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedAsistenteRoute,
+  } as any)
 const PrintCodigoIdRoute = PrintCodigoIdRouteImport.update({
   id: '/print/$codigo/$id',
   path: '/print/$codigo/$id',
@@ -1458,6 +1471,20 @@ const AuthenticatedSettingsPdfTemplatesCodigoRoute =
     path: '/$codigo',
     getParentRoute: () => AuthenticatedSettingsPdfTemplatesRouteRoute,
   } as any)
+
+interface AuthenticatedAsistenteRouteChildren {
+  AuthenticatedAsistenteIndexRoute: typeof AuthenticatedAsistenteIndexRoute
+}
+
+const AuthenticatedAsistenteRouteChildren: AuthenticatedAsistenteRouteChildren =
+  {
+    AuthenticatedAsistenteIndexRoute: AuthenticatedAsistenteIndexRoute,
+  }
+
+const AuthenticatedAsistenteRouteWithChildren =
+  AuthenticatedAsistenteRoute._addFileChildren(
+    AuthenticatedAsistenteRouteChildren,
+  )
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -4827,6 +4854,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAccRoute: typeof AuthenticatedAccRouteWithChildren
   AuthenticatedAcfRoute: typeof AuthenticatedAcfRouteWithChildren
   AuthenticatedCambiarClaveRoute: typeof AuthenticatedCambiarClaveRoute
+  AuthenticatedAsistenteRoute: typeof AuthenticatedAsistenteRouteWithChildren
   AuthenticatedChcRoute: typeof AuthenticatedChcRouteWithChildren
   AuthenticatedCntRoute: typeof AuthenticatedCntRoute
   AuthenticatedCxcRoute: typeof AuthenticatedCxcRouteWithChildren
@@ -4854,6 +4882,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAccRoute: AuthenticatedAccRouteWithChildren,
   AuthenticatedAcfRoute: AuthenticatedAcfRouteWithChildren,
   AuthenticatedCambiarClaveRoute: AuthenticatedCambiarClaveRoute,
+  AuthenticatedAsistenteRoute: AuthenticatedAsistenteRouteWithChildren,
   AuthenticatedChcRoute: AuthenticatedChcRouteWithChildren,
   AuthenticatedCntRoute: AuthenticatedCntRoute,
   AuthenticatedCxcRoute: AuthenticatedCxcRouteWithChildren,
