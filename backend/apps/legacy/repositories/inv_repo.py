@@ -2095,10 +2095,11 @@ def aplicar_conteo_fisico(no_cia: str, punto: str, usuario: str,
                         "  SYSDATE, :8, :9, :9, "
                         "  'N', :10, :11, :12, :13, "
                         "  :1, SYSDATE, 0)",
-                        [no_cia_r, punto_r, tipo_docu, no_docu,
-                         almacen_r, no_produ_r, tipo_movi,
-                         cantidad, costo, empaque, cpe, usuario[:30],
-                         round(cantidad * costo, 2)],
+                        client.nbinds(
+                            no_cia_r, punto_r, tipo_docu, no_docu,
+                            almacen_r, no_produ_r, tipo_movi,
+                            cantidad, costo, empaque, cpe, usuario[:30],
+                            round(cantidad * costo, 2)),
                     )
                     # Avanzar secuencia
                     cur.execute(
@@ -2341,30 +2342,36 @@ def _adjust_eproducto_stock(cur, *, no_cia, punto, almacen, no_produ,
 def _upsert_rme_header(cur, *, no_cia, punto, tipo_docu, no_docu, fecha,
                        tipo_movi, tipo_transaccion, usuario, nota,
                        total_linea):
+    # Binds numerados repetidos (:2,:2 / :11,:11) + lista posicional dan
+    # ORA-01008 en modo thick — estos dos statements usan binds nombrados.
     cur.execute(
-        "UPDATE INV.TINV_RME SET nota=:1, total_linea=:2, total_neto=:2, "
-        "valor_bienes=:2, usuario=:3 "
-        "WHERE no_cia=:4 AND punto=:5 AND tipo_docu=:6 AND no_docu=:7",
-        [nota[:4000], total_linea, (usuario or '')[:30],
-         no_cia, punto, tipo_docu, no_docu])
+        "UPDATE INV.TINV_RME SET nota=:nota, total_linea=:total, "
+        "total_neto=:total, valor_bienes=:total, usuario=:usuario "
+        "WHERE no_cia=:no_cia AND punto=:punto AND tipo_docu=:tipo_docu "
+        "AND no_docu=:no_docu",
+        {'nota': nota[:4000], 'total': total_linea,
+         'usuario': (usuario or '')[:30], 'no_cia': no_cia, 'punto': punto,
+         'tipo_docu': tipo_docu, 'no_docu': no_docu})
     if cur.rowcount:
         return
     cur.execute(
         "INSERT INTO INV.TINV_RME("
         "no_cia,punto,tipo_docu,no_docu,fecha,fecha_sysdate,"
         "estado,usuario,st_impresion,st_anulado,st_generado_cnt,"
-        "tipo_transaccion,tipo_movi,detalle,nota,no_localidad,"
+        "tipo_transaccion,tipo_movi,detalle,nota,no_localidad,afecta_cxc,"
         "tasa_us,porc_impuesto,impuesto,descuento,total_linea,total_neto,"
         "valor_bienes,valor_servicio,isc,otros_impuestos,propina,entregado"
         ") VALUES("
-        ":1,:2,:3,:4,TO_DATE(:5,'YYYY-MM-DD'),SYSDATE,"
-        "'A',:6,'N','N','N',"
-        ":7,:8,'',:9,:10,"
-        "1,0,0,0,:11,:11,"
-        ":11,0,0,0,0,'N'"
+        ":no_cia,:punto,:tipo_docu,:no_docu,TO_DATE(:fecha,'YYYY-MM-DD'),SYSDATE,"
+        "'A',:usuario,'N','N','N',"
+        ":tipo_transaccion,:tipo_movi,'',:nota,:no_localidad,'N',"
+        "1,0,0,0,:total,:total,"
+        ":total,0,0,0,0,'N'"
         ")",
-        [no_cia, punto, tipo_docu, no_docu, fecha, (usuario or '')[:30],
-         tipo_transaccion, tipo_movi, nota[:4000], no_cia, total_linea])
+        {'no_cia': no_cia, 'punto': punto, 'tipo_docu': tipo_docu,
+         'no_docu': no_docu, 'fecha': fecha, 'usuario': (usuario or '')[:30],
+         'tipo_transaccion': tipo_transaccion, 'tipo_movi': tipo_movi,
+         'nota': nota[:4000], 'no_localidad': no_cia, 'total': total_linea})
 
 
 def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,

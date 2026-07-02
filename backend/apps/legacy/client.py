@@ -113,6 +113,16 @@ def fetch_dicts(sql: str, params: list | dict | None = None) -> list[dict]:
         return [dict(zip(cols, row)) for row in cur.fetchall()]
 
 
+def nbinds(*vals) -> dict:
+    """Convierte valores posicionales a binds nombrados {'1': v1, '2': v2, ...}.
+
+    Obligatorio cuando el SQL repite un bind numerado (p.ej. saldo=:7 y
+    valor=:7): con lista posicional el modo thick lanza ORA-01008 porque
+    exige un valor por OCURRENCIA; con dict se deduplica por nombre.
+    """
+    return {str(i): v for i, v in enumerate(vals, start=1)}
+
+
 def execute(sql: str, params: list | dict | None = None) -> int:
     """Ejecuta DML (INSERT/UPDATE/DELETE) y hace commit. Devuelve rowcount."""
     with cursor() as cur:

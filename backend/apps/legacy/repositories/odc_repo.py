@@ -433,11 +433,11 @@ def create_requisicion(no_cia: str, punto: str, cabecera: dict,
             " nota, usuario, empaque, cpe"
             ") VALUES ("
             " :1, :2, :3, :4, :5, :6, :6, 0, :7, :8, :9, :10)",
-            [
+            client.nbinds(
                 no_cia, punto, no_req, i, ln['no_produ'],
                 ln['cantidad_pedida'], ln.get('nota'), usuario,
                 ln.get('empaque', 1), ln.get('cpe', 1),
-            ],
+            ),
         )
     return no_req
 

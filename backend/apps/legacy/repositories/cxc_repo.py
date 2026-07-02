@@ -649,7 +649,8 @@ def get_next_no_doc(no_cia: str, punto: str) -> str:
         "SELECT NVL(MAX(TO_NUMBER(REGEXP_SUBSTR(no_docu,'[0-9]+'))),0)+1 "
         "FROM CXC.TCXC_DOCUMENTO WHERE no_cia=:1 AND punto=:2",
         [no_cia, punto])
-    return str(row[0]).zfill(8) if row else '00000001'
+    # NO_DOCU es VARCHAR2(7) — el legado usa LPAD a 7
+    return str(row[0]).zfill(7) if row else '0000001'
 
 def save_documento(d: dict):
     no_cia = d['no_cia']
@@ -673,19 +674,50 @@ def save_documento(d: dict):
                  valor, d.get('ncf', ''), d.get('detalle', ''),
                  no_cia, no_docu])
         else:
+            # tipo_movi / tipo_transaccion salen del catalogo (patron Fcxc201)
+            cur.execute(
+                "SELECT tipo_movi, tipo_transaccion FROM CXC.TCXC_TDOCU "
+                "WHERE no_cia=:1 AND tipo_docu=:2",
+                [no_cia, tipo_docu])
+            td = cur.fetchone()
+            if not td:
+                raise ValueError(
+                    f"Tipo de documento '{tipo_docu}' no configurado en TCXC_TDOCU")
+            tipo_movi = (td[0] or 'D').strip().upper()
+            tipo_transaccion = (td[1] or 'C').strip().upper()
+            vendedor = d.get('vendedor')
+            if not vendedor:
+                cur.execute(
+                    "SELECT vendedor FROM CXC.TCXC_CLIENTE "
+                    "WHERE no_cia=:1 AND no_cliente=:2",
+                    [no_cia, d.get('no_cliente', '')])
+                vrow = cur.fetchone()
+                vendedor = (vrow[0] if vrow and vrow[0] else '00')
+            monto = float(valor or 0)
+            # Constraints legado: debito=credito (mismo total ambos lados) y
+            # saldo>=0 si tipo_movi='D' / saldo<=0 si 'C'.
+            saldo = monto if tipo_movi == 'D' else -monto
             cur.execute(
                 "INSERT INTO CXC.TCXC_DOCUMENTO"
                 "(no_cia,punto,tipo_docu,no_docu,no_cliente,"
-                "fecha,valor_original,saldo,ncf,detalle,st_anulado) "
-                "VALUES(:1,:2,:3,:4,:5,TO_DATE(:6,'YYYY-MM-DD'),:7,:7,:8,:9,'N')",
-                [no_cia, punto, tipo_docu, no_docu,
-                 d.get('no_cliente', ''), fecha,
-                 valor, d.get('ncf', ''), d.get('detalle', '')])
+                "fecha,valor_original,saldo,ncf,detalle,st_anulado,"
+                "vendedor,debito,credito,tipo_movi,tipo_transaccion,tasa_us) "
+                "VALUES(:1,:2,:3,:4,:5,TO_DATE(:6,'YYYY-MM-DD'),:7,:8,:9,:10,'N',"
+                ":11,:12,:12,:13,:14,:15)",
+                client.nbinds(
+                    no_cia, punto, tipo_docu, no_docu,
+                    d.get('no_cliente', ''), fecha,
+                    monto, saldo, d.get('ncf', ''), d.get('detalle', ''),
+                    vendedor, monto,
+                    tipo_movi, tipo_transaccion,
+                    float(d.get('tasa_us') or 1)))
         # Replace detail lines
         cur.execute(
             "DELETE FROM CXC.TCXC_DCDOCU WHERE no_cia=:1 AND no_docu=:2",
             [no_cia, no_docu])
         for l in d.get('lineas', []):
+            # CENTRO_COSTO es NOT NULL — '' en Oracle es NULL, usar el default legado
+            cc = (l.get('centro_costo') or '').strip() or '0000000000'
             # Frontend sends debito/credito; legacy sends tipo_movi/monto
             if 'debito' in l or 'credito' in l:
                 debito = float(l.get('debito') or 0)
@@ -697,7 +729,7 @@ def save_documento(d: dict):
                         "VALUES(:1,:2,:3,:4,:5,'D',:6,:7,:8)",
                         [no_cia, punto, tipo_docu, no_docu,
                          l.get('cuenta', ''), debito,
-                         l.get('centro_costo', ''), d.get('no_cliente', '')])
+                         cc, d.get('no_cliente', '')])
                 if credito > 0:
                     cur.execute(
                         "INSERT INTO CXC.TCXC_DCDOCU"
@@ -705,7 +737,7 @@ def save_documento(d: dict):
                         "VALUES(:1,:2,:3,:4,:5,'C',:6,:7,:8)",
                         [no_cia, punto, tipo_docu, no_docu,
                          l.get('cuenta', ''), credito,
-                         l.get('centro_costo', ''), d.get('no_cliente', '')])
+                         cc, d.get('no_cliente', '')])
             else:
                 cur.execute(
                     "INSERT INTO CXC.TCXC_DCDOCU"
@@ -713,7 +745,7 @@ def save_documento(d: dict):
                     "VALUES(:1,:2,:3,:4,:5,:6,:7,:8,:9)",
                     [no_cia, punto, tipo_docu, no_docu,
                      l.get('cuenta', ''), l.get('tipo_movi', 'D'),
-                     l.get('monto', 0), l.get('centro_costo', ''), d.get('no_cliente', '')])
+                     l.get('monto', 0), cc, d.get('no_cliente', '')])
         cur.connection.commit()
     return no_docu
 
@@ -815,13 +847,15 @@ def crear_recibo_cobro(
     with client.cursor() as cur:
         # 1. Cuenta y centro_costo defaults del tipo de doc (configurado en FCXC104)
         cur.execute(
-            "SELECT NVL(cuenta,''), NVL(centro_costo,'0000000000'), tipo_movi "
+            "SELECT NVL(cuenta,''), NVL(centro_costo,'0000000000'), tipo_movi, "
+            "       tipo_transaccion "
             "FROM CXC.TCXC_TDOCU WHERE no_cia=:1 AND tipo_docu=:2",
             [no_cia, tipo_doc])
         td = cur.fetchone()
         if not td:
             raise ValueError(f"Tipo de documento {tipo_doc} no existe")
         cuenta_default, centro_costo, tipo_movi_tdocu = td[0], td[1], (td[2] or 'C').upper()
+        tipo_transaccion_tdocu = (td[3] or 'I').strip().upper()
 
         # 2. Cuenta del cliente (CxC) desde TCXC_CLIENTE.tipo_contable → TCXC_TCONTABLE.cuenta_cliente
         cur.execute(
@@ -850,16 +884,32 @@ def crear_recibo_cobro(
         # 3. Cabecera del recibo
         # tipo_movi: 'C' (recibo) → en el documento se guarda como 'C' porque CXC tiene saldo opuesto
         # Para tipos AD/AC depende; aquí confiamos en TCXC_TDOCU.tipo_movi
+        # vendedor es NOT NULL: usar el del payload o el del cliente
+        vendedor_doc = (vendedor or '').strip()
+        if not vendedor_doc:
+            cur.execute(
+                "SELECT vendedor FROM CXC.TCXC_CLIENTE "
+                "WHERE no_cia=:1 AND no_cliente=:2",
+                [no_cia, str(no_cliente)])
+            vrow = cur.fetchone()
+            vendedor_doc = (vrow[0] if vrow and vrow[0] else '00')
+        # TCXC_DOCUMENTO no tiene columna PLAZO: el plazo se expresa como
+        # FECHA_VENCE = fecha + plazo dias. debito=credito=total (constraint),
+        # saldo 0 (recibo aplicado), tasa_us 1.
         cur.execute(
             "INSERT INTO CXC.TCXC_DOCUMENTO ("
             " no_cia, punto, tipo_docu, no_docu, no_cliente, fecha, "
             " valor_original, saldo, ncf, detalle, st_anulado, tipo_movi, "
-            " vendedor, cobrador, plazo"
+            " vendedor, cobrador, fecha_vence, debito, credito, "
+            " tipo_transaccion, tasa_us"
             ") VALUES (:1,:2,:3,:4,:5,TO_DATE(:6,'YYYY-MM-DD'),"
-            " :7, 0, :8, :9, 'N', :10, :11, :12, :13)",
-            [no_cia, punto, tipo_doc, no_doc, str(no_cliente), fecha,
-             valor_doc, ncf, detalle, tipo_movi_tdocu,
-             vendedor or '', cobrador or '', int(plazo or 0)])
+            " :7, 0, :8, :9, 'N', :10, :11, :12, "
+            " TO_DATE(:13,'YYYY-MM-DD') + :14, :15, :15, :16, 1)",
+            client.nbinds(
+                no_cia, punto, tipo_doc, no_doc, str(no_cliente), fecha,
+                valor_doc, ncf, detalle, tipo_movi_tdocu,
+                vendedor_doc, cobrador or '', fecha, int(plazo or 0),
+                valor_doc, tipo_transaccion_tdocu))
 
         # 4. Distribución contable auto-generada:
         #    Cuenta del tipo_doc (ej. CAJA) — DR por el valor

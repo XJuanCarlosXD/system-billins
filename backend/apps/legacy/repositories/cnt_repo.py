@@ -421,8 +421,9 @@ def actualizar_asiento(no_cia, punto, ano, mes, no_asiento, usuario):
                    SELECT no_cia,punto,ano,mes,:1,cuenta,:2,:3,:4,fecha
                    FROM CNT.TCNT_ASIENTO
                    WHERE no_cia=:5 AND punto=:6 AND ano=:7 AND mes=:8 AND no_asiento=:1""",
-                [int(no_asiento), centro, tipo_movi, float(monto),
-                 no_cia, punto, int(ano), int(mes)]
+                client.nbinds(
+                    int(no_asiento), centro, tipo_movi, float(monto),
+                    no_cia, punto, int(ano), int(mes))
             )
         cur.execute(
             """UPDATE CNT.TCNT_ASIENTO SET actualizado='S'

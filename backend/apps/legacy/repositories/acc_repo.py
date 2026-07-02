@@ -246,7 +246,7 @@ def crear_documento(no_cia: str, punto: str, data: dict, usuario: str) -> str:
         " :1, :2, :3, :4, :5, :6, TO_DATE(:7,'YYYY-MM-DD'), "
         " 'N', :8, :8, 0, :9, :10, :11, "
         " 'N', :12, :13, :14, :15, :16, :17, :18)",
-        [
+        client.nbinds(
             no_cia, punto, no_docu, data['no_caja'], data['no_bene'],
             data['tipo_gasto'], fecha, valor, usuario,
             data.get('moneda', 'DOP'), data['cuenta'], data.get('detalle'),
@@ -255,7 +255,7 @@ def crear_documento(no_cia: str, punto: str, data: dict, usuario: str) -> str:
             data.get('tipo_gasto_dgii'),
             int(data.get('forma_pago', 1)),
             data.get('no_formulario'),
-        ],
+        ),
     )
     # Línea contable: débito al tipo_gasto.cuenta, crédito al cuenta de caja
     cuenta_gasto = data.get('cuenta_gasto') or data['cuenta']

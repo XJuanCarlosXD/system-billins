@@ -431,11 +431,12 @@ def crear_nomina(no_cia: str, punto: str, data: dict) -> dict:
         " :16, :17, :18, :19, "
         " 'N', 'N', 'N'"
         ")",
-        [no_cia, punto, nomina, descripcion, forma_pago,
-         fecha_inicial, fecha_final, cuenta_contable, cuenta_bancaria,
-         mes_proceso, ano_proceso, mes_cierre, periodo,
-         factor_horas, factor_diario,
-         metodo_pago, gasto_regalia, regalia_por_pagar, tipo_moneda],
+        client.nbinds(
+            no_cia, punto, nomina, descripcion, forma_pago,
+            fecha_inicial, fecha_final, cuenta_contable, cuenta_bancaria,
+            mes_proceso, ano_proceso, mes_cierre, periodo,
+            factor_horas, factor_diario,
+            metodo_pago, gasto_regalia, regalia_por_pagar, tipo_moneda),
     )
     return get_nomina(no_cia, punto, nomina)
 
@@ -1069,13 +1070,14 @@ def generar_vacaciones(*, no_cia: str, punto: str, nomina: str, ano: int,
             " :8, :9, 'N', "
             " :10, :11, :12 "
             ")",
-            [no_cia, punto, nomina, p['no_empleado'],
-             p.get('fecha_ingreso') or None,
-             f"{int(ano)}-01-01", f"{int(ano)}-01-01", int(p['dias']),
-             (usuario or '').upper()[:20],
-             p['meses_trabajados'] // 12,
-             p['meses_trabajados'] % 12,
-             0],
+            client.nbinds(
+                no_cia, punto, nomina, p['no_empleado'],
+                p.get('fecha_ingreso') or None,
+                f"{int(ano)}-01-01", f"{int(ano)}-01-01", int(p['dias']),
+                (usuario or '').upper()[:20],
+                p['meses_trabajados'] // 12,
+                p['meses_trabajados'] % 12,
+                0),
         )
         creados += 1
 

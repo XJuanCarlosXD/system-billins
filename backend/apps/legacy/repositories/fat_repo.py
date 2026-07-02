@@ -2336,11 +2336,12 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
                 "  TO_DATE(:9,'YYYY-MM-DD'), :10, :11, :12,"
                 "  'N', :13, :14, :15, :16,"
                 "  :1, SYSDATE, 0)",
-                [no_cia, punto, tf, new_no_factura, lin["no_linea"],
-                 lin["almacen"], lin["no_produ"], tipo_transaccion,
-                 fecha, lin["cantidad"], lin["precio"], lin["costo"],
-                 lin["empaque"], lin["cpe"], usuario[:30],
-                 round(lin["cantidad"] * lin["costo"], 2)])
+                client.nbinds(
+                    no_cia, punto, tf, new_no_factura, lin["no_linea"],
+                    lin["almacen"], lin["no_produ"], tipo_transaccion,
+                    fecha, lin["cantidad"], lin["precio"], lin["costo"],
+                    lin["empaque"], lin["cpe"], usuario[:30],
+                    round(lin["cantidad"] * lin["costo"], 2)))
             cur.execute(
                 "UPDATE INV.TINV_EPRODUCTO "
                 "SET exist_actual = NVL(exist_actual, 0) - :1 "

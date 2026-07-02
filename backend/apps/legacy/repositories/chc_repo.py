@@ -279,13 +279,14 @@ def solicitar_cheque(no_cia: str, punto: str, cuenta_banco: str,
         "  :11, :11, :11, :11, :12, :13, "
         "  'N', 'N', :14, 0, SYSDATE"
         ")",
-        [no_cia, punto, tipo_docu, no_docu, cuenta_banco, no_proveedor,
-         tdocu['tipo_movi'], tdocu['tipo_transaccion'],
-         fecha_cheque,
-         beneficiario.upper().strip(),
-         valor,
-         usuario, moneda,
-         (detalle1 or '').strip() or None],
+        client.nbinds(
+            no_cia, punto, tipo_docu, no_docu, cuenta_banco, no_proveedor,
+            tdocu['tipo_movi'], tdocu['tipo_transaccion'],
+            fecha_cheque,
+            beneficiario.upper().strip(),
+            valor,
+            usuario, moneda,
+            (detalle1 or '').strip() or None),
     )
 
     # Si es egreso (tipo_movi='C': crédito a banco) actualiza cheques por entregar.

@@ -572,7 +572,7 @@ def crear_compra(data: dict, usuario: str) -> dict:
         " 0, :19, 'S', 'N', "
         " :20, 'N', SYSDATE"
         ")",
-        [
+        client.nbinds(
             no_cia, punto, no_activo, data['descripcion'][:50],
             data['tipo_contable'], data['tipo'], data['grupo'],
             data['subgrupo'], data['responsable'], data['departamento'],
@@ -582,7 +582,7 @@ def crear_compra(data: dict, usuario: str) -> dict:
             data.get('no_proveedor'), data.get('serie'),
             duracion, valor, depreciable,
             (data.get('detalle') or '')[:100],
-        ],
+        ),
     )
 
     no_docu = _next_no_docu(no_cia, punto, TIPO_DOCU_COMPRA)
@@ -600,13 +600,13 @@ def crear_compra(data: dict, usuario: str) -> dict:
         " :10, :10, 0, :11, :12, 'N', "
         " 'N', :13, SYSDATE"
         ")",
-        [
+        client.nbinds(
             no_cia, punto, TIPO_DOCU_COMPRA, no_docu, no_activo,
             data.get('no_proveedor'), fecha_compra,
             data['departamento'], data['responsable'], valor,
             (usuario or 'API')[:30], data['cuenta'],
             (data.get('detalle') or 'Compra de activo fijo')[:100],
-        ],
+        ),
     )
     return {'no_activo': no_activo, 'no_docu': no_docu, 'tipo_docu': TIPO_DOCU_COMPRA}
 
@@ -665,14 +665,14 @@ def crear_retiro(data: dict, usuario: str) -> dict:
         " :10, 0, :10, :11, :12, 'N', "
         " 'N', :13, SYSDATE"
         ")",
-        [
+        client.nbinds(
             no_cia, punto, TIPO_DOCU_RETIRO, no_docu, no_activo,
             data['fecha_retiro'],
             a['departamento'], a['responsable'],
             float(a['depre_acumu'] or 0), valor_libros,
             (usuario or 'API')[:30], data['cuenta'],
             (data.get('motivo') or 'Retiro de activo fijo')[:100],
-        ],
+        ),
     )
     return {
         'no_activo': no_activo, 'no_docu': no_docu, 'tipo_docu': TIPO_DOCU_RETIRO,
@@ -762,7 +762,7 @@ def aplicar_depreciacion(no_cia: str, punto: str, usuario: str,
             "  fecha_ult_depre=TO_DATE(:2,'YYYY-MM-DD'), "
             "  depreciado_mes='S' "
             " WHERE no_cia=:3 AND punto=:4 AND no_activo=:5",
-            [cuota, fecha, no_cia, punto, a['no_activo']],
+            client.nbinds(cuota, fecha, no_cia, punto, a['no_activo']),
         )
         no_docu = _next_no_docu(no_cia, punto, TIPO_DOCU_DEPRE)
         client.execute(
@@ -779,7 +779,7 @@ def aplicar_depreciacion(no_cia: str, punto: str, usuario: str,
             " :10, :10, :10, :12, :13, 'N', "
             " 'N', :14, SYSDATE"
             ")",
-            [
+            client.nbinds(
                 no_cia, punto, TIPO_DOCU_DEPRE, no_docu, a['no_activo'],
                 fecha,
                 a['departamento'], a['responsable'],
@@ -787,7 +787,7 @@ def aplicar_depreciacion(no_cia: str, punto: str, usuario: str,
                 valor_base - (float(a['depre_acumu'] or 0) + cuota),
                 (usuario or 'API')[:30], cuenta_gasto,
                 f'Depreciación {mes:02d}/{ano} — {a["descripcion"][:70]}',
-            ],
+            ),
         )
         total += cuota
         procesados += 1
