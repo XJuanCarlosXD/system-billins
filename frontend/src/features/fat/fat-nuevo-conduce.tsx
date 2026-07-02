@@ -1265,15 +1265,16 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
                       <Input
                         type='number'
                         value={linea.cantidad}
-                        min={1}
+                        min={0.001}
+                        step='any'
                         onChange={(e) =>
                           updateLinea(
                             idx,
                             'cantidad',
-                            Math.max(1, parseFloat(e.target.value) || 1)
+                            Math.max(0.001, parseFloat(e.target.value) || 0.001)
                           )
                         }
-                        className='h-7 w-14 px-1 text-center text-sm'
+                        className='h-7 w-16 px-1 text-center text-sm'
                       />
                       <Button
                         type='button'
