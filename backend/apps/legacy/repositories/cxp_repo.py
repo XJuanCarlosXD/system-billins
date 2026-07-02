@@ -744,7 +744,8 @@ def rep_606(no_cia: str, anio: int, mes: int, punto: str = ''):
         "d.no_cia=:1",
         "EXTRACT(YEAR FROM d.fecha)=:2",
         "EXTRACT(MONTH FROM d.fecha)=:3",
-        "d.tipo_movi='Credito'",
+        # TCXP_DOCUMENTO.tipo_movi es 'D'/'C' (un caracter) — 'C' = factura/credito
+        "d.tipo_movi='C'",
     ]
     params = [no_cia, anio, mes]
     if punto:
@@ -783,7 +784,10 @@ def rep_607(no_cia: str, anio: int, mes: int, punto: str = ''):
         "d.no_cia=:1",
         "EXTRACT(YEAR FROM d.fecha)=:2",
         "EXTRACT(MONTH FROM d.fecha)=:3",
-        "d.tipo_movi='Debito'",
+        # La retencion se registra en la factura del proveedor (tipo_movi='C'),
+        # no en el pago: verificado 2026-07-02 — todos los docs con
+        # isr_retenido>0 en produccion son 'C'.
+        "d.tipo_movi='C'",
         "NVL(d.isr_retenido,0)>0",
     ]
     params = [no_cia, anio, mes]
@@ -850,9 +854,11 @@ def _next_no_docu(cur, no_cia, punto, tipo_docu):
             "WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4",
             [a_usar + 1, no_cia, punto, tipo_docu])
     else:
+        # Hay no_docu no numericos en datos migrados — filtrar antes de TO_NUMBER
         row_max = cur.execute(
             "SELECT NVL(MAX(TO_NUMBER(no_docu)),0) FROM CXP.TCXP_DOCUMENTO "
-            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3",
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 "
+            "  AND REGEXP_LIKE(no_docu, '^[0-9]+$')",
             [no_cia, punto, tipo_docu]).fetchone()
         a_usar = (row_max[0] if row_max else 0) + 1
         cur.execute(
