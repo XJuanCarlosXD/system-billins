@@ -5,9 +5,11 @@ from apps.legacy.docs_print_data import (
     chc_rep_movimientos_print_data,
     chc_rep_diario_print_data,
     chc_rep_disponibilidad_print_data,
+    chc_rep_cheques_print_data,
 )
 
 urlpatterns = [
+    path('cheques/print-data/', chc_rep_cheques_print_data),
     path('cheques/<str:tipo_docu>/<str:no_docu>/print-data/', chc_cheque_print_data),
     path('bancos/', chc_views.chc_bancos),
     path('cias/', chc_views.chc_cias),

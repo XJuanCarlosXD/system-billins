@@ -106,6 +106,17 @@ export function ChcCheques() {
         <div><Label className="text-xs">Desde</Label><Input type="date" className="w-40 h-9" value={filtros.fecha_desde} onChange={(e) => setFiltros({ ...filtros, fecha_desde: e.target.value })} /></div>
         <div><Label className="text-xs">Hasta</Label><Input type="date" className="w-40 h-9" value={filtros.fecha_hasta} onChange={(e) => setFiltros({ ...filtros, fecha_hasta: e.target.value })} /></div>
         <Button size="sm" variant="outline" onClick={() => listQ.refetch()}><Search className="h-4 w-4 mr-1" /> Buscar</Button>
+        <Button size="sm" variant="outline" disabled={rows.length === 0} onClick={() => {
+          const qs = new URLSearchParams(
+            Object.entries({
+              no_cia: selectedCompany, punto: selectedPoint,
+              cuenta_banco: filtros.cuenta_banco, status: filtros.status,
+              conciliado: filtros.conciliado, entregado: filtros.entregado,
+              fecha_desde: filtros.fecha_desde, fecha_hasta: filtros.fecha_hasta,
+            }).filter(([, v]) => v)
+          ).toString()
+          window.open(`/print/chc-rep-cheques/current?${qs}`, '_blank')
+        }}><Printer className="h-4 w-4 mr-1" /> Listado PDF</Button>
         <div className="ml-auto text-sm text-muted-foreground">{rows.length} cheques</div>
       </div>
 

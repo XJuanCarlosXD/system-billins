@@ -1875,6 +1875,55 @@ def chc_rep_disponibilidad_print_data(request):
     })
 
 
+@login_required
+@require_http_methods(["GET"])
+def chc_rep_cheques_print_data(request):
+    """Rchc503 — Listado de cheques/movimientos por cuenta.
+    GET /api/chc/cheques/print-data/?no_cia=&punto=&cuenta_banco=&status=&conciliado=&entregado=&fecha_desde=&fecha_hasta="""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    g = request.GET
+    rows = _chc_repo.list_cheques(
+        no_cia=no_cia, punto=punto,
+        cuenta_banco=g.get('cuenta_banco') or None,
+        status=g.get('status') or None,
+        conciliado=g.get('conciliado') or None,
+        entregado=g.get('entregado') or None,
+        fecha_desde=g.get('fecha_desde') or None,
+        fecha_hasta=g.get('fecha_hasta') or None,
+        limit=int(g.get('limit', 500)),
+    )
+    filas = []
+    tot_valor = 0.0
+    for c in rows:
+        valor = _money_or_zero(c.get('valor_original'))
+        if (c.get('st_nulo') or 'A') == 'A':
+            tot_valor += valor
+        filas.append({
+            'documento': (c.get('tipo_docu') or '') + '-' + (c.get('no_docu') or '').strip(),
+            'fecha': str(c.get('fecha_cheque') or c.get('fecha_solicitud') or '')[:10],
+            'cuenta_banco': c.get('cuenta_banco') or '',
+            'beneficiario': c.get('beneficiario') or '',
+            'valor': valor,
+            'estado': 'NULO' if (c.get('st_nulo') or 'A') != 'A' else (
+                'CONCILIADO' if (c.get('conciliado') or 'N') == 'S' else 'ACTIVO'),
+            'entregado': 'Sí' if (c.get('entregado') or 'N') == 'S' else '',
+        })
+    filtros = {'Empresa': no_cia, 'Punto': punto}
+    for label, key in (('Cuenta', 'cuenta_banco'), ('Estado', 'status'),
+                       ('Desde', 'fecha_desde'), ('Hasta', 'fecha_hasta')):
+        if g.get(key):
+            filtros[label] = g.get(key)
+    return JsonResponse({
+        'cia': _cia_payload(no_cia, request=request),
+        'reporte': {'codigo': 'chc-rep-cheques',
+                    'titulo': 'Listado de Cheques y Movimientos Bancarios',
+                    'filtros': filtros},
+        'filas': filas,
+        'totales': {'cantidad': len(filas), 'total': round(tot_valor, 2)},
+    })
+
+
 # ─── CXP — Reportes (rcxp201/202/306/308 etc. → familia 'reporte') ──────────
 
 

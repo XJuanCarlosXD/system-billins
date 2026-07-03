@@ -111,6 +111,16 @@ const sdnRncEmpleadosDefault = reporteGenericoDefault('RNC Empleados (DGII / TSS
   { campo: 'fecha_ingreso', label: 'Ingreso', align: 'left', format: 'date' },
 ])
 
+const chcRepChequesDefault = reporteGenericoDefault('Listado de Cheques y Movimientos', [
+  { campo: 'documento', label: 'Documento', align: 'left' },
+  { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
+  { campo: 'cuenta_banco', label: 'Cuenta', align: 'left' },
+  { campo: 'beneficiario', label: 'Beneficiario', align: 'left' },
+  { campo: 'valor', label: 'Valor', align: 'right', format: 'money' },
+  { campo: 'estado', label: 'Estado', align: 'left' },
+  { campo: 'entregado', label: 'Entreg.', align: 'center' },
+])
+
 const cxpRepAlfabeticoDefault = reporteGenericoDefault('Listado Alfabético de Proveedores', [
   { campo: 'no_proveedor', label: 'No.', align: 'left' },
   { campo: 'nombre', label: 'Proveedor', align: 'left' },
@@ -805,6 +815,22 @@ export const registry: Record<string, RegistryEntry> = {
       'totales.efectivo', 'totales.valor_compro_prov', 'totales.cantidad_docs',
       'cliente.no_caja', 'cliente.usuario',
     ]),
+  },
+  'chc-rep-cheques': {
+    codigo: 'chc-rep-cheques',
+    modulo: 'CHC',
+    nombre: 'Listado de Cheques y Movimientos (Rchc503)',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/chc/cheques/print-data/?${qs.toString()}`,
+    defaultTemplate: chcRepChequesDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].documento', 'filas[].fecha', 'filas[].cuenta_banco',
+      'filas[].beneficiario', 'filas[].valor', 'filas[].estado', 'filas[].entregado',
+      'totales.cantidad', 'totales.total',
+    ],
   },
   'chc-rep-movimientos': {
     codigo: 'chc-rep-movimientos',
