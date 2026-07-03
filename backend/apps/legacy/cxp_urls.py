@@ -40,6 +40,10 @@ urlpatterns = [
     path('liberar-debito/', cxp_views.cxp_liberar_debito),
     path('saldos-menores/', cxp_views.cxp_saldos_menores),
     path('bloquear-pago/', cxp_views.cxp_bloquear_pago),
+    # Solicitudes de pago (Fcxp209 / Fcxp207 — puente CxP → CHC)
+    path('solicitud-cheque/', cxp_views.cxp_solicitud_cheque),
+    path('solicitudes-pago/', cxp_views.cxp_solicitudes_pago),
+    path('solicitudes-pago/<str:no_docu>/referencias/', cxp_views.cxp_solicitud_referencias),
     # Cierre / asiento
     path('asiento-contable/', cxp_views.cxp_asiento_contable),
     path('generar-asiento/', cxp_views.cxp_generar_asiento),

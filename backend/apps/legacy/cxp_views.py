@@ -503,6 +503,79 @@ def cxp_bloquear_pago(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+# ─── SOLICITUDES DE PAGO (Fcxp209 / Fcxp207 — puente CxP → CHC) ──────────────
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET', 'POST'])
+def cxp_solicitud_cheque(request):
+    """
+    Fcxp209 — Generar Solicitud a Cheque.
+    GET  ?no_cia=&punto=&no_proveedor= → docs con saldo del proveedor
+         (incluye monto_solicitado ya comprometido en solicitudes pendientes).
+    POST {no_cia, punto, cuenta_banco, no_proveedor, fecha_cheque?, detalle?,
+          docs:[{tipo_docu, no_docu, monto}]} → crea el SO en CHC.
+    """
+    if request.method == 'GET':
+        no_cia       = request.GET.get('no_cia', '')
+        punto        = _norm_punto(request.GET.get('punto', ''))
+        no_proveedor = request.GET.get('no_proveedor', '')
+        if not no_cia or not punto or not no_proveedor:
+            return JsonResponse({'error': 'no_cia, punto y no_proveedor son requeridos'}, status=400)
+        rows = cxp_repo.documentos_por_pagar(no_cia, punto, no_proveedor)
+        return JsonResponse(rows, safe=False)
+    try:
+        data   = json.loads(request.body)
+        result = cxp_repo.generar_solicitud_cheque(
+            no_cia=data['no_cia'],
+            punto=_norm_punto(data.get('punto', '01')),
+            cuenta_banco=data['cuenta_banco'],
+            no_proveedor=data['no_proveedor'],
+            docs=data.get('docs', []),
+            usuario=(getattr(request.user, 'username', '') or 'API').upper(),
+            fecha_cheque=data.get('fecha_cheque') or None,
+            detalle=data.get('detalle') or None,
+        )
+        return JsonResponse(result, status=201)
+    except (KeyError, ValueError) as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
+def cxp_solicitudes_pago(request):
+    """
+    Fcxp207 — Consultar/Procesar Solicitudes de Pago.
+    GET ?no_cia=&punto=&no_proveedor=&pendientes=S|N → solicitudes SO en CHC.
+    """
+    no_cia = request.GET.get('no_cia', '')
+    punto  = _norm_punto(request.GET.get('punto', ''))
+    if not no_cia or not punto:
+        return JsonResponse({'error': 'no_cia y punto son requeridos'}, status=400)
+    rows = cxp_repo.solicitudes_pago(
+        no_cia, punto,
+        no_proveedor=request.GET.get('no_proveedor') or None,
+        pendientes=request.GET.get('pendientes', 'S'),
+    )
+    return JsonResponse(rows, safe=False)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
+def cxp_solicitud_referencias(request, no_docu):
+    """GET ?no_cia=&punto= → documentos CxP referenciados por la solicitud SO."""
+    no_cia = request.GET.get('no_cia', '')
+    punto  = _norm_punto(request.GET.get('punto', ''))
+    if not no_cia or not punto:
+        return JsonResponse({'error': 'no_cia y punto son requeridos'}, status=400)
+    rows = cxp_repo.solicitud_referencias(no_cia, punto, no_docu)
+    return JsonResponse(rows, safe=False)
+
+
 # ─── CIERRE / ASIENTO ────────────────────────────────────────────────────────
 
 @login_required

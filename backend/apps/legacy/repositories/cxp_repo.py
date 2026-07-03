@@ -1071,6 +1071,228 @@ def bloquear_pago(no_cia, punto, tipo_docu, no_docu, bloquear=True):
     return {"ok": True, "pago_bloqueado": flag}
 
 
+# ─── SOLICITUDES DE PAGO (Fcxp209 / Fcxp207 — puente CxP → CHC) ──────────────
+
+
+def documentos_por_pagar(no_cia, punto, no_proveedor):
+    """Documentos del proveedor con saldo > 0 (tipo_movi='C') candidatos a
+    solicitud de cheque. monto_solicitado = lo ya comprometido en solicitudes
+    SO pendientes (TCHC_CHEQUE tipo_transaccion='K', no impresas, activas) —
+    misma consulta que usa el legado en Fcxp207/209."""
+    return client.fetch_dicts(
+        "SELECT d.tipo_docu, d.no_docu, d.no_proveedor, d.fecha, d.fecha_vence, "
+        "       d.valor_original, d.saldo, d.pago_bloqueado, d.detalle, "
+        "       NVL((SELECT SUM(NVL(r.monto,0)) "
+        "              FROM CHC.TCHC_CHEQUE c, CHC.TCHC_REFEDOCU r "
+        "             WHERE c.no_cia=d.no_cia AND c.punto=d.punto "
+        "               AND c.tipo_transaccion='K' AND c.st_impresion='N' "
+        "               AND c.st_nulo='A' "
+        "               AND r.no_cia=c.no_cia AND r.punto=c.punto "
+        "               AND r.tipo_docu=c.tipo_docu AND r.no_docu=c.no_docu "
+        "               AND r.tipo_refe=d.tipo_docu AND r.no_refe=d.no_docu "
+        "               AND r.no_proveedor=d.no_proveedor), 0) monto_solicitado "
+        "  FROM CXP.TCXP_DOCUMENTO d "
+        " WHERE d.no_cia=:1 AND d.punto=:2 AND d.no_proveedor=:3 "
+        "   AND d.tipo_movi='C' AND NVL(d.saldo,0) > 0 "
+        " ORDER BY d.fecha, d.no_docu",
+        [no_cia, punto, no_proveedor],
+    )
+
+
+def generar_solicitud_cheque(no_cia, punto, cuenta_banco, no_proveedor,
+                             docs, usuario, fecha_cheque=None, detalle=None):
+    """Fcxp209 — Generar Solicitud a Cheque.
+
+    Crea un documento SO (Solicitud de Cheque) en CHC a partir de documentos
+    CxP con saldo del proveedor, en una sola transacción:
+    - TCHC_CHEQUE tipo_docu='SO' (tipo_movi='C', tipo_transaccion='K') en el
+      estado pendiente exacto del legado: status='N', que_es='S',
+      autorizado='N', st_impresion='N', st_nulo='A'.
+    - Una fila TCHC_REFEDOCU por cada documento CxP aplicado.
+    - TCHC_BCUENTA.che_por_entregar += total.
+    No toca TCXP_DOCUMENTO.saldo: el saldo se aplica cuando CHC emite el
+    cheque. (TCXP_SOLICITUD era la mesa de selección temporal del Forms; la
+    selección vive ahora en el cliente y no se persiste.)
+
+    docs: [{tipo_docu, no_docu, monto}]
+    """
+    if not docs:
+        raise ValueError('Debe indicar al menos un documento a pagar')
+
+    prov = client.fetch_one(
+        "SELECT p.nombre, NVL(b.activo,'S') activo "
+        "  FROM CXP.TCXP_DPROVEEDOR p, CXP.TCXP_BPROVEEDOR b "
+        " WHERE b.no_cia=:1 AND b.punto=:2 AND b.no_proveedor=:3 "
+        "   AND p.no_proveedor=b.no_proveedor",
+        [no_cia, punto, no_proveedor],
+    )
+    if not prov:
+        raise ValueError(f'Proveedor {no_proveedor} no existe en la empresa/punto')
+    if prov[1] != 'S':
+        raise ValueError(f'Proveedor {no_proveedor} está inactivo')
+    beneficiario = (prov[0] or '').strip().upper()
+
+    bcuenta = client.fetch_one(
+        "SELECT moneda, NVL(activa,'S') activa FROM CHC.TCHC_BCUENTA "
+        " WHERE no_cia=:1 AND punto=:2 AND cuenta_banco=:3",
+        [no_cia, punto, cuenta_banco],
+    )
+    if not bcuenta:
+        raise ValueError(f'Cuenta {cuenta_banco} no existe en empresa {no_cia} punto {punto}')
+    if bcuenta[1] != 'S':
+        raise ValueError(f'Cuenta {cuenta_banco} está inactiva')
+    moneda = bcuenta[0] or 'P'
+
+    with client.connection() as conn:
+        cur = conn.cursor()
+        total = 0.0
+        refs = []
+        for d in docs:
+            td = (d.get('tipo_docu') or '').strip()
+            nd = (d.get('no_docu') or '').strip()
+            monto = round(float(d.get('monto') or 0), 2)
+            if monto <= 0:
+                raise ValueError(f'Monto inválido para {td}-{nd}')
+            cur.execute(
+                "SELECT NVL(saldo,0), NVL(pago_bloqueado,'N') "
+                "  FROM CXP.TCXP_DOCUMENTO "
+                " WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4 "
+                "   AND tipo_movi='C' FOR UPDATE",
+                [no_cia, punto, td, nd])
+            row = cur.fetchone()
+            if not row:
+                raise ValueError(f'Documento {td}-{nd} no existe o no es por pagar')
+            saldo, bloqueado = float(row[0]), row[1]
+            if bloqueado == 'S':
+                raise ValueError(f'Documento {td}-{nd} tiene el pago bloqueado')
+            cur.execute(
+                "SELECT NVL(SUM(NVL(r.monto,0)),0) "
+                "  FROM CHC.TCHC_CHEQUE c, CHC.TCHC_REFEDOCU r "
+                " WHERE c.no_cia=:1 AND c.punto=:2 AND c.tipo_transaccion='K' "
+                "   AND c.st_impresion='N' AND c.st_nulo='A' "
+                "   AND r.no_cia=c.no_cia AND r.punto=c.punto "
+                "   AND r.tipo_docu=c.tipo_docu AND r.no_docu=c.no_docu "
+                "   AND r.tipo_refe=:3 AND r.no_refe=:4 AND r.no_proveedor=:5",
+                [no_cia, punto, td, nd, no_proveedor])
+            ya_solicitado = float(cur.fetchone()[0])
+            disponible = round(saldo - ya_solicitado, 2)
+            if monto > disponible:
+                raise ValueError(
+                    f'{td}-{nd}: el monto {monto:,.2f} excede el disponible '
+                    f'{disponible:,.2f} (saldo {saldo:,.2f} menos '
+                    f'{ya_solicitado:,.2f} ya en solicitudes pendientes)')
+            total = round(total + monto, 2)
+            refs.append((td, nd, monto))
+
+        # Correlativo SO desde TCHC_SECUENCIA (misma transacción)
+        cur.execute(
+            "SELECT NVL(ult_docu,0) FROM CHC.TCHC_SECUENCIA "
+            " WHERE no_cia=:1 AND punto=:2 AND tipo_docu='SO' FOR UPDATE",
+            [no_cia, punto])
+        row = cur.fetchone()
+        if row is None:
+            cur.execute(
+                "INSERT INTO CHC.TCHC_SECUENCIA (no_cia, punto, tipo_docu, ult_docu) "
+                "VALUES (:1,:2,'SO',1)", [no_cia, punto])
+            no_docu_so = '1'.zfill(7)
+        else:
+            nxt = int(row[0]) + 1
+            cur.execute(
+                "UPDATE CHC.TCHC_SECUENCIA SET ult_docu=:1 "
+                " WHERE no_cia=:2 AND punto=:3 AND tipo_docu='SO'",
+                [nxt, no_cia, punto])
+            no_docu_so = str(nxt).zfill(7)
+
+        cur.execute(
+            "INSERT INTO CHC.TCHC_CHEQUE ("
+            "  no_cia, punto, tipo_docu, no_docu, cuenta_banco, no_proveedor, "
+            "  tipo_movi, tipo_transaccion, fecha_solicitud, fecha_cheque, "
+            "  beneficiario, status, st_impresion, st_nulo, "
+            "  autorizado, conciliado, entregado, retenido, que_es, deposito_tc, "
+            "  debito, credito, valor_original, saldo, total_refe, usuario, "
+            "  moneda_cuenta, pago, st_generado_cnt, detalle1, estado_encf, "
+            "  fecha_sysdate"
+            ") VALUES ("
+            "  :1, :2, 'SO', :3, :4, :5, "
+            "  'C', 'K', SYSDATE, "
+            "  CASE WHEN :6 IS NULL THEN SYSDATE ELSE TO_DATE(:7,'YYYY-MM-DD') END, "
+            "  :8, 'N', 'N', 'A', "
+            "  'N', 'N', 'N', 'N', 'S', 'N', "
+            "  :9, :10, :11, :12, :13, :14, "
+            "  :15, 'N', 'N', :16, 0, SYSDATE"
+            ")",
+            [no_cia, punto, no_docu_so, cuenta_banco, no_proveedor,
+             fecha_cheque, fecha_cheque, beneficiario,
+             total, total, total, total, total, usuario,
+             moneda, (detalle or '').strip() or None])
+
+        for td, nd, monto in refs:
+            cur.execute(
+                "INSERT INTO CHC.TCHC_REFEDOCU "
+                "  (no_cia, punto, tipo_docu, no_docu, tipo_refe, no_refe, "
+                "   no_proveedor, monto) "
+                "VALUES (:1,:2,'SO',:3,:4,:5,:6,:7)",
+                [no_cia, punto, no_docu_so, td, nd, no_proveedor, monto])
+
+        cur.execute(
+            "UPDATE CHC.TCHC_BCUENTA "
+            "   SET che_por_entregar = NVL(che_por_entregar,0) + :1 "
+            " WHERE no_cia=:2 AND punto=:3 AND cuenta_banco=:4",
+            [total, no_cia, punto, cuenta_banco])
+
+        conn.commit()
+
+    return {
+        'ok': True,
+        'tipo_docu': 'SO',
+        'no_docu': no_docu_so,
+        'beneficiario': beneficiario,
+        'total': total,
+        'documentos': len(refs),
+    }
+
+
+def solicitudes_pago(no_cia, punto, no_proveedor=None, pendientes='S', limit=200):
+    """Fcxp207 — Procesar/consultar Solicitudes de Pago.
+
+    Lista las solicitudes de cheque (TCHC_CHEQUE tipo_transaccion='K').
+    pendientes='S' → solo no impresas y activas (estado pendiente legado)."""
+    sql = (
+        "SELECT * FROM ("
+        "SELECT c.tipo_docu, c.no_docu, c.no_proveedor, c.beneficiario, "
+        "       c.cuenta_banco, c.fecha_solicitud, c.fecha_cheque, "
+        "       c.valor_original, c.status, c.st_impresion, c.st_nulo, "
+        "       c.autorizado, c.que_es, c.usuario, c.detalle1, c.no_cheque "
+        "  FROM CHC.TCHC_CHEQUE c "
+        " WHERE c.no_cia=:no_cia AND c.punto=:punto "
+        "   AND c.tipo_transaccion='K' "
+    )
+    params = {'no_cia': no_cia, 'punto': punto}
+    if no_proveedor:
+        sql += " AND c.no_proveedor=:no_proveedor "
+        params['no_proveedor'] = no_proveedor
+    if pendientes == 'S':
+        sql += " AND c.st_impresion='N' AND c.st_nulo='A' "
+    sql += (" ORDER BY c.fecha_solicitud DESC, c.no_docu DESC"
+            ") WHERE ROWNUM <= :lim")
+    params['lim'] = int(limit)
+    return client.fetch_dicts(sql, params)
+
+
+def solicitud_referencias(no_cia, punto, no_docu):
+    """Documentos CxP referenciados por una solicitud SO (TCHC_REFEDOCU)."""
+    return client.fetch_dicts(
+        "SELECT r.tipo_refe, r.no_refe, r.no_proveedor, NVL(r.monto,0) monto, "
+        "       d.fecha, d.detalle, d.valor_original, d.saldo "
+        "  FROM CHC.TCHC_REFEDOCU r, CXP.TCXP_DOCUMENTO d "
+        " WHERE r.no_cia=:1 AND r.punto=:2 AND r.tipo_docu='SO' AND r.no_docu=:3 "
+        "   AND d.no_cia(+)=r.no_cia AND d.punto(+)=r.punto "
+        "   AND d.tipo_docu(+)=r.tipo_refe AND d.no_docu(+)=r.no_refe "
+        " ORDER BY r.tipo_refe, r.no_refe",
+        [no_cia, punto, no_docu],
+    )
+
+
 # ─── CIERRE / ASIENTO (IRREVERSIBLES - construidos, NO ejecutar sin supervision) ─
 
 

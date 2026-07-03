@@ -73,7 +73,7 @@ const ncfDgi = (doc: any): string => {
 
 // ─── Selector de proveedor: input código + lupa + modal de búsqueda ──────────
 // Patrón igual al selector de cliente en FAT nueva-factura.
-function ProveedorPicker({
+export function ProveedorPicker({
   value,
   onChange,
 }: {

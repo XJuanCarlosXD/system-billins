@@ -130,6 +130,7 @@ import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenti
 import { Route as AuthenticatedCxpUsuariosRouteImport } from './routes/_authenticated/cxp/usuarios'
 import { Route as AuthenticatedCxpTproveedoresRouteImport } from './routes/_authenticated/cxp/tproveedores'
 import { Route as AuthenticatedCxpTdocuRouteImport } from './routes/_authenticated/cxp/tdocu'
+import { Route as AuthenticatedCxpSolicitudesPagoRouteImport } from './routes/_authenticated/cxp/solicitudes-pago'
 import { Route as AuthenticatedCxpSaldosMenoresRouteImport } from './routes/_authenticated/cxp/saldos-menores'
 import { Route as AuthenticatedCxpReversarRouteImport } from './routes/_authenticated/cxp/reversar'
 import { Route as AuthenticatedCxpRepRetencionesRouteImport } from './routes/_authenticated/cxp/rep-retenciones'
@@ -143,6 +144,7 @@ import { Route as AuthenticatedCxpPuntosRouteImport } from './routes/_authentica
 import { Route as AuthenticatedCxpProveedoresRouteImport } from './routes/_authenticated/cxp/proveedores'
 import { Route as AuthenticatedCxpMovimientosRouteImport } from './routes/_authenticated/cxp/movimientos'
 import { Route as AuthenticatedCxpLiberarDebitoRouteImport } from './routes/_authenticated/cxp/liberar-debito'
+import { Route as AuthenticatedCxpGenerarSolicitudRouteImport } from './routes/_authenticated/cxp/generar-solicitud'
 import { Route as AuthenticatedCxpGenerarAsientoRouteImport } from './routes/_authenticated/cxp/generar-asiento'
 import { Route as AuthenticatedCxpEstadoCuentaRouteImport } from './routes/_authenticated/cxp/estado-cuenta'
 import { Route as AuthenticatedCxpEnvejecimientoRouteImport } from './routes/_authenticated/cxp/envejecimiento'
@@ -900,6 +902,12 @@ const AuthenticatedCxpTdocuRoute = AuthenticatedCxpTdocuRouteImport.update({
   path: '/tdocu',
   getParentRoute: () => AuthenticatedCxpRoute,
 } as any)
+const AuthenticatedCxpSolicitudesPagoRoute =
+  AuthenticatedCxpSolicitudesPagoRouteImport.update({
+    id: '/solicitudes-pago',
+    path: '/solicitudes-pago',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
 const AuthenticatedCxpSaldosMenoresRoute =
   AuthenticatedCxpSaldosMenoresRouteImport.update({
     id: '/saldos-menores',
@@ -973,6 +981,12 @@ const AuthenticatedCxpLiberarDebitoRoute =
   AuthenticatedCxpLiberarDebitoRouteImport.update({
     id: '/liberar-debito',
     path: '/liberar-debito',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
+const AuthenticatedCxpGenerarSolicitudRoute =
+  AuthenticatedCxpGenerarSolicitudRouteImport.update({
+    id: '/generar-solicitud',
+    path: '/generar-solicitud',
     getParentRoute: () => AuthenticatedCxpRoute,
   } as any)
 const AuthenticatedCxpGenerarAsientoRoute =
@@ -1641,6 +1655,7 @@ export interface FileRoutesByFullPath {
   '/cxp/envejecimiento': typeof AuthenticatedCxpEnvejecimientoRoute
   '/cxp/estado-cuenta': typeof AuthenticatedCxpEstadoCuentaRoute
   '/cxp/generar-asiento': typeof AuthenticatedCxpGenerarAsientoRoute
+  '/cxp/generar-solicitud': typeof AuthenticatedCxpGenerarSolicitudRoute
   '/cxp/liberar-debito': typeof AuthenticatedCxpLiberarDebitoRoute
   '/cxp/movimientos': typeof AuthenticatedCxpMovimientosRoute
   '/cxp/proveedores': typeof AuthenticatedCxpProveedoresRoute
@@ -1654,6 +1669,7 @@ export interface FileRoutesByFullPath {
   '/cxp/rep-retenciones': typeof AuthenticatedCxpRepRetencionesRoute
   '/cxp/reversar': typeof AuthenticatedCxpReversarRoute
   '/cxp/saldos-menores': typeof AuthenticatedCxpSaldosMenoresRoute
+  '/cxp/solicitudes-pago': typeof AuthenticatedCxpSolicitudesPagoRoute
   '/cxp/tdocu': typeof AuthenticatedCxpTdocuRoute
   '/cxp/tproveedores': typeof AuthenticatedCxpTproveedoresRoute
   '/cxp/usuarios': typeof AuthenticatedCxpUsuariosRoute
@@ -1859,6 +1875,7 @@ export interface FileRoutesByTo {
   '/cxp/envejecimiento': typeof AuthenticatedCxpEnvejecimientoRoute
   '/cxp/estado-cuenta': typeof AuthenticatedCxpEstadoCuentaRoute
   '/cxp/generar-asiento': typeof AuthenticatedCxpGenerarAsientoRoute
+  '/cxp/generar-solicitud': typeof AuthenticatedCxpGenerarSolicitudRoute
   '/cxp/liberar-debito': typeof AuthenticatedCxpLiberarDebitoRoute
   '/cxp/movimientos': typeof AuthenticatedCxpMovimientosRoute
   '/cxp/proveedores': typeof AuthenticatedCxpProveedoresRoute
@@ -1872,6 +1889,7 @@ export interface FileRoutesByTo {
   '/cxp/rep-retenciones': typeof AuthenticatedCxpRepRetencionesRoute
   '/cxp/reversar': typeof AuthenticatedCxpReversarRoute
   '/cxp/saldos-menores': typeof AuthenticatedCxpSaldosMenoresRoute
+  '/cxp/solicitudes-pago': typeof AuthenticatedCxpSolicitudesPagoRoute
   '/cxp/tdocu': typeof AuthenticatedCxpTdocuRoute
   '/cxp/tproveedores': typeof AuthenticatedCxpTproveedoresRoute
   '/cxp/usuarios': typeof AuthenticatedCxpUsuariosRoute
@@ -2093,6 +2111,7 @@ export interface FileRoutesById {
   '/_authenticated/cxp/envejecimiento': typeof AuthenticatedCxpEnvejecimientoRoute
   '/_authenticated/cxp/estado-cuenta': typeof AuthenticatedCxpEstadoCuentaRoute
   '/_authenticated/cxp/generar-asiento': typeof AuthenticatedCxpGenerarAsientoRoute
+  '/_authenticated/cxp/generar-solicitud': typeof AuthenticatedCxpGenerarSolicitudRoute
   '/_authenticated/cxp/liberar-debito': typeof AuthenticatedCxpLiberarDebitoRoute
   '/_authenticated/cxp/movimientos': typeof AuthenticatedCxpMovimientosRoute
   '/_authenticated/cxp/proveedores': typeof AuthenticatedCxpProveedoresRoute
@@ -2106,6 +2125,7 @@ export interface FileRoutesById {
   '/_authenticated/cxp/rep-retenciones': typeof AuthenticatedCxpRepRetencionesRoute
   '/_authenticated/cxp/reversar': typeof AuthenticatedCxpReversarRoute
   '/_authenticated/cxp/saldos-menores': typeof AuthenticatedCxpSaldosMenoresRoute
+  '/_authenticated/cxp/solicitudes-pago': typeof AuthenticatedCxpSolicitudesPagoRoute
   '/_authenticated/cxp/tdocu': typeof AuthenticatedCxpTdocuRoute
   '/_authenticated/cxp/tproveedores': typeof AuthenticatedCxpTproveedoresRoute
   '/_authenticated/cxp/usuarios': typeof AuthenticatedCxpUsuariosRoute
@@ -2325,6 +2345,7 @@ export interface FileRouteTypes {
     | '/cxp/envejecimiento'
     | '/cxp/estado-cuenta'
     | '/cxp/generar-asiento'
+    | '/cxp/generar-solicitud'
     | '/cxp/liberar-debito'
     | '/cxp/movimientos'
     | '/cxp/proveedores'
@@ -2338,6 +2359,7 @@ export interface FileRouteTypes {
     | '/cxp/rep-retenciones'
     | '/cxp/reversar'
     | '/cxp/saldos-menores'
+    | '/cxp/solicitudes-pago'
     | '/cxp/tdocu'
     | '/cxp/tproveedores'
     | '/cxp/usuarios'
@@ -2543,6 +2565,7 @@ export interface FileRouteTypes {
     | '/cxp/envejecimiento'
     | '/cxp/estado-cuenta'
     | '/cxp/generar-asiento'
+    | '/cxp/generar-solicitud'
     | '/cxp/liberar-debito'
     | '/cxp/movimientos'
     | '/cxp/proveedores'
@@ -2556,6 +2579,7 @@ export interface FileRouteTypes {
     | '/cxp/rep-retenciones'
     | '/cxp/reversar'
     | '/cxp/saldos-menores'
+    | '/cxp/solicitudes-pago'
     | '/cxp/tdocu'
     | '/cxp/tproveedores'
     | '/cxp/usuarios'
@@ -2776,6 +2800,7 @@ export interface FileRouteTypes {
     | '/_authenticated/cxp/envejecimiento'
     | '/_authenticated/cxp/estado-cuenta'
     | '/_authenticated/cxp/generar-asiento'
+    | '/_authenticated/cxp/generar-solicitud'
     | '/_authenticated/cxp/liberar-debito'
     | '/_authenticated/cxp/movimientos'
     | '/_authenticated/cxp/proveedores'
@@ -2789,6 +2814,7 @@ export interface FileRouteTypes {
     | '/_authenticated/cxp/rep-retenciones'
     | '/_authenticated/cxp/reversar'
     | '/_authenticated/cxp/saldos-menores'
+    | '/_authenticated/cxp/solicitudes-pago'
     | '/_authenticated/cxp/tdocu'
     | '/_authenticated/cxp/tproveedores'
     | '/_authenticated/cxp/usuarios'
@@ -3751,6 +3777,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCxpTdocuRouteImport
       parentRoute: typeof AuthenticatedCxpRoute
     }
+    '/_authenticated/cxp/solicitudes-pago': {
+      id: '/_authenticated/cxp/solicitudes-pago'
+      path: '/solicitudes-pago'
+      fullPath: '/cxp/solicitudes-pago'
+      preLoaderRoute: typeof AuthenticatedCxpSolicitudesPagoRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
     '/_authenticated/cxp/saldos-menores': {
       id: '/_authenticated/cxp/saldos-menores'
       path: '/saldos-menores'
@@ -3840,6 +3873,13 @@ declare module '@tanstack/react-router' {
       path: '/liberar-debito'
       fullPath: '/cxp/liberar-debito'
       preLoaderRoute: typeof AuthenticatedCxpLiberarDebitoRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/generar-solicitud': {
+      id: '/_authenticated/cxp/generar-solicitud'
+      path: '/generar-solicitud'
+      fullPath: '/cxp/generar-solicitud'
+      preLoaderRoute: typeof AuthenticatedCxpGenerarSolicitudRouteImport
       parentRoute: typeof AuthenticatedCxpRoute
     }
     '/_authenticated/cxp/generar-asiento': {
@@ -4798,6 +4838,7 @@ interface AuthenticatedCxpRouteChildren {
   AuthenticatedCxpEnvejecimientoRoute: typeof AuthenticatedCxpEnvejecimientoRoute
   AuthenticatedCxpEstadoCuentaRoute: typeof AuthenticatedCxpEstadoCuentaRoute
   AuthenticatedCxpGenerarAsientoRoute: typeof AuthenticatedCxpGenerarAsientoRoute
+  AuthenticatedCxpGenerarSolicitudRoute: typeof AuthenticatedCxpGenerarSolicitudRoute
   AuthenticatedCxpLiberarDebitoRoute: typeof AuthenticatedCxpLiberarDebitoRoute
   AuthenticatedCxpMovimientosRoute: typeof AuthenticatedCxpMovimientosRoute
   AuthenticatedCxpProveedoresRoute: typeof AuthenticatedCxpProveedoresRoute
@@ -4811,6 +4852,7 @@ interface AuthenticatedCxpRouteChildren {
   AuthenticatedCxpRepRetencionesRoute: typeof AuthenticatedCxpRepRetencionesRoute
   AuthenticatedCxpReversarRoute: typeof AuthenticatedCxpReversarRoute
   AuthenticatedCxpSaldosMenoresRoute: typeof AuthenticatedCxpSaldosMenoresRoute
+  AuthenticatedCxpSolicitudesPagoRoute: typeof AuthenticatedCxpSolicitudesPagoRoute
   AuthenticatedCxpTdocuRoute: typeof AuthenticatedCxpTdocuRoute
   AuthenticatedCxpTproveedoresRoute: typeof AuthenticatedCxpTproveedoresRoute
   AuthenticatedCxpUsuariosRoute: typeof AuthenticatedCxpUsuariosRoute
@@ -4831,6 +4873,7 @@ const AuthenticatedCxpRouteChildren: AuthenticatedCxpRouteChildren = {
   AuthenticatedCxpEnvejecimientoRoute: AuthenticatedCxpEnvejecimientoRoute,
   AuthenticatedCxpEstadoCuentaRoute: AuthenticatedCxpEstadoCuentaRoute,
   AuthenticatedCxpGenerarAsientoRoute: AuthenticatedCxpGenerarAsientoRoute,
+  AuthenticatedCxpGenerarSolicitudRoute: AuthenticatedCxpGenerarSolicitudRoute,
   AuthenticatedCxpLiberarDebitoRoute: AuthenticatedCxpLiberarDebitoRoute,
   AuthenticatedCxpMovimientosRoute: AuthenticatedCxpMovimientosRoute,
   AuthenticatedCxpProveedoresRoute: AuthenticatedCxpProveedoresRoute,
@@ -4844,6 +4887,7 @@ const AuthenticatedCxpRouteChildren: AuthenticatedCxpRouteChildren = {
   AuthenticatedCxpRepRetencionesRoute: AuthenticatedCxpRepRetencionesRoute,
   AuthenticatedCxpReversarRoute: AuthenticatedCxpReversarRoute,
   AuthenticatedCxpSaldosMenoresRoute: AuthenticatedCxpSaldosMenoresRoute,
+  AuthenticatedCxpSolicitudesPagoRoute: AuthenticatedCxpSolicitudesPagoRoute,
   AuthenticatedCxpTdocuRoute: AuthenticatedCxpTdocuRoute,
   AuthenticatedCxpTproveedoresRoute: AuthenticatedCxpTproveedoresRoute,
   AuthenticatedCxpUsuariosRoute: AuthenticatedCxpUsuariosRoute,

@@ -220,6 +220,14 @@ export const sidebarData: SidebarData = {
                   title: 'Bloquear / Desbloquear Pago',
                   url: '/cxp/bloquear-pago',
                 },
+                {
+                  title: 'Generar Solicitud a Cheque',
+                  url: '/cxp/generar-solicitud',
+                },
+                {
+                  title: 'Solicitudes de Pago',
+                  url: '/cxp/solicitudes-pago',
+                },
               ],
             },
             {

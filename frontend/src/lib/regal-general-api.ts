@@ -1267,6 +1267,27 @@ export const regalGeneralApi = {
     request<any>(`/cxp/liberar-debito/`, { method: 'POST', body: JSON.stringify(data) }),
   cxpBloquearPago: (data: { no_cia: string; punto: string; tipo_docu: string; no_docu: string; bloquear: boolean }) =>
     request<any>(`/cxp/bloquear-pago/`, { method: 'POST', body: JSON.stringify(data) }),
+  // Solicitudes de pago (Fcxp209 / Fcxp207 — puente CxP → CHC)
+  cxpSolicitudChequeDocs: (noCia: string, punto: string, noProveedor: string) => {
+    const qs = new URLSearchParams({ no_cia: noCia, punto, no_proveedor: noProveedor }).toString()
+    return request<any[]>(`/cxp/solicitud-cheque/?${qs}`)
+  },
+  cxpGenerarSolicitudCheque: (data: {
+    no_cia: string; punto: string; cuenta_banco: string; no_proveedor: string
+    fecha_cheque?: string; detalle?: string; docs: { tipo_docu: string; no_docu: string; monto: number }[]
+  }) =>
+    request<{ ok: boolean; tipo_docu: string; no_docu: string; beneficiario: string; total: number; documentos: number }>(
+      `/cxp/solicitud-cheque/`, { method: 'POST', body: JSON.stringify(data) }),
+  cxpListSolicitudesPago: (params: { no_cia: string; punto: string; no_proveedor?: string; pendientes?: string }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any[]>(`/cxp/solicitudes-pago/?${qs}`)
+  },
+  cxpSolicitudReferencias: (noDocu: string, noCia: string, punto: string) => {
+    const qs = new URLSearchParams({ no_cia: noCia, punto }).toString()
+    return request<any[]>(`/cxp/solicitudes-pago/${encodeURIComponent(noDocu)}/referencias/?${qs}`)
+  },
   cxpAsientoContable: (noCia: string, punto: string, mes: number, ano: number) => {
     const qs = new URLSearchParams({ no_cia: noCia, punto, mes: String(mes), ano: String(ano) }).toString()
     return request<any[]>(`/cxp/asiento-contable/?${qs}`)
