@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { BuscarProductoModal } from '@/features/fat/components/buscar-producto-modal'
 import { empaqueLabel } from '@/features/fat/utils/empaque-label'
+import { ProveedorPicker } from '@/features/cxp/cxp-procesos'
 import { regalGeneralApi, api } from '@/lib/regal-general-api'
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
@@ -61,6 +62,14 @@ interface ProductoRow {
   costoBase: number
 }
 
+interface ProveedorSel {
+  no_proveedor: string
+  nombre: string
+  rnc: string
+  direccion: string
+  [key: string]: any
+}
+
 interface ProductoResult {
   no_produ?: string
   codigo?: string
@@ -91,8 +100,9 @@ export function EntradaCompras({ noCia, punto }: Props) {
   const [tasaUsd, setTasaUsd] = useState('')
   const [almacenHeader, setAlmacenHeader] = useState('')
 
-  // Proveedor
-  const [proveedor, setProveedor] = useState('')
+  // Proveedor (picker con lupa — igual al selector de cliente en FAT)
+  const [proveedorSel, setProveedorSel] = useState<ProveedorSel | null>(null)
+  const proveedor = proveedorSel?.no_proveedor ?? ''
   const [ncf, setNcf] = useState('')
   const [formaPago, setFormaPago] = useState('')
   const [fechaVcto, setFechaVcto] = useState('')
@@ -241,7 +251,18 @@ export function EntradaCompras({ noCia, punto }: Props) {
       if (c.estado === 'R') {
         toast.error(`Orden ODC-${noOrden} ya está cerrada / recibida`); return
       }
-      setProveedor(c.no_proveedor || '')
+      const codProv = String(c.no_proveedor || '').trim()
+      if (codProv) {
+        // Trae ficha completa del proveedor (nombre, RNC, dirección) para el card
+        try {
+          const p = await api.cxpGetProveedor(codProv)
+          setProveedorSel(p?.no_proveedor ? p : { no_proveedor: codProv, nombre: c.nombre_proveedor || codProv, rnc: '', direccion: '' })
+        } catch {
+          setProveedorSel({ no_proveedor: codProv, nombre: c.nombre_proveedor || codProv, rnc: '', direccion: '' })
+        }
+      } else {
+        setProveedorSel(null)
+      }
       if (c.plazo_pago && c.plazo_pago > 0) {
         setFormaPago('credito')
         const f = new Date(c.fecha || Date.now()); f.setDate(f.getDate() + Number(c.plazo_pago))
@@ -314,7 +335,7 @@ export function EntradaCompras({ noCia, punto }: Props) {
   const handleSave = async () => {
     if (!ENDPOINT_READY) return
     if (!tipoDocu) { toast.error('Seleccione el Tipo de Documento'); return }
-    if (!proveedor.trim()) { toast.error('Ingrese el proveedor'); return }
+    if (!proveedorSel) { toast.error('Seleccione el proveedor (use la lupa para buscarlo)'); return }
     const validRows = rows.filter((r) => r.noProdu.trim() && (parseFloat(r.cantidad) || 0) > 0)
     if (validRows.length === 0) { toast.error('Agregue al menos un producto con cantidad válida'); return }
 
@@ -368,7 +389,7 @@ export function EntradaCompras({ noCia, punto }: Props) {
         ''
       toast.success(`Documento ${docNo} guardado correctamente`)
       setTipoDocu(''); setFecha(new Date().toISOString().slice(0, 10))
-      setTasaUsd(''); setAlmacenHeader(''); setProveedor('')
+      setTasaUsd(''); setAlmacenHeader(''); setProveedorSel(null)
       setNcf(''); setFormaPago(''); setFechaVcto(''); setPctDescuento('')
       setNota(''); setOrdenCargada(null); setNoOrdenOdc('')
       setRows([newRow()])
@@ -500,13 +521,10 @@ export function EntradaCompras({ noCia, punto }: Props) {
           <CardHeader>
             <CardTitle className='text-base'>Datos del Proveedor</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4'>
-              <div className='space-y-1 col-span-2'>
-                <Label htmlFor='ec-proveedor'>Proveedor</Label>
-                <Input id='ec-proveedor' className='h-9' placeholder='Código o nombre del proveedor' value={proveedor} onChange={(e) => setProveedor(e.target.value)} />
-              </div>
+          <CardContent className='space-y-4'>
+            <ProveedorPicker value={proveedorSel} onChange={setProveedorSel} />
 
+            <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4'>
               <div className='space-y-1'>
                 <Label htmlFor='ec-ncf'>NCF</Label>
                 <Input id='ec-ncf' className='h-9 font-mono' placeholder='B0100000000' value={ncf} onChange={(e) => setNcf(e.target.value)} />
