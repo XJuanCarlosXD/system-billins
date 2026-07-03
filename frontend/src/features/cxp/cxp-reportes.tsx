@@ -10,6 +10,13 @@ import { regalGeneralApi } from '@/lib/regal-general-api'
 interface P { noCia: string; punto?: string; mes?: number; ano?: number }
 
 const fmt = (n: any) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+const openPrint = (codigo: string, params: Record<string, string>) => {
+  const qs = new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== '')
+  ).toString()
+  window.open(`/print/${codigo}/current?${qs}`, '_blank')
+}
 const today = new Date().toISOString().slice(0, 10)
 const firstOfMonth = today.slice(0, 7) + '-01'
 const curYear = new Date().getFullYear()
@@ -39,9 +46,13 @@ export function CxpRepAlfabetico({ noCia, punto }: P) {
           <Label className="text-xs">Buscar</Label>
           <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="nombre..." className="h-8 w-56" />
         </div>
-        <div className="flex items-end">
+        <div className="flex items-end gap-2">
           <Button onClick={load} size="sm" className="h-8 gap-1">
             <Search className="h-4 w-4" />Generar
+          </Button>
+          <Button onClick={() => openPrint('cxp-rep-alfabetico', { no_cia: noCia, punto: punto || '', search })}
+            size="sm" variant="outline" className="h-8 gap-1" disabled={!data}>
+            <Printer className="h-4 w-4" />Imprimir PDF
           </Button>
         </div>
       </div>
@@ -113,7 +124,13 @@ export function CxpRepMayor({ noCia, punto = '', mes = curMonth, ano = curYear }
         <div className="space-y-1"><Label className="text-xs">Desde</Label><Input type="date" value={desde} onChange={e => setDesde(e.target.value)} className="h-8 w-36" /></div>
         <div className="space-y-1"><Label className="text-xs">Hasta</Label><Input type="date" value={hasta} onChange={e => setHasta(e.target.value)} className="h-8 w-36" /></div>
         <div className="space-y-1"><Label className="text-xs">Proveedor (opcional)</Label><Input value={noProveedor} onChange={e => setNoProveedor(e.target.value)} placeholder="No. proveedor..." className="h-8 w-36" /></div>
-        <div className="flex items-end"><Button onClick={load} size="sm" className="h-8 gap-1"><Search className="h-4 w-4" />Generar</Button></div>
+        <div className="flex items-end gap-2">
+          <Button onClick={load} size="sm" className="h-8 gap-1"><Search className="h-4 w-4" />Generar</Button>
+          <Button onClick={() => openPrint('cxp-rep-mayor', { no_cia: noCia, punto, desde, hasta, no_proveedor: noProveedor })}
+            size="sm" variant="outline" className="h-8 gap-1" disabled={!data}>
+            <Printer className="h-4 w-4" />Imprimir PDF
+          </Button>
+        </div>
       </div>
       <div className="border rounded-lg overflow-hidden">
         <Table>
@@ -184,7 +201,13 @@ export function CxpRep606({ noCia, punto = '', mes = curMonth, ano = curYear }: 
       <div className="flex gap-3 border rounded-lg p-3 bg-muted/30">
         <div className="space-y-1"><Label className="text-xs">Año</Label><Input value={selAnio} onChange={e => setSelAnio(e.target.value)} className="h-8 w-20" /></div>
         <div className="space-y-1"><Label className="text-xs">Mes</Label><Input value={selMes} onChange={e => setSelMes(e.target.value)} className="h-8 w-16" placeholder="1-12" /></div>
-        <div className="flex items-end"><Button onClick={load} size="sm" className="h-8 gap-1"><Search className="h-4 w-4" />Generar</Button></div>
+        <div className="flex items-end gap-2">
+          <Button onClick={load} size="sm" className="h-8 gap-1"><Search className="h-4 w-4" />Generar</Button>
+          <Button onClick={() => openPrint('cxp-rep-606', { no_cia: noCia, punto, anio: selAnio, mes: selMes })}
+            size="sm" variant="outline" className="h-8 gap-1" disabled={!data}>
+            <Printer className="h-4 w-4" />Imprimir PDF
+          </Button>
+        </div>
       </div>
       {data && (
         <div className="flex gap-6 text-sm text-muted-foreground border rounded-lg p-3 bg-muted/20">
@@ -262,7 +285,13 @@ export function CxpRep607({ noCia, punto = '', mes = curMonth, ano = curYear }: 
       <div className="flex gap-3 border rounded-lg p-3 bg-muted/30">
         <div className="space-y-1"><Label className="text-xs">Año</Label><Input value={selAnio} onChange={e => setSelAnio(e.target.value)} className="h-8 w-20" /></div>
         <div className="space-y-1"><Label className="text-xs">Mes</Label><Input value={selMes} onChange={e => setSelMes(e.target.value)} className="h-8 w-16" placeholder="1-12" /></div>
-        <div className="flex items-end"><Button onClick={load} size="sm" className="h-8 gap-1"><Search className="h-4 w-4" />Generar</Button></div>
+        <div className="flex items-end gap-2">
+          <Button onClick={load} size="sm" className="h-8 gap-1"><Search className="h-4 w-4" />Generar</Button>
+          <Button onClick={() => openPrint('cxp-rep-607', { no_cia: noCia, punto, anio: selAnio, mes: selMes })}
+            size="sm" variant="outline" className="h-8 gap-1" disabled={!data}>
+            <Printer className="h-4 w-4" />Imprimir PDF
+          </Button>
+        </div>
       </div>
       {data && (
         <div className="flex gap-6 text-sm text-muted-foreground border rounded-lg p-3 bg-muted/20">

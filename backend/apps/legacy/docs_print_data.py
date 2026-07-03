@@ -1873,3 +1873,235 @@ def chc_rep_disponibilidad_print_data(request):
             'total_disponible_dop': round(tot_disp_dop, 2),
         },
     })
+
+
+# ─── CXP — Reportes (rcxp201/202/306/308 etc. → familia 'reporte') ──────────
+
+
+def _fd(v):
+    """Fecha a YYYY-MM-DD para filas de reporte."""
+    return str(v)[:10] if v else ''
+
+
+@login_required
+@require_http_methods(["GET"])
+def cxp_rep_alfabetico_print_data(request):
+    """GET /api/cxp/rep-alfabetico/print-data/?no_cia=&punto=&search="""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    search = request.GET.get('search') or ''
+    data = cxp_repo.rep_alfabetico(no_cia, punto, search)
+    filas = [{
+        'no_proveedor': i.get('no_proveedor') or '',
+        'nombre': i.get('nombre') or '',
+        'rnc': i.get('rnc') or '',
+        'telefono': i.get('telefono') or '',
+        'compras': _money_or_zero(i.get('compras')),
+        'pagos': _money_or_zero(i.get('pagos')),
+        'saldo': _money_or_zero(i.get('saldo')),
+    } for i in data['items']]
+    filtros = {'Empresa': no_cia, 'Punto': punto}
+    if search:
+        filtros['Busqueda'] = search
+    return JsonResponse({
+        'cia': _cia_payload(no_cia, request=request),
+        'reporte': {'codigo': 'cxp-rep-alfabetico',
+                    'titulo': 'Listado Alfabético de Proveedores',
+                    'filtros': filtros},
+        'filas': filas,
+        'totales': {'cantidad': data['count'],
+                    'total': round(sum(f['saldo'] for f in filas), 2)},
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def cxp_rep_mayor_print_data(request):
+    """GET /api/cxp/rep-mayor/print-data/?no_cia=&punto=&desde=&hasta=&no_proveedor="""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    desde = request.GET.get('desde') or ''
+    hasta = request.GET.get('hasta') or ''
+    no_proveedor = request.GET.get('no_proveedor') or ''
+    data = cxp_repo.rep_mayor_auxiliar(no_cia, punto, desde, hasta, no_proveedor)
+    filas = [{
+        'no_proveedor': i.get('no_proveedor') or '',
+        'nombre': i.get('nombre_proveedor') or '',
+        'documento': (i.get('tipo_docu') or '') + '-' + (i.get('no_docu') or ''),
+        'fecha': _fd(i.get('fecha')),
+        'detalle': i.get('detalle') or '',
+        'debito': _money_or_zero(i.get('debito')),
+        'credito': _money_or_zero(i.get('credito')),
+        'saldo': _money_or_zero(i.get('saldo')),
+    } for i in data['items']]
+    filtros = {'Empresa': no_cia, 'Punto': punto, 'Desde': desde, 'Hasta': hasta}
+    if no_proveedor:
+        filtros['Proveedor'] = no_proveedor
+    return JsonResponse({
+        'cia': _cia_payload(no_cia, request=request),
+        'reporte': {'codigo': 'cxp-rep-mayor',
+                    'titulo': 'Mayor Auxiliar de Cuentas por Pagar',
+                    'filtros': filtros},
+        'filas': filas,
+        'totales': {'cantidad': len(filas),
+                    'total_debito': _money_or_zero(data.get('total_debito')),
+                    'total_credito': _money_or_zero(data.get('total_credito'))},
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def cxp_rep_606_print_data(request):
+    """GET /api/cxp/rep-606/print-data/?no_cia=&punto=&anio=&mes="""
+    import datetime as _dt
+    hoy = _dt.date.today()
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto') or ''
+    anio = int(request.GET.get('anio', hoy.year))
+    mes = int(request.GET.get('mes', hoy.month))
+    data = cxp_repo.rep_606(no_cia, anio, mes, punto)
+    filas = [{
+        'rnc': i.get('rnc_proveedor') or '',
+        'nombre': i.get('nombre_proveedor') or '',
+        'ncf': i.get('ncf') or '',
+        'fecha': _fd(i.get('fecha')),
+        'monto_facturado': _money_or_zero(i.get('monto_facturado')),
+        'itbis_facturado': _money_or_zero(i.get('itbis_facturado')),
+        'itbis_retenido': _money_or_zero(i.get('itbis_retenido')),
+        'isr_retenido': _money_or_zero(i.get('isr_retenido')),
+    } for i in data['items']]
+    return JsonResponse({
+        'cia': _cia_payload(no_cia, request=request),
+        'reporte': {'codigo': 'cxp-rep-606',
+                    'titulo': '606 — Compras de Bienes y Servicios %02d/%d' % (mes, anio),
+                    'filtros': {'Empresa': no_cia, 'Ano': anio, 'Mes': mes}},
+        'filas': filas,
+        'totales': {'cantidad': data['count'],
+                    'total_monto': _money_or_zero(data.get('total_monto')),
+                    'total_itbis': _money_or_zero(data.get('total_itbis'))},
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def cxp_rep_607_print_data(request):
+    """GET /api/cxp/rep-607/print-data/?no_cia=&punto=&anio=&mes="""
+    import datetime as _dt
+    hoy = _dt.date.today()
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto') or ''
+    anio = int(request.GET.get('anio', hoy.year))
+    mes = int(request.GET.get('mes', hoy.month))
+    data = cxp_repo.rep_607(no_cia, anio, mes, punto)
+    filas = [{
+        'rnc': i.get('rnc_proveedor') or '',
+        'nombre': i.get('nombre_proveedor') or '',
+        'ncf': i.get('ncf') or '',
+        'fecha': _fd(i.get('fecha')),
+        'monto_pago': _money_or_zero(i.get('monto_pago')),
+        'isr_retenido': _money_or_zero(i.get('isr_retenido')),
+        'itbis_retenido': _money_or_zero(i.get('itbis_retenido')),
+    } for i in data['items']]
+    return JsonResponse({
+        'cia': _cia_payload(no_cia, request=request),
+        'reporte': {'codigo': 'cxp-rep-607',
+                    'titulo': '607 — Retenciones del ISR %02d/%d' % (mes, anio),
+                    'filtros': {'Empresa': no_cia, 'Ano': anio, 'Mes': mes}},
+        'filas': filas,
+        'totales': {'cantidad': data['count'],
+                    'total_isr': _money_or_zero(data.get('total_isr')),
+                    'total_itbis': _money_or_zero(data.get('total_itbis'))},
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def cxp_rep_cuadre_print_data(request):
+    """GET /api/cxp/rep-cuadre/print-data/?no_cia=&punto=&mes=&ano="""
+    import datetime as _dt
+    hoy = _dt.date.today()
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    mes = int(request.GET.get('mes', hoy.month))
+    ano = int(request.GET.get('ano', hoy.year))
+    data = cxp_repo.rep_cuadre(no_cia, punto, mes, ano)
+    filas = [{
+        'cuenta': i.get('cuenta') or '',
+        'docs': i.get('docs') or 0,
+        'debe': _money_or_zero(i.get('debe')),
+        'haber': _money_or_zero(i.get('haber')),
+    } for i in data['items']]
+    return JsonResponse({
+        'cia': _cia_payload(no_cia, request=request),
+        'reporte': {'codigo': 'cxp-rep-cuadre',
+                    'titulo': 'Cuadre Contable CxP %02d/%d' % (mes, ano),
+                    'filtros': {'Empresa': no_cia, 'Punto': punto,
+                                'Mes': mes, 'Ano': ano}},
+        'filas': filas,
+        'totales': {'cantidad': len(filas),
+                    'total_debe': _money_or_zero(data.get('total_debe')),
+                    'total_haber': _money_or_zero(data.get('total_haber')),
+                    'diferencia': _money_or_zero(data.get('diferencia'))},
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def cxp_rep_retenciones_print_data(request):
+    """GET /api/cxp/rep-retenciones/print-data/?no_cia=&punto=&ano=&no_proveedor="""
+    import datetime as _dt
+    hoy = _dt.date.today()
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    ano = int(request.GET.get('ano', hoy.year))
+    no_proveedor = request.GET.get('no_proveedor') or ''
+    data = cxp_repo.rep_retenciones(no_cia, punto, ano, no_proveedor)
+    filas = [{
+        'no_proveedor': p.get('no_proveedor') or '',
+        'nombre': p.get('nombre_proveedor') or '',
+        'rnc': p.get('rnc_proveedor') or '',
+        'documentos': len(p.get('documentos') or []),
+        'total_itbis': _money_or_zero(p.get('total_itbis')),
+        'total_isr': _money_or_zero(p.get('total_isr')),
+    } for p in data['proveedores']]
+    filtros = {'Empresa': no_cia, 'Punto': punto, 'Ano': ano}
+    if no_proveedor:
+        filtros['Proveedor'] = no_proveedor
+    return JsonResponse({
+        'cia': _cia_payload(no_cia, request=request),
+        'reporte': {'codigo': 'cxp-rep-retenciones',
+                    'titulo': 'Retenciones a Proveedores %d' % ano,
+                    'filtros': filtros},
+        'filas': filas,
+        'totales': {'cantidad': data['count_docs'],
+                    'total_itbis': _money_or_zero(data.get('total_itbis')),
+                    'total_isr': _money_or_zero(data.get('total_isr'))},
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def cxp_rep_envejecimiento_print_data(request):
+    """GET /api/cxp/rep-envejecimiento/print-data/?no_cia=&punto="""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    rows = cxp_repo.get_aging(no_cia, punto)
+    filas = [{
+        'no_proveedor': i.get('no_proveedor') or '',
+        'nombre': i.get('nombre') or '',
+        'corriente': _money_or_zero(i.get('corriente')),
+        'd30': _money_or_zero(i.get('d30')),
+        'd60': _money_or_zero(i.get('d60')),
+        'd90': _money_or_zero(i.get('d90')),
+        'mas90': _money_or_zero(i.get('mas90')),
+        'total': _money_or_zero(i.get('total')),
+    } for i in rows]
+    return JsonResponse({
+        'cia': _cia_payload(no_cia, request=request),
+        'reporte': {'codigo': 'cxp-rep-envejecimiento',
+                    'titulo': 'Antigüedad de Saldos CxP',
+                    'filtros': {'Empresa': no_cia, 'Punto': punto}},
+        'filas': filas,
+        'totales': {'cantidad': len(filas),
+                    'total': round(sum(f['total'] for f in filas), 2)},
+    })

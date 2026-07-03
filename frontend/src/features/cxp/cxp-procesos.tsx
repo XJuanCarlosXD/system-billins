@@ -1823,6 +1823,19 @@ export function CxpRepCuadre({ noCia, punto = '' }: P) {
             <FileText className='mr-2 h-4 w-4' />
             Generar
           </Button>
+          <Button
+            variant='outline'
+            disabled={!data}
+            onClick={() => {
+              const qs = new URLSearchParams({
+                no_cia: noCia, punto, mes: String(mes), ano: String(ano),
+              }).toString()
+              window.open(`/print/cxp-rep-cuadre/current?${qs}`, '_blank')
+            }}
+          >
+            <Printer className='mr-2 h-4 w-4' />
+            Imprimir PDF
+          </Button>
         </CardContent>
       </Card>
       {data && (
@@ -1955,6 +1968,20 @@ export function CxpRepRetenciones({ noCia, punto = '' }: P) {
           <Button onClick={cargar} disabled={loading}>
             <FileText className='mr-2 h-4 w-4' />
             Generar
+          </Button>
+          <Button
+            variant='outline'
+            disabled={!data}
+            onClick={() => {
+              const qs = new URLSearchParams({
+                no_cia: noCia, punto, ano: String(ano),
+                ...(noProv && { no_proveedor: noProv }),
+              }).toString()
+              window.open(`/print/cxp-rep-retenciones/current?${qs}`, '_blank')
+            }}
+          >
+            <Printer className='mr-2 h-4 w-4' />
+            Imprimir PDF
           </Button>
         </CardContent>
       </Card>

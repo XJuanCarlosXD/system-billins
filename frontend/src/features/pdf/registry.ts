@@ -111,6 +111,75 @@ const sdnRncEmpleadosDefault = reporteGenericoDefault('RNC Empleados (DGII / TSS
   { campo: 'fecha_ingreso', label: 'Ingreso', align: 'left', format: 'date' },
 ])
 
+const cxpRepAlfabeticoDefault = reporteGenericoDefault('Listado Alfabético de Proveedores', [
+  { campo: 'no_proveedor', label: 'No.', align: 'left' },
+  { campo: 'nombre', label: 'Proveedor', align: 'left' },
+  { campo: 'rnc', label: 'RNC', align: 'left' },
+  { campo: 'telefono', label: 'Teléfono', align: 'left' },
+  { campo: 'compras', label: 'Compras', align: 'right', format: 'money' },
+  { campo: 'pagos', label: 'Pagos', align: 'right', format: 'money' },
+  { campo: 'saldo', label: 'Saldo', align: 'right', format: 'money' },
+])
+
+const cxpRepMayorDefault = reporteGenericoDefault('Mayor Auxiliar CxP', [
+  { campo: 'no_proveedor', label: 'Prov.', align: 'left' },
+  { campo: 'nombre', label: 'Nombre', align: 'left' },
+  { campo: 'documento', label: 'Documento', align: 'left' },
+  { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
+  { campo: 'detalle', label: 'Detalle', align: 'left' },
+  { campo: 'debito', label: 'Débito', align: 'right', format: 'money' },
+  { campo: 'credito', label: 'Crédito', align: 'right', format: 'money' },
+  { campo: 'saldo', label: 'Saldo', align: 'right', format: 'money' },
+])
+
+const cxpRep606Default = reporteGenericoDefault('606 — Compras de Bienes y Servicios', [
+  { campo: 'rnc', label: 'RNC', align: 'left' },
+  { campo: 'nombre', label: 'Proveedor', align: 'left' },
+  { campo: 'ncf', label: 'NCF', align: 'left' },
+  { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
+  { campo: 'monto_facturado', label: 'Monto', align: 'right', format: 'money' },
+  { campo: 'itbis_facturado', label: 'ITBIS', align: 'right', format: 'money' },
+  { campo: 'itbis_retenido', label: 'ITBIS Ret.', align: 'right', format: 'money' },
+  { campo: 'isr_retenido', label: 'ISR Ret.', align: 'right', format: 'money' },
+])
+
+const cxpRep607Default = reporteGenericoDefault('607 — Retenciones del ISR', [
+  { campo: 'rnc', label: 'RNC', align: 'left' },
+  { campo: 'nombre', label: 'Proveedor', align: 'left' },
+  { campo: 'ncf', label: 'NCF', align: 'left' },
+  { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
+  { campo: 'monto_pago', label: 'Monto', align: 'right', format: 'money' },
+  { campo: 'isr_retenido', label: 'ISR Ret.', align: 'right', format: 'money' },
+  { campo: 'itbis_retenido', label: 'ITBIS Ret.', align: 'right', format: 'money' },
+])
+
+const cxpRepCuadreDefault = reporteGenericoDefault('Cuadre Contable CxP', [
+  { campo: 'cuenta', label: 'Cuenta', align: 'left' },
+  { campo: 'docs', label: 'Docs', align: 'right' },
+  { campo: 'debe', label: 'Debe', align: 'right', format: 'money' },
+  { campo: 'haber', label: 'Haber', align: 'right', format: 'money' },
+])
+
+const cxpRepRetencionesDefault = reporteGenericoDefault('Retenciones a Proveedores', [
+  { campo: 'no_proveedor', label: 'No.', align: 'left' },
+  { campo: 'nombre', label: 'Proveedor', align: 'left' },
+  { campo: 'rnc', label: 'RNC', align: 'left' },
+  { campo: 'documentos', label: 'Docs', align: 'right' },
+  { campo: 'total_itbis', label: 'ITBIS Retenido', align: 'right', format: 'money' },
+  { campo: 'total_isr', label: 'ISR Retenido', align: 'right', format: 'money' },
+])
+
+const cxpRepEnvejecimientoDefault = reporteGenericoDefault('Antigüedad de Saldos CxP', [
+  { campo: 'no_proveedor', label: 'No.', align: 'left' },
+  { campo: 'nombre', label: 'Proveedor', align: 'left' },
+  { campo: 'corriente', label: 'Corriente', align: 'right', format: 'money' },
+  { campo: 'd30', label: '1-30', align: 'right', format: 'money' },
+  { campo: 'd60', label: '31-60', align: 'right', format: 'money' },
+  { campo: 'd90', label: '61-90', align: 'right', format: 'money' },
+  { campo: 'mas90', label: '+90', align: 'right', format: 'money' },
+  { campo: 'total', label: 'Total', align: 'right', format: 'money' },
+])
+
 export type DocFamily = 'documento' | 'reporte'
 
 export type PdfTemplateDefault = {
@@ -564,6 +633,119 @@ export const registry: Record<string, RegistryEntry> = {
       'documentos[].ncf',
       'documentos[].detalle',
     ]),
+  },
+  'cxp-rep-alfabetico': {
+    codigo: 'cxp-rep-alfabetico',
+    modulo: 'CXP',
+    nombre: 'Listado Alfabético de Proveedores (Rcxp306)',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/cxp/rep-alfabetico/print-data/?${qs.toString()}`,
+    defaultTemplate: cxpRepAlfabeticoDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].no_proveedor', 'filas[].nombre', 'filas[].rnc', 'filas[].telefono',
+      'filas[].compras', 'filas[].pagos', 'filas[].saldo',
+      'totales.cantidad', 'totales.total',
+    ],
+  },
+  'cxp-rep-mayor': {
+    codigo: 'cxp-rep-mayor',
+    modulo: 'CXP',
+    nombre: 'Mayor Auxiliar CxP (Rcxp308)',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/cxp/rep-mayor/print-data/?${qs.toString()}`,
+    defaultTemplate: cxpRepMayorDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].no_proveedor', 'filas[].nombre', 'filas[].documento', 'filas[].fecha',
+      'filas[].detalle', 'filas[].debito', 'filas[].credito', 'filas[].saldo',
+      'totales.cantidad', 'totales.total_debito', 'totales.total_credito',
+    ],
+  },
+  'cxp-rep-606': {
+    codigo: 'cxp-rep-606',
+    modulo: 'CXP',
+    nombre: '606 — Compras de Bienes y Servicios (DGII)',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/cxp/rep-606/print-data/?${qs.toString()}`,
+    defaultTemplate: cxpRep606Default,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].rnc', 'filas[].nombre', 'filas[].ncf', 'filas[].fecha',
+      'filas[].monto_facturado', 'filas[].itbis_facturado',
+      'filas[].itbis_retenido', 'filas[].isr_retenido',
+      'totales.cantidad', 'totales.total_monto', 'totales.total_itbis',
+    ],
+  },
+  'cxp-rep-607': {
+    codigo: 'cxp-rep-607',
+    modulo: 'CXP',
+    nombre: '607 — Retenciones del ISR (DGII)',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/cxp/rep-607/print-data/?${qs.toString()}`,
+    defaultTemplate: cxpRep607Default,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].rnc', 'filas[].nombre', 'filas[].ncf', 'filas[].fecha',
+      'filas[].monto_pago', 'filas[].isr_retenido', 'filas[].itbis_retenido',
+      'totales.cantidad', 'totales.total_isr', 'totales.total_itbis',
+    ],
+  },
+  'cxp-rep-cuadre': {
+    codigo: 'cxp-rep-cuadre',
+    modulo: 'CXP',
+    nombre: 'Cuadre Contable CxP (Rcxp105)',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/cxp/rep-cuadre/print-data/?${qs.toString()}`,
+    defaultTemplate: cxpRepCuadreDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'P',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].cuenta', 'filas[].docs', 'filas[].debe', 'filas[].haber',
+      'totales.cantidad', 'totales.total_debe', 'totales.total_haber',
+      'totales.diferencia',
+    ],
+  },
+  'cxp-rep-retenciones': {
+    codigo: 'cxp-rep-retenciones',
+    modulo: 'CXP',
+    nombre: 'Retenciones a Proveedores (Rcxp108)',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/cxp/rep-retenciones/print-data/?${qs.toString()}`,
+    defaultTemplate: cxpRepRetencionesDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'P',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].no_proveedor', 'filas[].nombre', 'filas[].rnc', 'filas[].documentos',
+      'filas[].total_itbis', 'filas[].total_isr',
+      'totales.cantidad', 'totales.total_itbis', 'totales.total_isr',
+    ],
+  },
+  'cxp-rep-envejecimiento': {
+    codigo: 'cxp-rep-envejecimiento',
+    modulo: 'CXP',
+    nombre: 'Antigüedad de Saldos CxP (Rcxp503)',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/cxp/rep-envejecimiento/print-data/?${qs.toString()}`,
+    defaultTemplate: cxpRepEnvejecimientoDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].no_proveedor', 'filas[].nombre', 'filas[].corriente',
+      'filas[].d30', 'filas[].d60', 'filas[].d90', 'filas[].mas90', 'filas[].total',
+      'totales.cantidad', 'totales.total',
+    ],
   },
   // ── ODC ────────────────────────────────────────────────────────────
   'orden-compra': {

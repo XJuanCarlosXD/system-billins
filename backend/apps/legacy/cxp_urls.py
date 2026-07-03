@@ -1,6 +1,12 @@
 from django.urls import path
 from apps.legacy import cxp_views
-from apps.legacy.docs_print_data import cxp_documento_print_data, cxp_estado_cuenta_print_data
+from apps.legacy.docs_print_data import (
+    cxp_documento_print_data, cxp_estado_cuenta_print_data,
+    cxp_rep_alfabetico_print_data, cxp_rep_mayor_print_data,
+    cxp_rep_606_print_data, cxp_rep_607_print_data,
+    cxp_rep_cuadre_print_data, cxp_rep_retenciones_print_data,
+    cxp_rep_envejecimiento_print_data,
+)
 
 urlpatterns = [
     path('documentos/<str:tipo_docu>/<str:no_docu>/print-data/', cxp_documento_print_data),
@@ -28,6 +34,13 @@ urlpatterns = [
     path('barrios/', cxp_views.cxp_barrios),
     path('usuarios/', cxp_views.cxp_usuarios),
     # Reportes read-only
+    path('rep-alfabetico/print-data/', cxp_rep_alfabetico_print_data),
+    path('rep-mayor/print-data/', cxp_rep_mayor_print_data),
+    path('rep-606/print-data/', cxp_rep_606_print_data),
+    path('rep-607/print-data/', cxp_rep_607_print_data),
+    path('rep-cuadre/print-data/', cxp_rep_cuadre_print_data),
+    path('rep-retenciones/print-data/', cxp_rep_retenciones_print_data),
+    path('rep-envejecimiento/print-data/', cxp_rep_envejecimiento_print_data),
     path('rep-alfabetico/', cxp_views.cxp_rep_alfabetico),
     path('rep-mayor/', cxp_views.cxp_rep_mayor),
     path('rep-606/', cxp_views.cxp_rep_606),

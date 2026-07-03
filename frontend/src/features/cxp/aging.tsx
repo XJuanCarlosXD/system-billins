@@ -1,9 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { toast } from 'sonner'
 import { api } from '@/lib/regal-general-api'
 import { useCompany } from '@/hooks/use-company'
-import { buildReportMeta } from '@/lib/report-meta'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table'
@@ -36,14 +34,9 @@ export function CxpAging() {
       )
     : data
 
-  async function exportPdf() {
-    try {
-      const meta = await buildReportMeta(noCia, punto, 'MM-YYYY')
-      void meta
-      toast.info('PDF próximamente')
-    } catch {
-      toast.error('Error al generar PDF')
-    }
+  function exportPdf() {
+    const qs = new URLSearchParams({ no_cia: noCia, punto: punto || '' }).toString()
+    window.open(`/print/cxp-rep-envejecimiento/current?${qs}`, '_blank')
   }
 
   function exportExcel() {
