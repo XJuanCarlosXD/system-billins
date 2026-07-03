@@ -188,11 +188,14 @@ export function FatGenerarAsiento({ noCia, punto = '01' }: P) {
   const [confirm, setConfirm] = useState(false)
 
   useEffect(() => {
-    if (periodoQ.data && mes === null) {
-      setMes(periodoQ.data.mes_proceso || new Date().getMonth() + 1)
-      setAno(periodoQ.data.ano_proceso || new Date().getFullYear())
+    // Fallback al mes/año actual si el punto no aparece en TFAT_PUNTO
+    // (periodoQ resuelve null) — sin esto la vista quedaba en
+    // "Cargando período…" para siempre.
+    if (mes === null && (periodoQ.data || periodoQ.isFetched)) {
+      setMes(periodoQ.data?.mes_proceso || new Date().getMonth() + 1)
+      setAno(periodoQ.data?.ano_proceso || new Date().getFullYear())
     }
-  }, [periodoQ.data, mes])
+  }, [periodoQ.data, periodoQ.isFetched, mes])
 
   const pendientesQ = useQuery({
     queryKey: ['fat-pendientes', noCia, punto, mes, ano],

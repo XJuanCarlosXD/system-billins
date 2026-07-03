@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { buildReportMeta, downloadCsv } from './fat-export'
 
-interface Props { noCia: string; punto: string; ano: number }
+interface Props { noCia: string; punto: string; ano?: number }
 
 type MesData = {
   mes: number; facturas: number
@@ -66,7 +66,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   )
 }
 
-export function RepAnaliticaVentas({ noCia, punto, ano }: Props) {
+export function RepAnaliticaVentas({ noCia, punto, ano = new Date().getFullYear() }: Props) {
   const [data, setData] = useState<AnaliticaData | null>(null)
   const [loading, setLoading] = useState(false)
 

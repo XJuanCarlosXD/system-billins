@@ -25,13 +25,13 @@ import { Route as AuthenticatedCxcRouteImport } from './routes/_authenticated/cx
 import { Route as AuthenticatedCntRouteImport } from './routes/_authenticated/cnt'
 import { Route as AuthenticatedChcRouteImport } from './routes/_authenticated/chc'
 import { Route as AuthenticatedCambiarClaveRouteImport } from './routes/_authenticated/cambiar-clave'
+import { Route as AuthenticatedAsistenteRouteImport } from './routes/_authenticated/asistente'
 import { Route as AuthenticatedAcfRouteImport } from './routes/_authenticated/acf'
 import { Route as AuthenticatedAccRouteImport } from './routes/_authenticated/acc'
-import { Route as AuthenticatedAsistenteRouteImport } from './routes/_authenticated/asistente'
+import { Route as Authenticated403RouteImport } from './routes/_authenticated/403'
 import { Route as errors503RouteImport } from './routes/(errors)/503'
 import { Route as errors500RouteImport } from './routes/(errors)/500'
 import { Route as errors404RouteImport } from './routes/(errors)/404'
-import { Route as errors403RouteImport } from './routes/(errors)/403'
 import { Route as errors401RouteImport } from './routes/(errors)/401'
 import { Route as authSignUpRouteImport } from './routes/(auth)/sign-up'
 import { Route as authSignIn2RouteImport } from './routes/(auth)/sign-in-2'
@@ -53,10 +53,10 @@ import { Route as AuthenticatedCxpIndexRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedCxcIndexRouteImport } from './routes/_authenticated/cxc/index'
 import { Route as AuthenticatedChcIndexRouteImport } from './routes/_authenticated/chc/index'
 import { Route as AuthenticatedChatsIndexRouteImport } from './routes/_authenticated/chats/index'
+import { Route as AuthenticatedAsistenteIndexRouteImport } from './routes/_authenticated/asistente/index'
 import { Route as AuthenticatedAppsIndexRouteImport } from './routes/_authenticated/apps/index'
 import { Route as AuthenticatedAcfIndexRouteImport } from './routes/_authenticated/acf/index'
 import { Route as AuthenticatedAccIndexRouteImport } from './routes/_authenticated/acc/index'
-import { Route as AuthenticatedAsistenteIndexRouteImport } from './routes/_authenticated/asistente/index'
 import { Route as PrintCodigoIdRouteImport } from './routes/print/$codigo.$id'
 import { Route as ClerkAuthenticatedUserManagementRouteImport } from './routes/clerk/_authenticated/user-management'
 import { Route as ClerkauthSignUpRouteImport } from './routes/clerk/(auth)/sign-up'
@@ -81,6 +81,7 @@ import { Route as AuthenticatedSdnEmpleadosRouteImport } from './routes/_authent
 import { Route as AuthenticatedSdnDeptosRouteImport } from './routes/_authenticated/sdn/deptos'
 import { Route as AuthenticatedSdnDefNominasRouteImport } from './routes/_authenticated/sdn/def-nominas'
 import { Route as AuthenticatedSdnDeduccionesRouteImport } from './routes/_authenticated/sdn/deducciones'
+import { Route as AuthenticatedSdnDeduccionMasivaRouteImport } from './routes/_authenticated/sdn/deduccion-masiva'
 import { Route as AuthenticatedSdnCiasRouteImport } from './routes/_authenticated/sdn/cias'
 import { Route as AuthenticatedSdnCatalogosRouteImport } from './routes/_authenticated/sdn/catalogos'
 import { Route as AuthenticatedSdnCalcularRouteImport } from './routes/_authenticated/sdn/calcular'
@@ -123,6 +124,7 @@ import { Route as AuthenticatedFatConducesRouteImport } from './routes/_authenti
 import { Route as AuthenticatedFatCondicionesRouteImport } from './routes/_authenticated/fat/condiciones'
 import { Route as AuthenticatedFatCompaniasRouteImport } from './routes/_authenticated/fat/companias'
 import { Route as AuthenticatedFatCierreMensualRouteImport } from './routes/_authenticated/fat/cierre-mensual'
+import { Route as AuthenticatedFatAsientoContableRouteImport } from './routes/_authenticated/fat/asiento-contable'
 import { Route as AuthenticatedFatAnularFacturaRouteImport } from './routes/_authenticated/fat/anular-factura'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
 import { Route as AuthenticatedCxpUsuariosRouteImport } from './routes/_authenticated/cxp/usuarios'
@@ -233,6 +235,11 @@ import { Route as AuthenticatedAccAnularRouteImport } from './routes/_authentica
 import { Route as AuthenticatedSettingsPdfTemplatesRouteRouteImport } from './routes/_authenticated/settings/pdf-templates/route'
 import { Route as AuthenticatedSettingsPdfTemplatesIndexRouteImport } from './routes/_authenticated/settings/pdf-templates/index'
 import { Route as AuthenticatedSettingsPdfTemplatesCodigoRouteImport } from './routes/_authenticated/settings/pdf-templates/$codigo'
+import { Route as AuthenticatedAdminMcpUsageRouteImport } from './routes/_authenticated/admin/mcp/usage'
+import { Route as AuthenticatedAdminMcpTokensRouteImport } from './routes/_authenticated/admin/mcp/tokens'
+import { Route as AuthenticatedAdminAsistenteUsageRouteImport } from './routes/_authenticated/admin/asistente/usage'
+import { Route as AuthenticatedAdminAsistenteSkillsIndexRouteImport } from './routes/_authenticated/admin/asistente/skills/index'
+import { Route as AuthenticatedAdminAsistenteSkillsNameEditRouteImport } from './routes/_authenticated/admin/asistente/skills/$name.edit'
 
 const ClerkRouteRoute = ClerkRouteRouteImport.update({
   id: '/clerk',
@@ -314,6 +321,11 @@ const AuthenticatedCambiarClaveRoute =
     path: '/cambiar-clave',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAsistenteRoute = AuthenticatedAsistenteRouteImport.update({
+  id: '/asistente',
+  path: '/asistente',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedAcfRoute = AuthenticatedAcfRouteImport.update({
   id: '/acf',
   path: '/acf',
@@ -324,9 +336,9 @@ const AuthenticatedAccRoute = AuthenticatedAccRouteImport.update({
   path: '/acc',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedAsistenteRoute = AuthenticatedAsistenteRouteImport.update({
-  id: '/asistente',
-  path: '/asistente',
+const Authenticated403Route = Authenticated403RouteImport.update({
+  id: '/403',
+  path: '/403',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const errors503Route = errors503RouteImport.update({
@@ -342,11 +354,6 @@ const errors500Route = errors500RouteImport.update({
 const errors404Route = errors404RouteImport.update({
   id: '/(errors)/404',
   path: '/404',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const errors403Route = errors403RouteImport.update({
-  id: '/(errors)/403',
-  path: '/403',
   getParentRoute: () => rootRouteImport,
 } as any)
 const errors401Route = errors401RouteImport.update({
@@ -455,6 +462,12 @@ const AuthenticatedChatsIndexRoute = AuthenticatedChatsIndexRouteImport.update({
   path: '/chats/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAsistenteIndexRoute =
+  AuthenticatedAsistenteIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedAsistenteRoute,
+  } as any)
 const AuthenticatedAppsIndexRoute = AuthenticatedAppsIndexRouteImport.update({
   id: '/apps/',
   path: '/apps/',
@@ -470,12 +483,6 @@ const AuthenticatedAccIndexRoute = AuthenticatedAccIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedAccRoute,
 } as any)
-const AuthenticatedAsistenteIndexRoute =
-  AuthenticatedAsistenteIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedAsistenteRoute,
-  } as any)
 const PrintCodigoIdRoute = PrintCodigoIdRouteImport.update({
   id: '/print/$codigo/$id',
   path: '/print/$codigo/$id',
@@ -611,6 +618,12 @@ const AuthenticatedSdnDeduccionesRoute =
   AuthenticatedSdnDeduccionesRouteImport.update({
     id: '/deducciones',
     path: '/deducciones',
+    getParentRoute: () => AuthenticatedSdnRoute,
+  } as any)
+const AuthenticatedSdnDeduccionMasivaRoute =
+  AuthenticatedSdnDeduccionMasivaRouteImport.update({
+    id: '/deduccion-masiva',
+    path: '/deduccion-masiva',
     getParentRoute: () => AuthenticatedSdnRoute,
   } as any)
 const AuthenticatedSdnCiasRoute = AuthenticatedSdnCiasRouteImport.update({
@@ -850,6 +863,12 @@ const AuthenticatedFatCierreMensualRoute =
   AuthenticatedFatCierreMensualRouteImport.update({
     id: '/cierre-mensual',
     path: '/cierre-mensual',
+    getParentRoute: () => AuthenticatedFatRoute,
+  } as any)
+const AuthenticatedFatAsientoContableRoute =
+  AuthenticatedFatAsientoContableRouteImport.update({
+    id: '/asiento-contable',
+    path: '/asiento-contable',
     getParentRoute: () => AuthenticatedFatRoute,
   } as any)
 const AuthenticatedFatAnularFacturaRoute =
@@ -1471,20 +1490,36 @@ const AuthenticatedSettingsPdfTemplatesCodigoRoute =
     path: '/$codigo',
     getParentRoute: () => AuthenticatedSettingsPdfTemplatesRouteRoute,
   } as any)
-
-interface AuthenticatedAsistenteRouteChildren {
-  AuthenticatedAsistenteIndexRoute: typeof AuthenticatedAsistenteIndexRoute
-}
-
-const AuthenticatedAsistenteRouteChildren: AuthenticatedAsistenteRouteChildren =
-  {
-    AuthenticatedAsistenteIndexRoute: AuthenticatedAsistenteIndexRoute,
-  }
-
-const AuthenticatedAsistenteRouteWithChildren =
-  AuthenticatedAsistenteRoute._addFileChildren(
-    AuthenticatedAsistenteRouteChildren,
-  )
+const AuthenticatedAdminMcpUsageRoute =
+  AuthenticatedAdminMcpUsageRouteImport.update({
+    id: '/admin/mcp/usage',
+    path: '/admin/mcp/usage',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminMcpTokensRoute =
+  AuthenticatedAdminMcpTokensRouteImport.update({
+    id: '/admin/mcp/tokens',
+    path: '/admin/mcp/tokens',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminAsistenteUsageRoute =
+  AuthenticatedAdminAsistenteUsageRouteImport.update({
+    id: '/admin/asistente/usage',
+    path: '/admin/asistente/usage',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminAsistenteSkillsIndexRoute =
+  AuthenticatedAdminAsistenteSkillsIndexRouteImport.update({
+    id: '/admin/asistente/skills/',
+    path: '/admin/asistente/skills/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminAsistenteSkillsNameEditRoute =
+  AuthenticatedAdminAsistenteSkillsNameEditRouteImport.update({
+    id: '/admin/asistente/skills/$name/edit',
+    path: '/admin/asistente/skills/$name/edit',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -1496,12 +1531,13 @@ export interface FileRoutesByFullPath {
   '/sign-in-2': typeof authSignIn2Route
   '/sign-up': typeof authSignUpRoute
   '/401': typeof errors401Route
-  '/403': typeof errors403Route
   '/404': typeof errors404Route
   '/500': typeof errors500Route
   '/503': typeof errors503Route
+  '/403': typeof Authenticated403Route
   '/acc': typeof AuthenticatedAccRouteWithChildren
   '/acf': typeof AuthenticatedAcfRouteWithChildren
+  '/asistente': typeof AuthenticatedAsistenteRouteWithChildren
   '/cambiar-clave': typeof AuthenticatedCambiarClaveRoute
   '/chc': typeof AuthenticatedChcRouteWithChildren
   '/cnt': typeof AuthenticatedCntRoute
@@ -1623,6 +1659,7 @@ export interface FileRoutesByFullPath {
   '/cxp/usuarios': typeof AuthenticatedCxpUsuariosRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/fat/anular-factura': typeof AuthenticatedFatAnularFacturaRoute
+  '/fat/asiento-contable': typeof AuthenticatedFatAsientoContableRoute
   '/fat/cierre-mensual': typeof AuthenticatedFatCierreMensualRoute
   '/fat/companias': typeof AuthenticatedFatCompaniasRoute
   '/fat/condiciones': typeof AuthenticatedFatCondicionesRoute
@@ -1665,6 +1702,7 @@ export interface FileRoutesByFullPath {
   '/sdn/calcular': typeof AuthenticatedSdnCalcularRoute
   '/sdn/catalogos': typeof AuthenticatedSdnCatalogosRoute
   '/sdn/cias': typeof AuthenticatedSdnCiasRoute
+  '/sdn/deduccion-masiva': typeof AuthenticatedSdnDeduccionMasivaRoute
   '/sdn/deducciones': typeof AuthenticatedSdnDeduccionesRoute
   '/sdn/def-nominas': typeof AuthenticatedSdnDefNominasRoute
   '/sdn/deptos': typeof AuthenticatedSdnDeptosRoute
@@ -1692,6 +1730,7 @@ export interface FileRoutesByFullPath {
   '/acc/': typeof AuthenticatedAccIndexRoute
   '/acf/': typeof AuthenticatedAcfIndexRoute
   '/apps/': typeof AuthenticatedAppsIndexRoute
+  '/asistente/': typeof AuthenticatedAsistenteIndexRoute
   '/chats/': typeof AuthenticatedChatsIndexRoute
   '/chc/': typeof AuthenticatedChcIndexRoute
   '/cxc/': typeof AuthenticatedCxcIndexRoute
@@ -1704,8 +1743,13 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/tasks/': typeof AuthenticatedTasksIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
+  '/admin/asistente/usage': typeof AuthenticatedAdminAsistenteUsageRoute
+  '/admin/mcp/tokens': typeof AuthenticatedAdminMcpTokensRoute
+  '/admin/mcp/usage': typeof AuthenticatedAdminMcpUsageRoute
   '/settings/pdf-templates/$codigo': typeof AuthenticatedSettingsPdfTemplatesCodigoRoute
   '/settings/pdf-templates/': typeof AuthenticatedSettingsPdfTemplatesIndexRoute
+  '/admin/asistente/skills/': typeof AuthenticatedAdminAsistenteSkillsIndexRoute
+  '/admin/asistente/skills/$name/edit': typeof AuthenticatedAdminAsistenteSkillsNameEditRoute
 }
 export interface FileRoutesByTo {
   '/clerk': typeof ClerkAuthenticatedRouteRouteWithChildren
@@ -1715,10 +1759,10 @@ export interface FileRoutesByTo {
   '/sign-in-2': typeof authSignIn2Route
   '/sign-up': typeof authSignUpRoute
   '/401': typeof errors401Route
-  '/403': typeof errors403Route
   '/404': typeof errors404Route
   '/500': typeof errors500Route
   '/503': typeof errors503Route
+  '/403': typeof Authenticated403Route
   '/cambiar-clave': typeof AuthenticatedCambiarClaveRoute
   '/cnt': typeof AuthenticatedCntRoute
   '/docs': typeof AuthenticatedDocsRoute
@@ -1833,6 +1877,7 @@ export interface FileRoutesByTo {
   '/cxp/usuarios': typeof AuthenticatedCxpUsuariosRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/fat/anular-factura': typeof AuthenticatedFatAnularFacturaRoute
+  '/fat/asiento-contable': typeof AuthenticatedFatAsientoContableRoute
   '/fat/cierre-mensual': typeof AuthenticatedFatCierreMensualRoute
   '/fat/companias': typeof AuthenticatedFatCompaniasRoute
   '/fat/condiciones': typeof AuthenticatedFatCondicionesRoute
@@ -1875,6 +1920,7 @@ export interface FileRoutesByTo {
   '/sdn/calcular': typeof AuthenticatedSdnCalcularRoute
   '/sdn/catalogos': typeof AuthenticatedSdnCatalogosRoute
   '/sdn/cias': typeof AuthenticatedSdnCiasRoute
+  '/sdn/deduccion-masiva': typeof AuthenticatedSdnDeduccionMasivaRoute
   '/sdn/deducciones': typeof AuthenticatedSdnDeduccionesRoute
   '/sdn/def-nominas': typeof AuthenticatedSdnDefNominasRoute
   '/sdn/deptos': typeof AuthenticatedSdnDeptosRoute
@@ -1902,6 +1948,7 @@ export interface FileRoutesByTo {
   '/acc': typeof AuthenticatedAccIndexRoute
   '/acf': typeof AuthenticatedAcfIndexRoute
   '/apps': typeof AuthenticatedAppsIndexRoute
+  '/asistente': typeof AuthenticatedAsistenteIndexRoute
   '/chats': typeof AuthenticatedChatsIndexRoute
   '/chc': typeof AuthenticatedChcIndexRoute
   '/cxc': typeof AuthenticatedCxcIndexRoute
@@ -1914,8 +1961,13 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
+  '/admin/asistente/usage': typeof AuthenticatedAdminAsistenteUsageRoute
+  '/admin/mcp/tokens': typeof AuthenticatedAdminMcpTokensRoute
+  '/admin/mcp/usage': typeof AuthenticatedAdminMcpUsageRoute
   '/settings/pdf-templates/$codigo': typeof AuthenticatedSettingsPdfTemplatesCodigoRoute
   '/settings/pdf-templates': typeof AuthenticatedSettingsPdfTemplatesIndexRoute
+  '/admin/asistente/skills': typeof AuthenticatedAdminAsistenteSkillsIndexRoute
+  '/admin/asistente/skills/$name/edit': typeof AuthenticatedAdminAsistenteSkillsNameEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -1930,12 +1982,13 @@ export interface FileRoutesById {
   '/(auth)/sign-in-2': typeof authSignIn2Route
   '/(auth)/sign-up': typeof authSignUpRoute
   '/(errors)/401': typeof errors401Route
-  '/(errors)/403': typeof errors403Route
   '/(errors)/404': typeof errors404Route
   '/(errors)/500': typeof errors500Route
   '/(errors)/503': typeof errors503Route
+  '/_authenticated/403': typeof Authenticated403Route
   '/_authenticated/acc': typeof AuthenticatedAccRouteWithChildren
   '/_authenticated/acf': typeof AuthenticatedAcfRouteWithChildren
+  '/_authenticated/asistente': typeof AuthenticatedAsistenteRouteWithChildren
   '/_authenticated/cambiar-clave': typeof AuthenticatedCambiarClaveRoute
   '/_authenticated/chc': typeof AuthenticatedChcRouteWithChildren
   '/_authenticated/cnt': typeof AuthenticatedCntRoute
@@ -2058,6 +2111,7 @@ export interface FileRoutesById {
   '/_authenticated/cxp/usuarios': typeof AuthenticatedCxpUsuariosRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/fat/anular-factura': typeof AuthenticatedFatAnularFacturaRoute
+  '/_authenticated/fat/asiento-contable': typeof AuthenticatedFatAsientoContableRoute
   '/_authenticated/fat/cierre-mensual': typeof AuthenticatedFatCierreMensualRoute
   '/_authenticated/fat/companias': typeof AuthenticatedFatCompaniasRoute
   '/_authenticated/fat/condiciones': typeof AuthenticatedFatCondicionesRoute
@@ -2100,6 +2154,7 @@ export interface FileRoutesById {
   '/_authenticated/sdn/calcular': typeof AuthenticatedSdnCalcularRoute
   '/_authenticated/sdn/catalogos': typeof AuthenticatedSdnCatalogosRoute
   '/_authenticated/sdn/cias': typeof AuthenticatedSdnCiasRoute
+  '/_authenticated/sdn/deduccion-masiva': typeof AuthenticatedSdnDeduccionMasivaRoute
   '/_authenticated/sdn/deducciones': typeof AuthenticatedSdnDeduccionesRoute
   '/_authenticated/sdn/def-nominas': typeof AuthenticatedSdnDefNominasRoute
   '/_authenticated/sdn/deptos': typeof AuthenticatedSdnDeptosRoute
@@ -2127,6 +2182,7 @@ export interface FileRoutesById {
   '/_authenticated/acc/': typeof AuthenticatedAccIndexRoute
   '/_authenticated/acf/': typeof AuthenticatedAcfIndexRoute
   '/_authenticated/apps/': typeof AuthenticatedAppsIndexRoute
+  '/_authenticated/asistente/': typeof AuthenticatedAsistenteIndexRoute
   '/_authenticated/chats/': typeof AuthenticatedChatsIndexRoute
   '/_authenticated/chc/': typeof AuthenticatedChcIndexRoute
   '/_authenticated/cxc/': typeof AuthenticatedCxcIndexRoute
@@ -2139,8 +2195,13 @@ export interface FileRoutesById {
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/tasks/': typeof AuthenticatedTasksIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
+  '/_authenticated/admin/asistente/usage': typeof AuthenticatedAdminAsistenteUsageRoute
+  '/_authenticated/admin/mcp/tokens': typeof AuthenticatedAdminMcpTokensRoute
+  '/_authenticated/admin/mcp/usage': typeof AuthenticatedAdminMcpUsageRoute
   '/_authenticated/settings/pdf-templates/$codigo': typeof AuthenticatedSettingsPdfTemplatesCodigoRoute
   '/_authenticated/settings/pdf-templates/': typeof AuthenticatedSettingsPdfTemplatesIndexRoute
+  '/_authenticated/admin/asistente/skills/': typeof AuthenticatedAdminAsistenteSkillsIndexRoute
+  '/_authenticated/admin/asistente/skills/$name/edit': typeof AuthenticatedAdminAsistenteSkillsNameEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -2154,12 +2215,13 @@ export interface FileRouteTypes {
     | '/sign-in-2'
     | '/sign-up'
     | '/401'
-    | '/403'
     | '/404'
     | '/500'
     | '/503'
+    | '/403'
     | '/acc'
     | '/acf'
+    | '/asistente'
     | '/cambiar-clave'
     | '/chc'
     | '/cnt'
@@ -2281,6 +2343,7 @@ export interface FileRouteTypes {
     | '/cxp/usuarios'
     | '/errors/$error'
     | '/fat/anular-factura'
+    | '/fat/asiento-contable'
     | '/fat/cierre-mensual'
     | '/fat/companias'
     | '/fat/condiciones'
@@ -2323,6 +2386,7 @@ export interface FileRouteTypes {
     | '/sdn/calcular'
     | '/sdn/catalogos'
     | '/sdn/cias'
+    | '/sdn/deduccion-masiva'
     | '/sdn/deducciones'
     | '/sdn/def-nominas'
     | '/sdn/deptos'
@@ -2350,6 +2414,7 @@ export interface FileRouteTypes {
     | '/acc/'
     | '/acf/'
     | '/apps/'
+    | '/asistente/'
     | '/chats/'
     | '/chc/'
     | '/cxc/'
@@ -2362,8 +2427,13 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/tasks/'
     | '/users/'
+    | '/admin/asistente/usage'
+    | '/admin/mcp/tokens'
+    | '/admin/mcp/usage'
     | '/settings/pdf-templates/$codigo'
     | '/settings/pdf-templates/'
+    | '/admin/asistente/skills/'
+    | '/admin/asistente/skills/$name/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/clerk'
@@ -2373,10 +2443,10 @@ export interface FileRouteTypes {
     | '/sign-in-2'
     | '/sign-up'
     | '/401'
-    | '/403'
     | '/404'
     | '/500'
     | '/503'
+    | '/403'
     | '/cambiar-clave'
     | '/cnt'
     | '/docs'
@@ -2491,6 +2561,7 @@ export interface FileRouteTypes {
     | '/cxp/usuarios'
     | '/errors/$error'
     | '/fat/anular-factura'
+    | '/fat/asiento-contable'
     | '/fat/cierre-mensual'
     | '/fat/companias'
     | '/fat/condiciones'
@@ -2533,6 +2604,7 @@ export interface FileRouteTypes {
     | '/sdn/calcular'
     | '/sdn/catalogos'
     | '/sdn/cias'
+    | '/sdn/deduccion-masiva'
     | '/sdn/deducciones'
     | '/sdn/def-nominas'
     | '/sdn/deptos'
@@ -2560,6 +2632,7 @@ export interface FileRouteTypes {
     | '/acc'
     | '/acf'
     | '/apps'
+    | '/asistente'
     | '/chats'
     | '/chc'
     | '/cxc'
@@ -2572,8 +2645,13 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tasks'
     | '/users'
+    | '/admin/asistente/usage'
+    | '/admin/mcp/tokens'
+    | '/admin/mcp/usage'
     | '/settings/pdf-templates/$codigo'
     | '/settings/pdf-templates'
+    | '/admin/asistente/skills'
+    | '/admin/asistente/skills/$name/edit'
   id:
     | '__root__'
     | '/_authenticated'
@@ -2587,12 +2665,13 @@ export interface FileRouteTypes {
     | '/(auth)/sign-in-2'
     | '/(auth)/sign-up'
     | '/(errors)/401'
-    | '/(errors)/403'
     | '/(errors)/404'
     | '/(errors)/500'
     | '/(errors)/503'
+    | '/_authenticated/403'
     | '/_authenticated/acc'
     | '/_authenticated/acf'
+    | '/_authenticated/asistente'
     | '/_authenticated/cambiar-clave'
     | '/_authenticated/chc'
     | '/_authenticated/cnt'
@@ -2715,6 +2794,7 @@ export interface FileRouteTypes {
     | '/_authenticated/cxp/usuarios'
     | '/_authenticated/errors/$error'
     | '/_authenticated/fat/anular-factura'
+    | '/_authenticated/fat/asiento-contable'
     | '/_authenticated/fat/cierre-mensual'
     | '/_authenticated/fat/companias'
     | '/_authenticated/fat/condiciones'
@@ -2757,6 +2837,7 @@ export interface FileRouteTypes {
     | '/_authenticated/sdn/calcular'
     | '/_authenticated/sdn/catalogos'
     | '/_authenticated/sdn/cias'
+    | '/_authenticated/sdn/deduccion-masiva'
     | '/_authenticated/sdn/deducciones'
     | '/_authenticated/sdn/def-nominas'
     | '/_authenticated/sdn/deptos'
@@ -2784,6 +2865,7 @@ export interface FileRouteTypes {
     | '/_authenticated/acc/'
     | '/_authenticated/acf/'
     | '/_authenticated/apps/'
+    | '/_authenticated/asistente/'
     | '/_authenticated/chats/'
     | '/_authenticated/chc/'
     | '/_authenticated/cxc/'
@@ -2796,8 +2878,13 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/'
     | '/_authenticated/tasks/'
     | '/_authenticated/users/'
+    | '/_authenticated/admin/asistente/usage'
+    | '/_authenticated/admin/mcp/tokens'
+    | '/_authenticated/admin/mcp/usage'
     | '/_authenticated/settings/pdf-templates/$codigo'
     | '/_authenticated/settings/pdf-templates/'
+    | '/_authenticated/admin/asistente/skills/'
+    | '/_authenticated/admin/asistente/skills/$name/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -2809,7 +2896,6 @@ export interface RootRouteChildren {
   authSignIn2Route: typeof authSignIn2Route
   authSignUpRoute: typeof authSignUpRoute
   errors401Route: typeof errors401Route
-  errors403Route: typeof errors403Route
   errors404Route: typeof errors404Route
   errors500Route: typeof errors500Route
   errors503Route: typeof errors503Route
@@ -2930,6 +3016,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCambiarClaveRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/asistente': {
+      id: '/_authenticated/asistente'
+      path: '/asistente'
+      fullPath: '/asistente'
+      preLoaderRoute: typeof AuthenticatedAsistenteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/acf': {
       id: '/_authenticated/acf'
       path: '/acf'
@@ -2942,6 +3035,13 @@ declare module '@tanstack/react-router' {
       path: '/acc'
       fullPath: '/acc'
       preLoaderRoute: typeof AuthenticatedAccRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/403': {
+      id: '/_authenticated/403'
+      path: '/403'
+      fullPath: '/403'
+      preLoaderRoute: typeof Authenticated403RouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/(errors)/503': {
@@ -2963,13 +3063,6 @@ declare module '@tanstack/react-router' {
       path: '/404'
       fullPath: '/404'
       preLoaderRoute: typeof errors404RouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/(errors)/403': {
-      id: '/(errors)/403'
-      path: '/403'
-      fullPath: '/403'
-      preLoaderRoute: typeof errors403RouteImport
       parentRoute: typeof rootRouteImport
     }
     '/(errors)/401': {
@@ -3118,6 +3211,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/chats/'
       preLoaderRoute: typeof AuthenticatedChatsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/asistente/': {
+      id: '/_authenticated/asistente/'
+      path: '/'
+      fullPath: '/asistente/'
+      preLoaderRoute: typeof AuthenticatedAsistenteIndexRouteImport
+      parentRoute: typeof AuthenticatedAsistenteRoute
     }
     '/_authenticated/apps/': {
       id: '/_authenticated/apps/'
@@ -3306,6 +3406,13 @@ declare module '@tanstack/react-router' {
       path: '/deducciones'
       fullPath: '/sdn/deducciones'
       preLoaderRoute: typeof AuthenticatedSdnDeduccionesRouteImport
+      parentRoute: typeof AuthenticatedSdnRoute
+    }
+    '/_authenticated/sdn/deduccion-masiva': {
+      id: '/_authenticated/sdn/deduccion-masiva'
+      path: '/deduccion-masiva'
+      fullPath: '/sdn/deduccion-masiva'
+      preLoaderRoute: typeof AuthenticatedSdnDeduccionMasivaRouteImport
       parentRoute: typeof AuthenticatedSdnRoute
     }
     '/_authenticated/sdn/cias': {
@@ -3600,6 +3707,13 @@ declare module '@tanstack/react-router' {
       path: '/cierre-mensual'
       fullPath: '/fat/cierre-mensual'
       preLoaderRoute: typeof AuthenticatedFatCierreMensualRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
+    '/_authenticated/fat/asiento-contable': {
+      id: '/_authenticated/fat/asiento-contable'
+      path: '/asiento-contable'
+      fullPath: '/fat/asiento-contable'
+      preLoaderRoute: typeof AuthenticatedFatAsientoContableRouteImport
       parentRoute: typeof AuthenticatedFatRoute
     }
     '/_authenticated/fat/anular-factura': {
@@ -4372,6 +4486,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsPdfTemplatesCodigoRouteImport
       parentRoute: typeof AuthenticatedSettingsPdfTemplatesRouteRoute
     }
+    '/_authenticated/admin/mcp/usage': {
+      id: '/_authenticated/admin/mcp/usage'
+      path: '/admin/mcp/usage'
+      fullPath: '/admin/mcp/usage'
+      preLoaderRoute: typeof AuthenticatedAdminMcpUsageRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/mcp/tokens': {
+      id: '/_authenticated/admin/mcp/tokens'
+      path: '/admin/mcp/tokens'
+      fullPath: '/admin/mcp/tokens'
+      preLoaderRoute: typeof AuthenticatedAdminMcpTokensRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/asistente/usage': {
+      id: '/_authenticated/admin/asistente/usage'
+      path: '/admin/asistente/usage'
+      fullPath: '/admin/asistente/usage'
+      preLoaderRoute: typeof AuthenticatedAdminAsistenteUsageRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/asistente/skills/': {
+      id: '/_authenticated/admin/asistente/skills/'
+      path: '/admin/asistente/skills'
+      fullPath: '/admin/asistente/skills/'
+      preLoaderRoute: typeof AuthenticatedAdminAsistenteSkillsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/asistente/skills/$name/edit': {
+      id: '/_authenticated/admin/asistente/skills/$name/edit'
+      path: '/admin/asistente/skills/$name/edit'
+      fullPath: '/admin/asistente/skills/$name/edit'
+      preLoaderRoute: typeof AuthenticatedAdminAsistenteSkillsNameEditRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -4498,6 +4647,20 @@ const AuthenticatedAcfRouteChildren: AuthenticatedAcfRouteChildren = {
 
 const AuthenticatedAcfRouteWithChildren =
   AuthenticatedAcfRoute._addFileChildren(AuthenticatedAcfRouteChildren)
+
+interface AuthenticatedAsistenteRouteChildren {
+  AuthenticatedAsistenteIndexRoute: typeof AuthenticatedAsistenteIndexRoute
+}
+
+const AuthenticatedAsistenteRouteChildren: AuthenticatedAsistenteRouteChildren =
+  {
+    AuthenticatedAsistenteIndexRoute: AuthenticatedAsistenteIndexRoute,
+  }
+
+const AuthenticatedAsistenteRouteWithChildren =
+  AuthenticatedAsistenteRoute._addFileChildren(
+    AuthenticatedAsistenteRouteChildren,
+  )
 
 interface AuthenticatedChcRouteChildren {
   AuthenticatedChcAnularRoute: typeof AuthenticatedChcAnularRoute
@@ -4692,6 +4855,7 @@ const AuthenticatedCxpRouteWithChildren =
 
 interface AuthenticatedFatRouteChildren {
   AuthenticatedFatAnularFacturaRoute: typeof AuthenticatedFatAnularFacturaRoute
+  AuthenticatedFatAsientoContableRoute: typeof AuthenticatedFatAsientoContableRoute
   AuthenticatedFatCierreMensualRoute: typeof AuthenticatedFatCierreMensualRoute
   AuthenticatedFatCompaniasRoute: typeof AuthenticatedFatCompaniasRoute
   AuthenticatedFatCondicionesRoute: typeof AuthenticatedFatCondicionesRoute
@@ -4720,6 +4884,7 @@ interface AuthenticatedFatRouteChildren {
 
 const AuthenticatedFatRouteChildren: AuthenticatedFatRouteChildren = {
   AuthenticatedFatAnularFacturaRoute: AuthenticatedFatAnularFacturaRoute,
+  AuthenticatedFatAsientoContableRoute: AuthenticatedFatAsientoContableRoute,
   AuthenticatedFatCierreMensualRoute: AuthenticatedFatCierreMensualRoute,
   AuthenticatedFatCompaniasRoute: AuthenticatedFatCompaniasRoute,
   AuthenticatedFatCondicionesRoute: AuthenticatedFatCondicionesRoute,
@@ -4805,6 +4970,7 @@ interface AuthenticatedSdnRouteChildren {
   AuthenticatedSdnCalcularRoute: typeof AuthenticatedSdnCalcularRoute
   AuthenticatedSdnCatalogosRoute: typeof AuthenticatedSdnCatalogosRoute
   AuthenticatedSdnCiasRoute: typeof AuthenticatedSdnCiasRoute
+  AuthenticatedSdnDeduccionMasivaRoute: typeof AuthenticatedSdnDeduccionMasivaRoute
   AuthenticatedSdnDeduccionesRoute: typeof AuthenticatedSdnDeduccionesRoute
   AuthenticatedSdnDefNominasRoute: typeof AuthenticatedSdnDefNominasRoute
   AuthenticatedSdnDeptosRoute: typeof AuthenticatedSdnDeptosRoute
@@ -4829,6 +4995,7 @@ const AuthenticatedSdnRouteChildren: AuthenticatedSdnRouteChildren = {
   AuthenticatedSdnCalcularRoute: AuthenticatedSdnCalcularRoute,
   AuthenticatedSdnCatalogosRoute: AuthenticatedSdnCatalogosRoute,
   AuthenticatedSdnCiasRoute: AuthenticatedSdnCiasRoute,
+  AuthenticatedSdnDeduccionMasivaRoute: AuthenticatedSdnDeduccionMasivaRoute,
   AuthenticatedSdnDeduccionesRoute: AuthenticatedSdnDeduccionesRoute,
   AuthenticatedSdnDefNominasRoute: AuthenticatedSdnDefNominasRoute,
   AuthenticatedSdnDeptosRoute: AuthenticatedSdnDeptosRoute,
@@ -4851,10 +5018,11 @@ const AuthenticatedSdnRouteWithChildren =
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
+  Authenticated403Route: typeof Authenticated403Route
   AuthenticatedAccRoute: typeof AuthenticatedAccRouteWithChildren
   AuthenticatedAcfRoute: typeof AuthenticatedAcfRouteWithChildren
-  AuthenticatedCambiarClaveRoute: typeof AuthenticatedCambiarClaveRoute
   AuthenticatedAsistenteRoute: typeof AuthenticatedAsistenteRouteWithChildren
+  AuthenticatedCambiarClaveRoute: typeof AuthenticatedCambiarClaveRoute
   AuthenticatedChcRoute: typeof AuthenticatedChcRouteWithChildren
   AuthenticatedCntRoute: typeof AuthenticatedCntRoute
   AuthenticatedCxcRoute: typeof AuthenticatedCxcRouteWithChildren
@@ -4875,14 +5043,20 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedHelpCenterIndexRoute: typeof AuthenticatedHelpCenterIndexRoute
   AuthenticatedTasksIndexRoute: typeof AuthenticatedTasksIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
+  AuthenticatedAdminAsistenteUsageRoute: typeof AuthenticatedAdminAsistenteUsageRoute
+  AuthenticatedAdminMcpTokensRoute: typeof AuthenticatedAdminMcpTokensRoute
+  AuthenticatedAdminMcpUsageRoute: typeof AuthenticatedAdminMcpUsageRoute
+  AuthenticatedAdminAsistenteSkillsIndexRoute: typeof AuthenticatedAdminAsistenteSkillsIndexRoute
+  AuthenticatedAdminAsistenteSkillsNameEditRoute: typeof AuthenticatedAdminAsistenteSkillsNameEditRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRouteRoute: AuthenticatedSettingsRouteRouteWithChildren,
+  Authenticated403Route: Authenticated403Route,
   AuthenticatedAccRoute: AuthenticatedAccRouteWithChildren,
   AuthenticatedAcfRoute: AuthenticatedAcfRouteWithChildren,
-  AuthenticatedCambiarClaveRoute: AuthenticatedCambiarClaveRoute,
   AuthenticatedAsistenteRoute: AuthenticatedAsistenteRouteWithChildren,
+  AuthenticatedCambiarClaveRoute: AuthenticatedCambiarClaveRoute,
   AuthenticatedChcRoute: AuthenticatedChcRouteWithChildren,
   AuthenticatedCntRoute: AuthenticatedCntRoute,
   AuthenticatedCxcRoute: AuthenticatedCxcRouteWithChildren,
@@ -4903,6 +5077,13 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedHelpCenterIndexRoute: AuthenticatedHelpCenterIndexRoute,
   AuthenticatedTasksIndexRoute: AuthenticatedTasksIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
+  AuthenticatedAdminAsistenteUsageRoute: AuthenticatedAdminAsistenteUsageRoute,
+  AuthenticatedAdminMcpTokensRoute: AuthenticatedAdminMcpTokensRoute,
+  AuthenticatedAdminMcpUsageRoute: AuthenticatedAdminMcpUsageRoute,
+  AuthenticatedAdminAsistenteSkillsIndexRoute:
+    AuthenticatedAdminAsistenteSkillsIndexRoute,
+  AuthenticatedAdminAsistenteSkillsNameEditRoute:
+    AuthenticatedAdminAsistenteSkillsNameEditRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -4960,7 +5141,6 @@ const rootRouteChildren: RootRouteChildren = {
   authSignIn2Route: authSignIn2Route,
   authSignUpRoute: authSignUpRoute,
   errors401Route: errors401Route,
-  errors403Route: errors403Route,
   errors404Route: errors404Route,
   errors500Route: errors500Route,
   errors503Route: errors503Route,

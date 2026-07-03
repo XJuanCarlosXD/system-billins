@@ -11,9 +11,11 @@ const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.9
 
 interface Props { noCia: string; punto: string }
 
-interface Almacen { no_almacen: string; descripcion: string }
-interface Grupo { no_grupo: string; descripcion: string }
-interface Linea { no_linea: string; descripcion: string }
+// Nombres de campo reales de los endpoints /api/inv/ (verificado 2026-07-02):
+// almacenes → almacen, grupos → grupo_produ, lineas → linea
+interface Almacen { almacen: string; descripcion: string }
+interface Grupo { grupo_produ: string; descripcion: string }
+interface Linea { linea: string; descripcion: string }
 
 interface ExistRow {
   no_produ: string
@@ -169,8 +171,8 @@ export function MinimosMaximos({ noCia }: Props) {
                 </SelectTrigger>
                 <SelectContent>
                   {almacenes.map((a) => (
-                    <SelectItem key={a.no_almacen} value={a.no_almacen}>
-                      {a.no_almacen} — {a.descripcion}
+                    <SelectItem key={a.almacen} value={a.almacen}>
+                      {a.almacen} — {a.descripcion}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -178,15 +180,15 @@ export function MinimosMaximos({ noCia }: Props) {
             </div>
             <div className='space-y-1'>
               <Label className='text-xs'>Grupo</Label>
-              <Select value={grupo} onValueChange={setGrupo}>
+              <Select value={grupo || '__todos__'} onValueChange={(v) => setGrupo(v === '__todos__' ? '' : v)}>
                 <SelectTrigger className='h-8 text-xs'>
                   <SelectValue placeholder='Todos' />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value=''>Todos</SelectItem>
+                  <SelectItem value='__todos__'>Todos</SelectItem>
                   {grupos.map((g) => (
-                    <SelectItem key={g.no_grupo} value={g.no_grupo}>
-                      {g.no_grupo} — {g.descripcion}
+                    <SelectItem key={g.grupo_produ} value={g.grupo_produ}>
+                      {g.grupo_produ} — {g.descripcion}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -194,15 +196,15 @@ export function MinimosMaximos({ noCia }: Props) {
             </div>
             <div className='space-y-1'>
               <Label className='text-xs'>Línea</Label>
-              <Select value={linea} onValueChange={setLinea}>
+              <Select value={linea || '__todas__'} onValueChange={(v) => setLinea(v === '__todas__' ? '' : v)}>
                 <SelectTrigger className='h-8 text-xs'>
                   <SelectValue placeholder='Todas' />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value=''>Todas</SelectItem>
+                  <SelectItem value='__todas__'>Todas</SelectItem>
                   {lineas.map((l) => (
-                    <SelectItem key={l.no_linea} value={l.no_linea}>
-                      {l.no_linea} — {l.descripcion}
+                    <SelectItem key={l.linea} value={l.linea}>
+                      {l.linea} — {l.descripcion}
                     </SelectItem>
                   ))}
                 </SelectContent>
