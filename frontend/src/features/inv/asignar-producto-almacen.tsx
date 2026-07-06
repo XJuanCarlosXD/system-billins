@@ -27,7 +27,7 @@ interface RowState extends ProductoRow {
   _checked: boolean
 }
 
-const ENDPOINT_EXISTE = false // cambiar a true cuando esté el backend
+const ENDPOINT_EXISTE = true
 
 export function AsignarProductoAlmacen({ noCia, punto }: Props) {
   const [almacenes, setAlmacenes] = useState<Almacen[]>([])
@@ -55,7 +55,7 @@ export function AsignarProductoAlmacen({ noCia, punto }: Props) {
     setLoading(true)
     setError(null)
     setSaveMsg(null)
-    const params = new URLSearchParams({ no_cia: noCia, almacen })
+    const params = new URLSearchParams({ no_cia: noCia, punto, almacen })
     fetch(`${API_BASE}/inv/productos/?${params.toString()}`, { credentials: 'include' })
       .then(async (res) => {
         if (!res.ok) throw new Error(`Error ${res.status}`)
@@ -90,9 +90,10 @@ export function AsignarProductoAlmacen({ noCia, punto }: Props) {
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        throw new Error(data.detail ?? `Error ${res.status}`)
+        throw new Error(data.error ?? data.detail ?? `Error ${res.status}`)
       }
       setSaveMsg(`${seleccionados.length} producto(s) asignado(s) al almacén correctamente.`)
+      load()
     } catch (err: any) {
       setSaveError(err.message ?? 'Error al guardar')
     } finally {

@@ -71,6 +71,113 @@ def _reserve_next_producto(cur) -> str:
     return str(a_usar).zfill(8)
 
 
+def _insert_eproducto(cur, *, no_cia, punto, almacen, no_produ, costo=0.0,
+                       estante=None, tramo=None) -> bool:
+    """INSERT INV.TINV_EPRODUCTO — mismo patron que el legacy Finv113
+    'Asignar Prod. a Cia. y Almacen'. Idempotente: si ya existe la fila para
+    esa combinacion no_cia/punto/almacen/no_produ, no hace nada.
+    """
+    exists = cur.execute(
+        "SELECT 1 FROM INV.TINV_EPRODUCTO "
+        "WHERE no_cia=:1 AND punto=:2 AND almacen=:3 AND no_produ=:4",
+        [no_cia, punto, almacen, no_produ]).fetchone()
+    if exists:
+        return False
+    cur.execute(
+        "INSERT INTO INV.TINV_EPRODUCTO ("
+        "  NO_CIA, PUNTO, ALMACEN, NO_PRODU, ACTIVO,"
+        "  EXIST_INI_PERIODO, EXIST_INI_MES, EXIST_ACTUAL,"
+        "  COSTO_INI_PERIODO, COSTO_INI_MES, COSTO_ACTUAL,"
+        "  TOMA_FISICA, EXIST_PARA_TF, COSTO_PARA_TF, EXIST_FISICA,"
+        "  EXIST_MINIMA, EXIST_MAXIMA, ESTANTE, TRAMO"
+        ") VALUES ("
+        "  :no_cia, :punto, :almacen, :no_produ, 'S',"
+        "  0, 0, 0,"
+        "  0, 0, :costo,"
+        "  'N', 0, 0, 0,"
+        "  0, 0, :estante, :tramo"
+        ")",
+        {'no_cia': no_cia, 'punto': punto, 'almacen': almacen,
+         'no_produ': no_produ, 'costo': costo or 0.0,
+         'estante': estante, 'tramo': tramo})
+    return True
+
+
+def asignar_producto_almacen(*, no_cia: str, punto: str, almacen: str,
+                              productos: list[str], usuario: str = '') -> dict:
+    """Asigna N productos ya existentes en TINV_PRODUCTO a un almacen de una
+    cia/punto, creando su fila en TINV_EPRODUCTO. Equivalente al boton
+    'Asignar al Almacen' del legacy Finv113 — sin esto, cualquier movimiento
+    de inventario (TINV_MOVIMIENTO) para ese producto/almacen revienta con
+    ORA-02291 (parent key not found) contra FK_TINV_MOVIMIENTO_EPRODUCTO.
+    """
+    no_cia = (no_cia or '').strip()
+    punto = (punto or '').strip()
+    almacen = (almacen or '').strip()
+    if not no_cia or not punto or not almacen:
+        raise ValueError("no_cia, punto y almacen son requeridos")
+    codigos = [str(p or '').strip().upper() for p in (productos or [])]
+    codigos = [p for p in codigos if p]
+    if not codigos:
+        raise ValueError("Seleccione al menos un producto")
+
+    asignados, ya_asignados, invalidos = 0, 0, []
+    with client.cursor() as cur:
+        for no_produ in codigos:
+            row = cur.execute(
+                "SELECT NVL(costo_mercado_rd, NVL(costo_mercado, 0)) "
+                "FROM INV.TINV_PRODUCTO WHERE no_produ=:1", [no_produ]).fetchone()
+            if row is None:
+                invalidos.append(no_produ)
+                continue
+            costo = float(row[0] or 0)
+            creado = _insert_eproducto(
+                cur, no_cia=no_cia, punto=punto, almacen=almacen,
+                no_produ=no_produ, costo=costo)
+            if creado:
+                asignados += 1
+            else:
+                ya_asignados += 1
+        cur.connection.commit()
+
+    if invalidos:
+        raise ValueError(f"Producto(s) inexistente(s): {', '.join(invalidos)}")
+
+    return {
+        'no_cia': no_cia, 'punto': punto, 'almacen': almacen,
+        'asignados': asignados, 'ya_asignados': ya_asignados,
+    }
+
+
+def list_productos_para_almacen(*, no_cia: str, punto: str, almacen: str,
+                                 search: str = '') -> list[dict]:
+    """Productos activos con flag 'asignado' = ya tiene fila en
+    TINV_EPRODUCTO para esa cia/punto/almacen. Alimenta la pantalla
+    'Asignar Prod. a Cia./Almacén' (Finv113)."""
+    params: list = [no_cia, punto, almacen]
+    where = ["p.activo = 'S'"]
+    if search:
+        params.append(f'%{search}%')
+        where.append(f"(UPPER(p.descri) LIKE UPPER(:{len(params)}) "
+                      f"OR UPPER(p.no_produ) LIKE UPPER(:{len(params)}))")
+    sql = (
+        "SELECT p.no_produ, p.descri nombre, p.descri descripcion, "
+        "       ep.estante, ep.tramo, "
+        "       NVL(ep.costo_actual, NVL(p.costo_mercado_rd, p.costo_mercado)) costo, "
+        "       CASE WHEN ep.no_produ IS NULL THEN 'N' ELSE 'S' END asignado_flag "
+        "FROM INV.TINV_PRODUCTO p "
+        "LEFT JOIN INV.TINV_EPRODUCTO ep "
+        "  ON ep.no_produ = p.no_produ AND ep.no_cia = :1 "
+        "  AND ep.punto = :2 AND ep.almacen = :3 "
+        f"WHERE {' AND '.join(where)} "
+        "ORDER BY p.descri"
+    )
+    rows = client.fetch_dicts(sql, params)
+    for r in rows:
+        r['asignado'] = r.pop('asignado_flag', 'N') == 'S'
+    return rows
+
+
 def create_producto(payload: dict, usuario: str = '') -> dict:
     """Crea un producto con campos mínimos. El resto se rellena con defaults
     sensatos para que cumpla los NOT NULL del schema legado.
@@ -186,6 +293,22 @@ def create_producto(payload: dict, usuario: str = '') -> dict:
                 'indi_lote': indi_lote,
             },
         )
+
+        # Asignación a almacenes en la misma transacción (checkboxes del
+        # formulario "Nuevo Producto"): evita el paso manual de Finv113 y el
+        # ORA-02291 al registrar el primer movimiento de ese producto.
+        no_cia = (payload.get('no_cia') or '').strip()
+        punto = (payload.get('punto') or '').strip()
+        almacenes_sel = [str(a or '').strip() for a in (payload.get('almacenes') or [])]
+        almacenes_sel = [a for a in almacenes_sel if a]
+        asignados_almacenes: list[str] = []
+        if almacenes_sel and no_cia and punto:
+            for alm in almacenes_sel:
+                _insert_eproducto(
+                    cur, no_cia=no_cia, punto=punto, almacen=alm,
+                    no_produ=no_produ, costo=costo)
+                asignados_almacenes.append(alm)
+
         cur.connection.commit()
     return {
         'no_produ': no_produ, 'descripcion': descri, 'linea': linea,
@@ -193,6 +316,7 @@ def create_producto(payload: dict, usuario: str = '') -> dict:
         'grupo_contable': grupo_contable, 'activo': activo,
         'servicio': servicio, 'tiene_impuesto': tiene_imp,
         'porciento_impuesto': porc_imp, 'costo': costo,
+        'almacenes_asignados': asignados_almacenes,
     }
 
 

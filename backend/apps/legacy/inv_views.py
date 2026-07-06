@@ -83,6 +83,34 @@ def inv_producto_empaques(request, no_produ: str):
 
 
 @login_required
+@csrf_exempt
+@require_http_methods(["POST"])
+def inv_asignar_producto_almacen(request):
+    """POST /api/inv/asignar-producto-almacen/ — asigna productos existentes
+    a un almacen de una cia/punto (crea sus filas en INV.TINV_EPRODUCTO).
+
+    Body JSON: {no_cia, punto, almacen, productos: [no_produ, ...]}
+    """
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except Exception:
+        return JsonResponse({"error": "JSON invalido"}, status=400)
+    try:
+        res = inv_repo.asignar_producto_almacen(
+            no_cia=str(payload.get('no_cia', '')).strip(),
+            punto=str(payload.get('punto', '')).strip(),
+            almacen=str(payload.get('almacen', '')).strip(),
+            productos=payload.get('productos') or [],
+            usuario=getattr(request.user, 'username', '') or 'API',
+        )
+        return JsonResponse({"data": res}, status=201)
+    except ValueError as e:
+        return JsonResponse({"error": str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
 @require_http_methods(["GET"])
 def inv_producto_next_codigo(request):
     """GET /api/inv/productos/next-codigo/ — preview del siguiente no_produ."""
@@ -120,6 +148,15 @@ def inv_productos(request):
         search = request.GET.get('search', '')
         grupo = request.GET.get('grupo', '')
         linea = request.GET.get('linea', '')
+        almacen = request.GET.get('almacen', '')
+        punto = request.GET.get('punto', '')
+        # Pantalla "Asignar Prod. a Cia./Almacén" (Finv113): con almacen+punto
+        # se listan productos activos con flag 'asignado' (existe fila en
+        # TINV_EPRODUCTO para esa cia/punto/almacen).
+        if almacen and punto:
+            results = inv_repo.list_productos_para_almacen(
+                no_cia=no_cia, punto=punto, almacen=almacen, search=search)
+            return JsonResponse({"results": _jsonify(results), "count": len(results)})
         # acepta limit/offset directos o page/page_size
         if 'limit' in request.GET or 'offset' in request.GET:
             limit = int(request.GET.get('limit', 50))

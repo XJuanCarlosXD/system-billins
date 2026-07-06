@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
@@ -104,6 +105,8 @@ export function CatalogoProductos() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [detallesOpen, setDetallesOpen] = useState(false)
+  // Almacenes a asignar al crear el producto (checkboxes) — solo aplica a creación.
+  const [almacenesSel, setAlmacenesSel] = useState<string[]>([])
 
   // Load catalogues once
   useEffect(() => {
@@ -203,6 +206,7 @@ export function CatalogoProductos() {
     setForm(emptyForm)
     setEditingProdu(null)
     setEmpaques([])
+    setAlmacenesSel([])
     setFormOpen(true)
     // Auto-pre-fill del codigo desde la secuencia legacy TINV_NEXT_PRODU
     try {
@@ -349,7 +353,14 @@ export function CatalogoProductos() {
       const url = isEdit
         ? `${API_BASE}/inv/productos/${encodeURIComponent(editingProdu!)}/`
         : `${API_BASE}/inv/productos/`
-      if (!isEdit) body.no_produ = form.no_produ.trim().toUpperCase()
+      if (!isEdit) {
+        body.no_produ = form.no_produ.trim().toUpperCase()
+        if (almacenesSel.length > 0) {
+          body.no_cia = selectedCompany
+          body.punto = selectedPoint
+          body.almacenes = almacenesSel
+        }
+      }
 
       const res = await fetch(url, {
         method: isEdit ? 'PATCH' : 'POST',
@@ -392,13 +403,17 @@ export function CatalogoProductos() {
         }
       }
 
+      const asignados: string[] = data?.data?.almacenes_asignados ?? []
       toast.success(isEdit
         ? `Producto ${editingProdu} actualizado`
-        : `Producto ${savedNoProdu} creado`)
+        : asignados.length > 0
+          ? `Producto ${savedNoProdu} creado y asignado a ${asignados.length} almacén(es)`
+          : `Producto ${savedNoProdu} creado`)
       setFormOpen(false)
       setEditingProdu(null)
       setForm(emptyForm)
       setEmpaques([])
+      setAlmacenesSel([])
       // Forzar refresh de la lista (re-trigger del useEffect)
       setSearch((s) => s)
       if (!isEdit) setPage(1)
@@ -926,6 +941,57 @@ export function CatalogoProductos() {
                   </div>
                 </div>
               </>
+            )}
+
+            {/* Asignar a Almacén(es): crea TINV_EPRODUCTO al mismo tiempo que
+                el producto para que quede disponible de inmediato en Entrada
+                de Almacén (sin esto, el producto queda "creado pero no
+                asignado" y el primer movimiento revienta con parent key
+                not found contra TINV_EPRODUCTO). Solo aplica al crear. */}
+            {!editingProdu && (
+              <div className='col-span-2 border-t pt-3 mt-1 space-y-2'>
+                <div className='flex items-center justify-between'>
+                  <div>
+                    <Label className='text-sm font-medium'>Asignar a Almacén(es)</Label>
+                    <p className='text-xs text-muted-foreground mt-0.5'>
+                      El producto quedará disponible de inmediato en los almacenes marcados.
+                      Si no marcas ninguno, deberás asignarlo luego en "Asignar Prod. a Cía./Almacén".
+                    </p>
+                  </div>
+                  {almacenes.length > 0 && (
+                    <Button
+                      type='button'
+                      size='sm'
+                      variant='outline'
+                      onClick={() => setAlmacenesSel(
+                        almacenesSel.length === almacenes.length ? [] : almacenes.map((a) => a.almacen)
+                      )}
+                    >
+                      {almacenesSel.length === almacenes.length ? 'Ninguno' : 'Todos'}
+                    </Button>
+                  )}
+                </div>
+                {almacenes.length === 0 ? (
+                  <p className='text-xs text-muted-foreground rounded border border-dashed py-3 px-3 text-center'>
+                    No hay almacenes configurados para esta compañía.
+                  </p>
+                ) : (
+                  <div className='flex flex-wrap gap-x-6 gap-y-2 rounded border p-3'>
+                    {almacenes.map((a) => (
+                      <label key={a.almacen} className='flex items-center gap-2 cursor-pointer text-sm'>
+                        <Checkbox
+                          checked={almacenesSel.includes(a.almacen)}
+                          onCheckedChange={(v) => setAlmacenesSel((prev) =>
+                            v ? [...prev, a.almacen] : prev.filter((x) => x !== a.almacen)
+                          )}
+                        />
+                        <span className='font-mono text-xs'>{a.almacen}</span>
+                        <span className='text-muted-foreground'>{a.descripcion}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Empaques: tabla editable (TINV_EMPAQUE) */}
