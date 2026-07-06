@@ -1106,27 +1106,63 @@ function FooterReporte({
 // BloqueCuadreCaja — pinta resumen forma de pago + por NCF + matriz NCF×forma_pago
 // + opcionalmente detalle de facturas del día. Lee de payload.extra.
 // ────────────────────────────────────────────────────────────────────
-type ResumenPagoItem = { tipo_pago: string; forma_pago: string; cantidad: number; total: number }
+type ResumenPagoItem = {
+  tipo_pago: string
+  forma_pago: string
+  cantidad: number
+  total: number
+}
 type PorNcfItem = {
-  ncf_tipo: string; cantidad: number
-  total_linea: number; descuento: number; impuesto: number; total_neto: number
+  ncf_tipo: string
+  cantidad: number
+  total_linea: number
+  descuento: number
+  impuesto: number
+  total_neto: number
 }
 type NcfFormaPagoItem = {
-  ncf_tipo: string; tipo_pago: string; forma_pago: string
-  cantidad: number; total: number
+  ncf_tipo: string
+  tipo_pago: string
+  forma_pago: string
+  cantidad: number
+  total: number
+}
+type ResumenVentasItem = {
+  clase: string
+  descripcion: string
+  cantidad: number
+  total: number
+  impacta_ingreso?: boolean
 }
 type FacturaItem = {
-  tipo_factura: string; no_factura: string; nombre_cliente?: string; ncf_dgi?: string
-  fecha?: string | null; total_neto?: number; impuesto?: number; descuento?: number
-  forma_pago?: string; estado?: string; st_anulado?: string; motivo_anulacion?: string
+  tipo_factura: string
+  no_factura: string
+  nombre_cliente?: string
+  ncf_dgi?: string
+  posiciones_fijas_ncf?: string
+  fecha?: string | null
+  total_neto?: number
+  impuesto?: number
+  descuento?: number
+  forma_pago?: string
+  estado?: string
+  st_anulado?: string
+  motivo_anulacion?: string
 }
 
 function labelNcfHuman(t: string): string {
   const k = (t || '').toUpperCase()
   const map: Record<string, string> = {
-    B01: 'Crédito Fiscal', B02: 'Consumo', B03: 'Nota de Débito', B04: 'Nota de Crédito',
-    B11: 'Proveedor Informal', B12: 'Registro Único', B13: 'Gastos Menores',
-    B14: 'Régimen Especial', B15: 'Gubernamental', B16: 'Exportación',
+    B01: 'Crédito Fiscal',
+    B02: 'Consumo',
+    B03: 'Nota de Débito',
+    B04: 'Nota de Crédito',
+    B11: 'Proveedor Informal',
+    B12: 'Registro Único',
+    B13: 'Gastos Menores',
+    B14: 'Régimen Especial',
+    B15: 'Gubernamental',
+    B16: 'Exportación',
   }
   return map[k] || ''
 }
@@ -1141,51 +1177,52 @@ type BloqueCuadreCajaProps = {
 }
 
 function BloqueCuadreCaja({
-  showResumenPago, showPorNcf, showMatrizNcfFormaPago, showDetalleFacturas,
-  colorTitulo, fontSize,
+  showResumenPago,
+  showPorNcf,
+  showMatrizNcfFormaPago,
+  showDetalleFacturas,
+  colorTitulo,
+  fontSize,
 }: BloqueCuadreCajaProps) {
   const data = usePdfData()
   if (!data || !isReportePayload(data)) return null
-  const extra = ((data as ReportePrintPayload).extra ?? {}) as Record<string, unknown>
+  const extra = ((data as ReportePrintPayload).extra ?? {}) as Record<
+    string,
+    unknown
+  >
   const resumen = (extra.resumen_pago as ResumenPagoItem[]) ?? []
+  const resumenVentas = (extra.resumen_ventas as ResumenVentasItem[]) ?? []
   const porNcf = (extra.por_ncf as PorNcfItem[]) ?? []
   const porNcfFormaPago = (extra.por_ncf_forma_pago as NcfFormaPagoItem[]) ?? []
-  const facturasAll = (extra.facturas as FacturaItem[]) ?? []
+  const facturas = (extra.facturas as FacturaItem[]) ?? []
   // El usuario activa "Incluir detalle" desde el switch de la pantalla —
   // viaja como extra.incluir_detalle. Sobreescribe la plantilla.
   const incluirDetalleFlag = !!extra.incluir_detalle
   const renderDetalle = showDetalleFacturas || incluirDetalleFlag
-  // Switch "Ver detalle de NCF" del usuario — pinta la matriz NCF×forma_pago
-  // solo si está prendido. Si la plantilla lo trae prendido también pinta.
-  const showNcfDetailFlag = !!extra.show_ncf_detail
-  const renderMatrizNcf = showMatrizNcfFormaPago || showNcfDetailFlag
-  // Casilla manual "COBROS CRED. TRANSFERENCIA" (cobros a crédito recibidos
-  // por transferencia). El cajero la captura en pantalla.
-  const cobrosCredTransfer = Number(extra.cobros_cred_transfer || 0) || 0
-  // Formas de pago cuyo detalle el cajero quiso incluir en el PDF (checkbox
-  // por fila en la pantalla). Si no viene, se incluyen todas.
-  const formasPagoPdfRaw = String(extra.formas_pago_pdf || '').trim()
-  const formasPagoPdf = formasPagoPdfRaw
-    ? new Set(formasPagoPdfRaw.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean))
-    : null
-  const facturas = formasPagoPdf
-    ? facturasAll.filter((f) => formasPagoPdf.has((f.forma_pago || '').toUpperCase()))
-    : facturasAll
 
   // Pivot NCF × forma_pago
   const formasSet = new Set<string>()
-  const filaMap = new Map<string, { ncf_tipo: string; total: number; por: Record<string, number> }>()
+  const filaMap = new Map<
+    string,
+    { ncf_tipo: string; total: number; por: Record<string, number> }
+  >()
   for (const r of porNcfFormaPago) {
     formasSet.add(r.forma_pago)
     let f = filaMap.get(r.ncf_tipo)
-    if (!f) { f = { ncf_tipo: r.ncf_tipo, total: 0, por: {} }; filaMap.set(r.ncf_tipo, f) }
+    if (!f) {
+      f = { ncf_tipo: r.ncf_tipo, total: 0, por: {} }
+      filaMap.set(r.ncf_tipo, f)
+    }
     f.por[r.forma_pago] = (f.por[r.forma_pago] || 0) + (r.total || 0)
     f.total += r.total || 0
   }
   const formas = [...formasSet].sort((a, b) => a.localeCompare(b, 'es'))
-  const filasMx = [...filaMap.values()].sort((a, b) => a.ncf_tipo.localeCompare(b.ncf_tipo))
+  const filasMx = [...filaMap.values()].sort((a, b) =>
+    a.ncf_tipo.localeCompare(b.ncf_tipo)
+  )
   const totalesCol: Record<string, number> = {}
-  for (const f of formas) totalesCol[f] = filasMx.reduce((s, fila) => s + (fila.por[f] || 0), 0)
+  for (const f of formas)
+    totalesCol[f] = filasMx.reduce((s, fila) => s + (fila.por[f] || 0), 0)
   const totalMatrix = filasMx.reduce((s, f) => s + f.total, 0)
 
   // Resumen ordenado: cobros crédito (tipo_pago C*) al final
@@ -1195,130 +1232,128 @@ function BloqueCuadreCaja({
     if (ac !== bc) return ac ? 1 : -1
     return (a.forma_pago || '').localeCompare(b.forma_pago || '', 'es')
   })
-  // Separación contado vs crédito (sugerencia Roberto/Angel 2026-06-17).
-  const esCred = (tp: string) => (tp || '').toUpperCase().startsWith('C')
-  const ventasContado = resumenSorted.filter(r => !esCred(r.tipo_pago))
-  const ventasCredito = resumenSorted.filter(r => esCred(r.tipo_pago))
-  const totalContado = ventasContado.reduce((s, r) => s + (r.total || 0), 0)
-  const totalCredito = ventasCredito.reduce((s, r) => s + (r.total || 0), 0)
-  const totalVentas = totalContado + totalCredito
-  const totalCobrosDia = totalContado + cobrosCredTransfer
+  const totalResumen = resumen.reduce((s, r) => s + (r.total || 0), 0)
+  const totalVentas = resumenVentas.reduce((s, r) => s + (r.total || 0), 0)
   const totalPorNcf = porNcf.reduce((s, r) => s + (r.total_neto || 0), 0)
   const totalFacturas = facturas.reduce((s, f) => s + (f.total_neto || 0), 0)
 
-  const sectionTitle: any = {
-    fontSize: fontSize + 2, fontWeight: 700, color: colorTitulo,
-    margin: '12px 0 4px 0', borderBottom: `1px solid ${colorTitulo}33`, paddingBottom: 2,
+  const sectionTitle: CSSProperties = {
+    fontSize: fontSize + 2,
+    fontWeight: 700,
+    color: colorTitulo,
+    margin: '12px 0 4px 0',
+    borderBottom: `1px solid ${colorTitulo}33`,
+    paddingBottom: 2,
   }
-  const tableStyle: any = { width: '100%', borderCollapse: 'collapse', fontSize }
-  const thBase: any = {
-    background: colorTitulo, color: '#fff', padding: '4px 6px', textAlign: 'left',
+  const tableStyle: CSSProperties = {
+    width: '100%',
+    borderCollapse: 'collapse',
+    fontSize,
+  }
+  const thBase: CSSProperties = {
+    background: colorTitulo,
+    color: '#fff',
+    padding: '4px 6px',
+    textAlign: 'left',
     fontWeight: 700,
   }
-  const td: any = { padding: '3px 6px', borderBottom: '1px solid #e5e7eb' }
-  const tdR: any = { ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }
-  const tfootRow: any = { background: '#f3f4f6', fontWeight: 700 }
+  const td: CSSProperties = {
+    padding: '3px 6px',
+    borderBottom: '1px solid #e5e7eb',
+  }
+  const tdR: CSSProperties = {
+    ...td,
+    textAlign: 'right',
+    fontVariantNumeric: 'tabular-nums',
+  }
+  const tfootRow: CSSProperties = { background: '#f3f4f6', fontWeight: 700 }
 
   return (
-    <div className="pdf-cuadre-caja">
-      {showResumenPago && (
+    <div className='pdf-cuadre-caja'>
+      {resumenVentas.length > 0 && (
         <>
-          {/* Card 1 — Ventas del Día (contado vs crédito) */}
-          <div style={sectionTitle}>Ventas del Día</div>
+          <div style={sectionTitle}>Ventas del Dia</div>
           <table style={tableStyle}>
             <thead>
               <tr>
-                <th style={thBase}>Concepto</th>
-                <th style={{ ...thBase, textAlign: 'right', width: '25%' }}>Monto RD$</th>
+                <th style={{ ...thBase, width: '18%' }}>Tipo</th>
+                <th style={thBase}>DescripciÃ³n</th>
+                <th style={{ ...thBase, textAlign: 'right', width: '12%' }}>
+                  Fact.
+                </th>
+                <th style={{ ...thBase, textAlign: 'right', width: '20%' }}>
+                  Total RD$
+                </th>
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td style={td}>Ventas en efectivo / cobradas hoy</td>
-                <td style={tdR}>{money(totalContado)}</td>
-              </tr>
-              <tr>
-                <td style={td}>Ventas a crédito del día (pendiente CxC)</td>
-                <td style={tdR}>{money(totalCredito)}</td>
-              </tr>
+              {resumenVentas.map((r) => (
+                <tr key={r.clase}>
+                  <td style={{ ...td, fontFamily: 'monospace' }}>{r.clase}</td>
+                  <td style={td}>{r.descripcion}</td>
+                  <td style={tdR}>{r.cantidad}</td>
+                  <td style={tdR}>{money(r.total)}</td>
+                </tr>
+              ))}
               <tr style={tfootRow}>
-                <td style={tdR}>Total Ventas del Día</td>
+                <td colSpan={3} style={tdR}>
+                  Total ventas del dia
+                </td>
                 <td style={tdR}>{money(totalVentas)}</td>
               </tr>
             </tbody>
           </table>
+        </>
+      )}
 
-          {/* Card 2 — Cobros del Día por Forma de Pago */}
-          <div style={sectionTitle}>Cobros del Día por Forma de Pago</div>
+      {showResumenPago && (
+        <>
+          <div style={sectionTitle}>Ingresos por Forma de Pago</div>
           <table style={tableStyle}>
             <thead>
               <tr>
                 <th style={{ ...thBase, width: '15%' }}>Tipo</th>
                 <th style={thBase}>Descripción</th>
-                <th style={{ ...thBase, textAlign: 'right', width: '12%' }}>Cant.</th>
-                <th style={{ ...thBase, textAlign: 'right', width: '20%' }}>Monto RD$</th>
+                <th style={{ ...thBase, textAlign: 'right', width: '12%' }}>
+                  Cant.
+                </th>
+                <th style={{ ...thBase, textAlign: 'right', width: '20%' }}>
+                  Monto RD$
+                </th>
               </tr>
             </thead>
             <tbody>
-              {ventasContado.length === 0 && cobrosCredTransfer === 0 ? (
-                <tr><td colSpan={4} style={{ ...td, textAlign: 'center', color: '#777' }}>Sin cobros.</td></tr>
+              {resumenSorted.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={4}
+                    style={{ ...td, textAlign: 'center', color: '#777' }}
+                  >
+                    Sin movimientos.
+                  </td>
+                </tr>
               ) : (
-                <>
-                  {ventasContado.map((r, i) => (
-                    <tr key={`${r.tipo_pago}-${r.forma_pago}-${i}`}>
-                      <td style={{ ...td, fontFamily: 'monospace' }}>{r.tipo_pago}</td>
-                      <td style={td}>{r.forma_pago}</td>
-                      <td style={tdR}>{r.cantidad}</td>
-                      <td style={tdR}>{money(r.total)}</td>
-                    </tr>
-                  ))}
-                  {cobrosCredTransfer > 0 && (
-                    <tr style={{ background: '#fef3c7' }}>
-                      <td style={{ ...td, fontFamily: 'monospace' }}>—</td>
-                      <td style={td}>COBROS CRED. TRANSFERENCIA</td>
-                      <td style={tdR}>—</td>
-                      <td style={tdR}>{money(cobrosCredTransfer)}</td>
-                    </tr>
-                  )}
-                  <tr style={tfootRow}>
-                    <td colSpan={3} style={tdR}>Total Cobros del Día</td>
-                    <td style={tdR}>{money(totalCobrosDia)}</td>
+                resumenSorted.map((r, i) => (
+                  <tr key={`${r.tipo_pago}-${r.forma_pago}-${i}`}>
+                    <td style={{ ...td, fontFamily: 'monospace' }}>
+                      {r.tipo_pago}
+                    </td>
+                    <td style={td}>{r.forma_pago}</td>
+                    <td style={tdR}>{r.cantidad}</td>
+                    <td style={tdR}>{money(r.total)}</td>
                   </tr>
-                </>
+                ))
+              )}
+              {resumenSorted.length > 0 && (
+                <tr style={tfootRow}>
+                  <td colSpan={3} style={{ ...tdR }}>
+                    Total Ingresos
+                  </td>
+                  <td style={tdR}>{money(totalResumen)}</td>
+                </tr>
               )}
             </tbody>
           </table>
-
-          {/* Card 3 — Facturación a Crédito (informativo) */}
-          {ventasCredito.length > 0 && (
-            <>
-              <div style={sectionTitle}>Facturación a Crédito (no entró plata — pendiente CxC)</div>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={{ ...thBase, width: '15%' }}>Tipo</th>
-                    <th style={thBase}>Descripción</th>
-                    <th style={{ ...thBase, textAlign: 'right', width: '12%' }}>Cant.</th>
-                    <th style={{ ...thBase, textAlign: 'right', width: '20%' }}>Monto RD$</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ventasCredito.map((r, i) => (
-                    <tr key={`cr-${r.tipo_pago}-${r.forma_pago}-${i}`}>
-                      <td style={{ ...td, fontFamily: 'monospace' }}>{r.tipo_pago}</td>
-                      <td style={td}>{r.forma_pago}</td>
-                      <td style={tdR}>{r.cantidad}</td>
-                      <td style={tdR}>{money(r.total)}</td>
-                    </tr>
-                  ))}
-                  <tr style={tfootRow}>
-                    <td colSpan={3} style={tdR}>Total Crédito</td>
-                    <td style={tdR}>{money(totalCredito)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </>
-          )}
         </>
       )}
 
@@ -1330,7 +1365,9 @@ function BloqueCuadreCaja({
               <tr>
                 <th style={{ ...thBase, width: '8%' }}>Tipo</th>
                 <th style={thBase}>Descripción</th>
-                <th style={{ ...thBase, textAlign: 'right', width: '8%' }}>Cant.</th>
+                <th style={{ ...thBase, textAlign: 'right', width: '8%' }}>
+                  Cant.
+                </th>
                 <th style={{ ...thBase, textAlign: 'right' }}>Total Línea</th>
                 <th style={{ ...thBase, textAlign: 'right' }}>Descuento</th>
                 <th style={{ ...thBase, textAlign: 'right' }}>ITBIS</th>
@@ -1339,21 +1376,42 @@ function BloqueCuadreCaja({
             </thead>
             <tbody>
               {porNcf.length === 0 ? (
-                <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: '#777' }}>Sin facturas.</td></tr>
-              ) : porNcf.map((r) => (
-                <tr key={r.ncf_tipo}>
-                  <td style={{ ...td, fontFamily: 'monospace', fontWeight: 700 }}>{r.ncf_tipo || '—'}</td>
-                  <td style={td}>{labelNcfHuman(r.ncf_tipo)}</td>
-                  <td style={tdR}>{r.cantidad}</td>
-                  <td style={tdR}>{money(r.total_linea)}</td>
-                  <td style={tdR}>{money(r.descuento)}</td>
-                  <td style={tdR}>{money(r.impuesto)}</td>
-                  <td style={{ ...tdR, fontWeight: 700 }}>{money(r.total_neto)}</td>
+                <tr>
+                  <td
+                    colSpan={7}
+                    style={{ ...td, textAlign: 'center', color: '#777' }}
+                  >
+                    Sin facturas.
+                  </td>
                 </tr>
-              ))}
+              ) : (
+                porNcf.map((r) => (
+                  <tr key={r.ncf_tipo}>
+                    <td
+                      style={{
+                        ...td,
+                        fontFamily: 'monospace',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {r.ncf_tipo || '—'}
+                    </td>
+                    <td style={td}>{labelNcfHuman(r.ncf_tipo)}</td>
+                    <td style={tdR}>{r.cantidad}</td>
+                    <td style={tdR}>{money(r.total_linea)}</td>
+                    <td style={tdR}>{money(r.descuento)}</td>
+                    <td style={tdR}>{money(r.impuesto)}</td>
+                    <td style={{ ...tdR, fontWeight: 700 }}>
+                      {money(r.total_neto)}
+                    </td>
+                  </tr>
+                ))
+              )}
               {porNcf.length > 0 && (
                 <tr style={tfootRow}>
-                  <td colSpan={6} style={tdR}>TOTAL</td>
+                  <td colSpan={6} style={tdR}>
+                    TOTAL
+                  </td>
                   <td style={tdR}>{money(totalPorNcf)}</td>
                 </tr>
               )}
@@ -1362,16 +1420,18 @@ function BloqueCuadreCaja({
         </>
       )}
 
-      {renderMatrizNcf && formas.length > 0 && (
+      {showMatrizNcfFormaPago && formas.length > 0 && (
         <>
-          <div style={sectionTitle}>Cuadre de Caja por NCF · NCF × Forma de Pago</div>
+          <div style={sectionTitle}>NCF × Forma de Pago</div>
           <table style={tableStyle}>
             <thead>
               <tr>
                 <th style={{ ...thBase, width: '8%' }}>NCF</th>
                 <th style={thBase}>Descripción</th>
                 {formas.map((f) => (
-                  <th key={f} style={{ ...thBase, textAlign: 'right' }}>{f}</th>
+                  <th key={f} style={{ ...thBase, textAlign: 'right' }}>
+                    {f}
+                  </th>
                 ))}
                 <th style={{ ...thBase, textAlign: 'right' }}>Total</th>
               </tr>
@@ -1379,17 +1439,31 @@ function BloqueCuadreCaja({
             <tbody>
               {filasMx.map((fila) => (
                 <tr key={fila.ncf_tipo}>
-                  <td style={{ ...td, fontFamily: 'monospace', fontWeight: 700 }}>{fila.ncf_tipo || '—'}</td>
+                  <td
+                    style={{ ...td, fontFamily: 'monospace', fontWeight: 700 }}
+                  >
+                    {fila.ncf_tipo || '—'}
+                  </td>
                   <td style={td}>{labelNcfHuman(fila.ncf_tipo)}</td>
                   {formas.map((f) => (
-                    <td key={f} style={tdR}>{fila.por[f] ? money(fila.por[f]) : ''}</td>
+                    <td key={f} style={tdR}>
+                      {fila.por[f] ? money(fila.por[f]) : ''}
+                    </td>
                   ))}
-                  <td style={{ ...tdR, fontWeight: 700 }}>{money(fila.total)}</td>
+                  <td style={{ ...tdR, fontWeight: 700 }}>
+                    {money(fila.total)}
+                  </td>
                 </tr>
               ))}
               <tr style={tfootRow}>
-                <td colSpan={2} style={tdR}>TOTAL</td>
-                {formas.map((f) => <td key={f} style={tdR}>{money(totalesCol[f] || 0)}</td>)}
+                <td colSpan={2} style={tdR}>
+                  TOTAL
+                </td>
+                {formas.map((f) => (
+                  <td key={f} style={tdR}>
+                    {money(totalesCol[f] || 0)}
+                  </td>
+                ))}
                 <td style={tdR}>{money(totalMatrix)}</td>
               </tr>
             </tbody>
@@ -1397,92 +1471,180 @@ function BloqueCuadreCaja({
         </>
       )}
 
-      {renderDetalle && (() => {
-        // Agrupar facturas por FORMA DE PAGO (mismo agrupamiento que el
-        // resumen principal del cuadre). Cada grupo muestra el subtotal.
-        type Grupo = { forma_pago: string; rows: FacturaItem[]; total: number; itbis: number; descuento: number }
-        const groups = new Map<string, Grupo>()
-        for (const f of facturas) {
-          const key = (f.forma_pago || 'SIN FORMA DE PAGO').toUpperCase().trim() || 'SIN FORMA DE PAGO'
-          const g = groups.get(key) || { forma_pago: key, rows: [], total: 0, itbis: 0, descuento: 0 }
-          g.rows.push(f)
-          g.total += f.total_neto || 0
-          g.itbis += f.impuesto || 0
-          g.descuento += f.descuento || 0
-          groups.set(key, g)
-        }
-        const facturasPorForma = [...groups.values()].sort((a, b) => a.forma_pago.localeCompare(b.forma_pago, 'es'))
-        const grupoHdr: any = { ...td, background: '#e2e8f0', fontWeight: 700 }
-        const subTotalRow: any = { ...td, background: '#f1f5f9', fontWeight: 700 }
-        return (
-          <>
-            <div style={sectionTitle}>Detalle de Facturas · agrupado por Forma de Pago</div>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={{ ...thBase, width: '14%' }}>No.</th>
-                  <th style={{ ...thBase, width: '10%' }}>Fecha</th>
-                  <th style={thBase}>Cliente</th>
-                  <th style={{ ...thBase, width: '14%' }}>NCF</th>
-                  <th style={{ ...thBase, textAlign: 'right' }}>Descuento</th>
-                  <th style={{ ...thBase, textAlign: 'right' }}>ITBIS</th>
-                  <th style={{ ...thBase, textAlign: 'right' }}>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {facturasPorForma.length === 0 ? (
-                  <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: '#777' }}>Sin facturas en el día.</td></tr>
-                ) : facturasPorForma.map((g) => (
-                  <Fragment key={g.forma_pago}>
+      {renderDetalle &&
+        (() => {
+          // Group invoices by NCF so the printed detail matches the screen.
+          type Grupo = {
+            ncf_tipo: string
+            rows: FacturaItem[]
+            total: number
+            itbis: number
+            descuento: number
+          }
+          const getNcfTipo = (f: FacturaItem) => {
+            const fixed = (f.posiciones_fijas_ncf || '').trim().toUpperCase()
+            if (fixed) return fixed
+            const dgi = (f.ncf_dgi || '').trim().toUpperCase()
+            return /^B\d{2}/.test(dgi) ? dgi.slice(0, 3) : 'SIN NCF'
+          }
+          const groups = new Map<string, Grupo>()
+          for (const f of facturas) {
+            const key = getNcfTipo(f)
+            const g = groups.get(key) || {
+              ncf_tipo: key,
+              rows: [],
+              total: 0,
+              itbis: 0,
+              descuento: 0,
+            }
+            g.rows.push(f)
+            g.total += f.total_neto || 0
+            g.itbis += f.impuesto || 0
+            g.descuento += f.descuento || 0
+            groups.set(key, g)
+          }
+          const facturasPorNcf = [...groups.values()].sort((a, b) =>
+            a.ncf_tipo.localeCompare(b.ncf_tipo, 'es')
+          )
+          const grupoHdr: CSSProperties = {
+            ...td,
+            background: '#e2e8f0',
+            fontWeight: 700,
+          }
+          const subTotalRow: CSSProperties = {
+            ...td,
+            background: '#f1f5f9',
+            fontWeight: 700,
+          }
+          return (
+            <>
+              <div style={sectionTitle}>
+                Detalle de Facturas - agrupado por NCF
+              </div>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={{ ...thBase, width: '14%' }}>No.</th>
+                    <th style={{ ...thBase, width: '10%' }}>Fecha</th>
+                    <th style={thBase}>Cliente</th>
+                    <th style={{ ...thBase, width: '14%' }}>NCF</th>
+                    <th style={{ ...thBase, width: '12%' }}>Forma Pago</th>
+                    <th style={{ ...thBase, textAlign: 'right' }}>Descuento</th>
+                    <th style={{ ...thBase, textAlign: 'right' }}>ITBIS</th>
+                    <th style={{ ...thBase, textAlign: 'right' }}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {facturasPorNcf.length === 0 ? (
                     <tr>
-                      <td colSpan={7} style={grupoHdr}>
-                        <span>{g.forma_pago}</span>
-                        <span style={{ marginLeft: 8, fontSize: fontSize - 1, color: '#555' }}>({g.rows.length} facturas)</span>
+                      <td
+                        colSpan={8}
+                        style={{ ...td, textAlign: 'center', color: '#777' }}
+                      >
+                        Sin facturas en el dia.
                       </td>
                     </tr>
-                    {g.rows.map((f, i) => {
-                      const num = `${f.tipo_factura || ''}-${f.no_factura || ''}`
-                      const anul = (f.st_anulado === 'S')
-                      return (
-                        <Fragment key={`${g.forma_pago}-${num}-${i}`}>
-                          <tr style={anul ? { color: '#b91c1c' } : undefined}>
-                            <td style={{ ...td, fontFamily: 'monospace', paddingLeft: 14 }}>{num}{anul ? ' (ANUL)' : ''}</td>
-                            <td style={td}>{fmtDate(f.fecha)}</td>
-                            <td style={td}>{(f.nombre_cliente || '').slice(0, 60)}</td>
-                            <td style={{ ...td, fontFamily: 'monospace' }}>{f.ncf_dgi || '—'}</td>
-                            <td style={tdR}>{money(f.descuento ?? 0)}</td>
-                            <td style={tdR}>{money(f.impuesto ?? 0)}</td>
-                            <td style={tdR}>{money(f.total_neto ?? 0)}</td>
-                          </tr>
-                          {anul && f.motivo_anulacion && (
-                            <tr style={{ color: '#b91c1c' }}>
-                              <td colSpan={7} style={{ ...td, paddingLeft: 14, fontStyle: 'italic', fontSize: fontSize - 1 }}>
-                                Motivo: {f.motivo_anulacion}
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
-                      )
-                    })}
-                    <tr>
-                      <td colSpan={4} style={{ ...subTotalRow, textAlign: 'right' }}>Subtotal {g.forma_pago}</td>
-                      <td style={{ ...subTotalRow, textAlign: 'right' }}>{money(g.descuento)}</td>
-                      <td style={{ ...subTotalRow, textAlign: 'right' }}>{money(g.itbis)}</td>
-                      <td style={{ ...subTotalRow, textAlign: 'right' }}>{money(g.total)}</td>
+                  ) : (
+                    facturasPorNcf.map((g) => (
+                      <Fragment key={g.ncf_tipo}>
+                        <tr>
+                          <td colSpan={8} style={grupoHdr}>
+                            <span>
+                              {g.ncf_tipo} -{' '}
+                              {labelNcfHuman(g.ncf_tipo) || g.ncf_tipo}
+                            </span>
+                            <span
+                              style={{
+                                marginLeft: 8,
+                                fontSize: fontSize - 1,
+                                color: '#555',
+                              }}
+                            >
+                              ({g.rows.length} facturas)
+                            </span>
+                          </td>
+                        </tr>
+                        {g.rows.map((f, i) => {
+                          const num = `${f.tipo_factura || ''}-${f.no_factura || ''}`
+                          const anul = f.st_anulado === 'S'
+                          return (
+                            <Fragment key={`${g.ncf_tipo}-${num}-${i}`}>
+                              <tr
+                                style={anul ? { color: '#b91c1c' } : undefined}
+                              >
+                                <td
+                                  style={{
+                                    ...td,
+                                    fontFamily: 'monospace',
+                                    paddingLeft: 14,
+                                  }}
+                                >
+                                  {num}
+                                  {anul ? ' (ANUL)' : ''}
+                                </td>
+                                <td style={td}>{fmtDate(f.fecha)}</td>
+                                <td style={td}>
+                                  {(f.nombre_cliente || '').slice(0, 60)}
+                                </td>
+                                <td style={{ ...td, fontFamily: 'monospace' }}>
+                                  {f.ncf_dgi || '—'}
+                                </td>
+                                <td style={td}>{f.forma_pago || ''}</td>
+                                <td style={tdR}>{money(f.descuento ?? 0)}</td>
+                                <td style={tdR}>{money(f.impuesto ?? 0)}</td>
+                                <td style={tdR}>{money(f.total_neto ?? 0)}</td>
+                              </tr>
+                              {anul && f.motivo_anulacion && (
+                                <tr style={{ color: '#b91c1c' }}>
+                                  <td
+                                    colSpan={8}
+                                    style={{
+                                      ...td,
+                                      paddingLeft: 14,
+                                      fontStyle: 'italic',
+                                      fontSize: fontSize - 1,
+                                    }}
+                                  >
+                                    Motivo: {f.motivo_anulacion}
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
+                          )
+                        })}
+                        <tr>
+                          <td
+                            colSpan={5}
+                            style={{ ...subTotalRow, textAlign: 'right' }}
+                          >
+                            Subtotal {g.ncf_tipo}
+                          </td>
+                          <td style={{ ...subTotalRow, textAlign: 'right' }}>
+                            {money(g.descuento)}
+                          </td>
+                          <td style={{ ...subTotalRow, textAlign: 'right' }}>
+                            {money(g.itbis)}
+                          </td>
+                          <td style={{ ...subTotalRow, textAlign: 'right' }}>
+                            {money(g.total)}
+                          </td>
+                        </tr>
+                      </Fragment>
+                    ))
+                  )}
+                  {facturasPorNcf.length > 0 && (
+                    <tr style={tfootRow}>
+                      <td colSpan={7} style={tdR}>
+                        TOTAL FACTURAS ({facturas.length})
+                      </td>
+                      <td style={tdR}>{money(totalFacturas)}</td>
                     </tr>
-                  </Fragment>
-                ))}
-                {facturasPorForma.length > 0 && (
-                  <tr style={tfootRow}>
-                    <td colSpan={6} style={tdR}>TOTAL FACTURAS ({facturas.length})</td>
-                    <td style={tdR}>{money(totalFacturas)}</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </>
-        )
-      })()}
+                  )}
+                </tbody>
+              </table>
+            </>
+          )
+        })()}
     </div>
   )
 }
