@@ -148,6 +148,7 @@ const formatNcf = (info: NcfInfo) =>
   `${info.codigo_ncf}-${String(info.prox_ncf).padStart(8, '0')}`
 
 const esContadoLabel = (desc: string) => /contado|cash|efectivo/i.test(desc)
+const esEfectivoLabel = (desc: string) => /efectivo|cash/i.test(desc)
 
 let lineaIdCounter = 1
 
@@ -221,6 +222,7 @@ export function NuevaFactura({ noCia, punto }: Props) {
   const [soloExistencia, setSoloExistencia] = useState(true)
 
   const [guardando, setGuardando] = useState(false)
+  const [valorRecibido, setValorRecibido] = useState('')
 
   const clienteSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const clienteLookupSeqRef = useRef(0)
@@ -232,6 +234,9 @@ export function NuevaFactura({ noCia, punto }: Props) {
   const pagoSeleccionado = tiposPago.find((p) => p.tipo_pago === formaPago)
   const esContado = pagoSeleccionado
     ? esContadoLabel(pagoSeleccionado.descripcion)
+    : false
+  const esEfectivo = pagoSeleccionado
+    ? esEfectivoLabel(pagoSeleccionado.descripcion)
     : false
 
   // Keep modal lista in sync
@@ -331,6 +336,8 @@ export function NuevaFactura({ noCia, punto }: Props) {
 
   const handleFormaPagoChange = (value: string) => {
     setFormaPago(value)
+    const tpEf = tiposPago.find((p) => p.tipo_pago === value)
+    if (!tpEf || !esEfectivoLabel(tpEf.descripcion)) setValorRecibido('')
     const tp = tiposPago.find((p) => p.tipo_pago === value)
     if (tp && esContadoLabel(tp.descripcion)) {
       // Contado: reset credit fields
@@ -797,6 +804,8 @@ export function NuevaFactura({ noCia, punto }: Props) {
     .filter((l) => l.itbis)
     .reduce((s, l) => s + l.monto * (l.porciento_impuesto / 100), 0)
   const totalNeto = baseNeta + itbisTotal
+  const valorRecibidoNum = Number((valorRecibido || '0').replace(',', '.')) || 0
+  const valorDevuelto = esEfectivo ? Math.max(0, valorRecibidoNum - totalNeto) : 0
 
   // ── Save ───────────────────────────────────────────────────
   const guardar = async () => {
@@ -862,6 +871,14 @@ export function NuevaFactura({ noCia, punto }: Props) {
       })
       return
     }
+    if (esEfectivo && valorRecibidoNum < totalNeto) {
+      toast({
+        title: 'Validacion',
+        description: `Recibido (${fmtN(valorRecibidoNum)}) es menor al total (${fmtN(totalNeto)})`,
+        variant: 'destructive',
+      })
+      return
+    }
     setGuardando(true)
     try {
       const res = await regalGeneralApi.fatCrearFactura({
@@ -884,6 +901,7 @@ export function NuevaFactura({ noCia, punto }: Props) {
         tipo_ingreso: tipoIngreso,
         itbis_en_precio: itbisEnPrecio,
         no_cotizacion: noCotizacion,
+        valor_recibido: esEfectivo ? valorRecibidoNum : undefined,
         lineas: lineasValidas.map((l) => ({
           no_produ: l.no_produ,
           almacen: l.almacen,
@@ -1640,6 +1658,23 @@ export function NuevaFactura({ noCia, punto }: Props) {
                 <span>Total Neto:</span>
                 <span className='font-mono'>{fmtN(totalNeto)}</span>
               </div>
+              {esEfectivo && (
+                <>
+                  <div className='flex items-center justify-between gap-2 pt-2'>
+                    <span>Recibido:</span>
+                    <Input
+                      type='number' step='0.01' min='0' placeholder='0.00'
+                      value={valorRecibido}
+                      onChange={(e) => setValorRecibido(e.target.value)}
+                      className='h-8 w-32 text-right font-mono'
+                    />
+                  </div>
+                  <div className={`flex justify-between font-semibold ${valorRecibidoNum > 0 && valorRecibidoNum < totalNeto ? 'text-destructive' : ''}`}>
+                    <span>Devuelta:</span>
+                    <span className='font-mono'>{fmtN(valorDevuelto)}</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}

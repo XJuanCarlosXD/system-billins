@@ -66,6 +66,7 @@ export const sidebarData: SidebarData = {
                 { title: 'Cotizacion / Conduce', url: '/fat/nuevo-conduce' },
                 { title: 'Anular Factura', url: '/fat/anular-factura' },
                 { title: 'Cuadre de Caja', url: '/fat/cuadre-caja' },
+                { title: 'Vista de Cajero', url: '/fat/cajero' },
               ],
             },
             {

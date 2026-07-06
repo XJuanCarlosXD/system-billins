@@ -1,5 +1,6 @@
 """Vistas FAT - endpoints completos de Facturacion."""
 import calendar
+from datetime import date
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -205,6 +206,8 @@ class FatFacturasView(APIView):
         if forbidden:
             return forbidden
         try:
+            valor_recibido_raw = request.data.get('valor_recibido')
+            valor_recibido = float(valor_recibido_raw) if valor_recibido_raw not in (None, '') else 0.0
             res = fat_repo.create_factura(
                 no_cia=str(no_cia).strip(), punto=str(punto).strip(),
                 tipo_factura=str(tipo_factura).strip(),
@@ -213,7 +216,8 @@ class FatFacturasView(APIView):
                 no_lista=str(no_lista).strip(), nota=str(nota).strip(),
                 detalle=str(detalle).strip(), lineas=lineas,
                 usuario=request.user.username,
-                codigo_ncf=str(request.data.get('codigo_ncf', '')).strip())
+                codigo_ncf=str(request.data.get('codigo_ncf', '')).strip(),
+                valor_recibido=valor_recibido)
             return Response(res, status=201)
         except ValueError as e:
             return Response({'detail': str(e)}, status=400)
@@ -263,6 +267,35 @@ class FatAnularFacturaView(APIView):
             return Response(res)
         except ValueError as e:
             return Response({'detail': str(e)}, status=404)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=500)
+
+
+class FatMotivosAnulacionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            return Response({'items': fat_repo.list_motivos_anulacion_dgii()})
+        except Exception as e:
+            return Response({'detail': str(e)}, status=500)
+
+
+class FatCajeroPendientesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        no_cia = request.query_params.get('no_cia')
+        punto = request.query_params.get('punto', '01')
+        if not no_cia:
+            return Response({'detail': 'no_cia es requerido'}, status=400)
+        forbidden = _check_fat_access(request.user.username, no_cia, punto)
+        if forbidden:
+            return forbidden
+        fecha = request.query_params.get('fecha') or date.today().isoformat()
+        try:
+            items = fat_repo.list_facturas_cajero(no_cia, punto, fecha)
+            return Response({'fecha': fecha, 'items': items})
         except Exception as e:
             return Response({'detail': str(e)}, status=500)
 

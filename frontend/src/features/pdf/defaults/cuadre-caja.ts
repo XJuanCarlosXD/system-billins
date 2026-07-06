@@ -17,7 +17,9 @@ export const cuadreCajaDefault: any = {
       showResumenPago: true,
       // Quitado del default: el por_ncf se cubre con la matriz NCF×forma_pago.
       showPorNcf: false,
-      showMatrizNcfFormaPago: true,
+      // Default OFF — el switch "Ver detalle de NCF" en la pantalla envía
+      // show_ncf_detail=1 que prende la matriz vía extra.show_ncf_detail.
+      showMatrizNcfFormaPago: false,
       // Detalle de facturas off por default — solo si el usuario activa el
       // toggle "Incluir detalle" o lo prende en la plantilla.
       showDetalleFacturas: false,

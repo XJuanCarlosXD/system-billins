@@ -1143,6 +1143,23 @@ export const regalGeneralApi = {
       method: 'POST', body: JSON.stringify(data),
     }),
 
+  fatMotivosAnulacion: () =>
+    request<{ items: Array<{ tipo: string; descripcion: string }> }>('/fat/anulacion-motivos/'),
+
+  fatCajeroPendientes: (no_cia: string, punto: string, fecha?: string) => {
+    const p = new URLSearchParams({ no_cia, punto })
+    if (fecha) p.set('fecha', fecha)
+    return request<{
+      fecha: string
+      items: Array<{
+        tipo_factura: string; no_factura: string; fecha: string | null
+        nombre_cliente: string; total_neto: number; forma_pago: string
+        valor_recibido: number; valor_devuelto: number
+        st_anulado: string; ncf_dgi: string
+      }>
+    }>(`/fat/cajero/pendientes/?${p.toString()}`)
+  },
+
   fatCrearConduce: (data: Record<string, any>) =>
     request<{ no_conduce: string; tipo_conduce: string; clase: string; total_neto: number }>('/fat/conduces/', {
       method: 'POST', body: JSON.stringify(data),
