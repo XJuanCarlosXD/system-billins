@@ -106,6 +106,9 @@ export function EntradaCompras({ noCia, punto }: Props) {
   const [ncf, setNcf] = useState('')
   const [formaPago, setFormaPago] = useState('')
   const [fechaVcto, setFechaVcto] = useState('')
+  // RNC editable: se precarga con el del proveedor pero el usuario puede
+  // sobrescribirlo (compras con TC llegan con RNC ficticio en el proveedor).
+  const [rnc, setRnc] = useState('')
 
   // Cargar desde Orden de Compra (ODC)
   const [noOrdenOdc, setNoOrdenOdc] = useState('')
@@ -137,6 +140,12 @@ export function EntradaCompras({ noCia, punto }: Props) {
   const [productModalForIdx, setProductModalForIdx] = useState<number | null>(null)
 
   const [saving, setSaving] = useState(false)
+
+  // Precarga el RNC con el del proveedor al seleccionarlo/cambiarlo.
+  // El usuario puede editarlo después (ej. compras con TC con RNC ficticio).
+  useEffect(() => {
+    setRnc(proveedorSel?.rnc ?? '')
+  }, [proveedorSel?.no_proveedor])
 
   useEffect(() => {
     if (!noCia) return
@@ -347,6 +356,7 @@ export function EntradaCompras({ noCia, punto }: Props) {
       tasa_usd: parseFloat(tasaUsd) || 1,
       almacen: almacenHeader,
       proveedor,
+      rnc,
       ncf,
       forma_pago: formaPago,
       fecha_vcto: fechaVcto,
@@ -390,7 +400,7 @@ export function EntradaCompras({ noCia, punto }: Props) {
       toast.success(`Documento ${docNo} guardado correctamente`)
       setTipoDocu(''); setFecha(new Date().toISOString().slice(0, 10))
       setTasaUsd(''); setAlmacenHeader(''); setProveedorSel(null)
-      setNcf(''); setFormaPago(''); setFechaVcto(''); setPctDescuento('')
+      setNcf(''); setRnc(''); setFormaPago(''); setFechaVcto(''); setPctDescuento('')
       setNota(''); setOrdenCargada(null); setNoOrdenOdc('')
       setRows([newRow()])
     } catch (err: any) {
@@ -525,6 +535,14 @@ export function EntradaCompras({ noCia, punto }: Props) {
             <ProveedorPicker value={proveedorSel} onChange={setProveedorSel} />
 
             <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4'>
+              <div className='space-y-1'>
+                <Label htmlFor='ec-rnc'>RNC / Cédula</Label>
+                <Input id='ec-rnc' className='h-9 font-mono' placeholder='RNC del proveedor' value={rnc} onChange={(e) => setRnc(e.target.value)} />
+                <p className='text-[11px] text-muted-foreground'>
+                  Editable: en compras con TC el RNC del proveedor puede ser ficticio.
+                </p>
+              </div>
+
               <div className='space-y-1'>
                 <Label htmlFor='ec-ncf'>NCF</Label>
                 <Input id='ec-ncf' className='h-9 font-mono' placeholder='B0100000000' value={ncf} onChange={(e) => setNcf(e.target.value)} />

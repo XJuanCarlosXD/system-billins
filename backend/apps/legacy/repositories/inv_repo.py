@@ -2354,17 +2354,21 @@ def _adjust_eproducto_stock(cur, *, no_cia, punto, almacen, no_produ,
 
 def _upsert_rme_header(cur, *, no_cia, punto, tipo_docu, no_docu, fecha,
                        tipo_movi, tipo_transaccion, usuario, nota,
-                       total_linea):
+                       total_linea, no_proveedor='', rnc=''):
     # Binds numerados repetidos (:2,:2 / :11,:11) + lista posicional dan
     # ORA-01008 en modo thick — estos dos statements usan binds nombrados.
+    no_proveedor = (no_proveedor or '').strip()[:6] or None
+    rnc = (rnc or '').strip()[:15] or None
     cur.execute(
         "UPDATE INV.TINV_RME SET nota=:nota, total_linea=:total, "
-        "total_neto=:total, valor_bienes=:total, usuario=:usuario "
+        "total_neto=:total, valor_bienes=:total, usuario=:usuario, "
+        "no_proveedor=NVL(:no_proveedor, no_proveedor), rnc=NVL(:rnc, rnc) "
         "WHERE no_cia=:no_cia AND punto=:punto AND tipo_docu=:tipo_docu "
         "AND no_docu=:no_docu",
         {'nota': nota[:4000], 'total': total_linea,
          'usuario': (usuario or '')[:30], 'no_cia': no_cia, 'punto': punto,
-         'tipo_docu': tipo_docu, 'no_docu': no_docu})
+         'tipo_docu': tipo_docu, 'no_docu': no_docu,
+         'no_proveedor': no_proveedor, 'rnc': rnc})
     if cur.rowcount:
         return
     cur.execute(
@@ -2373,25 +2377,29 @@ def _upsert_rme_header(cur, *, no_cia, punto, tipo_docu, no_docu, fecha,
         "estado,usuario,st_impresion,st_anulado,st_generado_cnt,"
         "tipo_transaccion,tipo_movi,detalle,nota,no_localidad,afecta_cxc,"
         "tasa_us,porc_impuesto,impuesto,descuento,total_linea,total_neto,"
-        "valor_bienes,valor_servicio,isc,otros_impuestos,propina,entregado"
+        "valor_bienes,valor_servicio,isc,otros_impuestos,propina,entregado,"
+        "no_proveedor,rnc"
         ") VALUES("
         ":no_cia,:punto,:tipo_docu,:no_docu,TO_DATE(:fecha,'YYYY-MM-DD'),SYSDATE,"
         "'A',:usuario,'N','N','N',"
         ":tipo_transaccion,:tipo_movi,'',:nota,:no_localidad,'N',"
         "1,0,0,0,:total,:total,"
-        ":total,0,0,0,0,'N'"
+        ":total,0,0,0,0,'N',"
+        ":no_proveedor,:rnc"
         ")",
         {'no_cia': no_cia, 'punto': punto, 'tipo_docu': tipo_docu,
          'no_docu': no_docu, 'fecha': fecha, 'usuario': (usuario or '')[:30],
          'tipo_transaccion': tipo_transaccion, 'tipo_movi': tipo_movi,
-         'nota': nota[:4000], 'no_localidad': no_cia, 'total': total_linea})
+         'nota': nota[:4000], 'no_localidad': no_cia, 'total': total_linea,
+         'no_proveedor': no_proveedor, 'rnc': rnc})
 
 
 def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                                  fecha: str, almacen: str, lineas: list[dict],
                                  almacen_destino: str = '', usuario: str = 'API',
                                  cuenta_contable: str = '', departamento: str = '',
-                                 nota: str = '') -> dict:
+                                 nota: str = '', no_proveedor: str = '',
+                                 rnc: str = '') -> dict:
     """Crea un documento de inventario con N lineas.
 
     Soporta los 10 tipos del legado:
@@ -2482,7 +2490,7 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
             cur, no_cia=no_cia, punto=punto, tipo_docu=tipo_docu,
             no_docu=no_docu, fecha=fecha, tipo_movi=tipo_movi,
             tipo_transaccion=tipo_transaccion, usuario=usuario, nota=nota,
-            total_linea=total_documento)
+            total_linea=total_documento, no_proveedor=no_proveedor, rnc=rnc)
         cur.connection.commit()
 
     return {
