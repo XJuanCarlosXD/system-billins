@@ -294,7 +294,7 @@ class FatCajeroPendientesView(APIView):
             return forbidden
         fecha = request.query_params.get('fecha') or date.today().isoformat()
         try:
-            items = fat_repo.list_facturas_cajero(no_cia, punto, fecha)
+            items = fat_repo.list_facturas_cajero(no_cia, punto, fecha, usuario=request.user.username)
             return Response({'fecha': fecha, 'items': items})
         except Exception as e:
             return Response({'detail': str(e)}, status=500)

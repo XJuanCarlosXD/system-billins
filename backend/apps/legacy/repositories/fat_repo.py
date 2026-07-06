@@ -2514,10 +2514,18 @@ def list_motivos_anulacion_dgii() -> list[dict]:
              'descripcion': (r['descripcion'] or '').strip()} for r in rows]
 
 
-def list_facturas_cajero(no_cia: str, punto: str, fecha: str) -> list[dict]:
+def list_facturas_cajero(no_cia: str, punto: str, fecha: str, usuario: str = '') -> list[dict]:
     """Facturas del dia que aun no pertenecen a un cuadre de caja cerrado
     -- mismo criterio de 'dia en progreso' que usa el cuadre de caja
-    (ausencia de fila en FAT.TFAT_CUADRE_CAJA para esa fecha)."""
+    (ausencia de fila en FAT.TFAT_CUADRE_CAJA para esa fecha).
+
+    Si hay mas de un cajero trabajando el mismo punto a la vez, cada uno
+    ve solo las facturas que el mismo creo (usuario de sesion)."""
+    params = [no_cia, punto, fecha]
+    filtro_usuario = ""
+    if usuario:
+        params.append(usuario.strip().upper())
+        filtro_usuario = f"AND UPPER(f.usuario) = :{len(params)} "
     rows = client.fetch_dicts(
         "SELECT f.tipo_factura, f.no_factura, f.fecha, "
         "c.nombre AS nombre_cliente, f.total_neto, "
@@ -2531,12 +2539,13 @@ def list_facturas_cajero(no_cia: str, punto: str, fecha: str) -> list[dict]:
         "LEFT JOIN FAT.TFAT_TIPO_PAGO tp "
         "  ON tp.no_cia=f.no_cia AND tp.tipo_pago=f.forma_pago_fat "
         "WHERE f.no_cia=:1 AND f.punto=:2 AND TRUNC(f.fecha)=TO_DATE(:3,'YYYY-MM-DD') "
+        f"{filtro_usuario}"
         "AND NOT EXISTS ("
         "  SELECT 1 FROM FAT.TFAT_CUADRE_CAJA cc "
         "  WHERE cc.no_cia=f.no_cia AND cc.punto=f.punto AND TRUNC(cc.fecha)=TRUNC(f.fecha)"
         ") "
         "ORDER BY f.fecha, f.no_factura",
-        [no_cia, punto, fecha])
+        params)
     return [{
         'tipo_factura': r['tipo_factura'] or '', 'no_factura': r['no_factura'] or '',
         'fecha': str(r['fecha'])[:10] if r['fecha'] else None,

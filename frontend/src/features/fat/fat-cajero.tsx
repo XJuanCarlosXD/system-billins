@@ -8,8 +8,10 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { buildReportMeta, fmtN, printFacturaDetalle } from './fat-export'
+import { fmtN } from './fat-export'
 import { FacturaDetalleDialog, type FacturaDetalleData } from './factura-detalle-dialog'
+
+const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
 
 interface Props { noCia: string; punto: string }
 
@@ -74,30 +76,16 @@ export function CajeroFat({ noCia, punto }: Props) {
     finally { setLoadingDetail(false) }
   }
 
-  const printDetail = async () => {
+  // La Vista de Cajero imprime el ticket POS (80mm, ReportLab), no el
+  // reporte de detalle A4 que usa Consulta de Facturas.
+  const printDetail = () => {
     if (!selected) return
-    const d = new Date(fecha || TODAY)
-    const meta = await buildReportMeta(noCia, punto, `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`)
-    printFacturaDetalle(meta, {
-      tipo_factura: selected.tipo_factura,
-      no_factura: selected.no_factura,
-      fecha: selected.fecha,
-      no_cliente: selected.no_cliente,
-      nombre_cliente: selected.nombre_cliente,
-      vendedor: selected.vendedor,
-      forma_pago: selected.forma_pago,
-      plazo_pago: selected.plazo_pago,
-      codigo_ncf: selected.codigo_ncf,
-      ncf: selected.ncf,
-      nota: selected.nota,
-      total_linea: selected.total_linea,
-      descuento: selected.descuento,
-      impuesto: selected.impuesto,
-      propina: selected.propina,
-      total_neto: selected.total_neto,
-      estado: selected.estado,
-      lineas: selected.lineas,
-    })
+    const qs = new URLSearchParams({ no_cia: noCia, punto })
+    window.open(
+      `${API_BASE}/fat/documentos/${selected.tipo_factura}/${selected.no_factura}/pos-pdf/?${qs.toString()}`,
+      '_blank',
+      'noopener'
+    )
   }
 
   const openCobrar = (e: React.MouseEvent, row: FacturaPendiente) => {
@@ -162,8 +150,8 @@ export function CajeroFat({ noCia, punto }: Props) {
       </div>
 
       <div className='grid gap-3 sm:grid-cols-3'>
-        <div className='rounded-md border bg-emerald-50/50 p-3'>
-          <div className='flex items-center gap-2 text-xs font-medium text-muted-foreground'>
+        <div className='rounded-md border bg-emerald-50/50 p-3 dark:border-emerald-900 dark:bg-emerald-950/20'>
+          <div className='flex items-center gap-2 text-xs font-medium text-emerald-700 dark:text-emerald-300'>
             <Banknote className='h-4 w-4' /> Recibido en Efectivo
           </div>
           <div className='mt-1 font-mono text-xl font-semibold tabular-nums'>
@@ -173,8 +161,8 @@ export function CajeroFat({ noCia, punto }: Props) {
             {cardTotales.Efectivo.cantidad} {cardTotales.Efectivo.cantidad === 1 ? 'factura' : 'facturas'}
           </div>
         </div>
-        <div className='rounded-md border bg-blue-50/50 p-3'>
-          <div className='flex items-center gap-2 text-xs font-medium text-muted-foreground'>
+        <div className='rounded-md border bg-blue-50/50 p-3 dark:border-blue-900 dark:bg-blue-950/20'>
+          <div className='flex items-center gap-2 text-xs font-medium text-blue-700 dark:text-blue-300'>
             <HandCoins className='h-4 w-4' /> Por Cheque
           </div>
           <div className='mt-1 font-mono text-xl font-semibold tabular-nums'>
@@ -263,39 +251,47 @@ export function CajeroFat({ noCia, punto }: Props) {
 
       {/* Registrar/corregir cobro */}
       <Dialog open={!!cobrarTarget} onOpenChange={() => { if (!cobrarLoading) setCobrarTarget(null) }}>
-        <DialogContent className='max-w-md'>
+        <DialogContent className='max-w-lg'>
           <DialogHeader>
-            <DialogTitle>Registrar Cobro</DialogTitle>
+            <DialogTitle className='text-xl'>Registrar Cobro</DialogTitle>
           </DialogHeader>
           {cobrarTarget && (
-            <div className='space-y-4 text-sm'>
-              <p>
-                Factura <strong className='font-mono'>{cobrarTarget.tipo_factura} {cobrarTarget.no_factura}</strong>
-                {' — '}Total: <strong className='font-mono'>{fmtN(cobrarTarget.total_neto)}</strong>
-              </p>
-              <div className='space-y-1'>
-                <Label htmlFor='cobrar-recibido'>Recibido</Label>
+            <div className='space-y-5'>
+              <div className='flex items-center justify-between rounded-md border bg-muted/30 p-3 text-sm'>
+                <span>
+                  Factura <strong className='font-mono'>{cobrarTarget.tipo_factura} {cobrarTarget.no_factura}</strong>
+                </span>
+                <span>
+                  Total a pagar: <strong className='font-mono text-base'>{fmtN(cobrarTarget.total_neto)}</strong>
+                </span>
+              </div>
+
+              <div className='space-y-2'>
+                <Label htmlFor='cobrar-recibido' className='text-base font-semibold'>Recibido</Label>
                 <Input
                   id='cobrar-recibido'
                   type='number' step='0.01' min='0' placeholder='0.00'
                   value={cobrarRecibido}
                   onChange={(e) => setCobrarRecibido(e.target.value)}
                   disabled={cobrarLoading}
-                  className='font-mono'
+                  autoFocus
+                  className='h-16 text-right font-mono text-3xl font-bold tabular-nums'
                 />
               </div>
-              <div className='flex justify-between font-semibold'>
-                <span>Devuelto:</span>
-                <span className='font-mono'>{fmtN(cobrarDevuelto)}</span>
+
+              <div className={`rounded-md border p-4 ${cobrarRecibidoNum > 0 && cobrarRecibidoNum < cobrarTarget.total_neto ? 'border-destructive bg-destructive/10' : 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20'}`}>
+                <div className='text-base font-semibold'>A devolver</div>
+                <div className='text-right font-mono text-3xl font-bold tabular-nums'>{fmtN(cobrarDevuelto)}</div>
               </div>
+
               {cobrarError && (
-                <p className='rounded border border-destructive bg-destructive/10 px-3 py-2 text-destructive text-xs'>{cobrarError}</p>
+                <p className='rounded border border-destructive bg-destructive/10 px-3 py-2 text-sm text-destructive'>{cobrarError}</p>
               )}
             </div>
           )}
           <DialogFooter>
-            <Button variant='outline' onClick={() => setCobrarTarget(null)} disabled={cobrarLoading}>Cancelar</Button>
-            <Button onClick={confirmCobrar} disabled={cobrarLoading}>
+            <Button variant='outline' size='lg' onClick={() => setCobrarTarget(null)} disabled={cobrarLoading}>Cancelar</Button>
+            <Button size='lg' onClick={confirmCobrar} disabled={cobrarLoading}>
               {cobrarLoading ? 'Guardando…' : 'Guardar'}
             </Button>
           </DialogFooter>
