@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     FatNCFListView, FatNCFAlertsView, FatSearchView, FatDocumentTypesView,
     FatFacturasView, FatFacturaDetailView, FatAnularFacturaView,
-    FatMotivosAnulacionView, FatCajeroPendientesView,
+    FatMotivosAnulacionView, FatCajeroPendientesView, FatCobrarFacturaView,
     FatVendedoresView, FatClientesView, FatCondicionesPagoView,
     FatCompaniasView, FatPuntosView, FatTiposPagoView, FatListasPrecioView,
     FatProductosView, FatProductoEmpaquesView, FatTransportistasView, FatNotasView,
@@ -40,6 +40,7 @@ urlpatterns = [
     path('fat/facturas/anular/', FatAnularFacturaView.as_view()),
     path('fat/anulacion-motivos/', FatMotivosAnulacionView.as_view()),
     path('fat/cajero/pendientes/', FatCajeroPendientesView.as_view()),
+    path('fat/facturas/cobrar/', FatCobrarFacturaView.as_view()),
     path('fat/facturas/<str:tipo>/<str:no_factura>/', FatFacturaDetailView.as_view()),
     path('fat/vendedores/', FatVendedoresView.as_view()),
     path('fat/clientes/', FatClientesView.as_view()),

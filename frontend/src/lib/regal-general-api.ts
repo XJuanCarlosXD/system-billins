@@ -1160,6 +1160,11 @@ export const regalGeneralApi = {
     }>(`/fat/cajero/pendientes/?${p.toString()}`)
   },
 
+  fatCobrarFactura: (data: { no_cia: string; punto?: string; tipo_factura: string; no_factura: string; valor_recibido: number }) =>
+    request<{ tipo_factura: string; no_factura: string; total_neto: number; valor_recibido: number; valor_devuelto: number }>('/fat/facturas/cobrar/', {
+      method: 'POST', body: JSON.stringify(data),
+    }),
+
   fatCrearConduce: (data: Record<string, any>) =>
     request<{ no_conduce: string; tipo_conduce: string; clase: string; total_neto: number }>('/fat/conduces/', {
       method: 'POST', body: JSON.stringify(data),

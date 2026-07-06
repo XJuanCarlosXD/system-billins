@@ -1,23 +1,46 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { RefreshCw, Wallet } from 'lucide-react'
+import { Banknote, CreditCard, HandCoins, RefreshCw, Wallet } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { fmtN } from './fat-export'
+import { buildReportMeta, fmtN, printFacturaDetalle } from './fat-export'
 import { FacturaDetalleDialog, type FacturaDetalleData } from './factura-detalle-dialog'
 
 interface Props { noCia: string; punto: string }
 
+type FacturaPendiente = {
+  tipo_factura: string; no_factura: string; fecha: string | null
+  nombre_cliente: string; total_neto: number; forma_pago: string
+  valor_recibido: number; valor_devuelto: number
+  st_anulado: string; ncf_dgi: string
+}
+
 const TODAY = new Date().toISOString().slice(0, 10)
+
+// Categoriza forma_pago (descripcion real, ej. "EFECTIVO", "CHEQUE",
+// "TRANSFERENCIA") en 3 cards resumen.
+function categoriaPago(forma: string): 'Efectivo' | 'Cheque' | 'Otros' {
+  const f = (forma || '').toLowerCase()
+  if (/efectivo|cash/.test(f)) return 'Efectivo'
+  if (/cheque/.test(f)) return 'Cheque'
+  return 'Otros'
+}
 
 export function CajeroFat({ noCia, punto }: Props) {
   const [fecha, setFecha] = useState(TODAY)
   const [selected, setSelected] = useState<FacturaDetalleData | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
+
+  // Registrar/corregir cobro
+  const [cobrarTarget, setCobrarTarget] = useState<FacturaPendiente | null>(null)
+  const [cobrarRecibido, setCobrarRecibido] = useState('')
+  const [cobrarLoading, setCobrarLoading] = useState(false)
+  const [cobrarError, setCobrarError] = useState('')
 
   const q = useQuery({
     queryKey: ['fat-cajero-pendientes', noCia, punto, fecha],
@@ -28,6 +51,20 @@ export function CajeroFat({ noCia, punto }: Props) {
 
   const items = q.data?.items ?? []
 
+  const cardTotales = items.reduce(
+    (acc, f) => {
+      const cat = categoriaPago(f.forma_pago)
+      acc[cat].total += f.total_neto || 0
+      acc[cat].cantidad += 1
+      return acc
+    },
+    {
+      Efectivo: { total: 0, cantidad: 0 },
+      Cheque: { total: 0, cantidad: 0 },
+      Otros: { total: 0, cantidad: 0 },
+    }
+  )
+
   const openDetail = async (tipo: string, noFactura: string) => {
     setLoadingDetail(true)
     try {
@@ -35,6 +72,67 @@ export function CajeroFat({ noCia, punto }: Props) {
       setSelected(d as FacturaDetalleData)
     } catch { /* ignore */ }
     finally { setLoadingDetail(false) }
+  }
+
+  const printDetail = async () => {
+    if (!selected) return
+    const d = new Date(fecha || TODAY)
+    const meta = await buildReportMeta(noCia, punto, `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`)
+    printFacturaDetalle(meta, {
+      tipo_factura: selected.tipo_factura,
+      no_factura: selected.no_factura,
+      fecha: selected.fecha,
+      no_cliente: selected.no_cliente,
+      nombre_cliente: selected.nombre_cliente,
+      vendedor: selected.vendedor,
+      forma_pago: selected.forma_pago,
+      plazo_pago: selected.plazo_pago,
+      codigo_ncf: selected.codigo_ncf,
+      ncf: selected.ncf,
+      nota: selected.nota,
+      total_linea: selected.total_linea,
+      descuento: selected.descuento,
+      impuesto: selected.impuesto,
+      propina: selected.propina,
+      total_neto: selected.total_neto,
+      estado: selected.estado,
+      lineas: selected.lineas,
+    })
+  }
+
+  const openCobrar = (e: React.MouseEvent, row: FacturaPendiente) => {
+    e.stopPropagation()
+    setCobrarTarget(row)
+    setCobrarRecibido(row.valor_recibido > 0 ? String(row.valor_recibido) : '')
+    setCobrarError('')
+  }
+
+  const cobrarRecibidoNum = Number((cobrarRecibido || '0').replace(',', '.')) || 0
+  const cobrarDevuelto = cobrarTarget ? Math.max(0, cobrarRecibidoNum - cobrarTarget.total_neto) : 0
+
+  const confirmCobrar = async () => {
+    if (!cobrarTarget) return
+    if (cobrarRecibidoNum < cobrarTarget.total_neto) {
+      setCobrarError(`Recibido (${fmtN(cobrarRecibidoNum)}) es menor al total (${fmtN(cobrarTarget.total_neto)})`)
+      return
+    }
+    setCobrarLoading(true)
+    setCobrarError('')
+    try {
+      await regalGeneralApi.fatCobrarFactura({
+        no_cia: noCia,
+        punto,
+        tipo_factura: cobrarTarget.tipo_factura,
+        no_factura: cobrarTarget.no_factura,
+        valor_recibido: cobrarRecibidoNum,
+      })
+      setCobrarTarget(null)
+      q.refetch()
+    } catch (err: any) {
+      setCobrarError(err?.message ?? 'Error al registrar el cobro.')
+    } finally {
+      setCobrarLoading(false)
+    }
   }
 
   return (
@@ -63,6 +161,42 @@ export function CajeroFat({ noCia, punto }: Props) {
         {q.error && <span className='pb-2 text-xs text-red-600'>Error al cargar.</span>}
       </div>
 
+      <div className='grid gap-3 sm:grid-cols-3'>
+        <div className='rounded-md border bg-emerald-50/50 p-3'>
+          <div className='flex items-center gap-2 text-xs font-medium text-muted-foreground'>
+            <Banknote className='h-4 w-4' /> Recibido en Efectivo
+          </div>
+          <div className='mt-1 font-mono text-xl font-semibold tabular-nums'>
+            {fmtN(cardTotales.Efectivo.total)}
+          </div>
+          <div className='text-xs text-muted-foreground'>
+            {cardTotales.Efectivo.cantidad} {cardTotales.Efectivo.cantidad === 1 ? 'factura' : 'facturas'}
+          </div>
+        </div>
+        <div className='rounded-md border bg-blue-50/50 p-3'>
+          <div className='flex items-center gap-2 text-xs font-medium text-muted-foreground'>
+            <HandCoins className='h-4 w-4' /> Por Cheque
+          </div>
+          <div className='mt-1 font-mono text-xl font-semibold tabular-nums'>
+            {fmtN(cardTotales.Cheque.total)}
+          </div>
+          <div className='text-xs text-muted-foreground'>
+            {cardTotales.Cheque.cantidad} {cardTotales.Cheque.cantidad === 1 ? 'factura' : 'facturas'}
+          </div>
+        </div>
+        <div className='rounded-md border bg-muted/30 p-3'>
+          <div className='flex items-center gap-2 text-xs font-medium text-muted-foreground'>
+            <CreditCard className='h-4 w-4' /> Otras Formas de Pago
+          </div>
+          <div className='mt-1 font-mono text-xl font-semibold tabular-nums'>
+            {fmtN(cardTotales.Otros.total)}
+          </div>
+          <div className='text-xs text-muted-foreground'>
+            {cardTotales.Otros.cantidad} {cardTotales.Otros.cantidad === 1 ? 'factura' : 'facturas'} (tarjeta, transferencia, etc.)
+          </div>
+        </div>
+      </div>
+
       <Table>
         <TableHeader>
           <TableRow>
@@ -74,14 +208,15 @@ export function CajeroFat({ noCia, punto }: Props) {
             <TableHead className='w-28 text-right'>Recibido</TableHead>
             <TableHead className='w-28 text-right'>Devuelto</TableHead>
             <TableHead className='w-24 text-center'>Estado</TableHead>
+            <TableHead className='w-20'></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {q.isLoading && (
-            <TableRow><TableCell colSpan={8} className='py-10 text-center text-muted-foreground'>Cargando facturas del día…</TableCell></TableRow>
+            <TableRow><TableCell colSpan={9} className='py-10 text-center text-muted-foreground'>Cargando facturas del día…</TableCell></TableRow>
           )}
           {!q.isLoading && items.length === 0 && (
-            <TableRow><TableCell colSpan={8} className='py-10 text-center text-muted-foreground'>No hay facturas pendientes de cuadre para el {fecha}.</TableCell></TableRow>
+            <TableRow><TableCell colSpan={9} className='py-10 text-center text-muted-foreground'>No hay facturas pendientes de cuadre para el {fecha}.</TableCell></TableRow>
           )}
           {items.map((f) => {
             const anulada = f.st_anulado === 'S'
@@ -103,6 +238,16 @@ export function CajeroFat({ noCia, punto }: Props) {
                     ? <Badge variant='destructive'>Anulada</Badge>
                     : <Badge variant='default'>OK</Badge>}
                 </TableCell>
+                <TableCell>
+                  {!anulada && (
+                    <Button
+                      variant='ghost' size='sm' className='h-7 px-2 text-xs'
+                      onClick={(e) => openCobrar(e, f)}
+                    >
+                      Cobrar
+                    </Button>
+                  )}
+                </TableCell>
               </TableRow>
             )
           })}
@@ -113,7 +258,49 @@ export function CajeroFat({ noCia, punto }: Props) {
         factura={selected}
         loading={loadingDetail}
         onClose={() => setSelected(null)}
+        onPrint={printDetail}
       />
+
+      {/* Registrar/corregir cobro */}
+      <Dialog open={!!cobrarTarget} onOpenChange={() => { if (!cobrarLoading) setCobrarTarget(null) }}>
+        <DialogContent className='max-w-md'>
+          <DialogHeader>
+            <DialogTitle>Registrar Cobro</DialogTitle>
+          </DialogHeader>
+          {cobrarTarget && (
+            <div className='space-y-4 text-sm'>
+              <p>
+                Factura <strong className='font-mono'>{cobrarTarget.tipo_factura} {cobrarTarget.no_factura}</strong>
+                {' — '}Total: <strong className='font-mono'>{fmtN(cobrarTarget.total_neto)}</strong>
+              </p>
+              <div className='space-y-1'>
+                <Label htmlFor='cobrar-recibido'>Recibido</Label>
+                <Input
+                  id='cobrar-recibido'
+                  type='number' step='0.01' min='0' placeholder='0.00'
+                  value={cobrarRecibido}
+                  onChange={(e) => setCobrarRecibido(e.target.value)}
+                  disabled={cobrarLoading}
+                  className='font-mono'
+                />
+              </div>
+              <div className='flex justify-between font-semibold'>
+                <span>Devuelto:</span>
+                <span className='font-mono'>{fmtN(cobrarDevuelto)}</span>
+              </div>
+              {cobrarError && (
+                <p className='rounded border border-destructive bg-destructive/10 px-3 py-2 text-destructive text-xs'>{cobrarError}</p>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant='outline' onClick={() => setCobrarTarget(null)} disabled={cobrarLoading}>Cancelar</Button>
+            <Button onClick={confirmCobrar} disabled={cobrarLoading}>
+              {cobrarLoading ? 'Guardando…' : 'Guardar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }

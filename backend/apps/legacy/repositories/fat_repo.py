@@ -1572,13 +1572,16 @@ def list_facturas(no_cia: str, punto: str, page: int = 1, page_size: int = 30,
                     c.nombre AS nombre_cliente, f.fecha, f.vendedor,
                     f.total_linea, f.descuento, f.impuesto, f.total_neto,
                     f.estado, f.ncf, f.posiciones_fijas_ncf, f.codigo_ncf, f.tipo_ncf_fiscal,
-                    f.plazo_pago, f.forma_pago_fat, f.st_anulado, f.st_impresion,
+                    f.plazo_pago, NVL(tp.descripcion, f.forma_pago_fat) AS forma_pago,
+                    f.st_anulado, f.st_impresion,
                     f.tipo_anula_dgii, ta.descripcion AS motivo_anulacion
                 FROM FAT.TFAT_FACTURA f
                 LEFT JOIN CXC.TCXC_CLIENTE c
                   ON c.no_cia = f.no_cia AND c.punto = f.punto AND c.no_cliente = f.no_cliente
                 LEFT JOIN FAT.TFAT_TANULACION_DGII ta
                   ON ta.tipo = f.tipo_anula_dgii
+                LEFT JOIN FAT.TFAT_TIPO_PAGO tp
+                  ON tp.no_cia = f.no_cia AND tp.tipo_pago = f.forma_pago_fat
                 WHERE {where}
                 ORDER BY f.fecha DESC, f.no_factura DESC
             ) a WHERE ROWNUM <= :end_row
@@ -1599,7 +1602,7 @@ def list_facturas(no_cia: str, punto: str, page: int = 1, page_size: int = 30,
             'posiciones_fijas_ncf': (r['posiciones_fijas_ncf'] or '').strip().upper(),
             'ncf_dgi': _compose_ncf_dgi(r['posiciones_fijas_ncf'], r['ncf']),
             'codigo_ncf': r['codigo_ncf'] or '', 'tipo_ncf_fiscal': r['tipo_ncf_fiscal'] or '',
-            'plazo_pago': int(r['plazo_pago'] or 0), 'forma_pago': r['forma_pago_fat'] or '',
+            'plazo_pago': int(r['plazo_pago'] or 0), 'forma_pago': (r['forma_pago'] or '').strip(),
             'st_anulado': r['st_anulado'] or 'N', 'st_impresion': r['st_impresion'] or 'N',
             'tipo_anula_dgii': r['tipo_anula_dgii'] or '',
             'motivo_anulacion': (r['motivo_anulacion'] or '').strip(),
@@ -1615,7 +1618,7 @@ def get_factura(no_cia: str, punto: str, tipo_factura: str, no_factura: str) -> 
         "c.nombre AS nombre_cliente, f.fecha, f.vendedor, "
         "f.total_linea, f.descuento, f.impuesto, f.total_neto, f.propina, "
         "f.estado, f.ncf, f.posiciones_fijas_ncf, f.codigo_ncf, f.tipo_ncf_fiscal, "
-        "f.plazo_pago, f.forma_pago_fat, f.no_condicion_pago, "
+        "f.plazo_pago, NVL(tp.descripcion, f.forma_pago_fat) AS forma_pago, f.no_condicion_pago, "
         "f.tasa_us, f.porc_impuesto, f.nota, f.detalle, "
         "f.st_anulado, f.st_impresion, f.st_generado_cnt, "
         "f.tipo_anula_dgii, ta.descripcion AS motivo_anulacion, "
@@ -1625,6 +1628,8 @@ def get_factura(no_cia: str, punto: str, tipo_factura: str, no_factura: str) -> 
         "  ON c.no_cia = f.no_cia AND c.punto = f.punto AND c.no_cliente = f.no_cliente "
         "LEFT JOIN FAT.TFAT_TANULACION_DGII ta "
         "  ON ta.tipo = f.tipo_anula_dgii "
+        "LEFT JOIN FAT.TFAT_TIPO_PAGO tp "
+        "  ON tp.no_cia = f.no_cia AND tp.tipo_pago = f.forma_pago_fat "
         "WHERE f.no_cia=:1 AND f.punto=:2 AND f.tipo_factura=:3 AND f.no_factura=:4",
         [no_cia, punto, tipo_factura.strip().upper(), no_factura.strip()])
     if not rows:
@@ -1651,7 +1656,7 @@ def get_factura(no_cia: str, punto: str, tipo_factura: str, no_factura: str) -> 
         'ncf_dgi': _compose_ncf_dgi(r['posiciones_fijas_ncf'], r['ncf']),
         'codigo_ncf': r['codigo_ncf'] or '',
         'tipo_ncf_fiscal': r['tipo_ncf_fiscal'] or '', 'plazo_pago': int(r['plazo_pago'] or 0),
-        'forma_pago': r['forma_pago_fat'] or '', 'no_condicion_pago': r['no_condicion_pago'] or '',
+        'forma_pago': (r['forma_pago'] or '').strip(), 'no_condicion_pago': r['no_condicion_pago'] or '',
         'tasa_us': float(r['tasa_us'] or 0), 'porc_impuesto': float(r['porc_impuesto'] or 0),
         'nota': r['nota'] or '', 'detalle': r['detalle'] or '',
         'st_anulado': r['st_anulado'] or 'N', 'st_impresion': r['st_impresion'] or 'N',
@@ -2515,13 +2520,16 @@ def list_facturas_cajero(no_cia: str, punto: str, fecha: str) -> list[dict]:
     (ausencia de fila en FAT.TFAT_CUADRE_CAJA para esa fecha)."""
     rows = client.fetch_dicts(
         "SELECT f.tipo_factura, f.no_factura, f.fecha, "
-        "c.nombre AS nombre_cliente, f.total_neto, f.forma_pago_fat, "
+        "c.nombre AS nombre_cliente, f.total_neto, "
+        "NVL(tp.descripcion, f.forma_pago_fat) AS forma_pago, "
         "NVL(f.valor_recibido,0) AS valor_recibido, "
         "NVL(f.valor_devuelto,0) AS valor_devuelto, "
         "f.st_anulado, f.posiciones_fijas_ncf, f.ncf "
         "FROM FAT.TFAT_FACTURA f "
         "LEFT JOIN CXC.TCXC_CLIENTE c "
         "  ON c.no_cia=f.no_cia AND c.punto=f.punto AND c.no_cliente=f.no_cliente "
+        "LEFT JOIN FAT.TFAT_TIPO_PAGO tp "
+        "  ON tp.no_cia=f.no_cia AND tp.tipo_pago=f.forma_pago_fat "
         "WHERE f.no_cia=:1 AND f.punto=:2 AND TRUNC(f.fecha)=TO_DATE(:3,'YYYY-MM-DD') "
         "AND NOT EXISTS ("
         "  SELECT 1 FROM FAT.TFAT_CUADRE_CAJA cc "
@@ -2534,12 +2542,39 @@ def list_facturas_cajero(no_cia: str, punto: str, fecha: str) -> list[dict]:
         'fecha': str(r['fecha'])[:10] if r['fecha'] else None,
         'nombre_cliente': (r['nombre_cliente'] or '').strip(),
         'total_neto': float(r['total_neto'] or 0),
-        'forma_pago': r['forma_pago_fat'] or '',
+        'forma_pago': (r['forma_pago'] or '').strip(),
         'valor_recibido': float(r['valor_recibido'] or 0),
         'valor_devuelto': float(r['valor_devuelto'] or 0),
         'st_anulado': r['st_anulado'] or 'N',
         'ncf_dgi': _compose_ncf_dgi(r['posiciones_fijas_ncf'], r['ncf']),
     } for r in rows]
+
+
+def registrar_cobro_efectivo(no_cia: str, punto: str, tipo_factura: str,
+                              no_factura: str, valor_recibido: float) -> dict:
+    """Registra (o corrige) cuanto recibio el cajero en efectivo por una
+    factura pendiente, calculando el vuelto. Usado desde la Vista de
+    Cajero para facturas que no capturaron esto al crearse."""
+    tf = tipo_factura.strip().upper()
+    nf = no_factura.strip()
+    row = client.fetch_one(
+        "SELECT total_neto, NVL(st_anulado,'N') FROM FAT.TFAT_FACTURA "
+        "WHERE no_cia=:1 AND punto=:2 AND tipo_factura=:3 AND no_factura=:4",
+        [no_cia, punto, tf, nf])
+    if not row:
+        raise ValueError("Factura {}/{} no encontrada".format(tf, nf))
+    total_neto = float(row[0] or 0)
+    if row[1] == 'S':
+        raise ValueError("Factura {}/{} esta anulada".format(tf, nf))
+    valor_devuelto = round(max(0.0, valor_recibido - total_neto), 2)
+    with client.cursor() as cur:
+        cur.execute(
+            "UPDATE FAT.TFAT_FACTURA SET valor_recibido=:1, valor_devuelto=:2 "
+            "WHERE no_cia=:3 AND punto=:4 AND tipo_factura=:5 AND no_factura=:6",
+            [valor_recibido, valor_devuelto, no_cia, punto, tf, nf])
+        cur.connection.commit()
+    return {"tipo_factura": tf, "no_factura": nf, "total_neto": total_neto,
+            "valor_recibido": valor_recibido, "valor_devuelto": valor_devuelto}
 
 
 # -- Crear Conduce / Cotizacion -----------------------------------------------

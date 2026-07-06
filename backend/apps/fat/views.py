@@ -300,6 +300,34 @@ class FatCajeroPendientesView(APIView):
             return Response({'detail': str(e)}, status=500)
 
 
+class FatCobrarFacturaView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        no_cia = request.data.get('no_cia')
+        punto = request.data.get('punto', '01')
+        tipo_factura = request.data.get('tipo_factura')
+        no_factura = request.data.get('no_factura')
+        valor_recibido_raw = request.data.get('valor_recibido')
+        if not all([no_cia, tipo_factura, no_factura]) or valor_recibido_raw in (None, ''):
+            return Response(
+                {'detail': 'no_cia, tipo_factura, no_factura y valor_recibido son requeridos'},
+                status=400)
+        forbidden = _check_fat_access(request.user.username, str(no_cia).strip(), str(punto).strip())
+        if forbidden:
+            return forbidden
+        try:
+            res = fat_repo.registrar_cobro_efectivo(
+                str(no_cia).strip(), str(punto).strip(),
+                str(tipo_factura).strip(), str(no_factura).strip(),
+                float(valor_recibido_raw))
+            return Response(res)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=404)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=500)
+
+
 # -- Vendedores ---------------------------------------------------------------
 
 class FatVendedoresView(APIView):
