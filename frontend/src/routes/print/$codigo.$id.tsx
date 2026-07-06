@@ -6,13 +6,21 @@ type Search = {
   incluir_detalle?: string; templateDraft?: string;
 }
 
+// El parser de search de TanStack Router hace JSON.parse de cada valor
+// (para soportar numeros/booleanos), asi que "?incluir_detalle=1" llega
+// aqui como el NUMERO 1, no el string "1". Antes este validateSearch solo
+// aceptaba typeof === 'string' y lo botaba a undefined -- por eso nunca
+// llegaba al backend aunque el switch de la pantalla lo mandara bien.
+const toStr = (v: unknown): string | undefined =>
+  v === undefined || v === null || v === '' ? undefined : String(v)
+
 export const Route = createFileRoute('/print/$codigo/$id')({
   validateSearch: (s: Record<string, unknown>): Search => ({
-    no_cia: typeof s.no_cia === 'string' ? s.no_cia : undefined,
-    punto: typeof s.punto === 'string' ? s.punto : undefined,
-    tipo_doc: typeof s.tipo_doc === 'string' ? s.tipo_doc : undefined,
-    incluir_detalle: typeof s.incluir_detalle === 'string' ? s.incluir_detalle : undefined,
-    templateDraft: typeof s.templateDraft === 'string' ? s.templateDraft : undefined,
+    no_cia: toStr(s.no_cia),
+    punto: toStr(s.punto),
+    tipo_doc: toStr(s.tipo_doc),
+    incluir_detalle: toStr(s.incluir_detalle),
+    templateDraft: toStr(s.templateDraft),
   }),
   component: _Page,
 })
