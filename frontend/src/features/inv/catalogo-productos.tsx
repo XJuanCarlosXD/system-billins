@@ -330,8 +330,19 @@ export function CatalogoProductos() {
     setEditingProdu(p.no_produ)
     setSelected(null)
     setEmpaques([])
+    setAlmacenesSel(new Set())
     setFormOpen(true)
     loadEmpaques(p.no_produ)
+    // Precarga los almacenes donde el producto YA está asignado, para que
+    // el checkbox "Asignar a Empresa(s)/Almacén(es)" refleje el estado real
+    // y permita agregar/actualizar la asignación sin duplicar.
+    apiFetch<any>(`/inv/productos/${encodeURIComponent(p.no_produ)}/asignaciones/`)
+      .then((data) => {
+        const rows = data?.results ?? []
+        const keys = rows.map((r: any) => `${r.no_cia}|${r.punto}|${r.almacen}`)
+        setAlmacenesSel(new Set(keys))
+      })
+      .catch(() => {})
     // Fetch detalle completo (la lista paginada no trae grupo_contable, costo_mercado_rd, etc.)
     try {
       const detail = await apiFetch<any>(`/inv/productos/${encodeURIComponent(p.no_produ)}/?no_cia=${selectedCompany}`)
@@ -406,14 +417,14 @@ export function CatalogoProductos() {
       const url = isEdit
         ? `${API_BASE}/inv/productos/${encodeURIComponent(editingProdu!)}/`
         : `${API_BASE}/inv/productos/`
-      if (!isEdit) {
-        body.no_produ = form.no_produ.trim().toUpperCase()
-        if (almacenesSel.size > 0) {
-          body.asignaciones = Array.from(almacenesSel).map((key) => {
-            const [no_cia, punto, almacen] = key.split('|')
-            return { no_cia, punto, almacen }
-          })
-        }
+      if (!isEdit) body.no_produ = form.no_produ.trim().toUpperCase()
+      // Asignar/actualizar empresa(s)/almacén(es): aplica tanto al crear
+      // como al editar (idempotente — no duplica lo ya asignado).
+      if (almacenesSel.size > 0) {
+        body.asignaciones = Array.from(almacenesSel).map((key) => {
+          const [no_cia, punto, almacen] = key.split('|')
+          return { no_cia, punto, almacen }
+        })
       }
 
       const res = await fetch(url, {
@@ -458,11 +469,10 @@ export function CatalogoProductos() {
       }
 
       const asignados: unknown[] = data?.data?.almacenes_asignados ?? []
+      const sufijoAsignacion = asignados.length > 0 ? ` (${asignados.length} almacén(es) asignado(s))` : ''
       toast.success(isEdit
-        ? `Producto ${editingProdu} actualizado`
-        : asignados.length > 0
-          ? `Producto ${savedNoProdu} creado y asignado a ${asignados.length} almacén(es)`
-          : `Producto ${savedNoProdu} creado`)
+        ? `Producto ${editingProdu} actualizado${sufijoAsignacion}`
+        : `Producto ${savedNoProdu} creado${sufijoAsignacion}`)
       setFormOpen(false)
       setEditingProdu(null)
       setForm(emptyForm)
@@ -997,71 +1007,69 @@ export function CatalogoProductos() {
               </>
             )}
 
-            {/* Asignar a Almacén(es): crea TINV_EPRODUCTO al mismo tiempo que
-                el producto para que quede disponible de inmediato en Entrada
-                de Almacén (sin esto, el producto queda "creado pero no
-                asignado" y el primer movimiento revienta con parent key
-                not found contra TINV_EPRODUCTO). Solo aplica al crear. */}
-            {!editingProdu && (
-              <div className='col-span-2 border-t pt-3 mt-1 space-y-2'>
-                <div>
-                  <Label className='text-sm font-medium'>Asignar a Empresa(s) / Almacén(es)</Label>
-                  <p className='text-xs text-muted-foreground mt-0.5'>
-                    El producto quedará disponible de inmediato en los almacenes marcados, de
-                    cualquier empresa. Si no marcas ninguno, deberás asignarlo luego en
-                    "Asignar Prod. a Cía./Almacén".
-                  </p>
-                </div>
-                {companiasAlmacenes.length === 0 ? (
-                  <p className='text-xs text-muted-foreground rounded border border-dashed py-3 px-3 text-center'>
-                    Cargando empresas y almacenes…
-                  </p>
-                ) : (
-                  <div className='space-y-3 rounded border p-3 max-h-64 overflow-y-auto'>
-                    {companiasAlmacenes.map((cia) => {
-                      const keysCia = cia.almacenes.map((a) => `${cia.no_cia}|${cia.punto}|${a.almacen}`)
-                      const todosMarcados = keysCia.length > 0 && keysCia.every((k) => almacenesSel.has(k))
-                      return (
-                        <div key={cia.no_cia}>
-                          <div className='flex items-center justify-between mb-1'>
-                            <span className='text-xs font-semibold text-foreground'>
-                              {cia.no_cia} — {cia.descripcion}
-                            </span>
-                            <button
-                              type='button'
-                              className='text-xs text-primary hover:underline'
-                              onClick={() => setAlmacenesSel((prev) => {
-                                const next = new Set(prev)
-                                if (todosMarcados) keysCia.forEach((k) => next.delete(k))
-                                else keysCia.forEach((k) => next.add(k))
-                                return next
-                              })}
-                            >
-                              {todosMarcados ? 'Ninguno' : 'Todos'}
-                            </button>
-                          </div>
-                          <div className='flex flex-wrap gap-x-5 gap-y-1.5 pl-1'>
-                            {cia.almacenes.map((a) => {
-                              const key = `${cia.no_cia}|${cia.punto}|${a.almacen}`
-                              return (
-                                <label key={key} className='flex items-center gap-2 cursor-pointer text-sm'>
-                                  <Checkbox
-                                    checked={almacenesSel.has(key)}
-                                    onCheckedChange={() => toggleAlmacenSel(key)}
-                                  />
-                                  <span className='font-mono text-xs'>{a.almacen}</span>
-                                  <span className='text-muted-foreground'>{a.descripcion}</span>
-                                </label>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
+            {/* Asignar a Empresa(s)/Almacén(es): crea TINV_EPRODUCTO al crear
+                o editar el producto, para que quede disponible de inmediato
+                en Entrada de Almacén (sin esto, el producto queda "creado
+                pero no asignado" y el primer movimiento revienta con parent
+                key not found contra TINV_EPRODUCTO). Al editar, precarga los
+                almacenes donde ya está asignado (ver openEdit). */}
+            <div className='col-span-2 border-t pt-3 mt-1 space-y-2'>
+              <div>
+                <Label className='text-sm font-medium'>Asignar a Empresa(s) / Almacén(es)</Label>
+                <p className='text-xs text-muted-foreground mt-0.5'>
+                  El producto quedará disponible de inmediato en los almacenes marcados, de
+                  cualquier empresa.
+                </p>
               </div>
-            )}
+              {companiasAlmacenes.length === 0 ? (
+                <p className='text-xs text-muted-foreground rounded border border-dashed py-3 px-3 text-center'>
+                  Cargando empresas y almacenes…
+                </p>
+              ) : (
+                <div className='space-y-3 rounded border p-3 max-h-64 overflow-y-auto'>
+                  {companiasAlmacenes.map((cia) => {
+                    const keysCia = cia.almacenes.map((a) => `${cia.no_cia}|${cia.punto}|${a.almacen}`)
+                    const todosMarcados = keysCia.length > 0 && keysCia.every((k) => almacenesSel.has(k))
+                    return (
+                      <div key={cia.no_cia}>
+                        <div className='flex items-center justify-between mb-1'>
+                          <span className='text-xs font-semibold text-foreground'>
+                            {cia.no_cia} — {cia.descripcion}
+                          </span>
+                          <button
+                            type='button'
+                            className='text-xs text-primary hover:underline'
+                            onClick={() => setAlmacenesSel((prev) => {
+                              const next = new Set(prev)
+                              if (todosMarcados) keysCia.forEach((k) => next.delete(k))
+                              else keysCia.forEach((k) => next.add(k))
+                              return next
+                            })}
+                          >
+                            {todosMarcados ? 'Ninguno' : 'Todos'}
+                          </button>
+                        </div>
+                        <div className='flex flex-wrap gap-x-5 gap-y-1.5 pl-1'>
+                          {cia.almacenes.map((a) => {
+                            const key = `${cia.no_cia}|${cia.punto}|${a.almacen}`
+                            return (
+                              <label key={key} className='flex items-center gap-2 cursor-pointer text-sm'>
+                                <Checkbox
+                                  checked={almacenesSel.has(key)}
+                                  onCheckedChange={() => toggleAlmacenSel(key)}
+                                />
+                                <span className='font-mono text-xs'>{a.almacen}</span>
+                                <span className='text-muted-foreground'>{a.descripcion}</span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
 
             {/* Empaques: tabla editable (TINV_EMPAQUE) */}
             <div className='col-span-2 border-t pt-3 mt-1'>

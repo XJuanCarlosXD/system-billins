@@ -112,6 +112,17 @@ def inv_asignar_producto_almacen(request):
 
 @login_required
 @require_http_methods(["GET"])
+def inv_producto_asignaciones(request, no_produ: str):
+    """GET /api/inv/productos/<no_produ>/asignaciones/ — empresas/almacenes
+    donde el producto ya tiene fila en TINV_EPRODUCTO."""
+    try:
+        return JsonResponse({"results": _jsonify(inv_repo.list_asignaciones_producto(no_produ))})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
 def inv_producto_next_codigo(request):
     """GET /api/inv/productos/next-codigo/ — preview del siguiente no_produ."""
     try:

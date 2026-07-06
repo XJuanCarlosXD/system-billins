@@ -149,6 +149,19 @@ def asignar_producto_almacen(*, no_cia: str, punto: str, almacen: str,
     }
 
 
+def list_asignaciones_producto(no_produ: str) -> list[dict]:
+    """Empresas/almacenes donde un producto ya tiene fila en TINV_EPRODUCTO.
+    Alimenta el precheck de los checkboxes al editar un producto."""
+    no_produ = (no_produ or '').strip().upper()
+    if not no_produ:
+        return []
+    return client.fetch_dicts(
+        "SELECT no_cia, punto, almacen FROM INV.TINV_EPRODUCTO "
+        "WHERE no_produ = :1 ORDER BY no_cia, almacen",
+        [no_produ],
+    )
+
+
 def list_productos_para_almacen(*, no_cia: str, punto: str, almacen: str,
                                  search: str = '') -> list[dict]:
     """Productos activos con flag 'asignado' = ya tiene fila en
@@ -574,18 +587,42 @@ def update_producto(no_produ: str, payload: dict, usuario: str = '') -> dict:
                 raise ValueError(f"Valor inválido para {k}")
             sets.append(f"{col} = :{col}")
 
-    if not sets:
+    # Asignación a almacenes de una o varias empresas (checkboxes del
+    # formulario "Editar Producto"): mismo mecanismo que create_producto,
+    # permite asignar/actualizar la asignación sin pasar por la pantalla
+    # separada "Asignar Prod. a Cia./Almacén".
+    asignaciones = payload.get('asignaciones') or []
+    asignados: list[dict] = []
+
+    if not sets and not asignaciones:
         return {'no_produ': no_produ, 'updated': 0}
 
-    sets.append("usuario = :usuario")
-    binds['usuario'] = (usuario or 'API')[:30]
+    if sets:
+        sets.append("usuario = :usuario")
+        binds['usuario'] = (usuario or 'API')[:30]
+        sql = f"UPDATE INV.TINV_PRODUCTO SET {', '.join(sets)} WHERE no_produ = :no_produ"
 
-    sql = f"UPDATE INV.TINV_PRODUCTO SET {', '.join(sets)} WHERE no_produ = :no_produ"
     with client.cursor() as cur:
-        cur.execute(sql, binds)
+        if sets:
+            cur.execute(sql, binds)
+        if asignaciones:
+            row = cur.execute(
+                "SELECT NVL(costo_mercado_rd, NVL(costo_mercado, 0)) "
+                "FROM INV.TINV_PRODUCTO WHERE no_produ=:1", [no_produ]).fetchone()
+            costo_actual = float(row[0]) if row else 0.0
+            for a in asignaciones:
+                a_no_cia = str((a or {}).get('no_cia') or '').strip()
+                a_punto = str((a or {}).get('punto') or '').strip()
+                a_almacen = str((a or {}).get('almacen') or '').strip()
+                if not (a_no_cia and a_punto and a_almacen):
+                    continue
+                _insert_eproducto(
+                    cur, no_cia=a_no_cia, punto=a_punto, almacen=a_almacen,
+                    no_produ=no_produ, costo=costo_actual)
+                asignados.append({'no_cia': a_no_cia, 'punto': a_punto, 'almacen': a_almacen})
         cur.connection.commit()
 
-    return {'no_produ': no_produ, 'updated': 1}
+    return {'no_produ': no_produ, 'updated': 1 if sets else 0, 'almacenes_asignados': asignados}
 
 
 def list_empaques_producto(no_produ: str) -> list[dict]:
