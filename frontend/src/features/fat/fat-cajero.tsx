@@ -16,7 +16,7 @@ const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.9
 interface Props { noCia: string; punto: string }
 
 type FacturaPendiente = {
-  tipo_factura: string; no_factura: string; fecha: string | null
+  tipo_factura: string; no_factura: string; fecha: string | null; fecha_hora: string
   nombre_cliente: string; total_neto: number; forma_pago: string
   valor_recibido: number; valor_devuelto: number
   st_anulado: string; ncf_dgi: string
@@ -189,6 +189,7 @@ export function CajeroFat({ noCia, punto }: Props) {
         <TableHeader>
           <TableRow>
             <TableHead className='w-28'>No.</TableHead>
+            <TableHead className='w-36'>Fecha/Hora</TableHead>
             <TableHead>Cliente</TableHead>
             <TableHead className='w-32'>NCF</TableHead>
             <TableHead className='w-24'>Forma Pago</TableHead>
@@ -201,13 +202,14 @@ export function CajeroFat({ noCia, punto }: Props) {
         </TableHeader>
         <TableBody>
           {q.isLoading && (
-            <TableRow><TableCell colSpan={9} className='py-10 text-center text-muted-foreground'>Cargando facturas del día…</TableCell></TableRow>
+            <TableRow><TableCell colSpan={10} className='py-10 text-center text-muted-foreground'>Cargando facturas del día…</TableCell></TableRow>
           )}
           {!q.isLoading && items.length === 0 && (
-            <TableRow><TableCell colSpan={9} className='py-10 text-center text-muted-foreground'>No hay facturas pendientes de cuadre para el {fecha}.</TableCell></TableRow>
+            <TableRow><TableCell colSpan={10} className='py-10 text-center text-muted-foreground'>No hay facturas pendientes de cuadre para el {fecha}.</TableCell></TableRow>
           )}
           {items.map((f) => {
             const anulada = f.st_anulado === 'S'
+            const [fechaPart, horaPart] = (f.fecha_hora || '').split(' ')
             return (
               <TableRow
                 key={`${f.tipo_factura}-${f.no_factura}`}
@@ -215,6 +217,9 @@ export function CajeroFat({ noCia, punto }: Props) {
                 onClick={() => openDetail(f.tipo_factura, f.no_factura)}
               >
                 <TableCell className='font-mono'>{f.tipo_factura}-{f.no_factura}</TableCell>
+                <TableCell className='font-mono text-xs'>
+                  {fechaPart || '—'}{horaPart && <span className='ml-1 text-muted-foreground'>{horaPart}</span>}
+                </TableCell>
                 <TableCell className='max-w-[220px] truncate'>{f.nombre_cliente}</TableCell>
                 <TableCell className='font-mono text-xs'>{f.ncf_dgi || '—'}</TableCell>
                 <TableCell className='text-sm'>{f.forma_pago}</TableCell>

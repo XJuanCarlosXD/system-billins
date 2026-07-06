@@ -2525,6 +2525,7 @@ def list_facturas_cajero(no_cia: str, punto: str, fecha: str) -> list[dict]:
     ese punto, sin importar cual facturador las hizo."""
     rows = client.fetch_dicts(
         "SELECT f.tipo_factura, f.no_factura, f.fecha, "
+        "TO_CHAR(NVL(f.fecha_sysdate, f.fecha), 'YYYY-MM-DD HH24:MI:SS') AS fecha_hora, "
         "c.nombre AS nombre_cliente, f.total_neto, "
         "NVL(tp.descripcion, f.forma_pago_fat) AS forma_pago, "
         "NVL(f.valor_recibido,0) AS valor_recibido, "
@@ -2540,11 +2541,12 @@ def list_facturas_cajero(no_cia: str, punto: str, fecha: str) -> list[dict]:
         "  SELECT 1 FROM FAT.TFAT_CUADRE_CAJA cc "
         "  WHERE cc.no_cia=f.no_cia AND cc.punto=f.punto AND TRUNC(cc.fecha)=TRUNC(f.fecha)"
         ") "
-        "ORDER BY f.fecha, f.no_factura",
+        "ORDER BY NVL(f.fecha_sysdate, f.fecha) DESC, f.no_factura DESC",
         [no_cia, punto, fecha])
     return [{
         'tipo_factura': r['tipo_factura'] or '', 'no_factura': r['no_factura'] or '',
         'fecha': str(r['fecha'])[:10] if r['fecha'] else None,
+        'fecha_hora': r['fecha_hora'] or '',
         'nombre_cliente': (r['nombre_cliente'] or '').strip(),
         'total_neto': float(r['total_neto'] or 0),
         'forma_pago': (r['forma_pago'] or '').strip(),

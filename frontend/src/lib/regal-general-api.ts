@@ -1152,7 +1152,7 @@ export const regalGeneralApi = {
     return request<{
       fecha: string
       items: Array<{
-        tipo_factura: string; no_factura: string; fecha: string | null
+        tipo_factura: string; no_factura: string; fecha: string | null; fecha_hora: string
         nombre_cliente: string; total_neto: number; forma_pago: string
         valor_recibido: number; valor_devuelto: number
         st_anulado: string; ncf_dgi: string
