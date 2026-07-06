@@ -1238,15 +1238,37 @@ EOF
 
 **Files:**
 - Modify: `frontend/src/routes/print/$codigo.$id.tsx`
+- Deploy only (no edits — already correct in git, never uploaded to the VM): `frontend/src/features/pdf/PrintPage.tsx`, `frontend/src/features/pdf/use-print-doc.ts`
 
-The screen already sends `show_ncf_detail`, `formas_pago_pdf`,
-`cobros_cred_transfer` as URL query params when opening
-`/print/cuadre-caja/:fecha` (Task 0's `abrirPdf`), and `usePrintDoc` already
-forwards anything present in its `extra` argument to the print-data fetch
-(confirmed identical in git and would need no change) — but the route itself
-only reads `tipo_doc` and `incluir_detalle` out of the query string. This
-task closes that gap generically (works for `cuadre-caja` today; any future
-document can reuse the same params without touching this file again).
+**Confirmed live on 2026-07-06 by the user:** even with "Incluir detalle de
+facturas en el PDF" switched ON, the printed PDF shows no detail at all.
+Root cause is worse than just the route dropping 3 params — it's two
+levels deep:
+
+1. `frontend/src/routes/print/$codigo.$id.tsx` only reads `tipo_doc` and
+   `incluir_detalle` out of the query string (drops `show_ncf_detail`,
+   `formas_pago_pdf`, `cobros_cred_transfer`).
+2. Worse: the VM's currently-deployed `PrintPage.tsx` and `use-print-doc.ts`
+   predate the `extra` prop entirely (confirmed by diff against git HEAD —
+   git already fixed this in commit `ebd0963`, "enhance PDF printing
+   functionality", but it was never `pscp`'d to the VM). The VM's route file
+   builds an `extra` object and passes `extra={extra}` to `<PrintPage>`, but
+   VM's `PrintPage` doesn't declare an `extra` prop — React silently drops
+   it — and VM's `usePrintDoc(codigo, id, no_cia, punto)` has no `extra`
+   parameter at all, so its query string to `print-data` only ever contains
+   `no_cia`/`punto`. **`incluir_detalle` itself never reaches the backend on
+   the VM today, regardless of the switch.** This is exactly the bug the
+   user is seeing.
+
+Git's versions of `PrintPage.tsx` and `use-print-doc.ts` already do this
+correctly (generic `extra` passthrough, plus a `normalizeTemplate` safety
+net that forces the `cuadre-caja` default template whenever a saved custom
+template doesn't contain a `BloqueCuadreCaja` block). They need **zero code
+changes** — just deploying to the VM, which nothing in this plan happened
+to do until now. Combined with fixing the route (which does need editing —
+git's route file is equally behind on the 3 newer params, since the
+revert-and-rebuild history in Task 0 never touched this route), this closes
+the gap generically for any future document.
 
 - [ ] **Step 1: Replace the file**
 
@@ -1296,22 +1318,36 @@ function _Page() {
 }
 ```
 
-- [ ] **Step 2: Upload and smoke-test**
+- [ ] **Step 2: Upload the route file AND the 2 already-fixed files that were never deployed**
 
 ```bash
 cd "C:/Users/JCABREU/AppData/Local/memorias_sigaft/facturation-system"
 pscp -batch -hostkey "SHA256:ds2PzCSg6+BrqLex5a74SVS681czz+P3+l6lKPuuztc" -pw "Temp1234!" \
   "frontend/src/routes/print/\$codigo.\$id.tsx" \
   jcabreu@10.0.0.99:facturation-system/frontend/src/routes/print/
+pscp -batch -hostkey "SHA256:ds2PzCSg6+BrqLex5a74SVS681czz+P3+l6lKPuuztc" -pw "Temp1234!" \
+  frontend/src/features/pdf/PrintPage.tsx frontend/src/features/pdf/use-print-doc.ts \
+  jcabreu@10.0.0.99:facturation-system/frontend/src/features/pdf/
 ```
+
+This last upload is the critical one: it's what actually makes
+`incluir_detalle` (and the 3 new params) reach the backend at all. Without
+it, Task 1's route edit alone changes nothing observable.
+
+- [ ] **Step 3: Smoke-test**
 
 ```bash
 plink -batch -hostkey "SHA256:ds2PzCSg6+BrqLex5a74SVS681czz+P3+l6lKPuuztc" -pw "Temp1234!" jcabreu@10.0.0.99 \
   "curl -s -o /dev/null -w 'print=%{http_code}\n' 'http://localhost:5173/print/cuadre-caja/2026-07-06?no_cia=01&punto=01&incluir_detalle=1&show_ncf_detail=1'"
 ```
-Expect `print=200`.
+Expect `print=200`. Then manually: in the browser, open Cuadre de Caja for
+a date with facturas, switch "Incluir detalle de facturas en el PDF" ON,
+click "Imprimir PDF", and confirm the "Detalle de Facturas · agrupado por
+Forma de Pago" section now actually appears (this is the exact defect the
+user reported live — verify it's actually fixed, don't just trust the
+200).
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add "frontend/src/routes/print/\$codigo.\$id.tsx"
@@ -1319,10 +1355,16 @@ git commit -m "fix(pdf): reenviar show_ncf_detail, formas_pago_pdf y cobros_cred
 
 La pantalla de cuadre de caja ya mandaba estos 3 params por query string,
 pero la ruta /print/:codigo/:id solo reenviaba tipo_doc e incluir_detalle
--- los otros 3 se perdian silenciosamente y el PDF nunca reflejaba el
-switch 'Ver detalle de NCF', los checkboxes por forma de pago, ni el
-monto manual de cobros por transferencia."
+-- los otros 3 se perdian silenciosamente. Ademas, PrintPage.tsx y
+use-print-doc.ts en la VM eran versiones viejas (pre-ebd0963) que ni
+siquiera soportaban el prop extra -- por eso ni incluir_detalle llegaba
+al backend con el switch prendido. Esos 2 archivos ya estaban arreglados
+en git; solo faltaba desplegarlos."
 ```
+
+Note: `PrintPage.tsx`/`use-print-doc.ts` have no local changes (git already
+has the fix), so there's nothing new to `git add` for them — the commit
+only needs the route file.
 
 ---
 
