@@ -297,17 +297,20 @@ def create_producto(payload: dict, usuario: str = '') -> dict:
         # Asignación a almacenes en la misma transacción (checkboxes del
         # formulario "Nuevo Producto"): evita el paso manual de Finv113 y el
         # ORA-02291 al registrar el primer movimiento de ese producto.
-        no_cia = (payload.get('no_cia') or '').strip()
-        punto = (payload.get('punto') or '').strip()
-        almacenes_sel = [str(a or '').strip() for a in (payload.get('almacenes') or [])]
-        almacenes_sel = [a for a in almacenes_sel if a]
-        asignados_almacenes: list[str] = []
-        if almacenes_sel and no_cia and punto:
-            for alm in almacenes_sel:
-                _insert_eproducto(
-                    cur, no_cia=no_cia, punto=punto, almacen=alm,
-                    no_produ=no_produ, costo=costo)
-                asignados_almacenes.append(alm)
+        # `asignaciones` permite marcar almacenes de VARIAS empresas a la vez
+        # (el negocio opera 5 cías, cada una con sus propios almacenes).
+        asignaciones = payload.get('asignaciones') or []
+        asignados: list[dict] = []
+        for a in asignaciones:
+            a_no_cia = str((a or {}).get('no_cia') or '').strip()
+            a_punto = str((a or {}).get('punto') or '').strip()
+            a_almacen = str((a or {}).get('almacen') or '').strip()
+            if not (a_no_cia and a_punto and a_almacen):
+                continue
+            _insert_eproducto(
+                cur, no_cia=a_no_cia, punto=a_punto, almacen=a_almacen,
+                no_produ=no_produ, costo=costo)
+            asignados.append({'no_cia': a_no_cia, 'punto': a_punto, 'almacen': a_almacen})
 
         cur.connection.commit()
     return {
@@ -316,7 +319,7 @@ def create_producto(payload: dict, usuario: str = '') -> dict:
         'grupo_contable': grupo_contable, 'activo': activo,
         'servicio': servicio, 'tiene_impuesto': tiene_imp,
         'porciento_impuesto': porc_imp, 'costo': costo,
-        'almacenes_asignados': asignados_almacenes,
+        'almacenes_asignados': asignados,
     }
 
 

@@ -67,6 +67,16 @@ export function CatalogoProductos() {
   const [grupos, setGrupos] = useState<any[]>([])
   const [lineas, setLineas] = useState<any[]>([])
   const [almacenes, setAlmacenes] = useState<MovimientosProductoModalAlmacen[]>([])
+  // Empresas + almacenes de CADA empresa, para el picker "Asignar a Almacén(es)"
+  // al crear producto. El negocio opera varias cías (01..05), cada una con sus
+  // propios almacenes — no basta con los almacenes de la empresa activa.
+  interface CiaAlmacenes {
+    no_cia: string
+    punto: string
+    descripcion: string
+    almacenes: MovimientosProductoModalAlmacen[]
+  }
+  const [companiasAlmacenes, setCompaniasAlmacenes] = useState<CiaAlmacenes[]>([])
   const [unidades, setUnidades] = useState<{ unidad: string; descripcion?: string; descri?: string }[]>([])
   const [refsEmpaque, setRefsEmpaque] = useState<{ referencia: string; descripcion?: string; descri?: string }[]>([])
 
@@ -105,8 +115,16 @@ export function CatalogoProductos() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [detallesOpen, setDetallesOpen] = useState(false)
-  // Almacenes a asignar al crear el producto (checkboxes) — solo aplica a creación.
-  const [almacenesSel, setAlmacenesSel] = useState<string[]>([])
+  // Almacenes (de cualquier empresa) a asignar al crear el producto — solo
+  // aplica a creación. Clave = `${no_cia}|${punto}|${almacen}`.
+  const [almacenesSel, setAlmacenesSel] = useState<Set<string>>(new Set())
+  const toggleAlmacenSel = (key: string) => {
+    setAlmacenesSel((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
 
   // Load catalogues once
   useEffect(() => {
@@ -164,6 +182,41 @@ export function CatalogoProductos() {
       .catch(() => setRefsEmpaque([]))
   }, [selectedCompany, selectedPoint])
 
+  // Empresas activas + sus almacenes, para "Asignar a Almacén(es)" al crear
+  // producto — independiente de la compañía seleccionada en el header.
+  useEffect(() => {
+    apiFetch<any>('/inv/companias/')
+      .then(async (data) => {
+        const cias = (Array.isArray(data) ? data : data.results ?? [])
+          .filter((c: any) => (c.activo ?? 'S') === 'S')
+        const withAlmacenes = await Promise.all(
+          cias.map(async (c: any) => {
+            const no_cia = String(c.no_cia ?? '').trim()
+            try {
+              const res: any = await regalGeneralApi.invAlmacenes(no_cia)
+              const alms = (res?.results ?? [])
+                .map((a: any) => ({
+                  almacen: String(a.almacen ?? '').trim(),
+                  descripcion: (a.descripcion ?? '').trim(),
+                  punto: String(a.punto ?? '01').trim(),
+                }))
+                .filter((a: any) => a.almacen)
+              return {
+                no_cia,
+                punto: alms[0]?.punto || '01',
+                descripcion: c.descripcion ?? no_cia,
+                almacenes: alms,
+              } as CiaAlmacenes
+            } catch {
+              return { no_cia, punto: '01', descripcion: c.descripcion ?? no_cia, almacenes: [] } as CiaAlmacenes
+            }
+          })
+        )
+        setCompaniasAlmacenes(withAlmacenes.filter((c) => c.almacenes.length > 0))
+      })
+      .catch(() => setCompaniasAlmacenes([]))
+  }, [])
+
   // Load products
   useEffect(() => {
     if (!selectedCompany) return
@@ -206,7 +259,7 @@ export function CatalogoProductos() {
     setForm(emptyForm)
     setEditingProdu(null)
     setEmpaques([])
-    setAlmacenesSel([])
+    setAlmacenesSel(new Set())
     setFormOpen(true)
     // Auto-pre-fill del codigo desde la secuencia legacy TINV_NEXT_PRODU
     try {
@@ -355,10 +408,11 @@ export function CatalogoProductos() {
         : `${API_BASE}/inv/productos/`
       if (!isEdit) {
         body.no_produ = form.no_produ.trim().toUpperCase()
-        if (almacenesSel.length > 0) {
-          body.no_cia = selectedCompany
-          body.punto = selectedPoint
-          body.almacenes = almacenesSel
+        if (almacenesSel.size > 0) {
+          body.asignaciones = Array.from(almacenesSel).map((key) => {
+            const [no_cia, punto, almacen] = key.split('|')
+            return { no_cia, punto, almacen }
+          })
         }
       }
 
@@ -403,7 +457,7 @@ export function CatalogoProductos() {
         }
       }
 
-      const asignados: string[] = data?.data?.almacenes_asignados ?? []
+      const asignados: unknown[] = data?.data?.almacenes_asignados ?? []
       toast.success(isEdit
         ? `Producto ${editingProdu} actualizado`
         : asignados.length > 0
@@ -413,7 +467,7 @@ export function CatalogoProductos() {
       setEditingProdu(null)
       setForm(emptyForm)
       setEmpaques([])
-      setAlmacenesSel([])
+      setAlmacenesSel(new Set())
       // Forzar refresh de la lista (re-trigger del useEffect)
       setSearch((s) => s)
       if (!isEdit) setPage(1)
@@ -950,45 +1004,60 @@ export function CatalogoProductos() {
                 not found contra TINV_EPRODUCTO). Solo aplica al crear. */}
             {!editingProdu && (
               <div className='col-span-2 border-t pt-3 mt-1 space-y-2'>
-                <div className='flex items-center justify-between'>
-                  <div>
-                    <Label className='text-sm font-medium'>Asignar a Almacén(es)</Label>
-                    <p className='text-xs text-muted-foreground mt-0.5'>
-                      El producto quedará disponible de inmediato en los almacenes marcados.
-                      Si no marcas ninguno, deberás asignarlo luego en "Asignar Prod. a Cía./Almacén".
-                    </p>
-                  </div>
-                  {almacenes.length > 0 && (
-                    <Button
-                      type='button'
-                      size='sm'
-                      variant='outline'
-                      onClick={() => setAlmacenesSel(
-                        almacenesSel.length === almacenes.length ? [] : almacenes.map((a) => a.almacen)
-                      )}
-                    >
-                      {almacenesSel.length === almacenes.length ? 'Ninguno' : 'Todos'}
-                    </Button>
-                  )}
+                <div>
+                  <Label className='text-sm font-medium'>Asignar a Empresa(s) / Almacén(es)</Label>
+                  <p className='text-xs text-muted-foreground mt-0.5'>
+                    El producto quedará disponible de inmediato en los almacenes marcados, de
+                    cualquier empresa. Si no marcas ninguno, deberás asignarlo luego en
+                    "Asignar Prod. a Cía./Almacén".
+                  </p>
                 </div>
-                {almacenes.length === 0 ? (
+                {companiasAlmacenes.length === 0 ? (
                   <p className='text-xs text-muted-foreground rounded border border-dashed py-3 px-3 text-center'>
-                    No hay almacenes configurados para esta compañía.
+                    Cargando empresas y almacenes…
                   </p>
                 ) : (
-                  <div className='flex flex-wrap gap-x-6 gap-y-2 rounded border p-3'>
-                    {almacenes.map((a) => (
-                      <label key={a.almacen} className='flex items-center gap-2 cursor-pointer text-sm'>
-                        <Checkbox
-                          checked={almacenesSel.includes(a.almacen)}
-                          onCheckedChange={(v) => setAlmacenesSel((prev) =>
-                            v ? [...prev, a.almacen] : prev.filter((x) => x !== a.almacen)
-                          )}
-                        />
-                        <span className='font-mono text-xs'>{a.almacen}</span>
-                        <span className='text-muted-foreground'>{a.descripcion}</span>
-                      </label>
-                    ))}
+                  <div className='space-y-3 rounded border p-3 max-h-64 overflow-y-auto'>
+                    {companiasAlmacenes.map((cia) => {
+                      const keysCia = cia.almacenes.map((a) => `${cia.no_cia}|${cia.punto}|${a.almacen}`)
+                      const todosMarcados = keysCia.length > 0 && keysCia.every((k) => almacenesSel.has(k))
+                      return (
+                        <div key={cia.no_cia}>
+                          <div className='flex items-center justify-between mb-1'>
+                            <span className='text-xs font-semibold text-foreground'>
+                              {cia.no_cia} — {cia.descripcion}
+                            </span>
+                            <button
+                              type='button'
+                              className='text-xs text-primary hover:underline'
+                              onClick={() => setAlmacenesSel((prev) => {
+                                const next = new Set(prev)
+                                if (todosMarcados) keysCia.forEach((k) => next.delete(k))
+                                else keysCia.forEach((k) => next.add(k))
+                                return next
+                              })}
+                            >
+                              {todosMarcados ? 'Ninguno' : 'Todos'}
+                            </button>
+                          </div>
+                          <div className='flex flex-wrap gap-x-5 gap-y-1.5 pl-1'>
+                            {cia.almacenes.map((a) => {
+                              const key = `${cia.no_cia}|${cia.punto}|${a.almacen}`
+                              return (
+                                <label key={key} className='flex items-center gap-2 cursor-pointer text-sm'>
+                                  <Checkbox
+                                    checked={almacenesSel.has(key)}
+                                    onCheckedChange={() => toggleAlmacenSel(key)}
+                                  />
+                                  <span className='font-mono text-xs'>{a.almacen}</span>
+                                  <span className='text-muted-foreground'>{a.descripcion}</span>
+                                </label>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
