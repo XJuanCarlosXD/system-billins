@@ -315,22 +315,34 @@ def fat_conduce_print_data(request, tipo: str, no_conduce: str):
         'tipo_ncf': '',
     }
 
-    lineas = [{
-        'no_linea': l.get('no_linea'),
-        'codigo': l.get('no_produ') or '',
-        'descripcion': l.get('descripcion') or '',
-        'almacen': l.get('almacen') or '',
-        'cantidad': _money(l.get('cantidad')),
-        'unidad': '',
-        'precio': _money(l.get('precio')),
-        'porc_descuento': _money(l.get('porc_descuento')),
-        'descuento': _money(l.get('descuento')),
-        'porciento_impuesto': _money(l.get('porciento_impuesto')),
-        'itbis': _money(l.get('impuesto')),
-        'total': _money(l.get('monto_neto')),
-        'cantidad_regalia': _money(l.get('cantidad_regalia')),
-        'anulada': (l.get('st_anulado') or 'N') == 'S',
-    } for l in (conduce.get('lineas') or []) if (l.get('st_anulado') or 'N') != 'S']
+    def _linea_conduce(l):
+        cantidad = _money(l.get('cantidad'))
+        precio = _money(l.get('precio'))
+        descuento = _money(l.get('descuento'))
+        itbis = _money(l.get('itbis'))
+        # TFAT_CONDUCEL no persiste un total por linea (a diferencia de
+        # TFAT_FACTURAL.monto_neto) -- se deriva aqui igual que al
+        # guardar en create_conduce/update_conduce: base neta + itbis.
+        total = round(cantidad * precio - descuento + itbis, 2)
+        return {
+            'no_linea': l.get('no_linea'),
+            'codigo': l.get('no_produ') or '',
+            'descripcion': l.get('descripcion') or '',
+            'almacen': l.get('almacen') or '',
+            'cantidad': cantidad,
+            'unidad': '',
+            'precio': precio,
+            'porc_descuento': _money(l.get('porc_descuento')),
+            'descuento': descuento,
+            'porciento_impuesto': _money(l.get('porciento_impuesto')),
+            'itbis': itbis,
+            'total': total,
+            'cantidad_regalia': _money(l.get('cantidad_regalia')),
+            'anulada': (l.get('st_anulado') or 'N') == 'S',
+        }
+
+    lineas = [_linea_conduce(l) for l in (conduce.get('lineas') or [])
+              if (l.get('st_anulado') or 'N') != 'S']
 
     subtotal = _money(conduce.get('total_linea'))
     descuento = _money(conduce.get('descuento'))
