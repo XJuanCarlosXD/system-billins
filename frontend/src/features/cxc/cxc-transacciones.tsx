@@ -97,6 +97,19 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
     staleTime: 5 * 60 * 1000,
   })
 
+  // Formas de pago (FAT.TFAT_TIPO_PAGO) — cómo se recibió el dinero del recibo.
+  // Se excluye "A CREDITO" (4): un cobro no puede recibirse a crédito.
+  const tiposPagoQ = useQuery({
+    queryKey: ['fat-tipos-pago', noCia, punto],
+    queryFn: () => regalGeneralApi.fatListTiposPago(noCia, punto),
+    enabled: !!noCia,
+    staleTime: 5 * 60 * 1000,
+  })
+  const formasPago = useMemo(
+    () => ((tiposPagoQ.data?.items ?? []) as any[]).filter(t => String(t.tipo_pago) !== '4'),
+    [tiposPagoQ.data],
+  )
+
   // ── Estado del formulario ─────────────────────────────────────────
   const [tipoDoc, setTipoDoc] = useState('')
   const [fecha, setFecha] = useState(today)
@@ -104,6 +117,7 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
   const [vendedor, setVendedor] = useState('')
   const [cobrador, setCobrador] = useState('')
   const [plazo, setPlazo] = useState(0)
+  const [formaPago, setFormaPago] = useState('1') // 1 = EFECTIVO (default legado)
   const [ncf, setNcf] = useState('')
   const [detalle, setDetalle] = useState('')
   const [valorDoc, setValorDoc] = useState(0)
@@ -116,6 +130,9 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
   const tipoMov = (tipoDocSel?.tipo_movimiento || '').toUpperCase()
   const tipoTrans = tipoDocSel?.tipo_transaccion || ''
   const requiereNcf = !!tipoDocSel?.codigo_ncf
+  // Los recibos de ingreso (tipo_transaccion='I') piden cómo se recibió el
+  // dinero — el Cuadre de Caja desglosa los cobros RI por esta forma de pago.
+  const pideFormaPago = (tipoTrans || '').toUpperCase() === 'I'
 
   // Cuando cambia el cliente, autocompletar vendedor/cobrador si vienen del maestro
   useEffect(() => {
@@ -235,6 +252,7 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
         tipo_doc: tipoDoc, no_cliente: String(cliente!.no_cliente),
         fecha, ncf, detalle,
         vendedor, cobrador, plazo,
+        forma_pago: pideFormaPago ? formaPago : '',
         valor_doc: valorEfectivo,
         aplicaciones: apl,
       })
@@ -248,7 +266,7 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
       qc.invalidateQueries({ queryKey: ['cxc-documentos'] })
       setCliente(null); setNcf(''); setDetalle('')
       setAplicaciones({}); setRetenciones({}); setValorDoc(0); setFecha(today)
-      setPlazo(0)
+      setPlazo(0); setFormaPago('1')
     },
     onError: (e: Error) => toast.error(e.message || 'Error al grabar'),
   })
@@ -257,6 +275,8 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
   const validar = (): string | null => {
     if (!tipoDoc) return 'Seleccione el tipo de documento'
     if (!cliente) return 'Seleccione un cliente'
+    if (pideFormaPago && !formaPago)
+      return 'Indique la forma de pago (cómo se recibió el dinero)'
     if (fechaFueraDePeriodo) return `La fecha debe estar dentro del período activo (${periodoMesAno})`
     if (valorEfectivo <= 0) return 'Indique el valor del documento o aplique a alguna factura'
     for (const p of pendientes) {
@@ -410,8 +430,8 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
             <ClientePicker noCia={noCia} cliente={cliente} onChange={setCliente} />
           </div>
 
-          {/* Fila 3: Vendedor + Cobrador */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Fila 3: Vendedor + Cobrador + Forma de pago (solo recibos) */}
+          <div className={`grid grid-cols-1 gap-3 ${pideFormaPago ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
             <div className="space-y-1.5">
               <Label className="text-xs">Vendedor</Label>
               <Select value={vendedor} onValueChange={setVendedor}>
@@ -433,6 +453,27 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
               <Input value={cobrador} onChange={e => setCobrador(e.target.value)}
                      placeholder="Código cobrador (opcional)" className="h-9 font-mono" />
             </div>
+            {pideFormaPago && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Forma de pago *</Label>
+                <Select value={formaPago} onValueChange={setFormaPago}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="¿Cómo se recibió el pago?" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {formasPago.map((t: any) => (
+                      <SelectItem key={t.tipo_pago} value={String(t.tipo_pago)}>
+                        <span className="font-mono mr-2">{t.tipo_pago}</span>
+                        {t.descripcion}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  Cómo se recibió el dinero. Así se desglosa en el Cuadre de Caja.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Fila 4: NCF + Detalle + Valor D. */}

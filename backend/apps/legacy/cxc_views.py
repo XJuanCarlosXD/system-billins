@@ -414,6 +414,7 @@ class CxcCrearReciboView(APIView):
                 cobrador=d.get('cobrador', ''),
                 plazo=int(d.get('plazo') or 0),
                 valor_doc=float(d.get('valor_doc') or 0),
+                forma_pago=d.get('forma_pago', ''),
                 aplicaciones=d.get('aplicaciones') or [],
             )
             return Response({'ok': True, **res})

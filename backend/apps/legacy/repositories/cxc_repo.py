@@ -816,6 +816,7 @@ def crear_recibo_cobro(
     fecha: str, ncf: str = '', detalle: str = '',
     vendedor: str = '', cobrador: str = '', plazo: int = 0,
     valor_doc: float = 0,
+    forma_pago: str = '',
     aplicaciones: list | None = None,
 ) -> dict:
     """Crea un recibo de ingreso siguiendo el flujo legado FCXC201:
@@ -842,6 +843,10 @@ def crear_recibo_cobro(
         raise ValueError("El recibo no puede tener valor 0. Indique el valor del documento o aplique a alguna factura.")
     if total_retenido - valor_doc > 0.001:
         raise ValueError("La retencion no puede ser mayor que el valor aplicado del recibo.")
+    # forma_pago: codigo de FAT.TFAT_TIPO_PAGO (1=EFECTIVO, 2=CHEQUE, ...).
+    # TCXC_DOCUMENTO.FORMA_PAGO es VARCHAR2(1); el cuadre de caja lo cruza
+    # con TFAT_TIPO_PAGO para desglosar los cobros RI por forma de pago.
+    forma_pago = str(forma_pago or '').strip()[:1]
     no_doc = get_next_no_doc(no_cia, punto)
 
     with client.cursor() as cur:
@@ -856,6 +861,14 @@ def crear_recibo_cobro(
             raise ValueError(f"Tipo de documento {tipo_doc} no existe")
         cuenta_default, centro_costo, tipo_movi_tdocu = td[0], td[1], (td[2] or 'C').upper()
         tipo_transaccion_tdocu = (td[3] or 'I').strip().upper()
+
+        if forma_pago:
+            cur.execute(
+                "SELECT 1 FROM FAT.TFAT_TIPO_PAGO WHERE no_cia=:1 AND tipo_pago=:2 AND ROWNUM=1",
+                [no_cia, forma_pago])
+            if not cur.fetchone():
+                raise ValueError(
+                    f"La forma de pago '{forma_pago}' no existe en el catálogo de tipos de pago.")
 
         # 2. Cuenta del cliente (CxC) desde TCXC_CLIENTE.tipo_contable → TCXC_TCONTABLE.cuenta_cliente
         cur.execute(
@@ -901,15 +914,15 @@ def crear_recibo_cobro(
             " no_cia, punto, tipo_docu, no_docu, no_cliente, fecha, "
             " valor_original, saldo, ncf, detalle, st_anulado, tipo_movi, "
             " vendedor, cobrador, fecha_vence, debito, credito, "
-            " tipo_transaccion, tasa_us"
+            " tipo_transaccion, tasa_us, forma_pago"
             ") VALUES (:1,:2,:3,:4,:5,TO_DATE(:6,'YYYY-MM-DD'),"
             " :7, 0, :8, :9, 'N', :10, :11, :12, "
-            " TO_DATE(:13,'YYYY-MM-DD') + :14, :15, :15, :16, 1)",
+            " TO_DATE(:13,'YYYY-MM-DD') + :14, :15, :15, :16, 1, :17)",
             client.nbinds(
                 no_cia, punto, tipo_doc, no_doc, str(no_cliente), fecha,
                 valor_doc, ncf, detalle, tipo_movi_tdocu,
                 vendedor_doc, cobrador or '', fecha, int(plazo or 0),
-                valor_doc, tipo_transaccion_tdocu))
+                valor_doc, tipo_transaccion_tdocu, forma_pago or None))
 
         # 4. Distribución contable auto-generada:
         #    Cuenta del tipo_doc (ej. CAJA) — DR por el valor

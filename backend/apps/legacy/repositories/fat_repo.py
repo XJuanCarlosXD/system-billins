@@ -831,16 +831,17 @@ def get_cuadre_caja_detalle(no_cia: str, punto: str, tipo_factura: str,
         f"  GROUP BY fp.tipo_pago, NVL(tp.descripcion, fp.tipo_pago) "
         # ── Cobros CXC: recibos de ingreso aplicados a facturas a crédito ──
         f"  UNION ALL "
-        f"  SELECT 'C'||d.forma_pago AS tipo_pago, "
-        f"    'COBRO CRED - '||NVL(tp2.descripcion, d.forma_pago) AS forma_pago, "
+        f"  SELECT 'C'||NVL(d.forma_pago,'0') AS tipo_pago, "
+        f"    'COBRO CRED - '||NVL(tp2.descripcion, NVL(d.forma_pago,'SIN ESPECIFICAR')) AS forma_pago, "
         f"    COUNT(*) AS cantidad, SUM(d.credito) AS total, 2 AS origen "
         f"  FROM CXC.TCXC_DOCUMENTO d "
         f"  LEFT JOIN FAT.TFAT_TIPO_PAGO tp2 ON tp2.no_cia=:p_cia "
-        f"    AND tp2.tipo_pago=d.forma_pago "
+        f"    AND tp2.punto=d.punto AND tp2.tipo_pago=d.forma_pago "
         f"  WHERE d.no_cia=:p_cia AND d.punto=:p_pto "
         f"    AND d.tipo_docu='RI' AND NVL(d.st_anulado,'N')='N' "
         f"    {extra_cxc} "
-        f"  GROUP BY d.forma_pago, NVL(tp2.descripcion, d.forma_pago) "
+        f"  GROUP BY NVL(d.forma_pago,'0'), "
+        f"    NVL(tp2.descripcion, NVL(d.forma_pago,'SIN ESPECIFICAR')) "
         f") ORDER BY origen, tipo_pago"
     )
     rows = client.fetch_dicts(sql, params)
