@@ -107,6 +107,7 @@ import { PdfTemplatesEditor } from '../pdf-templates'
 import { ProfileForm } from '../profile/profile-form'
 // Unified
 import { UnifiedCompanias } from '../unified/unified-companias'
+import { UnifiedFacturacionElectronica } from '../unified/unified-facturacion-electronica'
 import { UnifiedPuntos } from '../unified/unified-puntos'
 
 // Wrappers that read company context and pass props ---------------------------------
@@ -220,6 +221,22 @@ export const settingsCatalog: SettingsCategory[] = [
               'Configuración de Sucursales / Puntos de trabajo en pestañas por módulo.',
             keywords: ['sucursal', 'puntos', 'punto', 'pdv'],
             render: () => <UnifiedPuntos />,
+          },
+          {
+            slug: 'facturacion-electronica',
+            title: 'Facturación Electrónica (e-CF)',
+            description:
+              'Configura por empresa el certificado digital, el ambiente DGII, las secuencias e-NCF y prueba la conexión (Ley 32-23).',
+            keywords: [
+              'e-cf',
+              'ecf',
+              'e-ncf',
+              'dgii',
+              'certificado',
+              'facturacion electronica',
+              'ley 32-23',
+            ],
+            render: () => <UnifiedFacturacionElectronica />,
           },
         ],
       },
