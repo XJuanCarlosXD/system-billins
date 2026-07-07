@@ -28,6 +28,7 @@ urlpatterns = [
     path('documentos/', acc_views.acc_documentos),
     path('documentos/crear/', acc_views.acc_documento_crear),
     path('documentos/anular/', acc_views.acc_documento_anular),
+    path('documentos/corregir/', acc_views.acc_documento_corregir),
     path('documentos/listado/print-data/', acc_listado_docs_print_data),
     path('documentos/<str:no_docu>/print-data/', acc_documento_print_data),
     path('documentos/<str:no_cia>/<str:punto>/<str:no_docu>/', acc_views.acc_documento),
@@ -37,6 +38,7 @@ urlpatterns = [
          acc_views.acc_reposicion_detalle),
     path('reposiciones/crear/', acc_views.acc_reposicion_crear),
     path('reposiciones/anular/', acc_views.acc_reposicion_anular),
+    path('reposiciones/generar-solicitud/', acc_views.acc_reposicion_generar_solicitud),
     path('reposiciones/<str:no_reposicion>/print-data/', acc_reposicion_print_data),
     path('docs-pendientes-reposicion/', acc_views.acc_docs_pendientes_reposicion),
     # Asiento contable

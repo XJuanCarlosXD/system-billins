@@ -481,12 +481,19 @@ export function CxcBalance({ noCia, punto }: P) {
     a.click()
   }
 
+  const printPdf = () => {
+    const qs = new URLSearchParams({ no_cia: noCia ?? '' })
+    if (punto) qs.set('punto', punto)
+    window.open(`/print/cxc-balance-clientes/current?${qs.toString()}`, '_blank')
+  }
+
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Balance de Clientes — Envejecimiento de Cartera</h1>
         <div className="flex gap-2">
           <Button onClick={exportCsv} variant="outline" size="sm" disabled={!rows.length}><FileDown className="h-4 w-4 mr-1" />CSV</Button>
+          <Button onClick={printPdf} variant="outline" size="sm" disabled={!rows.length}><Printer className="h-4 w-4 mr-1" />PDF</Button>
           <Button onClick={load} size="sm" className="gap-1"><Search className="h-4 w-4" />Actualizar</Button>
         </div>
       </div>

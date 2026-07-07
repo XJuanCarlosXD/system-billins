@@ -1,6 +1,11 @@
 """CXC URL patterns — include in main urls.py under /api/cxc/."""
 from django.urls import path
-from .docs_print_data import cxc_documento_print_data, cxc_estado_cuenta_print_data
+from .docs_print_data import (
+    cxc_documento_print_data, cxc_estado_cuenta_print_data,
+    cxc_rep_envejecimiento_print_data, cxc_balance_clientes_print_data,
+    cxc_rep_ncf_print_data, cxc_rep_cobros_vendedor_print_data,
+    cxc_listado_documentos_print_data,
+)
 from .cxc_views import (
     CxcCiasView, CxcPuntosView, CxcPuntoDetailView,
     CxcTdocuView, CxcTcliView, CxcSupervisoresView,
@@ -20,8 +25,13 @@ from .cxc_views import (
 
 urlpatterns = [
     # print-data
+    path('documentos/listado/print-data/', cxc_listado_documentos_print_data),
     path('documentos/<str:no_docu>/print-data/', cxc_documento_print_data),
     path('clientes/<str:no_cliente>/estado-cuenta/print-data/', cxc_estado_cuenta_print_data),
+    path('rep-envejecimiento/print-data/', cxc_rep_envejecimiento_print_data),
+    path('balance-clientes/print-data/', cxc_balance_clientes_print_data),
+    path('rep-ncf/print-data/', cxc_rep_ncf_print_data),
+    path('rep-cobros-vendedor/print-data/', cxc_rep_cobros_vendedor_print_data),
     # Configuración
     path('cias/', CxcCiasView.as_view()),
     path('puntos/', CxcPuntosView.as_view()),

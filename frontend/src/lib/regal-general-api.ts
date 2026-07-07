@@ -1469,6 +1469,16 @@ export const regalGeneralApi = {
     request<{ no_docu: string }>('/acc/documentos/crear/', { method: 'POST', body: JSON.stringify(data) }),
   accAnularDocumento: (data: { no_cia: string; punto: string; no_docu: string; motivo?: string }) =>
     request<any>('/acc/documentos/anular/', { method: 'POST', body: JSON.stringify(data) }),
+  accCorregirDocumento: (data: {
+    no_cia: string; punto: string; no_docu: string
+    ncf?: string; rnc?: string; no_bene?: string; detalle?: string; tipo_gasto?: string
+  }) =>
+    request<any>('/acc/documentos/corregir/', { method: 'POST', body: JSON.stringify(data) }),
+  accGenerarSolicitudReposicion: (data: {
+    no_cia: string; punto: string; no_reposicion: string
+    cuenta_banco: string; beneficiario?: string
+  }) =>
+    request<any>('/acc/reposiciones/generar-solicitud/', { method: 'POST', body: JSON.stringify(data) }),
   accListReposiciones: (params: {
     no_cia: string; punto?: string; no_caja?: string
     fecha_desde?: string; fecha_hasta?: string; limit?: number
@@ -1586,6 +1596,8 @@ export const regalGeneralApi = {
     request<any>('/chc/cheques/solicitar/', { method: 'POST', body: JSON.stringify(data) }),
   chcConciliarCheque: (data: { no_cia: string; punto: string; tipo_docu: string; no_docu: string }) =>
     request<any>('/chc/cheques/conciliar/', { method: 'POST', body: JSON.stringify(data) }),
+  chcDesconciliarCheque: (data: { no_cia: string; punto: string; tipo_docu: string; no_docu: string }) =>
+    request<any>('/chc/cheques/desconciliar/', { method: 'POST', body: JSON.stringify(data) }),
   chcListCierres: (params: { no_cia: string; punto?: string; cuenta_banco?: string }) => {
     const qs = new URLSearchParams(
       Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])

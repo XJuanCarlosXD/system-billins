@@ -1665,40 +1665,63 @@ def acc_documento_print_data(request, no_docu: str):
     doc_full = acc_repo.get_documento(no_cia, punto, no_docu)
     if not doc_full:
         return JsonResponse({'error': 'Documento ACC no encontrado'}, status=404)
+    # TACC_DOCUMENTO trae nombre_bene/valor/detalle (no beneficiario/monto);
+    # las líneas contables viven en TACC_DCDOCU vía list_lineas_documento.
+    anulada = (doc_full.get('anulado') or doc_full.get('st_anulado') or 'N') == 'S'
     doc = {
-        'tipo': (doc_full.get('tipo_docu') or '').strip().upper(),
-        'tipo_label': doc_full.get('tipo_docu_descri') or 'Documento ACC',
+        'tipo': 'CC',
+        'tipo_label': doc_full.get('desc_gasto') or 'Egreso de Caja Chica',
         'no': doc_full.get('no_docu'),
         'numero_display': f"ACC-{(doc_full.get('no_docu') or '').strip()}",
         'fecha': str(doc_full.get('fecha') or '')[:10],
-        'estado': doc_full.get('estado') or '',
-        'anulada': (doc_full.get('st_anulado') or 'N') == 'S',
+        'estado': 'ANULADO' if anulada else 'ACTIVO',
+        'anulada': anulada,
         'impresion': 'IMPRESA',
-        'detalle': doc_full.get('descripcion') or '',
-        'nota': doc_full.get('descripcion') or '',
+        'detalle': doc_full.get('detalle') or '',
+        'nota': doc_full.get('detalle') or '',
+        'ncf_dgi': (doc_full.get('ncf') or '').strip(),
         'forma_pago': '', 'condicion_pago': '', 'plazo_pago': 0,
         'vendedor': '', 'moneda': 'DOP', 'tasa': 0, 'porc_impuesto': 0,
     }
-    total = _money_or_zero(doc_full.get('monto') or doc_full.get('total'))
+    total = _money_or_zero(doc_full.get('valor'))
+    itbis = _money_or_zero(doc_full.get('impuesto'))
+    lineas_cnt = acc_repo.list_lineas_documento(no_cia, punto, no_docu)
+    lineas = [{
+        'no_linea': i + 1,
+        'codigo': (l.get('cuenta') or '').strip(),
+        'descripcion': (doc_full.get('desc_gasto') or doc_full.get('detalle') or '')
+                       + (f" · CC {l.get('centro_costo')}" if l.get('centro_costo') else ''),
+        'cantidad': 1,
+        'precio': _money_or_zero(l.get('monto')),
+        'descuento': 0, 'itbis': 0,
+        'total': _money_or_zero(l.get('monto')),
+    } for i, l in enumerate(lineas_cnt)]
+    if not lineas:
+        lineas = [{
+            'no_linea': 1, 'codigo': doc_full.get('tipo_gasto') or '',
+            'descripcion': doc_full.get('desc_gasto') or doc_full.get('detalle') or 'Egreso',
+            'cantidad': 1, 'precio': total, 'descuento': 0, 'itbis': itbis,
+            'total': total,
+        }]
     return JsonResponse({
         'cia': cia, 'doc': doc,
         'cliente': {
-            'no': '', 'nombre': doc_full.get('beneficiario') or '',
-            'rnc': '', 'direccion': '', 'telefono': '', 'email': '', 'tipo_ncf': '',
+            'no': (doc_full.get('no_bene') or ''),
+            'nombre': doc_full.get('nombre_bene') or '',
+            'rnc': (doc_full.get('rnc') or '').strip(),
+            'direccion': '', 'telefono': '', 'email': '', 'tipo_ncf': '',
         },
-        'lineas': [{
-            'no_linea': i + 1,
-            'codigo': l.get('cuenta') or '',
-            'descripcion': l.get('descripcion') or '',
-            'cantidad': 1,
-            'precio': _money_or_zero(l.get('monto')),
-            'descuento': 0, 'itbis': 0,
-            'total': _money_or_zero(l.get('monto')),
-        } for i, l in enumerate(doc_full.get('lineas') or doc_full.get('detalle_cuentas') or [])],
+        'lineas': lineas,
         'totales': {
-            'subtotal': total, 'descuento': 0, 'itbis': 0,
+            'subtotal': round(total - itbis, 2), 'descuento': 0, 'itbis': itbis,
             'propina': 0, 'otros': 0, 'total': total, 'monto_letras': '',
-        }, 'extra': {},
+        },
+        'extra': {
+            'no_caja': doc_full.get('no_caja') or '',
+            'tipo_gasto': doc_full.get('tipo_gasto') or '',
+            'no_reposicion': doc_full.get('no_reposicion') or '',
+            'usuario': doc_full.get('usuario') or '',
+        },
     })
 
 
@@ -2153,4 +2176,183 @@ def cxp_rep_envejecimiento_print_data(request):
         'filas': filas,
         'totales': {'cantidad': len(filas),
                     'total': round(sum(f['total'] for f in filas), 2)},
+    })
+
+
+# ─── CXC — Reportes (familia 'reporte') ───────────────────────────────────
+
+
+@login_required
+@require_http_methods(["GET"])
+def cxc_rep_envejecimiento_print_data(request):
+    """GET /api/cxc/rep-envejecimiento/print-data/?no_cia=&punto=&vendedor=&fecha_corte="""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto') or ''
+    vendedor = request.GET.get('vendedor') or ''
+    fecha_corte = request.GET.get('fecha_corte') or ''
+    data = cxc_repo.rep_envejecimiento(no_cia, punto, vendedor, fecha_corte)
+    filas = [{
+        'no_cliente': i.get('no_cliente') or '',
+        'nombre_cliente': i.get('nombre_cliente') or '',
+        'vendedor': i.get('vendedor') or '',
+        'c0': _money_or_zero(i.get('c0')),
+        'c30': _money_or_zero(i.get('c30')),
+        'c60': _money_or_zero(i.get('c60')),
+        'c90': _money_or_zero(i.get('c90')),
+        'c120': _money_or_zero(i.get('c120')),
+        'total': _money_or_zero(i.get('total')),
+    } for i in data.get('items', [])]
+    filtros = {'Empresa': no_cia}
+    if punto:
+        filtros['Punto'] = punto
+    if vendedor:
+        filtros['Vendedor'] = vendedor
+    if fecha_corte:
+        filtros['Corte'] = fecha_corte
+    return JsonResponse({
+        'cia': _cia_payload(no_cia, request=request),
+        'reporte': {'codigo': 'cxc-rep-envejecimiento',
+                    'titulo': 'Antigüedad de Saldos CxC',
+                    'filtros': filtros},
+        'filas': filas,
+        'totales': {'cantidad': len(filas),
+                    'total': _money_or_zero(data.get('total'))},
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def cxc_balance_clientes_print_data(request):
+    """GET /api/cxc/balance-clientes/print-data/?no_cia=&punto="""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto') or None
+    rows = cxc_repo.balance_clientes(no_cia, punto)
+    filas = [{
+        'no_cliente': i.get('no_cliente') or '',
+        'nombre_cliente': i.get('nombre_cliente') or '',
+        'vendedor': i.get('vendedor') or '',
+        'dias_0_30': _money_or_zero(i.get('dias_0_30')),
+        'dias_31_60': _money_or_zero(i.get('dias_31_60')),
+        'dias_61_90': _money_or_zero(i.get('dias_61_90')),
+        'mas_90': _money_or_zero(i.get('mas_90')),
+        'total_saldo': _money_or_zero(i.get('total_saldo')),
+    } for i in rows]
+    filtros = {'Empresa': no_cia}
+    if punto:
+        filtros['Punto'] = punto
+    return JsonResponse({
+        'cia': _cia_payload(no_cia, request=request),
+        'reporte': {'codigo': 'cxc-balance-clientes',
+                    'titulo': 'Balance de Clientes (Documentos por Cobrar)',
+                    'filtros': filtros},
+        'filas': filas,
+        'totales': {'cantidad': len(filas),
+                    'total': round(sum(f['total_saldo'] for f in filas), 2)},
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def cxc_rep_ncf_print_data(request):
+    """GET /api/cxc/rep-ncf/print-data/?no_cia=&desde=&hasta=&punto="""
+    no_cia = request.GET.get('no_cia', '01')
+    desde = request.GET.get('desde') or ''
+    hasta = request.GET.get('hasta') or ''
+    punto = request.GET.get('punto') or ''
+    data = cxc_repo.rep_ncf_emitidos(no_cia, desde, hasta, punto)
+    filas = [{
+        'fecha': str(i.get('fecha') or '')[:10],
+        'ncf': str(i.get('ncf') or '').strip(),
+        'tipo_doc': str(i.get('tipo_doc') or ''),
+        'no_doc': str(i.get('no_doc') or '').strip(),
+        'no_cliente': str(i.get('no_cliente') or ''),
+        'nombre_cliente': i.get('nombre_cliente') or '',
+        'rnc': str(i.get('rnc') or '').strip(),
+        'valor': _money_or_zero(i.get('valor')),
+        'estado': 'ANULADO' if i.get('estado') == 'R' else 'ACTIVO',
+    } for i in data.get('items', [])]
+    return JsonResponse({
+        'cia': _cia_payload(no_cia, request=request),
+        'reporte': {'codigo': 'cxc-rep-ncf',
+                    'titulo': 'NCF Emitidos por Período',
+                    'filtros': {'Empresa': no_cia, 'Desde': desde, 'Hasta': hasta}},
+        'filas': filas,
+        'totales': {'cantidad': len(filas),
+                    'total': _money_or_zero(data.get('total'))},
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def cxc_rep_cobros_vendedor_print_data(request):
+    """GET /api/cxc/rep-cobros-vendedor/print-data/?no_cia=&desde=&hasta=&punto="""
+    no_cia = request.GET.get('no_cia', '01')
+    desde = request.GET.get('desde') or ''
+    hasta = request.GET.get('hasta') or ''
+    punto = request.GET.get('punto') or ''
+    data = cxc_repo.rep_cobros_vendedor(no_cia, desde, hasta, punto)
+    filas = [{
+        'vendedor': i.get('vendedor') or '',
+        'nombre_vendedor': i.get('nombre_vendedor') or '',
+        'cobros': int(i.get('cobros') or 0),
+        'total_cobrado': _money_or_zero(i.get('total_cobrado')),
+    } for i in data.get('items', [])]
+    return JsonResponse({
+        'cia': _cia_payload(no_cia, request=request),
+        'reporte': {'codigo': 'cxc-rep-cobros-vendedor',
+                    'titulo': 'Ingresos / Cobros por Vendedor (Rcxc302)',
+                    'filtros': {'Empresa': no_cia, 'Desde': desde, 'Hasta': hasta}},
+        'filas': filas,
+        'totales': {'cantidad': len(filas),
+                    'total': _money_or_zero(data.get('total'))},
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def cxc_listado_documentos_print_data(request):
+    """GET /api/cxc/documentos/listado/print-data/?no_cia=&tipo_doc=&estado=&desde=&hasta=
+
+    Listados DR/CR del legado (rcxc204/rcxc207/Rcxc309) — usa los mismos
+    filtros de la consulta de documentos.
+    """
+    no_cia = request.GET.get('no_cia', '01')
+    params = {
+        'no_cia': no_cia,
+        'punto': request.GET.get('punto') or None,
+        'tipo_doc': request.GET.get('tipo_doc') or None,
+        'no_cliente': request.GET.get('no_cliente') or None,
+        'desde': request.GET.get('desde') or None,
+        'hasta': request.GET.get('hasta') or None,
+        'estado': request.GET.get('estado') or None,
+        'page': 1,
+    }
+    params = {k: v for k, v in params.items() if v is not None}
+    data = cxc_repo.list_documentos(**params)
+    filas = [{
+        'no_doc': str(i.get('no_doc') or '').strip(),
+        'tipo_doc': str(i.get('tipo_doc') or ''),
+        'fecha': str(i.get('fecha') or '')[:10],
+        'no_cliente': str(i.get('no_cliente') or ''),
+        'nombre_cliente': i.get('nombre_cliente') or '',
+        'ncf': str(i.get('ncf') or '').strip(),
+        'detalle': i.get('detalle') or '',
+        'valor': _money_or_zero(i.get('valor')),
+        'saldo': _money_or_zero(i.get('saldo')),
+        'estado': i.get('estado') or '',
+    } for i in (data.get('items') or [])]
+    filtros = {'Empresa': no_cia}
+    for k, lbl in (('tipo_doc', 'Tipo'), ('desde', 'Desde'), ('hasta', 'Hasta'),
+                   ('estado', 'Estado'), ('no_cliente', 'Cliente')):
+        if request.GET.get(k):
+            filtros[lbl] = request.GET.get(k)
+    return JsonResponse({
+        'cia': _cia_payload(no_cia, request=request),
+        'reporte': {'codigo': 'cxc-listado-documentos',
+                    'titulo': 'Listado de Documentos CxC',
+                    'filtros': filtros},
+        'filas': filas,
+        'totales': {'cantidad': len(filas),
+                    'total_valor': round(sum(f['valor'] for f in filas), 2),
+                    'total_saldo': round(sum(f['saldo'] for f in filas), 2)},
     })

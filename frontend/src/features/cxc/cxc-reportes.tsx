@@ -97,31 +97,11 @@ export function CxcRepEnvejecimiento({ noCia, punto }: P) {
 
   const mesAno = fmtDate(fechaCorte).slice(0, 7).replace('-', '-')
 
-  const printPdf = async () => {
-    const meta = await buildReportMeta(noCia ?? '', punto ?? '', mesAno)
-    const header = buildHtmlHeader(meta, 'RCXC401', 'Envejecimiento de Cartera', `Fecha Corte: ${fmtDate(fechaCorte)}`)
-    const body = `${header}
-    <table class="rpt"><thead><tr>
-    <th>Cliente</th><th>Nombre</th><th>Vendedor</th>
-    <th class="r">Total</th><th class="r">0-30</th><th class="r">31-60</th><th class="r">61-90</th><th class="r">+90</th>
-    </tr></thead>
-    <tbody>${items.map((r: any) => `<tr>
-    <td>${r.no_cliente}</td><td>${r.nombre_cliente}</td><td>${r.nombre_vendedor || r.vendedor || ''}</td>
-    <td class="r">${fmt(r.total)}</td>
-    <td class="r">${r.c0 > 0 ? fmt(r.c0) : ''}</td>
-    <td class="r">${r.c30 > 0 ? fmt(r.c30) : ''}</td>
-    <td class="r">${r.c60 > 0 ? fmt(r.c60) : ''}</td>
-    <td class="r">${(r.c90 + r.c120) > 0 ? fmt(r.c90 + r.c120) : ''}</td>
-    </tr>`).join('')}
-    </tbody>
-    <tfoot><tr><td colspan="3"><b>TOTALES — ${items.length} cliente(s)</b></td>
-    <td class="r"><b>${fmt(totalRow('total'))}</b></td>
-    <td class="r"><b>${fmt(totalRow('c0'))}</b></td>
-    <td class="r"><b>${fmt(totalRow('c30'))}</b></td>
-    <td class="r"><b>${fmt(totalRow('c60'))}</b></td>
-    <td class="r"><b>${fmt(totalRow('c90') + totalRow('c120'))}</b></td>
-    </tr></tfoot></table>`
-    printHtml('RCXC401 — Envejecimiento de Cartera', body)
+  const printPdf = () => {
+    const qs = new URLSearchParams({ no_cia: noCia ?? '', punto: punto ?? '' })
+    if (vendedor) qs.set('vendedor', vendedor)
+    if (fechaCorte) qs.set('fecha_corte', fechaCorte)
+    window.open(`/print/cxc-rep-envejecimiento/current?${qs.toString()}`, '_blank')
   }
 
   const exportCsv = async () => {
@@ -233,23 +213,11 @@ export function CxcRepCobrosVendedor({ noCia, punto, mes = 1, ano = 2025 }: P) {
   const items = data?.items || []
   const mesAno = `${String(mes).padStart(2,'0')}-${ano}`
 
-  const printPdf = async () => {
-    const meta = await buildReportMeta(noCia ?? '', punto ?? '', mesAno)
-    const header = buildHtmlHeader(meta, 'RCXC402', 'Cobros por Vendedor', `${fmtDate(desde)} al ${fmtDate(hasta)}`)
-    const body = `${header}
-    <table class="rpt"><thead><tr>
-    <th>Vendedor</th><th>Nombre</th><th class="r">Cobros</th><th class="r">Total Cobrado</th>
-    </tr></thead>
-    <tbody>${items.map((r: any) => `<tr>
-    <td>${r.vendedor}</td><td>${r.nombre_vendedor}</td>
-    <td class="r">${r.cobros}</td>
-    <td class="r">${fmt(r.total_cobrado)}</td>
-    </tr>`).join('')}
-    </tbody>
-    <tfoot><tr><td colspan="2"><b>TOTAL</b></td><td class="r"></td>
-    <td class="r"><b>${fmt(data?.total)}</b></td></tr></tfoot>
-    </table>`
-    printHtml('RCXC402 — Cobros por Vendedor', body)
+  const printPdf = () => {
+    const qs = new URLSearchParams({
+      no_cia: noCia ?? '', punto: punto ?? '', desde, hasta,
+    })
+    window.open(`/print/cxc-rep-cobros-vendedor/current?${qs.toString()}`, '_blank')
   }
 
   return (
@@ -424,12 +392,20 @@ export function CxcRepNcf({ noCia, punto }: P) {
     )
   }
 
+  const printPdf = () => {
+    const qs = new URLSearchParams({
+      no_cia: noCia ?? '', punto: punto ?? '', desde, hasta,
+    })
+    window.open(`/print/cxc-rep-ncf/current?${qs.toString()}`, '_blank')
+  }
+
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">NCF Emitidos por Período</h1>
         <div className="flex gap-2">
           <Button onClick={exportCsv} variant="outline" size="sm" disabled={!items.length}><FileDown className="h-4 w-4 mr-1" />CSV</Button>
+          <Button onClick={printPdf} variant="outline" size="sm" disabled={!items.length}><Printer className="h-4 w-4 mr-1" />PDF</Button>
         </div>
       </div>
       <div className="flex gap-3 border rounded-lg p-3 bg-muted/30">

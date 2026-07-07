@@ -121,6 +121,58 @@ const chcRepChequesDefault = reporteGenericoDefault('Listado de Cheques y Movimi
   { campo: 'entregado', label: 'Entreg.', align: 'center' },
 ])
 
+const cxcRepEnvejecimientoDefault = reporteGenericoDefault('Antigüedad de Saldos CxC', [
+  { campo: 'no_cliente', label: 'No.', align: 'left' },
+  { campo: 'nombre_cliente', label: 'Cliente', align: 'left' },
+  { campo: 'vendedor', label: 'Vend.', align: 'left' },
+  { campo: 'c0', label: '0-30', align: 'right', format: 'money' },
+  { campo: 'c30', label: '31-60', align: 'right', format: 'money' },
+  { campo: 'c60', label: '61-90', align: 'right', format: 'money' },
+  { campo: 'c90', label: '91-120', align: 'right', format: 'money' },
+  { campo: 'c120', label: '+120', align: 'right', format: 'money' },
+  { campo: 'total', label: 'Total', align: 'right', format: 'money' },
+])
+
+const cxcBalanceClientesDefault = reporteGenericoDefault('Balance de Clientes', [
+  { campo: 'no_cliente', label: 'No.', align: 'left' },
+  { campo: 'nombre_cliente', label: 'Cliente', align: 'left' },
+  { campo: 'vendedor', label: 'Vend.', align: 'left' },
+  { campo: 'dias_0_30', label: '0-30', align: 'right', format: 'money' },
+  { campo: 'dias_31_60', label: '31-60', align: 'right', format: 'money' },
+  { campo: 'dias_61_90', label: '61-90', align: 'right', format: 'money' },
+  { campo: 'mas_90', label: '+90', align: 'right', format: 'money' },
+  { campo: 'total_saldo', label: 'Saldo Total', align: 'right', format: 'money' },
+])
+
+const cxcRepNcfDefault = reporteGenericoDefault('NCF Emitidos por Período', [
+  { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
+  { campo: 'ncf', label: 'NCF', align: 'left' },
+  { campo: 'tipo_doc', label: 'Tipo', align: 'left' },
+  { campo: 'no_doc', label: 'No.', align: 'left' },
+  { campo: 'nombre_cliente', label: 'Cliente', align: 'left' },
+  { campo: 'rnc', label: 'RNC', align: 'left' },
+  { campo: 'valor', label: 'Valor', align: 'right', format: 'money' },
+  { campo: 'estado', label: 'Estado', align: 'left' },
+])
+
+const cxcRepCobrosVendedorDefault = reporteGenericoDefault('Ingresos / Cobros por Vendedor', [
+  { campo: 'vendedor', label: 'Cód.', align: 'left' },
+  { campo: 'nombre_vendedor', label: 'Vendedor', align: 'left' },
+  { campo: 'cobros', label: 'Cobros', align: 'right' },
+  { campo: 'total_cobrado', label: 'Total Cobrado', align: 'right', format: 'money' },
+])
+
+const cxcListadoDocumentosDefault = reporteGenericoDefault('Listado de Documentos CxC', [
+  { campo: 'no_doc', label: 'No.', align: 'left' },
+  { campo: 'tipo_doc', label: 'Tipo', align: 'left' },
+  { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
+  { campo: 'nombre_cliente', label: 'Cliente', align: 'left' },
+  { campo: 'ncf', label: 'NCF', align: 'left' },
+  { campo: 'valor', label: 'Valor', align: 'right', format: 'money' },
+  { campo: 'saldo', label: 'Saldo', align: 'right', format: 'money' },
+  { campo: 'estado', label: 'Estado', align: 'left' },
+])
+
 const cxpRepAlfabeticoDefault = reporteGenericoDefault('Listado Alfabético de Proveedores', [
   { campo: 'no_proveedor', label: 'No.', align: 'left' },
   { campo: 'nombre', label: 'Proveedor', align: 'left' },
@@ -755,6 +807,88 @@ export const registry: Record<string, RegistryEntry> = {
       'filas[].no_proveedor', 'filas[].nombre', 'filas[].corriente',
       'filas[].d30', 'filas[].d60', 'filas[].d90', 'filas[].mas90', 'filas[].total',
       'totales.cantidad', 'totales.total',
+    ],
+  },
+  'cxc-rep-envejecimiento': {
+    codigo: 'cxc-rep-envejecimiento',
+    modulo: 'CXC',
+    nombre: 'Antigüedad de Saldos CxC (Fcxc320)',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/cxc/rep-envejecimiento/print-data/?${qs.toString()}`,
+    defaultTemplate: cxcRepEnvejecimientoDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].no_cliente', 'filas[].nombre_cliente', 'filas[].vendedor',
+      'filas[].c0', 'filas[].c30', 'filas[].c60', 'filas[].c90', 'filas[].c120',
+      'filas[].total',
+      'totales.cantidad', 'totales.total',
+    ],
+  },
+  'cxc-balance-clientes': {
+    codigo: 'cxc-balance-clientes',
+    modulo: 'CXC',
+    nombre: 'Balance de Clientes (Rcxc309)',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/cxc/balance-clientes/print-data/?${qs.toString()}`,
+    defaultTemplate: cxcBalanceClientesDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].no_cliente', 'filas[].nombre_cliente', 'filas[].vendedor',
+      'filas[].dias_0_30', 'filas[].dias_31_60', 'filas[].dias_61_90',
+      'filas[].mas_90', 'filas[].total_saldo',
+      'totales.cantidad', 'totales.total',
+    ],
+  },
+  'cxc-rep-ncf': {
+    codigo: 'cxc-rep-ncf',
+    modulo: 'CXC',
+    nombre: 'NCF Emitidos por Período',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/cxc/rep-ncf/print-data/?${qs.toString()}`,
+    defaultTemplate: cxcRepNcfDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].fecha', 'filas[].ncf', 'filas[].tipo_doc', 'filas[].no_doc',
+      'filas[].nombre_cliente', 'filas[].rnc', 'filas[].valor', 'filas[].estado',
+      'totales.cantidad', 'totales.total',
+    ],
+  },
+  'cxc-rep-cobros-vendedor': {
+    codigo: 'cxc-rep-cobros-vendedor',
+    modulo: 'CXC',
+    nombre: 'Ingresos / Cobros por Vendedor (Rcxc302)',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/cxc/rep-cobros-vendedor/print-data/?${qs.toString()}`,
+    defaultTemplate: cxcRepCobrosVendedorDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'P',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].vendedor', 'filas[].nombre_vendedor', 'filas[].cobros',
+      'filas[].total_cobrado',
+      'totales.cantidad', 'totales.total',
+    ],
+  },
+  'cxc-listado-documentos': {
+    codigo: 'cxc-listado-documentos',
+    modulo: 'CXC',
+    nombre: 'Listado de Documentos CxC (rcxc204/207)',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/cxc/documentos/listado/print-data/?${qs.toString()}`,
+    defaultTemplate: cxcListadoDocumentosDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].no_doc', 'filas[].tipo_doc', 'filas[].fecha', 'filas[].nombre_cliente',
+      'filas[].ncf', 'filas[].detalle', 'filas[].valor', 'filas[].saldo', 'filas[].estado',
+      'totales.cantidad', 'totales.total_valor', 'totales.total_saldo',
     ],
   },
   // ── ODC ────────────────────────────────────────────────────────────

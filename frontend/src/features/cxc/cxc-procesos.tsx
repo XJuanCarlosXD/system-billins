@@ -65,11 +65,25 @@ export function CxcDocumentos({ noCia, punto }: P) {
     setDetail({ ...d, tipo_doc: d?.tipo_doc || row.tipo_doc }) // garantiza tipo
   }
 
+  const printListado = () => {
+    const qs = new URLSearchParams({ no_cia: noCia })
+    if (punto) qs.set('punto', punto)
+    for (const [k, v] of Object.entries(filters)) {
+      if (v) qs.set(k === 'no_doc' ? 'no_doc' : k, String(v))
+    }
+    window.open(`/print/cxc-listado-documentos/current?${qs.toString()}`, '_blank')
+  }
+
   return (
     <div className="p-6 space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Consulta / Impresión de Documentos</h1>
-        <p className="text-sm text-muted-foreground mt-1">Búsqueda de documentos CxC por fecha y estado. Click en una fila para ver el detalle e imprimir.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Consulta / Impresión de Documentos</h1>
+          <p className="text-sm text-muted-foreground mt-1">Búsqueda de documentos CxC por fecha y estado. Click en una fila para ver el detalle e imprimir.</p>
+        </div>
+        <Button onClick={printListado} variant="outline" size="sm" disabled={!rows.length}>
+          <FileText className="h-4 w-4 mr-1" />Imprimir Listado
+        </Button>
       </div>
       <div className="flex flex-wrap gap-3 border rounded-lg p-3 bg-muted/30">
         <div className="space-y-1">

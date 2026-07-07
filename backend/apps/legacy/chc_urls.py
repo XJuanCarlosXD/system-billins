@@ -22,6 +22,7 @@ urlpatterns = [
     path('cheques/anular/', chc_views.chc_cheque_anular),
     path('cheques/entregar/', chc_views.chc_cheque_entregar),
     path('cheques/conciliar/', chc_views.chc_cheque_conciliar),
+    path('cheques/desconciliar/', chc_views.chc_cheque_desconciliar),
     path('cheques/conciliar-bulk/', chc_views.chc_conciliar_bulk),
     path('cierres/conciliacion/', chc_views.chc_cierre_conciliacion),
     path('tipos-docu/', chc_views.chc_tipos_docu),

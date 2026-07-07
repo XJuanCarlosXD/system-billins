@@ -19,7 +19,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { Calendar, CheckSquare, LockKeyhole, Search } from 'lucide-react'
+import { Calendar, CheckSquare, LockKeyhole, Search, Undo2 } from 'lucide-react'
 
 const fmt = (n: any) =>
   Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -92,6 +92,20 @@ export function ChcConciliar() {
       qc.invalidateQueries({ queryKey: ['chc-cheques'] })
     },
     onError: (e: any) => toast.error(e?.detail?.error || 'No se pudo conciliar'),
+  })
+
+  const desconciliar = useMutation({
+    mutationFn: (r: { tipo_docu: string; no_docu: string }) =>
+      api.chcDesconciliarCheque({
+        no_cia: selectedCompany, punto: selectedPoint,
+        tipo_docu: r.tipo_docu, no_docu: r.no_docu,
+      }),
+    onSuccess: () => {
+      toast.success('Movimiento desconciliado')
+      qc.invalidateQueries({ queryKey: ['chc-conciliar'] })
+      qc.invalidateQueries({ queryKey: ['chc-cheques'] })
+    },
+    onError: (e: any) => toast.error(e?.detail?.error || 'No se pudo desconciliar'),
   })
 
   const cerrarMes = useMutation({
@@ -247,7 +261,17 @@ export function ChcConciliar() {
                       </TableCell>
                       <TableCell>
                         {isAnul ? <Badge variant="destructive">Nulo</Badge>
-                          : r.conciliado === 'S' ? <Badge variant="outline">Conciliado</Badge>
+                          : r.conciliado === 'S' ? (
+                            <span className="inline-flex items-center gap-1">
+                              <Badge variant="outline">Conciliado</Badge>
+                              <Button variant="ghost" size="icon" className="h-6 w-6"
+                                      title="Desconciliar (Fchc705)"
+                                      disabled={desconciliar.isPending}
+                                      onClick={() => desconciliar.mutate(r)}>
+                                <Undo2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </span>
+                          )
                           : <Badge variant="secondary">Pendiente</Badge>}
                       </TableCell>
                     </TableRow>

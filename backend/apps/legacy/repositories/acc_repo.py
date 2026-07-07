@@ -276,6 +276,156 @@ def crear_documento(no_cia: str, punto: str, data: dict, usuario: str) -> str:
     return no_docu
 
 
+def corregir_documento(no_cia: str, punto: str, no_docu: str, data: dict) -> None:
+    """Facc204 — Corregir NCF y Otros Datos.
+
+    Solo campos descriptivos/fiscales (ncf, rnc, no_bene, detalle, tipo_gasto);
+    el valor y la distribución contable no se tocan — para eso es anular y
+    recrear."""
+    row = client.fetch_one(
+        "SELECT NVL(anulado,'N') FROM ACC.TACC_DOCUMENTO "
+        " WHERE no_cia=:1 AND punto=:2 AND no_docu=:3",
+        [no_cia, punto, no_docu],
+    )
+    if not row:
+        raise ValueError(f'Documento {no_docu} no existe')
+    if row[0] == 'S':
+        raise ValueError(f'Documento {no_docu} está anulado')
+    campos = {k: data.get(k) for k in ('ncf', 'rnc', 'no_bene', 'detalle', 'tipo_gasto')
+              if data.get(k) is not None}
+    if not campos:
+        raise ValueError('Nada que corregir')
+    if 'tipo_gasto' in campos:
+        tg = client.fetch_one(
+            "SELECT 1 FROM ACC.TACC_TGASTOS WHERE tipo_gasto=:1", [campos['tipo_gasto']])
+        if not tg:
+            raise ValueError(f"Tipo de gasto {campos['tipo_gasto']} no existe")
+    if 'no_bene' in campos:
+        b = client.fetch_one(
+            "SELECT 1 FROM ACC.TACC_BENEFICIARIO WHERE no_bene=:1", [campos['no_bene']])
+        if not b:
+            raise ValueError(f"Beneficiario {campos['no_bene']} no existe")
+    sets = ', '.join(f"{k}=:{i+1}" for i, k in enumerate(campos))
+    params = list(campos.values()) + [no_cia, punto, no_docu]
+    n = len(campos)
+    client.execute(
+        f"UPDATE ACC.TACC_DOCUMENTO SET {sets} "
+        f" WHERE no_cia=:{n+1} AND punto=:{n+2} AND no_docu=:{n+3}",
+        params,
+    )
+
+
+def generar_solicitud_cheque_reposicion(no_cia: str, punto: str,
+                                        no_reposicion: str, cuenta_banco: str,
+                                        usuario: str,
+                                        beneficiario: str = '') -> dict:
+    """Facc203 — Generar Solicitud de Cheque de Reposición.
+
+    Crea el documento SO en CHC (mismo estado pendiente que el puente
+    CxP→CHC: status='N', que_es='S', autorizado='N', st_impresion='N') por el
+    valor de la reposición, referencia la reposición en TCHC_REFEDOCU
+    (tipo_refe='CC', sin proveedor) y marca la reposición con el SO generado.
+    Transaccional."""
+    rep = get_reposicion(no_cia, punto, no_reposicion)
+    if not rep:
+        raise ValueError(f'Reposición {no_reposicion} no existe')
+    if rep.get('anulada_por'):
+        raise ValueError(f'Reposición {no_reposicion} está anulada')
+    if (rep.get('tipo_docu_chc') == 'SO') and rep.get('no_docu_chc'):
+        raise ValueError(
+            f"Reposición {no_reposicion} ya tiene solicitud "
+            f"{rep.get('tipo_docu_chc')}-{rep.get('no_docu_chc')}")
+    total = round(float(rep.get('valor_reposicion') or 0), 2)
+    if total <= 0:
+        raise ValueError('La reposición no tiene valor a reponer')
+
+    bcuenta = client.fetch_one(
+        "SELECT moneda, NVL(activa,'S') FROM CHC.TCHC_BCUENTA "
+        " WHERE no_cia=:1 AND punto=:2 AND cuenta_banco=:3",
+        [no_cia, punto, cuenta_banco],
+    )
+    if not bcuenta:
+        raise ValueError(f'Cuenta {cuenta_banco} no existe en empresa {no_cia} punto {punto}')
+    if bcuenta[1] != 'S':
+        raise ValueError(f'Cuenta {cuenta_banco} está inactiva')
+    moneda = bcuenta[0] or 'P'
+
+    benef = (beneficiario or '').strip().upper()
+    if not benef:
+        benef = f"REPOSICION CAJA CHICA {(rep.get('desc_caja') or rep.get('no_caja') or '').strip()}".strip().upper()
+    detalle = (rep.get('detalle') or f'Reposición de caja chica {no_reposicion}')[:100]
+
+    with client.connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT NVL(ult_docu,0) FROM CHC.TCHC_SECUENCIA "
+            " WHERE no_cia=:1 AND punto=:2 AND tipo_docu='SO' FOR UPDATE",
+            [no_cia, punto])
+        row = cur.fetchone()
+        if row is None:
+            cur.execute(
+                "INSERT INTO CHC.TCHC_SECUENCIA (no_cia, punto, tipo_docu, ult_docu) "
+                "VALUES (:1,:2,'SO',1)", [no_cia, punto])
+            no_docu_so = '1'.zfill(7)
+        else:
+            nxt = int(row[0]) + 1
+            cur.execute(
+                "UPDATE CHC.TCHC_SECUENCIA SET ult_docu=:1 "
+                " WHERE no_cia=:2 AND punto=:3 AND tipo_docu='SO'",
+                [nxt, no_cia, punto])
+            no_docu_so = str(nxt).zfill(7)
+
+        cur.execute(
+            "INSERT INTO CHC.TCHC_CHEQUE ("
+            "  no_cia, punto, tipo_docu, no_docu, cuenta_banco, no_proveedor, "
+            "  tipo_movi, tipo_transaccion, fecha_solicitud, fecha_cheque, "
+            "  beneficiario, status, st_impresion, st_nulo, "
+            "  autorizado, conciliado, entregado, retenido, que_es, deposito_tc, "
+            "  debito, credito, valor_original, saldo, total_refe, usuario, "
+            "  moneda_cuenta, pago, st_generado_cnt, detalle1, estado_encf, "
+            "  fecha_sysdate"
+            ") VALUES ("
+            "  :1, :2, 'SO', :3, :4, NULL, "
+            "  'C', 'K', SYSDATE, SYSDATE, "
+            "  :5, 'N', 'N', 'A', "
+            "  'N', 'N', 'N', 'N', 'S', 'N', "
+            "  :6, :7, :8, :9, :10, :11, "
+            "  :12, 'N', 'N', :13, 0, SYSDATE"
+            ")",
+            [no_cia, punto, no_docu_so, cuenta_banco, benef,
+             total, total, total, total, total, usuario, moneda, detalle])
+
+        cur.execute(
+            "INSERT INTO CHC.TCHC_REFEDOCU "
+            "  (no_cia, punto, tipo_docu, no_docu, tipo_refe, no_refe, "
+            "   no_proveedor, monto) "
+            "VALUES (:1,:2,'SO',:3,'CC',:4,NULL,:5)",
+            [no_cia, punto, no_docu_so, no_reposicion, total])
+
+        cur.execute(
+            "UPDATE CHC.TCHC_BCUENTA "
+            "   SET che_por_entregar = NVL(che_por_entregar,0) + :1 "
+            " WHERE no_cia=:2 AND punto=:3 AND cuenta_banco=:4",
+            [total, no_cia, punto, cuenta_banco])
+
+        cur.execute(
+            "UPDATE ACC.TACC_REPOSICION "
+            "   SET tipo_docu_chc='SO', no_docu_chc=:1, cuenta_banco=:2 "
+            " WHERE no_cia=:3 AND punto=:4 AND no_reposicion=:5",
+            [no_docu_so, cuenta_banco, no_cia, punto, no_reposicion])
+
+        conn.commit()
+
+    return {
+        'ok': True,
+        'tipo_docu': 'SO',
+        'no_docu': no_docu_so,
+        'beneficiario': benef,
+        'total': total,
+        'no_reposicion': no_reposicion,
+    }
+
+
 def anular_documento(no_cia: str, punto: str, no_docu: str, motivo: str = '') -> None:
     client.execute(
         "UPDATE ACC.TACC_DOCUMENTO SET anulado='S', "

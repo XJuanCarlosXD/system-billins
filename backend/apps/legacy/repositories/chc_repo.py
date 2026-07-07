@@ -317,6 +317,36 @@ def marcar_conciliado(no_cia: str, punto: str, tipo_docu: str, no_docu: str) -> 
     )
 
 
+def desconciliar(no_cia: str, punto: str, tipo_docu: str, no_docu: str) -> None:
+    """Fchc705 — Reversar Conciliación. Solo si el período del cheque no está
+    dentro de un cierre de conciliación ya aplicado para su cuenta."""
+    row = client.fetch_one(
+        "SELECT cuenta_banco, TO_CHAR(fecha_cheque,'YYYY'), TO_CHAR(fecha_cheque,'MM') "
+        "  FROM CHC.TCHC_CHEQUE "
+        " WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+        [no_cia, punto, tipo_docu, no_docu],
+    )
+    if not row:
+        raise ValueError(f'Documento {tipo_docu}-{no_docu} no existe')
+    cuenta_banco, ano, mes = row[0], row[1], row[2]
+    if ano and mes:
+        cerrado = client.fetch_one(
+            "SELECT 1 FROM CHC.TCHC_CIERRE_CONCILIACION "
+            " WHERE no_cia=:1 AND punto=:2 AND cuenta_banco=:3 "
+            "   AND ano=:4 AND mes=:5",
+            [no_cia, punto, cuenta_banco, int(ano), int(mes)],
+        )
+        if cerrado:
+            raise ValueError(
+                f'La conciliación de {cuenta_banco} {mes}/{ano} ya está '
+                'cerrada — reverse el cierre antes de desconciliar')
+    client.execute(
+        "UPDATE CHC.TCHC_CHEQUE SET conciliado='N' "
+        " WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+        [no_cia, punto, tipo_docu, no_docu],
+    )
+
+
 # ---- Cierres de conciliación ----
 def list_cierres(no_cia: str, punto: str | None = None,
                  cuenta_banco: str | None = None) -> list[dict]:

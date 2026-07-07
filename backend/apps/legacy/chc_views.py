@@ -160,6 +160,19 @@ def chc_cheque_conciliar(request):
     return JsonResponse({'ok': True})
 
 
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def chc_cheque_desconciliar(request):
+    data = json.loads(request.body)
+    try:
+        chc_repo.desconciliar(data['no_cia'], _norm_punto(data['punto']),
+                              data['tipo_docu'], data['no_docu'])
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse({'ok': True})
+
+
 # ---- Cierres ----
 @login_required
 @csrf_exempt

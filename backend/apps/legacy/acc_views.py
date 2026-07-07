@@ -126,6 +126,40 @@ def acc_documento_anular(request):
     return JsonResponse({'ok': True})
 
 
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def acc_documento_corregir(request):
+    """Facc204 — Corregir NCF y otros datos descriptivos del egreso."""
+    data = json.loads(request.body)
+    try:
+        acc_repo.corregir_documento(data['no_cia'], _norm_punto(data['punto']),
+                                    data['no_docu'], data)
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse({'ok': True})
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def acc_reposicion_generar_solicitud(request):
+    """Facc203 — Generar Solicitud de Cheque de Reposición (puente ACC→CHC)."""
+    data = json.loads(request.body)
+    try:
+        out = acc_repo.generar_solicitud_cheque_reposicion(
+            no_cia=data['no_cia'],
+            punto=_norm_punto(data['punto']),
+            no_reposicion=data['no_reposicion'],
+            cuenta_banco=data['cuenta_banco'],
+            usuario=request.user.username,
+            beneficiario=data.get('beneficiario', ''),
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse(out, status=201)
+
+
 # ---- Reposiciones ----
 @login_required
 @csrf_exempt

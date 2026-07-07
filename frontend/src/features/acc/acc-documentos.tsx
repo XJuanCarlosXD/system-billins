@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Eye, Plus, XCircle, Search, Printer } from 'lucide-react'
+import { Eye, Plus, XCircle, Search, Printer, PencilLine } from 'lucide-react'
 
 const fmt = (n: any) => Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })
 const fmtDate = (s: any) => s ? String(s).slice(0, 10) : ''
@@ -24,6 +24,8 @@ export function AccDocumentos() {
   const [openAnular, setOpenAnular] = useState(false)
   const [motivo, setMotivo] = useState('')
   const [newDoc, setNewDoc] = useState<any>(null)
+  const [openCorregir, setOpenCorregir] = useState(false)
+  const [corr, setCorr] = useState<any>(null)
 
   const cajasQ = useQuery({ queryKey: ['acc-cajas-pick', selectedCompany, selectedPoint], queryFn: () => api.accListCajas(selectedCompany, selectedPoint) })
   const benesQ = useQuery({ queryKey: ['acc-bene-pick'], queryFn: () => api.accListBeneficiarios({ activo: 'S' }) })
@@ -63,6 +65,21 @@ export function AccDocumentos() {
       toast.success('Documento anulado')
       qc.invalidateQueries({ queryKey: ['acc-documentos'] })
       setOpenAnular(false); setSelected(null); setMotivo('')
+    },
+    onError: (e: any) => toast.error(e?.detail?.error || 'Error'),
+  })
+
+  const corregir = useMutation({
+    mutationFn: () => api.accCorregirDocumento({
+      no_cia: selected.no_cia, punto: selected.punto, no_docu: selected.no_docu,
+      ncf: corr?.ncf, rnc: corr?.rnc, no_bene: corr?.no_bene,
+      detalle: corr?.detalle, tipo_gasto: corr?.tipo_gasto,
+    }),
+    onSuccess: () => {
+      toast.success('Documento corregido')
+      qc.invalidateQueries({ queryKey: ['acc-documentos'] })
+      qc.invalidateQueries({ queryKey: ['acc-doc-detalle'] })
+      setOpenCorregir(false); setCorr(null)
     },
     onError: (e: any) => toast.error(e?.detail?.error || 'Error'),
   })
@@ -222,10 +239,61 @@ export function AccDocumentos() {
               </Button>
             )}
             {selected && selected.anulado !== 'S' && (
+              <Button size="sm" variant="outline" onClick={() => {
+                const cab = detalleQ.data?.cabecera || selected
+                setCorr({
+                  ncf: cab.ncf || '', rnc: cab.rnc || '', no_bene: cab.no_bene || '',
+                  detalle: cab.detalle || '', tipo_gasto: cab.tipo_gasto || '',
+                })
+                setOpenCorregir(true)
+              }}>
+                <PencilLine className="h-4 w-4 mr-1" /> Corregir
+              </Button>
+            )}
+            {selected && selected.anulado !== 'S' && (
               <Button size="sm" variant="destructive" onClick={() => setOpenAnular(true)}>
                 <XCircle className="h-4 w-4 mr-1" /> Anular
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Corregir NCF y otros datos (Facc204) */}
+      <Dialog open={openCorregir} onOpenChange={setOpenCorregir}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Corregir ACC-{selected?.no_docu}</DialogTitle></DialogHeader>
+          {corr && (
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>NCF</Label><Input className="font-mono" value={corr.ncf} onChange={(e) => setCorr({ ...corr, ncf: e.target.value })} /></div>
+              <div><Label>RNC</Label><Input className="font-mono" value={corr.rnc} onChange={(e) => setCorr({ ...corr, rnc: e.target.value })} /></div>
+              <div>
+                <Label>Beneficiario</Label>
+                <Select value={corr.no_bene} onValueChange={(v) => setCorr({ ...corr, no_bene: v })}>
+                  <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+                  <SelectContent>
+                    {benesQ.data?.slice(0, 200).map((b: any) => <SelectItem key={b.no_bene} value={b.no_bene}>{b.no_bene} — {b.nombre}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Tipo Gasto</Label>
+                <Select value={corr.tipo_gasto} onValueChange={(v) => setCorr({ ...corr, tipo_gasto: v })}>
+                  <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+                  <SelectContent>
+                    {tiposQ.data?.map((t: any) => <SelectItem key={t.tipo_gasto} value={t.tipo_gasto}>{t.tipo_gasto} — {t.descripcion}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-2"><Label>Detalle</Label><Input value={corr.detalle} onChange={(e) => setCorr({ ...corr, detalle: e.target.value })} /></div>
+              <p className="col-span-2 text-xs text-muted-foreground">
+                Solo corrige datos descriptivos/fiscales. El valor y la distribución contable no cambian — para eso anule y recree el egreso.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpenCorregir(false)}>Cancelar</Button>
+            <Button onClick={() => corregir.mutate()} disabled={corregir.isPending}>Guardar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
