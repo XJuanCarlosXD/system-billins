@@ -14,4 +14,7 @@ pytest-django>=4.8
 pytest-asyncio>=0.23
 anthropic>=0.40
 httpx-sse>=0.4
+requests>=2.31
+lxml>=4.9
+signxml>=5.0
 

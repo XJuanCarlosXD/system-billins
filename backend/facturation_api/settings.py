@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     'apps.legacy',
     'apps.auth_legacy',
     'apps.fat',
+    'apps.fe',
     'apps.cnt',
     'apps.docs',
     'apps.mcp',
