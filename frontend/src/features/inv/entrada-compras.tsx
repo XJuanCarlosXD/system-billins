@@ -794,6 +794,7 @@ export function EntradaCompras({ noCia, punto }: Props) {
         listas={[]}
         noLista={''}
         defaultAlmacen={almacenHeader}
+        defaultSoloExistencia={false}
         onSelect={(p, qty, alm) => {
           if (productModalForIdx == null) return
           const idx = productModalForIdx

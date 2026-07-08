@@ -471,7 +471,31 @@ def list_productos(
 
     where_clause = " AND ".join(where_parts)
 
-    # Oracle 11g pagination via ROWNUM double-wrap
+    # Match exacto de codigo primero: si lo tecleado es un no_produ (tal cual
+    # o zero-padded a 8), ese producto encabeza la lista. Sin esto, un limit
+    # chico (autocomplete usa 10) puede dejar fuera justo el codigo tecleado.
+    order_by = "p.descri"
+    exact_codes: list[str] = []
+    if search:
+        _s = search.strip().upper()
+        if _s:
+            exact_codes.append(_s)
+            if _s.isdigit() and len(_s) < 8:
+                exact_codes.append(_s.zfill(8))
+    if exact_codes:
+        ph = []
+        for v in exact_codes:
+            params.append(v)
+            ph.append(f":{len(params)}")
+        order_by = (
+            f"CASE WHEN UPPER(p.no_produ) IN ({','.join(ph)}) THEN 0 ELSE 1 END, "
+            "p.descri"
+        )
+
+    # Oracle 11g pagination via ROWNUM double-wrap. El ORDER BY va en la
+    # subquery mas interna y ROWNUM se aplica AFUERA: si ROWNUM se filtra en
+    # el mismo bloque del ORDER BY, Oracle corta N filas arbitrarias ANTES de
+    # ordenar y el producto buscado puede no salir nunca.
     rn_max = offset + limit
     rn_min = offset
     params.append(rn_max)
@@ -484,25 +508,25 @@ def list_productos(
         f"       grupo_produ, desc_grupo, activo, costo, precio, itbis, "
         f"       unidad, empaque, tiene_impuesto, servicio "
         f"FROM ("
-        f"  SELECT p.no_produ, p.descri descripcion, "
-        f"         p.linea, l.descri desc_linea, "
-        f"         p.sub_linea, "
-        f"         p.grupo_produ, g.descri desc_grupo, "
-        f"         p.activo, p.tiene_impuesto, p.porciento_impuesto itbis, "
-        f"         NVL(p.costo_mercado_rd, p.costo_mercado) costo, "
-        f"         NULL precio, "
-        f"         p.servicio, "
-        f"         NVL(u.descri, e.unidad) unidad, "
-        f"         e.empaque, "
-        f"         ROWNUM rn "
-        f"  FROM INV.TINV_PRODUCTO p "
-        f"  LEFT JOIN INV.TINV_LINEA l ON l.linea = p.linea "
-        f"  LEFT JOIN INV.TINV_GRUPO_PRODU g ON g.no_grupo = p.grupo_produ "
-        f"  LEFT JOIN INV.TINV_EMPAQUE e ON e.no_produ = p.no_produ AND e.por_defecto = 'S' "
-        f"  LEFT JOIN INV.TINV_UNIDAD u ON u.unidad = e.unidad "
-        f"  WHERE {where_clause} "
-        f"  AND ROWNUM <= :{rn_max_pos} "
-        f"  ORDER BY p.descri"
+        f"  SELECT a.*, ROWNUM rn FROM ("
+        f"    SELECT p.no_produ, p.descri descripcion, "
+        f"           p.linea, l.descri desc_linea, "
+        f"           p.sub_linea, "
+        f"           p.grupo_produ, g.descri desc_grupo, "
+        f"           p.activo, p.tiene_impuesto, p.porciento_impuesto itbis, "
+        f"           NVL(p.costo_mercado_rd, p.costo_mercado) costo, "
+        f"           NULL precio, "
+        f"           p.servicio, "
+        f"           NVL(u.descri, e.unidad) unidad, "
+        f"           e.empaque "
+        f"    FROM INV.TINV_PRODUCTO p "
+        f"    LEFT JOIN INV.TINV_LINEA l ON l.linea = p.linea "
+        f"    LEFT JOIN INV.TINV_GRUPO_PRODU g ON g.no_grupo = p.grupo_produ "
+        f"    LEFT JOIN INV.TINV_EMPAQUE e ON e.no_produ = p.no_produ AND e.por_defecto = 'S' "
+        f"    LEFT JOIN INV.TINV_UNIDAD u ON u.unidad = e.unidad "
+        f"    WHERE {where_clause} "
+        f"    ORDER BY {order_by}"
+        f"  ) a WHERE ROWNUM <= :{rn_max_pos} "
         f") WHERE rn > :{rn_min_pos}"
     )
     return client.fetch_dicts(sql, params)

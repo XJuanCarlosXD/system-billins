@@ -2030,7 +2030,19 @@ def search_productos(no_cia, punto, no_lista="", search="", page=1, page_size=20
     Misma normalizacion que get_existencia_producto en inv_repo.py.
     """
     offset = (page - 1) * page_size
-    end_row = offset + page_size
+
+    # Codigos exactos candidatos: lo tecleado tal cual y, si es numerico, su
+    # version zero-padded a 8 (formato real de TINV_PRODUCTO.no_produ). Un
+    # match exacto SIEMPRE se muestra aunque solo_existencia lo dejaria fuera
+    # (en Entrada de Compras existencia 0 es lo normal: se esta comprando) y
+    # se ordena de primero en la pagina.
+    exact_codes: set[str] = set()
+    if search:
+        _s = search.strip().upper()
+        if _s:
+            exact_codes.add(_s)
+            if _s.isdigit() and len(_s) < 8:
+                exact_codes.add(_s.zfill(8))
 
     select_cols = (
         "p.no_produ, NVL(p.descri, p.no_produ) AS descri, "
@@ -2061,7 +2073,15 @@ def search_productos(no_cia, punto, no_lista="", search="", page=1, page_size=20
     if search:
         base_sql += "AND (UPPER(p.no_produ) LIKE :srch OR UPPER(p.descri) LIKE :srch) "
         params["srch"] = "%{}%".format(search.upper())
-    base_sql += "ORDER BY p.no_produ"
+    if exact_codes:
+        ex_binds = {"ex{}".format(i): v for i, v in enumerate(sorted(exact_codes))}
+        params.update(ex_binds)
+        base_sql += (
+            "ORDER BY CASE WHEN UPPER(p.no_produ) IN ({}) THEN 0 ELSE 1 END, "
+            "p.no_produ".format(",".join(":" + k for k in ex_binds))
+        )
+    else:
+        base_sql += "ORDER BY p.no_produ"
 
     # COUNT y paginacion rapidos (sin existencia ni empaque).
     count_sql = "SELECT COUNT(*) FROM ({})".format(base_sql)
@@ -2069,15 +2089,52 @@ def search_productos(no_cia, punto, no_lista="", search="", page=1, page_size=20
     total = int(total_row[0]) if total_row else 0
     if total == 0:
         return {"items": [], "total": 0, "page": page, "page_size": page_size, "total_pages": 0}
-    paged_params = dict(params)
-    paged_params["end_row"] = end_row
-    paged_params["start_row"] = offset
     paged_sql = (
         "SELECT * FROM ( SELECT a.*, ROWNUM rn FROM ({}) a "
         "WHERE ROWNUM <= :end_row) WHERE rn > :start_row"
     ).format(base_sql)
-    rows = client.fetch_dicts(paged_sql, paged_params)
 
+    def _fetch_rows(chunk_offset: int) -> list[dict]:
+        p = dict(params)
+        p["end_row"] = chunk_offset + page_size
+        p["start_row"] = chunk_offset
+        return client.fetch_dicts(paged_sql, p)
+
+    def _build_items(rows: list[dict]) -> list[dict]:
+        return _productos_items(rows, no_cia, almacen)
+
+    if solo_existencia:
+        # El filtro de existencia es en-memoria sobre cada pagina de DB: si
+        # deja la pagina corta hay que seguir trayendo paginas hasta llenar
+        # page_size (tope 10 chunks para acotar costo). Antes la pagina podia
+        # quedar vacia aunque hubiera productos con existencia mas adelante.
+        items: list[dict] = []
+        chunk_offset = offset
+        for _ in range(10):
+            rows = _fetch_rows(chunk_offset)
+            if not rows:
+                break
+            for it in _build_items(rows):
+                if it["existencia"] <= 0 and it["no_produ"].strip().upper() not in exact_codes:
+                    continue
+                items.append(it)
+            chunk_offset += page_size
+            if len(items) >= page_size or chunk_offset >= total:
+                break
+        items = items[:page_size]
+    else:
+        items = _build_items(_fetch_rows(offset))
+    return {
+        "items": items, "total": total, "page": page, "page_size": page_size,
+        "total_pages": max(1, (total + page_size - 1) // page_size),
+    }
+
+
+def _productos_items(rows: list[dict], no_cia: str, almacen: str) -> list[dict]:
+    """Enriquece una pagina de TINV_PRODUCTO con empaque por defecto,
+    existencia normalizada y precio de venta (precio_base * CPE). Los bulk
+    fetch usan IN (...) con max page_size IDs — ver notas PERF de
+    search_productos."""
     no_produs = [r["no_produ"] for r in rows if r.get("no_produ")]
 
     # Bulk fetch del empaque por defecto (unidad + CPE) para los productos
@@ -2134,8 +2191,6 @@ def search_productos(no_cia, punto, no_lista="", search="", page=1, page_size=20
     for r in rows:
         np = r["no_produ"]
         ex = exist_map.get(np, 0.0)
-        if solo_existencia and ex <= 0:
-            continue
         emp = empaque_map.get(np) or {"unidad_empaque": "", "cpe": 1.0}
         precio_base = float(r["precio_base"] or 0)
         # precio venta = precio unitario × CPE del empaque por defecto.
@@ -2149,10 +2204,7 @@ def search_productos(no_cia, punto, no_lista="", search="", page=1, page_size=20
             "unidad_empaque": emp["unidad_empaque"],
             "activo": r["activo"] == "S",
         })
-    return {
-        "items": items, "total": total, "page": page, "page_size": page_size,
-        "total_pages": max(1, (total + page_size - 1) // page_size),
-    }
+    return items
 
 
 # -- Empaques (unidades) por producto -----------------------------------------

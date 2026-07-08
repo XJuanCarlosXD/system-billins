@@ -86,6 +86,10 @@ interface Props {
   noLista: string
   /** Almacén por defecto al abrir. */
   defaultAlmacen?: string
+  /** Estado inicial del checkbox "Solo con existencia". En pantallas de
+   * compra (Entrada de Compras) conviene false: el producto que se está
+   * comprando normalmente aún no tiene existencia. */
+  defaultSoloExistencia?: boolean
 }
 
 const fmtN = (n: number) =>
@@ -119,6 +123,7 @@ export function BuscarProductoModal({
   listas,
   noLista,
   defaultAlmacen = '',
+  defaultSoloExistencia = true,
 }: Props) {
   const [search, setSearch] = useState('')
   // debouncedSearch = key efectiva para react-query. Se actualiza 300ms despues
@@ -127,7 +132,7 @@ export function BuscarProductoModal({
   const [cantidades, setCantidades] = useState<Record<string, number>>({})
   const [almacen, setAlmacen] = useState(defaultAlmacen)
   const [lista, setLista] = useState(noLista)
-  const [soloExistencia, setSoloExistencia] = useState(true)
+  const [soloExistencia, setSoloExistencia] = useState(defaultSoloExistencia)
 
   // Cache de existencia por almacén por producto (lazy: solo carga al abrir popover).
   const [existPorProduto, setExistPorProduto] = useState<
