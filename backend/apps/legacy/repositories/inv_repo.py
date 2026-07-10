@@ -38,33 +38,56 @@ def count_productos(search: str = '', grupo: str = '', linea: str = '') -> int:
     return int(row[0]) if row else 0
 
 
+# El secuencial TINV_NEXT_PRODU puede quedar por detrás del MAX(no_produ)
+# real (visto 2026-07-06: 7728 vs 7731, por inserts que no pasaron por la
+# secuencia). El próximo código se calcula siempre contra ambos para no
+# sugerir/insertar un no_produ que ya existe (ORA-00001 / "ya existe").
+_SQL_MAX_PRODU_NUM = (
+    "SELECT NVL(MAX(TO_NUMBER(no_produ)), 0) FROM INV.TINV_PRODUCTO "
+    "WHERE REGEXP_LIKE(no_produ, '^[0-9]{1,8}$')"
+)
+
+
 def peek_next_producto() -> str:
-    """Devuelve el siguiente no_produ del secuencial INV.TINV_NEXT_PRODU.
+    """Devuelve el siguiente no_produ disponible (secuencial vs MAX real).
 
     Solo lectura (preview). La reserva real ocurre dentro de create_producto
     via FOR UPDATE para evitar carreras.
     """
-    rows = client.fetch_dicts(
-        "SELECT NVL(MAX(next_produ),1) AS n FROM INV.TINV_NEXT_PRODU", []
+    row = client.fetch_one(
+        "SELECT NVL(MAX(next_produ),1) FROM INV.TINV_NEXT_PRODU", []
     )
-    n = int(rows[0]['n']) if rows else 1
-    return str(n).zfill(8)
+    seq = int(row[0] or 1) if row else 1
+    row = client.fetch_one(_SQL_MAX_PRODU_NUM, [])
+    max_real = int(row[0] or 0) if row else 0
+    return str(max(seq, max_real + 1)).zfill(8)
 
 
 def _reserve_next_producto(cur) -> str:
     """Reserva el siguiente no_produ y avanza TINV_NEXT_PRODU. Misma logica
-    que el legacy: SELECT FOR UPDATE -> usar valor -> UPDATE +1.
+    que el legacy (SELECT FOR UPDATE -> usar valor -> UPDATE +1) pero
+    validando contra TINV_PRODUCTO, y resincronizando el secuencial si
+    estaba por detrás del MAX real.
     """
     row = cur.execute(
         "SELECT NVL(next_produ,1) FROM INV.TINV_NEXT_PRODU FOR UPDATE"
     ).fetchone()
+    seq = int(row[0] or 1) if row else 1
+    max_row = cur.execute(_SQL_MAX_PRODU_NUM).fetchone()
+    max_real = int(max_row[0] or 0) if max_row else 0
+    a_usar = max(seq, max_real + 1)
+    # Red de seguridad para códigos que el MAX numérico no cubre (p.ej.
+    # no_produ con más de 8 dígitos): avanza hasta un código libre.
+    while cur.execute(
+        "SELECT 1 FROM INV.TINV_PRODUCTO WHERE no_produ = :1",
+        [str(a_usar).zfill(8)],
+    ).fetchone():
+        a_usar += 1
     if row:
-        a_usar = int(row[0] or 1)
         cur.execute(
             "UPDATE INV.TINV_NEXT_PRODU SET next_produ = :1", [a_usar + 1]
         )
     else:
-        a_usar = 1
         cur.execute(
             "INSERT INTO INV.TINV_NEXT_PRODU(next_produ) VALUES(:1)", [a_usar + 1]
         )
@@ -197,6 +220,8 @@ def create_producto(payload: dict, usuario: str = '') -> dict:
 
     Campos del payload:
       no_produ (str, opcional — si vacio se asigna desde TINV_NEXT_PRODU)
+      codigo_auto (str 'S'|'N', def='N' — 'S' si no_produ vino del preview
+        next-codigo sin editar; permite reasignar si ya fue tomado)
       descripcion (str, requerido, max 40 chars)
       grupo_produ (str, requerido)
       linea (str, requerido)
@@ -233,9 +258,15 @@ def create_producto(payload: dict, usuario: str = '') -> dict:
     if not grupo_contable:
         raise ValueError("grupo_contable es requerido")
 
-    # Si el caller envió un código fijo, verifica que no exista; si no, se
-    # asignará desde TINV_NEXT_PRODU dentro de la misma transacción.
-    if no_produ:
+    # codigo_auto='S' indica que el no_produ enviado vino del preview
+    # (next-codigo) y el usuario no lo modificó: si otro usuario lo tomó
+    # entre el preview y el guardado, se reasigna en vez de fallar.
+    codigo_auto = str(payload.get('codigo_auto') or 'N').upper()[:1] == 'S'
+
+    # Si el caller envió un código fijo (tipeado a mano), verifica que no
+    # exista; si va vacío o vino del preview, se asigna/reasigna desde
+    # TINV_NEXT_PRODU dentro de la misma transacción.
+    if no_produ and not codigo_auto:
         if client.fetch_one(
             "SELECT 1 FROM INV.TINV_PRODUCTO WHERE no_produ = :1",
             [no_produ],
@@ -267,7 +298,7 @@ def create_producto(payload: dict, usuario: str = '') -> dict:
     porc_otros = float(porc_otros) if porc_otros not in (None, '') else None
 
     with client.cursor() as cur:
-        if not no_produ:
+        if codigo_auto or not no_produ:
             no_produ = _reserve_next_producto(cur)
         cur.execute(
             "INSERT INTO INV.TINV_PRODUCTO ("

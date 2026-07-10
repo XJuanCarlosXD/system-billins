@@ -95,6 +95,7 @@ export function CatalogoProductos() {
   const [moviProdu, setMoviProdu] = useState<{ no_produ: string; descripcion: string } | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [editingProdu, setEditingProdu] = useState<string | null>(null) // null = creando, no_produ = editando
+  const [autoCodigo, setAutoCodigo] = useState(false) // true = no_produ vino del preview next-codigo sin editar
   const [sublineas, setSublineas] = useState<any[]>([])
   const [gruposContables, setGruposContables] = useState<any[]>([])
 
@@ -260,12 +261,14 @@ export function CatalogoProductos() {
     setEditingProdu(null)
     setEmpaques([])
     setAlmacenesSel(new Set())
+    setAutoCodigo(false)
     setFormOpen(true)
     // Auto-pre-fill del codigo desde la secuencia legacy TINV_NEXT_PRODU
     try {
       const next = await apiFetch<{ siguiente?: string }>(`/inv/productos/next-codigo/`)
       if (next?.siguiente) {
         setForm((f) => ({ ...f, no_produ: next.siguiente! }))
+        setAutoCodigo(true)
       }
     } catch {
       /* preview falla -> el usuario puede tipearlo manualmente */
@@ -417,7 +420,12 @@ export function CatalogoProductos() {
       const url = isEdit
         ? `${API_BASE}/inv/productos/${encodeURIComponent(editingProdu!)}/`
         : `${API_BASE}/inv/productos/`
-      if (!isEdit) body.no_produ = form.no_produ.trim().toUpperCase()
+      if (!isEdit) {
+        body.no_produ = form.no_produ.trim().toUpperCase()
+        // Si el código vino del preview sin editar, el backend puede
+        // reasignarlo cuando otro usuario lo tomó entre preview y guardado.
+        body.codigo_auto = autoCodigo ? 'S' : 'N'
+      }
       // Asignar/actualizar empresa(s)/almacén(es): aplica tanto al crear
       // como al editar (idempotente — no duplica lo ya asignado).
       if (almacenesSel.size > 0) {
@@ -734,7 +742,7 @@ export function CatalogoProductos() {
                 placeholder='00012345'
                 value={form.no_produ}
                 disabled={!!editingProdu}
-                onChange={(e) => setForm((f) => ({ ...f, no_produ: e.target.value.toUpperCase() }))}
+                onChange={(e) => { setAutoCodigo(false); setForm((f) => ({ ...f, no_produ: e.target.value.toUpperCase() })) }}
               />
             </div>
             <div className='space-y-1'>
