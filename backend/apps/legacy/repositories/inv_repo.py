@@ -2674,6 +2674,27 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
             empaque, cpe = _empaque_cpe(cur, no_produ)
             total_documento += round(cantidad * costo, 2)
 
+            # Garantizar la fila padre en TINV_EPRODUCTO antes del INSERT en
+            # TINV_MOVIMIENTO (FK_TINV_MOVIMIENTO_EPRODUCTO revienta con
+            # ORA-02291 si falta). En entradas el producto se auto-asigna al
+            # almacen (mismo patron Finv113 que usa el conteo fisico); en
+            # salidas no hay nada que sacar, asi que es un error de negocio.
+            if tipo_movi == 'E':
+                _insert_eproducto(cur, no_cia=no_cia, punto=punto,
+                                  almacen=almacen_origen, no_produ=no_produ,
+                                  costo=costo)
+            else:
+                cur.execute(
+                    "SELECT 1 FROM INV.TINV_EPRODUCTO "
+                    "WHERE no_cia=:1 AND punto=:2 AND almacen=:3 AND no_produ=:4",
+                    [no_cia, punto, almacen_origen, no_produ])
+                if not cur.fetchone():
+                    raise ValueError(
+                        f"Linea {idx}: el producto {no_produ} no esta asignado "
+                        f"al almacen {almacen_origen} de la compania {no_cia}. "
+                        "Asignelo en Catalogo de Productos antes de registrar "
+                        "la salida.")
+
             _insert_movimiento(
                 cur, no_cia=no_cia, punto=punto, tipo_docu=tipo_docu,
                 no_docu=no_docu, no_linea=idx,
@@ -2691,10 +2712,15 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                 # NO_LINEA es NUMBER(3) -> usamos offset 500 para evitar colision.
                 if idx > 499:
                     raise ValueError("Transferencia con mas de 499 lineas no soportada")
+                almacen_dest = (lin.get('almacen_destino') or almacen_destino).strip()
+                # La entrada al destino tambien auto-asigna el producto.
+                _insert_eproducto(cur, no_cia=no_cia, punto=punto,
+                                  almacen=almacen_dest, no_produ=no_produ,
+                                  costo=costo)
                 _insert_movimiento(
                     cur, no_cia=no_cia, punto=punto, tipo_docu=tipo_docu,
                     no_docu=no_docu, no_linea=idx + 500,
-                    almacen=(lin.get('almacen_destino') or almacen_destino).strip(),
+                    almacen=almacen_dest,
                     no_produ=no_produ,
                     tipo_movi='E', tipo_transaccion=tipo_transaccion,
                     fecha=fecha, cantidad=cantidad, precio=precio, costo=costo,
@@ -2702,7 +2728,7 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                     tipo_refe=tipo_docu, no_refe=no_docu)
                 _adjust_eproducto_stock(
                     cur, no_cia=no_cia, punto=punto,
-                    almacen=(lin.get('almacen_destino') or almacen_destino).strip(),
+                    almacen=almacen_dest,
                     no_produ=no_produ, tipo_movi='E', cantidad=cantidad)
                 creadas += 1
         _upsert_rme_header(
