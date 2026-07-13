@@ -94,7 +94,7 @@ export function CxcClientes({ noCia, punto = '01' }: P) {
     try {
       const res = await regalGeneralApi.cxcSaveCliente(form)
       setOpen(false); load(page, q)
-    } catch (e: any) { setError(e?.message || 'Error') } finally { setSaving(false) }
+    } catch (e: any) { setError(e?.detail?.error || e?.message || 'Error') } finally { setSaving(false) }
   }
 
   const del = async (row: any) => {
@@ -231,16 +231,16 @@ export function CxcClientes({ noCia, punto = '01' }: P) {
                   </div>
                 )}
                 <div className="space-y-1 col-span-2">
-                  <Label>Nombre Cliente *</Label>
-                  <Input value={form.nombre_cliente} onChange={e => set('nombre_cliente', e.target.value)} />
+                  <Label>Nombre Cliente * <span className="text-xs text-muted-foreground">({(form.nombre_cliente || '').length}/40)</span></Label>
+                  <Input value={form.nombre_cliente} onChange={e => set('nombre_cliente', e.target.value)} maxLength={40} />
                 </div>
                 <div className="space-y-1 col-span-2">
                   <Label>Nombre Comercial</Label>
-                  <Input value={form.nombre_comercial} onChange={e => set('nombre_comercial', e.target.value)} />
+                  <Input value={form.nombre_comercial} onChange={e => set('nombre_comercial', e.target.value)} maxLength={40} />
                 </div>
                 <div className="space-y-1">
                   <Label>RNC / Cédula</Label>
-                  <Input value={form.rnc} onChange={e => set('rnc', e.target.value)} maxLength={15} />
+                  <Input value={form.rnc} onChange={e => set('rnc', e.target.value)} maxLength={16} />
                 </div>
                 <div className="space-y-1">
                   <Label>Tipo Persona</Label>
@@ -251,11 +251,11 @@ export function CxcClientes({ noCia, punto = '01' }: P) {
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <Label>Tipo de Cliente</Label>
+                  <Label>Tipo de Cliente *</Label>
                   <Sel field="tipo_cli" opts={tclis} valKey="tipo_cli" />
                 </div>
                 <div className="space-y-1">
-                  <Label>Tipo Contable</Label>
+                  <Label>Tipo Contable *</Label>
                   <Sel field="tipo_conta" opts={tcontables} valKey="tipo_conta" />
                 </div>
                 <div className="space-y-1">
@@ -272,19 +272,19 @@ export function CxcClientes({ noCia, punto = '01' }: P) {
                 </div>
                 <div className="space-y-1">
                   <Label>Teléfono</Label>
-                  <Input value={form.telefono} onChange={e => set('telefono', e.target.value)} />
+                  <Input value={form.telefono} onChange={e => set('telefono', e.target.value)} maxLength={14} />
                 </div>
                 <div className="space-y-1">
                   <Label>Celular</Label>
-                  <Input value={form.celular} onChange={e => set('celular', e.target.value)} />
+                  <Input value={form.celular} onChange={e => set('celular', e.target.value)} maxLength={14} />
                 </div>
                 <div className="space-y-1 col-span-2">
                   <Label>Email</Label>
-                  <Input type="email" value={form.email} onChange={e => set('email', e.target.value)} />
+                  <Input type="email" value={form.email} onChange={e => set('email', e.target.value)} maxLength={80} />
                 </div>
                 <div className="space-y-1 col-span-3">
-                  <Label>Dirección</Label>
-                  <Input value={form.direccion} onChange={e => set('direccion', e.target.value)} />
+                  <Label>Dirección <span className="text-xs text-muted-foreground">({(form.direccion || '').length}/60)</span></Label>
+                  <Input value={form.direccion} onChange={e => set('direccion', e.target.value)} maxLength={60} />
                 </div>
                 <div className="space-y-1">
                   <Label>Ciudad</Label>
@@ -341,19 +341,19 @@ export function CxcClientes({ noCia, punto = '01' }: P) {
                   <button className="absolute top-2 right-2 text-red-500 hover:text-red-700" onClick={() => removeContacto(i)}><X className="h-4 w-4" /></button>
                   <div className="space-y-1">
                     <Label>Nombre</Label>
-                    <Input value={c.nombre} onChange={e => setContacto(i, 'nombre', e.target.value)} />
+                    <Input value={c.nombre} onChange={e => setContacto(i, 'nombre', e.target.value)} maxLength={50} />
                   </div>
                   <div className="space-y-1">
                     <Label>Cargo</Label>
-                    <Input value={c.cargo} onChange={e => setContacto(i, 'cargo', e.target.value)} />
+                    <Input value={c.cargo} onChange={e => setContacto(i, 'cargo', e.target.value)} maxLength={80} />
                   </div>
                   <div className="space-y-1">
                     <Label>Teléfono</Label>
-                    <Input value={c.telefono} onChange={e => setContacto(i, 'telefono', e.target.value)} />
+                    <Input value={c.telefono} onChange={e => setContacto(i, 'telefono', e.target.value)} maxLength={12} />
                   </div>
                   <div className="space-y-1">
                     <Label>Email</Label>
-                    <Input value={c.email} onChange={e => setContacto(i, 'email', e.target.value)} />
+                    <Input value={c.email} onChange={e => setContacto(i, 'email', e.target.value)} maxLength={80} />
                   </div>
                 </div>
               ))}
@@ -370,15 +370,15 @@ export function CxcClientes({ noCia, punto = '01' }: P) {
                   <button className="absolute top-2 right-2 text-red-500 hover:text-red-700" onClick={() => removeRef(i)}><X className="h-4 w-4" /></button>
                   <div className="space-y-1">
                     <Label>Empresa</Label>
-                    <Input value={r.empresa} onChange={e => setRef(i, 'empresa', e.target.value)} />
+                    <Input value={r.empresa} onChange={e => setRef(i, 'empresa', e.target.value)} maxLength={60} />
                   </div>
                   <div className="space-y-1">
                     <Label>Teléfono</Label>
-                    <Input value={r.telefono} onChange={e => setRef(i, 'telefono', e.target.value)} />
+                    <Input value={r.telefono} onChange={e => setRef(i, 'telefono', e.target.value)} maxLength={12} />
                   </div>
                   <div className="space-y-1">
                     <Label>Contacto</Label>
-                    <Input value={r.contacto} onChange={e => setRef(i, 'contacto', e.target.value)} />
+                    <Input value={r.contacto} onChange={e => setRef(i, 'contacto', e.target.value)} maxLength={40} />
                   </div>
                 </div>
               ))}

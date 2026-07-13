@@ -459,11 +459,16 @@ def get_cliente(no_cia: str, no_cliente: str, punto: str = ''):
         [no_cia, no_cliente])
     return cli
 
+def _check_len(errores: list, etiqueta: str, valor, maxlen: int):
+    if valor and len(str(valor)) > maxlen:
+        errores.append(f"{etiqueta}: máximo {maxlen} caracteres (tiene {len(str(valor))})")
+
+
 def save_cliente(d: dict):
     no_cia = d['no_cia']
     punto = d.get('punto', '01')
     # Accept frontend aliases or legacy field names
-    nombre = d.get('nombre_cliente') or d.get('nombre', '')
+    nombre = (d.get('nombre_cliente') or d.get('nombre') or '').strip()
     tipo_contable = d.get('tipo_conta') or d.get('tipo_contable', '')
     tipo_cliente = d.get('tipo_cli') or d.get('tipo_cliente', '')
     email1 = d.get('email') or d.get('email1', '')
@@ -471,6 +476,50 @@ def save_cliente(d: dict):
     no_cadena = d.get('cadena') or d.get('no_cadena', '')
     dias_credito = d.get('dias_credito') or d.get('plazo', 0)
     codigo_ncf = (d.get('codigo_ncf') or '').strip().upper()
+    telefono2 = d.get('telefono2') or d.get('celular', '')
+    contactos = d.get('contactos', [])
+    referencias = d.get('referencias', [])
+    # Validar longitudes contra los VARCHAR2 reales de CXC.TCXC_CLIENTE antes
+    # de consumir la secuencia — así el usuario ve el campo exacto y no un ORA-12899.
+    errores: list = []
+    if not nombre:
+        errores.append("El nombre del cliente es obligatorio")
+    if not tipo_contable:
+        errores.append("Debe seleccionar el Tipo Contable")
+    if not tipo_cliente:
+        errores.append("Debe seleccionar el Tipo de Cliente")
+    _check_len(errores, "Nombre", nombre, 40)
+    _check_len(errores, "Cédula", d.get('cedula', ''), 12)
+    _check_len(errores, "RNC / Cédula", d.get('rnc', ''), 16)
+    _check_len(errores, "Teléfono", d.get('telefono', ''), 14)
+    _check_len(errores, "Celular", telefono2, 14)
+    _check_len(errores, "Email", email1, 80)
+    _check_len(errores, "Dirección", d.get('direccion', ''), 60)
+    _check_len(errores, "Ciudad", d.get('ciudad', ''), 2)
+    _check_len(errores, "Barrio", d.get('barrio', ''), 3)
+    _check_len(errores, "Zona", d.get('zona', ''), 4)
+    _check_len(errores, "Vendedor", d.get('vendedor', ''), 4)
+    _check_len(errores, "Ruta", ruta_entrega, 4)
+    _check_len(errores, "Código NCF", codigo_ncf, 6)
+    for i, c in enumerate(contactos, 1):
+        if not (c.get('nombre') or '').strip():
+            errores.append(f"Contacto {i}: el nombre es obligatorio")
+        _check_len(errores, f"Contacto {i} — Nombre", c.get('nombre', ''), 50)
+        _check_len(errores, f"Contacto {i} — Cargo",
+                   c.get('cargo') or c.get('area', ''), 80)
+        _check_len(errores, f"Contacto {i} — Teléfono", c.get('telefono', ''), 12)
+        _check_len(errores, f"Contacto {i} — Celular", c.get('celular', ''), 12)
+        _check_len(errores, f"Contacto {i} — Email", c.get('email', ''), 80)
+    for i, r in enumerate(referencias, 1):
+        if not ((r.get('nombre') or r.get('empresa') or '').strip()):
+            errores.append(f"Referencia {i}: la empresa es obligatoria")
+        _check_len(errores, f"Referencia {i} — Empresa",
+                   r.get('nombre') or r.get('empresa', ''), 60)
+        _check_len(errores, f"Referencia {i} — Teléfono", r.get('telefono', ''), 12)
+        _check_len(errores, f"Referencia {i} — Contacto",
+                   r.get('relacion') or r.get('contacto', ''), 40)
+    if errores:
+        raise ValueError("; ".join(errores))
     with client.cursor() as cur:
         is_new = not d.get('no_cliente')
         if is_new:
@@ -494,22 +543,27 @@ def save_cliente(d: dict):
                 "WHERE no_cia=:19 AND no_cliente=:20",
                 [nombre, tipo_contable, tipo_cliente,
                  d.get('cedula', ''), d.get('rnc', ''), d.get('telefono', ''),
-                 d.get('telefono2', ''), email1, d.get('direccion', ''),
+                 telefono2, email1, d.get('direccion', ''),
                  d.get('ciudad', ''), d.get('barrio', ''), d.get('zona', ''),
                  no_cadena, d.get('vendedor', ''), ruta_entrega,
                  d.get('limite_credito', 0), dias_credito, codigo_ncf,
                  no_cia, d['no_cliente']])
         else:
+            # Columnas NOT NULL sin default en la tabla: valores según el
+            # comportamiento del legacy (moda de los datos existentes).
             cur.execute(
                 "INSERT INTO CXC.TCXC_CLIENTE"
                 "(no_cia,punto,no_cliente,nombre,tipo_contable,tipo_cliente,"
                 "cedula,rnc,telefono,telefono2,email1,direccion,ciudad,barrio,zona,"
-                "no_cadena,vendedor,ruta_entrega,limite_credito,plazo,codigo_ncf,fecha_ingreso) "
-                "VALUES(:1,:2,:3,:4,:5,:6,:7,:8,:9,:10,:11,:12,:13,:14,:15,:16,:17,:18,:19,:20,:21,SYSDATE)",
+                "no_cadena,vendedor,ruta_entrega,limite_credito,plazo,codigo_ncf,fecha_ingreso,"
+                "controlar_credito,dias_gracia,contado,controlar_plazo,depositar_ft,"
+                "frecuencia,precio_menor_costo,enviar_factura) "
+                "VALUES(:1,:2,:3,:4,:5,:6,:7,:8,:9,:10,:11,:12,:13,:14,:15,:16,:17,:18,:19,:20,:21,SYSDATE,"
+                "'N',0,'N','S','N','N','N','N')",
                 [no_cia, punto, d['no_cliente'], nombre,
                  tipo_contable, tipo_cliente,
                  d.get('cedula', ''), d.get('rnc', ''), d.get('telefono', ''),
-                 d.get('telefono2', ''), email1, d.get('direccion', ''),
+                 telefono2, email1, d.get('direccion', ''),
                  d.get('ciudad', ''), d.get('barrio', ''), d.get('zona', ''),
                  no_cadena, d.get('vendedor', ''), ruta_entrega,
                  d.get('limite_credito', 0), dias_credito, codigo_ncf])
@@ -517,24 +571,33 @@ def save_cliente(d: dict):
         cur.execute(
             "DELETE FROM CXC.TCXC_CONTACTO_CLIENTE "
             "WHERE no_cia=:1 AND no_cliente=:2", [no_cia, d['no_cliente']])
-        for i, c in enumerate(d.get('contactos', []), 1):
+        for i, c in enumerate(contactos, 1):
             cur.execute(
                 "INSERT INTO CXC.TCXC_CONTACTO_CLIENTE"
-                "(no_cia,punto,no_cliente,no_contacto,nombre,telefono,celular,email) "
-                "VALUES(:1,:2,:3,:4,:5,:6,:7,:8)",
+                "(no_cia,punto,no_cliente,no_contacto,nombre,telefono,celular,email,"
+                "area,por_defecto) "
+                "VALUES(:1,:2,:3,:4,:5,:6,:7,:8,:9,:10)",
                 [no_cia, punto, d['no_cliente'], i, c.get('nombre', ''),
-                 c.get('telefono', ''), c.get('celular', ''), c.get('email', '')])
+                 c.get('telefono', ''), c.get('celular', ''), c.get('email', ''),
+                 c.get('cargo') or c.get('area') or 'GENERAL',
+                 'S' if i == 1 else 'N'])
         # Sync referencias
         cur.execute(
             "DELETE FROM CXC.TCXC_REFECLIENTE "
             "WHERE no_cia=:1 AND no_cliente=:2", [no_cia, d['no_cliente']])
-        for i, r in enumerate(d.get('referencias', []), 1):
+        for i, r in enumerate(referencias, 1):
+            # ciudad/barrio/direccion son NOT NULL sin FK: hereda los del cliente.
             cur.execute(
                 "INSERT INTO CXC.TCXC_REFECLIENTE"
-                "(no_cia,punto,no_cliente,tipo_referencia,nombre,telefono,relacion) "
-                "VALUES(:1,:2,:3,:4,:5,:6,:7)",
+                "(no_cia,punto,no_cliente,tipo_referencia,nombre,telefono,relacion,"
+                "ciudad,barrio,direccion) "
+                "VALUES(:1,:2,:3,:4,:5,:6,:7,:8,:9,:10)",
                 [no_cia, punto, d['no_cliente'], str(i),
-                 r.get('nombre', ''), r.get('telefono', ''), r.get('relacion', '')])
+                 r.get('nombre') or r.get('empresa', ''), r.get('telefono', ''),
+                 r.get('relacion') or r.get('contacto') or 'N/D',
+                 r.get('ciudad') or d.get('ciudad') or '00',
+                 r.get('barrio') or d.get('barrio') or '000',
+                 r.get('direccion') or d.get('direccion') or 'N/D'])
         cur.connection.commit()
     return d['no_cliente']
 
