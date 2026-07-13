@@ -1053,6 +1053,240 @@ def liberar_debito(no_cia, punto, no_docu_cr, tipo_docu_cr, debitos):
     return {"ok": True, "aplicaciones": len(debitos)}
 
 
+def list_documentos_dgii(no_cia, punto, no_proveedor='', tipo_docu='', no_docu=''):
+    """
+    Fcxp212 — documentos de un proveedor con sus datos DGII (NCF, RNC,
+    tipo de gasto, retencion, forma de pago) para la pantalla Corregir NCF.
+    """
+    conditions = ['d.no_cia=:1', 'd.punto=:2']
+    params = [no_cia, punto]
+    if no_proveedor:
+        params.append(str(no_proveedor))
+        conditions.append(f'd.no_proveedor=:{len(params)}')
+    if tipo_docu:
+        params.append(tipo_docu)
+        conditions.append(f'd.tipo_docu=:{len(params)}')
+    if no_docu:
+        params.append(str(no_docu).strip())
+        conditions.append(f'd.no_docu=:{len(params)}')
+    where = ' AND '.join(conditions)
+    return client.fetch_dicts(f"""
+        SELECT * FROM (
+            SELECT d.tipo_docu, d.no_docu, d.no_proveedor,
+                   NVL(p.nombre,'') AS proveedor,
+                   TO_CHAR(d.fecha,'YYYY-MM-DD') AS fecha,
+                   NVL(d.valor_original,0) AS valor_original,
+                   NVL(d.saldo,0) AS saldo, d.status, d.tipo_movi,
+                   d.ncf, d.posiciones_fijas_ncf, NVL(d.rnc,'') AS rnc,
+                   NVL(d.impuesto,0) AS impuesto,
+                   NVL(d.itbis_retenido,0) AS itbis_retenido,
+                   NVL(d.isr_retenido,0) AS isr_retenido,
+                   d.tipo_gasto, d.tipo_retencion, d.forma_pago, d.detalle
+            FROM CXP.TCXP_DOCUMENTO d
+            LEFT JOIN CXP.TCXP_DPROVEEDOR p ON p.no_proveedor = d.no_proveedor
+            WHERE {where}
+            ORDER BY d.fecha DESC, d.no_docu DESC
+        ) WHERE ROWNUM <= 200
+    """, params)
+
+
+def corregir_datos_dgii(d):
+    """
+    Fcxp212 — corrige NCF y datos DGII de un documento CxP ya registrado.
+    No toca valores/saldos: solo ncf, posiciones_fijas_ncf, rnc, impuesto,
+    itbis_retenido, isr_retenido, tipo_gasto, tipo_retencion, forma_pago.
+    REVERSIBLE: re-ejecutar con los valores anteriores.
+    """
+    no_cia    = d['no_cia']
+    punto     = d.get('punto', '01')
+    tipo_docu = d['tipo_docu']
+    no_docu   = str(d['no_docu']).strip()
+
+    rows = client.fetch_dicts(
+        "SELECT status FROM CXP.TCXP_DOCUMENTO "
+        "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+        [no_cia, punto, tipo_docu, no_docu])
+    if not rows:
+        raise ValueError('Documento no encontrado')
+
+    _ncf_raw = str(d.get('ncf') or '').strip()
+    _ncf_num = int(_ncf_raw) if _ncf_raw.isdigit() else None
+    _pos_ncf = (str(d.get('posiciones_fijas_ncf') or d.get('tipo_ncf') or '')
+                .strip().upper() or None)
+    _tipo_gasto = (str(d.get('tipo_gasto') or '').strip() or None)
+    _tipo_ret   = d.get('tipo_retencion')
+    _tipo_ret   = int(_tipo_ret) if _tipo_ret not in (None, '', 0) else None
+    _forma_pago = d.get('forma_pago')
+    _forma_pago = int(_forma_pago) if _forma_pago not in (None, '') else None
+
+    with client.cursor() as cur:
+        cur.execute(
+            "UPDATE CXP.TCXP_DOCUMENTO SET "
+            "ncf=:1, posiciones_fijas_ncf=:2, rnc=:3, "
+            "impuesto=:4, itbis_retenido=:5, isr_retenido=:6, "
+            "tipo_gasto=:7, tipo_retencion=:8, forma_pago=:9 "
+            "WHERE no_cia=:10 AND punto=:11 AND tipo_docu=:12 AND no_docu=:13",
+            [
+                _ncf_num, _pos_ncf, d.get('rnc', ''),
+                float(d.get('impuesto') or 0),
+                float(d.get('itbis_retenido') or 0),
+                float(d.get('isr_retenido') or 0),
+                _tipo_gasto, _tipo_ret, _forma_pago,
+                no_cia, punto, tipo_docu, no_docu,
+            ])
+        cur.connection.commit()
+    return {'ok': True, 'tipo_docu': tipo_docu, 'no_docu': no_docu}
+
+
+def aplicar_movimientos_pendientes(no_cia, punto, no_proveedor,
+                                   tipo_docu_db='', no_docu_db=''):
+    """
+    Fcxp206 — datos para Aplicación de Movimientos:
+    - a_favor: debitos (tipo_movi=D) con saldo a favor (saldo < 0).
+    - pendientes: creditos (tipo_movi=C) con saldo, no bloqueados y sin
+      aplicacion previa del debito elegido (NOT EXISTS TCXP_REFEDOCU).
+    """
+    a_favor = client.fetch_dicts(
+        "SELECT d.tipo_docu, d.no_docu, TO_CHAR(d.fecha,'YYYY-MM-DD') AS fecha, "
+        "       NVL(d.valor_original,0) AS valor_original, "
+        "       NVL(d.saldo,0) AS saldo, d.detalle "
+        "FROM CXP.TCXP_DOCUMENTO d "
+        "WHERE d.no_cia=:1 AND d.punto=:2 AND d.no_proveedor=:3 "
+        "  AND d.tipo_movi='D' AND NVL(d.saldo,0) < 0 "
+        "ORDER BY d.fecha, d.no_docu",
+        [no_cia, punto, str(no_proveedor)])
+
+    conditions = [
+        "a.no_cia=:1", "a.punto=:2", "a.no_proveedor=:3",
+        "a.tipo_movi='C'", "NVL(a.pago_bloqueado,'N')='N'",
+        "NVL(a.saldo,0) != 0",
+    ]
+    params = [no_cia, punto, str(no_proveedor)]
+    not_exists = ''
+    if tipo_docu_db and no_docu_db:
+        params.append(tipo_docu_db)
+        p_td = len(params)
+        params.append(str(no_docu_db).strip())
+        p_nd = len(params)
+        not_exists = (
+            f" AND NOT EXISTS (SELECT 'x' FROM CXP.TCXP_REFEDOCU b "
+            f"WHERE b.no_cia=a.no_cia AND b.punto=a.punto "
+            f"AND b.tipo_docu=:{p_td} AND b.no_docu=:{p_nd} "
+            f"AND b.tipo_refe=a.tipo_docu AND b.no_refe=a.no_docu)")
+    pendientes = client.fetch_dicts(
+        "SELECT a.tipo_docu, a.no_docu, TO_CHAR(a.fecha,'YYYY-MM-DD') AS fecha, "
+        "       NVL(a.valor_original,0) AS valor_original, "
+        "       NVL(a.saldo,0) AS saldo, a.detalle "
+        "FROM CXP.TCXP_DOCUMENTO a "
+        "WHERE " + ' AND '.join(conditions) + not_exists +
+        " ORDER BY a.fecha, a.no_docu",
+        params)
+    return {'a_favor': a_favor, 'pendientes': pendientes}
+
+
+def aplicar_movimiento(no_cia, punto, tipo_docu, no_docu, aplicaciones):
+    """
+    Fcxp206 — aplica un debito con saldo a favor contra facturas (creditos)
+    pendientes del mismo proveedor. Por cada aplicacion:
+      UPDATE credito saldo=saldo-monto (status=C si queda en 0)
+      INSERT TCXP_REFEDOCU (trazabilidad)
+      UPDATE debito  saldo=saldo+monto (status=C si queda en 0)
+    REVERSIBLE: restaurar saldos y borrar las filas de TCXP_REFEDOCU.
+    """
+    no_docu = str(no_docu).strip()
+    rows = client.fetch_dicts(
+        "SELECT NVL(saldo,0) AS saldo, tipo_movi, no_proveedor, status "
+        "FROM CXP.TCXP_DOCUMENTO "
+        "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+        [no_cia, punto, tipo_docu, no_docu])
+    if not rows:
+        raise ValueError('Documento a aplicar no encontrado')
+    doc = rows[0]
+    if (doc['tipo_movi'] or '').upper() != 'D':
+        raise ValueError('El documento a aplicar debe ser un débito (saldo a favor)')
+    disponible = round(-float(doc['saldo']), 2)
+    if disponible <= 0:
+        raise ValueError('El documento no tiene saldo a favor disponible')
+    no_proveedor = str(doc['no_proveedor']).strip()
+
+    total = round(sum(float(a.get('monto') or 0) for a in aplicaciones), 2)
+    if total <= 0:
+        raise ValueError('No hay montos a aplicar')
+    if total > disponible + 0.005:
+        raise ValueError(
+            f'El total a aplicar ({total:,.2f}) excede el saldo a favor '
+            f'disponible ({disponible:,.2f})')
+
+    aplicados = []
+    with client.cursor() as cur:
+        saldo_db = float(doc['saldo'])
+        for ap in aplicaciones:
+            monto    = round(float(ap.get('monto') or 0), 2)
+            if monto <= 0:
+                continue
+            tipo_ref = (ap.get('tipo_docu') or ap.get('tipo_refe') or '').strip()
+            no_ref   = str(ap.get('no_docu') or ap.get('no_refe') or '').strip()
+            ref_rows = client.fetch_dicts(
+                "SELECT NVL(saldo,0) AS saldo, tipo_movi, "
+                "       NVL(pago_bloqueado,'N') AS pago_bloqueado "
+                "FROM CXP.TCXP_DOCUMENTO "
+                "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+                [no_cia, punto, tipo_ref, no_ref])
+            if not ref_rows:
+                raise ValueError(f'Factura {tipo_ref}-{no_ref} no encontrada')
+            ref = ref_rows[0]
+            if (ref['tipo_movi'] or '').upper() != 'C':
+                raise ValueError(
+                    f'{tipo_ref}-{no_ref} no es un crédito pendiente de pago')
+            if ref['pago_bloqueado'] == 'S':
+                raise ValueError(f'{tipo_ref}-{no_ref} tiene el pago bloqueado')
+            saldo_cr = float(ref['saldo'])
+            if monto > saldo_cr + 0.005:
+                raise ValueError(
+                    f'El monto a aplicar a {tipo_ref}-{no_ref} ({monto:,.2f}) '
+                    f'excede su saldo ({saldo_cr:,.2f})')
+
+            nuevo_cr = round(saldo_cr - monto, 2)
+            st_cr = 'C' if abs(nuevo_cr) < 0.005 else None
+            if st_cr:
+                cur.execute(
+                    "UPDATE CXP.TCXP_DOCUMENTO SET saldo=0, status='C' "
+                    "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+                    [no_cia, punto, tipo_ref, no_ref])
+            else:
+                cur.execute(
+                    "UPDATE CXP.TCXP_DOCUMENTO SET saldo=:1 "
+                    "WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4 AND no_docu=:5",
+                    [nuevo_cr, no_cia, punto, tipo_ref, no_ref])
+            cur.execute(
+                "INSERT INTO CXP.TCXP_REFEDOCU "
+                "(no_cia, punto, tipo_docu, no_docu, no_proveedor, "
+                " tipo_refe, no_refe, monto) "
+                "VALUES (:1,:2,:3,:4,:5,:6,:7,:8)",
+                [no_cia, punto, tipo_docu, no_docu, no_proveedor,
+                 tipo_ref, no_ref, monto])
+            saldo_db = round(saldo_db + monto, 2)
+            aplicados.append({'tipo_docu': tipo_ref, 'no_docu': no_ref,
+                              'monto': monto, 'saldo_restante': nuevo_cr})
+
+        if not aplicados:
+            raise ValueError('No hay montos a aplicar')
+        if abs(saldo_db) < 0.005:
+            cur.execute(
+                "UPDATE CXP.TCXP_DOCUMENTO SET saldo=0, status='C' "
+                "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+                [no_cia, punto, tipo_docu, no_docu])
+        else:
+            cur.execute(
+                "UPDATE CXP.TCXP_DOCUMENTO SET saldo=:1 "
+                "WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4 AND no_docu=:5",
+                [saldo_db, no_cia, punto, tipo_docu, no_docu])
+        cur.connection.commit()
+
+    return {'ok': True, 'aplicaciones': aplicados,
+            'saldo_favor_restante': saldo_db}
+
+
 def bloquear_pago(no_cia, punto, tipo_docu, no_docu, bloquear=True):
     """Toggle pago_bloqueado S/N. REVERSIBLE: llamar de nuevo con bloquear=False."""
     rows = client.fetch_dicts(

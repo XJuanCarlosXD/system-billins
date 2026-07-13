@@ -216,6 +216,8 @@ export const sidebarData: SidebarData = {
               items: [
                 { title: 'Reversar Documento', url: '/cxp/reversar' },
                 { title: 'Liberar Debito', url: '/cxp/liberar-debito' },
+                { title: 'Aplicación de Movimientos', url: '/cxp/aplicar-movimientos' },
+                { title: 'Corregir NCF', url: '/cxp/corregir-ncf' },
                 { title: 'Aplicar Saldos Menores', url: '/cxp/saldos-menores' },
                 {
                   title: 'Bloquear / Desbloquear Pago',

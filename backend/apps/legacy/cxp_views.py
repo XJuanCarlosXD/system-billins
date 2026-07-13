@@ -503,6 +503,81 @@ def cxp_bloquear_pago(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@login_required
+@csrf_exempt
+@require_http_methods(['GET', 'POST'])
+def cxp_corregir_ncf(request):
+    """
+    Fcxp212 — Corregir NCF / datos DGII de un documento.
+    GET  ?no_cia=&punto=&no_proveedor= (o tipo_docu=&no_docu=)
+         → documentos con sus datos DGII actuales.
+    POST {no_cia, punto, tipo_docu, no_docu, ncf, posiciones_fijas_ncf, rnc,
+          impuesto, itbis_retenido, isr_retenido, tipo_gasto, tipo_retencion,
+          forma_pago} → actualiza. No toca valores ni saldos.
+    """
+    if request.method == 'GET':
+        no_cia       = request.GET.get('no_cia', '')
+        punto        = _norm_punto(request.GET.get('punto', ''))
+        no_proveedor = request.GET.get('no_proveedor', '')
+        tipo_docu    = request.GET.get('tipo_docu', '')
+        no_docu      = request.GET.get('no_docu', '')
+        if not no_cia or not punto:
+            return JsonResponse({'error': 'no_cia y punto son requeridos'}, status=400)
+        if not no_proveedor and not (tipo_docu and no_docu):
+            return JsonResponse(
+                {'error': 'Indique no_proveedor o tipo_docu + no_docu'}, status=400)
+        rows = cxp_repo.list_documentos_dgii(no_cia, punto, no_proveedor,
+                                             tipo_docu, no_docu)
+        return JsonResponse(rows, safe=False)
+    try:
+        data = json.loads(request.body)
+        result = cxp_repo.corregir_datos_dgii(data)
+        return JsonResponse(result)
+    except (KeyError, ValueError) as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET', 'POST'])
+def cxp_aplicar_movimientos(request):
+    """
+    Fcxp206 — Aplicación de Movimientos (saldo a favor).
+    GET  ?no_cia=&punto=&no_proveedor=&tipo_docu=&no_docu=
+         → {a_favor: débitos con saldo a favor, pendientes: créditos con saldo}
+    POST {no_cia, punto, tipo_docu, no_docu,
+          aplicaciones:[{tipo_docu, no_docu, monto}]}
+         → aplica el débito contra las facturas indicadas (TCXP_REFEDOCU).
+    """
+    if request.method == 'GET':
+        no_cia       = request.GET.get('no_cia', '')
+        punto        = _norm_punto(request.GET.get('punto', ''))
+        no_proveedor = request.GET.get('no_proveedor', '')
+        tipo_docu    = request.GET.get('tipo_docu', '')
+        no_docu      = request.GET.get('no_docu', '')
+        if not no_cia or not punto or not no_proveedor:
+            return JsonResponse(
+                {'error': 'no_cia, punto y no_proveedor son requeridos'}, status=400)
+        data = cxp_repo.aplicar_movimientos_pendientes(
+            no_cia, punto, no_proveedor, tipo_docu, no_docu)
+        return JsonResponse(data)
+    try:
+        data      = json.loads(request.body)
+        no_cia    = data['no_cia']
+        punto     = _norm_punto(data.get('punto', '01'))
+        tipo_docu = data['tipo_docu']
+        no_docu   = data['no_docu']
+        result    = cxp_repo.aplicar_movimiento(
+            no_cia, punto, tipo_docu, no_docu, data.get('aplicaciones', []))
+        return JsonResponse(result)
+    except (KeyError, ValueError) as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
 # ─── SOLICITUDES DE PAGO (Fcxp209 / Fcxp207 — puente CxP → CHC) ──────────────
 
 @login_required

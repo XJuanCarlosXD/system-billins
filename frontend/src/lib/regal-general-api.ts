@@ -1289,6 +1289,28 @@ export const regalGeneralApi = {
     request<any>(`/cxp/liberar-debito/`, { method: 'POST', body: JSON.stringify(data) }),
   cxpBloquearPago: (data: { no_cia: string; punto: string; tipo_docu: string; no_docu: string; bloquear: boolean }) =>
     request<any>(`/cxp/bloquear-pago/`, { method: 'POST', body: JSON.stringify(data) }),
+  // Fcxp212 — Corregir NCF / datos DGII
+  cxpCorregirNcfDocs: (params: { no_cia: string; punto: string; no_proveedor?: string; tipo_docu?: string; no_docu?: string }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<any[]>(`/cxp/corregir-ncf/?${qs}`)
+  },
+  cxpCorregirNcf: (data: Record<string, unknown>) =>
+    request<{ ok: boolean; tipo_docu: string; no_docu: string }>(`/cxp/corregir-ncf/`, { method: 'POST', body: JSON.stringify(data) }),
+  // Fcxp206 — Aplicación de Movimientos (saldo a favor)
+  cxpAplicarMovimientosGet: (params: { no_cia: string; punto: string; no_proveedor: string; tipo_docu?: string; no_docu?: string }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+    ).toString()
+    return request<{ a_favor: any[]; pendientes: any[] }>(`/cxp/aplicar-movimientos/?${qs}`)
+  },
+  cxpAplicarMovimientos: (data: {
+    no_cia: string; punto: string; tipo_docu: string; no_docu: string
+    aplicaciones: { tipo_docu: string; no_docu: string; monto: number }[]
+  }) =>
+    request<{ ok: boolean; aplicaciones: any[]; saldo_favor_restante: number }>(
+      `/cxp/aplicar-movimientos/`, { method: 'POST', body: JSON.stringify(data) }),
   // Solicitudes de pago (Fcxp209 / Fcxp207 — puente CxP → CHC)
   cxpSolicitudChequeDocs: (noCia: string, punto: string, noProveedor: string) => {
     const qs = new URLSearchParams({ no_cia: noCia, punto, no_proveedor: noProveedor }).toString()

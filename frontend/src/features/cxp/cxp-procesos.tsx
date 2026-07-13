@@ -324,7 +324,7 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
   const [form, setForm] = useState({
     fecha: today,
     fecha_vence: '',
-    valor_original: '',
+    valor_bienes: '',
     descripcion: '',
     rnc: '',
     ncf: '',
@@ -427,31 +427,32 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
       .catch(() => setNcfInfo(null))
   }, [proveedor?.no_proveedor, noCia, punto])
 
-  // Auto-calcula el ITBIS desde el valor: el valor capturado es el total
-  // (con ITBIS incluido), así que se descompone como
-  //   base  = total / (1 + porc/100)
-  //   itbis = total − base
+  // Auto-calcula el ITBIS desde el valor de bienes (sin ITBIS):
+  //   itbis = base × porc/100
+  //   total = base + itbis (es lo que se registra como valor del documento)
   // Si el proveedor está exento o el ITBIS está siendo editado a mano,
   // no recalcula.
   useEffect(() => {
     if (editandoItbis) return
-    const total = Number(form.valor_original || 0)
-    if (!total) { setImpuesto(''); return }
+    const base = Number(form.valor_bienes || 0)
+    if (!base) { setImpuesto(''); return }
     const exento = (proveedor?.excento_itbis || 'N').toUpperCase() === 'S'
     if (exento) { setImpuesto('0'); return }
-    const factor = 1 + (porcItbis / 100)
-    const base = total / factor
-    const itbis = total - base
+    const itbis = base * (porcItbis / 100)
     setImpuesto(itbis.toFixed(2))
-  }, [form.valor_original, porcItbis, proveedor?.no_proveedor, proveedor?.excento_itbis, editandoItbis])
+  }, [form.valor_bienes, porcItbis, proveedor?.no_proveedor, proveedor?.excento_itbis, editandoItbis])
+
+  // Total del documento = bienes + ITBIS. Es lo que se guarda como
+  // valor_original en TCXP_DOCUMENTO (mismo semántico que el legado).
+  const totalDocumento = Number(form.valor_bienes || 0) + Number(impuesto || 0)
 
   const onSave = async () => {
     if (!punto) {
       toast.error('Seleccione un punto de trabajo')
       return
     }
-    if (!tipoDocu || !proveedor?.no_proveedor || !form.valor_original) {
-      toast.error('Tipo de documento, proveedor y valor son requeridos')
+    if (!tipoDocu || !proveedor?.no_proveedor || !form.valor_bienes) {
+      toast.error('Tipo de documento, proveedor y valor de bienes son requeridos')
       return
     }
     setSaving(true)
@@ -462,7 +463,8 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
         tipo_docu: tipoDocu,
         no_proveedor: proveedor.no_proveedor,
         ...form,
-        valor_original: Number(form.valor_original),
+        // valor_original = bienes + ITBIS (total del documento)
+        valor_original: Number(form.valor_bienes) + Number(impuesto || 0),
         impuesto: Number(impuesto || 0),
         isc:             form.isc             ? Number(form.isc)             : 0,
         otros_impuestos: form.otros_impuestos ? Number(form.otros_impuestos) : 0,
@@ -478,7 +480,7 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
       setForm({
         fecha: today,
         fecha_vence: '',
-        valor_original: '',
+        valor_bienes: '',
         descripcion: '',
         rnc: '',
         ncf: '',
@@ -599,21 +601,16 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
             )}
           </div>
           <div className='space-y-1'>
-            <Label className='text-xs'>Valor Total (con ITBIS) *</Label>
+            <Label className='text-xs'>Valor de Bienes (sin ITBIS) *</Label>
             <Input
               type='number'
               step='0.01'
-              value={form.valor_original}
+              value={form.valor_bienes}
               onChange={(e) =>
-                setForm((f) => ({ ...f, valor_original: e.target.value }))
+                setForm((f) => ({ ...f, valor_bienes: e.target.value }))
               }
               className='h-10 text-right font-mono'
             />
-            {form.valor_original && Number(impuesto) > 0 && (
-              <div className='text-[10px] text-muted-foreground'>
-                Base RD$ {(Number(form.valor_original) - Number(impuesto)).toLocaleString('es-DO', { minimumFractionDigits: 2 })}
-              </div>
-            )}
           </div>
           <div className='space-y-1'>
             <Label className='text-xs flex items-center justify-between'>
@@ -631,6 +628,11 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
               className='h-10 text-right font-mono'
               placeholder='auto'
             />
+            {form.valor_bienes && (
+              <div className='text-[10px] font-semibold text-emerald-700'>
+                Total a registrar (con ITBIS): RD$ {totalDocumento.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+            )}
           </div>
           <div className='space-y-1'>
             <Label className='text-xs'>Fecha Vence</Label>

@@ -124,6 +124,7 @@ import { Route as AuthenticatedFatConducesRouteImport } from './routes/_authenti
 import { Route as AuthenticatedFatCondicionesRouteImport } from './routes/_authenticated/fat/condiciones'
 import { Route as AuthenticatedFatCompaniasRouteImport } from './routes/_authenticated/fat/companias'
 import { Route as AuthenticatedFatCierreMensualRouteImport } from './routes/_authenticated/fat/cierre-mensual'
+import { Route as AuthenticatedFatCajeroRouteImport } from './routes/_authenticated/fat/cajero'
 import { Route as AuthenticatedFatAsientoContableRouteImport } from './routes/_authenticated/fat/asiento-contable'
 import { Route as AuthenticatedFatAnularFacturaRouteImport } from './routes/_authenticated/fat/anular-factura'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
@@ -151,12 +152,14 @@ import { Route as AuthenticatedCxpEnvejecimientoRouteImport } from './routes/_au
 import { Route as AuthenticatedCxpEntradaDocumentosRouteImport } from './routes/_authenticated/cxp/entrada-documentos'
 import { Route as AuthenticatedCxpDocumentosRouteImport } from './routes/_authenticated/cxp/documentos'
 import { Route as AuthenticatedCxpCuentasRouteImport } from './routes/_authenticated/cxp/cuentas'
+import { Route as AuthenticatedCxpCorregirNcfRouteImport } from './routes/_authenticated/cxp/corregir-ncf'
 import { Route as AuthenticatedCxpCiudadesRouteImport } from './routes/_authenticated/cxp/ciudades'
 import { Route as AuthenticatedCxpCierreRouteImport } from './routes/_authenticated/cxp/cierre'
 import { Route as AuthenticatedCxpCiasRouteImport } from './routes/_authenticated/cxp/cias'
 import { Route as AuthenticatedCxpBloquearPagoRouteImport } from './routes/_authenticated/cxp/bloquear-pago'
 import { Route as AuthenticatedCxpBarriosRouteImport } from './routes/_authenticated/cxp/barrios'
 import { Route as AuthenticatedCxpAsientoContableRouteImport } from './routes/_authenticated/cxp/asiento-contable'
+import { Route as AuthenticatedCxpAplicarMovimientosRouteImport } from './routes/_authenticated/cxp/aplicar-movimientos'
 import { Route as AuthenticatedCxcZonasRouteImport } from './routes/_authenticated/cxc/zonas'
 import { Route as AuthenticatedCxcVendedoresRouteImport } from './routes/_authenticated/cxc/vendedores'
 import { Route as AuthenticatedCxcTransaccionesRouteImport } from './routes/_authenticated/cxc/transacciones'
@@ -867,6 +870,11 @@ const AuthenticatedFatCierreMensualRoute =
     path: '/cierre-mensual',
     getParentRoute: () => AuthenticatedFatRoute,
   } as any)
+const AuthenticatedFatCajeroRoute = AuthenticatedFatCajeroRouteImport.update({
+  id: '/cajero',
+  path: '/cajero',
+  getParentRoute: () => AuthenticatedFatRoute,
+} as any)
 const AuthenticatedFatAsientoContableRoute =
   AuthenticatedFatAsientoContableRouteImport.update({
     id: '/asiento-contable',
@@ -1024,6 +1032,12 @@ const AuthenticatedCxpCuentasRoute = AuthenticatedCxpCuentasRouteImport.update({
   path: '/cuentas',
   getParentRoute: () => AuthenticatedCxpRoute,
 } as any)
+const AuthenticatedCxpCorregirNcfRoute =
+  AuthenticatedCxpCorregirNcfRouteImport.update({
+    id: '/corregir-ncf',
+    path: '/corregir-ncf',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
 const AuthenticatedCxpCiudadesRoute =
   AuthenticatedCxpCiudadesRouteImport.update({
     id: '/ciudades',
@@ -1055,6 +1069,12 @@ const AuthenticatedCxpAsientoContableRoute =
   AuthenticatedCxpAsientoContableRouteImport.update({
     id: '/asiento-contable',
     path: '/asiento-contable',
+    getParentRoute: () => AuthenticatedCxpRoute,
+  } as any)
+const AuthenticatedCxpAplicarMovimientosRoute =
+  AuthenticatedCxpAplicarMovimientosRouteImport.update({
+    id: '/aplicar-movimientos',
+    path: '/aplicar-movimientos',
     getParentRoute: () => AuthenticatedCxpRoute,
   } as any)
 const AuthenticatedCxcZonasRoute = AuthenticatedCxcZonasRouteImport.update({
@@ -1643,12 +1663,14 @@ export interface FileRoutesByFullPath {
   '/cxc/transacciones': typeof AuthenticatedCxcTransaccionesRoute
   '/cxc/vendedores': typeof AuthenticatedCxcVendedoresRoute
   '/cxc/zonas': typeof AuthenticatedCxcZonasRoute
+  '/cxp/aplicar-movimientos': typeof AuthenticatedCxpAplicarMovimientosRoute
   '/cxp/asiento-contable': typeof AuthenticatedCxpAsientoContableRoute
   '/cxp/barrios': typeof AuthenticatedCxpBarriosRoute
   '/cxp/bloquear-pago': typeof AuthenticatedCxpBloquearPagoRoute
   '/cxp/cias': typeof AuthenticatedCxpCiasRoute
   '/cxp/cierre': typeof AuthenticatedCxpCierreRoute
   '/cxp/ciudades': typeof AuthenticatedCxpCiudadesRoute
+  '/cxp/corregir-ncf': typeof AuthenticatedCxpCorregirNcfRoute
   '/cxp/cuentas': typeof AuthenticatedCxpCuentasRoute
   '/cxp/documentos': typeof AuthenticatedCxpDocumentosRoute
   '/cxp/entrada-documentos': typeof AuthenticatedCxpEntradaDocumentosRoute
@@ -1676,6 +1698,7 @@ export interface FileRoutesByFullPath {
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/fat/anular-factura': typeof AuthenticatedFatAnularFacturaRoute
   '/fat/asiento-contable': typeof AuthenticatedFatAsientoContableRoute
+  '/fat/cajero': typeof AuthenticatedFatCajeroRoute
   '/fat/cierre-mensual': typeof AuthenticatedFatCierreMensualRoute
   '/fat/companias': typeof AuthenticatedFatCompaniasRoute
   '/fat/condiciones': typeof AuthenticatedFatCondicionesRoute
@@ -1863,12 +1886,14 @@ export interface FileRoutesByTo {
   '/cxc/transacciones': typeof AuthenticatedCxcTransaccionesRoute
   '/cxc/vendedores': typeof AuthenticatedCxcVendedoresRoute
   '/cxc/zonas': typeof AuthenticatedCxcZonasRoute
+  '/cxp/aplicar-movimientos': typeof AuthenticatedCxpAplicarMovimientosRoute
   '/cxp/asiento-contable': typeof AuthenticatedCxpAsientoContableRoute
   '/cxp/barrios': typeof AuthenticatedCxpBarriosRoute
   '/cxp/bloquear-pago': typeof AuthenticatedCxpBloquearPagoRoute
   '/cxp/cias': typeof AuthenticatedCxpCiasRoute
   '/cxp/cierre': typeof AuthenticatedCxpCierreRoute
   '/cxp/ciudades': typeof AuthenticatedCxpCiudadesRoute
+  '/cxp/corregir-ncf': typeof AuthenticatedCxpCorregirNcfRoute
   '/cxp/cuentas': typeof AuthenticatedCxpCuentasRoute
   '/cxp/documentos': typeof AuthenticatedCxpDocumentosRoute
   '/cxp/entrada-documentos': typeof AuthenticatedCxpEntradaDocumentosRoute
@@ -1896,6 +1921,7 @@ export interface FileRoutesByTo {
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/fat/anular-factura': typeof AuthenticatedFatAnularFacturaRoute
   '/fat/asiento-contable': typeof AuthenticatedFatAsientoContableRoute
+  '/fat/cajero': typeof AuthenticatedFatCajeroRoute
   '/fat/cierre-mensual': typeof AuthenticatedFatCierreMensualRoute
   '/fat/companias': typeof AuthenticatedFatCompaniasRoute
   '/fat/condiciones': typeof AuthenticatedFatCondicionesRoute
@@ -2099,12 +2125,14 @@ export interface FileRoutesById {
   '/_authenticated/cxc/transacciones': typeof AuthenticatedCxcTransaccionesRoute
   '/_authenticated/cxc/vendedores': typeof AuthenticatedCxcVendedoresRoute
   '/_authenticated/cxc/zonas': typeof AuthenticatedCxcZonasRoute
+  '/_authenticated/cxp/aplicar-movimientos': typeof AuthenticatedCxpAplicarMovimientosRoute
   '/_authenticated/cxp/asiento-contable': typeof AuthenticatedCxpAsientoContableRoute
   '/_authenticated/cxp/barrios': typeof AuthenticatedCxpBarriosRoute
   '/_authenticated/cxp/bloquear-pago': typeof AuthenticatedCxpBloquearPagoRoute
   '/_authenticated/cxp/cias': typeof AuthenticatedCxpCiasRoute
   '/_authenticated/cxp/cierre': typeof AuthenticatedCxpCierreRoute
   '/_authenticated/cxp/ciudades': typeof AuthenticatedCxpCiudadesRoute
+  '/_authenticated/cxp/corregir-ncf': typeof AuthenticatedCxpCorregirNcfRoute
   '/_authenticated/cxp/cuentas': typeof AuthenticatedCxpCuentasRoute
   '/_authenticated/cxp/documentos': typeof AuthenticatedCxpDocumentosRoute
   '/_authenticated/cxp/entrada-documentos': typeof AuthenticatedCxpEntradaDocumentosRoute
@@ -2132,6 +2160,7 @@ export interface FileRoutesById {
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/fat/anular-factura': typeof AuthenticatedFatAnularFacturaRoute
   '/_authenticated/fat/asiento-contable': typeof AuthenticatedFatAsientoContableRoute
+  '/_authenticated/fat/cajero': typeof AuthenticatedFatCajeroRoute
   '/_authenticated/fat/cierre-mensual': typeof AuthenticatedFatCierreMensualRoute
   '/_authenticated/fat/companias': typeof AuthenticatedFatCompaniasRoute
   '/_authenticated/fat/condiciones': typeof AuthenticatedFatCondicionesRoute
@@ -2333,12 +2362,14 @@ export interface FileRouteTypes {
     | '/cxc/transacciones'
     | '/cxc/vendedores'
     | '/cxc/zonas'
+    | '/cxp/aplicar-movimientos'
     | '/cxp/asiento-contable'
     | '/cxp/barrios'
     | '/cxp/bloquear-pago'
     | '/cxp/cias'
     | '/cxp/cierre'
     | '/cxp/ciudades'
+    | '/cxp/corregir-ncf'
     | '/cxp/cuentas'
     | '/cxp/documentos'
     | '/cxp/entrada-documentos'
@@ -2366,6 +2397,7 @@ export interface FileRouteTypes {
     | '/errors/$error'
     | '/fat/anular-factura'
     | '/fat/asiento-contable'
+    | '/fat/cajero'
     | '/fat/cierre-mensual'
     | '/fat/companias'
     | '/fat/condiciones'
@@ -2553,12 +2585,14 @@ export interface FileRouteTypes {
     | '/cxc/transacciones'
     | '/cxc/vendedores'
     | '/cxc/zonas'
+    | '/cxp/aplicar-movimientos'
     | '/cxp/asiento-contable'
     | '/cxp/barrios'
     | '/cxp/bloquear-pago'
     | '/cxp/cias'
     | '/cxp/cierre'
     | '/cxp/ciudades'
+    | '/cxp/corregir-ncf'
     | '/cxp/cuentas'
     | '/cxp/documentos'
     | '/cxp/entrada-documentos'
@@ -2586,6 +2620,7 @@ export interface FileRouteTypes {
     | '/errors/$error'
     | '/fat/anular-factura'
     | '/fat/asiento-contable'
+    | '/fat/cajero'
     | '/fat/cierre-mensual'
     | '/fat/companias'
     | '/fat/condiciones'
@@ -2788,12 +2823,14 @@ export interface FileRouteTypes {
     | '/_authenticated/cxc/transacciones'
     | '/_authenticated/cxc/vendedores'
     | '/_authenticated/cxc/zonas'
+    | '/_authenticated/cxp/aplicar-movimientos'
     | '/_authenticated/cxp/asiento-contable'
     | '/_authenticated/cxp/barrios'
     | '/_authenticated/cxp/bloquear-pago'
     | '/_authenticated/cxp/cias'
     | '/_authenticated/cxp/cierre'
     | '/_authenticated/cxp/ciudades'
+    | '/_authenticated/cxp/corregir-ncf'
     | '/_authenticated/cxp/cuentas'
     | '/_authenticated/cxp/documentos'
     | '/_authenticated/cxp/entrada-documentos'
@@ -2821,6 +2858,7 @@ export interface FileRouteTypes {
     | '/_authenticated/errors/$error'
     | '/_authenticated/fat/anular-factura'
     | '/_authenticated/fat/asiento-contable'
+    | '/_authenticated/fat/cajero'
     | '/_authenticated/fat/cierre-mensual'
     | '/_authenticated/fat/companias'
     | '/_authenticated/fat/condiciones'
@@ -3735,6 +3773,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFatCierreMensualRouteImport
       parentRoute: typeof AuthenticatedFatRoute
     }
+    '/_authenticated/fat/cajero': {
+      id: '/_authenticated/fat/cajero'
+      path: '/cajero'
+      fullPath: '/fat/cajero'
+      preLoaderRoute: typeof AuthenticatedFatCajeroRouteImport
+      parentRoute: typeof AuthenticatedFatRoute
+    }
     '/_authenticated/fat/asiento-contable': {
       id: '/_authenticated/fat/asiento-contable'
       path: '/asiento-contable'
@@ -3924,6 +3969,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCxpCuentasRouteImport
       parentRoute: typeof AuthenticatedCxpRoute
     }
+    '/_authenticated/cxp/corregir-ncf': {
+      id: '/_authenticated/cxp/corregir-ncf'
+      path: '/corregir-ncf'
+      fullPath: '/cxp/corregir-ncf'
+      preLoaderRoute: typeof AuthenticatedCxpCorregirNcfRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
     '/_authenticated/cxp/ciudades': {
       id: '/_authenticated/cxp/ciudades'
       path: '/ciudades'
@@ -3964,6 +4016,13 @@ declare module '@tanstack/react-router' {
       path: '/asiento-contable'
       fullPath: '/cxp/asiento-contable'
       preLoaderRoute: typeof AuthenticatedCxpAsientoContableRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
+    '/_authenticated/cxp/aplicar-movimientos': {
+      id: '/_authenticated/cxp/aplicar-movimientos'
+      path: '/aplicar-movimientos'
+      fullPath: '/cxp/aplicar-movimientos'
+      preLoaderRoute: typeof AuthenticatedCxpAplicarMovimientosRouteImport
       parentRoute: typeof AuthenticatedCxpRoute
     }
     '/_authenticated/cxc/zonas': {
@@ -4826,12 +4885,14 @@ const AuthenticatedCxcRouteWithChildren =
   AuthenticatedCxcRoute._addFileChildren(AuthenticatedCxcRouteChildren)
 
 interface AuthenticatedCxpRouteChildren {
+  AuthenticatedCxpAplicarMovimientosRoute: typeof AuthenticatedCxpAplicarMovimientosRoute
   AuthenticatedCxpAsientoContableRoute: typeof AuthenticatedCxpAsientoContableRoute
   AuthenticatedCxpBarriosRoute: typeof AuthenticatedCxpBarriosRoute
   AuthenticatedCxpBloquearPagoRoute: typeof AuthenticatedCxpBloquearPagoRoute
   AuthenticatedCxpCiasRoute: typeof AuthenticatedCxpCiasRoute
   AuthenticatedCxpCierreRoute: typeof AuthenticatedCxpCierreRoute
   AuthenticatedCxpCiudadesRoute: typeof AuthenticatedCxpCiudadesRoute
+  AuthenticatedCxpCorregirNcfRoute: typeof AuthenticatedCxpCorregirNcfRoute
   AuthenticatedCxpCuentasRoute: typeof AuthenticatedCxpCuentasRoute
   AuthenticatedCxpDocumentosRoute: typeof AuthenticatedCxpDocumentosRoute
   AuthenticatedCxpEntradaDocumentosRoute: typeof AuthenticatedCxpEntradaDocumentosRoute
@@ -4860,12 +4921,15 @@ interface AuthenticatedCxpRouteChildren {
 }
 
 const AuthenticatedCxpRouteChildren: AuthenticatedCxpRouteChildren = {
+  AuthenticatedCxpAplicarMovimientosRoute:
+    AuthenticatedCxpAplicarMovimientosRoute,
   AuthenticatedCxpAsientoContableRoute: AuthenticatedCxpAsientoContableRoute,
   AuthenticatedCxpBarriosRoute: AuthenticatedCxpBarriosRoute,
   AuthenticatedCxpBloquearPagoRoute: AuthenticatedCxpBloquearPagoRoute,
   AuthenticatedCxpCiasRoute: AuthenticatedCxpCiasRoute,
   AuthenticatedCxpCierreRoute: AuthenticatedCxpCierreRoute,
   AuthenticatedCxpCiudadesRoute: AuthenticatedCxpCiudadesRoute,
+  AuthenticatedCxpCorregirNcfRoute: AuthenticatedCxpCorregirNcfRoute,
   AuthenticatedCxpCuentasRoute: AuthenticatedCxpCuentasRoute,
   AuthenticatedCxpDocumentosRoute: AuthenticatedCxpDocumentosRoute,
   AuthenticatedCxpEntradaDocumentosRoute:
@@ -4900,6 +4964,7 @@ const AuthenticatedCxpRouteWithChildren =
 interface AuthenticatedFatRouteChildren {
   AuthenticatedFatAnularFacturaRoute: typeof AuthenticatedFatAnularFacturaRoute
   AuthenticatedFatAsientoContableRoute: typeof AuthenticatedFatAsientoContableRoute
+  AuthenticatedFatCajeroRoute: typeof AuthenticatedFatCajeroRoute
   AuthenticatedFatCierreMensualRoute: typeof AuthenticatedFatCierreMensualRoute
   AuthenticatedFatCompaniasRoute: typeof AuthenticatedFatCompaniasRoute
   AuthenticatedFatCondicionesRoute: typeof AuthenticatedFatCondicionesRoute
@@ -4929,6 +4994,7 @@ interface AuthenticatedFatRouteChildren {
 const AuthenticatedFatRouteChildren: AuthenticatedFatRouteChildren = {
   AuthenticatedFatAnularFacturaRoute: AuthenticatedFatAnularFacturaRoute,
   AuthenticatedFatAsientoContableRoute: AuthenticatedFatAsientoContableRoute,
+  AuthenticatedFatCajeroRoute: AuthenticatedFatCajeroRoute,
   AuthenticatedFatCierreMensualRoute: AuthenticatedFatCierreMensualRoute,
   AuthenticatedFatCompaniasRoute: AuthenticatedFatCompaniasRoute,
   AuthenticatedFatCondicionesRoute: AuthenticatedFatCondicionesRoute,
