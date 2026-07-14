@@ -2254,6 +2254,10 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
             raise ValueError("No hay secuencia configurada para {} en {}/{}".format(tf, no_cia, punto))
         prox_formulario = int(seq_row[0] or 0)
         new_no_factura = str(seq_row[1]).strip() if seq_row[1] else str(prox_formulario)
+        if new_no_factura.isdigit():
+            # Forms numeraba con LPAD a 7 ('0008119'); continuar esa serie
+            # evita numeros mixtos frente al historico legacy.
+            new_no_factura = new_no_factura.zfill(7)
         cur.execute(
             "SELECT tipo_transaccion, codigo_ncf, NVL(afecta_cxc,'N') AS afecta_cxc "
             "FROM FAT.TFAT_TDOCU WHERE no_cia=:1 AND tipo_docu=:2",
@@ -2458,6 +2462,45 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
                 "no_cia,punto,tipo_factura,no_factura,tipo_pago,monto,monto_us"
                 ") VALUES(:1,:2,:3,:4,:5,:6,0)",
                 [no_cia, punto, tf, new_no_factura, fp, total_neto])
+        if afecta_cxc == 'S':
+            # La factura a credito vive tambien como documento CXC (Forms
+            # lo insertaba junto con la factura); sin esta fila no aparece
+            # en el picker de recibos de ingreso ni en estados de cuenta.
+            # Constraint legado: debito=credito=valor_original, y saldo
+            # positivo si tipo_movi='D'.
+            cur.execute(
+                "SELECT tipo_movi, tipo_transaccion FROM CXC.TCXC_TDOCU "
+                "WHERE no_cia=:1 AND tipo_docu=:2",
+                [no_cia, tf])
+            td_cxc = cur.fetchone()
+            tipo_movi_cxc = ((td_cxc[0] if td_cxc else None) or 'D').strip().upper()
+            tipo_trans_cxc = ((td_cxc[1] if td_cxc else None) or 'F').strip().upper()
+            cur.execute(
+                "SELECT NVL(vendedor,'00'), NVL(cobrador,'0050') "
+                "FROM CXC.TCXC_CLIENTE WHERE no_cia=:1 AND no_cliente=:2",
+                [no_cia, no_cliente])
+            row_cli = cur.fetchone()
+            vendedor_cxc = (vendedor or '').strip() or (row_cli[0] if row_cli else '00')
+            cobrador_cxc = row_cli[1] if row_cli else '0050'
+            saldo_cxc = total_neto if tipo_movi_cxc == 'D' else -total_neto
+            cur.execute(
+                "INSERT INTO CXC.TCXC_DOCUMENTO("
+                "no_cia,punto,tipo_docu,no_docu,no_cliente,fecha,fecha_vence,"
+                "vendedor,valor_original,debito,credito,descuento,saldo,estado,"
+                "itbis,usuario,cuenta,st_generado_cnt,st_impresion,st_anulado,"
+                "tipo_transaccion,tipo_movi,tasa_us,posiciones_fijas_ncf,ncf,"
+                "cobrador,fecha_sysdate,itbis_retenido,valor_inicial,desde_auxiliar"
+                ") VALUES("
+                ":1,:2,:3,:4,:5,TO_DATE(:6,'YYYY-MM-DD'),TO_DATE(:6,'YYYY-MM-DD'),"
+                ":7,:8,:8,:8,:9,:10,'C',"
+                ":11,:12,'1103-01','N','N','N',"
+                ":13,:14,57.5,:15,:16,"
+                ":17,SYSDATE,0,0,'A')",
+                client.nbinds(
+                    no_cia, punto, tf, new_no_factura, no_cliente, fecha,
+                    vendedor_cxc, total_neto, total_descuento, saldo_cxc,
+                    total_impuesto, usuario[:30], tipo_trans_cxc, tipo_movi_cxc,
+                    posiciones_fijas_ncf, ncf_val, cobrador_cxc))
         cur.execute(
             "UPDATE FAT.TFAT_SECUENCIA "
             "SET prox_documento=prox_documento+1, ult_docu_impreso=:1 "
@@ -2493,6 +2536,20 @@ def anular_factura(no_cia, punto, tipo_factura, no_factura, usuario, motivo="", 
         codigo_ncf_fact, ncf_num, st_anulado = row[0], row[1], row[2]
         if st_anulado == 'S':
             raise ValueError("Factura {}/{} ya esta anulada".format(tf, nf))
+        # Si la factura es a credito existe como documento CXC: con cobros
+        # aplicados (saldo < valor_original) no se puede anular, y al
+        # anularse su documento CXC debe anularse tambien.
+        cur.execute(
+            "SELECT NVL(saldo,0), NVL(valor_original,0) FROM CXC.TCXC_DOCUMENTO "
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4 "
+            "  AND NVL(st_anulado,'N')='N'",
+            [no_cia, punto, tf, nf])
+        doc_cxc = cur.fetchone()
+        if doc_cxc and float(doc_cxc[0]) != float(doc_cxc[1]):
+            raise ValueError(
+                "La factura {}/{} tiene cobros aplicados en CXC "
+                "(saldo {:g} de {:g}); reverse los recibos antes de anular".format(
+                    tf, nf, float(doc_cxc[0]), float(doc_cxc[1])))
         cur.execute(
             "SELECT no_linea, almacen, no_produ, cantidad, precio, costo, "
             "       empaque, cpe, tipo_transaccion "
@@ -2510,6 +2567,11 @@ def anular_factura(no_cia, punto, tipo_factura, no_factura, usuario, motivo="", 
             "UPDATE FAT.TFAT_FACTURAL SET st_anulado='S' "
             "WHERE no_cia=:1 AND punto=:2 AND tipo_factura=:3 AND no_factura=:4",
             [no_cia, punto, tf, nf])
+        if doc_cxc:
+            cur.execute(
+                "UPDATE CXC.TCXC_DOCUMENTO SET st_anulado='S' "
+                "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+                [no_cia, punto, tf, nf])
         # Marca los movimientos originales como anulados (consistente con legacy)
         cur.execute(
             "UPDATE INV.TINV_MOVIMIENTO SET st_anulado='S' "
