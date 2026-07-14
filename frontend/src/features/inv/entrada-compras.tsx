@@ -398,8 +398,12 @@ export function EntradaCompras({ noCia, punto }: Props) {
         created.data?.no_docu ??
         ''
       toast.success(`Documento ${docNo} guardado correctamente`)
-      setTipoDocu(''); setFecha(new Date().toISOString().slice(0, 10))
-      setTasaUsd(''); setAlmacenHeader(''); setProveedorSel(null)
+      // Tipo Documento y Almacen se conservan: el operador registra varios
+      // documentos seguidos del mismo tipo, y resetearlos hacia que el
+      // siguiente Guardar cayera en "Seleccione el Tipo de Documento" sin
+      // que se notara.
+      setFecha(new Date().toISOString().slice(0, 10))
+      setTasaUsd(''); setProveedorSel(null)
       setNcf(''); setRnc(''); setFormaPago(''); setFechaVcto(''); setPctDescuento('')
       setNota(''); setOrdenCargada(null); setNoOrdenOdc('')
       setRows([newRow()])

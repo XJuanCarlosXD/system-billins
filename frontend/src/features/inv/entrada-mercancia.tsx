@@ -433,12 +433,13 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
         created.data?.no_doc ??
         ''
       toast.success(`Documento ${docNo} guardado correctamente`)
-      // Reset form
-      setTipoDocu('')
+      // Reset de lineas/nota. Tipo Documento y Almacen se conservan: el
+      // operador suele registrar varios documentos seguidos del mismo tipo,
+      // y resetearlos hacia que el siguiente Guardar fallara en la
+      // validacion "Seleccione el Tipo de Documento" sin que se notara.
       setFecha(new Date().toISOString().slice(0, 10))
-      setAlmacenHeader('')
       setNota('')
-      setRows([newRow()])
+      setRows([newRow(almacenHeader)])
     } catch (err: unknown) {
       toast.error(`Error al guardar: ${getErrorMessage(err)}`)
     } finally {

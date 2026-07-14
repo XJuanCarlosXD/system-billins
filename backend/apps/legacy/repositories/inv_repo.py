@@ -2284,6 +2284,13 @@ def aplicar_conteo_fisico(no_cia: str, punto: str, usuario: str,
                 almacen_r = p['almacen']
                 no_produ_r = p['no_produ']
                 conteo = float(p['conteo_total'] or 0)
+                if conteo < 0:
+                    # exist_actual tiene CHECK >= 0: un conteo negativo daria
+                    # ORA-02290 opaco al aplicar. Frenar con mensaje claro.
+                    raise ValueError(
+                        "Conteo negativo ({:g}) para el producto {} en almacen "
+                        "{}: corrija el conteo antes de aplicar".format(
+                            conteo, no_produ_r, almacen_r))
                 libro = float(p['exist_libro'] or 0)
                 diferencia = conteo - libro
                 costo = float(p['costo_actual'] or 0)
@@ -2561,11 +2568,38 @@ def _adjust_eproducto_stock(cur, *, no_cia, punto, almacen, no_produ,
     delta = float(cantidad or 0)
     if (tipo_movi or '').upper() == 'S':
         delta = -delta
-    cur.execute(
-        "UPDATE INV.TINV_EPRODUCTO "
-        "SET exist_actual = NVL(exist_actual, 0) + :1 "
-        "WHERE no_cia=:2 AND punto=:3 AND almacen=:4 AND no_produ=:5",
-        [delta, no_cia, punto, almacen, no_produ])
+    if delta < 0:
+        # TINV_EPRODUCTO tiene CHECK exist_actual >= 0: si la salida deja la
+        # existencia negativa Oracle lanza ORA-02290 y el cliente recibe un
+        # 500 opaco. Validar antes para responder 400 con mensaje claro.
+        cur.execute(
+            "SELECT NVL(exist_actual, 0) FROM INV.TINV_EPRODUCTO "
+            "WHERE no_cia=:1 AND punto=:2 AND almacen=:3 AND no_produ=:4",
+            [no_cia, punto, almacen, no_produ])
+        row = cur.fetchone()
+        if row is None:
+            raise ValueError(
+                f"Producto {no_produ} no esta asignado al almacen {almacen}")
+        exist_disp = float(row[0] or 0)
+        if -delta > exist_disp:
+            raise ValueError(
+                "Existencia insuficiente del producto {} en almacen {}: "
+                "disponible {:g}, se intenta sacar {:g}".format(
+                    no_produ, almacen, exist_disp, -delta))
+    try:
+        cur.execute(
+            "UPDATE INV.TINV_EPRODUCTO "
+            "SET exist_actual = NVL(exist_actual, 0) + :1 "
+            "WHERE no_cia=:2 AND punto=:3 AND almacen=:4 AND no_produ=:5",
+            [delta, no_cia, punto, almacen, no_produ])
+    except Exception as exc:
+        # Carrera: otra operacion consumio la existencia entre la validacion
+        # y este UPDATE; el CHECK exist_actual >= 0 lo detecta.
+        if "ORA-02290" in str(exc):
+            raise ValueError(
+                "Existencia insuficiente del producto {} en almacen {} "
+                "(consumida por otra operacion)".format(no_produ, almacen))
+        raise
     if cur.rowcount == 0:
         raise ValueError(
             f"Producto {no_produ} no esta asignado al almacen {almacen}")
