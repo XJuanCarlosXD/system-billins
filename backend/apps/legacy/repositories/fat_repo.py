@@ -2101,7 +2101,7 @@ def search_productos(no_cia, punto, no_lista="", search="", page=1, page_size=20
         return client.fetch_dicts(paged_sql, p)
 
     def _build_items(rows: list[dict]) -> list[dict]:
-        return _productos_items(rows, no_cia, almacen)
+        return _productos_items(rows, no_cia, almacen, punto)
 
     if solo_existencia:
         # El filtro de existencia es en-memoria sobre cada pagina de DB: si
@@ -2130,9 +2130,10 @@ def search_productos(no_cia, punto, no_lista="", search="", page=1, page_size=20
     }
 
 
-def _productos_items(rows: list[dict], no_cia: str, almacen: str) -> list[dict]:
+def _productos_items(rows: list[dict], no_cia: str, almacen: str,
+                     punto: str = '') -> list[dict]:
     """Enriquece una pagina de TINV_PRODUCTO con empaque por defecto,
-    existencia normalizada y precio de venta (precio_base * CPE). Los bulk
+    existencia vendible y precio de venta (precio_base * CPE). Los bulk
     fetch usan IN (...) con max page_size IDs — ver notas PERF de
     search_productos."""
     no_produs = [r["no_produ"] for r in rows if r.get("no_produ")]
@@ -2156,33 +2157,29 @@ def _productos_items(rows: list[dict], no_cia: str, almacen: str) -> list[dict]:
                 "cpe": float(r["cpe"] or 1) or 1.0,
             }
 
-    # Existencia normalizada solo para los productos de la pagina (max page_size).
+    # Existencia vendible solo para los productos de la pagina (max page_size).
+    # Fuente: TINV_EPRODUCTO.exist_actual — la MISMA que valida create_factura
+    # y que protege el CHECK exist_actual >= 0. El calculo anterior sumaba el
+    # ledger TINV_MOVIMIENTO, que esta desincronizado historicamente de
+    # exist_actual (1,141 productos solo en cia 01/alm 01): mostraba stock
+    # que luego no se podia facturar y ocultaba stock vendible.
     exist_map: dict[str, float] = {}
     if no_produs:
         binds = {f"np{i}": v for i, v in enumerate(no_produs)}
         in_list = ",".join(":{}".format(k) for k in binds.keys())
         ex_params = {"no_cia_ex": no_cia, **binds}
-        almacen_filter = ""
+        extra_filter = ""
+        if punto:
+            extra_filter += " AND ep.punto=:punto_ex"
+            ex_params["punto_ex"] = punto
         if almacen:
-            almacen_filter = " AND m.almacen=:almacen_ex"
+            extra_filter += " AND ep.almacen=:almacen_ex"
             ex_params["almacen_ex"] = almacen
-        # Normalizacion por empaque: cantidad en base / CPE cuando difiere del
-        # empaque del reporte (TINV_EMPAQUE.para_reporte='S').
-        _norm = (
-            "CASE WHEN m.empaque = emp.empaque THEN NVL(m.cantidad,0) "
-            "     WHEN NVL(emp.cpe,0) > 0 THEN NVL(m.cantidad,0) / emp.cpe "
-            "     ELSE NVL(m.cantidad,0) END"
-        )
         ex_sql = (
-            "SELECT m.no_produ, "
-            f"       SUM(CASE WHEN m.tipo_movi='E' THEN {_norm} "
-            f"                WHEN m.tipo_movi='S' THEN -({_norm}) "
-            "                ELSE 0 END) AS existencia "
-            "FROM INV.TINV_MOVIMIENTO m "
-            "JOIN INV.TINV_EMPAQUE emp "
-            "  ON emp.no_produ=m.no_produ AND emp.para_reporte='S' "
-            f"WHERE m.no_cia=:no_cia_ex AND m.no_produ IN ({in_list}){almacen_filter} "
-            "GROUP BY m.no_produ"
+            "SELECT ep.no_produ, SUM(NVL(ep.exist_actual,0)) AS existencia "
+            "FROM INV.TINV_EPRODUCTO ep "
+            f"WHERE ep.no_cia=:no_cia_ex AND ep.no_produ IN ({in_list}){extra_filter} "
+            "GROUP BY ep.no_produ"
         )
         for r in client.fetch_dicts(ex_sql, ex_params):
             exist_map[r["no_produ"]] = float(r["existencia"] or 0)
