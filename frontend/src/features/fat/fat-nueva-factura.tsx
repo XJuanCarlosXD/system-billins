@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { regalGeneralApi } from '@/lib/regal-general-api'
+import { ApiError, regalGeneralApi } from '@/lib/regal-general-api'
 import { useToast } from '@/hooks/use-toast'
 import { useEnterAdvancesFocus } from '@/hooks/use-enter-advances-focus'
 import { Badge } from '@/components/ui/badge'
@@ -928,10 +928,14 @@ export function NuevaFactura({ noCia, punto }: Props) {
         })
       }
       navigate({ to: '/fat/facturas' as never })
-    } catch {
+    } catch (err) {
+      const detail =
+        err instanceof ApiError && typeof err.detail?.detail === 'string'
+          ? err.detail.detail
+          : 'Verifique los datos e intente de nuevo'
       toast({
         title: 'Error al guardar',
-        description: 'Verifique los datos e intente de nuevo',
+        description: detail,
         variant: 'destructive',
       })
     } finally {

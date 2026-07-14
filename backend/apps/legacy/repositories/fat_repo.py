@@ -2307,6 +2307,7 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
         total_descuento = 0.0
         total_impuesto = 0.0
         lineas_calc = []
+        pedido_acum: dict = {}
         for idx, lin in enumerate(lineas, start=1):
             cant = float(lin.get("cantidad", 0))
             precio = float(lin.get("precio", 0))
@@ -2329,11 +2330,29 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
             if not cur.fetchone():
                 raise ValueError("Producto {} no existe o esta inactivo".format(no_produ_norm))
             cur.execute(
-                "SELECT NVL(ep.costo_actual,0) FROM INV.TINV_EPRODUCTO ep "
+                "SELECT NVL(ep.costo_actual,0), NVL(ep.exist_actual,0) "
+                "FROM INV.TINV_EPRODUCTO ep "
                 "WHERE ep.no_cia=:1 AND ep.punto=:2 AND ep.almacen=:3 AND ep.no_produ=:4",
                 [no_cia, punto, almacen_norm, no_produ_norm])
             row_ep = cur.fetchone()
-            costo_unit = float(row_ep[0] or 0) if row_ep else 0.0
+            if row_ep is None:
+                raise ValueError(
+                    "Producto {} no esta asignado al almacen {} "
+                    "en la empresa {}".format(no_produ_norm, almacen_norm, no_cia))
+            costo_unit = float(row_ep[0] or 0)
+            exist_disp = float(row_ep[1] or 0)
+            # TINV_EPRODUCTO tiene CHECK exist_actual >= 0: si la venta deja
+            # existencia negativa Oracle lanza ORA-02290 y el cliente recibe
+            # un 500 opaco. Validar aqui (acumulando lineas repetidas del
+            # mismo producto/almacen) para responder 400 con mensaje claro.
+            key_ped = (almacen_norm, no_produ_norm)
+            pedido_acum[key_ped] = pedido_acum.get(key_ped, 0.0) + cant
+            if pedido_acum[key_ped] > exist_disp:
+                raise ValueError(
+                    "Existencia insuficiente del producto {} en almacen {}: "
+                    "disponible {:g}, solicitado {:g}".format(
+                        no_produ_norm, almacen_norm, exist_disp,
+                        pedido_acum[key_ped]))
             cur.execute(
                 "SELECT empaque, NVL(cpe,1) FROM INV.TINV_EMPAQUE "
                 "WHERE no_produ=:1 "
@@ -2417,11 +2436,21 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
                     fecha, lin["cantidad"], lin["precio"], lin["costo"],
                     lin["empaque"], lin["cpe"], usuario[:30],
                     round(lin["cantidad"] * lin["costo"], 2)))
-            cur.execute(
-                "UPDATE INV.TINV_EPRODUCTO "
-                "SET exist_actual = NVL(exist_actual, 0) - :1 "
-                "WHERE no_cia=:2 AND punto=:3 AND almacen=:4 AND no_produ=:5",
-                [lin["cantidad"], no_cia, punto, lin["almacen"], lin["no_produ"]])
+            try:
+                cur.execute(
+                    "UPDATE INV.TINV_EPRODUCTO "
+                    "SET exist_actual = NVL(exist_actual, 0) - :1 "
+                    "WHERE no_cia=:2 AND punto=:3 AND almacen=:4 AND no_produ=:5",
+                    [lin["cantidad"], no_cia, punto, lin["almacen"], lin["no_produ"]])
+            except Exception as exc:
+                # Otra venta pudo consumir la existencia entre la validacion
+                # y este UPDATE; el CHECK exist_actual >= 0 lo detecta.
+                if "ORA-02290" in str(exc):
+                    raise ValueError(
+                        "Existencia insuficiente del producto {} en almacen {} "
+                        "(consumida por otra operacion)".format(
+                            lin["no_produ"], lin["almacen"]))
+                raise
             if cur.rowcount == 0:
                 raise ValueError(
                     "Producto {} no esta asignado al almacen {}".format(
