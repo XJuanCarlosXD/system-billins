@@ -3,7 +3,7 @@
 // ITBIS y clasificaciones DGII sin tocar valores ni saldos.
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Pencil, Save } from 'lucide-react'
+import { Pencil, Save, Search, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { regalGeneralApi as api } from '@/lib/regal-general-api'
 import { Badge } from '@/components/ui/badge'
@@ -70,18 +70,28 @@ const EMPTY_FORM = {
 export function CxpCorregirNcf({ noCia, punto = '' }: P) {
   const qc = useQueryClient()
   const [proveedor, setProveedor] = useState<any | null>(null)
+  const [fpInput, setFpInput] = useState('')
+  const [fpBusqueda, setFpBusqueda] = useState('')
   const [editing, setEditing] = useState<any | null>(null)
   const [form, setForm] = useState({ ...EMPTY_FORM })
 
+  // NO_DOCU en TCXP_DOCUMENTO es CHAR(7): "8347" → "0008347"
+  const buscarFp = () => {
+    const n = fpInput.replace(/[^0-9]/g, '')
+    setFpBusqueda(n ? n.padStart(7, '0') : '')
+  }
+
   const docsQ = useQuery({
-    queryKey: ['cxp-corregir-ncf', noCia, punto, proveedor?.no_proveedor],
+    queryKey: ['cxp-corregir-ncf', noCia, punto, proveedor?.no_proveedor ?? '', fpBusqueda],
     queryFn: () =>
       api.cxpCorregirNcfDocs({
         no_cia: noCia,
         punto,
-        no_proveedor: proveedor.no_proveedor,
+        ...(fpBusqueda
+          ? { tipo_docu: 'FP', no_docu: fpBusqueda }
+          : { no_proveedor: proveedor.no_proveedor }),
       }),
-    enabled: !!noCia && !!punto && !!proveedor?.no_proveedor,
+    enabled: !!noCia && !!punto && (!!fpBusqueda || !!proveedor?.no_proveedor),
   })
 
   const gastosQ = useQuery({ queryKey: ['cxp-tipos-gasto'], queryFn: () => api.cxpListTiposGasto() })
@@ -145,13 +155,50 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
         </p>
       </div>
 
-      <div className='grid grid-cols-1 gap-3 md:max-w-xl'>
+      <div className='grid grid-cols-1 gap-3 md:grid-cols-2 md:max-w-3xl'>
         <ProveedorPicker value={proveedor} onChange={setProveedor} />
+        <div className='space-y-1'>
+          <Label className='text-xs'>Buscar por No. FP</Label>
+          <div className='flex gap-2'>
+            <Input
+              value={fpInput}
+              onChange={(e) => setFpInput(e.target.value.replace(/[^0-9]/g, '').slice(0, 7))}
+              onKeyDown={(e) => e.key === 'Enter' && buscarFp()}
+              className='h-10 font-mono'
+              inputMode='numeric'
+              maxLength={7}
+              placeholder='ej. 8347'
+            />
+            <Button variant='outline' className='h-10' onClick={buscarFp} disabled={!fpInput}>
+              <Search className='mr-1 h-4 w-4' /> Buscar
+            </Button>
+            {fpBusqueda && (
+              <Button
+                variant='ghost'
+                size='icon'
+                className='h-10 w-10'
+                onClick={() => {
+                  setFpBusqueda('')
+                  setFpInput('')
+                }}
+                title='Limpiar búsqueda por FP'
+              >
+                <X className='h-4 w-4' />
+              </Button>
+            )}
+          </div>
+          {fpBusqueda && (
+            <p className='font-mono text-xs text-muted-foreground'>
+              Mostrando documento FP-{fpBusqueda}
+            </p>
+          )}
+        </div>
       </div>
 
-      {!proveedor?.no_proveedor ? (
+      {!proveedor?.no_proveedor && !fpBusqueda ? (
         <div className='rounded border py-10 text-center text-sm text-muted-foreground'>
-          Busca un proveedor con la lupa para ver sus documentos y corregir el NCF.
+          Busca un proveedor con la lupa, o escribe el número de la factura (FP)
+          y pulsa Buscar, para ver los documentos y corregir el NCF.
         </div>
       ) : docsQ.isLoading ? (
         <Skeleton className='h-40 w-full' />
@@ -206,8 +253,9 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
               {rows.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={8} className='py-6 text-center text-muted-foreground'>
-                    El proveedor {proveedor.nombre || proveedor.no_proveedor} no
-                    tiene documentos registrados en este punto.
+                    {fpBusqueda
+                      ? `No existe el documento FP-${fpBusqueda} en este punto.`
+                      : `El proveedor ${proveedor?.nombre || proveedor?.no_proveedor} no tiene documentos registrados en este punto.`}
                   </TableCell>
                 </TableRow>
               )}
@@ -217,7 +265,7 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
       )}
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && !save.isPending && setEditing(null)}>
-        <DialogContent className='max-w-lg'>
+        <DialogContent className='max-h-[85vh] max-w-lg overflow-y-auto'>
           <DialogHeader>
             <DialogTitle>
               Corregir {editing?.tipo_docu}-{editing?.no_docu}
