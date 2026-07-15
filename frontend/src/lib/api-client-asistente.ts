@@ -69,7 +69,8 @@ export type AsistenteTool = {
   name: string
   description: string
   modules_required: string[]
-  is_write: boolean
+  write: boolean
+  input_schema: Record<string, unknown>
 }
 
 export type AsistenteSkill = {
@@ -127,7 +128,8 @@ export async function fetchAsistenteStatus(): Promise<AsistenteStatus> {
 
 // ---- Tools ----
 export async function listTools(): Promise<AsistenteTool[]> {
-  return request<AsistenteTool[]>('/asistente/tools/')
+  const res = await request<{ tools: AsistenteTool[] }>('/asistente/tools/')
+  return res.tools
 }
 
 // ---- Skills ----
@@ -137,7 +139,8 @@ export type AsistenteSkillDetail = AsistenteSkill & {
 }
 
 export async function listSkills(): Promise<AsistenteSkill[]> {
-  return request<AsistenteSkill[]>('/asistente/skills/')
+  const res = await request<{ skills: AsistenteSkill[] }>('/asistente/skills/')
+  return res.skills
 }
 
 export async function getSkill(name: string): Promise<AsistenteSkillDetail> {
