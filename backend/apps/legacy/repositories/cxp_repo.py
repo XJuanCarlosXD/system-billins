@@ -3,14 +3,27 @@ from .. import client
 
 
 def list_proveedores(search='', activo=''):
+    # Busca por nombre, RNC o código. no_proveedor está almacenado con
+    # padding a 6 dígitos ('000310'), así que "310" también debe encontrarlo
+    # y el match exacto de código se ordena de primero.
     conditions = ['1=1']
     params = []
-    if search:
-        params += [f'%{search.upper()}%', f'%{search.upper()}%']
-        conditions.append(f"(UPPER(p.nombre) LIKE :{len(params)-1} OR UPPER(p.rnc) LIKE :{len(params)})")
+    s = (search or '').strip()
+    if s:
+        like = f'%{s.upper()}%'
+        params += [like, like, like]
+        conditions.append(
+            f"(UPPER(p.nombre) LIKE :{len(params)-2} OR UPPER(p.rnc) LIKE :{len(params)-1}"
+            f" OR TRIM(p.no_proveedor) LIKE :{len(params)})")
     if activo:
         params.append(activo)
         conditions.append(f"p.activo = :{len(params)}")
+    order = 'p.nombre'
+    if s:
+        exacto = s.zfill(6) if s.isdigit() else s.upper()
+        params.append(exacto)
+        order = (f"CASE WHEN UPPER(TRIM(p.no_proveedor)) = :{len(params)} "
+                 f"THEN 0 ELSE 1 END, p.nombre")
     where = ' AND '.join(conditions)
     sql = f"""
         SELECT p.no_proveedor, p.nombre, p.rnc, p.cedula,
@@ -20,7 +33,7 @@ def list_proveedores(search='', activo=''):
                p.cuenta_banco, p.codigo_banco, p.tipo_cuenta
         FROM CXP.TCXP_DPROVEEDOR p
         WHERE {where}
-        ORDER BY p.nombre
+        ORDER BY {order}
     """
     return client.fetch_dicts(sql, params)
 
@@ -207,7 +220,14 @@ def get_documento(no_cia, punto, tipo_docu, no_docu):
 
 def estado_cuenta(no_cia: str, no_proveedor: str, punto: str = ''):
     """Estado de cuenta del proveedor: header con datos + tabla de documentos
-    con saldo pendiente y envejecimiento por edad de la fecha de emisión."""
+    con saldo pendiente y envejecimiento por edad de la fecha de emisión.
+
+    Pendiente = saldo<>0 sin importar status: 'A' es el documento recién
+    entrado y 'C' el ya actualizado/contabilizado — ambos pueden deber.
+    """
+    raw = (str(no_proveedor) if no_proveedor is not None else '').strip()
+    if raw.isdigit() and len(raw) < 6:
+        raw = raw.zfill(6)
     prov = client.fetch_dicts(
         "SELECT no_proveedor, nombre, "
         "       NVL(rnc,'') rnc, NVL(direccion,'') direccion, "
@@ -215,11 +235,12 @@ def estado_cuenta(no_cia: str, no_proveedor: str, punto: str = ''):
         "       NVL(e_mail,'') email, NVL(encargado,'') encargado, "
         "       NVL(plazo_pago,0) dias "
         "FROM CXP.TCXP_DPROVEEDOR WHERE no_proveedor=:1",
-        [no_proveedor])
+        [raw])
     if not prov:
         return None
+    no_proveedor = str(prov[0]['no_proveedor'])
 
-    where = "WHERE d.no_cia=:1 AND d.no_proveedor=:2 AND d.status='A' AND NVL(d.saldo,0)<>0"
+    where = "WHERE d.no_cia=:1 AND d.no_proveedor=:2 AND NVL(d.saldo,0)<>0"
     params = [no_cia, no_proveedor]
     if punto:
         where += " AND d.punto=:3"
@@ -302,7 +323,9 @@ def list_tipos_docu():
 
 
 def get_aging(no_cia, punto='', no_proveedor=''):
-    conditions = ["d.no_cia=:1", "d.status='A'"]
+    # Pendiente = saldo<>0; el status 'A'/'C' (entrado/actualizado) no
+    # determina si el documento debe — filtrar por 'A' escondía la cartera.
+    conditions = ["d.no_cia=:1", "NVL(d.saldo,0)<>0"]
     params = [no_cia]
     if punto:
         params.append(punto)
