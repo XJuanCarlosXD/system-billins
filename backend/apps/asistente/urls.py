@@ -31,6 +31,11 @@ urlpatterns = [
         name="confirm",
     ),
     path(
+        "asistente/status/",
+        views_admin.StatusView.as_view(),
+        name="status",
+    ),
+    path(
         "asistente/tools/",
         views_admin.ToolsView.as_view(),
         name="tools-list",

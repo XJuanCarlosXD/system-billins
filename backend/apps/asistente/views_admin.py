@@ -26,6 +26,22 @@ class ToolsView(APIView):
         })
 
 
+class StatusView(APIView):
+    """GET `/api/asistente/status/` — estado de conexión con el proveedor.
+
+    No expone la key: sólo reporta si está configurada y el modelo default.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from django.conf import settings
+
+        return Response({
+            "api_key_configurada": bool(settings.ANTHROPIC_API_KEY),
+            "modelo_default": settings.ASISTENTE_DEFAULT_MODEL,
+        })
+
+
 class AuditoriaView(APIView):
     """GET `/api/admin/asistente/auditoria/` — agregados de TCHAT_TOOL_LOG.
 

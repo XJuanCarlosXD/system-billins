@@ -90,6 +90,16 @@ export async function patchConversacion(
   })
 }
 
+// ---- Status ----
+export type AsistenteStatus = {
+  api_key_configurada: boolean
+  modelo_default: string
+}
+
+export async function fetchAsistenteStatus(): Promise<AsistenteStatus> {
+  return request<AsistenteStatus>('/asistente/status/')
+}
+
 // ---- Tools ----
 export async function listTools(): Promise<AsistenteTool[]> {
   return request<AsistenteTool[]>('/asistente/tools/')

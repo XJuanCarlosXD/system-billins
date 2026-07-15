@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
   Bot,
@@ -11,6 +12,7 @@ import {
   Sparkles,
   Wrench,
 } from 'lucide-react'
+import { fetchAsistenteStatus } from '@/lib/api-client-asistente'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -49,6 +51,13 @@ const CAPABILITIES = [
 ]
 
 export function AsistentePage() {
+  const { data: status } = useQuery({
+    queryKey: ['asistente-status'],
+    queryFn: fetchAsistenteStatus,
+    staleTime: 5 * 60 * 1000,
+  })
+  const apiKeyOk = status?.api_key_configurada === true
+
   return (
     <div className='min-h-svh w-full overflow-y-auto bg-background'>
       <div className='mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-10'>
@@ -57,8 +66,9 @@ export function AsistentePage() {
           <Construction className='size-5 shrink-0' />
           <div className='text-sm'>
             <strong>Sección en construcción.</strong>{' '}
-            La interfaz está montada como vista previa, pero el modelo no está
-            conectado todavía. Pronto podrás conversar con él.
+            {apiKeyOk
+              ? 'La interfaz está montada como vista previa. El modelo ya está conectado; pronto podrás conversar con él desde aquí.'
+              : 'La interfaz está montada como vista previa, pero el modelo no está conectado todavía. Pronto podrás conversar con él.'}
           </div>
         </div>
 
@@ -149,7 +159,12 @@ export function AsistentePage() {
             <li>✅ 18 tools wrappeados sobre FAT/CHC/CXC/CXP/CNT/INV.</li>
             <li>✅ 6 skills (playbooks): facturar, cotizar, cerrar-caja, conciliar-banco, consultar-cuenta-cliente, nueva-empresa-onboarding.</li>
             <li>✅ Persistencia en Oracle (TCHAT_CONVERSACION / MENSAJE / TOOL_PENDING / TOOL_LOG).</li>
-            <li>⏳ Falta conectar la API key del proveedor para activar las respuestas en vivo.</li>
+            {status &&
+              (apiKeyOk ? (
+                <li>✅ API key del proveedor conectada — respuestas en vivo habilitadas.</li>
+              ) : (
+                <li>⏳ Falta conectar la API key del proveedor para activar las respuestas en vivo.</li>
+              ))}
           </ul>
         </div>
 
