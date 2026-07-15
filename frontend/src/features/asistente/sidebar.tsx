@@ -4,7 +4,7 @@ import { format, isToday, isYesterday, parseISO } from 'date-fns'
 import { Plus, Search as SearchIcon, MessageSquare, Trash2 } from 'lucide-react'
 import {
   ASISTENTE_MODELS,
-  type AsistenteConversacion,
+  type AsistenteConversacionResumen,
   createConversacion,
   deleteConversacion,
   listConversaciones,
@@ -21,8 +21,8 @@ import {
 } from '@/components/ui/select'
 
 type Props = {
-  selectedConvId: number | null
-  onSelectConv: (id: number) => void
+  selectedConvId: string | null
+  onSelectConv: (id: string) => void
   model: string
   onModelChange: (m: string) => void
 }
@@ -49,15 +49,15 @@ export function AsistenteSidebar({
   })
 
   const createMut = useMutation({
-    mutationFn: () => createConversacion({ modelo: model }),
+    mutationFn: () => createConversacion({ model }),
     onSuccess: (conv) => {
       qc.invalidateQueries({ queryKey: ['asistente', 'conversaciones'] })
-      onSelectConv(conv.id)
+      onSelectConv(conv.conv_id)
     },
   })
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => deleteConversacion(id),
+    mutationFn: (id: string) => deleteConversacion(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['asistente', 'conversaciones'] })
     },
@@ -70,9 +70,9 @@ export function AsistenteSidebar({
   }, [convs, search])
 
   const grouped = useMemo(() => {
-    const acc: Record<string, AsistenteConversacion[]> = {}
+    const acc: Record<string, AsistenteConversacionResumen[]> = {}
     for (const c of filtered) {
-      const k = groupKey(c.ts_actualizado)
+      const k = groupKey(c.fecha_ultimo)
       if (!acc[k]) acc[k] = []
       acc[k].push(c)
     }
@@ -138,21 +138,21 @@ export function AsistenteSidebar({
             </div>
             {items.map((c) => (
               <div
-                key={c.id}
+                key={c.conv_id}
                 className={cn(
                   'group mx-2 flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-accent hover:text-accent-foreground',
-                  selectedConvId === c.id && 'bg-muted'
+                  selectedConvId === c.conv_id && 'bg-muted'
                 )}
               >
                 <button
                   type='button'
                   className='flex-1 truncate text-start'
-                  onClick={() => onSelectConv(c.id)}
+                  onClick={() => onSelectConv(c.conv_id)}
                 >
                   <div className='truncate font-medium'>{c.titulo}</div>
                   <div className='truncate text-xs text-muted-foreground'>
-                    {c.modelo.replace('claude-', '')} ·{' '}
-                    {format(parseISO(c.ts_actualizado), 'HH:mm')}
+                    {c.model.replace('claude-', '')} ·{' '}
+                    {format(parseISO(c.fecha_ultimo), 'HH:mm')}
                   </div>
                 </button>
                 <Button
@@ -163,7 +163,7 @@ export function AsistenteSidebar({
                   onClick={(e) => {
                     e.stopPropagation()
                     if (confirm('Eliminar esta conversacion?')) {
-                      deleteMut.mutate(c.id)
+                      deleteMut.mutate(c.conv_id)
                     }
                   }}
                 >

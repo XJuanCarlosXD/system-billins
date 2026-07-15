@@ -1,21 +1,20 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
 import {
+  AlertTriangle,
   Bot,
-  Construction,
-  FileText,
   LockKeyhole,
-  MessageSquare,
   Receipt,
   Search,
   ShieldCheck,
+  MessageSquare,
   Sparkles,
-  Wrench,
 } from 'lucide-react'
 import { fetchAsistenteStatus } from '@/lib/api-client-asistente'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { AsistenteChat } from './chat'
+import { AsistenteSidebar } from './sidebar'
 
 const CAPABILITIES = [
   {
@@ -58,21 +57,48 @@ export function AsistentePage() {
   })
   const apiKeyOk = status?.api_key_configurada === true
 
+  const [convId, setConvId] = useState<string | null>(null)
+  const [model, setModel] = useState(
+    status?.modelo_default || 'claude-haiku-4-5-20251001'
+  )
+
+  if (apiKeyOk) {
+    return (
+      <div className='flex h-svh w-full'>
+        <AsistenteSidebar
+          selectedConvId={convId}
+          onSelectConv={setConvId}
+          model={model}
+          onModelChange={setModel}
+        />
+        <div className='min-w-0 flex-1'>
+          {convId ? (
+            <AsistenteChat convId={convId} />
+          ) : (
+            <div className='flex h-full flex-col items-center justify-center gap-3 text-center text-muted-foreground'>
+              <Bot className='size-10 opacity-50' />
+              <p>Selecciona una conversación o crea una nueva con el botón +.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Fallback: the provider API key isn't configured server-side yet, so the
+  // chat can't run. Show what the assistant will do instead of an empty page.
   return (
     <div className='min-h-svh w-full overflow-y-auto bg-background'>
       <div className='mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-10'>
-        {/* Banner under construction */}
         <div className='flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200'>
-          <Construction className='size-5 shrink-0' />
+          <AlertTriangle className='size-5 shrink-0' />
           <div className='text-sm'>
-            <strong>Sección en construcción.</strong>{' '}
-            {apiKeyOk
-              ? 'La interfaz está montada como vista previa. El modelo ya está conectado; pronto podrás conversar con él desde aquí.'
-              : 'La interfaz está montada como vista previa, pero el modelo no está conectado todavía. Pronto podrás conversar con él.'}
+            <strong>El asistente no está conectado todavía.</strong>{' '}
+            Falta configurar la API key del proveedor en el servidor. Avisa al
+            administrador del sistema.
           </div>
         </div>
 
-        {/* Hero */}
         <div className='flex flex-col items-center gap-4 pt-6 text-center'>
           <div className='relative flex size-20 items-center justify-center rounded-full border-2 border-primary/30 bg-primary/5'>
             <Bot className='size-10 text-primary' />
@@ -89,14 +115,9 @@ export function AsistentePage() {
           <div className='flex flex-wrap items-center justify-center gap-2'>
             <Badge variant='outline'>Claude 4.5 Haiku</Badge>
             <Badge variant='outline'>FAT · CHC · CXC · CXP · CNT · INV</Badge>
-            <Badge variant='secondary'>
-              <Wrench className='mr-1 size-3' />
-              en construcción
-            </Badge>
           </div>
         </div>
 
-        {/* Lo que podrá hacer */}
         <div>
           <h2 className='mb-4 text-lg font-semibold'>Lo que podrás hacer</h2>
           <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
@@ -116,62 +137,6 @@ export function AsistentePage() {
               </Card>
             ))}
           </div>
-        </div>
-
-        {/* Ejemplos de uso */}
-        <div>
-          <h2 className='mb-3 text-lg font-semibold'>
-            Ejemplos de cosas que podrás pedirle
-          </h2>
-          <ul className='space-y-2 text-sm text-muted-foreground'>
-            <li className='rounded-md border bg-card px-3 py-2'>
-              <em>"Lista mis facturas pendientes de cobro de esta semana."</em>
-            </li>
-            <li className='rounded-md border bg-card px-3 py-2'>
-              <em>
-                "Hazme una factura a JUAN PEREZ por 5 ARROZ MAYOLO y 2 ACEITE
-                1L."
-              </em>
-            </li>
-            <li className='rounded-md border bg-card px-3 py-2'>
-              <em>
-                "Cuál es el saldo disponible del banco Popular este mes,
-                descontando los cheques por entregar."
-              </em>
-            </li>
-            <li className='rounded-md border bg-card px-3 py-2'>
-              <em>"Concilia los cheques de junio de la cuenta 030-011926-7."</em>
-            </li>
-            <li className='rounded-md border bg-card px-3 py-2'>
-              <em>"Cierra la caja de hoy del punto 01."</em>
-            </li>
-          </ul>
-        </div>
-
-        {/* Estado actual */}
-        <div className='rounded-lg border bg-muted/30 p-4 text-sm'>
-          <div className='mb-2 flex items-center gap-2 font-semibold'>
-            <FileText className='size-4' />
-            Estado actual
-          </div>
-          <ul className='space-y-1 text-muted-foreground'>
-            <li>✅ Backend Django con agent loop, tool registry y RBAC en 6 capas.</li>
-            <li>✅ 18 tools wrappeados sobre FAT/CHC/CXC/CXP/CNT/INV.</li>
-            <li>✅ 6 skills (playbooks): facturar, cotizar, cerrar-caja, conciliar-banco, consultar-cuenta-cliente, nueva-empresa-onboarding.</li>
-            <li>✅ Persistencia en Oracle (TCHAT_CONVERSACION / MENSAJE / TOOL_PENDING / TOOL_LOG).</li>
-            {status &&
-              (apiKeyOk ? (
-                <li>✅ API key del proveedor conectada — respuestas en vivo habilitadas.</li>
-              ) : (
-                <li>⏳ Falta conectar la API key del proveedor para activar las respuestas en vivo.</li>
-              ))}
-          </ul>
-        </div>
-
-        <div className='flex justify-center pt-2'>
-          <Button asChild variant='outline'>
-            <Link to='/'>Volver al inicio</Link>
-          </Button>
         </div>
       </div>
     </div>

@@ -201,7 +201,7 @@ function reducer(state: State, action: Action): State {
   }
 }
 
-export function useChatStream(convId: number | null) {
+export function useChatStream(convId: string | null) {
   const [state, dispatch] = useReducer(reducer, initialState)
   const abortRef = useRef<AbortController | null>(null)
 

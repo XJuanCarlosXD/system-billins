@@ -14,26 +14,30 @@ import { type ChatMessage, useChatStream } from './use-chat-stream'
 import { useAsistenteShortcuts } from './use-shortcuts'
 
 type Props = {
-  convId: number
+  convId: string
   onToolsChange?: (tools: any) => void
   onTotalsChange?: (totals: any) => void
 }
 
+// Maps a persisted backend message (Oracle TCHAT_MENSAJE row) to the
+// reducer's ChatMessage shape. Tool-call rows are dropped from the visible
+// history (the streaming view tracks tool activity separately).
 function mensajeToChatMessage(m: AsistenteMensaje): ChatMessage | null {
+  const ts = m.fecha ? new Date(m.fecha).getTime() : Date.now()
   if (m.role === 'user') {
     return {
-      id: `srv-${m.id}`,
+      id: `srv-${m.mensaje_id}`,
       role: 'user',
-      content: m.content,
-      ts: new Date(m.ts_creado).getTime(),
+      content: m.contenido,
+      ts,
     }
   }
   if (m.role === 'assistant') {
     return {
-      id: `srv-${m.id}`,
+      id: `srv-${m.mensaje_id}`,
       role: 'assistant',
-      content: m.content,
-      ts: new Date(m.ts_creado).getTime(),
+      content: m.contenido,
+      ts,
       streaming: false,
     }
   }
@@ -63,12 +67,12 @@ export function AsistenteChat({ convId, onToolsChange, onTotalsChange }: Props) 
 
   useEffect(() => {
     if (!convData) return
-    const seed = (convData.mensajes || [])
+    const seed = (convData.messages || [])
       .map(mensajeToChatMessage)
       .filter((m): m is ChatMessage => m !== null)
     reset(seed)
     // Hidrata skill activa persistida server-side.
-    const sv = (convData as any).skill_activa as string | null | undefined
+    const sv = convData.conversacion?.skill_activa
     if (sv !== undefined) setSkillActiva(sv || null)
   }, [convData, reset])
 

@@ -16,32 +16,53 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 // ---- DTOs ----
-export type AsistenteConversacion = {
-  id: number
+// CONV_ID en Oracle (TCHAT_CONVERSACION) es un uuid de texto, no numerico.
+export type AsistenteConversacionResumen = {
+  conv_id: string
   titulo: string
-  modelo: string
-  modulo_activo: string | null
+  model: string
   skill_activa: string | null
-  total_input_tokens: number
-  total_output_tokens: number
-  total_cache_read_tokens: number
-  costo_estimado_usd: number
-  ts_creado: string
-  ts_actualizado: string
+  no_cia: string
+  punto: string
+  fecha_creacion: string
+  fecha_ultimo: string
+  tokens_in_tot: number
+  tokens_out_tot: number
+  costo_usd: number
+  archivada: string
+}
+
+export type AsistenteConversacionDetail = {
+  conv_id: string
+  usuario: string
+  titulo: string
+  model: string
+  skill_activa: string | null
+  no_cia: string
+  punto: string
+  fecha_creacion: string
+  fecha_ultimo: string
+  tokens_in_tot: number
+  tokens_out_tot: number
+  costo_usd: number
+}
+
+export type AsistenteConversacionNueva = {
+  conv_id: string
+  titulo: string
+  model: string
 }
 
 export type AsistenteMensaje = {
-  id: number
-  conv_id: number
+  mensaje_id: number
+  seq: number
   role: 'user' | 'assistant' | 'tool'
-  content: string
-  tool_name: string | null
+  contenido: string
+  tool_calls: any | null
   tool_call_id: string | null
-  tool_args: any | null
-  tool_result: any | null
-  input_tokens: number
-  output_tokens: number
-  ts_creado: string
+  tokens_in: number
+  tokens_out: number
+  fecha: string | null
 }
 
 export type AsistenteTool = {
@@ -59,29 +80,33 @@ export type AsistenteSkill = {
 }
 
 // ---- Conversaciones ----
-export async function listConversaciones(): Promise<AsistenteConversacion[]> {
-  return request<AsistenteConversacion[]>('/asistente/conversaciones/')
+export async function listConversaciones(): Promise<AsistenteConversacionResumen[]> {
+  const res = await request<{ items: AsistenteConversacionResumen[] }>(
+    '/asistente/conversaciones/'
+  )
+  return res.items
 }
 
-export async function createConversacion(data: { titulo?: string; modelo?: string }) {
-  return request<AsistenteConversacion>('/asistente/conversaciones/', {
+export async function createConversacion(data: { titulo?: string; model?: string }) {
+  return request<AsistenteConversacionNueva>('/asistente/conversaciones/', {
     method: 'POST',
     body: JSON.stringify(data),
   })
 }
 
-export async function getConversacion(id: number) {
-  return request<AsistenteConversacion & { mensajes: AsistenteMensaje[] }>(
-    `/asistente/conversaciones/${id}/`
-  )
+export async function getConversacion(id: string) {
+  return request<{
+    conversacion: AsistenteConversacionDetail
+    messages: AsistenteMensaje[]
+  }>(`/asistente/conversaciones/${id}/`)
 }
 
-export async function deleteConversacion(id: number) {
+export async function deleteConversacion(id: string) {
   return request<void>(`/asistente/conversaciones/${id}/`, { method: 'DELETE' })
 }
 
 export async function patchConversacion(
-  id: number,
+  id: string,
   data: { titulo?: string; model?: string; skill_activa?: string | null },
 ) {
   return request<{ ok: boolean }>(`/asistente/conversaciones/${id}/`, {
