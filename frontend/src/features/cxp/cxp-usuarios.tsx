@@ -176,7 +176,7 @@ export function CxpUsuarios({ noCia, punto = '' }: P) {
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className='max-w-2xl'>
+        <DialogContent className='h-auto max-h-[80vh] max-w-2xl overflow-y-auto sm:max-h-[80vh]'>
           <DialogHeader>
             <DialogTitle>{editing ? 'Editar acceso' : 'Nuevo acceso'}</DialogTitle>
           </DialogHeader>

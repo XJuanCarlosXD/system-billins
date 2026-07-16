@@ -381,7 +381,7 @@ export function CxpEstadoCuenta({ noCia, punto }: P) {
 
       {/* Modal buscar proveedor */}
       <Dialog open={busquedaOpen} onOpenChange={setBusquedaOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="h-auto max-h-[80vh] max-w-2xl overflow-y-auto sm:max-h-[80vh]">
           <DialogHeader>
             <DialogTitle>Buscar proveedor</DialogTitle>
             <DialogDescription>Busca por código, nombre o RNC.</DialogDescription>
@@ -432,7 +432,7 @@ export function CxpEstadoCuenta({ noCia, punto }: P) {
 
       {/* Modal detalle de documento */}
       <Dialog open={!!detalleDoc} onOpenChange={(o) => !o && setDetalleDoc(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="h-auto max-h-[80vh] max-w-2xl overflow-y-auto sm:max-h-[80vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />

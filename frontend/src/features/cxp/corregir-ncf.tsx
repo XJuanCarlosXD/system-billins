@@ -265,7 +265,7 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
       )}
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && !save.isPending && setEditing(null)}>
-        <DialogContent className='max-h-[85vh] max-w-lg overflow-y-auto'>
+        <DialogContent className='h-auto max-h-[85vh] max-w-lg overflow-y-auto sm:max-h-[85vh]'>
           <DialogHeader>
             <DialogTitle>
               Corregir {editing?.tipo_docu}-{editing?.no_docu}

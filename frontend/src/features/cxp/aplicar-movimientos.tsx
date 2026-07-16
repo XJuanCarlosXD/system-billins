@@ -337,7 +337,7 @@ export function CxpAplicarMovimientos({ noCia, punto = '' }: P) {
       )}
 
       <Dialog open={confirmando} onOpenChange={(o) => !aplicar.isPending && setConfirmando(o)}>
-        <DialogContent className='max-w-md'>
+        <DialogContent className='h-auto max-h-[80vh] max-w-md overflow-y-auto sm:max-h-[80vh]'>
           <DialogHeader>
             <DialogTitle>Confirmar aplicación</DialogTitle>
           </DialogHeader>

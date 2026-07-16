@@ -228,7 +228,7 @@ export function ProveedorPicker({
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className='flex max-h-[80vh] min-h-[40vh] w-[90vw] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none lg:w-[60vw]'>
+        <DialogContent className='flex h-auto max-h-[80vh] min-h-[40vh] w-[90vw] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-h-[80vh] sm:max-w-none lg:w-[60vw]'>
           <DialogHeader className='shrink-0 border-b px-6 py-4'>
             <DialogTitle>Buscar Proveedor</DialogTitle>
           </DialogHeader>
@@ -934,7 +934,7 @@ export function CxpReversar({ noCia, punto = '' }: P) {
         </Card>
       )}
       <Dialog open={confirming} onOpenChange={(o) => !busy && setConfirming(o)}>
-        <DialogContent className='max-h-[80vh] max-w-md overflow-y-auto'>
+        <DialogContent className='h-auto max-h-[80vh] max-w-md overflow-y-auto sm:max-h-[80vh]'>
           <DialogHeader>
             <DialogTitle>
               Reversar {tipoDocu}-{normNoDocu(noDocu)}
