@@ -88,7 +88,8 @@ export async function listConversaciones(): Promise<AsistenteConversacionResumen
   return res.items
 }
 
-export async function createConversacion(data: { titulo?: string; model?: string }) {
+export async function createConversacion(data: { titulo?: string } = {}) {
+  // El modelo ya no se envia: el backend siempre usa Haiku 4.5.
   return request<AsistenteConversacionNueva>('/asistente/conversaciones/', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -108,7 +109,7 @@ export async function deleteConversacion(id: string) {
 
 export async function patchConversacion(
   id: string,
-  data: { titulo?: string; model?: string; skill_activa?: string | null },
+  data: { titulo?: string; skill_activa?: string | null },
 ) {
   return request<{ ok: boolean }>(`/asistente/conversaciones/${id}/`, {
     method: 'PATCH',
@@ -196,9 +197,5 @@ export async function confirmTool(sig: string, approved: boolean) {
   })
 }
 
-// Modelos disponibles (hardcoded; coincide con backend settings.ASISTENTE_MODELS).
-export const ASISTENTE_MODELS = [
-  { value: 'claude-opus-4-7', label: 'Opus 4.7' },
-  { value: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
-  { value: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
-] as const
+// Modelo unico del asistente (fijado server-side).
+export const ASISTENTE_MODEL_LABEL = 'Haiku 4.5'

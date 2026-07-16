@@ -50,6 +50,7 @@ class HistoryStore(Protocol):
         self, conv_id: str, *, tokens_in: int, tokens_out: int, costo_usd: float,
         skill_activa: str | None = None,
     ) -> None: ...
+    def create_continuation(self, conv_id: str) -> str | None: ...
 
 
 class PendingStore(Protocol):
@@ -86,6 +87,13 @@ class InMemoryHistoryStore:
         m["costo_usd"] += costo_usd
         if skill_activa is not None:
             m["skill_activa"] = skill_activa
+
+    def create_continuation(self, conv_id: str) -> str | None:
+        import uuid as _uuid
+
+        new_id = str(_uuid.uuid4())
+        self.by_conv.setdefault(new_id, [])
+        return new_id
 
 
 @dataclass
@@ -145,23 +153,32 @@ class OracleHistoryStore:
     def load_messages(self, conv_id: str) -> list[StoredMessage]:
         from apps.legacy import client
 
-        rows = client.fetch_dicts(
-            "SELECT MENSAJE_ID, CONV_ID, SEQ, ROLE, CONTENIDO, "
-            "       TOOL_CALLS_JSON, TOOL_CALL_ID, TOKENS_IN, TOKENS_OUT, "
-            "       CACHE_HIT_IN, COSTO_USD "
-            "FROM ABREGONZA.TCHAT_MENSAJE "
-            "WHERE CONV_ID = :1 "
-            "ORDER BY SEQ",
-            [conv_id],
-        )
+        # IMPORTANTE: los CLOB (CONTENIDO/TOOL_CALLS_JSON) deben leerse DENTRO
+        # del bloque cursor(); fuera de el la conexion ya volvio al pool y
+        # lob.read() lanza DPY-1001 "not connected".
+        rows: list[dict] = []
+        with client.cursor() as cur:
+            cur.execute(
+                "SELECT MENSAJE_ID, CONV_ID, SEQ, ROLE, CONTENIDO, "
+                "       TOOL_CALLS_JSON, TOOL_CALL_ID, TOKENS_IN, TOKENS_OUT, "
+                "       CACHE_HIT_IN, COSTO_USD "
+                "FROM ABREGONZA.TCHAT_MENSAJE "
+                "WHERE CONV_ID = :1 "
+                "ORDER BY SEQ",
+                [conv_id],
+            )
+            cols = [c[0].lower() for c in cur.description]
+            for row in cur.fetchall():
+                r = dict(zip(cols, row))
+                if hasattr(r.get("contenido"), "read"):
+                    r["contenido"] = r["contenido"].read()
+                if hasattr(r.get("tool_calls_json"), "read"):
+                    r["tool_calls_json"] = r["tool_calls_json"].read()
+                rows.append(r)
         out: list[StoredMessage] = []
         for r in rows:
             contenido = r.get("contenido") or ""
             tcj = r.get("tool_calls_json")
-            if hasattr(contenido, "read"):
-                contenido = contenido.read()
-            if hasattr(tcj, "read"):
-                tcj = tcj.read()
             out.append(StoredMessage(
                 mensaje_id=r["mensaje_id"],
                 conv_id=r["conv_id"],
@@ -207,6 +224,34 @@ class OracleHistoryStore:
                 )
             cur.connection.commit()
 
+    def create_continuation(self, conv_id: str) -> str | None:
+        """Crea una nueva conversacion copiando metadatos de `conv_id`.
+
+        Devuelve el nuevo CONV_ID o None si la original no existe. El titulo
+        se marca con ' · cont.' para que el usuario identifique la seccion.
+        """
+        import uuid as _uuid
+
+        from apps.legacy import client
+
+        new_id = str(_uuid.uuid4())
+        with client.cursor() as cur:
+            cur.execute(
+                "INSERT INTO ABREGONZA.TCHAT_CONVERSACION "
+                "(CONV_ID, USUARIO, NO_CIA, PUNTO, TITULO, MODEL, "
+                " SKILL_ACTIVA, FECHA_CREACION, FECHA_ULTIMO, ARCHIVADA, "
+                " TOKENS_IN_TOT, TOKENS_OUT_TOT, COSTO_USD) "
+                "SELECT :1, USUARIO, NO_CIA, PUNTO, "
+                "       SUBSTR(REGEXP_REPLACE(TITULO, ' · cont\\.$', '') "
+                "              || ' · cont.', 1, 200), "
+                "       MODEL, SKILL_ACTIVA, SYSDATE, SYSDATE, 'N', 0, 0, 0 "
+                "FROM ABREGONZA.TCHAT_CONVERSACION WHERE CONV_ID = :2",
+                [new_id, conv_id],
+            )
+            inserted = cur.rowcount
+            cur.connection.commit()
+        return new_id if inserted else None
+
 
 class OraclePendingStore:
     """Persistencia sobre ABREGONZA.TCHAT_TOOL_PENDING."""
@@ -232,19 +277,26 @@ class OraclePendingStore:
     def get(self, sig: str) -> StoredPending | None:
         from apps.legacy import client
 
-        rows = client.fetch_dicts(
-            "SELECT SIG, CONV_ID, MENSAJE_ID, TOOL_NAME, ARGS_JSON, "
-            "       PREVIEW, STATUS, USUARIO, FECHA_CREACION, "
-            "       FECHA_EXPIRA, FECHA_RESUELTA "
-            "FROM ABREGONZA.TCHAT_TOOL_PENDING WHERE SIG = :1",
-            [sig],
-        )
+        # LOBs leidos dentro del cursor (ver load_messages).
+        rows: list[dict] = []
+        with client.cursor() as cur:
+            cur.execute(
+                "SELECT SIG, CONV_ID, MENSAJE_ID, TOOL_NAME, ARGS_JSON, "
+                "       PREVIEW, STATUS, USUARIO, FECHA_CREACION, "
+                "       FECHA_EXPIRA, FECHA_RESUELTA "
+                "FROM ABREGONZA.TCHAT_TOOL_PENDING WHERE SIG = :1",
+                [sig],
+            )
+            cols = [c[0].lower() for c in cur.description]
+            for row in cur.fetchall():
+                r = dict(zip(cols, row))
+                if hasattr(r.get("args_json"), "read"):
+                    r["args_json"] = r["args_json"].read()
+                rows.append(r)
         if not rows:
             return None
         r = rows[0]
         args_json = r.get("args_json")
-        if hasattr(args_json, "read"):
-            args_json = args_json.read()
         return StoredPending(
             sig=r["sig"],
             conv_id=r["conv_id"],

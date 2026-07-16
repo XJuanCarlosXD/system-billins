@@ -12,7 +12,6 @@ import {
   Wrench,
 } from 'lucide-react'
 import { confirmTool } from '@/lib/api-client-asistente'
-import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ToolConfirmModal } from './tool-confirm-modal'

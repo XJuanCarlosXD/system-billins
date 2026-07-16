@@ -55,9 +55,43 @@ class ChatStreamView(APIView):
 
         body = request.data or {}
         user_message = (body.get("message") or "").strip()
-        if not user_message:
-            return Response({"detail": "empty_message"}, status=400)
         skill_activa = body.get("skill") or None
+
+        # Adjuntos: [{name, media_type, data(base64)}]. Solo PDF e imagenes.
+        raw_attach = body.get("attachments") or []
+        if not isinstance(raw_attach, list):
+            return Response({"detail": "bad_attachments"}, status=400)
+        if len(raw_attach) > 4:
+            return Response({"detail": "max_4_attachments"}, status=400)
+        allowed = {
+            "application/pdf", "image/png", "image/jpeg",
+            "image/gif", "image/webp",
+        }
+        attachments = []
+        total_b64 = 0
+        for a in raw_attach:
+            if not isinstance(a, dict):
+                return Response({"detail": "bad_attachments"}, status=400)
+            mt = (a.get("media_type") or "").lower()
+            data = a.get("data") or ""
+            if mt not in allowed or not isinstance(data, str) or not data:
+                return Response(
+                    {"detail": f"tipo_no_soportado:{mt}"}, status=400
+                )
+            total_b64 += len(data)
+            attachments.append({
+                "name": str(a.get("name") or "archivo")[:200],
+                "media_type": mt,
+                "data": data,
+            })
+        # ~15MB en base64 (~11MB reales) para no exceder limites del API.
+        if total_b64 > 15_000_000:
+            return Response({"detail": "attachments_too_large"}, status=400)
+
+        if not user_message and not attachments:
+            return Response({"detail": "empty_message"}, status=400)
+        if not user_message:
+            user_message = "Analiza el archivo adjunto."
 
         provider = ClaudeProvider()
         loop = AgentLoop(
@@ -72,6 +106,7 @@ class ChatStreamView(APIView):
             user_message=user_message,
             user=request.user,
             skill_activa=skill_activa,
+            attachments=attachments or None,
         )
 
         def _drain():
@@ -110,7 +145,9 @@ class ConfirmView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, sig):
-        approve = bool((request.data or {}).get("approve"))
+        body = request.data or {}
+        # Acepta ambas claves: el frontend envia "approved".
+        approve = bool(body.get("approve", body.get("approved")))
         # Mark fila igual: idempotente si ya fue resuelta.
         store = OraclePendingStore()
         store.resolve(sig, approved=approve, by=_u(request))

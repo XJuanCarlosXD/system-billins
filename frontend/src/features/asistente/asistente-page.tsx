@@ -1,17 +1,22 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
   Bot,
   LockKeyhole,
+  Plus,
   Receipt,
   Search,
   ShieldCheck,
   MessageSquare,
   Sparkles,
 } from 'lucide-react'
-import { fetchAsistenteStatus } from '@/lib/api-client-asistente'
+import {
+  createConversacion,
+  fetchAsistenteStatus,
+} from '@/lib/api-client-asistente'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AsistenteChat } from './chat'
 import { AsistenteSidebar } from './sidebar'
@@ -58,26 +63,42 @@ export function AsistentePage() {
   const apiKeyOk = status?.api_key_configurada === true
 
   const [convId, setConvId] = useState<string | null>(null)
-  const [model, setModel] = useState(
-    status?.modelo_default || 'claude-haiku-4-5-20251001'
-  )
+  const qc = useQueryClient()
+  const createMut = useMutation({
+    mutationFn: () => createConversacion(),
+    onSuccess: (conv) => {
+      qc.invalidateQueries({ queryKey: ['asistente', 'conversaciones'] })
+      setConvId(conv.conv_id)
+    },
+  })
 
   if (apiKeyOk) {
     return (
       <div className='flex h-svh w-full'>
-        <AsistenteSidebar
-          selectedConvId={convId}
-          onSelectConv={setConvId}
-          model={model}
-          onModelChange={setModel}
-        />
+        <AsistenteSidebar selectedConvId={convId} onSelectConv={setConvId} />
         <div className='min-w-0 flex-1'>
           {convId ? (
-            <AsistenteChat convId={convId} />
+            <AsistenteChat convId={convId} onConvSwitch={setConvId} />
           ) : (
-            <div className='flex h-full flex-col items-center justify-center gap-3 text-center text-muted-foreground'>
-              <Bot className='size-10 opacity-50' />
-              <p>Selecciona una conversación o crea una nueva con el botón +.</p>
+            <div className='flex h-full flex-col items-center justify-center gap-4 text-center'>
+              <div className='flex size-14 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/60 text-primary-foreground shadow-md'>
+                <Bot size={26} />
+              </div>
+              <div>
+                <h2 className='text-xl font-semibold'>Asistente ZentoryERP</h2>
+                <p className='mt-1 text-sm text-muted-foreground'>
+                  Consulta tu ERP, busca precios en internet o analiza PDFs e
+                  imágenes.
+                </p>
+              </div>
+              <Button
+                className='gap-2 rounded-full'
+                disabled={createMut.isPending}
+                onClick={() => createMut.mutate()}
+              >
+                <Plus size={16} />
+                Nueva conversación
+              </Button>
             </div>
           )}
         </div>

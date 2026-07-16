@@ -18,8 +18,23 @@ export type ToolEntry = {
   ts: number
 }
 
+// Adjunto que viaja al backend: data = base64 crudo (sin prefijo dataURL).
+export type ChatAttachment = {
+  name: string
+  media_type: string
+  data: string
+  // dataUrl solo para preview local de imagenes; no se envia.
+  dataUrl?: string
+}
+
 export type ChatMessage =
-  | { id: string; role: 'user'; content: string; ts: number }
+  | {
+      id: string
+      role: 'user'
+      content: string
+      ts: number
+      attachments?: { name: string; media_type: string; dataUrl?: string }[]
+    }
   | { id: string; role: 'assistant'; content: string; ts: number; streaming?: boolean }
 
 export type ChatTotals = {
@@ -27,6 +42,8 @@ export type ChatTotals = {
   tokens_out: number
   cost_usd: number
   turns: number
+  context_tokens: number
+  context_limit: number
 }
 
 type State = {
@@ -35,11 +52,13 @@ type State = {
   streaming: boolean
   error: string | null
   totals: ChatTotals
+  // Seteado cuando el backend resume la conversacion y abre otra seccion.
+  compactedTo: { convId: string; resumen: string } | null
 }
 
 type Action =
   | { type: 'reset'; messages?: ChatMessage[] }
-  | { type: 'add_user'; content: string }
+  | { type: 'add_user'; content: string; attachments?: ChatAttachment[] }
   | { type: 'turn_started' }
   | { type: 'token'; text: string }
   | { type: 'tool_call'; data: any }
@@ -47,6 +66,7 @@ type Action =
   | { type: 'tool_result'; data: any }
   | { type: 'tool_error'; data: any }
   | { type: 'message_complete'; data: any }
+  | { type: 'context_compacted'; data: any }
   | { type: 'done' }
   | { type: 'error'; message: string }
 
@@ -55,7 +75,15 @@ const initialState: State = {
   tools: {},
   streaming: false,
   error: null,
-  totals: { tokens_in: 0, tokens_out: 0, cost_usd: 0, turns: 0 },
+  totals: {
+    tokens_in: 0,
+    tokens_out: 0,
+    cost_usd: 0,
+    turns: 0,
+    context_tokens: 0,
+    context_limit: 0,
+  },
+  compactedTo: null,
 }
 
 function newId() {
@@ -71,7 +99,17 @@ function reducer(state: State, action: Action): State {
         ...state,
         messages: [
           ...state.messages,
-          { id: newId(), role: 'user', content: action.content, ts: Date.now() },
+          {
+            id: newId(),
+            role: 'user',
+            content: action.content,
+            ts: Date.now(),
+            attachments: action.attachments?.map((a) => ({
+              name: a.name,
+              media_type: a.media_type,
+              dataUrl: a.dataUrl,
+            })),
+          },
         ],
         streaming: true,
         error: null,
@@ -103,13 +141,15 @@ function reducer(state: State, action: Action): State {
     }
     case 'tool_call': {
       const d = action.data
+      const key = d.call_id ?? d.sig
       return {
         ...state,
         tools: {
           ...state.tools,
-          [d.call_id]: {
-            call_id: d.call_id,
-            tool_name: d.tool_name,
+          [key]: {
+            call_id: key,
+            // El backend emite el nombre en "tool".
+            tool_name: d.tool ?? d.tool_name,
             status: 'running',
             args: d.args,
             ts: Date.now(),
@@ -119,13 +159,14 @@ function reducer(state: State, action: Action): State {
     }
     case 'tool_pending': {
       const d = action.data
+      const key = d.call_id ?? d.sig
       return {
         ...state,
         tools: {
           ...state.tools,
-          [d.call_id]: {
-            call_id: d.call_id,
-            tool_name: d.tool_name,
+          [key]: {
+            call_id: key,
+            tool_name: d.tool ?? d.tool_name,
             status: 'pending',
             sig: d.sig,
             args: d.args,
@@ -189,8 +230,18 @@ function reducer(state: State, action: Action): State {
         tokens_out: Number(d.tokens_out) || state.totals.tokens_out,
         cost_usd: Number(d.cost_usd) || state.totals.cost_usd,
         turns: state.totals.turns + 1,
+        context_tokens: Number(d.context_tokens) || state.totals.context_tokens,
+        context_limit: Number(d.context_limit) || state.totals.context_limit,
       }
       return { ...state, messages: msgs, totals }
+    }
+    case 'context_compacted': {
+      const d = action.data || {}
+      if (!d.new_conv_id) return state
+      return {
+        ...state,
+        compactedTo: { convId: String(d.new_conv_id), resumen: d.resumen || '' },
+      }
     }
     case 'done':
       return { ...state, streaming: false }
@@ -216,9 +267,13 @@ export function useChatStream(convId: string | null) {
   }, [])
 
   const send = useCallback(
-    async (message: string, opts?: { skill?: string | null }) => {
+    async (
+      message: string,
+      opts?: { skill?: string | null; attachments?: ChatAttachment[] }
+    ) => {
       if (!convId) return
-      dispatch({ type: 'add_user', content: message })
+      const attachments = opts?.attachments || []
+      dispatch({ type: 'add_user', content: message, attachments })
 
       const ac = new AbortController()
       abortRef.current = ac
@@ -230,7 +285,15 @@ export function useChatStream(convId: string | null) {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message, skill: opts?.skill ?? null }),
+            body: JSON.stringify({
+              message,
+              skill: opts?.skill ?? null,
+              attachments: attachments.map((a) => ({
+                name: a.name,
+                media_type: a.media_type,
+                data: a.data,
+              })),
+            }),
             signal: ac.signal,
           }
         )
@@ -293,6 +356,9 @@ export function useChatStream(convId: string | null) {
                 break
               case 'message_complete':
                 dispatch({ type: 'message_complete', data })
+                break
+              case 'context_compacted':
+                dispatch({ type: 'context_compacted', data })
                 break
             }
           }

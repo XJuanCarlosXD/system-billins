@@ -39,7 +39,9 @@ class ConversacionesView(APIView):
         no_cia = body.get("no_cia") or ""
         punto = body.get("punto") or ""
         titulo = (body.get("titulo") or "Nueva conversacion")[:200]
-        model = body.get("model") or getattr(
+        # Modelo fijo: siempre el default del servidor (Haiku). El body ya
+        # no puede variar el modelo.
+        model = getattr(
             settings, "ASISTENTE_DEFAULT_MODEL", "claude-haiku-4-5"
         )
 
@@ -76,22 +78,30 @@ class ConversacionDetailView(APIView):
         if not head:
             return Response({"detail": "not_found"}, status=404)
 
-        rows = client.fetch_dicts(
-            "SELECT MENSAJE_ID, SEQ, ROLE, CONTENIDO, TOOL_CALLS_JSON, "
-            "       TOOL_CALL_ID, TOKENS_IN, TOKENS_OUT, COSTO_USD, "
-            "       FECHA_CREACION "
-            "FROM ABREGONZA.TCHAT_MENSAJE "
-            "WHERE CONV_ID = :1 ORDER BY SEQ",
-            [conv_id],
-        )
+        # CLOBs leidos dentro del cursor: fuera la conexion ya volvio al pool
+        # y lob.read() lanza DPY-1001.
+        rows = []
+        with client.cursor() as cur:
+            cur.execute(
+                "SELECT MENSAJE_ID, SEQ, ROLE, CONTENIDO, TOOL_CALLS_JSON, "
+                "       TOOL_CALL_ID, TOKENS_IN, TOKENS_OUT, COSTO_USD, "
+                "       FECHA_CREACION "
+                "FROM ABREGONZA.TCHAT_MENSAJE "
+                "WHERE CONV_ID = :1 ORDER BY SEQ",
+                [conv_id],
+            )
+            cols = [c[0].lower() for c in cur.description]
+            for row in cur.fetchall():
+                r = dict(zip(cols, row))
+                if hasattr(r.get("contenido"), "read"):
+                    r["contenido"] = r["contenido"].read()
+                if hasattr(r.get("tool_calls_json"), "read"):
+                    r["tool_calls_json"] = r["tool_calls_json"].read()
+                rows.append(r)
         messages = []
         for r in rows:
             contenido = r.get("contenido")
-            if hasattr(contenido, "read"):
-                contenido = contenido.read()
             tcj = r.get("tool_calls_json")
-            if hasattr(tcj, "read"):
-                tcj = tcj.read()
             messages.append({
                 "mensaje_id": r["mensaje_id"],
                 "seq": int(r["seq"]),
@@ -125,9 +135,6 @@ class ConversacionDetailView(APIView):
         if "titulo" in body:
             fields.append("TITULO = :{}".format(len(params) + 1))
             params.append(str(body["titulo"])[:200])
-        if "model" in body:
-            fields.append("MODEL = :{}".format(len(params) + 1))
-            params.append(str(body["model"])[:50])
         if "skill_activa" in body:
             val = body["skill_activa"]
             fields.append("SKILL_ACTIVA = :{}".format(len(params) + 1))

@@ -225,8 +225,47 @@ def _system_prompt() -> str:
         "Eres el asistente embebido de ZentoryERP. Respondes en espanol "
         "neutro, eres conciso y prefieres datos concretos sobre prosa. "
         "Cuando vayas a hacer una operacion de escritura, explica brevemente "
-        "que vas a hacer ANTES de invocar la tool."
+        "que vas a hacer ANTES de invocar la tool. "
+        "Tienes acceso a busqueda web (web_search): usala cuando el usuario "
+        "pida precios de mercado, tasas de cambio, datos de proveedores o "
+        "cualquier informacion externa al ERP; cita la fuente. "
+        "El usuario puede adjuntar PDFs o imagenes (facturas, cotizaciones, "
+        "listados): analizalos y extrae los datos relevantes."
     )
+
+
+# Server tool de Anthropic: busqueda web ejecutada por el API (variante
+# 20250305, la soportada por claude-haiku-4-5).
+WEB_SEARCH_TOOL = {
+    "type": "web_search_20250305",
+    "name": "web_search",
+    "max_uses": 5,
+}
+
+# Tipos MIME aceptados como adjuntos.
+ATTACH_IMAGE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
+ATTACH_DOC_TYPES = {"application/pdf"}
+
+
+def _attachment_blocks(attachments: list[dict] | None) -> list[dict]:
+    """Convierte adjuntos {name, media_type, data(b64)} a content blocks."""
+    blocks: list[dict] = []
+    for a in attachments or []:
+        mt = (a.get("media_type") or "").lower()
+        data = a.get("data") or ""
+        if not data:
+            continue
+        if mt in ATTACH_DOC_TYPES:
+            blocks.append({
+                "type": "document",
+                "source": {"type": "base64", "media_type": mt, "data": data},
+            })
+        elif mt in ATTACH_IMAGE_TYPES:
+            blocks.append({
+                "type": "image",
+                "source": {"type": "base64", "media_type": mt, "data": data},
+            })
+    return blocks
 
 
 def _tools_for_anthropic(specs: list[ToolSpec]) -> list[dict]:
@@ -240,8 +279,16 @@ def _tools_for_anthropic(specs: list[ToolSpec]) -> list[dict]:
     ]
 
 
-def _messages_for_anthropic(history: list[StoredMessage]) -> list[dict]:
+def _messages_for_anthropic(
+    history: list[StoredMessage],
+    attach_seq: int | None = None,
+    attachments: list[dict] | None = None,
+) -> list[dict]:
     """Convierte la historia persistida al shape `messages` de Anthropic.
+
+    Si `attach_seq` coincide con el seq de un mensaje user, se le inyectan
+    los bloques document/image de `attachments` (solo el turno actual; los
+    adjuntos no se re-envian en turnos posteriores para no inflar contexto).
 
     Reglas:
     - role 'user'        -> {"role":"user","content":text}
@@ -252,7 +299,12 @@ def _messages_for_anthropic(history: list[StoredMessage]) -> list[dict]:
     out: list[dict] = []
     for m in history:
         if m.role == "user":
-            out.append({"role": "user", "content": m.contenido})
+            if attach_seq is not None and m.seq == attach_seq and attachments:
+                blocks = _attachment_blocks(attachments)
+                blocks.append({"type": "text", "text": m.contenido or "."})
+                out.append({"role": "user", "content": blocks})
+            else:
+                out.append({"role": "user", "content": m.contenido})
         elif m.role == "assistant":
             if m.tool_calls_json:
                 blocks: list[dict] = []
@@ -317,6 +369,12 @@ class AgentLoop:
             return self.pending_ttl_sec
         return getattr(settings, "ASISTENTE_TOOL_PENDING_TTL_SEC", 300)
 
+    def _max_context_tokens(self) -> int:
+        return getattr(settings, "ASISTENTE_MAX_CONTEXT_TOKENS", 30000)
+
+    def _max_tokens_out(self) -> int:
+        return getattr(settings, "ASISTENTE_MAX_TOKENS_OUT", 4096)
+
     async def run(
         self,
         *,
@@ -324,17 +382,25 @@ class AgentLoop:
         user_message: str,
         user,
         skill_activa: str | None = None,
+        attachments: list[dict] | None = None,
     ) -> AsyncIterator[dict]:
         """Ejecuta un turno completo. Yieldea eventos SSE-friendly."""
         # 1) Persistir el mensaje del usuario.
         history = self.history_store.load_messages(conv_id)
         next_seq = max((m.seq for m in history), default=0) + 1
+        stored_text = user_message
+        if attachments:
+            names = ", ".join(
+                (a.get("name") or "archivo") for a in attachments
+            )
+            stored_text = (user_message + f"\n\n[Adjuntos: {names}]").strip()
+        user_seq = next_seq
         self.history_store.append_message(StoredMessage(
             mensaje_id=_new_uuid(),
             conv_id=conv_id,
             seq=next_seq,
             role="user",
-            contenido=user_message,
+            contenido=stored_text,
         ))
 
         yield {"event": "turn_started",
@@ -366,7 +432,8 @@ class AgentLoop:
             # Cargo historia + appendice de tool_results del turno anterior.
             history = self.history_store.load_messages(conv_id)
             specs = list_for_user(user) if user is not None else list(REGISTRY.values())
-            anth_tools = _tools_for_anthropic(specs)
+            # web_search primero (server tool, sin cache marker) + tools ERP.
+            anth_tools = [dict(WEB_SEARCH_TOOL)] + _tools_for_anthropic(specs)
 
             text_buf: list[str] = []
             tool_calls_in_turn: list[ToolUse] = []
@@ -375,8 +442,11 @@ class AgentLoop:
 
             async for ev in self.provider.stream(
                 system=_system_prompt(),
-                messages=_messages_for_anthropic(history),
+                messages=_messages_for_anthropic(
+                    history, attach_seq=user_seq, attachments=attachments
+                ),
                 tools=anth_tools,
+                max_tokens=self._max_tokens_out(),
             ):
                 if isinstance(ev, TextDelta):
                     text_buf.append(ev.text)
@@ -434,6 +504,15 @@ class AgentLoop:
                     costo_usd=accum_cost_usd,
                     skill_activa=active_skill,
                 )
+                ctx_tokens = 0
+                if msg_complete:
+                    ctx_tokens = (
+                        msg_complete.tokens_in
+                        + msg_complete.cache_hit_in
+                        + msg_complete.cache_write_in
+                        + msg_complete.tokens_out
+                    )
+                ctx_limit = self._max_context_tokens()
                 yield {"event": "message_complete",
                        "data": {
                            "mensaje_id": assistant_mid,
@@ -441,7 +520,14 @@ class AgentLoop:
                            "tokens_out": running_tokens_out,
                            "cost_usd": round(accum_cost_usd, 6),
                            "stopped_for_confirm": False,
+                           "context_tokens": ctx_tokens,
+                           "context_limit": ctx_limit,
                        }}
+
+                # 4b) Limite de contexto: resumir y abrir nueva seccion.
+                if ctx_tokens >= ctx_limit:
+                    async for ev in self._compact(conv_id):
+                        yield ev
                 break
 
             # 5) Por cada tool_use: pause-on-write o ejecucion directa.
@@ -583,3 +669,74 @@ class AgentLoop:
                        }}
                 break
             # ...si no, loop continua con el siguiente turno.
+
+    async def _compact(self, conv_id: str) -> AsyncIterator[dict]:
+        """Resume la conversacion y crea una nueva seccion (conversacion).
+
+        Se invoca al superar ASISTENTE_MAX_CONTEXT_TOKENS. El resumen se
+        genera con el mismo modelo (una sola llamada corta, sin tools) y se
+        siembra como primer mensaje de la nueva conversacion para no seguir
+        pagando el historial completo en cada turno.
+        """
+        try:
+            history = self.history_store.load_messages(conv_id)
+            # Transcript plano (solo user/assistant) recortado a ~40k chars.
+            lines: list[str] = []
+            for m in history:
+                if m.role == "user":
+                    lines.append(f"USUARIO: {m.contenido}")
+                elif m.role == "assistant" and m.contenido:
+                    lines.append(f"ASISTENTE: {m.contenido}")
+            transcript = "\n".join(lines)[-40000:]
+
+            prompt = (
+                "Resume la siguiente conversacion entre un usuario de un ERP "
+                "y su asistente. Conserva: datos concretos (numeros de "
+                "documento, companias, montos, fechas, productos), decisiones "
+                "tomadas, tareas pendientes y el contexto necesario para "
+                "continuar la conversacion. Maximo ~300 palabras, en espanol, "
+                "formato de puntos.\n\n" + transcript
+            )
+            summary_buf: list[str] = []
+            async for ev in self.provider.stream(
+                system="Eres un resumidor de conversaciones. Solo devuelves el resumen.",
+                messages=[{"role": "user", "content": prompt}],
+                tools=None,
+                max_tokens=1024,
+            ):
+                if isinstance(ev, TextDelta):
+                    summary_buf.append(ev.text)
+                elif isinstance(ev, ProviderError):
+                    return  # sin resumen no compactamos; el turno ya termino OK
+            summary = "".join(summary_buf).strip()
+            if not summary:
+                return
+
+            new_conv_id = self.history_store.create_continuation(conv_id)
+            if not new_conv_id:
+                return
+            self.history_store.append_message(StoredMessage(
+                mensaje_id=_new_uuid(),
+                conv_id=new_conv_id,
+                seq=1,
+                role="user",
+                contenido=(
+                    "[Resumen de la conversacion anterior — seccion nueva "
+                    "creada al alcanzar el limite de contexto]\n\n" + summary
+                ),
+            ))
+            self.history_store.append_message(StoredMessage(
+                mensaje_id=_new_uuid(),
+                conv_id=new_conv_id,
+                seq=2,
+                role="assistant",
+                contenido=(
+                    "Continuemos. Tengo el resumen de la conversacion "
+                    "anterior; puedes seguir donde quedamos."
+                ),
+            ))
+            yield {"event": "context_compacted",
+                   "data": {"new_conv_id": new_conv_id, "resumen": summary}}
+        except Exception:  # noqa: BLE001
+            # La compactacion es best-effort: nunca rompe el turno.
+            return

@@ -72,8 +72,12 @@ class ClaudeProvider(BaseProvider):
         if not tools:
             return []
         out = [dict(t) for t in tools]
-        if out:
-            out[-1] = {**out[-1], "cache_control": {"type": "ephemeral"}}
+        # El marker va en la ultima tool CUSTOM (con input_schema); las
+        # server tools (web_search) no llevan cache_control.
+        for i in range(len(out) - 1, -1, -1):
+            if "input_schema" in out[i]:
+                out[i] = {**out[i], "cache_control": {"type": "ephemeral"}}
+                break
         return out
 
     async def stream(

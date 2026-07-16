@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format, isToday, isYesterday, parseISO } from 'date-fns'
 import { Plus, Search as SearchIcon, MessageSquare, Trash2 } from 'lucide-react'
 import {
-  ASISTENTE_MODELS,
   type AsistenteConversacionResumen,
   createConversacion,
   deleteConversacion,
@@ -12,19 +11,10 @@ import {
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 
 type Props = {
   selectedConvId: string | null
   onSelectConv: (id: string) => void
-  model: string
-  onModelChange: (m: string) => void
 }
 
 function groupKey(iso: string): string {
@@ -34,12 +24,7 @@ function groupKey(iso: string): string {
   return format(d, 'd MMM yyyy')
 }
 
-export function AsistenteSidebar({
-  selectedConvId,
-  onSelectConv,
-  model,
-  onModelChange,
-}: Props) {
+export function AsistenteSidebar({ selectedConvId, onSelectConv }: Props) {
   const [search, setSearch] = useState('')
   const qc = useQueryClient()
 
@@ -49,7 +34,7 @@ export function AsistenteSidebar({
   })
 
   const createMut = useMutation({
-    mutationFn: () => createConversacion({ model }),
+    mutationFn: () => createConversacion(),
     onSuccess: (conv) => {
       qc.invalidateQueries({ queryKey: ['asistente', 'conversaciones'] })
       onSelectConv(conv.conv_id)
@@ -82,33 +67,17 @@ export function AsistenteSidebar({
   return (
     <aside className='flex h-full w-full flex-col border-e bg-card/40 sm:w-64 lg:w-72'>
       <div className='flex flex-col gap-3 border-b p-3'>
-        <div className='flex items-center justify-between'>
-          <h2 className='text-base font-semibold'>Conversaciones</h2>
-          <Button
-            size='icon'
-            variant='ghost'
-            aria-label='Nueva conversacion'
-            disabled={createMut.isPending}
-            onClick={() => createMut.mutate()}
-          >
-            <Plus size={18} />
-          </Button>
-        </div>
+        <Button
+          className='w-full justify-start gap-2 rounded-xl'
+          variant='outline'
+          disabled={createMut.isPending}
+          onClick={() => createMut.mutate()}
+        >
+          <Plus size={16} />
+          Nueva conversación
+        </Button>
 
-        <Select value={model} onValueChange={onModelChange}>
-          <SelectTrigger className='h-8 text-xs'>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {ASISTENTE_MODELS.map((m) => (
-              <SelectItem key={m.value} value={m.value}>
-                {m.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <label className='flex h-9 items-center rounded-md border bg-background px-2'>
+        <label className='flex h-9 items-center rounded-xl border bg-background px-2'>
           <SearchIcon size={14} className='me-2 stroke-muted-foreground' />
           <input
             type='text'
@@ -151,7 +120,6 @@ export function AsistenteSidebar({
                 >
                   <div className='truncate font-medium'>{c.titulo}</div>
                   <div className='truncate text-xs text-muted-foreground'>
-                    {c.model.replace('claude-', '')} ·{' '}
                     {format(parseISO(c.fecha_ultimo), 'HH:mm')}
                   </div>
                 </button>
