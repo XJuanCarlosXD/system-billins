@@ -15,6 +15,7 @@ import {
   createConversacion,
   fetchAsistenteStatus,
 } from '@/lib/api-client-asistente'
+import { useCompany } from '@/context/company-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -64,8 +65,10 @@ export function AsistentePage() {
 
   const [convId, setConvId] = useState<string | null>(null)
   const qc = useQueryClient()
+  const { selectedCompany, selectedPoint } = useCompany()
   const createMut = useMutation({
-    mutationFn: () => createConversacion(),
+    mutationFn: () =>
+      createConversacion({ no_cia: selectedCompany, punto: selectedPoint }),
     onSuccess: (conv) => {
       qc.invalidateQueries({ queryKey: ['asistente', 'conversaciones'] })
       setConvId(conv.conv_id)

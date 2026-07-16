@@ -19,6 +19,7 @@ import {
   getConversacion,
   patchConversacion,
 } from '@/lib/api-client-asistente'
+import { useCompany } from '@/context/company-context'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -97,6 +98,7 @@ export function AsistenteChat({
   onTotalsChange,
 }: Props) {
   const { state, send, cancel, reset } = useChatStream(convId)
+  const { selectedCompany, selectedPoint } = useCompany()
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -217,7 +219,12 @@ export function AsistenteChat({
     if ((!text && attachments.length === 0) || state.streaming) return
     ta.value = ''
     ta.style.height = 'auto'
-    send(text, { skill: skillActiva, attachments })
+    send(text, {
+      skill: skillActiva,
+      attachments,
+      noCia: selectedCompany,
+      punto: selectedPoint,
+    })
     setAttachments([])
   }
 

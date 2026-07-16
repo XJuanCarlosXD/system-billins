@@ -269,7 +269,12 @@ export function useChatStream(convId: string | null) {
   const send = useCallback(
     async (
       message: string,
-      opts?: { skill?: string | null; attachments?: ChatAttachment[] }
+      opts?: {
+        skill?: string | null
+        attachments?: ChatAttachment[]
+        noCia?: string
+        punto?: string
+      }
     ) => {
       if (!convId) return
       const attachments = opts?.attachments || []
@@ -288,6 +293,9 @@ export function useChatStream(convId: string | null) {
             body: JSON.stringify({
               message,
               skill: opts?.skill ?? null,
+              // Compania/punto activos en la UI: el bot los usa sin preguntar.
+              no_cia: opts?.noCia ?? null,
+              punto: opts?.punto ?? null,
               attachments: attachments.map((a) => ({
                 name: a.name,
                 media_type: a.media_type,

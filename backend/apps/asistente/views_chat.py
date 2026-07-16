@@ -43,9 +43,10 @@ class ChatStreamView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, conv_id):
-        # Validar que la conversacion pertenece al usuario.
+        # Validar que la conversacion pertenece al usuario (y traer su
+        # compania/punto persistidos como fallback del contexto activo).
         own = client.fetch_one(
-            "SELECT 1 FROM ABREGONZA.TCHAT_CONVERSACION "
+            "SELECT NO_CIA, PUNTO FROM ABREGONZA.TCHAT_CONVERSACION "
             "WHERE CONV_ID = :1 AND UPPER(USUARIO) = :2 "
             "AND NVL(ARCHIVADA,'N') = 'N'",
             [conv_id, _u(request)],
@@ -93,6 +94,11 @@ class ChatStreamView(APIView):
         if not user_message:
             user_message = "Analiza el archivo adjunto."
 
+        # Contexto de compania/punto: el seleccionado en la UI (body) manda;
+        # fallback a lo persistido en la conversacion.
+        ctx_no_cia = (str(body.get("no_cia") or "") or (own[0] or "")).strip() or None
+        ctx_punto = (str(body.get("punto") or "") or (own[1] or "")).strip() or None
+
         provider = ClaudeProvider()
         loop = AgentLoop(
             provider=provider,
@@ -107,6 +113,8 @@ class ChatStreamView(APIView):
             user=request.user,
             skill_activa=skill_activa,
             attachments=attachments or None,
+            no_cia=ctx_no_cia,
+            punto=ctx_punto,
         )
 
         def _drain():

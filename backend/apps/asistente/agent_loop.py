@@ -220,8 +220,8 @@ def _new_sig() -> str:
     return "tpx_" + secrets.token_hex(12)
 
 
-def _system_prompt() -> str:
-    return (
+def _system_prompt(no_cia: str | None = None, punto: str | None = None) -> str:
+    base = (
         "Eres el asistente embebido de ZentoryERP. Respondes en espanol "
         "neutro, eres conciso y prefieres datos concretos sobre prosa. "
         "Cuando vayas a hacer una operacion de escritura, explica brevemente "
@@ -230,8 +230,24 @@ def _system_prompt() -> str:
         "pida precios de mercado, tasas de cambio, datos de proveedores o "
         "cualquier informacion externa al ERP; cita la fuente. "
         "El usuario puede adjuntar PDFs o imagenes (facturas, cotizaciones, "
-        "listados): analizalos y extrae los datos relevantes."
+        "listados): analizalos y extrae los datos relevantes. "
+        "SKILLS: cuando la peticion corresponda a un flujo guiado (facturar, "
+        "cotizar, conciliar banco, cuadre de caja, etc.), usa skill_listar y "
+        "activa la skill adecuada con skill_cargar AUTOMATICAMENTE, sin pedir "
+        "permiso ni anunciarlo; luego sigue sus pasos."
     )
+    if no_cia:
+        ctx = f"CONTEXTO ACTIVO: el usuario trabaja en la compania {no_cia}"
+        if punto:
+            ctx += f", punto {punto}"
+        ctx += (
+            ". Usa SIEMPRE estos valores por defecto en cualquier tool que "
+            "pida no_cia o punto. NO preguntes por compania, punto ni "
+            "sucursal; solo usa otros valores si el usuario los menciona "
+            "explicitamente."
+        )
+        base += " " + ctx
+    return base
 
 
 # Server tool de Anthropic: busqueda web ejecutada por el API (variante
@@ -383,6 +399,8 @@ class AgentLoop:
         user,
         skill_activa: str | None = None,
         attachments: list[dict] | None = None,
+        no_cia: str | None = None,
+        punto: str | None = None,
     ) -> AsyncIterator[dict]:
         """Ejecuta un turno completo. Yieldea eventos SSE-friendly."""
         # 1) Persistir el mensaje del usuario.
@@ -441,7 +459,7 @@ class AgentLoop:
             had_error = False
 
             async for ev in self.provider.stream(
-                system=_system_prompt(),
+                system=_system_prompt(no_cia, punto),
                 messages=_messages_for_anthropic(
                     history, attach_seq=user_seq, attachments=attachments
                 ),
@@ -535,6 +553,14 @@ class AgentLoop:
             stopped_for_confirm = False
             for tu in tool_calls_in_turn:
                 spec = get_tool(tu.name)
+                # Autocompletar compania/punto activos si la tool los pide y
+                # el modelo no los envio — evita que pregunte por ellos.
+                if spec is not None:
+                    props = (spec.input_schema or {}).get("properties", {})
+                    if no_cia and "no_cia" in props and not tu.args.get("no_cia"):
+                        tu.args["no_cia"] = no_cia
+                    if punto and "punto" in props and not tu.args.get("punto"):
+                        tu.args["punto"] = punto
                 is_write = bool(spec and spec.write)
                 preview = _preview(tu.name, tu.args)
                 confirmed_by: str | None = None

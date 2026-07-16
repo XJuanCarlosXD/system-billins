@@ -8,6 +8,7 @@ import {
   deleteConversacion,
   listConversaciones,
 } from '@/lib/api-client-asistente'
+import { useCompany } from '@/context/company-context'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -27,6 +28,7 @@ function groupKey(iso: string): string {
 export function AsistenteSidebar({ selectedConvId, onSelectConv }: Props) {
   const [search, setSearch] = useState('')
   const qc = useQueryClient()
+  const { selectedCompany, selectedPoint } = useCompany()
 
   const { data: convs = [], isLoading } = useQuery({
     queryKey: ['asistente', 'conversaciones'],
@@ -34,7 +36,8 @@ export function AsistenteSidebar({ selectedConvId, onSelectConv }: Props) {
   })
 
   const createMut = useMutation({
-    mutationFn: () => createConversacion(),
+    mutationFn: () =>
+      createConversacion({ no_cia: selectedCompany, punto: selectedPoint }),
     onSuccess: (conv) => {
       qc.invalidateQueries({ queryKey: ['asistente', 'conversaciones'] })
       onSelectConv(conv.conv_id)

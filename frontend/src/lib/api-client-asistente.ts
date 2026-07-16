@@ -88,7 +88,9 @@ export async function listConversaciones(): Promise<AsistenteConversacionResumen
   return res.items
 }
 
-export async function createConversacion(data: { titulo?: string } = {}) {
+export async function createConversacion(
+  data: { titulo?: string; no_cia?: string; punto?: string } = {}
+) {
   // El modelo ya no se envia: el backend siempre usa Haiku 4.5.
   return request<AsistenteConversacionNueva>('/asistente/conversaciones/', {
     method: 'POST',
