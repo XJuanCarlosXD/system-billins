@@ -1016,7 +1016,7 @@ def entrada_documento(d):
     return no_docu
 
 
-def reversar_documento(no_cia, punto, tipo_docu, no_docu, usuario="API"):
+def reversar_documento(no_cia, punto, tipo_docu, no_docu, usuario="API", motivo=""):
     """
     Marca documento como reversado (status=R, saldo=0).
     Solo sobre docs con status=A. REVERSIBLE en pruebas ZZTEST.
@@ -1029,11 +1029,15 @@ def reversar_documento(no_cia, punto, tipo_docu, no_docu, usuario="API"):
         raise ValueError("Documento no encontrado")
     if rows[0]["status"] == "C":
         raise ValueError("Documento ya cerrado, no se puede reversar")
+    if rows[0]["status"] == "R":
+        raise ValueError("Documento ya está reversado")
+    # DETALLE es VARCHAR2(100)
+    detalle = ("REVERSADO - " + motivo.strip())[:100] if motivo and motivo.strip() else "REVERSADO"
     with client.cursor() as cur:
         cur.execute(
-            "UPDATE CXP.TCXP_DOCUMENTO SET status='R', saldo=0, detalle='REVERSADO' "
-            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
-            [no_cia, punto, tipo_docu, no_docu])
+            "UPDATE CXP.TCXP_DOCUMENTO SET status='R', saldo=0, detalle=:1 "
+            "WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4 AND no_docu=:5",
+            [detalle, no_cia, punto, tipo_docu, no_docu])
         cur.connection.commit()
     return {"ok": True, "no_docu": no_docu, "status": "R"}
 

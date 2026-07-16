@@ -41,7 +41,7 @@ export function CxpRepAlfabetico({ noCia, punto }: P) {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">RCXP301 — Listado Alfabético de Proveedores</h1>
       </div>
-      <div className="flex gap-3 border rounded-lg p-3 bg-muted/30">
+      <div className="flex flex-wrap gap-3 border rounded-lg p-3 bg-muted/30">
         <div className="space-y-1">
           <Label className="text-xs">Buscar</Label>
           <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="nombre..." className="h-8 w-56" />
@@ -56,7 +56,7 @@ export function CxpRepAlfabetico({ noCia, punto }: P) {
           </Button>
         </div>
       </div>
-      <div className="border rounded-lg overflow-hidden">
+      <div className="border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -132,7 +132,7 @@ export function CxpRepMayor({ noCia, punto = '', mes = curMonth, ano = curYear }
           </Button>
         </div>
       </div>
-      <div className="border rounded-lg overflow-hidden">
+      <div className="border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -198,7 +198,7 @@ export function CxpRep606({ noCia, punto = '', mes = curMonth, ano = curYear }: 
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">RCXP606 — Reporte 606 (ITBIS Compras Locales)</h1>
       </div>
-      <div className="flex gap-3 border rounded-lg p-3 bg-muted/30">
+      <div className="flex flex-wrap gap-3 border rounded-lg p-3 bg-muted/30">
         <div className="space-y-1"><Label className="text-xs">Año</Label><Input value={selAnio} onChange={e => setSelAnio(e.target.value)} className="h-8 w-20" /></div>
         <div className="space-y-1"><Label className="text-xs">Mes</Label><Input value={selMes} onChange={e => setSelMes(e.target.value)} className="h-8 w-16" placeholder="1-12" /></div>
         <div className="flex items-end gap-2">
@@ -216,7 +216,7 @@ export function CxpRep606({ noCia, punto = '', mes = curMonth, ano = curYear }: 
           <span>ITBIS Total: <b className="text-foreground">{fmt(data.total_itbis)}</b></span>
         </div>
       )}
-      <div className="border rounded-lg overflow-hidden">
+      <div className="border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -282,7 +282,7 @@ export function CxpRep607({ noCia, punto = '', mes = curMonth, ano = curYear }: 
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">RCXP607 — Reporte 607 (Retenciones ISR)</h1>
       </div>
-      <div className="flex gap-3 border rounded-lg p-3 bg-muted/30">
+      <div className="flex flex-wrap gap-3 border rounded-lg p-3 bg-muted/30">
         <div className="space-y-1"><Label className="text-xs">Año</Label><Input value={selAnio} onChange={e => setSelAnio(e.target.value)} className="h-8 w-20" /></div>
         <div className="space-y-1"><Label className="text-xs">Mes</Label><Input value={selMes} onChange={e => setSelMes(e.target.value)} className="h-8 w-16" placeholder="1-12" /></div>
         <div className="flex items-end gap-2">
@@ -300,7 +300,7 @@ export function CxpRep607({ noCia, punto = '', mes = curMonth, ano = curYear }: 
           <span>Total ITBIS Retenido: <b className="text-foreground">{fmt(data.total_itbis)}</b></span>
         </div>
       )}
-      <div className="border rounded-lg overflow-hidden">
+      <div className="border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>

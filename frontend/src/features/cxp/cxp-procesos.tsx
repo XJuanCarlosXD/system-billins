@@ -228,7 +228,7 @@ export function ProveedorPicker({
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className='flex h-[70vh] w-[60vw] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none'>
+        <DialogContent className='flex max-h-[80vh] min-h-[40vh] w-[90vw] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none lg:w-[60vw]'>
           <DialogHeader className='shrink-0 border-b px-6 py-4'>
             <DialogTitle>Buscar Proveedor</DialogTitle>
           </DialogHeader>
@@ -245,7 +245,7 @@ export function ProveedorPicker({
               autoFocus
             />
           </div>
-          <div className='flex-1 overflow-y-auto px-6 py-2'>
+          <div className='flex-1 overflow-auto px-6 py-2'>
             <Table>
               <TableHeader className='sticky top-0 z-10 bg-background'>
                 <TableRow>
@@ -510,10 +510,10 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
       </h1>
       <Card>
         <CardContent className='grid grid-cols-1 gap-3 pt-6 md:grid-cols-3'>
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Tipo Documento *</Label>
             <Select value={tipoDocu} onValueChange={setTipoDocu}>
-              <SelectTrigger className='h-10'>
+              <SelectTrigger className='h-10 w-full'>
                 <SelectValue placeholder='Seleccione…' />
               </SelectTrigger>
               <SelectContent>
@@ -528,11 +528,11 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
               </SelectContent>
             </Select>
           </div>
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Siguiente No.</Label>
             <Input value={siguiente} disabled className='h-10 font-mono' />
           </div>
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Fecha *</Label>
             <Input
               type='date'
@@ -546,7 +546,7 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
 
           <ProveedorPicker value={proveedor} onChange={setProveedor} />
 
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>RNC</Label>
             <Input
               value={form.rnc}
@@ -554,7 +554,7 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
               className='h-10 font-mono'
             />
           </div>
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs flex items-center justify-between'>
               <span>NCF</span>
               {ncfInfo?.codigo_ncf && (
@@ -600,7 +600,7 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
               </div>
             )}
           </div>
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Valor de Bienes (sin ITBIS) *</Label>
             <Input
               type='number'
@@ -612,7 +612,7 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
               className='h-10 text-right font-mono'
             />
           </div>
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs flex items-center justify-between'>
               <span>ITBIS ({porcItbis}%)</span>
               <button type='button' onClick={() => setEditandoItbis(!editandoItbis)}
@@ -634,7 +634,7 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
               </div>
             )}
           </div>
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Fecha Vence</Label>
             <Input
               type='date'
@@ -657,7 +657,7 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
           </div>
 
           {/* Impuestos/cargos adicionales DGI */}
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>ISC (Selectivo)</Label>
             <Input
               type='number' step='0.01' placeholder='0.00'
@@ -666,7 +666,7 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
               className='h-10 text-right font-mono'
             />
           </div>
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Otros Impuestos</Label>
             <Input
               type='number' step='0.01' placeholder='0.00'
@@ -675,7 +675,7 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
               className='h-10 text-right font-mono'
             />
           </div>
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Propina Legal</Label>
             <Input
               type='number' step='0.01' placeholder='0.00'
@@ -686,13 +686,13 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
           </div>
 
           {/* Clasificaciones DGI 606/607 */}
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Tipo de Gasto (DGI)</Label>
             <Select
               value={form.tipo_gasto}
               onValueChange={(v) => setForm((f) => ({ ...f, tipo_gasto: v === '__none__' ? '' : v }))}
             >
-              <SelectTrigger className='h-10'>
+              <SelectTrigger className='h-10 w-full'>
                 <SelectValue placeholder='Sin clasificar' />
               </SelectTrigger>
               <SelectContent>
@@ -705,13 +705,13 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
               </SelectContent>
             </Select>
           </div>
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Tipo de Retención</Label>
             <Select
               value={form.tipo_retencion}
               onValueChange={(v) => setForm((f) => ({ ...f, tipo_retencion: v === '__none__' ? '' : v }))}
             >
-              <SelectTrigger className='h-10'>
+              <SelectTrigger className='h-10 w-full'>
                 <SelectValue placeholder='Ninguna' />
               </SelectTrigger>
               <SelectContent>
@@ -724,13 +724,13 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
               </SelectContent>
             </Select>
           </div>
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Forma de Pago</Label>
             <Select
               value={form.forma_pago}
               onValueChange={(v) => setForm((f) => ({ ...f, forma_pago: v === '__none__' ? '' : v }))}
             >
-              <SelectTrigger className='h-10'>
+              <SelectTrigger className='h-10 w-full'>
                 <SelectValue placeholder='No especificada' />
               </SelectTrigger>
               <SelectContent>
@@ -769,12 +769,20 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
 }
 
 // ─── FCXP204 — Reversar Documento ────────────────────────────────────────────
+const STATUS_DOC: Record<string, { label: string; variant: any }> = {
+  A: { label: 'Activo', variant: 'default' },
+  C: { label: 'Cerrado', variant: 'outline' },
+  R: { label: 'Reversado', variant: 'destructive' },
+}
+
 export function CxpReversar({ noCia, punto = '' }: P) {
   const [tipoDocu, setTipoDocu] = useState('')
   const [noDocu, setNoDocu] = useState('')
   const [tiposDocu, setTiposDocu] = useState<any[]>([])
   const [doc, setDoc] = useState<any>(null)
   const [busy, setBusy] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const [motivo, setMotivo] = useState('')
 
   useEffect(() => {
     api
@@ -783,54 +791,72 @@ export function CxpReversar({ noCia, punto = '' }: P) {
       .catch(() => {})
   }, [noCia])
 
+  // NO_DOCU en TCXP_DOCUMENTO es CHAR(7): "8347" → "0008347"
+  const normNoDocu = (v: string) => {
+    const n = v.trim()
+    return /^\d+$/.test(n) ? n.padStart(7, '0') : n
+  }
+
   const buscar = async () => {
-    if (!tipoDocu || !noDocu)
+    if (!tipoDocu || !noDocu.trim())
       return toast.error('Tipo y No. de documento son requeridos')
     if (!punto) return toast.error('Seleccione un punto de trabajo')
+    const nd = normNoDocu(noDocu)
+    setNoDocu(nd)
     try {
-      const d = await api.cxpGetDocumento(noCia, punto, tipoDocu, noDocu)
+      const d = await api.cxpGetDocumento(noCia, punto, tipoDocu, nd)
       setDoc(d)
     } catch (e: any) {
-      toast.error(e?.message || 'Documento no encontrado')
+      toast.error(
+        e?.message === 'not found' || e?.status === 404
+          ? `No existe el documento ${tipoDocu}-${nd} en este punto.`
+          : e?.message || `No existe el documento ${tipoDocu}-${nd} en este punto.`
+      )
       setDoc(null)
     }
   }
 
   const reversar = async () => {
     if (!doc) return
-    if (
-      !confirm(
-        `¿Reversar documento ${tipoDocu}-${noDocu}? Esta acción es reversible solo si no se ha generado al mayor.`
-      )
-    )
-      return
     setBusy(true)
     try {
       await api.cxpReversarDocumento({
         no_cia: noCia,
         punto,
         tipo_docu: tipoDocu,
-        no_docu: noDocu,
+        no_docu: normNoDocu(noDocu),
+        motivo: motivo.trim(),
       })
-      toast.success('Documento reversado')
+      toast.success(`Documento ${tipoDocu}-${normNoDocu(noDocu)} reversado`)
       setDoc(null)
       setNoDocu('')
+      setMotivo('')
+      setConfirming(false)
     } catch (e: any) {
-      toast.error(e?.message || 'Error reversando')
+      toast.error(e?.message || 'No se pudo reversar el documento')
     } finally {
       setBusy(false)
     }
   }
 
+  const st = doc ? STATUS_DOC[doc.status] || { label: doc.status, variant: 'secondary' } : null
+
   return (
-    <div className='space-y-4 p-6'>
-      <h1 className='text-2xl font-semibold'>FCXP204 — Reversar Documento</h1>
+    <div className='space-y-4 p-4 md:p-6'>
+      <div>
+        <h1 className='text-2xl font-semibold'>Reversar Documento</h1>
+        <p className='text-sm text-muted-foreground'>
+          Busca un documento activo y reviértelo (queda con estado Reversado y
+          saldo 0). Equivale a la forma legacy <i>Fcxp204</i> sobre{' '}
+          <span className='font-mono'>TCXP_DOCUMENTO</span>.
+        </p>
+      </div>
       <Card>
         <CardContent className='flex flex-wrap items-end gap-3 pt-6'>
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Tipo</Label>
             <Select value={tipoDocu} onValueChange={setTipoDocu}>
-              <SelectTrigger className='h-9 w-40'>
+              <SelectTrigger className='h-9 w-56'>
                 <SelectValue placeholder='Tipo…' />
               </SelectTrigger>
               <SelectContent>
@@ -845,12 +871,16 @@ export function CxpReversar({ noCia, punto = '' }: P) {
               </SelectContent>
             </Select>
           </div>
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>No. Documento</Label>
             <Input
               value={noDocu}
-              onChange={(e) => setNoDocu(e.target.value)}
+              onChange={(e) => setNoDocu(e.target.value.replace(/[^0-9]/g, '').slice(0, 7))}
+              onKeyDown={(e) => e.key === 'Enter' && buscar()}
               className='h-9 w-40 font-mono'
+              inputMode='numeric'
+              maxLength={7}
+              placeholder='ej. 8347'
             />
           </div>
           <Button onClick={buscar} size='sm' variant='outline'>
@@ -862,7 +892,7 @@ export function CxpReversar({ noCia, punto = '' }: P) {
       {doc && (
         <Card>
           <CardContent className='space-y-3 pt-6'>
-            <div className='grid grid-cols-2 gap-3 text-sm md:grid-cols-4'>
+            <div className='grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 md:grid-cols-3'>
               <div>
                 <b>Proveedor:</b> {doc.no_proveedor} — {doc.nombre_proveedor}
               </div>
@@ -870,35 +900,76 @@ export function CxpReversar({ noCia, punto = '' }: P) {
                 <b>Fecha:</b> {doc.fecha}
               </div>
               <div>
-                <b>Valor:</b> {fmt(doc.valor_original)}
+                <b>Valor:</b>{' '}
+                <span className='font-mono tabular-nums'>RD$ {fmt(doc.valor_original)}</span>
               </div>
               <div>
-                <b>Saldo:</b> {fmt(doc.saldo)}
+                <b>Saldo:</b>{' '}
+                <span className='font-mono tabular-nums'>RD$ {fmt(doc.saldo)}</span>
               </div>
               <div>
                 <b>NCF:</b>{' '}
                 <span className='font-mono'>{ncfDgi(doc) || '—'}</span>
               </div>
               <div>
-                <b>Estado:</b>{' '}
-                <Badge variant={doc.status === 'R' ? 'destructive' : 'default'}>
-                  {doc.status}
-                </Badge>
+                <b>Estado:</b> <Badge variant={st!.variant}>{st!.label}</Badge>
               </div>
             </div>
             <div className='flex justify-end'>
               <Button
                 variant='destructive'
-                onClick={reversar}
-                disabled={busy || doc.status === 'R'}
+                onClick={() => setConfirming(true)}
+                disabled={busy || doc.status === 'R' || doc.status === 'C'}
               >
-                <RotateCcw className='mr-2 h-4 w-4' />{' '}
-                {busy ? 'Reversando…' : 'Reversar'}
+                <RotateCcw className='mr-2 h-4 w-4' />
+                Reversar
               </Button>
             </div>
+            {doc.status === 'C' && (
+              <p className='text-right text-xs text-muted-foreground'>
+                Documento cerrado: ya fue actualizado y no se puede reversar.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
+      <Dialog open={confirming} onOpenChange={(o) => !busy && setConfirming(o)}>
+        <DialogContent className='max-h-[80vh] max-w-md overflow-y-auto'>
+          <DialogHeader>
+            <DialogTitle>
+              Reversar {tipoDocu}-{normNoDocu(noDocu)}
+            </DialogTitle>
+          </DialogHeader>
+          <div className='space-y-3'>
+            <p className='text-sm text-muted-foreground'>
+              El documento quedará con estado <b>Reversado</b> y saldo RD$ 0.00.
+              Solo es posible si aún no se ha generado al mayor.
+            </p>
+            <div className='min-w-0 space-y-1'>
+              <Label className='text-xs'>Motivo *</Label>
+              <Input
+                value={motivo}
+                onChange={(e) => setMotivo(e.target.value.slice(0, 60))}
+                placeholder='ej. digitado con NCF equivocado'
+                maxLength={60}
+              />
+            </div>
+            <div className='flex justify-end gap-2 pt-2'>
+              <Button variant='outline' onClick={() => setConfirming(false)} disabled={busy}>
+                Cancelar
+              </Button>
+              <Button
+                variant='destructive'
+                onClick={reversar}
+                disabled={busy || !motivo.trim()}
+              >
+                <RotateCcw className='mr-2 h-4 w-4' />
+                {busy ? 'Reversando…' : 'Confirmar Reverso'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -972,8 +1043,8 @@ export function CxpLiberarDebito({ noCia, punto = '' }: P) {
         FCXP205 — Liberar Débito (Aplicar Crédito)
       </h1>
       <Card>
-        <CardContent className='flex items-end gap-3 pt-6'>
-          <div className='space-y-1'>
+        <CardContent className='flex flex-wrap items-end gap-3 pt-6'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>No. Proveedor</Label>
             <Input
               value={noProv}
@@ -992,7 +1063,7 @@ export function CxpLiberarDebito({ noCia, punto = '' }: P) {
           <Card>
             <CardContent className='pt-6'>
               <h3 className='mb-2 font-semibold'>Créditos disponibles</h3>
-              <div className='rounded border'>
+              <div className='overflow-x-auto rounded border'>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1047,7 +1118,7 @@ export function CxpLiberarDebito({ noCia, punto = '' }: P) {
           <Card>
             <CardContent className='pt-6'>
               <h3 className='mb-2 font-semibold'>Débitos a aplicar</h3>
-              <div className='rounded border'>
+              <div className='overflow-x-auto rounded border'>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1174,7 +1245,7 @@ export function CxpBloquearPago({ noCia, punto = '' }: P) {
       </h1>
       <Card>
         <CardContent className='flex flex-wrap items-end gap-3 pt-6'>
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Tipo</Label>
             <Select value={tipoDocu} onValueChange={setTipoDocu}>
               <SelectTrigger className='h-9 w-40'>
@@ -1192,7 +1263,7 @@ export function CxpBloquearPago({ noCia, punto = '' }: P) {
               </SelectContent>
             </Select>
           </div>
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>No.</Label>
             <Input
               value={noDocu}
@@ -1396,7 +1467,7 @@ export function CxpAsientoContable({ noCia, punto = '' }: P) {
             </div>
           </CardHeader>
           <CardContent>
-            <div className='border rounded-lg overflow-hidden'>
+            <div className='border rounded-lg overflow-x-auto'>
               <Table>
                 <TableHeader>
                   <TableRow className='bg-muted/40'>
@@ -1673,7 +1744,7 @@ export function CxpRepMovimientos({ noCia, punto = '' }: P) {
       </h1>
       <Card>
         <CardContent className='flex flex-wrap items-end gap-3 pt-6'>
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>No. Proveedor</Label>
             <Input
               value={noProv}
@@ -1681,7 +1752,7 @@ export function CxpRepMovimientos({ noCia, punto = '' }: P) {
               className='h-9 w-40 font-mono'
             />
           </div>
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Desde</Label>
             <Input
               type='date'
@@ -1690,7 +1761,7 @@ export function CxpRepMovimientos({ noCia, punto = '' }: P) {
               className='h-9 w-40'
             />
           </div>
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Hasta</Label>
             <Input
               type='date'
@@ -1705,7 +1776,7 @@ export function CxpRepMovimientos({ noCia, punto = '' }: P) {
           </Button>
         </CardContent>
       </Card>
-      <div className='rounded border'>
+      <div className='overflow-x-auto rounded border'>
         <Table>
           <TableHeader>
             <TableRow>
@@ -1801,7 +1872,7 @@ export function CxpRepCuadre({ noCia, punto = '' }: P) {
       <h1 className='text-2xl font-semibold'>RCXP105 — Cuadre Contable</h1>
       <Card>
         <CardContent className='flex flex-wrap items-end gap-3 pt-6'>
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Mes</Label>
             <Input
               type='number'
@@ -1812,7 +1883,7 @@ export function CxpRepCuadre({ noCia, punto = '' }: P) {
               className='h-9 w-20'
             />
           </div>
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Año</Label>
             <Input
               type='number'
@@ -1841,7 +1912,7 @@ export function CxpRepCuadre({ noCia, punto = '' }: P) {
         </CardContent>
       </Card>
       {data && (
-        <div className='flex gap-6 rounded border bg-muted/20 p-3 text-sm'>
+        <div className='flex flex-wrap gap-x-6 gap-y-1 rounded border bg-muted/20 p-3 text-sm'>
           <span>
             Cuentas: <b>{items.length}</b>
           </span>
@@ -1863,7 +1934,7 @@ export function CxpRepCuadre({ noCia, punto = '' }: P) {
           </span>
         </div>
       )}
-      <div className='rounded border'>
+      <div className='overflow-x-auto rounded border'>
         <Table>
           <TableHeader>
             <TableRow>
@@ -1949,7 +2020,7 @@ export function CxpRepRetenciones({ noCia, punto = '' }: P) {
       </h1>
       <Card>
         <CardContent className='flex flex-wrap items-end gap-3 pt-6'>
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Año</Label>
             <Input
               type='number'
@@ -1958,7 +2029,7 @@ export function CxpRepRetenciones({ noCia, punto = '' }: P) {
               className='h-9 w-28'
             />
           </div>
-          <div className='space-y-1'>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Proveedor (opcional)</Label>
             <Input
               value={noProv}
@@ -1988,7 +2059,7 @@ export function CxpRepRetenciones({ noCia, punto = '' }: P) {
         </CardContent>
       </Card>
       {data && (
-        <div className='flex gap-6 rounded border bg-muted/20 p-3 text-sm'>
+        <div className='flex flex-wrap gap-x-6 gap-y-1 rounded border bg-muted/20 p-3 text-sm'>
           <span>
             Proveedores: <b>{proveedores.length}</b>
           </span>
@@ -2037,7 +2108,7 @@ export function CxpRepRetenciones({ noCia, punto = '' }: P) {
                   </div>
                 </div>
               </div>
-              <div className='rounded border'>
+              <div className='overflow-x-auto rounded border'>
                 <Table>
                   <TableHeader>
                     <TableRow>

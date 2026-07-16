@@ -69,6 +69,10 @@ def cxp_documentos(request):
 @require_http_methods(['GET'])
 def cxp_documento(request, no_cia, punto, tipo, no):
     punto = _norm_punto(punto)
+    # NO_DOCU es VARCHAR2(7) con ceros a la izquierda: "8347" → "0008347"
+    no = no.strip()
+    if no.isdigit():
+        no = no.rjust(7, '0')
     row = cxp_repo.get_documento(no_cia, punto, tipo, no)
     if row is None:
         return JsonResponse({'error': 'not found'}, status=404)
@@ -437,9 +441,12 @@ def cxp_reversar(request):
         no_cia    = data['no_cia']
         punto     = _norm_punto(data.get('punto', '01'))
         tipo_docu = data['tipo_docu']
-        no_docu   = data['no_docu']
+        no_docu   = str(data['no_docu']).strip()
+        if no_docu.isdigit():
+            no_docu = no_docu.rjust(7, '0')
         result    = cxp_repo.reversar_documento(no_cia, punto, tipo_docu, no_docu,
-                                                usuario=data.get('usuario', 'API'))
+                                                usuario=data.get('usuario', 'API'),
+                                                motivo=data.get('motivo', ''))
         return JsonResponse(result)
     except (KeyError, ValueError) as e:
         return JsonResponse({'error': str(e)}, status=400)

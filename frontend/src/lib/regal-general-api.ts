@@ -1279,7 +1279,7 @@ export const regalGeneralApi = {
     request<{ siguiente: string }>(`/cxp/entrada-documentos/?no_cia=${noCia}&punto=${punto}&tipo_docu=${encodeURIComponent(tipoDocu)}`),
   cxpEntradaDocumento: (data: Record<string, unknown>) =>
     request<{ ok: boolean; no_docu: string }>(`/cxp/entrada-documentos/`, { method: 'POST', body: JSON.stringify(data) }),
-  cxpReversarDocumento: (data: { no_cia: string; punto: string; tipo_docu: string; no_docu: string; usuario?: string }) =>
+  cxpReversarDocumento: (data: { no_cia: string; punto: string; tipo_docu: string; no_docu: string; usuario?: string; motivo?: string }) =>
     request<any>(`/cxp/reversar/`, { method: 'POST', body: JSON.stringify(data) }),
   cxpLiberarDebitoGet: (noCia: string, punto: string, noProveedor?: string, tipoMovi?: string) => {
     const qs = new URLSearchParams({ no_cia: noCia, punto, ...(noProveedor && { no_proveedor: noProveedor }), ...(tipoMovi && { tipo_movi: tipoMovi }) }).toString()

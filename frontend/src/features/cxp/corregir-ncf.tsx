@@ -157,7 +157,7 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
 
       <div className='grid grid-cols-1 gap-3 md:grid-cols-2 md:max-w-3xl'>
         <ProveedorPicker value={proveedor} onChange={setProveedor} />
-        <div className='space-y-1'>
+        <div className='min-w-0 space-y-1'>
           <Label className='text-xs'>Buscar por No. FP</Label>
           <div className='flex gap-2'>
             <Input
@@ -278,13 +278,13 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
                 Valor RD$ {fmt(editing.valor_original)}
               </div>
               <div className='grid grid-cols-2 gap-3'>
-                <div className='space-y-1'>
+                <div className='min-w-0 space-y-1'>
                   <Label className='text-xs'>Tipo NCF</Label>
                   <Select
                     value={form.tipo_ncf}
                     onValueChange={(v) => setForm((f) => ({ ...f, tipo_ncf: v }))}
                   >
-                    <SelectTrigger className='h-10 font-mono'>
+                    <SelectTrigger className='h-10 w-full font-mono'>
                       <SelectValue placeholder='B0X' />
                     </SelectTrigger>
                     <SelectContent>
@@ -294,7 +294,7 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className='space-y-1'>
+                <div className='min-w-0 space-y-1'>
                   <Label className='text-xs'>NCF (número)</Label>
                   <Input
                     value={form.ncf}
@@ -319,7 +319,7 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
                 </div>
               )}
               <div className='grid grid-cols-2 gap-3'>
-                <div className='space-y-1'>
+                <div className='min-w-0 space-y-1'>
                   <Label className='text-xs'>RNC</Label>
                   <Input
                     value={form.rnc}
@@ -327,7 +327,7 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
                     className='h-10 font-mono'
                   />
                 </div>
-                <div className='space-y-1'>
+                <div className='min-w-0 space-y-1'>
                   <Label className='text-xs'>ITBIS Facturado</Label>
                   <Input
                     type='number'
@@ -337,7 +337,7 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
                     className='h-10 text-right font-mono'
                   />
                 </div>
-                <div className='space-y-1'>
+                <div className='min-w-0 space-y-1'>
                   <Label className='text-xs'>ITBIS Retenido</Label>
                   <Input
                     type='number'
@@ -347,7 +347,7 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
                     className='h-10 text-right font-mono'
                   />
                 </div>
-                <div className='space-y-1'>
+                <div className='min-w-0 space-y-1'>
                   <Label className='text-xs'>ISR Retenido</Label>
                   <Input
                     type='number'
@@ -359,13 +359,13 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
                 </div>
               </div>
               <div className='grid grid-cols-1 gap-3'>
-                <div className='space-y-1'>
+                <div className='min-w-0 space-y-1'>
                   <Label className='text-xs'>Tipo de Gasto (DGI)</Label>
                   <Select
                     value={form.tipo_gasto}
                     onValueChange={(v) => setForm((f) => ({ ...f, tipo_gasto: v === '__none__' ? '' : v }))}
                   >
-                    <SelectTrigger className='h-10'>
+                    <SelectTrigger className='h-10 w-full'>
                       <SelectValue placeholder='Sin clasificar' />
                     </SelectTrigger>
                     <SelectContent>
@@ -378,13 +378,13 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className='space-y-1'>
+                <div className='min-w-0 space-y-1'>
                   <Label className='text-xs'>Tipo de Retención</Label>
                   <Select
                     value={form.tipo_retencion}
                     onValueChange={(v) => setForm((f) => ({ ...f, tipo_retencion: v === '__none__' ? '' : v }))}
                   >
-                    <SelectTrigger className='h-10'>
+                    <SelectTrigger className='h-10 w-full'>
                       <SelectValue placeholder='Ninguna' />
                     </SelectTrigger>
                     <SelectContent>
@@ -397,13 +397,13 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className='space-y-1'>
+                <div className='min-w-0 space-y-1'>
                   <Label className='text-xs'>Forma de Pago</Label>
                   <Select
                     value={form.forma_pago}
                     onValueChange={(v) => setForm((f) => ({ ...f, forma_pago: v === '__none__' ? '' : v }))}
                   >
-                    <SelectTrigger className='h-10'>
+                    <SelectTrigger className='h-10 w-full'>
                       <SelectValue placeholder='No especificada' />
                     </SelectTrigger>
                     <SelectContent>
