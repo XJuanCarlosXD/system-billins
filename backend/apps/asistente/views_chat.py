@@ -46,7 +46,7 @@ class ChatStreamView(APIView):
         # Validar que la conversacion pertenece al usuario (y traer su
         # compania/punto persistidos como fallback del contexto activo).
         own = client.fetch_one(
-            "SELECT NO_CIA, PUNTO FROM ABREGONZA.TCHAT_CONVERSACION "
+            "SELECT NO_CIA, PUNTO, TITULO FROM ABREGONZA.TCHAT_CONVERSACION "
             "WHERE CONV_ID = :1 AND UPPER(USUARIO) = :2 "
             "AND NVL(ARCHIVADA,'N') = 'N'",
             [conv_id, _u(request)],
@@ -93,6 +93,28 @@ class ChatStreamView(APIView):
             return Response({"detail": "empty_message"}, status=400)
         if not user_message:
             user_message = "Analiza el archivo adjunto."
+
+        # Auto-titulo estilo Gemini: la primera vez que se escribe en una
+        # conversacion con titulo por defecto, el titulo pasa a ser el
+        # primer mensaje (recortado). Las continuaciones ("· cont.") y los
+        # titulos ya personalizados no se tocan.
+        cur_titulo = (own[2] or "").strip()
+        if cur_titulo in ("", "Nueva conversacion", "Nueva conversación"):
+            nuevo = " ".join(user_message.split()).strip()
+            if len(nuevo) > 60:
+                nuevo = nuevo[:60].rstrip() + "…"
+            if nuevo:
+                try:
+                    with client.cursor() as cur:
+                        cur.execute(
+                            "UPDATE ABREGONZA.TCHAT_CONVERSACION "
+                            "SET TITULO = :1 "
+                            "WHERE CONV_ID = :2 AND UPPER(USUARIO) = :3",
+                            [nuevo, conv_id, _u(request)],
+                        )
+                        cur.connection.commit()
+                except Exception:  # noqa: BLE001
+                    pass  # el titulo es cosmetico; nunca rompe el chat
 
         # Contexto de compania/punto: el seleccionado en la UI (body) manda;
         # fallback a lo persistido en la conversacion.

@@ -220,7 +220,11 @@ def _new_sig() -> str:
     return "tpx_" + secrets.token_hex(12)
 
 
-def _system_prompt(no_cia: str | None = None, punto: str | None = None) -> str:
+def _system_prompt(
+    no_cia: str | None = None,
+    punto: str | None = None,
+    skills_index: list[dict] | None = None,
+) -> str:
     base = (
         "Eres el asistente embebido de ZentoryERP. Respondes en espanol "
         "neutro, eres conciso y prefieres datos concretos sobre prosa. "
@@ -231,11 +235,42 @@ def _system_prompt(no_cia: str | None = None, punto: str | None = None) -> str:
         "cualquier informacion externa al ERP; cita la fuente. "
         "El usuario puede adjuntar PDFs o imagenes (facturas, cotizaciones, "
         "listados): analizalos y extrae los datos relevantes. "
-        "SKILLS: cuando la peticion corresponda a un flujo guiado (facturar, "
-        "cotizar, conciliar banco, cuadre de caja, etc.), usa skill_listar y "
-        "activa la skill adecuada con skill_cargar AUTOMATICAMENTE, sin pedir "
-        "permiso ni anunciarlo; luego sigue sus pasos."
+        "FORMATO: tus respuestas se renderizan como Markdown. Cuando muestres "
+        "listados, comparaciones o resultados con varias filas (facturas, "
+        "documentos, productos, saldos), usa SIEMPRE una tabla Markdown "
+        "(| Col | Col |) con encabezados claros; montos alineados con 2 "
+        "decimales y separador de miles. Usa **negrita** para totales y "
+        "datos clave. No uses tablas para una sola cifra."
     )
+    if skills_index:
+        lines = []
+        for sk in skills_index:
+            usos = ", ".join(sk.get("when_to_use") or [])
+            desc = sk.get("description") or ""
+            lines.append(
+                f"- {sk['name']}: {desc}" + (f" (usos: {usos})" if usos else "")
+            )
+        base += (
+            " SKILLS DISPONIBLES (ya filtradas segun los permisos del "
+            "usuario):\n" + "\n".join(lines) + "\n"
+            "Cuando el requerimiento del usuario corresponda a una de estas "
+            "operaciones (facturar, cotizar, devolucion, nota de credito o "
+            "debito, conciliar, cuadre de caja, etc.), tu PRIMERA accion es "
+            "llamar skill_cargar con el nombre exacto de la skill — sin usar "
+            "skill_listar, sin pedir permiso y sin anunciarlo — y luego "
+            "seguir sus pasos. Si el usuario pide una operacion que NO esta "
+            "en la lista, es porque su usuario no tiene permiso para ese "
+            "modulo: dile claramente que permiso le falta y NO intentes "
+            "hacerla por otra via."
+        )
+    else:
+        base += (
+            " SKILLS: cuando la peticion corresponda a un flujo guiado "
+            "(facturar, cotizar, conciliar banco, cuadre de caja, etc.), usa "
+            "skill_listar y activa la skill adecuada con skill_cargar "
+            "AUTOMATICAMENTE, sin pedir permiso ni anunciarlo; luego sigue "
+            "sus pasos."
+        )
     if no_cia:
         ctx = f"CONTEXTO ACTIVO: el usuario trabaja en la compania {no_cia}"
         if punto:
@@ -434,6 +469,14 @@ class AgentLoop:
         last_tool_results: list[dict] = []
         active_skill = skill_activa
 
+        # Indice de skills filtrado por permisos: se calcula una vez por
+        # request y va al system prompt para que el modelo elija solo.
+        try:
+            from apps.asistente.tools.skills import list_skills_index
+            skills_index = list_skills_index(user)
+        except Exception:  # noqa: BLE001
+            skills_index = None
+
         while True:
             turn += 1
             if turn > max_turns:
@@ -459,7 +502,7 @@ class AgentLoop:
             had_error = False
 
             async for ev in self.provider.stream(
-                system=_system_prompt(no_cia, punto),
+                system=_system_prompt(no_cia, punto, skills_index),
                 messages=_messages_for_anthropic(
                     history, attach_seq=user_seq, attachments=attachments
                 ),

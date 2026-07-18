@@ -64,6 +64,34 @@ def read_skill_file(name: str) -> dict | None:
     }
 
 
+def list_skills_index(user) -> list[dict]:
+    """Indice compacto de skills accesibles al usuario (version sincrona).
+
+    El agent loop lo inyecta al system prompt de cada turno para que el
+    modelo elija la skill correcta de una vez (sin skill_listar). Filtra
+    por los flags de modulo del usuario: una operacion sin permiso ni
+    siquiera aparece como opcion.
+    """
+    from apps.asistente.tools.permissions import get_user_module_flags
+
+    flags = get_user_module_flags(user) if user is not None else {}
+    out: list[dict] = []
+    if not os.path.isdir(SKILLS_DIR):
+        return out
+    for entry in sorted(os.listdir(SKILLS_DIR)):
+        sk = read_skill_file(entry)
+        if not sk:
+            continue
+        if all(flags.get(m) == "S" for m in sk["modules_required"]):
+            wtu = sk["frontmatter"].get("when_to_use", []) or []
+            out.append({
+                "name": sk["name"],
+                "description": sk["description"],
+                "when_to_use": wtu if isinstance(wtu, list) else [str(wtu)],
+            })
+    return out
+
+
 async def _skill_listar(user=None) -> dict:
     """Devuelve nombres + frontmatter de skills accesibles al usuario."""
     from apps.asistente.tools.permissions import get_user_module_flags

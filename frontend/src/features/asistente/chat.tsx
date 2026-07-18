@@ -15,6 +15,7 @@ import {
 import { toast } from 'sonner'
 import {
   ASISTENTE_MODEL_LABEL,
+  type AsistenteConversacionResumen,
   type AsistenteMensaje,
   getConversacion,
   patchConversacion,
@@ -24,6 +25,7 @@ import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { MarkdownContent } from './markdown'
 import { SkillPicker } from './skill-picker'
 import { ToolConfirmModal } from './tool-confirm-modal'
 import {
@@ -156,6 +158,17 @@ export function AsistenteChat({
     if (onTotalsChange) onTotalsChange(state.totals)
   }, [state.totals, onTotalsChange])
 
+  // Al terminar cada stream, refrescar la lista de conversaciones: el
+  // backend puede haber renombrado la conversacion (auto-titulo) y el
+  // orden por FECHA_ULTIMO cambia.
+  const wasStreaming = useRef(false)
+  useEffect(() => {
+    if (wasStreaming.current && !state.streaming) {
+      qc.invalidateQueries({ queryKey: ['asistente', 'conversaciones'] })
+    }
+    wasStreaming.current = state.streaming
+  }, [state.streaming, qc])
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [state.messages, state.streaming])
@@ -217,6 +230,17 @@ export function AsistenteChat({
     if (!ta) return
     const text = ta.value.trim()
     if ((!text && attachments.length === 0) || state.streaming) return
+    // Auto-titulo estilo Gemini: el primer mensaje nombra la conversacion.
+    // El backend persiste el titulo; aqui actualizamos la cache al instante.
+    const isFirst = !state.messages.some((m) => m.role === 'user')
+    if (isFirst && text) {
+      const titulo = text.length > 60 ? `${text.slice(0, 60).trimEnd()}…` : text
+      qc.setQueryData<AsistenteConversacionResumen[]>(
+        ['asistente', 'conversaciones'],
+        (prev) =>
+          prev?.map((c) => (c.conv_id === convId ? { ...c, titulo } : c))
+      )
+    }
     ta.value = ''
     ta.style.height = 'auto'
     send(text, {
@@ -542,15 +566,16 @@ function MessageRow({ message }: { message: ChatMessage }) {
       <div className='mt-0.5 flex size-8 flex-none items-center justify-center rounded-full border bg-card shadow-sm'>
         <Bot size={15} className='text-primary' />
       </div>
-      <div className='min-w-0 flex-1 whitespace-pre-wrap break-words pt-1 text-sm leading-relaxed'>
-        {message.content ||
-          (message.streaming ? (
+      <div className='min-w-0 flex-1 pt-1 text-sm leading-relaxed'>
+        {message.content ? (
+          <MarkdownContent text={message.content} />
+        ) : message.streaming ? (
             <span className='inline-flex gap-1'>
               <span className='size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:0ms]' />
               <span className='size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:150ms]' />
               <span className='size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:300ms]' />
             </span>
-          ) : null)}
+        ) : null}
       </div>
     </div>
   )
