@@ -506,9 +506,8 @@ export function DevolucionVentas({ noCia, punto }: Props) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value='FT'>FT — Factura</SelectItem>
-                    <SelectItem value='CR'>CR — Crédito Fiscal</SelectItem>
-                    <SelectItem value='CO'>CO — Contado</SelectItem>
+                    <SelectItem value='FT'>FT — Factura Contado</SelectItem>
+                    <SelectItem value='FC'>FC — Factura Crédito</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1089,9 +1088,8 @@ export function DevolucionVentas({ noCia, punto }: Props) {
         title='Buscar Factura'
         defaultTipo={tipoFactOrigen}
         tipos={[
-          { value: 'FT', label: 'FT — Factura' },
-          { value: 'CR', label: 'CR — Crédito Fiscal' },
-          { value: 'CO', label: 'CO — Contado' },
+          { value: 'FT', label: 'FT — Factura Contado' },
+          { value: 'FC', label: 'FC — Factura Crédito' },
         ]}
         onSelect={(r) => {
           setTipoFactOrigen(r.tipo)
