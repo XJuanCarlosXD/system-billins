@@ -683,7 +683,7 @@ def get_documento(no_cia: str, no_docu: str, tipo_docu: str = ''):
         "SELECT d.no_cia, d.punto, d.tipo_docu tipo_doc, d.no_docu no_doc, "
         "d.no_cliente, d.fecha, c.nombre nombre_cliente, c.rnc, "
         "NVL(d.valor_original,0) valor, NVL(d.saldo,0) saldo, "
-        "d.ncf, d.detalle, "
+        "d.ncf, d.posiciones_fijas_ncf, d.detalle, "
         "CASE NVL(d.st_anulado,'N') WHEN 'S' THEN 'R' ELSE 'A' END estado "
         "FROM CXC.TCXC_DOCUMENTO d "
         "LEFT JOIN CXC.TCXC_CLIENTE c ON c.no_cia=d.no_cia AND c.no_cliente=d.no_cliente "
@@ -874,6 +874,33 @@ def get_facturas_pendientes_cliente(no_cia: str, no_cliente: str, punto: str = '
     return out
 
 
+def _emitir_ncf_cxc(cur, no_cia: str, codigo_ncf: str) -> tuple[int, str] | tuple[None, None]:
+    """Emite el proximo NCF de una serie CNT.TCNT_NCF de forma atomica
+    (mismo patron que fat_repo.create_factura: FOR UPDATE + valida rango +
+    incrementa prox_ncf). Devuelve (ncf_val, posiciones_fijas).
+
+    Si la serie esta marcada NCF_MANUAL='S' no se auto-emite: devuelve
+    (None, None) para que el valor tecleado por el usuario se respete.
+    """
+    cur.execute(
+        "SELECT posiciones_fijas, ncf_final, prox_ncf, NVL(ncf_manual,'N') "
+        "FROM CNT.TCNT_NCF WHERE no_localidad=:1 AND codigo_ncf=:2 FOR UPDATE",
+        [no_cia, codigo_ncf])
+    row = cur.fetchone()
+    if not row:
+        raise ValueError(f"Serie NCF {codigo_ncf} no encontrada para la empresa {no_cia}")
+    posiciones, ncf_final, prox_ncf, ncf_manual = row
+    if (ncf_manual or 'N').strip().upper() == 'S':
+        return None, None
+    if prox_ncf is None or (ncf_final is not None and prox_ncf > ncf_final):
+        raise ValueError(f"Serie NCF {codigo_ncf} agotada")
+    ncf_val = int(prox_ncf)
+    cur.execute(
+        "UPDATE CNT.TCNT_NCF SET prox_ncf=:1 WHERE no_localidad=:2 AND codigo_ncf=:3",
+        [ncf_val + 1, no_cia, codigo_ncf])
+    return ncf_val, (posiciones or '').strip()
+
+
 def crear_recibo_cobro(
     *, no_cia: str, punto: str, tipo_doc: str, no_cliente: str,
     fecha: str, ncf: str = '', detalle: str = '',
@@ -916,13 +943,23 @@ def crear_recibo_cobro(
         # 1. Cuenta y centro_costo defaults del tipo de doc (configurado en FCXC104)
         cur.execute(
             "SELECT NVL(cuenta,''), NVL(centro_costo,'0000000000'), tipo_movi, "
-            "       tipo_transaccion "
+            "       tipo_transaccion, codigo_ncf "
             "FROM CXC.TCXC_TDOCU WHERE no_cia=:1 AND tipo_docu=:2",
             [no_cia, tipo_doc])
         td = cur.fetchone()
         if not td:
             raise ValueError(f"Tipo de documento {tipo_doc} no existe")
         cuenta_default, centro_costo, tipo_movi_tdocu = td[0], td[1], (td[2] or 'C').upper()
+        codigo_ncf_tdocu = (td[4] or '').strip().upper()
+
+        # Si el tipo de documento tiene una serie NCF configurada (ej. NC -> B04),
+        # se emite de forma atomica desde CNT.TCNT_NCF; el valor tecleado por el
+        # usuario se ignora en ese caso (la serie no es de captura manual).
+        posiciones_fijas_ncf = None
+        if codigo_ncf_tdocu:
+            ncf_val, posiciones_fijas_ncf = _emitir_ncf_cxc(cur, no_cia, codigo_ncf_tdocu)
+            if ncf_val is not None:
+                ncf = str(ncf_val)
         tipo_transaccion_tdocu = (td[3] or 'I').strip().upper()
 
         if forma_pago:
@@ -975,17 +1012,18 @@ def crear_recibo_cobro(
         cur.execute(
             "INSERT INTO CXC.TCXC_DOCUMENTO ("
             " no_cia, punto, tipo_docu, no_docu, no_cliente, fecha, "
-            " valor_original, saldo, ncf, detalle, st_anulado, tipo_movi, "
+            " valor_original, saldo, ncf, posiciones_fijas_ncf, detalle, st_anulado, tipo_movi, "
             " vendedor, cobrador, fecha_vence, debito, credito, "
             " tipo_transaccion, tasa_us, forma_pago"
             ") VALUES (:1,:2,:3,:4,:5,TO_DATE(:6,'YYYY-MM-DD'),"
-            " :7, 0, :8, :9, 'N', :10, :11, :12, "
+            " :7, 0, :8, :18, :9, 'N', :10, :11, :12, "
             " TO_DATE(:13,'YYYY-MM-DD') + :14, :15, :15, :16, 1, :17)",
             client.nbinds(
                 no_cia, punto, tipo_doc, no_doc, str(no_cliente), fecha,
                 valor_doc, ncf, detalle, tipo_movi_tdocu,
                 vendedor_doc, cobrador or '', fecha, int(plazo or 0),
-                valor_doc, tipo_transaccion_tdocu, forma_pago or None))
+                valor_doc, tipo_transaccion_tdocu, forma_pago or None,
+                posiciones_fijas_ncf))
 
         # 4. Distribución contable auto-generada:
         #    Cuenta del tipo_doc (ej. CAJA) — DR por el valor
@@ -1051,6 +1089,7 @@ def crear_recibo_cobro(
                  monto, itbis_retenido, isr_retenido])
 
         cur.connection.commit()
+    ncf_dgi = f"{posiciones_fijas_ncf}{int(ncf):08d}" if posiciones_fijas_ncf and ncf else ''
     return {
         'no_doc': no_doc, 'tipo_doc': tipo_doc, 'total': valor_doc,
         'pago_efectivo': pago_efectivo,
@@ -1059,6 +1098,8 @@ def crear_recibo_cobro(
         'aplicaciones_count': len(aplicaciones_validas),
         'cuenta_default': cuenta_default,
         'cuenta_cliente': cuenta_cliente,
+        'ncf': ncf or None,
+        'ncf_dgi': ncf_dgi,
     }
 
 

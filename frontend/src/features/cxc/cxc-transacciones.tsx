@@ -260,7 +260,8 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
     onSuccess: (r: any) => {
       const noDoc = r?.no_doc || nextDocQ.data?.no_doc || ''
       setUltimoNoDoc(noDoc)
-      toast.success(`Documento ${tipoDoc}-${noDoc} grabado correctamente · RD$ ${fmt(r.total)}`)
+      const ncfSuffix = r?.ncf_dgi ? ` · NCF ${r.ncf_dgi}` : ''
+      toast.success(`Documento ${tipoDoc}-${noDoc} grabado correctamente · RD$ ${fmt(r.total)}${ncfSuffix}`)
       qc.invalidateQueries({ queryKey: ['cxc-next-doc', noCia, punto] })
       qc.invalidateQueries({ queryKey: ['cxc-pendientes', noCia, cliente?.no_cliente] })
       qc.invalidateQueries({ queryKey: ['cxc-documentos'] })
@@ -295,7 +296,6 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
         return `Monto en ${p.no_doc_display} (RD$ ${fmt(m)}) excede su saldo (RD$ ${fmt(p.saldo)})`
       }
     }
-    if (requiereNcf && !ncf.trim()) return `Este tipo de documento requiere NCF (${tipoDocSel?.codigo_ncf})`
     if (!distribCuadra) return 'La distribución contable no cuadra'
     return null
   }
@@ -480,9 +480,9 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             {requiereNcf && (
               <div className="space-y-1.5">
-                <Label className="text-xs">NCF * <span className="text-muted-foreground">({tipoDocSel?.codigo_ncf})</span></Label>
-                <Input value={ncf} onChange={e => setNcf(e.target.value.toUpperCase())}
-                       maxLength={19} className="font-mono h-9 uppercase" />
+                <Label className="text-xs">NCF <span className="text-muted-foreground">({tipoDocSel?.codigo_ncf})</span></Label>
+                <Input value="Se genera automáticamente al guardar" disabled readOnly
+                       className="h-9 text-muted-foreground italic" />
               </div>
             )}
             <div className={`space-y-1.5 ${requiereNcf ? 'sm:col-span-2' : 'sm:col-span-3'}`}>

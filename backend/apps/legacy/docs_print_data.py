@@ -254,7 +254,11 @@ def cxc_documento_print_data(request, no_docu: str):
         'numero_display': f"{tipo_s}-{(doc_full.get('no_doc') or '').strip()}",
         'fecha': str(doc_full.get('fecha') or '')[:10],
         'ncf': doc_full.get('ncf'),
-        'ncf_dgi': (doc_full.get('ncf') or '').strip() if isinstance(doc_full.get('ncf'), str) else str(doc_full.get('ncf') or ''),
+        'ncf_dgi': (
+            f"{(doc_full.get('posiciones_fijas_ncf') or '').strip()}{int(doc_full['ncf']):08d}"
+            if doc_full.get('posiciones_fijas_ncf') and doc_full.get('ncf') else
+            ((doc_full.get('ncf') or '').strip() if isinstance(doc_full.get('ncf'), str) else str(doc_full.get('ncf') or ''))
+        ),
         'tipo_ncf': '', 'tipo_ncf_label': '',
         'estado': doc_full.get('estado') or '',
         'anulada': (doc_full.get('estado') or 'A') == 'R',
