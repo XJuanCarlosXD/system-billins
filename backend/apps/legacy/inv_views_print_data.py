@@ -53,7 +53,7 @@ def inv_documento_print_data(request, tipo_docu: str, no_docu: str):
         'fecha': str(h.get('fecha') or '')[:10],
         'fecha_venc': None,
         'ncf': h.get('ncf'),
-        'ncf_dgi': (h.get('ncf') or '').strip() if isinstance(h.get('ncf'), str) else '',
+        'ncf_dgi': h.get('ncf_dgi') or '',
         'tipo_ncf': '', 'tipo_ncf_label': '',
         'estado': h.get('estado') or '',
         'anulada': str(h.get('st_anulado', 'N')).upper() == 'S',

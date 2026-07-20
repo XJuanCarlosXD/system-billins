@@ -2621,7 +2621,8 @@ def _upsert_rme_header(cur, *, no_cia, punto, tipo_docu, no_docu, fecha,
                        total_linea, no_proveedor='', rnc='',
                        no_cliente='', vendedor='', tipo_docu_devuelto='',
                        no_docu_devuelto='', porc_impuesto=0.0, impuesto=0.0,
-                       descuento=0.0, total_neto=None, valor_bienes=None):
+                       descuento=0.0, total_neto=None, valor_bienes=None,
+                       ncf=None, posiciones_fijas_ncf=None):
     # Binds numerados repetidos (:2,:2 / :11,:11) + lista posicional dan
     # ORA-01008 en modo thick — estos dos statements usan binds nombrados.
     no_proveedor = (no_proveedor or '').strip()[:6] or None
@@ -2651,6 +2652,7 @@ def _upsert_rme_header(cur, *, no_cia, punto, tipo_docu, no_docu, fecha,
         'no_proveedor': no_proveedor, 'rnc': rnc,
         'no_cliente': no_cliente_val, 'vendedor': vendedor,
         'tipo_docu_devuelto': tipo_docu_devuelto, 'no_docu_devuelto': no_docu_devuelto,
+        'ncf': ncf, 'posiciones_fijas_ncf': (posiciones_fijas_ncf or None),
     }
     cur.execute(
         "UPDATE INV.TINV_RME SET nota=:nota, total_linea=:total, "
@@ -2659,7 +2661,8 @@ def _upsert_rme_header(cur, *, no_cia, punto, tipo_docu, no_docu, fecha,
         "no_proveedor=NVL(:no_proveedor, no_proveedor), rnc=NVL(:rnc, rnc), "
         "no_cliente=NVL(:no_cliente, no_cliente), vendedor=NVL(:vendedor, vendedor), "
         "tipo_docu_devuelto=NVL(:tipo_docu_devuelto, tipo_docu_devuelto), "
-        "no_docu_devuelto=NVL(:no_docu_devuelto, no_docu_devuelto) "
+        "no_docu_devuelto=NVL(:no_docu_devuelto, no_docu_devuelto), "
+        "ncf=NVL(:ncf, ncf), posiciones_fijas_ncf=NVL(:posiciones_fijas_ncf, posiciones_fijas_ncf) "
         "WHERE no_cia=:no_cia AND punto=:punto AND tipo_docu=:tipo_docu "
         "AND no_docu=:no_docu",
         binds)
@@ -2672,14 +2675,16 @@ def _upsert_rme_header(cur, *, no_cia, punto, tipo_docu, no_docu, fecha,
         "tipo_transaccion,tipo_movi,detalle,nota,no_localidad,afecta_cxc,"
         "tasa_us,porc_impuesto,impuesto,descuento,total_linea,total_neto,"
         "valor_bienes,valor_servicio,isc,otros_impuestos,propina,entregado,"
-        "no_proveedor,rnc,no_cliente,vendedor,tipo_docu_devuelto,no_docu_devuelto"
+        "no_proveedor,rnc,no_cliente,vendedor,tipo_docu_devuelto,no_docu_devuelto,"
+        "ncf,posiciones_fijas_ncf"
         ") VALUES("
         ":no_cia,:punto,:tipo_docu,:no_docu,TO_DATE(:fecha,'YYYY-MM-DD'),SYSDATE,"
         "'A',:usuario,'N','N','N',"
         ":tipo_transaccion,:tipo_movi,'',:nota,:no_localidad,'N',"
         "1,:porc_impuesto,:impuesto,:descuento,:total,:total_neto,"
         ":valor_bienes,0,0,0,0,'N',"
-        ":no_proveedor,:rnc,:no_cliente,:vendedor,:tipo_docu_devuelto,:no_docu_devuelto"
+        ":no_proveedor,:rnc,:no_cliente,:vendedor,:tipo_docu_devuelto,:no_docu_devuelto,"
+        ":ncf,:posiciones_fijas_ncf"
         ")",
         dict(binds, no_localidad=no_cia, fecha=fecha,
              tipo_transaccion=tipo_transaccion, tipo_movi=tipo_movi))
@@ -2701,6 +2706,42 @@ def _producto_impuesto_info(cur, no_produ: str) -> tuple[str, float]:
     if not row:
         return 'S', 0.0
     return (row[0] or 'S').strip().upper(), float(row[1] or 0)
+
+
+def _emitir_ncf_inv(cur, no_cia: str) -> tuple[int, str] | tuple[None, None]:
+    """Emite el proximo NCF para una devolucion (DV/DC) de forma atomica.
+
+    El legado comparte la misma serie de Notas de Credito (B04) entre las
+    devoluciones de inventario y la Nota de Credito de CxC (verificado
+    contra TINV_RME historico: todas las DV/DC con NCF usan la serie
+    configurada como 'NC' en CXC.TCXC_TDOCU de esa compania), asi que se
+    reutiliza el mismo codigo_ncf ya vinculado alli en vez de inventar un
+    enlace paralelo en INV.TINV_TDOCU (que no es por-compania).
+    """
+    cur.execute(
+        "SELECT codigo_ncf FROM CXC.TCXC_TDOCU WHERE no_cia=:1 AND tipo_docu='NC'",
+        [no_cia])
+    row = cur.fetchone()
+    codigo_ncf = (row[0] or '').strip().upper() if row else ''
+    if not codigo_ncf:
+        return None, None
+    cur.execute(
+        "SELECT posiciones_fijas, ncf_final, prox_ncf, NVL(ncf_manual,'N') "
+        "FROM CNT.TCNT_NCF WHERE no_localidad=:1 AND codigo_ncf=:2 FOR UPDATE",
+        [no_cia, codigo_ncf])
+    ncf_row = cur.fetchone()
+    if not ncf_row:
+        return None, None
+    posiciones, ncf_final, prox_ncf, ncf_manual = ncf_row
+    if (ncf_manual or 'N').strip().upper() == 'S':
+        return None, None
+    if prox_ncf is None or (ncf_final is not None and prox_ncf > ncf_final):
+        raise ValueError(f"Serie NCF {codigo_ncf} agotada")
+    ncf_val = int(prox_ncf)
+    cur.execute(
+        "UPDATE CNT.TCNT_NCF SET prox_ncf=:1 WHERE no_localidad=:2 AND codigo_ncf=:3",
+        [ncf_val + 1, no_cia, codigo_ncf])
+    return ncf_val, (posiciones or '').strip()
 
 
 def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
@@ -2850,6 +2891,9 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
         valor_bienes = round(total_bruto - total_descuento, 2)
         total_neto = round(valor_bienes + total_impuesto, 2)
         porc_impuesto = round(total_impuesto / valor_bienes * 100, 2) if valor_bienes else 0.0
+        ncf_val, posiciones_fijas_ncf = (None, None)
+        if tipo_docu in _TIPOS_AUTO_IMPUESTO:
+            ncf_val, posiciones_fijas_ncf = _emitir_ncf_inv(cur, no_cia)
         _upsert_rme_header(
             cur, no_cia=no_cia, punto=punto, tipo_docu=tipo_docu,
             no_docu=no_docu, fecha=fecha, tipo_movi=tipo_movi,
@@ -2860,12 +2904,15 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
             no_docu_devuelto=no_docu_devuelto,
             porc_impuesto=porc_impuesto, impuesto=total_impuesto,
             descuento=total_descuento, total_neto=total_neto,
-            valor_bienes=valor_bienes)
+            valor_bienes=valor_bienes,
+            ncf=ncf_val, posiciones_fijas_ncf=posiciones_fijas_ncf)
         cur.connection.commit()
 
+    ncf_dgi = f"{posiciones_fijas_ncf}{ncf_val:08d}" if posiciones_fijas_ncf and ncf_val else ''
     return {
         'no_cia': no_cia, 'punto': punto, 'tipo_docu': tipo_docu,
         'no_docu': no_docu, 'lineas_creadas': creadas,
+        'ncf': ncf_val, 'ncf_dgi': ncf_dgi,
         'tipo_movi': tipo_movi, 'fecha': fecha, 'nota': nota,
     }
 
