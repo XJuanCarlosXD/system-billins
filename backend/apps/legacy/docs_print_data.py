@@ -140,7 +140,7 @@ def cxc_documento_print_data(request, no_docu: str):
     punto = request.GET.get('punto', '01')
     tipo_q = (request.GET.get('tipo_doc') or request.GET.get('tipo_docu') or '').strip().upper()
     cia = _cia_payload(no_cia, request=request)
-    doc_full = cxc_repo.get_documento(no_cia, no_docu, tipo_q)
+    doc_full = cxc_repo.get_documento(no_cia, no_docu, tipo_q, punto)
     if not doc_full:
         return JsonResponse({'error': 'Documento CXC no encontrado'}, status=404)
     tipo_s = (doc_full.get('tipo_doc') or '').strip().upper()
@@ -212,9 +212,9 @@ def cxc_documento_print_data(request, no_docu: str):
             "  LEFT JOIN CXC.TCXC_DOCUMENTO d "
             "    ON d.no_cia=r.no_cia AND d.punto=r.punto "
             "   AND d.tipo_docu=r.tipo_refe AND d.no_docu=r.no_refe "
-            " WHERE r.no_cia=:1 AND r.no_docu=:2 "
+            " WHERE r.no_cia=:1 AND r.no_docu=:2 AND r.punto=:3 "
             " ORDER BY r.tipo_refe, r.no_refe",
-            [no_cia, no_docu])
+            [no_cia, no_docu, punto])
         for r in refes:
             posiciones = (r.get('posiciones_fijas_ncf') or '').strip()
             ncf_n = r.get('ncf')

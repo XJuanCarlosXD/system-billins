@@ -2908,11 +2908,28 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
             ncf=ncf_val, posiciones_fijas_ncf=posiciones_fijas_ncf)
         cur.connection.commit()
 
+    cxc_mirror = None
+    if tipo_docu == 'DV':
+        # Espejo en CxC (reduce el saldo de la factura devuelta), igual que
+        # FAT.create_factura espeja las FC. Requiere no_cliente + factura de
+        # referencia; si falguno falta, la devolucion queda solo en INV.
+        from .cxc_repo import crear_dv_mirror
+        try:
+            cxc_mirror = crear_dv_mirror(
+                no_cia=no_cia, punto=punto, no_cliente=no_cliente, fecha=fecha,
+                valor_neto=total_neto, ncf=ncf_val, posiciones_fijas_ncf=posiciones_fijas_ncf,
+                tipo_docu_devuelto=tipo_docu_devuelto, no_docu_devuelto=no_docu_devuelto,
+                usuario=usuario, vendedor=vendedor)
+        except Exception as exc:
+            # La devolucion en INV ya quedo confirmada (existencia + NCF);
+            # si el espejo en CxC falla no se revierte, solo se reporta.
+            cxc_mirror = {'error': str(exc)}
+
     ncf_dgi = f"{posiciones_fijas_ncf}{ncf_val:08d}" if posiciones_fijas_ncf and ncf_val else ''
     return {
         'no_cia': no_cia, 'punto': punto, 'tipo_docu': tipo_docu,
         'no_docu': no_docu, 'lineas_creadas': creadas,
-        'ncf': ncf_val, 'ncf_dgi': ncf_dgi,
+        'ncf': ncf_val, 'ncf_dgi': ncf_dgi, 'cxc_mirror': cxc_mirror,
         'tipo_movi': tipo_movi, 'fecha': fecha, 'nota': nota,
     }
 

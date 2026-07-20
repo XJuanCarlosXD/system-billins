@@ -678,12 +678,14 @@ def list_documentos(no_cia: str, punto: str = '', tipo_doc: str = '',
     params += [offset + page_size, offset]
     return {'items': client.fetch_dicts(sql, params), 'count': total}
 
-def get_documento(no_cia: str, no_docu: str, tipo_docu: str = ''):
+def get_documento(no_cia: str, no_docu: str, tipo_docu: str = '', punto: str = ''):
     sql = (
         "SELECT d.no_cia, d.punto, d.tipo_docu tipo_doc, d.no_docu no_doc, "
         "d.no_cliente, d.fecha, c.nombre nombre_cliente, c.rnc, "
+        "c.direccion, c.telefono, c.email1 email, "
         "NVL(d.valor_original,0) valor, NVL(d.saldo,0) saldo, "
         "d.ncf, d.posiciones_fijas_ncf, d.detalle, "
+        "d.vendedor, d.cobrador, d.usuario, "
         "CASE NVL(d.st_anulado,'N') WHEN 'S' THEN 'R' ELSE 'A' END estado "
         "FROM CXC.TCXC_DOCUMENTO d "
         "LEFT JOIN CXC.TCXC_CLIENTE c ON c.no_cia=d.no_cia AND c.no_cliente=d.no_cliente "
@@ -691,8 +693,11 @@ def get_documento(no_cia: str, no_docu: str, tipo_docu: str = ''):
     )
     params = [no_cia, no_docu]
     if tipo_docu:
-        sql += " AND d.tipo_docu=:3"
+        sql += f" AND d.tipo_docu=:{len(params) + 1}"
         params.append(tipo_docu)
+    if punto:
+        sql += f" AND d.punto=:{len(params) + 1}"
+        params.append(punto)
     rows = client.fetch_dicts(sql, params)
     if not rows:
         return None
@@ -706,6 +711,107 @@ def get_documento(no_cia: str, no_docu: str, tipo_docu: str = ''):
         "ORDER BY tipo_movi DESC, cuenta",
         [no_cia, no_docu])
     return doc
+
+def crear_dv_mirror(*, no_cia: str, punto: str, no_cliente, fecha: str,
+                     valor_neto: float, ncf: int | None, posiciones_fijas_ncf: str | None,
+                     tipo_docu_devuelto: str, no_docu_devuelto: str,
+                     usuario: str = 'API', vendedor: str = '') -> dict | None:
+    """Espejo en CXC.TCXC_DOCUMENTO de una devolucion de venta creada en INV
+    (mismo rol que el mirror de create_factura para FC, pero para DV):
+    reduce el saldo de la factura original y aplica el mismo NCF ya
+    emitido del lado de INV. Patron verificado contra el historico real
+    (TCXC_DOCUMENTO/TCXC_DCDOCU/TCXC_REFEDOCU tipo_docu='DV').
+
+    Devuelve None (sin crear nada) si falta cliente o factura de referencia,
+    o si esa factura no tiene documento CxC contra el cual aplicar.
+    """
+    no_cliente = str(no_cliente or '').strip()
+    tipo_docu_devuelto = (tipo_docu_devuelto or '').strip().upper()
+    no_docu_devuelto = (no_docu_devuelto or '').strip()
+    if not no_cliente or not tipo_docu_devuelto or not no_docu_devuelto:
+        return None
+    valor_neto = round(float(valor_neto or 0), 2)
+    if valor_neto <= 0:
+        return None
+
+    with client.cursor() as cur:
+        cur.execute(
+            "SELECT NVL(cuenta,''), NVL(centro_costo,'0000000000'), "
+            "       NVL(tipo_movi,'C'), NVL(tipo_transaccion,'C') "
+            "FROM CXC.TCXC_TDOCU WHERE no_cia=:1 AND tipo_docu='DV'",
+            [no_cia])
+        td = cur.fetchone()
+        if not td:
+            return None
+        cuenta_contra, centro_costo, tipo_movi_dv, tipo_trans_dv = (
+            td[0], td[1], td[2].strip().upper(), td[3].strip().upper())
+
+        cur.execute(
+            "SELECT NVL(t.cuenta_cliente,'1103-01') FROM CXC.TCXC_CLIENTE c "
+            "LEFT JOIN CXC.TCXC_TCONTABLE t ON t.no_cia=c.no_cia AND t.tipo_contable=c.tipo_contable "
+            "WHERE c.no_cia=:1 AND c.no_cliente=:2",
+            [no_cia, no_cliente])
+        cli_row = cur.fetchone()
+        cuenta_cliente = (cli_row[0] if cli_row else '') or '1103-01'
+
+        # La factura original debe tener su documento CxC (mirror de FC) con
+        # saldo pendiente; si no existe no hay nada contra que aplicar.
+        cur.execute(
+            "SELECT NVL(saldo,0) FROM CXC.TCXC_DOCUMENTO "
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4 "
+            "  AND NVL(st_anulado,'N')='N'",
+            [no_cia, punto, tipo_docu_devuelto, no_docu_devuelto])
+        row = cur.fetchone()
+        if not row:
+            return None
+        saldo_factura = float(row[0] or 0)
+        monto = min(valor_neto, saldo_factura) if saldo_factura > 0 else valor_neto
+
+        no_docu = get_next_no_doc(no_cia, punto)
+        vendedor_doc = (vendedor or '').strip() or '00'
+
+        cur.execute(
+            "INSERT INTO CXC.TCXC_DOCUMENTO ("
+            " no_cia, punto, tipo_docu, no_docu, no_cliente, fecha, "
+            " valor_original, saldo, ncf, posiciones_fijas_ncf, cuenta, "
+            " tipo_movi, tipo_transaccion, vendedor, tasa_us, usuario, "
+            " debito, credito, st_anulado"
+            ") VALUES (:1,:2,'DV',:3,:4,TO_DATE(:5,'YYYY-MM-DD'),"
+            " :6,0,:7,:8,:9,"
+            " :10,:11,:12,1,:13,"
+            " :6,:6,'N')",
+            client.nbinds(
+                no_cia, punto, no_docu, no_cliente, fecha,
+                monto, ncf, posiciones_fijas_ncf, cuenta_cliente,
+                tipo_movi_dv, tipo_trans_dv, vendedor_doc, (usuario or '')[:30]))
+
+        if cuenta_contra:
+            cur.execute(
+                "INSERT INTO CXC.TCXC_DCDOCU (no_cia, punto, tipo_docu, no_docu, cuenta, "
+                " tipo_movi, monto, centro_costo, no_cliente) "
+                "VALUES (:1,:2,'DV',:3,:4,'D',:5,:6,:7)",
+                [no_cia, punto, no_docu, cuenta_contra, monto, centro_costo, no_cliente])
+        cur.execute(
+            "INSERT INTO CXC.TCXC_DCDOCU (no_cia, punto, tipo_docu, no_docu, cuenta, "
+            " tipo_movi, monto, centro_costo, no_cliente) "
+            "VALUES (:1,:2,'DV',:3,:4,'C',:5,'0000000000',:6)",
+            [no_cia, punto, no_docu, cuenta_cliente, monto, no_cliente])
+
+        cur.execute(
+            "INSERT INTO CXC.TCXC_REFEDOCU (no_cia, punto, tipo_docu, no_docu, no_cliente, "
+            " tipo_refe, no_refe, monto, valor_nc, itbis_retenido, isr_retenido) "
+            "VALUES (:1,:2,'DV',:3,:4,:5,:6,:7,0,0,0)",
+            [no_cia, punto, no_docu, no_cliente, tipo_docu_devuelto, no_docu_devuelto, monto])
+        cur.execute(
+            "UPDATE CXC.TCXC_DOCUMENTO SET saldo = NVL(saldo,0) - :1 "
+            "WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4 AND no_docu=:5",
+            [monto, no_cia, punto, tipo_docu_devuelto, no_docu_devuelto])
+
+        cur.connection.commit()
+
+    return {'no_cia': no_cia, 'punto': punto, 'tipo_docu': 'DV', 'no_docu': no_docu,
+            'monto_aplicado': monto, 'factura_afectada': f"{tipo_docu_devuelto}-{no_docu_devuelto}"}
+
 
 def get_next_no_doc(no_cia: str, punto: str) -> str:
     row = client.fetch_one(
