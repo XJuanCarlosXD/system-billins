@@ -2537,14 +2537,24 @@ def _tipo_movi_for(cur, tipo_docu: str) -> tuple[str, str]:
 def _insert_movimiento(cur, *, no_cia, punto, tipo_docu, no_docu, no_linea,
                        almacen, no_produ, tipo_movi, tipo_transaccion,
                        fecha, cantidad, precio, costo, empaque, cpe,
-                       usuario, tipo_refe='', no_refe=''):
-    """INSERT directo a INV.TINV_MOVIMIENTO con todos los NOT NULL cubiertos."""
+                       usuario, impuesto=0.0, descuento=0.0,
+                       tipo_refe='', no_refe=''):
+    """INSERT directo a INV.TINV_MOVIMIENTO con todos los NOT NULL cubiertos.
+
+    monto_neto es el valor de la linea al precio del documento (no al costo
+    de inventario) menos el descuento: es lo que se imprime en la columna
+    "Monto Neto" de los documentos (factura, devolucion, etc).
+    """
+    impuesto = round(impuesto or 0, 2)
+    descuento = round(descuento or 0, 2)
+    monto_neto = round((cantidad or 0) * (precio or 0) - descuento, 2)
     cur.execute(
         "INSERT INTO INV.TINV_MOVIMIENTO("
         "  no_cia, punto, tipo_docu, no_docu, no_linea,"
         "  almacen, no_produ, tipo_movi, tipo_transaccion, servicio,"
         "  fecha, cantidad, precio, costo,"
         "  st_anulado, empaque, cpe, usuario, monto_neto,"
+        "  impuesto, descuento,"
         "  no_localidad, fecha_sysdate, aumento_cxc,"
         "  tipo_refe, no_refe"
         ") VALUES("
@@ -2552,13 +2562,14 @@ def _insert_movimiento(cur, *, no_cia, punto, tipo_docu, no_docu, no_linea,
         "  :6, :7, :8, :9, 'I',"
         "  TO_DATE(:10,'YYYY-MM-DD'), :11, :12, :13,"
         "  'N', :14, :15, :16, :17,"
-        "  :18, SYSDATE, 0,"
-        "  :19, :20)",
+        "  :18, :19,"
+        "  :20, SYSDATE, 0,"
+        "  :21, :22)",
         [no_cia, punto, tipo_docu, no_docu, no_linea,
          almacen, no_produ, tipo_movi, tipo_transaccion,
          fecha, cantidad, precio, costo,
          empaque, cpe, (usuario or '')[:30],
-         round((cantidad or 0) * (costo or 0), 2),
+         monto_neto, impuesto, descuento,
          no_cia, tipo_refe, no_refe])
 
 
@@ -2607,21 +2618,51 @@ def _adjust_eproducto_stock(cur, *, no_cia, punto, almacen, no_produ,
 
 def _upsert_rme_header(cur, *, no_cia, punto, tipo_docu, no_docu, fecha,
                        tipo_movi, tipo_transaccion, usuario, nota,
-                       total_linea, no_proveedor='', rnc=''):
+                       total_linea, no_proveedor='', rnc='',
+                       no_cliente='', vendedor='', tipo_docu_devuelto='',
+                       no_docu_devuelto='', porc_impuesto=0.0, impuesto=0.0,
+                       descuento=0.0, total_neto=None, valor_bienes=None):
     # Binds numerados repetidos (:2,:2 / :11,:11) + lista posicional dan
     # ORA-01008 en modo thick — estos dos statements usan binds nombrados.
     no_proveedor = (no_proveedor or '').strip()[:6] or None
     rnc = (rnc or '').strip()[:15] or None
+    no_cliente_val = None
+    no_cliente = (no_cliente or '').strip()
+    if no_cliente:
+        try:
+            no_cliente_val = int(no_cliente)
+        except ValueError:
+            no_cliente_val = None
+    vendedor = (vendedor or '').strip()[:4] or None
+    tipo_docu_devuelto = (tipo_docu_devuelto or '').strip()[:2] or None
+    no_docu_devuelto = (no_docu_devuelto or '').strip()
+    if no_docu_devuelto.isdigit():
+        no_docu_devuelto = no_docu_devuelto.zfill(7)
+    no_docu_devuelto = no_docu_devuelto[:7] or None
+    if total_neto is None:
+        total_neto = total_linea
+    if valor_bienes is None:
+        valor_bienes = total_linea
+    binds = {
+        'nota': nota[:4000], 'total': total_linea, 'total_neto': total_neto,
+        'valor_bienes': valor_bienes, 'usuario': (usuario or '')[:30],
+        'porc_impuesto': porc_impuesto, 'impuesto': impuesto, 'descuento': descuento,
+        'no_cia': no_cia, 'punto': punto, 'tipo_docu': tipo_docu, 'no_docu': no_docu,
+        'no_proveedor': no_proveedor, 'rnc': rnc,
+        'no_cliente': no_cliente_val, 'vendedor': vendedor,
+        'tipo_docu_devuelto': tipo_docu_devuelto, 'no_docu_devuelto': no_docu_devuelto,
+    }
     cur.execute(
         "UPDATE INV.TINV_RME SET nota=:nota, total_linea=:total, "
-        "total_neto=:total, valor_bienes=:total, usuario=:usuario, "
-        "no_proveedor=NVL(:no_proveedor, no_proveedor), rnc=NVL(:rnc, rnc) "
+        "total_neto=:total_neto, valor_bienes=:valor_bienes, usuario=:usuario, "
+        "porc_impuesto=:porc_impuesto, impuesto=:impuesto, descuento=:descuento, "
+        "no_proveedor=NVL(:no_proveedor, no_proveedor), rnc=NVL(:rnc, rnc), "
+        "no_cliente=NVL(:no_cliente, no_cliente), vendedor=NVL(:vendedor, vendedor), "
+        "tipo_docu_devuelto=NVL(:tipo_docu_devuelto, tipo_docu_devuelto), "
+        "no_docu_devuelto=NVL(:no_docu_devuelto, no_docu_devuelto) "
         "WHERE no_cia=:no_cia AND punto=:punto AND tipo_docu=:tipo_docu "
         "AND no_docu=:no_docu",
-        {'nota': nota[:4000], 'total': total_linea,
-         'usuario': (usuario or '')[:30], 'no_cia': no_cia, 'punto': punto,
-         'tipo_docu': tipo_docu, 'no_docu': no_docu,
-         'no_proveedor': no_proveedor, 'rnc': rnc})
+        binds)
     if cur.rowcount:
         return
     cur.execute(
@@ -2631,20 +2672,35 @@ def _upsert_rme_header(cur, *, no_cia, punto, tipo_docu, no_docu, fecha,
         "tipo_transaccion,tipo_movi,detalle,nota,no_localidad,afecta_cxc,"
         "tasa_us,porc_impuesto,impuesto,descuento,total_linea,total_neto,"
         "valor_bienes,valor_servicio,isc,otros_impuestos,propina,entregado,"
-        "no_proveedor,rnc"
+        "no_proveedor,rnc,no_cliente,vendedor,tipo_docu_devuelto,no_docu_devuelto"
         ") VALUES("
         ":no_cia,:punto,:tipo_docu,:no_docu,TO_DATE(:fecha,'YYYY-MM-DD'),SYSDATE,"
         "'A',:usuario,'N','N','N',"
         ":tipo_transaccion,:tipo_movi,'',:nota,:no_localidad,'N',"
-        "1,0,0,0,:total,:total,"
-        ":total,0,0,0,0,'N',"
-        ":no_proveedor,:rnc"
+        "1,:porc_impuesto,:impuesto,:descuento,:total,:total_neto,"
+        ":valor_bienes,0,0,0,0,'N',"
+        ":no_proveedor,:rnc,:no_cliente,:vendedor,:tipo_docu_devuelto,:no_docu_devuelto"
         ")",
-        {'no_cia': no_cia, 'punto': punto, 'tipo_docu': tipo_docu,
-         'no_docu': no_docu, 'fecha': fecha, 'usuario': (usuario or '')[:30],
-         'tipo_transaccion': tipo_transaccion, 'tipo_movi': tipo_movi,
-         'nota': nota[:4000], 'no_localidad': no_cia, 'total': total_linea,
-         'no_proveedor': no_proveedor, 'rnc': rnc})
+        dict(binds, no_localidad=no_cia, fecha=fecha,
+             tipo_transaccion=tipo_transaccion, tipo_movi=tipo_movi))
+
+
+# Tipos donde, si la linea no trae impuesto/porciento_impuesto explicito,
+# se calcula automaticamente desde INV.TINV_PRODUCTO.porciento_impuesto.
+# Limitado a devoluciones (que reversan una venta/compra que si llevaba
+# ITBIS) para no alterar el comportamiento de movimientos internos
+# (TA, AE, AS, EA, EP) que hoy no declaran impuesto.
+_TIPOS_AUTO_IMPUESTO = {'DV', 'DC'}
+
+
+def _producto_impuesto_info(cur, no_produ: str) -> tuple[str, float]:
+    cur.execute(
+        "SELECT NVL(tiene_impuesto,'S'), NVL(porciento_impuesto,0) "
+        "FROM INV.TINV_PRODUCTO WHERE no_produ=:1", [no_produ])
+    row = cur.fetchone()
+    if not row:
+        return 'S', 0.0
+    return (row[0] or 'S').strip().upper(), float(row[1] or 0)
 
 
 def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
@@ -2652,7 +2708,9 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                                  almacen_destino: str = '', usuario: str = 'API',
                                  cuenta_contable: str = '', departamento: str = '',
                                  nota: str = '', no_proveedor: str = '',
-                                 rnc: str = '') -> dict:
+                                 rnc: str = '', no_cliente: str = '',
+                                 vendedor: str = '', tipo_docu_devuelto: str = '',
+                                 no_docu_devuelto: str = '') -> dict:
     """Crea un documento de inventario con N lineas.
 
     Soporta los 10 tipos del legado:
@@ -2660,8 +2718,12 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
     - SA, SP, DC, AS: salidas (tipo_movi='S')
     - TA: transferencia (1 salida del almacen origen + 1 entrada al destino)
 
-    `lineas` lista de dicts {no_produ, cantidad, costo (opcional), precio (opcional)}.
-    Si `costo` no se provee, se lee TINV_EPRODUCTO.costo_actual del almacen.
+    `lineas` lista de dicts {no_produ, cantidad, costo (opcional), precio
+    (opcional), descuento (opcional), impuesto (opcional), porciento_impuesto
+    (opcional)}. Si `costo` no se provee, se lee TINV_EPRODUCTO.costo_actual
+    del almacen. Si `impuesto`/`porciento_impuesto` no se proveen y el tipo de
+    documento es DV o DC, el ITBIS se calcula desde el producto
+    (TINV_PRODUCTO.tiene_impuesto/porciento_impuesto).
     """
     tipo_docu = (tipo_docu or '').strip().upper()
     nota = (nota or '').strip()
@@ -2681,7 +2743,9 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
 
         no_docu = _next_inv_seq(cur, no_cia, punto, tipo_docu)
         creadas = 0
-        total_documento = 0.0
+        total_bruto = 0.0
+        total_descuento = 0.0
+        total_impuesto = 0.0
         for idx, lin in enumerate(lineas, start=1):
             no_produ = (lin.get('no_produ') or '').strip().upper()
             if not no_produ:
@@ -2706,7 +2770,24 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
             if not precio:
                 precio = costo
             empaque, cpe = _empaque_cpe(cur, no_produ)
-            total_documento += round(cantidad * costo, 2)
+
+            valor_linea = round(cantidad * precio, 2)
+            descuento_linea = round(float(lin.get('descuento') or 0), 2)
+            base_linea = max(valor_linea - descuento_linea, 0)
+            if lin.get('impuesto') not in (None, ''):
+                impuesto_linea = round(float(lin.get('impuesto')), 2)
+            elif lin.get('porciento_impuesto') not in (None, ''):
+                impuesto_linea = round(
+                    base_linea * float(lin.get('porciento_impuesto')) / 100, 2)
+            elif tipo_docu in _TIPOS_AUTO_IMPUESTO:
+                tiene_imp, porc_prod = _producto_impuesto_info(cur, no_produ)
+                porc = porc_prod if tiene_imp == 'S' else 0.0
+                impuesto_linea = round(base_linea * porc / 100, 2)
+            else:
+                impuesto_linea = 0.0
+            total_bruto += valor_linea
+            total_descuento += descuento_linea
+            total_impuesto += impuesto_linea
 
             # Garantizar la fila padre en TINV_EPRODUCTO antes del INSERT en
             # TINV_MOVIMIENTO (FK_TINV_MOVIMIENTO_EPRODUCTO revienta con
@@ -2735,7 +2816,8 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                 almacen=almacen_origen, no_produ=no_produ,
                 tipo_movi=tipo_movi, tipo_transaccion=tipo_transaccion,
                 fecha=fecha, cantidad=cantidad, precio=precio, costo=costo,
-                empaque=empaque, cpe=cpe, usuario=usuario)
+                empaque=empaque, cpe=cpe, usuario=usuario,
+                impuesto=impuesto_linea, descuento=descuento_linea)
             _adjust_eproducto_stock(
                 cur, no_cia=no_cia, punto=punto, almacen=almacen_origen,
                 no_produ=no_produ, tipo_movi=tipo_movi, cantidad=cantidad)
@@ -2765,11 +2847,20 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                     almacen=almacen_dest,
                     no_produ=no_produ, tipo_movi='E', cantidad=cantidad)
                 creadas += 1
+        valor_bienes = round(total_bruto - total_descuento, 2)
+        total_neto = round(valor_bienes + total_impuesto, 2)
+        porc_impuesto = round(total_impuesto / valor_bienes * 100, 2) if valor_bienes else 0.0
         _upsert_rme_header(
             cur, no_cia=no_cia, punto=punto, tipo_docu=tipo_docu,
             no_docu=no_docu, fecha=fecha, tipo_movi=tipo_movi,
             tipo_transaccion=tipo_transaccion, usuario=usuario, nota=nota,
-            total_linea=total_documento, no_proveedor=no_proveedor, rnc=rnc)
+            total_linea=total_bruto, no_proveedor=no_proveedor, rnc=rnc,
+            no_cliente=no_cliente, vendedor=vendedor,
+            tipo_docu_devuelto=tipo_docu_devuelto,
+            no_docu_devuelto=no_docu_devuelto,
+            porc_impuesto=porc_impuesto, impuesto=total_impuesto,
+            descuento=total_descuento, total_neto=total_neto,
+            valor_bienes=valor_bienes)
         cur.connection.commit()
 
     return {

@@ -101,7 +101,9 @@ def inv_documento_print_data(request, tipo_docu: str, no_docu: str):
     subtotal = sum(l['precio'] * l['cantidad'] for l in lineas)
     descuento = sum(l['descuento'] for l in lineas)
     itbis = sum(l['itbis'] for l in lineas)
-    total = sum(l['total'] for l in lineas)
+    # l['total'] es el monto neto por linea (subtotal - descuento, sin
+    # impuesto) — el total del documento debe sumarle el ITBIS.
+    total = sum(l['total'] for l in lineas) + itbis
     totales = {
         'subtotal': subtotal, 'descuento': descuento, 'itbis': itbis,
         'propina': 0, 'otros': 0, 'total': total, 'monto_letras': '',

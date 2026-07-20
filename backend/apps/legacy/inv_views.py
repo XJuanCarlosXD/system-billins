@@ -349,8 +349,9 @@ def inv_movimientos(request):
     POST /api/inv/movimientos/  -> crea documento de inventario (EA, SA, EC,
     DC, DV, EP, SP, TA, AE, AS). Body JSON:
         {no_cia, punto, tipo_docu, fecha, almacen, almacen_destino?,
-         cuenta?, departamento?, detalle:[{no_produ, almacen?, cantidad,
-         costo?, precio?}, ...]}
+         cuenta?, departamento?, no_cliente?, vendedor?, tipo_docu_devuelto?,
+         no_docu_devuelto?, detalle:[{no_produ, almacen?, cantidad, costo?,
+         precio?, descuento?, impuesto?, porciento_impuesto?}, ...]}
     """
     if request.method == 'POST':
         try:
@@ -372,6 +373,10 @@ def inv_movimientos(request):
                 nota=str(payload.get('nota', '')).strip(),
                 no_proveedor=str(payload.get('proveedor', '')).strip(),
                 rnc=str(payload.get('rnc', '')).strip(),
+                no_cliente=str(payload.get('no_cliente', '')).strip(),
+                vendedor=str(payload.get('vendedor', '')).strip(),
+                tipo_docu_devuelto=str(payload.get('tipo_docu_devuelto', '')).strip(),
+                no_docu_devuelto=str(payload.get('no_docu_devuelto', '')).strip(),
             )
         except ValueError as e:
             return JsonResponse({"error": str(e)}, status=400)

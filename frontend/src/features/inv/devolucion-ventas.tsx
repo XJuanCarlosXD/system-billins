@@ -425,6 +425,7 @@ export function DevolucionVentas({ noCia, punto }: Props) {
           almacen: r.almacen || almacenHeader,
           cantidad: parseFloat(r.cantidad) || 0,
           precio: parseFloat(r.precio) || 0,
+          porciento_impuesto: parseFloat(pctItbis) || 0,
           empaque: emp?.empaque,
           cpe: emp?.cant_por_emp,
           unidad: r.empaque,
