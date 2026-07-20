@@ -156,6 +156,19 @@ export const invDocumentoDefault: any = {
       showVendedor: true, showFecha: true, showCondicion: true, showPlazo: false,
       showTipoNcf: false, showFormaPago: false, showEstado: true,
     } },
+    { type: 'TextoLibre', props: {
+      id: 'factura-afectada',
+      html: `
+{{#if extra.factura_afectada}}
+<div style="margin:4px 0 6px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:3px;font-size:9px">
+  <b>Factura afectada:</b> {{extra.factura_afectada.numero_display}}
+  &nbsp;|&nbsp; Cliente: {{extra.factura_afectada.cliente}}
+  &nbsp;|&nbsp; NCF: {{extra.factura_afectada.ncf_dgi}}
+  &nbsp;|&nbsp; Total original: {{formatMoney extra.factura_afectada.total_neto}}
+</div>
+{{/if}}`,
+      fontSize: 9, textAlign: 'left',
+    } },
     { type: 'TablaLineas', props: {
       id: 'tabla',
       columnas: ['codigo', 'descripcion', 'cantidad', 'precio', 'total'],

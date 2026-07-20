@@ -70,7 +70,39 @@ def inv_documento_print_data(request, tipo_docu: str, no_docu: str):
         'almacen_destino': (h.get('almacen_destino') or '').strip(),
         'tipo_movi': h.get('tipo_movi') or '',
         'tipo_transaccion': h.get('tipo_transaccion') or '',
+        'tipo_docu_devuelto': (h.get('tipo_docu_devuelto') or '').strip(),
+        'no_docu_devuelto': (h.get('no_docu_devuelto') or '').strip(),
+        'tipo_refe': (h.get('tipo_refe') or '').strip(),
+        'no_refe': (h.get('no_refe') or '').strip(),
+        'tipo_docu_rev': (h.get('tipo_docu_rev') or '').strip(),
+        'no_docu_rev': (h.get('no_docu_rev') or '').strip(),
+        'no_motivo': (h.get('no_motivo') or '').strip(),
     }
+    # Documento afectado: si esta devolucion (u otro tipo con referencia)
+    # apunta a una factura FAT (FT/FC/AF), se resuelve su data real (cliente,
+    # NCF, total) en vez de solo mostrar el codigo -- antes el print no
+    # mostraba nada de esto (se perdio en la migracion a print-data/Puck).
+    factura_afectada = None
+    tdv = (h.get('tipo_docu_devuelto') or '').strip().upper()
+    ndv = (h.get('no_docu_devuelto') or '').strip()
+    if tdv and ndv and tdv in ('FT', 'FC', 'AF'):
+        try:
+            from apps.legacy.repositories import fat_repo
+            fact = fat_repo.get_factura(no_cia, h.get('punto') or '01', tdv, ndv)
+            if fact:
+                factura_afectada = {
+                    'tipo_doc': tdv, 'no_doc': ndv,
+                    'numero_display': f"{tdv}-{ndv}",
+                    'cliente': fact.get('nombre_cliente') or '',
+                    'fecha': fact.get('fecha') or '',
+                    'total_neto': _money(fact.get('total_neto')),
+                    'ncf_dgi': (
+                        f"{fact.get('posiciones_fijas_ncf')}{fact['ncf']:08d}"
+                        if fact.get('posiciones_fijas_ncf') and fact.get('ncf') else ''
+                    ),
+                }
+        except Exception:
+            factura_afectada = None
     # cliente o proveedor según tipo_docu
     party = {
         'no': h.get('no_cliente') or h.get('no_suplidor'),
@@ -110,7 +142,8 @@ def inv_documento_print_data(request, tipo_docu: str, no_docu: str):
     }
     return JsonResponse({
         'cia': cia, 'doc': doc, payload_key: party,
-        'lineas': lineas, 'totales': totales, 'extra': {},
+        'lineas': lineas, 'totales': totales,
+        'extra': {'factura_afectada': factura_afectada},
     })
 
 
