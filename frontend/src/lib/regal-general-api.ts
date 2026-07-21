@@ -1227,8 +1227,14 @@ export const regalGeneralApi = {
     no_proveedor?: string; tipo?: string; no_doc?: string;
     desde?: string; hasta?: string; status?: string;
   }) => {
-    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v != null && v !== ""))).toString()
-    return request<any[]>(`/cxp/documentos/?${qs}`)
+    // status='' significa "Todos" y debe viajar tal cual: si se descarta
+    // como los demas strings vacios, el backend cae a su default status='A'
+    // y "Todos" nunca limpia el filtro (p.ej. documentos reversados con
+    // status='R' quedan invisibles aunque se seleccione "Todos").
+    const { status, ...rest } = params
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(rest).filter(([, v]) => v != null && v !== "")))
+    if (status !== undefined) qs.set('status', status)
+    return request<any[]>(`/cxp/documentos/?${qs.toString()}`)
   },
 
   cxpGetDocumento: (no_cia: string, punto: string, tipo: string, no: string) =>

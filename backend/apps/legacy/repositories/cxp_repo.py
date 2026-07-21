@@ -157,7 +157,15 @@ def list_documentos(no_cia, punto, no_proveedor='', tipo='', no_doc='',
     if hasta:
         params.append(hasta)
         conditions.append(f"d.fecha<=TO_DATE(:{len(params)},'YYYY-MM-DD')")
-    if status:
+    if status == 'A':
+        # STATUS='A' en TCXP_DOCUMENTO significa "recien entrado/sin
+        # contabilizar", NO "abierto/activo" -- la cartera pendiente real
+        # vive casi toda en status='C' (contabilizado). Filtrar por
+        # d.status='A' literal esconde el 97% de la deuda real y solo deja
+        # ver residuos migrados con saldo 0. "Abiertos" en la UI = pendiente,
+        # igual semantica ya aplicada en estado_cuenta/get_aging.
+        conditions.append('NVL(d.saldo,0)<>0')
+    elif status:
         params.append(status)
         conditions.append(f'd.status=:{len(params)}')
     where = ' AND '.join(conditions)

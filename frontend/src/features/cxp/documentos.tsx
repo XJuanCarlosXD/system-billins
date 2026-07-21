@@ -37,11 +37,12 @@ const TIPO_DOC: Record<string, string> = {
 }
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
-  A: { label: 'Abierto',   cls: 'bg-green-100 text-green-800' },
-  C: { label: 'Cerrado',   cls: 'bg-gray-100 text-gray-600' },
-  P: { label: 'Parcial',   cls: 'bg-blue-100 text-blue-800' },
-  V: { label: 'Vencido',   cls: 'bg-red-100 text-red-700' },
-  B: { label: 'Bloqueado', cls: 'bg-orange-100 text-orange-700' },
+  A: { label: 'Abierto',    cls: 'bg-green-100 text-green-800' },
+  C: { label: 'Cerrado',    cls: 'bg-gray-100 text-gray-600' },
+  P: { label: 'Parcial',    cls: 'bg-blue-100 text-blue-800' },
+  V: { label: 'Vencido',    cls: 'bg-red-100 text-red-700' },
+  B: { label: 'Bloqueado',  cls: 'bg-orange-100 text-orange-700' },
+  R: { label: 'Reversado',  cls: 'bg-purple-100 text-purple-700' },
 }
 
 const fmt = (n: number) => n?.toLocaleString('es-DO', { minimumFractionDigits: 2 }) ?? '0.00'
