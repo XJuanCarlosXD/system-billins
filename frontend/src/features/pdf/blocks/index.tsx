@@ -1194,7 +1194,12 @@ function BloqueCuadreCaja({
   const resumenVentas = (extra.resumen_ventas as ResumenVentasItem[]) ?? []
   const porNcf = (extra.por_ncf as PorNcfItem[]) ?? []
   const porNcfFormaPago = (extra.por_ncf_forma_pago as NcfFormaPagoItem[]) ?? []
-  const facturas = (extra.facturas as FacturaItem[]) ?? []
+  // Las facturas a credito (FC) ya se muestran aparte en "Ventas del Dia"
+  // (clase CREDITO) - no deben listarse ni sumarse otra vez en el detalle
+  // de facturas / total de facturas del PDF.
+  const facturas = ((extra.facturas as FacturaItem[]) ?? []).filter(
+    (f) => (f.tipo_factura || '').toUpperCase() !== 'FC'
+  )
   // El usuario activa "Incluir detalle" desde el switch de la pantalla —
   // viaja como extra.incluir_detalle. Sobreescribe la plantilla.
   const incluirDetalleFlag = !!extra.incluir_detalle
@@ -1225,14 +1230,24 @@ function BloqueCuadreCaja({
     totalesCol[f] = filasMx.reduce((s, fila) => s + (fila.por[f] || 0), 0)
   const totalMatrix = filasMx.reduce((s, f) => s + f.total, 0)
 
+  // tipo_pago que empieza con 'C' = credito - no entro plata hoy, no debe
+  // sumarse al total de Ingresos.
+  const esCredito = (tipoPago: string) => (tipoPago || '').toUpperCase().startsWith('C')
+  const resumenCredito = resumen.filter((r) => esCredito(r.tipo_pago))
+
   // Resumen ordenado: cobros crédito (tipo_pago C*) al final
   const resumenSorted = [...resumen].sort((a, b) => {
-    const ac = (a.tipo_pago || '').startsWith('C')
-    const bc = (b.tipo_pago || '').startsWith('C')
+    const ac = esCredito(a.tipo_pago)
+    const bc = esCredito(b.tipo_pago)
     if (ac !== bc) return ac ? 1 : -1
     return (a.forma_pago || '').localeCompare(b.forma_pago || '', 'es')
   })
-  const totalResumen = resumen.reduce((s, r) => s + (r.total || 0), 0)
+  // Total Ingresos = solo lo que realmente entro (efectivo, cheque, tarjeta,
+  // transferencia). Lo vendido a credito se muestra aparte.
+  const totalResumen = resumen
+    .filter((r) => !esCredito(r.tipo_pago))
+    .reduce((s, r) => s + (r.total || 0), 0)
+  const totalResumenCredito = resumenCredito.reduce((s, r) => s + (r.total || 0), 0)
   const totalVentas = resumenVentas.reduce((s, r) => s + (r.total || 0), 0)
   const totalPorNcf = porNcf.reduce((s, r) => s + (r.total_neto || 0), 0)
   const totalFacturas = facturas.reduce((s, f) => s + (f.total_neto || 0), 0)
@@ -1350,6 +1365,19 @@ function BloqueCuadreCaja({
                     Total Ingresos
                   </td>
                   <td style={tdR}>{money(totalResumen)}</td>
+                </tr>
+              )}
+              {resumenCredito.length > 0 && (
+                <tr>
+                  <td
+                    colSpan={3}
+                    style={{ ...tdR, fontStyle: 'italic', color: '#555' }}
+                  >
+                    Vendido a credito (no cobrado, no suma a Ingresos)
+                  </td>
+                  <td style={{ ...tdR, fontStyle: 'italic', color: '#555' }}>
+                    {money(totalResumenCredito)}
+                  </td>
                 </tr>
               )}
             </tbody>
