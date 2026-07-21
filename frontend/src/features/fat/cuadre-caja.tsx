@@ -1,6 +1,7 @@
 import { Fragment, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Calculator, FileSpreadsheet, Printer, RefreshCw } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -884,13 +885,7 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
                             key={`${group.ncfTipo}-${f.tipo_factura}-${f.no_factura}-${i}`}
                           >
                             <TableRow
-                              className={
-                                anulada
-                                  ? 'text-red-600'
-                                  : credito
-                                    ? 'bg-amber-50/60'
-                                    : ''
-                              }
+                              className={anulada ? 'text-red-600' : ''}
                             >
                               <TableCell className='pl-6 font-mono text-sm'>
                                 {f.tipo_factura}-{f.no_factura}
@@ -901,9 +896,12 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
                               <TableCell className='text-sm'>
                                 {(f.nombre_cliente || '').slice(0, 60)}
                                 {credito && !anulada && (
-                                  <span className='ml-2 rounded bg-orange-600 px-1.5 py-0.5 text-[10px] font-bold uppercase text-white shadow-sm'>
+                                  <Badge
+                                    variant='destructive'
+                                    className='ml-2 align-middle text-[10px]'
+                                  >
                                     A credito · sin pagar
-                                  </span>
+                                  </Badge>
                                 )}
                               </TableCell>
                               <TableCell className='font-mono text-xs'>
