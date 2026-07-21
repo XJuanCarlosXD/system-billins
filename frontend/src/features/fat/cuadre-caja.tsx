@@ -202,16 +202,18 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
   )
   const facturasPorNcf = groupFacturasPorNcf(facturas)
 
-  // tipo_pago que empieza con 'C' = credito (forma de pago a credito de la
-  // factura, o cobro de CxC tipo 'C<forma>') - no entro plata hoy, no debe
-  // sumarse al total de ingresos/efectivo.
-  const esCredito = (tipoPago: string) => (tipoPago || '').toUpperCase().startsWith('C')
-  const resumenIngresos = resumen.filter((r) => !esCredito(r.tipo_pago))
-  const resumenCredito = resumen.filter((r) => esCredito(r.tipo_pago))
+  // tipo_pago='4' = "A CREDITO" (catalogo TFAT_TIPO_PAGO, fijo en las 5
+  // companias) - factura vendida a credito y SIN cobrar todavia (sin RI).
+  // OJO: esto NO es lo mismo que las filas 'C<forma>' ("COBRO CRED - ..."),
+  // que son recibos de ingreso (RI) de CxC que SI cobraron hoy un credito
+  // anterior - esas SI deben sumar a Ingresos.
+  const esVendidoACredito = (tipoPago: string) => (tipoPago || '').trim() === '4'
+  const resumenIngresos = resumen.filter((r) => !esVendidoACredito(r.tipo_pago))
+  const resumenCredito = resumen.filter((r) => esVendidoACredito(r.tipo_pago))
 
   const resumenSorted = [...resumen].sort((a, b) => {
-    const aCredit = esCredito(a.tipo_pago)
-    const bCredit = esCredito(b.tipo_pago)
+    const aCredit = esVendidoACredito(a.tipo_pago)
+    const bCredit = esVendidoACredito(b.tipo_pago)
     if (aCredit !== bCredit) return aCredit ? 1 : -1
     return (a.forma_pago || '').localeCompare(b.forma_pago || '', 'es')
   })

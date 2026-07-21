@@ -1230,22 +1230,26 @@ function BloqueCuadreCaja({
     totalesCol[f] = filasMx.reduce((s, fila) => s + (fila.por[f] || 0), 0)
   const totalMatrix = filasMx.reduce((s, f) => s + f.total, 0)
 
-  // tipo_pago que empieza con 'C' = credito - no entro plata hoy, no debe
-  // sumarse al total de Ingresos.
-  const esCredito = (tipoPago: string) => (tipoPago || '').toUpperCase().startsWith('C')
-  const resumenCredito = resumen.filter((r) => esCredito(r.tipo_pago))
+  // tipo_pago='4' = "A CREDITO" (catalogo TFAT_TIPO_PAGO, fijo en las 5
+  // companias) - factura vendida a credito y SIN cobrar todavia (sin RI).
+  // OJO: esto NO es lo mismo que las filas 'C<forma>' ("COBRO CRED - ..."),
+  // que son recibos de ingreso (RI) de CxC que SI cobraron hoy un credito
+  // anterior - esas SI deben sumar a Ingresos.
+  const esVendidoACredito = (tipoPago: string) => (tipoPago || '').trim() === '4'
+  const resumenCredito = resumen.filter((r) => esVendidoACredito(r.tipo_pago))
 
-  // Resumen ordenado: cobros crédito (tipo_pago C*) al final
+  // Resumen ordenado: vendido a credito sin cobrar al final
   const resumenSorted = [...resumen].sort((a, b) => {
-    const ac = esCredito(a.tipo_pago)
-    const bc = esCredito(b.tipo_pago)
+    const ac = esVendidoACredito(a.tipo_pago)
+    const bc = esVendidoACredito(b.tipo_pago)
     if (ac !== bc) return ac ? 1 : -1
     return (a.forma_pago || '').localeCompare(b.forma_pago || '', 'es')
   })
   // Total Ingresos = solo lo que realmente entro (efectivo, cheque, tarjeta,
-  // transferencia). Lo vendido a credito se muestra aparte.
+  // transferencia, y cobros de credito anterior via RI). Lo vendido a
+  // credito SIN cobrar se muestra aparte.
   const totalResumen = resumen
-    .filter((r) => !esCredito(r.tipo_pago))
+    .filter((r) => !esVendidoACredito(r.tipo_pago))
     .reduce((s, r) => s + (r.total || 0), 0)
   const totalResumenCredito = resumenCredito.reduce((s, r) => s + (r.total || 0), 0)
   const totalVentas = resumenVentas.reduce((s, r) => s + (r.total || 0), 0)
