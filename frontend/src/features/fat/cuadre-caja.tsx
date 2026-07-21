@@ -194,17 +194,33 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
   const resumen = data?.resumen_pago ?? []
   const resumenVentas = data?.resumen_ventas ?? []
   const porNcfFormaPago = data?.por_ncf_forma_pago ?? []
-  const facturas = incluirDetalle ? (data?.facturas ?? []) : []
+  // Las facturas a credito (FC) ya se muestran aparte en "Ventas del Dia"
+  // (clase CREDITO, arriba) - no deben listarse ni sumarse otra vez en el
+  // detalle de facturas / total de facturas registradas de esta seccion.
+  const facturas = (incluirDetalle ? (data?.facturas ?? []) : []).filter(
+    (f) => (f.tipo_factura || '').toUpperCase() !== 'FC'
+  )
   const facturasPorNcf = groupFacturasPorNcf(facturas)
 
+  // tipo_pago que empieza con 'C' = credito (forma de pago a credito de la
+  // factura, o cobro de CxC tipo 'C<forma>') - no entro plata hoy, no debe
+  // sumarse al total de ingresos/efectivo.
+  const esCredito = (tipoPago: string) => (tipoPago || '').toUpperCase().startsWith('C')
+  const resumenIngresos = resumen.filter((r) => !esCredito(r.tipo_pago))
+  const resumenCredito = resumen.filter((r) => esCredito(r.tipo_pago))
+
   const resumenSorted = [...resumen].sort((a, b) => {
-    const aCredit = (a.tipo_pago || '').startsWith('C')
-    const bCredit = (b.tipo_pago || '').startsWith('C')
+    const aCredit = esCredito(a.tipo_pago)
+    const bCredit = esCredito(b.tipo_pago)
     if (aCredit !== bCredit) return aCredit ? 1 : -1
     return (a.forma_pago || '').localeCompare(b.forma_pago || '', 'es')
   })
 
-  const totalFormaPago = resumen.reduce((s, r) => s + (r.total || 0), 0)
+  // Total Ingresos = solo lo que realmente entro (efectivo, cheque, tarjeta,
+  // transferencia). El monto vendido a credito se muestra aparte y NO se
+  // suma aqui.
+  const totalFormaPago = resumenIngresos.reduce((s, r) => s + (r.total || 0), 0)
+  const totalCreditoFormaPago = resumenCredito.reduce((s, r) => s + (r.total || 0), 0)
   const totalVentas = resumenVentas.reduce((s, r) => s + (r.total || 0), 0)
   const totalFacturas = facturas.reduce((s, f) => s + (f.total_neto || 0), 0)
 
@@ -294,7 +310,15 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
       ])
     }
 
-    rows.push(['', '', 'TOTAL', totalFormaPago.toFixed(2)])
+    rows.push(['', '', 'TOTAL INGRESOS', totalFormaPago.toFixed(2)])
+    if (resumenCredito.length) {
+      rows.push([
+        '',
+        '',
+        'VENDIDO A CREDITO (no cobrado, no suma a Ingresos)',
+        totalCreditoFormaPago.toFixed(2),
+      ])
+    }
 
     if (incluirDetalle && facturasPorNcf.length) {
       rows.push([])
@@ -521,6 +545,16 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
                   </TableCell>
                   <TableCell className='text-right font-mono tabular-nums'>
                     {fmtN(totalFormaPago)}
+                  </TableCell>
+                </TableRow>
+              )}
+              {resumenCredito.length > 0 && (
+                <TableRow className='bg-muted/20 text-muted-foreground'>
+                  <TableCell colSpan={3} className='text-right italic'>
+                    Vendido a credito (no cobrado, no suma a Ingresos)
+                  </TableCell>
+                  <TableCell className='text-right font-mono tabular-nums italic'>
+                    {fmtN(totalCreditoFormaPago)}
                   </TableCell>
                 </TableRow>
               )}
