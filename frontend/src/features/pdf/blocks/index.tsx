@@ -1662,9 +1662,12 @@ function BloqueCuadreCaja({
                                     <span
                                       style={{
                                         marginLeft: 6,
+                                        padding: '1px 6px',
+                                        borderRadius: 3,
                                         fontSize: fontSize - 2,
                                         fontWeight: 700,
-                                        color: '#92400e',
+                                        color: '#fff',
+                                        background: '#ea580c',
                                         textTransform: 'uppercase',
                                       }}
                                     >

@@ -901,7 +901,7 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
                               <TableCell className='text-sm'>
                                 {(f.nombre_cliente || '').slice(0, 60)}
                                 {credito && !anulada && (
-                                  <span className='ml-2 rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-900'>
+                                  <span className='ml-2 rounded bg-orange-600 px-1.5 py-0.5 text-[10px] font-bold uppercase text-white shadow-sm'>
                                     A credito · sin pagar
                                   </span>
                                 )}

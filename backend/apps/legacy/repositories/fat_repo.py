@@ -2377,6 +2377,14 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
         tipo_transaccion = tdocu_row[0] if tdocu_row else "V"
         codigo_ncf_doc = (tdocu_row[1] or "").strip().upper() if tdocu_row else ""
         afecta_cxc = (tdocu_row[2] or "N") if tdocu_row else "N"
+        # Una factura a credito (afecta_cxc='S', ej. FC) nunca debe quedar
+        # registrada con una forma de pago de "ya cobrado" (efectivo, cheque,
+        # tarjeta, transferencia) — eso todavia no paso. La forma de pago
+        # real la decide el cobrador cuando aplique el RI en CxC. Forzamos
+        # tipo_pago='4' (A CREDITO, TFAT_TIPO_PAGO) para no depender de que
+        # el facturador se acuerde de escogerlo el mismo.
+        if afecta_cxc == 'S':
+            fp = '4'
         cur.execute(
             "SELECT NVL(codigo_ncf,'') FROM CXC.TCXC_CLIENTE "
             "WHERE no_cia=:1 AND punto=:2 AND no_cliente=:3",
