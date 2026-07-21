@@ -37,6 +37,18 @@ export type LineaPayload = {
   total: number
   cantidad_regalia?: number
   anulada?: boolean
+  /** Cantidad de este producto devuelta via DV contra esta misma factura. */
+  devuelto_cantidad?: number
+  /** Total de la linea despues de restar la porcion devuelta. */
+  monto_actualizado?: number
+}
+
+export type DocumentoAplicadoPayload = {
+  tipo_docu: string
+  no_docu: string
+  numero_display: string
+  monto: number
+  fecha: string
 }
 
 export type TotalesPayload = {

@@ -38,11 +38,23 @@ const CXC_PRINT_CODE: Record<string, string> = {
   DV: 'cxc-devolucion',
   AF: 'cxc-anulacion-factura',
   BI: 'cxc-balance-inicial',
-  FC: 'factura-credito',
 }
 
 const printDocCxc = (tipo: any, no: any, noCia: string, punto: string) => {
   const t = docPrefijoTipo(tipo)
+  const noStr = (no || '').toString().trim()
+  // FC/FT son la factura real (TFAT_FACTURA) — su impresion es la
+  // plantilla de factura de FAT (lineas, cliente, totales), no la
+  // plantilla generica de documentos CxC ('factura-credito' no existe
+  // como codigo registrado, por eso este caso se maneja aparte).
+  if (t === 'FC' || t === 'FT') {
+    const qs = new URLSearchParams({ no_cia: noCia, punto: punto || '01' }).toString()
+    window.open(
+      `/print/factura/${encodeURIComponent(`${t}-${noStr}`)}?${qs}`,
+      '_blank', 'noopener',
+    )
+    return
+  }
   const code = CXC_PRINT_CODE[t]
   if (!code) {
     alert(`Imprimir no está disponible para el tipo ${t}`)
@@ -52,7 +64,7 @@ const printDocCxc = (tipo: any, no: any, noCia: string, punto: string) => {
     no_cia: noCia, punto: punto || '01', tipo_doc: t,
   }).toString()
   window.open(
-    `/print/${code}/${encodeURIComponent((no || '').toString().trim())}?${qs}`,
+    `/print/${code}/${encodeURIComponent(noStr)}?${qs}`,
     '_blank', 'noopener',
   )
 }

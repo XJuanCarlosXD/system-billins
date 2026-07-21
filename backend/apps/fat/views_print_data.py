@@ -199,22 +199,80 @@ def fat_factura_print_data(request, tipo: str, no_factura: str):
         'tipo_ncf': tipo_ncf_fiscal,
     }
 
-    lineas = [{
-        'no_linea': l.get('no_linea'),
-        'codigo': l.get('no_produ') or '',
-        'descripcion': l.get('descripcion') or '',
-        'almacen': l.get('almacen') or '',
-        'cantidad': _money(l.get('cantidad')),
-        'unidad': '',
-        'precio': _money(l.get('precio')),
-        'porc_descuento': _money(l.get('porc_descuento')),
-        'descuento': _money(l.get('descuento')),
-        'porciento_impuesto': _money(l.get('porciento_impuesto')),
-        'itbis': _money(l.get('impuesto')),
-        'total': _money(l.get('monto_neto')),
-        'cantidad_regalia': _money(l.get('cantidad_regalia')),
-        'anulada': (l.get('st_anulado') or 'N') == 'S',
-    } for l in (factura.get('lineas') or []) if (l.get('st_anulado') or 'N') != 'S']
+    # Devoluciones de venta (DV) que aplicaron contra ESTA factura exacta:
+    # el header TINV_RME de la DV guarda tipo_docu_devuelto/no_docu_devuelto
+    # apuntando a la factura original; las lineas (TINV_MOVIMIENTO) no tienen
+    # FK a la linea original — se cruzan por no_produ. Puede haber mas de
+    # una DV contra la misma factura, se suman por producto.
+    devueltos_por_produ: dict[str, float] = {}
+    try:
+        dv_rows = fat_repo.client.fetch_dicts(
+            "SELECT m.no_produ, SUM(m.cantidad) AS cantidad "
+            "FROM INV.TINV_MOVIMIENTO m "
+            "JOIN INV.TINV_RME h ON h.no_cia=m.no_cia AND h.punto=m.punto "
+            "  AND h.tipo_docu=m.tipo_docu AND h.no_docu=m.no_docu "
+            "WHERE h.no_cia=:1 AND h.punto=:2 AND h.tipo_docu='DV' "
+            "  AND h.tipo_docu_devuelto=:3 AND h.no_docu_devuelto=:4 "
+            "GROUP BY m.no_produ",
+            [no_cia, punto, tipo_s, (no_factura or '').strip()])
+        for r in dv_rows:
+            devueltos_por_produ[(r.get('no_produ') or '').strip()] = float(r.get('cantidad') or 0)
+    except Exception:
+        devueltos_por_produ = {}
+
+    # Documentos de CxC aplicados contra esta factura (NC, RI, DV, AC, etc.)
+    # via TCXC_REFEDOCU — es la inversa de "documentos afectados" que ya usa
+    # el print de CXC (docs_print_data.cxc_documento_print_data).
+    documentos_aplicados = []
+    try:
+        refe_rows = fat_repo.client.fetch_dicts(
+            "SELECT r.tipo_docu, r.no_docu, r.monto, d.fecha "
+            "FROM CXC.TCXC_REFEDOCU r "
+            "LEFT JOIN CXC.TCXC_DOCUMENTO d "
+            "  ON d.no_cia=r.no_cia AND d.punto=r.punto "
+            " AND d.tipo_docu=r.tipo_docu AND d.no_docu=r.no_docu "
+            "WHERE r.no_cia=:1 AND r.punto=:2 AND r.tipo_refe=:3 AND r.no_refe=:4 "
+            "ORDER BY d.fecha",
+            [no_cia, punto, tipo_s, (no_factura or '').strip()])
+        for r in refe_rows:
+            documentos_aplicados.append({
+                'tipo_docu': (r.get('tipo_docu') or '').strip(),
+                'no_docu': (r.get('no_docu') or '').strip(),
+                'numero_display': f"{(r.get('tipo_docu') or '').strip()}-{(r.get('no_docu') or '').strip()}",
+                'monto': _money(r.get('monto')),
+                'fecha': str(r.get('fecha') or '')[:10] if r.get('fecha') else '',
+            })
+    except Exception:
+        documentos_aplicados = []
+
+    lineas = []
+    for l in (factura.get('lineas') or []):
+        if (l.get('st_anulado') or 'N') == 'S':
+            continue
+        cantidad = _money(l.get('cantidad'))
+        total_linea = _money(l.get('monto_neto'))
+        devuelto_cantidad = devueltos_por_produ.get((l.get('no_produ') or '').strip(), 0.0)
+        monto_actualizado = total_linea
+        if devuelto_cantidad and cantidad:
+            monto_actualizado = round(total_linea * (1 - devuelto_cantidad / cantidad), 2)
+        lineas.append({
+            'no_linea': l.get('no_linea'),
+            'codigo': l.get('no_produ') or '',
+            'descripcion': l.get('descripcion') or '',
+            'almacen': l.get('almacen') or '',
+            'cantidad': cantidad,
+            'unidad': '',
+            'precio': _money(l.get('precio')),
+            'porc_descuento': _money(l.get('porc_descuento')),
+            'descuento': _money(l.get('descuento')),
+            'porciento_impuesto': _money(l.get('porciento_impuesto')),
+            'itbis': _money(l.get('impuesto')),
+            'total': total_linea,
+            'cantidad_regalia': _money(l.get('cantidad_regalia')),
+            'anulada': False,
+            'devuelto_cantidad': devuelto_cantidad,
+            'monto_actualizado': monto_actualizado,
+        })
 
     subtotal = _money(factura.get('total_linea'))
     descuento = _money(factura.get('descuento'))
@@ -237,7 +295,10 @@ def fat_factura_print_data(request, tipo: str, no_factura: str):
         'cliente': cliente,
         'lineas': lineas,
         'totales': totales,
-        'extra': {},
+        'extra': {
+            'documentos_aplicados': documentos_aplicados,
+            'tiene_devolucion': any(v > 0 for v in devueltos_por_produ.values()),
+        },
     })
 
 

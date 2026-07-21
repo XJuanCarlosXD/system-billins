@@ -573,6 +573,10 @@ function TablaLineas({
   const data = usePdfData()
   if (!data || isReportePayload(data)) return null
   const lineas = (data as DocumentoPrintPayload).lineas || []
+  const extra = (data as DocumentoPrintPayload).extra as
+    | { documentos_aplicados?: DocumentoAplicadoPayload[]; tiene_devolucion?: boolean }
+    | undefined
+  const documentosAplicados = extra?.documentos_aplicados || []
   const colLabel: Record<Col, string> = {
     codigo: 'Código',
     descripcion: 'Descripción',
@@ -609,7 +613,48 @@ function TablaLineas({
         return money(l.total)
     }
   }
-  return (
+  // La descripcion y el total necesitan JSX (badge + monto actualizado)
+  // cuando el producto tuvo una devolucion parcial/total contra esta misma
+  // factura — el resto de columnas se quedan como texto plano.
+  const renderCellNode = (l: LineaPayload, c: Col) => {
+    const devuelto = l.devuelto_cantidad || 0
+    if (c === 'descripcion' && devuelto > 0) {
+      return (
+        <>
+          {l.descripcion || ''}
+          <span
+            style={{
+              marginLeft: 6,
+              padding: '1px 6px',
+              borderRadius: 3,
+              fontSize: fontSize - 2,
+              fontWeight: 700,
+              color: '#fff',
+              background: '#ea580c',
+              textTransform: 'uppercase',
+            }}
+          >
+            Devuelto {money(devuelto, devuelto % 1 === 0 ? 0 : 2)}
+          </span>
+        </>
+      )
+    }
+    if (c === 'total' && devuelto > 0) {
+      return (
+        <>
+          <span style={{ textDecoration: 'line-through', color: '#888' }}>
+            {money(l.total)}
+          </span>
+          <br />
+          <span style={{ fontWeight: 700 }}>
+            {money(l.monto_actualizado ?? l.total)}
+          </span>
+        </>
+      )
+    }
+    return renderCell(l, c)
+  }
+  const tabla = (
     <table
       className='pdf-tabla-lineas'
       style={{
@@ -653,13 +698,52 @@ function TablaLineas({
                   borderBottom: '1px solid #eee',
                 }}
               >
-                {renderCell(l, c)}
+                {renderCellNode(l, c)}
               </td>
             ))}
           </tr>
         ))}
       </tbody>
     </table>
+  )
+
+  return (
+    <>
+      {tabla}
+      {documentosAplicados.length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontSize: fontSize + 1, fontWeight: 700, marginBottom: 2 }}>
+            Documentos aplicados (NC / RI / Devolución)
+          </div>
+          <table
+            style={{ width: '100%', borderCollapse: 'collapse', fontSize }}
+          >
+            <thead>
+              <tr style={{ borderBottom: '1px solid #999', fontWeight: 700 }}>
+                <td style={{ padding: '3px 4px' }}>Documento</td>
+                <td style={{ padding: '3px 4px' }}>Fecha</td>
+                <td style={{ padding: '3px 4px', textAlign: 'right' }}>
+                  Monto
+                </td>
+              </tr>
+            </thead>
+            <tbody>
+              {documentosAplicados.map((d, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
+                  <td style={{ padding: '3px 4px', fontFamily: 'monospace' }}>
+                    {d.numero_display}
+                  </td>
+                  <td style={{ padding: '3px 4px' }}>{d.fecha}</td>
+                  <td style={{ padding: '3px 4px', textAlign: 'right' }}>
+                    {money(d.monto)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
   )
 }
 
