@@ -1,4 +1,5 @@
 from __future__ import annotations
+from datetime import date
 from .. import client
 
 
@@ -1018,28 +1019,92 @@ def entrada_documento(d):
 
 def reversar_documento(no_cia, punto, tipo_docu, no_docu, usuario="API", motivo=""):
     """
-    Marca documento como reversado (status=R, saldo=0).
+    Marca documento como reversado (status=R, saldo=0) y genera automaticamente
+    el ajuste contrario (AC/AD, TCXP_TDOCU.tipo_transaccion='A') que lo
+    contrarresta contablemente -- mismo patron ya validado en
+    aplicar_saldos_menores (INSERT TCXP_DOCUMENTO + TCXP_DCDOCU + TCXP_REFEDOCU
+    aplicando el ajuste contra el documento original). Sin esto el reverso
+    solo tocaba el documento original y no dejaba rastro para 606/mayor.
     Solo sobre docs con status=A. REVERSIBLE en pruebas ZZTEST.
     """
     rows = client.fetch_dicts(
-        "SELECT status FROM CXP.TCXP_DOCUMENTO "
-        "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+        "SELECT status, no_proveedor, tipo_movi, NVL(saldo,0) AS saldo "
+        "FROM CXP.TCXP_DOCUMENTO WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
         [no_cia, punto, tipo_docu, no_docu])
     if not rows:
         raise ValueError("Documento no encontrado")
-    if rows[0]["status"] == "C":
+    doc = rows[0]
+    if doc["status"] == "C":
         raise ValueError("Documento ya cerrado, no se puede reversar")
-    if rows[0]["status"] == "R":
+    if doc["status"] == "R":
         raise ValueError("Documento ya está reversado")
+
     # DETALLE es VARCHAR2(100)
     detalle = ("REVERSADO - " + motivo.strip())[:100] if motivo and motivo.strip() else "REVERSADO"
-    with client.cursor() as cur:
-        cur.execute(
-            "UPDATE CXP.TCXP_DOCUMENTO SET status='R', saldo=0, detalle=:1 "
-            "WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4 AND no_docu=:5",
-            [detalle, no_cia, punto, tipo_docu, no_docu])
-        cur.connection.commit()
-    return {"ok": True, "no_docu": no_docu, "status": "R"}
+
+    # Solo se genera el ajuste por el saldo realmente pendiente. Si el
+    # documento ya esta en 0 (pagado/aplicado por otra via aunque status
+    # siga en 'A' porque no se ha generado al mayor) no hay nada que
+    # contrarrestar y el reverso solo cambia el status.
+    monto = round(abs(float(doc["saldo"] or 0)), 2)
+    tipo_movi_orig = (doc.get("tipo_movi") or "C").upper()
+    # El ajuste debe ser del signo contrario al documento que se reversa:
+    # factura (C, aumenta lo que debemos) -> AD ajuste debito (D) la cancela.
+    # nota de debito/ajuste (D) -> AC ajuste credito (C) la cancela.
+    tipo_movi_ajuste = "D" if tipo_movi_orig == "C" else "C"
+    tipo_movi_proveedor = "C" if tipo_movi_ajuste == "D" else "D"
+
+    ajuste = None
+    if monto > 0:
+        tdoc_rows = client.fetch_dicts(
+            "SELECT tipo_docu, NVL(cuenta,'') AS cuenta, "
+            "NVL(centro_costo,'0000000000') AS centro_costo "
+            "FROM CXP.TCXP_TDOCU WHERE tipo_transaccion='A' AND tipo_movi=:1",
+            [tipo_movi_ajuste])
+        if not tdoc_rows:
+            raise ValueError("Falta tipo de ajuste AC/AD configurado en TCXP_TDOCU")
+        td = tdoc_rows[0]
+        motivo_ajuste = (
+            f"{'ND' if tipo_movi_ajuste == 'D' else 'NC'} POR REVERSO "
+            f"{tipo_docu}-{no_docu}" + (f" - {motivo.strip()}" if motivo and motivo.strip() else "")
+        )[:100]
+        with client.cursor() as cur:
+            no_docu_ajuste = _next_no_docu(cur, no_cia, punto, td["tipo_docu"])
+            _insert_cxp_ajuste_header(
+                cur, no_cia, punto, td["tipo_docu"], no_docu_ajuste,
+                doc["no_proveedor"], date.today().isoformat(), monto,
+                motivo_ajuste, tipo_movi_ajuste, usuario)
+            _insert_cxp_ajuste_lineas(
+                cur, no_cia, punto, td["tipo_docu"], no_docu_ajuste,
+                doc["no_proveedor"], monto,
+                cuenta_ajuste=td["cuenta"], centro_costo=td["centro_costo"],
+                cuenta_proveedor=_CUENTA_CXP_PROVEEDOR_DEFAULT,
+                signo_ajuste=tipo_movi_ajuste, signo_proveedor=tipo_movi_proveedor)
+            cur.execute(
+                "INSERT INTO CXP.TCXP_REFEDOCU "
+                "(no_cia, punto, tipo_docu, no_docu, no_proveedor, tipo_refe, no_refe, monto) "
+                "VALUES (:1,:2,:3,:4,:5,:6,:7,:8)",
+                [no_cia, punto, td["tipo_docu"], no_docu_ajuste, str(doc["no_proveedor"]),
+                 tipo_docu, no_docu, monto])
+            cur.execute(
+                "UPDATE CXP.TCXP_DOCUMENTO SET status='R', saldo=0, detalle=:1, "
+                "tipo_docu_r=:2, no_docu_r=:3 "
+                "WHERE no_cia=:4 AND punto=:5 AND tipo_docu=:6 AND no_docu=:7",
+                [detalle, td["tipo_docu"], no_docu_ajuste, no_cia, punto, tipo_docu, no_docu])
+            cur.connection.commit()
+        ajuste = {"tipo_docu": td["tipo_docu"], "no_docu": no_docu_ajuste, "monto": monto}
+    else:
+        with client.cursor() as cur:
+            cur.execute(
+                "UPDATE CXP.TCXP_DOCUMENTO SET status='R', saldo=0, detalle=:1 "
+                "WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4 AND no_docu=:5",
+                [detalle, no_cia, punto, tipo_docu, no_docu])
+            cur.connection.commit()
+
+    result = {"ok": True, "no_docu": no_docu, "status": "R"}
+    if ajuste:
+        result["nota_debito" if tipo_movi_ajuste == "D" else "nota_credito"] = ajuste
+    return result
 
 
 def liberar_debito(no_cia, punto, no_docu_cr, tipo_docu_cr, debitos):
@@ -1757,6 +1822,9 @@ def aplicar_saldos_menores(no_cia: str, punto: str, max_saldo: float,
 def _insert_cxp_ajuste_header(cur, no_cia, punto, tipo_docu, no_docu,
                                no_proveedor, fecha, valor, motivo, tipo_movi,
                                usuario):
+    # CK_TCXPDOCU_DEBITO_CREDITO exige debito=credito=valor_original siempre
+    # (igual que entrada_documento) -- la direccion D/C la marca tipo_movi,
+    # no poner 0 en el lado contrario.
     cur.execute(
         "INSERT INTO CXP.TCXP_DOCUMENTO ("
         " no_cia, punto, tipo_docu, no_docu, no_proveedor, tipo_movi,"
@@ -1765,9 +1833,7 @@ def _insert_cxp_ajuste_header(cur, no_cia, punto, tipo_docu, no_docu,
         ") VALUES (:1,:2,:3,:4,:5,:6,'A',TO_DATE(:7,'YYYY-MM-DD'),"
         " 'A',:8,0,:9,:10,'N','N',:11,:12)",
         [no_cia, punto, tipo_docu, no_docu, str(no_proveedor), tipo_movi,
-         fecha, valor, motivo, usuario,
-         valor if tipo_movi == 'D' else 0,
-         valor if tipo_movi == 'C' else 0])
+         fecha, valor, motivo, usuario, valor, valor])
 
 
 def _insert_cxp_ajuste_lineas(cur, no_cia, punto, tipo_docu, no_docu,

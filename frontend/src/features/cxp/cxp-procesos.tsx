@@ -334,6 +334,8 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
     propina: '',
     tipo_gasto: '',
     tipo_retencion: '',
+    itbis_retenido: '',
+    isr_retenido: '',
     forma_pago: '',
   })
   // ITBIS calculado a partir del valor con la tasa de la empresa (FAT.TFAT_CIAS)
@@ -470,9 +472,14 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
         otros_impuestos: form.otros_impuestos ? Number(form.otros_impuestos) : 0,
         propina:         form.propina         ? Number(form.propina)         : 0,
         tipo_retencion:  form.tipo_retencion  ? Number(form.tipo_retencion)  : null,
+        itbis_retenido:  form.itbis_retenido  ? Number(form.itbis_retenido)  : 0,
+        isr_retenido:    form.isr_retenido    ? Number(form.isr_retenido)    : 0,
         forma_pago:      form.forma_pago      ? Number(form.forma_pago)      : null,
       })
-      toast.success(`Documento ${res.no_docu} creado (ITBIS RD$ ${Number(impuesto || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })})`)
+      const retTxt = (Number(form.itbis_retenido || 0) > 0 || Number(form.isr_retenido || 0) > 0)
+        ? ` — Retenido ITBIS RD$ ${Number(form.itbis_retenido || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })} / ISR RD$ ${Number(form.isr_retenido || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })}`
+        : ''
+      toast.success(`Documento ${res.no_docu} creado (ITBIS RD$ ${Number(impuesto || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })})${retTxt}`)
       setProveedor(null)
       // reset preservando los defaults del catálogo
       const defRet = tiposRetencion.find((r) => r.por_defecto === 'S')
@@ -490,6 +497,8 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
         propina: '',
         tipo_gasto: '',
         tipo_retencion: defRet ? String(defRet.tipo_retencion) : '',
+        itbis_retenido: '',
+        isr_retenido: '',
         forma_pago:    defFp  ? String(defFp.forma_pago) : '',
       })
       setImpuesto('')
@@ -725,6 +734,35 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
             </Select>
           </div>
           <div className='min-w-0 space-y-1'>
+            <Label className='text-xs flex items-center justify-between'>
+              <span>ITBIS Retenido</span>
+              {Number(impuesto || 0) > 0 && (
+                <button
+                  type='button'
+                  onClick={() => setForm((f) => ({ ...f, itbis_retenido: impuesto }))}
+                  className='text-[10px] text-emerald-700 hover:underline'
+                >
+                  100% (RD$ {Number(impuesto).toLocaleString('es-DO', { minimumFractionDigits: 2 })})
+                </button>
+              )}
+            </Label>
+            <Input
+              type='number' step='0.01' placeholder='0.00'
+              value={form.itbis_retenido}
+              onChange={(e) => setForm((f) => ({ ...f, itbis_retenido: e.target.value }))}
+              className='h-10 text-right font-mono'
+            />
+          </div>
+          <div className='min-w-0 space-y-1'>
+            <Label className='text-xs'>ISR Retenido</Label>
+            <Input
+              type='number' step='0.01' placeholder='0.00'
+              value={form.isr_retenido}
+              onChange={(e) => setForm((f) => ({ ...f, isr_retenido: e.target.value }))}
+              className='h-10 text-right font-mono'
+            />
+          </div>
+          <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Forma de Pago</Label>
             <Select
               value={form.forma_pago}
@@ -820,14 +858,18 @@ export function CxpReversar({ noCia, punto = '' }: P) {
     if (!doc) return
     setBusy(true)
     try {
-      await api.cxpReversarDocumento({
+      const res: any = await api.cxpReversarDocumento({
         no_cia: noCia,
         punto,
         tipo_docu: tipoDocu,
         no_docu: normNoDocu(noDocu),
         motivo: motivo.trim(),
       })
-      toast.success(`Documento ${tipoDocu}-${normNoDocu(noDocu)} reversado`)
+      const ajuste = res?.nota_debito || res?.nota_credito
+      const ajusteTxt = ajuste
+        ? ` — generó ${res?.nota_debito ? 'Nota de Débito' : 'Nota de Crédito'} ${ajuste.tipo_docu}-${ajuste.no_docu} (RD$ ${Number(ajuste.monto).toLocaleString('es-DO', { minimumFractionDigits: 2 })})`
+        : ''
+      toast.success(`Documento ${tipoDocu}-${normNoDocu(noDocu)} reversado${ajusteTxt}`)
       setDoc(null)
       setNoDocu('')
       setMotivo('')
@@ -847,8 +889,9 @@ export function CxpReversar({ noCia, punto = '' }: P) {
         <h1 className='text-2xl font-semibold'>Reversar Documento</h1>
         <p className='text-sm text-muted-foreground'>
           Busca un documento activo y reviértelo (queda con estado Reversado y
-          saldo 0). Equivale a la forma legacy <i>Fcxp204</i> sobre{' '}
-          <span className='font-mono'>TCXP_DOCUMENTO</span>.
+          saldo 0). El sistema genera automáticamente la Nota de Débito o
+          Crédito de ajuste que lo contrarresta y queda aplicada contra el
+          documento original.
         </p>
       </div>
       <Card>
@@ -943,7 +986,9 @@ export function CxpReversar({ noCia, punto = '' }: P) {
           <div className='space-y-3'>
             <p className='text-sm text-muted-foreground'>
               El documento quedará con estado <b>Reversado</b> y saldo RD$ 0.00.
-              Solo es posible si aún no se ha generado al mayor.
+              Se generará automáticamente la Nota de Débito/Crédito de ajuste
+              aplicada contra este documento. Solo es posible si aún no se ha
+              generado al mayor.
             </p>
             <div className='min-w-0 space-y-1'>
               <Label className='text-xs'>Motivo *</Label>
