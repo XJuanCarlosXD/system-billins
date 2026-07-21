@@ -1015,41 +1015,56 @@ def cuadre_caja_por_ncf_forma_pago(no_cia: str, punto: str, desde: str = '',
 
 def cuadre_caja_hoja_por_ncf(no_cia: str, punto: str, fecha: str) -> list[dict]:
     """Hoja de cuadre de caja por tipo de NCF, formato legado (Ffat266):
-    "CUADRE DE CAJA B02" con Contado/Cheques/Transferencia del dia y de
-    anteriores (facturas de fechas previas a `fecha` que aun no se habian
-    incluido en ningun cuadre — no_cuadre_caja IS NULL), mas el rango de
-    facturas (desde/hasta) cubierto por ese NCF en este cuadre.
+    "CUADRE DE CAJA B02" con Contado/Cheques/Transferencia del DIA y de
+    ANTERIORES, mas el rango de facturas (desde/hasta) de ese NCF emitidas
+    ese dia.
 
-    tipo_pago fijo en las 5 companias (TFAT_TIPO_PAGO): 1=EFECTIVO,
-    2=CHEQUE, 8=TRANSFERENCIA. No incluye tarjeta (3) ni a credito (4) —
-    igual que la hoja legado, que solo desglosa esas 3 formas de pago.
+    - DEL DIA: facturas de ese NCF FACTURADAS en `fecha`, desglosadas por
+      forma de pago (TFAT_FORMA_PAGO).
+    - ANTERIORES: recibos de ingreso (CXC.TCXC_DOCUMENTO tipo_docu='RI')
+      hechos EN `fecha` que cobraron/aplicaron (via CXC.TCXC_REFEDOCU) una
+      factura de ese NCF con fecha ANTERIOR a `fecha`. Es decir: dinero que
+      entro hoy por un credito de un dia anterior. NO es el backlog de
+      facturas sin cuadrar — confirmado con el usuario 2026-07-21.
+    - Factura Desde/Hasta: solo del rango FACTURADO ese dia (no de lo
+      cobrado via RI, que pertenece a la numeracion de otro dia).
+
+    tipo_pago/forma_pago fijo en las 5 companias (TFAT_TIPO_PAGO):
+    1=EFECTIVO, 2=CHEQUE, 8=TRANSFERENCIA. No incluye tarjeta (3) ni a
+    credito (4) — igual que la hoja legado, que solo desglosa esas 3
+    formas de pago.
     """
     params = {'p_cia': no_cia, 'p_pto': punto, 'p_fecha': fecha}
-    sql = (
-        "SELECT origen, ncf_tipo, tipo_pago, no_factura, monto FROM ("
-        "  SELECT 'DIA' AS origen, NVL(f.posiciones_fijas_ncf,'—') AS ncf_tipo, "
-        "    fp.tipo_pago AS tipo_pago, f.no_factura AS no_factura, fp.monto AS monto "
-        "  FROM FAT.TFAT_FACTURA f "
-        "  JOIN FAT.TFAT_FORMA_PAGO fp ON fp.no_cia=f.no_cia AND fp.punto=f.punto "
-        "    AND fp.tipo_factura=f.tipo_factura AND fp.no_factura=f.no_factura "
-        "  WHERE f.no_cia=:p_cia AND f.punto=:p_pto AND NVL(f.st_anulado,'N')='N' "
-        "    AND TRUNC(f.fecha) = TO_DATE(:p_fecha,'YYYY-MM-DD') "
-        "  UNION ALL "
-        "  SELECT 'ANTERIOR' AS origen, NVL(f.posiciones_fijas_ncf,'—') AS ncf_tipo, "
-        "    fp.tipo_pago AS tipo_pago, f.no_factura AS no_factura, fp.monto AS monto "
-        "  FROM FAT.TFAT_FACTURA f "
-        "  JOIN FAT.TFAT_FORMA_PAGO fp ON fp.no_cia=f.no_cia AND fp.punto=f.punto "
-        "    AND fp.tipo_factura=f.tipo_factura AND fp.no_factura=f.no_factura "
-        "  WHERE f.no_cia=:p_cia AND f.punto=:p_pto AND NVL(f.st_anulado,'N')='N' "
-        "    AND f.no_cuadre_caja IS NULL "
-        "    AND TRUNC(f.fecha) < TO_DATE(:p_fecha,'YYYY-MM-DD') "
-        ")"
+    sql_dia = (
+        "SELECT NVL(f.posiciones_fijas_ncf,'—') AS ncf_tipo, "
+        "  fp.tipo_pago AS tipo_pago, f.no_factura AS no_factura, "
+        "  fp.monto AS monto "
+        "FROM FAT.TFAT_FACTURA f "
+        "JOIN FAT.TFAT_FORMA_PAGO fp ON fp.no_cia=f.no_cia AND fp.punto=f.punto "
+        "  AND fp.tipo_factura=f.tipo_factura AND fp.no_factura=f.no_factura "
+        "WHERE f.no_cia=:p_cia AND f.punto=:p_pto AND NVL(f.st_anulado,'N')='N' "
+        "  AND TRUNC(f.fecha) = TO_DATE(:p_fecha,'YYYY-MM-DD')"
     )
-    rows = client.fetch_dicts(sql, params)
+    sql_anterior = (
+        "SELECT NVL(f.posiciones_fijas_ncf,'—') AS ncf_tipo, "
+        "  rd.forma_pago AS tipo_pago, ref.monto AS monto "
+        "FROM CXC.TCXC_DOCUMENTO rd "
+        "JOIN CXC.TCXC_REFEDOCU ref ON ref.no_cia=rd.no_cia AND ref.punto=rd.punto "
+        "  AND ref.tipo_docu=rd.tipo_docu AND ref.no_docu=rd.no_docu "
+        "JOIN FAT.TFAT_FACTURA f ON f.no_cia=rd.no_cia AND f.punto=rd.punto "
+        "  AND f.tipo_factura=ref.tipo_refe AND f.no_factura=ref.no_refe "
+        "WHERE rd.no_cia=:p_cia AND rd.punto=:p_pto AND rd.tipo_docu='RI' "
+        "  AND NVL(rd.st_anulado,'N')='N' "
+        "  AND TRUNC(rd.fecha) = TO_DATE(:p_fecha,'YYYY-MM-DD') "
+        "  AND ref.tipo_refe IN ('FT','FC') "
+        "  AND TRUNC(f.fecha) < TO_DATE(:p_fecha,'YYYY-MM-DD')"
+    )
+    rows_dia = client.fetch_dicts(sql_dia, params)
+    rows_anterior = client.fetch_dicts(sql_anterior, params)
 
     hojas: dict = {}
-    for r in rows:
-        ncf = (r['ncf_tipo'] or '—').strip().upper()
+
+    def _get(ncf: str) -> dict:
         h = hojas.get(ncf)
         if not h:
             h = hojas[ncf] = {
@@ -1057,21 +1072,34 @@ def cuadre_caja_hoja_por_ncf(no_cia: str, punto: str, fecha: str) -> list[dict]:
                 'anterior': {'efectivo': 0.0, 'cheques': 0.0, 'transferencia': 0.0},
                 'factura_desde': None, 'factura_hasta': None,
             }
-        bucket = 'dia' if r['origen'] == 'DIA' else 'anterior'
-        tipo_pago = (r['tipo_pago'] or '').strip()
-        monto = float(r['monto'] or 0)
-        if tipo_pago == '1':
-            h[bucket]['efectivo'] += monto
-        elif tipo_pago == '2':
-            h[bucket]['cheques'] += monto
-        elif tipo_pago == '8':
-            h[bucket]['transferencia'] += monto
+        return h
+
+    def _add(bucket: dict, tipo_pago: str, monto: float) -> None:
+        tp = (tipo_pago or '').strip()
+        if tp == '1':
+            bucket['efectivo'] += monto
+        elif tp == '2':
+            bucket['cheques'] += monto
+        elif tp == '8':
+            bucket['transferencia'] += monto
+
+    for r in rows_dia:
+        ncf = (r['ncf_tipo'] or '—').strip().upper()
+        h = _get(ncf)
+        _add(h['dia'], r['tipo_pago'], float(r['monto'] or 0))
         no_fact = r['no_factura']
         if no_fact:
             if h['factura_desde'] is None or no_fact < h['factura_desde']:
                 h['factura_desde'] = no_fact
             if h['factura_hasta'] is None or no_fact > h['factura_hasta']:
                 h['factura_hasta'] = no_fact
+
+    for r in rows_anterior:
+        ncf = (r['ncf_tipo'] or '—').strip().upper()
+        h = _get(ncf)
+        _add(h['anterior'], r['tipo_pago'], float(r['monto'] or 0))
+        # Factura Desde/Hasta es solo del rango facturado hoy — un RI cobra
+        # una factura de OTRO dia, no toca este rango.
 
     out = []
     for ncf, h in sorted(hojas.items()):

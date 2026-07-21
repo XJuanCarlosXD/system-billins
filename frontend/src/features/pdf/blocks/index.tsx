@@ -1726,26 +1726,35 @@ function BloqueCuadreCaja({
               >
                 <div
                   style={{
-                    fontSize: fontSize + 4,
-                    fontWeight: 700,
-                    textAlign: 'center',
-                    margin: '8px 0 16px 0',
+                    border: `2px solid ${colorTitulo}`,
+                    borderRadius: 4,
+                    padding: '8px 12px',
+                    marginBottom: 16,
                   }}
                 >
-                  CUADRE DE CAJA {h.ncf_tipo}
-                </div>
-                <div style={{ ...labelRow, borderBottom: 'none' }}>
-                  <span style={{ fontWeight: 700 }}>Empresa:</span>
-                  <span>{cia?.razon_social || ''}</span>
-                </div>
-                <div
-                  style={{
-                    textAlign: 'right',
-                    fontWeight: 700,
-                    marginBottom: 8,
-                  }}
-                >
-                  {fmtDate(fechaCuadre)}
+                  <div
+                    style={{
+                      fontSize: fontSize + 4,
+                      fontWeight: 700,
+                      textAlign: 'center',
+                      color: colorTitulo,
+                      marginBottom: 8,
+                    }}
+                  >
+                    CUADRE DE CAJA {h.ncf_tipo}
+                  </div>
+                  <div style={{ ...labelRow, borderBottom: 'none' }}>
+                    <span style={{ fontWeight: 700 }}>Empresa:</span>
+                    <span>{cia?.razon_social || ''}</span>
+                  </div>
+                  <div
+                    style={{
+                      textAlign: 'right',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {fmtDate(fechaCuadre)}
+                  </div>
                 </div>
 
                 <div style={labelRow}>
