@@ -136,6 +136,13 @@ function getFacturaNcfTipo(factura: FacturaItem): string {
   return 'SIN NCF'
 }
 
+// Una factura FC (a credito) sigue apareciendo en el detalle del dia (para
+// que se vea que se facturo), pero NO tiene pago hasta que haya un RI en
+// CxC — no debe sumar al subtotal/total de esta seccion.
+function esFacturaACredito(factura: FacturaItem): boolean {
+  return (factura.tipo_factura || '').toUpperCase() === 'FC'
+}
+
 function groupFacturasPorNcf(facturas: FacturaItem[]): FacturaGroup[] {
   const groups = new Map<string, FacturaGroup>()
 
@@ -152,9 +159,11 @@ function groupFacturasPorNcf(facturas: FacturaItem[]): FacturaGroup[] {
       } satisfies FacturaGroup)
 
     group.rows.push(factura)
-    group.total += factura.total_neto || 0
-    group.itbis += factura.impuesto || 0
-    group.descuento += factura.descuento || 0
+    if (!esFacturaACredito(factura)) {
+      group.total += factura.total_neto || 0
+      group.itbis += factura.impuesto || 0
+      group.descuento += factura.descuento || 0
+    }
     groups.set(ncfTipo, group)
   }
 
@@ -216,12 +225,10 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
   const resumenVentas = data?.resumen_ventas ?? []
   const porNcfFormaPago = data?.por_ncf_forma_pago ?? []
   const hojaPorNcfData = data?.hoja_por_ncf ?? []
-  // Las facturas a credito (FC) ya se muestran aparte en "Ventas del Dia"
-  // (clase CREDITO, arriba) - no deben listarse ni sumarse otra vez en el
-  // detalle de facturas / total de facturas registradas de esta seccion.
-  const facturas = (incluirDetalle ? (data?.facturas ?? []) : []).filter(
-    (f) => (f.tipo_factura || '').toUpperCase() !== 'FC'
-  )
+  // Las facturas a credito (FC) SI deben listarse en el detalle del dia
+  // (para ver que se facturaron) marcadas con badge "a credito, sin pagar"
+  // — pero no deben sumar al total/subtotal hasta que tengan un RI.
+  const facturas = incluirDetalle ? (data?.facturas ?? []) : []
   const facturasPorNcf = groupFacturasPorNcf(facturas)
 
   // tipo_pago='4' = "A CREDITO" (catalogo TFAT_TIPO_PAGO, fijo en las 5
@@ -245,8 +252,22 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
   // suma aqui.
   const totalFormaPago = resumenIngresos.reduce((s, r) => s + (r.total || 0), 0)
   const totalCreditoFormaPago = resumenCredito.reduce((s, r) => s + (r.total || 0), 0)
-  const totalVentas = resumenVentas.reduce((s, r) => s + (r.total || 0), 0)
-  const totalFacturas = facturas.reduce((s, f) => s + (f.total_neto || 0), 0)
+  // "Total ventas del dia" = solo lo clasificado CONTADO. La fila CREDITO
+  // (facturado hoy a credito, sin RI) se muestra aparte, no se suma aqui —
+  // antes el texto decia "el credito no suma" pero el calculo si lo sumaba.
+  const totalVentas = resumenVentas
+    .filter((r) => (r.clase || '').toUpperCase() === 'CONTADO')
+    .reduce((s, r) => s + (r.total || 0), 0)
+  const totalVentasCredito = resumenVentas
+    .filter((r) => (r.clase || '').toUpperCase() === 'CREDITO')
+    .reduce((s, r) => s + (r.total || 0), 0)
+  // Detalle de facturas: cuenta todas (incluye FC para que se vean), pero
+  // el total en RD$ excluye las FC (sin pago hasta que tengan RI).
+  const facturasNoCredito = facturas.filter((f) => !esFacturaACredito(f))
+  const totalFacturas = facturasNoCredito.reduce(
+    (s, f) => s + (f.total_neto || 0),
+    0
+  )
 
   const ncfFormaPagoMatrix = (() => {
     const formasSet = new Set<string>()
@@ -320,7 +341,15 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
         Number(it.total ?? 0).toFixed(2),
       ])
     }
-    rows.push(['', '', 'TOTAL VENTAS', totalVentas.toFixed(2)])
+    rows.push(['', '', 'TOTAL VENTAS CONTADO', totalVentas.toFixed(2)])
+    if (totalVentasCredito) {
+      rows.push([
+        '',
+        '',
+        'VENTA A CREDITO (sin RI, no suma)',
+        totalVentasCredito.toFixed(2),
+      ])
+    }
     rows.push([])
     rows.push(['=== Resumen por Forma de Pago ==='])
     rows.push(['Tipo', 'Descripcion', 'Cantidad', 'Total RD'])
@@ -355,6 +384,7 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
         'Descuento',
         'ITBIS',
         'Total Neto',
+        'A Credito (sin pagar)',
         'Anulada',
         'Motivo Anulacion',
       ])
@@ -371,10 +401,15 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
             (f.descuento || 0).toFixed(2),
             (f.impuesto || 0).toFixed(2),
             (f.total_neto || 0).toFixed(2),
+            esFacturaACredito(f) ? 'SI' : '',
             f.st_anulado === 'S' ? 'SI' : '',
             f.st_anulado === 'S' ? (f.motivo_anulacion || '') : '',
           ])
         }
+        rows.push([
+          '', '', '', `Subtotal ${group.ncfTipo} (sin credito)`,
+          group.descuento.toFixed(2), group.itbis.toFixed(2), group.total.toFixed(2),
+        ])
       }
     }
 
@@ -842,12 +877,21 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
 
                       {group.rows.map((f, i) => {
                         const anulada = f.st_anulado === 'S'
+                        const credito = esFacturaACredito(f)
 
                         return (
                           <Fragment
                             key={`${group.ncfTipo}-${f.tipo_factura}-${f.no_factura}-${i}`}
                           >
-                            <TableRow className={anulada ? 'text-red-600' : ''}>
+                            <TableRow
+                              className={
+                                anulada
+                                  ? 'text-red-600'
+                                  : credito
+                                    ? 'bg-amber-50/60'
+                                    : ''
+                              }
+                            >
                               <TableCell className='pl-6 font-mono text-sm'>
                                 {f.tipo_factura}-{f.no_factura}
                                 {anulada && (
@@ -856,6 +900,11 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
                               </TableCell>
                               <TableCell className='text-sm'>
                                 {(f.nombre_cliente || '').slice(0, 60)}
+                                {credito && !anulada && (
+                                  <span className='ml-2 rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-900'>
+                                    A credito · sin pagar
+                                  </span>
+                                )}
                               </TableCell>
                               <TableCell className='font-mono text-xs'>
                                 {f.ncf_dgi || '-'}
@@ -870,7 +919,13 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
                                 {fmtN(f.impuesto || 0)}
                               </TableCell>
                               <TableCell className='text-right font-mono font-semibold tabular-nums'>
-                                {fmtN(f.total_neto || 0)}
+                                {credito ? (
+                                  <span className='text-muted-foreground'>
+                                    ({fmtN(f.total_neto || 0)})
+                                  </span>
+                                ) : (
+                                  fmtN(f.total_neto || 0)
+                                )}
                               </TableCell>
                             </TableRow>
                             {anulada && f.motivo_anulacion && (
@@ -907,7 +962,12 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
                   {facturas.length > 0 && (
                     <TableRow className='border-t-2 bg-muted/40 font-bold'>
                       <TableCell colSpan={6} className='text-right'>
-                        TOTAL ({facturas.length} facturas)
+                        TOTAL COBRADO ({facturasNoCredito.length} de{' '}
+                        {facturas.length} facturas
+                        {facturas.length !== facturasNoCredito.length
+                          ? ` · ${facturas.length - facturasNoCredito.length} a credito sin pagar`
+                          : ''}
+                        )
                       </TableCell>
                       <TableCell className='text-right font-mono tabular-nums'>
                         {fmtN(totalFacturas)}

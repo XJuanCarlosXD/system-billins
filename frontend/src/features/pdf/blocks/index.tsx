@@ -1212,10 +1212,11 @@ function BloqueCuadreCaja({
   const resumenVentas = (extra.resumen_ventas as ResumenVentasItem[]) ?? []
   const porNcf = (extra.por_ncf as PorNcfItem[]) ?? []
   const porNcfFormaPago = (extra.por_ncf_forma_pago as NcfFormaPagoItem[]) ?? []
-  // Las facturas a credito (FC) ya se muestran aparte en "Ventas del Dia"
-  // (clase CREDITO) - no deben listarse ni sumarse otra vez en el detalle
-  // de facturas / total de facturas del PDF.
-  const facturas = ((extra.facturas as FacturaItem[]) ?? []).filter(
+  // Las facturas a credito (FC) SI deben listarse en el detalle del dia
+  // (para ver que se facturaron) marcadas como "a credito, sin pagar" —
+  // pero no deben sumar al total/subtotal hasta que tengan un RI.
+  const facturas = (extra.facturas as FacturaItem[]) ?? []
+  const facturasNoCredito = facturas.filter(
     (f) => (f.tipo_factura || '').toUpperCase() !== 'FC'
   )
   // El usuario activa "Incluir detalle" desde el switch de la pantalla —
@@ -1276,9 +1277,13 @@ function BloqueCuadreCaja({
     .filter((r) => !esVendidoACredito(r.tipo_pago))
     .reduce((s, r) => s + (r.total || 0), 0)
   const totalResumenCredito = resumenCredito.reduce((s, r) => s + (r.total || 0), 0)
-  const totalVentas = resumenVentas.reduce((s, r) => s + (r.total || 0), 0)
+  // "Total ventas del dia" = solo CONTADO. La fila CREDITO (facturado hoy a
+  // credito, sin RI) se muestra aparte, no se suma aqui.
+  const totalVentas = resumenVentas
+    .filter((r) => (r.clase || '').toUpperCase() === 'CONTADO')
+    .reduce((s, r) => s + (r.total || 0), 0)
   const totalPorNcf = porNcf.reduce((s, r) => s + (r.total_neto || 0), 0)
-  const totalFacturas = facturas.reduce((s, f) => s + (f.total_neto || 0), 0)
+  const totalFacturas = facturasNoCredito.reduce((s, f) => s + (f.total_neto || 0), 0)
 
   const sectionTitle: CSSProperties = {
     fontSize: fontSize + 2,
@@ -1340,7 +1345,7 @@ function BloqueCuadreCaja({
               ))}
               <tr style={tfootRow}>
                 <td colSpan={3} style={tdR}>
-                  Total ventas del dia
+                  Total ventas del dia (contado, no incluye credito sin RI)
                 </td>
                 <td style={tdR}>{money(totalVentas)}</td>
               </tr>
@@ -1543,6 +1548,8 @@ function BloqueCuadreCaja({
             const dgi = (f.ncf_dgi || '').trim().toUpperCase()
             return /^B\d{2}/.test(dgi) ? dgi.slice(0, 3) : 'SIN NCF'
           }
+          const esCredito = (f: FacturaItem) =>
+            (f.tipo_factura || '').toUpperCase() === 'FC'
           const groups = new Map<string, Grupo>()
           for (const f of facturas) {
             const key = getNcfTipo(f)
@@ -1554,9 +1561,12 @@ function BloqueCuadreCaja({
               descuento: 0,
             }
             g.rows.push(f)
-            g.total += f.total_neto || 0
-            g.itbis += f.impuesto || 0
-            g.descuento += f.descuento || 0
+            // Las FC (a credito) se listan pero no suman hasta tener un RI.
+            if (!esCredito(f)) {
+              g.total += f.total_neto || 0
+              g.itbis += f.impuesto || 0
+              g.descuento += f.descuento || 0
+            }
             groups.set(key, g)
           }
           const facturasPorNcf = [...groups.values()].sort((a, b) =>
@@ -1623,10 +1633,17 @@ function BloqueCuadreCaja({
                         {g.rows.map((f, i) => {
                           const num = `${f.tipo_factura || ''}-${f.no_factura || ''}`
                           const anul = f.st_anulado === 'S'
+                          const credito = esCredito(f)
                           return (
                             <Fragment key={`${g.ncf_tipo}-${num}-${i}`}>
                               <tr
-                                style={anul ? { color: '#b91c1c' } : undefined}
+                                style={
+                                  anul
+                                    ? { color: '#b91c1c' }
+                                    : credito
+                                      ? { background: '#fffbeb' }
+                                      : undefined
+                                }
                               >
                                 <td
                                   style={{
@@ -1641,6 +1658,19 @@ function BloqueCuadreCaja({
                                 <td style={td}>{fmtDate(f.fecha)}</td>
                                 <td style={td}>
                                   {(f.nombre_cliente || '').slice(0, 60)}
+                                  {credito && !anul && (
+                                    <span
+                                      style={{
+                                        marginLeft: 6,
+                                        fontSize: fontSize - 2,
+                                        fontWeight: 700,
+                                        color: '#92400e',
+                                        textTransform: 'uppercase',
+                                      }}
+                                    >
+                                      A credito · sin pagar
+                                    </span>
+                                  )}
                                 </td>
                                 <td style={{ ...td, fontFamily: 'monospace' }}>
                                   {f.ncf_dgi || '—'}
@@ -1648,7 +1678,11 @@ function BloqueCuadreCaja({
                                 <td style={td}>{f.forma_pago || ''}</td>
                                 <td style={tdR}>{money(f.descuento ?? 0)}</td>
                                 <td style={tdR}>{money(f.impuesto ?? 0)}</td>
-                                <td style={tdR}>{money(f.total_neto ?? 0)}</td>
+                                <td style={tdR}>
+                                  {credito
+                                    ? `(${money(f.total_neto ?? 0)})`
+                                    : money(f.total_neto ?? 0)}
+                                </td>
                               </tr>
                               {anul && f.motivo_anulacion && (
                                 <tr style={{ color: '#b91c1c' }}>
@@ -1691,7 +1725,12 @@ function BloqueCuadreCaja({
                   {facturasPorNcf.length > 0 && (
                     <tr style={tfootRow}>
                       <td colSpan={7} style={tdR}>
-                        TOTAL FACTURAS ({facturas.length})
+                        TOTAL COBRADO ({facturasNoCredito.length} de{' '}
+                        {facturas.length} facturas
+                        {facturas.length !== facturasNoCredito.length
+                          ? ` · ${facturas.length - facturasNoCredito.length} a credito sin pagar`
+                          : ''}
+                        )
                       </td>
                       <td style={tdR}>{money(totalFacturas)}</td>
                     </tr>
