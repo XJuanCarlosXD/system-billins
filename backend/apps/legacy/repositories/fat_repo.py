@@ -1013,6 +1013,89 @@ def cuadre_caja_por_ncf_forma_pago(no_cia: str, punto: str, desde: str = '',
     } for r in rows]
 
 
+def cuadre_caja_hoja_por_ncf(no_cia: str, punto: str, fecha: str) -> list[dict]:
+    """Hoja de cuadre de caja por tipo de NCF, formato legado (Ffat266):
+    "CUADRE DE CAJA B02" con Contado/Cheques/Transferencia del dia y de
+    anteriores (facturas de fechas previas a `fecha` que aun no se habian
+    incluido en ningun cuadre — no_cuadre_caja IS NULL), mas el rango de
+    facturas (desde/hasta) cubierto por ese NCF en este cuadre.
+
+    tipo_pago fijo en las 5 companias (TFAT_TIPO_PAGO): 1=EFECTIVO,
+    2=CHEQUE, 8=TRANSFERENCIA. No incluye tarjeta (3) ni a credito (4) —
+    igual que la hoja legado, que solo desglosa esas 3 formas de pago.
+    """
+    params = {'p_cia': no_cia, 'p_pto': punto, 'p_fecha': fecha}
+    sql = (
+        "SELECT origen, ncf_tipo, tipo_pago, no_factura, monto FROM ("
+        "  SELECT 'DIA' AS origen, NVL(f.posiciones_fijas_ncf,'—') AS ncf_tipo, "
+        "    fp.tipo_pago AS tipo_pago, f.no_factura AS no_factura, fp.monto AS monto "
+        "  FROM FAT.TFAT_FACTURA f "
+        "  JOIN FAT.TFAT_FORMA_PAGO fp ON fp.no_cia=f.no_cia AND fp.punto=f.punto "
+        "    AND fp.tipo_factura=f.tipo_factura AND fp.no_factura=f.no_factura "
+        "  WHERE f.no_cia=:p_cia AND f.punto=:p_pto AND NVL(f.st_anulado,'N')='N' "
+        "    AND TRUNC(f.fecha) = TO_DATE(:p_fecha,'YYYY-MM-DD') "
+        "  UNION ALL "
+        "  SELECT 'ANTERIOR' AS origen, NVL(f.posiciones_fijas_ncf,'—') AS ncf_tipo, "
+        "    fp.tipo_pago AS tipo_pago, f.no_factura AS no_factura, fp.monto AS monto "
+        "  FROM FAT.TFAT_FACTURA f "
+        "  JOIN FAT.TFAT_FORMA_PAGO fp ON fp.no_cia=f.no_cia AND fp.punto=f.punto "
+        "    AND fp.tipo_factura=f.tipo_factura AND fp.no_factura=f.no_factura "
+        "  WHERE f.no_cia=:p_cia AND f.punto=:p_pto AND NVL(f.st_anulado,'N')='N' "
+        "    AND f.no_cuadre_caja IS NULL "
+        "    AND TRUNC(f.fecha) < TO_DATE(:p_fecha,'YYYY-MM-DD') "
+        ")"
+    )
+    rows = client.fetch_dicts(sql, params)
+
+    hojas: dict = {}
+    for r in rows:
+        ncf = (r['ncf_tipo'] or '—').strip().upper()
+        h = hojas.get(ncf)
+        if not h:
+            h = hojas[ncf] = {
+                'dia': {'efectivo': 0.0, 'cheques': 0.0, 'transferencia': 0.0},
+                'anterior': {'efectivo': 0.0, 'cheques': 0.0, 'transferencia': 0.0},
+                'factura_desde': None, 'factura_hasta': None,
+            }
+        bucket = 'dia' if r['origen'] == 'DIA' else 'anterior'
+        tipo_pago = (r['tipo_pago'] or '').strip()
+        monto = float(r['monto'] or 0)
+        if tipo_pago == '1':
+            h[bucket]['efectivo'] += monto
+        elif tipo_pago == '2':
+            h[bucket]['cheques'] += monto
+        elif tipo_pago == '8':
+            h[bucket]['transferencia'] += monto
+        no_fact = r['no_factura']
+        if no_fact:
+            if h['factura_desde'] is None or no_fact < h['factura_desde']:
+                h['factura_desde'] = no_fact
+            if h['factura_hasta'] is None or no_fact > h['factura_hasta']:
+                h['factura_hasta'] = no_fact
+
+    out = []
+    for ncf, h in sorted(hojas.items()):
+        total_dia = sum(h['dia'].values())
+        total_anterior = sum(h['anterior'].values())
+        venta_general = total_dia + total_anterior
+        out.append({
+            'ncf_tipo': ncf,
+            'contado_dia': h['dia']['efectivo'],
+            'cheques_dia': h['dia']['cheques'],
+            'transferencia_dia': h['dia']['transferencia'],
+            'total_venta_dia': total_dia,
+            'contado_anterior': h['anterior']['efectivo'],
+            'cheques_anterior': h['anterior']['cheques'],
+            'transferencia_anterior': h['anterior']['transferencia'],
+            'total_venta_anterior': total_anterior,
+            'venta_general': venta_general,
+            'total_ingreso': venta_general,
+            'factura_desde': h['factura_desde'],
+            'factura_hasta': h['factura_hasta'],
+        })
+    return out
+
+
 # ── Reporte Ventas por Producto ───────────────────────────────────────────────
 
 def rep_ventas_producto(no_cia: str, punto: str, desde: str, hasta: str,

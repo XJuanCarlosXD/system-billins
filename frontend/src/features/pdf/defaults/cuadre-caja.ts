@@ -21,6 +21,10 @@ export const cuadreCajaDefault: any = {
       // Detalle de facturas off por default — solo si el usuario activa el
       // toggle "Incluir detalle" o lo prende en la plantilla.
       showDetalleFacturas: false,
+      // Hoja de cuadre por NCF (formato legado) off por default — solo si
+      // el usuario prende el check "Generar por NCF" en la pantalla (envia
+      // extra.hoja_por_ncf ya calculado) o lo prende aqui en la plantilla.
+      showHojaPorNcf: false,
       colorTitulo: '#0F172A',
       fontSize: 9,
     } },

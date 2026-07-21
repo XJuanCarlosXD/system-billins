@@ -683,6 +683,16 @@ def fat_cuadre_caja_print_data(request):
             no_cia, punto, fecha, fecha, '', '')
     except Exception:
         por_ncf_forma_pago = []
+    # Hoja legado "CUADRE DE CAJA <NCF>" (Ffat266) — solo se calcula si el
+    # usuario prende el check "Generar por NCF" en la pantalla, para no
+    # pagar esta query extra en cada refresh.
+    hoja_por_ncf_flag = request.GET.get('hoja_por_ncf', '0') in ('1', 'true', 'S', 's')
+    hoja_por_ncf: list = []
+    if hoja_por_ncf_flag:
+        try:
+            hoja_por_ncf = fat_repo.cuadre_caja_hoja_por_ncf(no_cia, punto, fecha)
+        except Exception:
+            hoja_por_ncf = []
 
     try:
         historial = fat_repo.list_cuadre_caja(
@@ -747,6 +757,7 @@ def fat_cuadre_caja_print_data(request):
             'resumen_pago': resumen_pago,
             'por_ncf': por_ncf,
             'por_ncf_forma_pago': por_ncf_forma_pago,
+            'hoja_por_ncf': hoja_por_ncf,
             'facturas': facturas,
             'totales': {
                 'forma_pago': total_forma_pago,

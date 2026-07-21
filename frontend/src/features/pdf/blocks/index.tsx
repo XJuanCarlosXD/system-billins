@@ -1149,6 +1149,21 @@ type FacturaItem = {
   st_anulado?: string
   motivo_anulacion?: string
 }
+type HojaPorNcfItem = {
+  ncf_tipo: string
+  contado_dia: number
+  cheques_dia: number
+  transferencia_dia: number
+  total_venta_dia: number
+  contado_anterior: number
+  cheques_anterior: number
+  transferencia_anterior: number
+  total_venta_anterior: number
+  venta_general: number
+  total_ingreso: number
+  factura_desde: string | null
+  factura_hasta: string | null
+}
 
 function labelNcfHuman(t: string): string {
   const k = (t || '').toUpperCase()
@@ -1172,6 +1187,7 @@ type BloqueCuadreCajaProps = {
   showPorNcf: boolean
   showMatrizNcfFormaPago: boolean
   showDetalleFacturas: boolean
+  showHojaPorNcf: boolean
   colorTitulo: string
   fontSize: number
 }
@@ -1181,11 +1197,13 @@ function BloqueCuadreCaja({
   showPorNcf,
   showMatrizNcfFormaPago,
   showDetalleFacturas,
+  showHojaPorNcf,
   colorTitulo,
   fontSize,
 }: BloqueCuadreCajaProps) {
   const data = usePdfData()
   if (!data || !isReportePayload(data)) return null
+  const cia = (data as ReportePrintPayload).cia
   const extra = ((data as ReportePrintPayload).extra ?? {}) as Record<
     string,
     unknown
@@ -1204,6 +1222,12 @@ function BloqueCuadreCaja({
   // viaja como extra.incluir_detalle. Sobreescribe la plantilla.
   const incluirDetalleFlag = !!extra.incluir_detalle
   const renderDetalle = showDetalleFacturas || incluirDetalleFlag
+
+  // Hoja de cuadre por NCF (formato legado Ffat266, "CUADRE DE CAJA B02").
+  // El backend solo la calcula si la pantalla pidio hoja_por_ncf=1.
+  const hojaPorNcf = (extra.hoja_por_ncf as HojaPorNcfItem[]) ?? []
+  const renderHojaPorNcf = (showHojaPorNcf || hojaPorNcf.length > 0) && hojaPorNcf.length > 0
+  const fechaCuadre = (extra.fecha as string) || ''
 
   // Pivot NCF × forma_pago
   const formasSet = new Set<string>()
@@ -1677,8 +1701,117 @@ function BloqueCuadreCaja({
             </>
           )
         })()}
+
+      {renderHojaPorNcf && (
+        <>
+          {hojaPorNcf.map((h) => {
+            const labelRow: CSSProperties = {
+              display: 'flex',
+              justifyContent: 'space-between',
+              borderBottom: '1px solid #e5e7eb',
+              padding: '3px 0',
+            }
+            const totalRow: CSSProperties = {
+              ...labelRow,
+              fontWeight: 700,
+              borderTop: '1px solid #999',
+              borderBottom: 'none',
+              marginTop: 2,
+              paddingTop: 4,
+            }
+            return (
+              <div
+                key={h.ncf_tipo}
+                style={{ pageBreakBefore: 'always', paddingTop: 8 }}
+              >
+                <div
+                  style={{
+                    fontSize: fontSize + 4,
+                    fontWeight: 700,
+                    textAlign: 'center',
+                    margin: '8px 0 16px 0',
+                  }}
+                >
+                  CUADRE DE CAJA {h.ncf_tipo}
+                </div>
+                <div style={{ ...labelRow, borderBottom: 'none' }}>
+                  <span style={{ fontWeight: 700 }}>Empresa:</span>
+                  <span>{cia?.razon_social || ''}</span>
+                </div>
+                <div
+                  style={{
+                    textAlign: 'right',
+                    fontWeight: 700,
+                    marginBottom: 8,
+                  }}
+                >
+                  {fmtDate(fechaCuadre)}
+                </div>
+
+                <div style={labelRow}>
+                  <span>CONTADO DEL DIA:</span>
+                  <span>{money(h.contado_dia)}</span>
+                </div>
+                <div style={labelRow}>
+                  <span>CHEQUES:</span>
+                  <span>{money(h.cheques_dia)}</span>
+                </div>
+                <div style={labelRow}>
+                  <span>TRANSFERENCIA:</span>
+                  <span>{money(h.transferencia_dia)}</span>
+                </div>
+                <div style={totalRow}>
+                  <span>TOTAL VENTA DEL DIA:</span>
+                  <span>{money(h.total_venta_dia)}</span>
+                </div>
+
+                <div style={{ ...labelRow, marginTop: 16 }}>
+                  <span>CONTADO ANTERIORES:</span>
+                  <span>{money(h.contado_anterior)}</span>
+                </div>
+                <div style={labelRow}>
+                  <span>CHEQUES ANTERIORES:</span>
+                  <span>{money(h.cheques_anterior)}</span>
+                </div>
+                <div style={labelRow}>
+                  <span>TRANSFERENCIA ANTERIORES:</span>
+                  <span>{money(h.transferencia_anterior)}</span>
+                </div>
+                <div style={totalRow}>
+                  <span>TOTAL VENTA ANTERIOR:</span>
+                  <span>{money(h.total_venta_anterior)}</span>
+                </div>
+
+                <div style={{ ...totalRow, marginTop: 16 }}>
+                  <span>VENTA GENERAL</span>
+                  <span>{money(h.venta_general)}</span>
+                </div>
+                <div style={totalRow}>
+                  <span>TOTAL INGRESO</span>
+                  <span>{money(h.total_ingreso)}</span>
+                </div>
+
+                <div style={{ ...labelRow, marginTop: 24, borderBottom: 'none' }}>
+                  <span>Factura Desde:</span>
+                  <span>{stripLeadingZeros(h.factura_desde)}</span>
+                </div>
+                <div style={{ ...labelRow, borderBottom: 'none' }}>
+                  <span>Factura Hasta:</span>
+                  <span>{stripLeadingZeros(h.factura_hasta)}</span>
+                </div>
+              </div>
+            )
+          })}
+        </>
+      )}
     </div>
   )
+}
+
+function stripLeadingZeros(s: string | null | undefined): string {
+  if (!s) return ''
+  const n = s.replace(/^0+/, '')
+  return n || '0'
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -2433,6 +2566,13 @@ export const puckConfig = {
             { label: 'No', value: false },
           ],
         },
+        showHojaPorNcf: {
+          type: 'radio',
+          options: [
+            { label: 'Sí', value: true },
+            { label: 'No', value: false },
+          ],
+        },
         colorTitulo: { type: 'text' },
         fontSize: { type: 'number', min: 7, max: 14 },
       },
@@ -2441,6 +2581,7 @@ export const puckConfig = {
         showPorNcf: true,
         showMatrizNcfFormaPago: true,
         showDetalleFacturas: true,
+        showHojaPorNcf: false,
         colorTitulo: '#0F172A',
         fontSize: 9,
       },

@@ -62,6 +62,22 @@ type FacturaItem = {
   motivo_anulacion?: string
 }
 
+type HojaPorNcfItem = {
+  ncf_tipo: string
+  contado_dia: number
+  cheques_dia: number
+  transferencia_dia: number
+  total_venta_dia: number
+  contado_anterior: number
+  cheques_anterior: number
+  transferencia_anterior: number
+  total_venta_anterior: number
+  venta_general: number
+  total_ingreso: number
+  factura_desde: string | null
+  factura_hasta: string | null
+}
+
 type CuadreResp = {
   fecha: string
   fecha_solicitada: string
@@ -71,6 +87,7 @@ type CuadreResp = {
   resumen_ventas: VentasDiaItem[]
   resumen_pago: ResumenItem[]
   por_ncf_forma_pago: NcfFormaPagoItem[]
+  hoja_por_ncf: HojaPorNcfItem[]
   facturas: FacturaItem[]
 }
 
@@ -150,11 +167,13 @@ async function fetchCuadreDia(
   noCia: string,
   punto: string,
   fecha: string,
-  incluirDetalle: boolean
+  incluirDetalle: boolean,
+  hojaPorNcf: boolean
 ): Promise<CuadreResp> {
   const p = new URLSearchParams({ no_cia: noCia, punto })
   if (fecha) p.set('fecha', fecha)
   if (incluirDetalle) p.set('incluir_detalle', '1')
+  if (hojaPorNcf) p.set('hoja_por_ncf', '1')
 
   const res = await fetch(`${API}/fat/reportes/cuadre-caja/print-data/?${p}`, {
     credentials: 'include',
@@ -174,6 +193,7 @@ async function fetchCuadreDia(
     resumen_ventas: e.resumen_ventas || [],
     resumen_pago: e.resumen_pago || [],
     por_ncf_forma_pago: e.por_ncf_forma_pago || [],
+    hoja_por_ncf: e.hoja_por_ncf || [],
     facturas: e.facturas || [],
   }
 }
@@ -181,10 +201,11 @@ async function fetchCuadreDia(
 export function CuadreCajaFat({ noCia, punto }: Props) {
   const [fecha, setFecha] = useState(TODAY)
   const [incluirDetalle, setIncluirDetalle] = useState(false)
+  const [hojaPorNcf, setHojaPorNcf] = useState(false)
 
   const q = useQuery({
-    queryKey: ['fat-cuadre-dia', noCia, punto, fecha, incluirDetalle],
-    queryFn: () => fetchCuadreDia(noCia, punto, fecha, incluirDetalle),
+    queryKey: ['fat-cuadre-dia', noCia, punto, fecha, incluirDetalle, hojaPorNcf],
+    queryFn: () => fetchCuadreDia(noCia, punto, fecha, incluirDetalle, hojaPorNcf),
     enabled: !!noCia && !!fecha,
     staleTime: 60_000,
   })
@@ -194,6 +215,7 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
   const resumen = data?.resumen_pago ?? []
   const resumenVentas = data?.resumen_ventas ?? []
   const porNcfFormaPago = data?.por_ncf_forma_pago ?? []
+  const hojaPorNcfData = data?.hoja_por_ncf ?? []
   // Las facturas a credito (FC) ya se muestran aparte en "Ventas del Dia"
   // (clase CREDITO, arriba) - no deben listarse ni sumarse otra vez en el
   // detalle de facturas / total de facturas registradas de esta seccion.
@@ -356,12 +378,35 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
       }
     }
 
+    if (hojaPorNcf && hojaPorNcfData.length) {
+      for (const h of hojaPorNcfData) {
+        rows.push([])
+        rows.push([`=== CUADRE DE CAJA ${h.ncf_tipo} ===`])
+        rows.push(['CONTADO DEL DIA', h.contado_dia.toFixed(2)])
+        rows.push(['CHEQUES', h.cheques_dia.toFixed(2)])
+        rows.push(['TRANSFERENCIA', h.transferencia_dia.toFixed(2)])
+        rows.push(['TOTAL VENTA DEL DIA', h.total_venta_dia.toFixed(2)])
+        rows.push(['CONTADO ANTERIORES', h.contado_anterior.toFixed(2)])
+        rows.push(['CHEQUES ANTERIORES', h.cheques_anterior.toFixed(2)])
+        rows.push([
+          'TRANSFERENCIA ANTERIORES',
+          h.transferencia_anterior.toFixed(2),
+        ])
+        rows.push(['TOTAL VENTA ANTERIOR', h.total_venta_anterior.toFixed(2)])
+        rows.push(['VENTA GENERAL', h.venta_general.toFixed(2)])
+        rows.push(['TOTAL INGRESO', h.total_ingreso.toFixed(2)])
+        rows.push(['Factura Desde', (h.factura_desde || '').replace(/^0+/, '')])
+        rows.push(['Factura Hasta', (h.factura_hasta || '').replace(/^0+/, '')])
+      }
+    }
+
     downloadCsv(`cuadre-caja-${fecha}.csv`, [], rows, meta)
   }
 
   const abrirPdf = () => {
     const u = new URLSearchParams({ no_cia: noCia, punto })
     if (incluirDetalle) u.set('incluir_detalle', '1')
+    if (hojaPorNcf) u.set('hoja_por_ncf', '1')
 
     window.open(
       `/print/cuadre-caja/${encodeURIComponent(fecha)}?${u.toString()}`,
@@ -443,6 +488,17 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
           />
           <Label htmlFor='inc-det' className='cursor-pointer text-sm'>
             Mostrar detalle en NCF y PDF
+          </Label>
+        </div>
+
+        <div className='flex items-center gap-2 pb-1'>
+          <Switch
+            id='hoja-ncf'
+            checked={hojaPorNcf}
+            onCheckedChange={(v) => setHojaPorNcf(!!v)}
+          />
+          <Label htmlFor='hoja-ncf' className='cursor-pointer text-sm'>
+            Generar por NCF (hoja formato legado)
           </Label>
         </div>
 
@@ -642,6 +698,90 @@ export function CuadreCajaFat({ noCia, punto }: Props) {
                 </TableRow>
               </TableBody>
             </Table>
+          )}
+
+          {hojaPorNcf && hojaPorNcfData.length > 0 && (
+            <div className='border-t p-3 space-y-4'>
+              <div className='text-sm font-semibold text-blue-700'>
+                Hoja de Cuadre por NCF (formato legado) · saldra en el PDF
+              </div>
+              {hojaPorNcfData.map((h) => (
+                <div
+                  key={h.ncf_tipo}
+                  className='rounded border bg-muted/10 p-3 max-w-md'
+                >
+                  <div className='text-center font-semibold mb-2'>
+                    CUADRE DE CAJA {h.ncf_tipo}
+                  </div>
+                  <div className='flex justify-between text-sm border-b py-1'>
+                    <span>CONTADO DEL DIA:</span>
+                    <span className='font-mono'>{fmtN(h.contado_dia)}</span>
+                  </div>
+                  <div className='flex justify-between text-sm border-b py-1'>
+                    <span>CHEQUES:</span>
+                    <span className='font-mono'>{fmtN(h.cheques_dia)}</span>
+                  </div>
+                  <div className='flex justify-between text-sm border-b py-1'>
+                    <span>TRANSFERENCIA:</span>
+                    <span className='font-mono'>
+                      {fmtN(h.transferencia_dia)}
+                    </span>
+                  </div>
+                  <div className='flex justify-between text-sm font-semibold py-1'>
+                    <span>TOTAL VENTA DEL DIA:</span>
+                    <span className='font-mono'>
+                      {fmtN(h.total_venta_dia)}
+                    </span>
+                  </div>
+                  <div className='flex justify-between text-sm border-b py-1 mt-2'>
+                    <span>CONTADO ANTERIORES:</span>
+                    <span className='font-mono'>
+                      {fmtN(h.contado_anterior)}
+                    </span>
+                  </div>
+                  <div className='flex justify-between text-sm border-b py-1'>
+                    <span>CHEQUES ANTERIORES:</span>
+                    <span className='font-mono'>
+                      {fmtN(h.cheques_anterior)}
+                    </span>
+                  </div>
+                  <div className='flex justify-between text-sm border-b py-1'>
+                    <span>TRANSFERENCIA ANTERIORES:</span>
+                    <span className='font-mono'>
+                      {fmtN(h.transferencia_anterior)}
+                    </span>
+                  </div>
+                  <div className='flex justify-between text-sm font-semibold py-1'>
+                    <span>TOTAL VENTA ANTERIOR:</span>
+                    <span className='font-mono'>
+                      {fmtN(h.total_venta_anterior)}
+                    </span>
+                  </div>
+                  <div className='flex justify-between text-sm font-semibold py-1 mt-2 border-t-2'>
+                    <span>VENTA GENERAL</span>
+                    <span className='font-mono'>
+                      {fmtN(h.venta_general)}
+                    </span>
+                  </div>
+                  <div className='flex justify-between text-sm font-semibold py-1'>
+                    <span>TOTAL INGRESO</span>
+                    <span className='font-mono'>{fmtN(h.total_ingreso)}</span>
+                  </div>
+                  <div className='flex justify-between text-sm py-1 mt-2'>
+                    <span>Factura Desde:</span>
+                    <span className='font-mono'>
+                      {(h.factura_desde || '').replace(/^0+/, '') || '—'}
+                    </span>
+                  </div>
+                  <div className='flex justify-between text-sm py-1'>
+                    <span>Factura Hasta:</span>
+                    <span className='font-mono'>
+                      {(h.factura_hasta || '').replace(/^0+/, '') || '—'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
 
           {incluirDetalle && (
