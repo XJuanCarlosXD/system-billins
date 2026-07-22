@@ -18,4 +18,6 @@ httpx-sse>=0.4
 requests>=2.31
 lxml>=4.9
 signxml>=5.0
+playwright>=1.48
+beautifulsoup4>=4.12
 
