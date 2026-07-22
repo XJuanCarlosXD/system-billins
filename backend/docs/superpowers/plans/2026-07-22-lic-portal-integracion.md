@@ -12,6 +12,39 @@
 
 ---
 
+## Entorno de ejecución real (leer antes de cualquier tarea)
+
+Descubierto durante la planificación, corrige suposiciones del texto de las tareas de abajo:
+
+- **No hay Docker local.** El backend real corre en el contenedor `facturation_backend` de la VM
+  `10.0.0.99` (usuario `jcabreu`, password `Temp1234!`, hostkey
+  `SHA256:ds2PzCSg6+BrqLex5a74SVS681czz+P3+l6lKPuuztc`), proyecto remoto en
+  `~/facturation-system`. Cualquier paso que diga `docker exec -it facturation_backend ...`
+  debe traducirse a `plink -batch -hostkey "..." -pw "Temp1234!" jcabreu@10.0.0.99 "docker exec
+  facturation_backend ..."`. Subir archivos con `pscp` (ver skill `sigaft-deploy-vm`).
+- **Riesgo de divergencia VM vs git.** La VM NO es un repo git y está adelante del repo local en
+  varios archivos (memoria `deploy/vm-source-of-truth-2026-05-25`). Antes de subir cualquier
+  cambio a un archivo que YA EXISTE en la VM (no uno nuevo) — en este plan eso aplica a
+  `backend/facturation_api/settings.py`, `backend/facturation_api/urls.py`,
+  `backend/requirements.txt`, `backend/Dockerfile.dev`, `docker-compose.yml`,
+  `frontend/src/components/layout/data/sidebar-data.ts` — primero descargar la versión viva de
+  la VM con `pscp` (dirección inversa), diferenciarla contra el archivo local, y editar sobre esa
+  versión. Los archivos nuevos de `apps/lic/` y `features/lic/` no tienen este riesgo.
+- **El contenedor backend corre `python manage.py runserver` (StatReloader)**, no
+  necesariamente `uvicorn --reload` como sugiere el `docker-compose.yml` local — confirmar el
+  comando real en la VM (`plink ... "docker inspect facturation_backend --format '{{.Config.Cmd}}'"`)
+  antes de asumir cuál es, especialmente para la Tarea 9.
+- **Tarea 9 requiere reconstruir y reiniciar la imagen del backend** (para instalar Playwright/
+  Chromium y cron) — esto rompe la regla no-escrita de este VM de "nunca reiniciar contenedores,
+  el hot-reload es automático". Como el backend es producción viva (facturación real), **no
+  ejecutar la reconstrucción de la Tarea 9 sin pausar primero y pedir confirmación explícita al
+  usuario**, incluso en modo de ejecución continua.
+- No usar `npm run build` de forma rutinaria (preferencia del usuario) — verificar rutas del
+  frontend contra Vite dev en la VM (puerto 5173) en vez de una build completa, salvo que una
+  tarea lo requiera explícitamente para regenerar `routeTree.gen.ts`.
+
+---
+
 ## File Structure
 
 New/modified files:
