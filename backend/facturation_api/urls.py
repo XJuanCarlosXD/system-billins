@@ -21,4 +21,5 @@ urlpatterns = [
     path('api/fe/', include('apps.fe.urls')),
     path('api/', include('apps.mcp.urls')),
     path('api/', include('apps.asistente.urls')),
+    path('api/', include('apps.reportes.urls')),
 ]

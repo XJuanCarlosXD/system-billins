@@ -8,6 +8,7 @@ import {
   CreditCard,
   FileText,
   Layers,
+  LifeBuoy,
   Package,
   Receipt,
   ShieldCheck,
@@ -70,6 +71,7 @@ import { McpUsagePage } from '@/features/admin/mcp/routes/mcp-usage-page'
 import { UsersAdminPage } from '@/features/auth-mgmt/users-admin'
 import { ManManuales, ManManualDocsPage } from '@/features/man/man-manuales'
 import { EmpresasPage } from '@/features/empresas'
+import { ReportesAdminTable } from '@/features/reportes/reportes-admin-table'
 import { CondicionesPago } from '@/features/fat/condiciones-pago'
 import { ListasPrecioFat } from '@/features/fat/listas-precio'
 import { NotasFat } from '@/features/fat/fat-notas'
@@ -718,6 +720,28 @@ export const settingsCatalog: SettingsCategory[] = [
               'ncf',
             ],
             render: () => <PdfTemplatesEditor />,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'reportes',
+    title: 'Reportes de Problemas',
+    description:
+      'Reportes enviados por los usuarios desde "Soporte", con estado e imágenes.',
+    icon: LifeBuoy,
+    groups: [
+      {
+        title: 'Bandeja',
+        items: [
+          {
+            slug: 'reportes-lista',
+            title: 'Todos los reportes',
+            description:
+              'Filtra por estado y módulo, revisa imágenes y cambia el estado.',
+            keywords: ['reportes', 'problemas', 'soporte', 'bugs'],
+            render: () => <ReportesAdminTable />,
           },
         ],
       },

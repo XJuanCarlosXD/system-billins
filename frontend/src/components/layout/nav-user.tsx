@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ChevronsUpDown } from 'lucide-react'
+import { ChevronsUpDown, LifeBuoy } from 'lucide-react'
 import { apiClient, type Me } from '@/lib/api-client'
 import useDialogState from '@/hooks/use-dialog-state'
+import { SoporteDialog } from '@/features/reportes/soporte-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -32,6 +33,7 @@ type NavUserProps = {
 export function NavUser({ user }: NavUserProps) {
   const { isMobile } = useSidebar()
   const [open, setOpen] = useDialogState()
+  const [soporteOpen, setSoporteOpen] = useState(false)
   const [me, setMe] = useState<Me | null>(null)
 
   useEffect(() => {
@@ -101,6 +103,10 @@ export function NavUser({ user }: NavUserProps) {
                 <DropdownMenuItem asChild>
                   <Link to='/settings'>Configuración</Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSoporteOpen(true)}>
+                  <LifeBuoy />
+                  Soporte
+                </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -115,6 +121,7 @@ export function NavUser({ user }: NavUserProps) {
       </SidebarMenu>
 
       <SignOutDialog open={!!open} onOpenChange={setOpen} />
+      <SoporteDialog open={soporteOpen} onOpenChange={setSoporteOpen} />
     </>
   )
 }
