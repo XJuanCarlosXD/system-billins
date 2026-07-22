@@ -8,7 +8,6 @@ import {
   CreditCard,
   FileText,
   Layers,
-  LifeBuoy,
   Package,
   Receipt,
   ShieldCheck,
@@ -174,6 +173,19 @@ export const settingsCatalog: SettingsCategory[] = [
             title: 'Perfil',
             description: 'Nombre visible, biografía y enlaces.',
             render: () => <ProfileForm />,
+          },
+        ],
+      },
+      {
+        title: 'Soporte',
+        items: [
+          {
+            slug: 'reportes-lista',
+            title: 'Reportes de Problemas',
+            description:
+              'Reportes enviados por los usuarios desde "Soporte", con estado e imágenes. Filtra por estado y módulo, revisa imágenes y cambia el estado.',
+            keywords: ['reportes', 'problemas', 'soporte', 'bugs'],
+            render: () => <ReportesAdminTable />,
           },
         ],
       },
@@ -720,28 +732,6 @@ export const settingsCatalog: SettingsCategory[] = [
               'ncf',
             ],
             render: () => <PdfTemplatesEditor />,
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'reportes',
-    title: 'Reportes de Problemas',
-    description:
-      'Reportes enviados por los usuarios desde "Soporte", con estado e imágenes.',
-    icon: LifeBuoy,
-    groups: [
-      {
-        title: 'Bandeja',
-        items: [
-          {
-            slug: 'reportes-lista',
-            title: 'Todos los reportes',
-            description:
-              'Filtra por estado y módulo, revisa imágenes y cambia el estado.',
-            keywords: ['reportes', 'problemas', 'soporte', 'bugs'],
-            render: () => <ReportesAdminTable />,
           },
         ],
       },
