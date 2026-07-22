@@ -1725,6 +1725,11 @@ def list_facturas(no_cia: str, punto: str, page: int = 1, page_size: int = 30,
 
 
 def get_factura(no_cia: str, punto: str, tipo_factura: str, no_factura: str) -> dict | None:
+    # NO_FACTURA es VARCHAR2(7) con LPAD(0,7) (ver create_factura); acepta el
+    # numero tecleado sin ceros y normaliza igual que anular_factura.
+    no_factura = (no_factura or '').strip()
+    if no_factura.isdigit():
+        no_factura = no_factura.zfill(7)
     rows = client.fetch_dicts(
         "SELECT f.no_cia, f.punto, f.tipo_factura, f.no_factura, f.no_cliente, "
         "c.nombre AS nombre_cliente, f.fecha, f.vendedor, "
@@ -2444,35 +2449,49 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
             no_produ_norm = lin.get("no_produ", "").strip().upper()
             almacen_norm = lin.get("almacen", "").strip()
             cur.execute(
-                "SELECT 1 FROM INV.TINV_PRODUCTO "
+                "SELECT NVL(servicio,'I') FROM INV.TINV_PRODUCTO "
                 "WHERE no_produ=:1 AND NVL(activo,'S')='S'",
                 [no_produ_norm])
-            if not cur.fetchone():
+            row_prod = cur.fetchone()
+            if not row_prod:
                 raise ValueError("Producto {} no existe o esta inactivo".format(no_produ_norm))
-            cur.execute(
-                "SELECT NVL(ep.costo_actual,0), NVL(ep.exist_actual,0) "
-                "FROM INV.TINV_EPRODUCTO ep "
-                "WHERE ep.no_cia=:1 AND ep.punto=:2 AND ep.almacen=:3 AND ep.no_produ=:4",
-                [no_cia, punto, almacen_norm, no_produ_norm])
-            row_ep = cur.fetchone()
-            if row_ep is None:
-                raise ValueError(
-                    "Producto {} no esta asignado al almacen {} "
-                    "en la empresa {}".format(no_produ_norm, almacen_norm, no_cia))
-            costo_unit = float(row_ep[0] or 0)
-            exist_disp = float(row_ep[1] or 0)
-            # TINV_EPRODUCTO tiene CHECK exist_actual >= 0: si la venta deja
-            # existencia negativa Oracle lanza ORA-02290 y el cliente recibe
-            # un 500 opaco. Validar aqui (acumulando lineas repetidas del
-            # mismo producto/almacen) para responder 400 con mensaje claro.
-            key_ped = (almacen_norm, no_produ_norm)
-            pedido_acum[key_ped] = pedido_acum.get(key_ped, 0.0) + cant
-            if pedido_acum[key_ped] > exist_disp:
-                raise ValueError(
-                    "Existencia insuficiente del producto {} en almacen {}: "
-                    "disponible {:g}, solicitado {:g}".format(
-                        no_produ_norm, almacen_norm, exist_disp,
-                        pedido_acum[key_ped]))
+            # Los productos con codigo de servicio (SERVICIO='S') no manejan
+            # existencia fisica: nunca reciben entrada de almacen, por lo que
+            # exist_actual se queda en 0 para siempre. Exigirles asignacion al
+            # almacen o existencia disponible bloqueaba facturarlos.
+            es_servicio = (row_prod[0] or 'I').strip().upper() == 'S'
+            if es_servicio:
+                cur.execute(
+                    "SELECT NVL(ep.costo_actual,0) FROM INV.TINV_EPRODUCTO ep "
+                    "WHERE ep.no_cia=:1 AND ep.punto=:2 AND ep.almacen=:3 AND ep.no_produ=:4",
+                    [no_cia, punto, almacen_norm, no_produ_norm])
+                row_ep = cur.fetchone()
+                costo_unit = float(row_ep[0]) if row_ep else 0.0
+            else:
+                cur.execute(
+                    "SELECT NVL(ep.costo_actual,0), NVL(ep.exist_actual,0) "
+                    "FROM INV.TINV_EPRODUCTO ep "
+                    "WHERE ep.no_cia=:1 AND ep.punto=:2 AND ep.almacen=:3 AND ep.no_produ=:4",
+                    [no_cia, punto, almacen_norm, no_produ_norm])
+                row_ep = cur.fetchone()
+                if row_ep is None:
+                    raise ValueError(
+                        "Producto {} no esta asignado al almacen {} "
+                        "en la empresa {}".format(no_produ_norm, almacen_norm, no_cia))
+                costo_unit = float(row_ep[0] or 0)
+                exist_disp = float(row_ep[1] or 0)
+                # TINV_EPRODUCTO tiene CHECK exist_actual >= 0: si la venta deja
+                # existencia negativa Oracle lanza ORA-02290 y el cliente recibe
+                # un 500 opaco. Validar aqui (acumulando lineas repetidas del
+                # mismo producto/almacen) para responder 400 con mensaje claro.
+                key_ped = (almacen_norm, no_produ_norm)
+                pedido_acum[key_ped] = pedido_acum.get(key_ped, 0.0) + cant
+                if pedido_acum[key_ped] > exist_disp:
+                    raise ValueError(
+                        "Existencia insuficiente del producto {} en almacen {}: "
+                        "disponible {:g}, solicitado {:g}".format(
+                            no_produ_norm, almacen_norm, exist_disp,
+                            pedido_acum[key_ped]))
             cur.execute(
                 "SELECT empaque, NVL(cpe,1) FROM INV.TINV_EMPAQUE "
                 "WHERE no_produ=:1 "
@@ -2492,7 +2511,8 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
                 "cantidad": cant, "precio": precio, "porc_descuento": porc_desc,
                 "descuento": desc_monto, "porciento_impuesto": porc_imp,
                 "impuesto": imp_monto, "monto_neto": neto,
-                "costo": costo_unit, "empaque": empaque_unit, "cpe": cpe_unit})
+                "costo": costo_unit, "empaque": empaque_unit, "cpe": cpe_unit,
+                "es_servicio": es_servicio})
         total_neto = total_linea - total_descuento + total_impuesto
         valor_devuelto = round(max(0.0, valor_recibido - total_neto), 2) if valor_recibido else 0.0
         cur.execute(
@@ -2536,6 +2556,10 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
                  lin["porc_descuento"], lin["descuento"],
                  lin["porciento_impuesto"], lin["impuesto"], lin["monto_neto"],
                  lin["descripcion"]])
+            if lin["es_servicio"]:
+                # Codigo de servicio: no tiene existencia fisica que descargar
+                # ni movimiento de inventario que registrar.
+                continue
             # La factura nueva debe descargar inventario en el ledger INV.
             cur.execute(
                 "INSERT INTO INV.TINV_MOVIMIENTO("
@@ -2644,6 +2668,10 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
 def anular_factura(no_cia, punto, tipo_factura, no_factura, usuario, motivo="", liberar_ncf=False, tipo_anula_dgii=""):
     tf = tipo_factura.strip().upper()
     nf = no_factura.strip()
+    # NO_FACTURA es VARCHAR2(7) con LPAD(0,7) (ver create_factura); si el
+    # usuario tecleo el numero sin ceros a la izquierda no se encontraba.
+    if nf.isdigit():
+        nf = nf.zfill(7)
     with client.cursor() as cur:
         cur.execute(
             "SELECT CODIGO_NCF, NCF, NVL(ST_ANULADO,'N') FROM FAT.TFAT_FACTURA "
