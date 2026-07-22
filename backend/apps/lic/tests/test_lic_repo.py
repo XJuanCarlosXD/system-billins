@@ -1,4 +1,14 @@
+import re
+
 from apps.legacy.repositories import lic_repo
+
+
+def _bind_names(sql: str) -> set[str]:
+    """Nombres de bind (:name) que aparecen en el SQL, ignorando literales
+    entre comillas simples (p.ej. 'YYYY-MM-DD HH24:MI' no debe contar como
+    un bind ':MI')."""
+    sql_sin_literales = re.sub(r"'[^']*'", "", sql)
+    return set(re.findall(r":([A-Za-z_]\w*)", sql_sin_literales))
 
 
 def test_get_credencial_returns_none_when_missing(mock_client):
@@ -70,3 +80,53 @@ def test_upsert_oportunidad_returns_is_new_false_when_seen_before(mock_client):
     )
     assert oportunidad_id == 42
     assert is_new is False
+
+
+def test_upsert_oportunidad_insert_binds_match_placeholders(mock_client):
+    """Regresion ORA-01036: el dict de binds del INSERT no debe traer claves
+    que no aparezcan como :placeholder en el SQL (oracledb thick mode lo
+    rechaza con 'illegal variable name/number')."""
+    mock_client.fetch_dicts.return_value = []
+    cur = mock_client.cursor.return_value.__enter__.return_value
+    lic_repo.upsert_oportunidad(
+        "01",
+        {
+            "referencia": "HPDEF-DAF-CM-2026-0021",
+            "opportunity_uid": "DO1.OPDOS.5660234",
+            "tipo_proceso": "Contratación Menor",
+            "entidad": "Hospital Provincial Dr. Elio Fiallo",
+            "titulo": "ADQUISICION DE AIRE ACONDICIONADO, TV E IMPRESORA",
+            "estado_portal": "SELECCIÓN",
+            "ofertas_presentadas": 0,
+            "ofertas_creadas": 1,
+            "fecha_publicacion": "2026-07-21 14:40",
+            "fecha_limite": "2026-07-28 11:00",
+        },
+    )
+    sql, params = cur.execute.call_args[0]
+    assert set(params.keys()) == _bind_names(sql)
+
+
+def test_upsert_oportunidad_update_binds_match_placeholders(mock_client):
+    """Regresion ORA-01036: idem para la rama UPDATE, que es la que
+    realmente fallaba (el dict compartido traia no_cia/referencia, que el
+    UPDATE no usa)."""
+    mock_client.fetch_dicts.return_value = [{"id": 1}]
+    cur = mock_client.cursor.return_value.__enter__.return_value
+    lic_repo.upsert_oportunidad(
+        "01",
+        {
+            "referencia": "HPDEF-DAF-CM-2026-0021",
+            "opportunity_uid": "DO1.OPDOS.5660234",
+            "tipo_proceso": "Contratación Menor",
+            "entidad": "Hospital Provincial Dr. Elio Fiallo",
+            "titulo": "ADQUISICION DE AIRE ACONDICIONADO, TV E IMPRESORA",
+            "estado_portal": "SELECCIÓN",
+            "ofertas_presentadas": 0,
+            "ofertas_creadas": 1,
+            "fecha_publicacion": "2026-07-21 14:40",
+            "fecha_limite": "2026-07-28 11:00",
+        },
+    )
+    sql, params = cur.execute.call_args[0]
+    assert set(params.keys()) == _bind_names(sql)
