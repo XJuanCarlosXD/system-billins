@@ -232,7 +232,7 @@ function NuevoReporteForm({ onCreated }: { onCreated: () => void }) {
   )
 }
 
-function MisReportes() {
+export function MisReportes() {
   const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['reportes', 'mine'],

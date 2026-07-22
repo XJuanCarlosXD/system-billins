@@ -8,6 +8,7 @@ import {
   Command,
   CreditCard,
   LayoutDashboard,
+  LifeBuoy,
   Package,
   Receipt,
   Settings,
@@ -39,6 +40,11 @@ export const sidebarData: SidebarData = {
           title: 'Dashboard',
           url: '/',
           icon: LayoutDashboard,
+        },
+        {
+          title: 'Reportes de Problemas',
+          url: '/reportes',
+          icon: LifeBuoy,
         },
         {
           title: 'Alertas NCF',

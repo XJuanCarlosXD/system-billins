@@ -70,7 +70,6 @@ import { McpUsagePage } from '@/features/admin/mcp/routes/mcp-usage-page'
 import { UsersAdminPage } from '@/features/auth-mgmt/users-admin'
 import { ManManuales, ManManualDocsPage } from '@/features/man/man-manuales'
 import { EmpresasPage } from '@/features/empresas'
-import { ReportesAdminTable } from '@/features/reportes/reportes-admin-table'
 import { CondicionesPago } from '@/features/fat/condiciones-pago'
 import { ListasPrecioFat } from '@/features/fat/listas-precio'
 import { NotasFat } from '@/features/fat/fat-notas'
@@ -173,19 +172,6 @@ export const settingsCatalog: SettingsCategory[] = [
             title: 'Perfil',
             description: 'Nombre visible, biografía y enlaces.',
             render: () => <ProfileForm />,
-          },
-        ],
-      },
-      {
-        title: 'Soporte',
-        items: [
-          {
-            slug: 'reportes-lista',
-            title: 'Reportes de Problemas',
-            description:
-              'Reportes enviados por los usuarios desde "Soporte", con estado e imágenes. Filtra por estado y módulo, revisa imágenes y cambia el estado.',
-            keywords: ['reportes', 'problemas', 'soporte', 'bugs'],
-            render: () => <ReportesAdminTable />,
           },
         ],
       },
