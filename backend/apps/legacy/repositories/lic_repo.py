@@ -76,9 +76,11 @@ def upsert_oportunidad(no_cia: str, data: dict) -> tuple[int, bool]:
         "SELECT id FROM FAT.TLIC_OPORTUNIDAD WHERE no_cia = :1 AND referencia = :2",
         [no_cia, data["referencia"]],
     )
-    params = {
-        "no_cia": no_cia,
-        "referencia": data["referencia"],
+    # Campos compartidos por INSERT y UPDATE. OJO: cada rama pasa su propio dict de
+    # binds (no este mismo reutilizado) porque oracledb thick mode lanza
+    # ORA-01036 si el dict trae una clave que no aparece como placeholder en el
+    # SQL de esa sentencia (p.ej. no_cia/referencia no se usan en el UPDATE).
+    campos = {
         "opportunity_uid": data.get("opportunity_uid"),
         "tipo_proceso": data.get("tipo_proceso"),
         "entidad": data.get("entidad"),
@@ -92,7 +94,7 @@ def upsert_oportunidad(no_cia: str, data: dict) -> tuple[int, bool]:
     with client.cursor() as cur:
         if existing:
             oportunidad_id = existing[0]["id"]
-            params["id"] = oportunidad_id
+            update_params = dict(campos, id=oportunidad_id)
             cur.execute(
                 # opportunity_uid tambien se actualiza: puede venir null en el primer
                 # scrape (portal aun no asigna el UID) y llenarse en una pasada posterior.
@@ -103,13 +105,13 @@ def upsert_oportunidad(no_cia: str, data: dict) -> tuple[int, bool]:
                 "fecha_publicacion = TO_DATE(:fecha_publicacion, 'YYYY-MM-DD HH24:MI'), "
                 "fecha_limite = TO_DATE(:fecha_limite, 'YYYY-MM-DD HH24:MI'), "
                 "actualizado_en = SYSTIMESTAMP WHERE id = :id",
-                params,
+                update_params,
             )
             cur.connection.commit()
             return oportunidad_id, False
 
         out_id = cur.var(oracledb.NUMBER)
-        params["out_id"] = out_id
+        insert_params = dict(campos, no_cia=no_cia, referencia=data["referencia"], out_id=out_id)
         cur.execute(
             "INSERT INTO FAT.TLIC_OPORTUNIDAD (no_cia, referencia, opportunity_uid, tipo_proceso, "
             "entidad, titulo, estado_portal, ofertas_presentadas, ofertas_creadas, "
@@ -117,7 +119,7 @@ def upsert_oportunidad(no_cia: str, data: dict) -> tuple[int, bool]:
             ":tipo_proceso, :entidad, :titulo, :estado_portal, :ofertas_presentadas, "
             ":ofertas_creadas, TO_DATE(:fecha_publicacion, 'YYYY-MM-DD HH24:MI'), "
             "TO_DATE(:fecha_limite, 'YYYY-MM-DD HH24:MI')) RETURNING id INTO :out_id",
-            params,
+            insert_params,
         )
         cur.connection.commit()
         nuevo_id = int(out_id.getvalue()[0])
