@@ -318,7 +318,7 @@ export function CxcClientes({ noCia, punto = '01' }: P) {
                 </div>
                 <div className="space-y-1">
                   <Label>Cadena</Label>
-                  <Sel field="cadena" opts={cadenas} valKey="cadena" labelKey="nombre" />
+                  <Sel field="cadena" opts={cadenas} valKey="no_cadena" labelKey="descripcion" />
                 </div>
                 <div className="space-y-1">
                   <Label>Vendedor</Label>
