@@ -7,6 +7,7 @@ import {
   Coins,
   Command,
   CreditCard,
+  FileSearch,
   LayoutDashboard,
   LifeBuoy,
   Package,
@@ -314,6 +315,22 @@ export const sidebarData: SidebarData = {
                 { title: 'Resumen de Ordenes', url: '/odc/rep-resumen' },
                 { title: 'Requisicion Detalle', url: '/odc/rep-requisiciones' },
               ],
+            },
+          ],
+        },
+        {
+          title: 'Licitaciones',
+          icon: FileSearch,
+          items: [
+            {
+              title: 'Configuración',
+              items: [
+                { title: 'Empresas y Rubros RPE', url: '/lic/config' },
+              ],
+            },
+            {
+              title: 'Consultas',
+              items: [{ title: 'Oportunidades', url: '/lic/oportunidades' }],
             },
           ],
         },

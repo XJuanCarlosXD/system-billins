@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     'apps.mcp',
     'apps.asistente',
     'apps.reportes',
+    'apps.lic',
 ]
 
 AUTHENTICATION_BACKENDS = [
