@@ -20,6 +20,10 @@ class Command(BaseCommand):
         # que produce un desfase de un día entero durante la ventana medianoche UTC/8pm-medianoche
         # local -- justo el rango donde puede caer una corrida nocturna de cron.
         hoy = timezone.localdate()
+        # Nota: hay una ventana TOCTOU entre este .exists() y el ScrapeJob.objects.create()
+        # de abajo -- no está protegida por una transacción/lock. Se acepta como riesgo dado
+        # que el diseño (Task 9) solo agenda UNA entrada de cron diaria; no pretende ser
+        # a prueba de ejecuciones concurrentes reales.
         ya_corrio_hoy = ScrapeJob.objects.filter(
             trigger="auto",
             iniciado_en__date=hoy,
@@ -35,5 +39,19 @@ class Command(BaseCommand):
             return
 
         job = ScrapeJob.objects.create(trigger="auto")
-        ejecutar_scrape(job, empresas)
+        try:
+            ejecutar_scrape(job, empresas)
+        except Exception:
+            # ejecutar_scrape ya aísla errores por empresa/oportunidad/documento y no debería
+            # dejar escapar una excepción (ver orchestrator.py) -- pero si algo se le escapa
+            # igual (bug no previsto, error de programación, etc.), el bloque final de
+            # ejecutar_scrape que fija job.resumen/estado/terminado_en/save() nunca corre, y
+            # el ScrapeJob quedaría atascado en estado="corriendo" para siempre, lo cual
+            # confundiría a la UI de status por polling (Task 13). Se marca el job como
+            # error explícitamente y se re-lanza para que la excepción siga apareciendo en el
+            # log del cron.
+            job.estado = "error"
+            job.terminado_en = timezone.now()
+            job.save()
+            raise
         self.stdout.write(f"Corrida {job.id} terminada con estado {job.estado}: {job.resumen}")
