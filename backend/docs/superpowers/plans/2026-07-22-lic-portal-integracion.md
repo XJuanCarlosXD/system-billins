@@ -1111,6 +1111,19 @@ git commit -m "feat(lic): extraccion de rubros RPE desde PDF (pypdf + Claude)"
 - Create: `backend/apps/lic/services/orchestrator.py`
 - Create: `backend/apps/lic/tests/test_orchestrator.py`
 
+> **Nota post-implementación (2026-07-22):** el borrador original de este task (Steps 1-3
+> abajo) solo llamaba a `scraper.list_oportunidades()` y `lic_repo.upsert_oportunidad()` —
+> nunca a `scraper.download_documentos()`, pese a que Task 5 lo construyó específicamente para
+> esto. Se corrigió durante la implementación real: por cada oportunidad **nueva** se llama
+> `download_documentos()` (Task 5) y cada documento se persiste con
+> `lic_repo.guardar_documento()`. Además, al inspeccionar `download_documentos()` real y el DDL
+> de `FAT.TLIC_DOCUMENTO` (`backend/apps/lic/sql/001_create_tlic.sql`), se encontró que
+> `NOMBRE_ARCHIVO` y `RUTA_ARCHIVO` son `NOT NULL` (y Oracle trata `''` como NULL), mientras que
+> las entradas con `estado: "error"` que devuelve `download_documentos()` traen esos dos campos
+> en `None` — el orquestador sustituye esos casos por un placeholder no vacío antes de llamar a
+> `guardar_documento()` para no romper el insert con ORA-01400. El código y los tests reales
+> (5, no 2) quedan documentados abajo en vez de los originales.
+
 - [ ] **Step 1: Write the failing test**
 
 ```python
@@ -1136,6 +1149,9 @@ def test_ejecutar_scrape_marks_job_completado_when_no_errors():
         scraper_instance.list_oportunidades.return_value = [
             {"referencia": "REF-1", "titulo": "algo"}
         ]
+        scraper_instance.download_documentos.return_value = [
+            {"tipo_documento": "Pliego", "nombre_archivo": "pliego.pdf", "ruta_archivo": "/x/pliego.pdf", "estado": "ok"}
+        ]
         ScraperCls.return_value.__enter__.return_value = scraper_instance
 
         ejecutar_scrape(job, empresas=["01"])
@@ -1143,6 +1159,10 @@ def test_ejecutar_scrape_marks_job_completado_when_no_errors():
     job.refresh_from_db()
     assert job.estado == "completado"
     assert job.resumen["oportunidades_nuevas"] == 1
+    assert job.resumen["documentos_descargados"] == 1
+    repo.guardar_documento.assert_called_once_with(
+        1, "Pliego", "pliego.pdf", "/x/pliego.pdf", estado="ok"
+    )
 
 
 @pytest.mark.django_db
@@ -1165,6 +1185,102 @@ def test_ejecutar_scrape_marks_job_con_errores_when_login_fails():
     job.refresh_from_db()
     assert job.estado == "completado_con_errores"
     assert "01" in job.resumen["errores"]
+
+
+@pytest.mark.django_db
+def test_ejecutar_scrape_does_not_download_documents_for_existing_oportunidad():
+    """Solo se descargan documentos para oportunidades NUEVAS, no las ya vistas."""
+    job = ScrapeJob.objects.create(trigger="manual", no_cia="01")
+    credencial = {"no_cia": "01", "usuario_portal": "abregonza", "password_cifrado": "x"}
+
+    with patch("apps.lic.services.orchestrator.lic_repo") as repo, \
+         patch("apps.lic.services.orchestrator.crypto") as crypto, \
+         patch("apps.lic.services.orchestrator.LicitacionesScraper") as ScraperCls:
+        repo.get_credencial_con_password.return_value = credencial
+        crypto.decrypt.return_value = "plain-password"
+        repo.upsert_oportunidad.return_value = (1, False)  # ya existía
+        scraper_instance = MagicMock()
+        scraper_instance.list_oportunidades.return_value = [
+            {"referencia": "REF-1", "titulo": "algo"}
+        ]
+        ScraperCls.return_value.__enter__.return_value = scraper_instance
+
+        ejecutar_scrape(job, empresas=["01"])
+
+    scraper_instance.download_documentos.assert_not_called()
+    job.refresh_from_db()
+    assert job.resumen["oportunidades_nuevas"] == 0
+    assert job.resumen["documentos_descargados"] == 0
+
+
+@pytest.mark.django_db
+def test_ejecutar_scrape_continues_when_document_download_fails():
+    """Un fallo al descargar documentos de UNA oportunidad no debe tumbar toda la corrida."""
+    job = ScrapeJob.objects.create(trigger="manual", no_cia="01")
+    credencial = {"no_cia": "01", "usuario_portal": "abregonza", "password_cifrado": "x"}
+
+    with patch("apps.lic.services.orchestrator.lic_repo") as repo, \
+         patch("apps.lic.services.orchestrator.crypto") as crypto, \
+         patch("apps.lic.services.orchestrator.LicitacionesScraper") as ScraperCls:
+        repo.get_credencial_con_password.return_value = credencial
+        crypto.decrypt.return_value = "plain-password"
+        repo.upsert_oportunidad.return_value = (1, True)
+        scraper_instance = MagicMock()
+        scraper_instance.list_oportunidades.return_value = [
+            {"referencia": "REF-1", "titulo": "algo"}
+        ]
+        scraper_instance.download_documentos.side_effect = RuntimeError("timeout de red")
+        ScraperCls.return_value.__enter__.return_value = scraper_instance
+
+        ejecutar_scrape(job, empresas=["01"])
+
+    job.refresh_from_db()
+    # La oportunidad SÍ se registró como nueva; el fallo de documentos queda en errores pero
+    # no bloquea el resto de la corrida (aquí "el resto" es solo esta empresa/oportunidad,
+    # pero el punto es que el job completa, no explota).
+    assert job.resumen["oportunidades_nuevas"] == 1
+    assert job.estado == "completado_con_errores"
+    assert "01:REF-1:documentos" in job.resumen["errores"]
+
+
+@pytest.mark.django_db
+def test_ejecutar_scrape_uses_placeholder_for_failed_document_entry():
+    """Una entrada de documento individual con estado='error' trae nombre/ruta en None
+    (ver scraper.py::download_documentos); NOMBRE_ARCHIVO y RUTA_ARCHIVO son NOT NULL en
+    Oracle (y '' se trata como NULL), así que debe sustituirse por un placeholder no vacío
+    en vez de propagar None/''."""
+    job = ScrapeJob.objects.create(trigger="manual", no_cia="01")
+    credencial = {"no_cia": "01", "usuario_portal": "abregonza", "password_cifrado": "x"}
+
+    with patch("apps.lic.services.orchestrator.lic_repo") as repo, \
+         patch("apps.lic.services.orchestrator.crypto") as crypto, \
+         patch("apps.lic.services.orchestrator.LicitacionesScraper") as ScraperCls:
+        repo.get_credencial_con_password.return_value = credencial
+        crypto.decrypt.return_value = "plain-password"
+        repo.upsert_oportunidad.return_value = (1, True)
+        scraper_instance = MagicMock()
+        scraper_instance.list_oportunidades.return_value = [
+            {"referencia": "REF-1", "titulo": "algo"}
+        ]
+        scraper_instance.download_documentos.return_value = [
+            {
+                "tipo_documento": None,
+                "nombre_archivo": None,
+                "ruta_archivo": None,
+                "estado": "error",
+                "error": "descarga fallida",
+            }
+        ]
+        ScraperCls.return_value.__enter__.return_value = scraper_instance
+
+        ejecutar_scrape(job, empresas=["01"])
+
+    job.refresh_from_db()
+    assert job.resumen["documentos_descargados"] == 0
+    args, kwargs = repo.guardar_documento.call_args
+    assert args[2]  # nombre_archivo no vacío
+    assert args[3]  # ruta_archivo no vacío
+    assert kwargs["estado"] == "error"
 ```
 
 - [ ] **Step 2: Run to verify it fails**
@@ -1173,7 +1289,7 @@ def test_ejecutar_scrape_marks_job_con_errores_when_login_fails():
 docker exec -it facturation_backend pytest apps/lic/tests/test_orchestrator.py -v
 ```
 
-Expected: `ModuleNotFoundError: No module named 'apps.lic.services.orchestrator'`.
+Expected: `ModuleNotFoundError: No module named 'apps.lic.services.orchestrator'`. (Verificado en vivo el 2026-07-22.)
 
 - [ ] **Step 3: Implement it**
 
@@ -1182,6 +1298,9 @@ Expected: `ModuleNotFoundError: No module named 'apps.lic.services.orchestrator'
 endpoint de 'Buscar ahora'."""
 from __future__ import annotations
 
+from pathlib import Path
+
+from django.conf import settings
 from django.utils import timezone
 
 from apps.fe import crypto
@@ -1191,7 +1310,12 @@ from apps.lic.services.scraper import LicitacionesScraper, LoginError
 
 
 def ejecutar_scrape(job: ScrapeJob, empresas: list[str]) -> None:
-    resumen = {"oportunidades_nuevas": 0, "empresas_procesadas": [], "errores": {}}
+    resumen = {
+        "oportunidades_nuevas": 0,
+        "documentos_descargados": 0,
+        "empresas_procesadas": [],
+        "errores": {},
+    }
 
     for no_cia in empresas:
         credencial = lic_repo.get_credencial_con_password(no_cia)
@@ -1206,9 +1330,13 @@ def ejecutar_scrape(job: ScrapeJob, empresas: list[str]) -> None:
                 lic_repo.marcar_login_resultado(no_cia, ok=True)
                 oportunidades = scraper.list_oportunidades()
                 for data in oportunidades:
-                    _, es_nueva = lic_repo.upsert_oportunidad(no_cia, data)
-                    if es_nueva:
-                        resumen["oportunidades_nuevas"] += 1
+                    oportunidad_id, es_nueva = lic_repo.upsert_oportunidad(no_cia, data)
+                    if not es_nueva:
+                        continue
+                    resumen["oportunidades_nuevas"] += 1
+                    _descargar_y_guardar_documentos(
+                        scraper, no_cia, data["referencia"], oportunidad_id, resumen
+                    )
             resumen["empresas_procesadas"].append(no_cia)
         except LoginError as exc:
             lic_repo.marcar_login_resultado(no_cia, ok=False, mensaje_error=str(exc))
@@ -1220,6 +1348,43 @@ def ejecutar_scrape(job: ScrapeJob, empresas: list[str]) -> None:
     job.estado = "completado_con_errores" if resumen["errores"] else "completado"
     job.terminado_en = timezone.now()
     job.save()
+
+
+def _descargar_y_guardar_documentos(scraper, no_cia, referencia, oportunidad_id, resumen):
+    """Descarga los documentos oficiales de una oportunidad recién descubierta y los
+    persiste con ``lic_repo.guardar_documento``.
+
+    ``LicitacionesScraper.download_documentos`` puede fallar por completo (referencia no
+    encontrada en el feed, Aviso de Contrato sin sección de documentos, etc.) — ese caso se
+    captura aquí para que un problema de documentos en una oportunidad no tumbe el resto de
+    la corrida de la empresa.
+
+    Cuando la descarga en sí funciona pero un documento puntual falla, ``download_documentos``
+    ya lo reporta como una entrada con ``estado: "error"`` y ``tipo_documento``/
+    ``nombre_archivo``/``ruta_archivo`` en ``None`` (ver docstring real en
+    ``scraper.py::download_documentos``). ``NOMBRE_ARCHIVO`` y ``RUTA_ARCHIVO`` son
+    ``NOT NULL`` en ``FAT.TLIC_DOCUMENTO`` (y Oracle trata `''` como NULL), así que esas
+    entradas necesitan un valor de reemplazo no vacío para poder insertarse.
+    """
+    destino_dir = Path(settings.MEDIA_ROOT) / "lic" / no_cia / referencia
+    try:
+        documentos = scraper.download_documentos(referencia, destino_dir)
+    except Exception as exc:  # noqa: BLE001 - un fallo de documentos no debe tumbar la empresa
+        resumen["errores"][f"{no_cia}:{referencia}:documentos"] = str(exc)
+        return
+    for doc in documentos:
+        estado = doc.get("estado", "ok")
+        nombre_archivo = doc.get("nombre_archivo") or "(descarga fallida)"
+        ruta_archivo = doc.get("ruta_archivo") or f"error: {doc.get('error', 'desconocido')}"
+        lic_repo.guardar_documento(
+            oportunidad_id,
+            doc.get("tipo_documento"),
+            nombre_archivo,
+            ruta_archivo,
+            estado=estado,
+        )
+        if estado == "ok":
+            resumen["documentos_descargados"] += 1
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
@@ -1228,13 +1393,17 @@ def ejecutar_scrape(job: ScrapeJob, empresas: list[str]) -> None:
 docker exec -it facturation_backend pytest apps/lic/tests/test_orchestrator.py -v
 ```
 
-Expected: 2 passed. (Needs `pytest.mark.django_db`, which `pytest-django` already provides per `backend/requirements.txt`.)
+Expected: 5 passed (not 2 — the original draft's test count). Verificado en vivo el 2026-07-22:
+`apps/lic/tests/test_orchestrator.py .....  [100%]`, 5 passed in 1.28s. Full `apps/lic/`
+suite also re-run: 23 passed, no regressions in `test_lic_repo.py`/`test_pdf_rubros.py`/
+`test_scraper_parsing.py`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add backend/apps/lic/services/orchestrator.py backend/apps/lic/tests/test_orchestrator.py
-git commit -m "feat(lic): orquestador de scraping compartido entre cron y boton manual"
+git add backend/apps/lic/services/orchestrator.py backend/apps/lic/tests/test_orchestrator.py \
+        backend/docs/superpowers/plans/2026-07-22-lic-portal-integracion.md
+git commit -m "feat(lic): orquestador de scraping con descarga de documentos para oportunidades nuevas"
 ```
 
 ---
