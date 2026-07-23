@@ -20,4 +20,5 @@ lxml>=4.9
 signxml>=5.0
 playwright>=1.48
 beautifulsoup4>=4.12
+pypdf>=5.0
 
