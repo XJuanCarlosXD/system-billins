@@ -130,3 +130,59 @@ def analizar_licitacion(
         "estado_cumplimiento": estado_cumplimiento,
         "requisitos": requisitos,
     }
+
+
+def ejecutar_analisis_oportunidad(oportunidad_id: int) -> dict:
+    """Junta el texto de los documentos de la oportunidad + los de la empresa,
+    llama a ``analizar_licitacion`` y guarda el resultado -- función
+    compartida entre el endpoint manual "Analizar" (vista) y el scraper
+    (orquestador), para que el análisis quede listo automáticamente apenas
+    se descubre una oportunidad nueva, sin que el usuario tenga que esperar
+    una llamada a la IA al abrir el detalle."""
+    # Imports locales para evitar acoplar este módulo (apps.lic.services) al
+    # de arriba (apps.legacy.repositories) a nivel de import del paquete.
+    from apps.legacy.repositories import lic_repo
+    from apps.lic.services import pdf_rubros
+
+    oportunidad = lic_repo.get_oportunidad(oportunidad_id)
+    if not oportunidad:
+        raise AnalisisError(f"Oportunidad {oportunidad_id} no encontrada")
+
+    textos_licitacion = []
+    for doc in lic_repo.list_documentos(oportunidad_id):
+        if doc["estado"] != "ok":
+            continue
+        try:
+            textos_licitacion.append(pdf_rubros.extraer_texto_pdf(doc["ruta_archivo"]))
+        except Exception:  # noqa: BLE001 - .doc/escaneado sin texto, se omite y se sigue
+            logger.warning(
+                "lic.analizar: no se pudo extraer texto de %s (oportunidad=%s)",
+                doc["nombre_archivo"], oportunidad_id,
+            )
+
+    documentos_empresa = []
+    for d in lic_repo.list_documentos_empresa(oportunidad["no_cia"]):
+        try:
+            texto = pdf_rubros.extraer_texto_pdf(d["ruta_archivo"])
+        except Exception:  # noqa: BLE001
+            continue
+        documentos_empresa.append({
+            "id": d["id"], "nombre_archivo": d["nombre_archivo"],
+            "texto": texto, "vencido": bool(d.get("vencido")),
+        })
+
+    if not textos_licitacion:
+        raise AnalisisError(
+            "Ninguno de los documentos descargados de esta oportunidad tiene "
+            "texto extraíble (¿son escaneados o formatos no-PDF?)"
+        )
+
+    resultado = analizar_licitacion(oportunidad["titulo"] or "", textos_licitacion, documentos_empresa)
+
+    lic_repo.guardar_analisis_oportunidad(
+        oportunidad_id, resultado["resumen"], resultado["estado_cumplimiento"],
+        resultado["recomendacion"],
+    )
+    lic_repo.reemplazar_requisitos(oportunidad_id, resultado["requisitos"])
+    resultado["requisitos"] = lic_repo.list_requisitos(oportunidad_id)
+    return resultado

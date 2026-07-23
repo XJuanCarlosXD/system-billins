@@ -17,7 +17,7 @@ from apps.fe import crypto
 from apps.legacy.repositories import lic_repo
 from apps.lic.models import ScrapeJob
 from apps.lic.services import pdf_rubros
-from apps.lic.services.analisis_licitacion import AnalisisError, analizar_licitacion
+from apps.lic.services.analisis_licitacion import AnalisisError, ejecutar_analisis_oportunidad
 from apps.lic.services.orchestrator import ejecutar_scrape
 from apps.lic.services.resumen_documento import resumir_documento
 from apps.lic.services.scraper import LicitacionesScraper, LoginError
@@ -305,61 +305,17 @@ def documentos_empresa_view(request):
 @csrf_exempt
 @require_http_methods(["POST"])
 def analizar_oportunidad_view(request, oportunidad_id: int):
-    """Genera (bajo demanda) el resumen, la lista de requisitos y la
-    evaluación de cumplimiento de una oportunidad contra los documentos
-    propios de la empresa. Reemplaza el análisis anterior si ya existía uno
-    (foto nueva, no acumulativo) -- útil para re-evaluar después de subir un
-    documento nuevo."""
-    oportunidad = lic_repo.get_oportunidad(oportunidad_id)
-    if not oportunidad:
-        return _err("Oportunidad no encontrada", status=404)
-
-    textos_licitacion = []
-    for doc in lic_repo.list_documentos(oportunidad_id):
-        if doc["estado"] != "ok":
-            continue
-        try:
-            textos_licitacion.append(pdf_rubros.extraer_texto_pdf(doc["ruta_archivo"]))
-        except Exception:  # noqa: BLE001 - .doc/escaneado sin texto, se omite y se sigue
-            logger.warning(
-                "lic.analizar: no se pudo extraer texto de %s (oportunidad=%s)",
-                doc["nombre_archivo"], oportunidad_id,
-            )
-
-    documentos_empresa = []
-    for d in lic_repo.list_documentos_empresa(oportunidad["no_cia"]):
-        try:
-            texto = pdf_rubros.extraer_texto_pdf(d["ruta_archivo"])
-        except Exception:  # noqa: BLE001
-            continue
-        documentos_empresa.append({
-            "id": d["id"], "nombre_archivo": d["nombre_archivo"],
-            "texto": texto, "vencido": bool(d.get("vencido")),
-        })
-
-    if not textos_licitacion:
-        return _err(
-            "Ninguno de los documentos descargados de esta oportunidad tiene texto "
-            "extraíble (¿son escaneados o formatos no-PDF?)", status=400,
-        )
-
+    """Vuelve a correr el análisis manualmente (botón "Volver a analizar" en
+    el frontend) -- p. ej. después de subir un documento nuevo de la
+    empresa. El análisis normal ya corre solo cuando el scraper descubre la
+    oportunidad (ver orchestrator.py), así que en el flujo normal esta vista
+    ni se llama: el usuario ya ve el resumen/requisitos guardados apenas
+    abre el detalle."""
     try:
-        resultado = analizar_licitacion(oportunidad["titulo"] or "", textos_licitacion, documentos_empresa)
+        resultado = ejecutar_analisis_oportunidad(oportunidad_id)
     except AnalisisError as exc:
-        return _err(str(exc), status=502)
-
-    lic_repo.guardar_analisis_oportunidad(
-        oportunidad_id, resultado["resumen"], resultado["estado_cumplimiento"],
-        resultado["recomendacion"],
-    )
-    lic_repo.reemplazar_requisitos(oportunidad_id, resultado["requisitos"])
-
-    return JsonResponse({
-        "resumen": resultado["resumen"],
-        "recomendacion": resultado["recomendacion"],
-        "estado_cumplimiento": resultado["estado_cumplimiento"],
-        "requisitos": lic_repo.list_requisitos(oportunidad_id),
-    })
+        return _err(str(exc), status=400)
+    return JsonResponse(resultado)
 
 
 @login_required

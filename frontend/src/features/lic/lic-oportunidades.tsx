@@ -433,21 +433,14 @@ function AnalisisSeccion({ oportunidad }: { oportunidad: Oportunidad }) {
   const estadoCumplimiento = analizar.data?.estado_cumplimiento ?? oportunidad.estado_cumplimiento
   const requisitos = analizar.data?.requisitos ?? requisitosQ.data?.requisitos ?? []
 
-  // Este componente se monta de nuevo cada vez que se abre el diálogo para
-  // una oportunidad (está condicionado a `selectedOportunidad`), así que un
-  // efecto de una sola vez al montar es exactamente "apenas se abre el
-  // detalle" -- sin necesidad de un ref para no repetirlo, porque se
-  // desmonta al cerrar el diálogo. Solo dispara si nunca se ha analizado
-  // (oportunidad.resumen_ia es null); si ya hay un análisis previo, el
-  // usuario decide si lo repite con el botón "Volver a analizar".
-  useEffect(() => {
-    if (!oportunidad.resumen_ia) {
-      analizar.mutate(oportunidad.id, {
-        onError: (e) => toast.error(e.message),
-      })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [oportunidad.id])
+  // El análisis (resumen, requisitos, evaluación) NO se dispara acá al
+  // abrir el detalle -- eso implicaría una llamada a la IA en vivo cada vez
+  // que alguien mira una oportunidad, con el usuario esperando. Ya viene
+  // pre-calculado por el scraper apenas descubre la oportunidad (ver
+  // `_analizar_y_registrar` en `orchestrator.py`), así que lo que se ve acá
+  // es lo que ya está guardado en `oportunidad.resumen_ia`/etc. Este botón
+  // es solo para volver a correrlo a mano cuando haga falta (ej. después de
+  // subir un documento nuevo de la empresa).
 
   return (
     <div className='space-y-3 rounded-md border p-3'>

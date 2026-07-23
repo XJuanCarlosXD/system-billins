@@ -10,6 +10,7 @@ from django.utils import timezone
 from apps.fe import crypto
 from apps.legacy.repositories import lic_repo
 from apps.lic.models import ScrapeJob
+from apps.lic.services.analisis_licitacion import AnalisisError, ejecutar_analisis_oportunidad
 from apps.lic.services.scraper import LicitacionesScraper, LoginError
 
 
@@ -45,6 +46,14 @@ def ejecutar_scrape(job: ScrapeJob, empresas: list[str]) -> None:
                     _descargar_y_guardar_documentos(
                         scraper, no_cia, data["referencia"], oportunidad_id, resumen
                     )
+                    # El análisis con IA (resumen, requisitos, evaluación contra los
+                    # documentos de la empresa) se genera aquí, apenas se descargan los
+                    # documentos -- así el usuario ya lo ve listo al abrir el detalle en
+                    # el frontend, en vez de esperar una llamada a la IA en ese momento.
+                    # El botón "Volver a analizar" del frontend sigue existiendo para
+                    # re-correrlo a mano (p.ej. después de subir un documento nuevo de la
+                    # empresa), pero el flujo normal no depende de él.
+                    _analizar_y_registrar(no_cia, data["referencia"], oportunidad_id, resumen)
             resumen["empresas_procesadas"].append(no_cia)
         except LoginError as exc:
             lic_repo.marcar_login_resultado(no_cia, ok=False, mensaje_error=str(exc))
@@ -69,6 +78,20 @@ def _agregar_error(resumen: dict, no_cia: str, mensaje: str, *,
         "contexto": contexto,
         "mensaje": mensaje,
     })
+
+
+def _analizar_y_registrar(no_cia: str, referencia: str, oportunidad_id: int, resumen: dict) -> None:
+    """Corre el análisis con IA para una oportunidad recién procesada. Un fallo
+    acá (sin documentos con texto extraíble, error real de la API de Claude)
+    se registra como un error más de la corrida pero NO debe tumbar el resto
+    del scraping -- la oportunidad y sus documentos ya quedaron guardados de
+    todas formas, el análisis se puede reintentar luego a mano."""
+    try:
+        ejecutar_analisis_oportunidad(oportunidad_id)
+    except AnalisisError as exc:
+        _agregar_error(resumen, no_cia, str(exc), referencia=referencia, contexto="analisis")
+    except Exception as exc:  # noqa: BLE001 - fallo real de la API, mismo criterio
+        _agregar_error(resumen, no_cia, str(exc), referencia=referencia, contexto="analisis")
 
 
 def _descargar_y_guardar_documentos(scraper, no_cia, referencia, oportunidad_id, resumen):
