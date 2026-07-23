@@ -74,6 +74,37 @@ export interface Oportunidad {
   ofertas_creadas: number
   fecha_publicacion: string | null
   fecha_limite: string | null
+  resumen_ia: string | null
+  estado_cumplimiento: 'verde' | 'amarillo' | 'rojo' | null
+  recomendacion_ia: string | null
+}
+
+export interface DocumentoEmpresa {
+  id: number
+  no_cia: string
+  punto: string | null
+  nombre_archivo: string
+  ruta_archivo: string
+  descripcion: string | null
+  fecha_vencimiento: string | null
+  vencido: 0 | 1
+  subido_en: string
+}
+
+export interface Requisito {
+  id: number
+  descripcion: string
+  estado: 'cumple' | 'parcial' | 'no_cumple' | 'sin_evaluar'
+  justificacion: string | null
+  documento_empresa_id: number | null
+  actualizado_en: string
+}
+
+export interface AnalisisOportunidad {
+  resumen: string
+  recomendacion: string | null
+  estado_cumplimiento: 'verde' | 'amarillo' | 'rojo'
+  requisitos: Requisito[]
 }
 
 export interface Documento {
@@ -251,5 +282,66 @@ export function useScrapeJobStatus(jobId: number | null) {
     enabled: !!jobId,
     refetchInterval: (query) =>
       query.state.data?.estado === 'corriendo' ? 2000 : false,
+  })
+}
+
+export function useDocumentosEmpresa(no_cia: string) {
+  return useQuery({
+    queryKey: ['lic-documentos-empresa', no_cia],
+    queryFn: () =>
+      licRequest<{ documentos: DocumentoEmpresa[] }>(
+        `/lic/documentos-empresa/?no_cia=${encodeURIComponent(no_cia)}`
+      ),
+    enabled: !!no_cia,
+  })
+}
+
+export function useSubirDocumentoEmpresa() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: {
+      no_cia: string
+      punto?: string
+      archivo: File
+      descripcion?: string
+      fecha_vencimiento?: string
+    }) => {
+      const form = new FormData()
+      form.append('no_cia', payload.no_cia)
+      if (payload.punto) form.append('punto', payload.punto)
+      form.append('archivo', payload.archivo)
+      if (payload.descripcion) form.append('descripcion', payload.descripcion)
+      if (payload.fecha_vencimiento)
+        form.append('fecha_vencimiento', payload.fecha_vencimiento)
+      return licRequest<{ documentos: DocumentoEmpresa[] }>(
+        '/lic/documentos-empresa/',
+        { method: 'POST', body: form }
+      )
+    },
+    onSuccess: (_data, variables) =>
+      qc.invalidateQueries({ queryKey: ['lic-documentos-empresa', variables.no_cia] }),
+  })
+}
+
+export function useAnalizarOportunidad() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (oportunidadId: number) =>
+      licRequest<AnalisisOportunidad>(
+        `/lic/oportunidades/${oportunidadId}/analizar/`,
+        { method: 'POST' }
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['lic-oportunidades'] }),
+  })
+}
+
+export function useRequisitos(oportunidadId: number | null) {
+  return useQuery({
+    queryKey: ['lic-requisitos', oportunidadId],
+    queryFn: () =>
+      licRequest<{ requisitos: Requisito[] }>(
+        `/lic/oportunidades/${oportunidadId}/requisitos/`
+      ),
+    enabled: !!oportunidadId,
   })
 }

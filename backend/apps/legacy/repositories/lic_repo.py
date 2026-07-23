@@ -70,6 +70,14 @@ def marcar_login_resultado(no_cia: str, ok: bool, mensaje_error: str | None = No
         cur.connection.commit()
 
 
+def get_oportunidad(oportunidad_id: int) -> dict | None:
+    rows = client.fetch_dicts(
+        "SELECT id, no_cia, referencia, titulo FROM FAT.TLIC_OPORTUNIDAD WHERE id = :1",
+        [oportunidad_id],
+    )
+    return rows[0] if rows else None
+
+
 def upsert_oportunidad(no_cia: str, data: dict) -> tuple[int, bool]:
     """Inserta o actualiza una oportunidad por (no_cia, referencia). Retorna (id, es_nueva)."""
     existing = client.fetch_dicts(
@@ -136,7 +144,8 @@ def list_oportunidades(
     reales de negocio."""
     sql = (
         "SELECT id, referencia, tipo_proceso, entidad, titulo, estado_portal, "
-        "ofertas_presentadas, ofertas_creadas, fecha_publicacion, fecha_limite "
+        "ofertas_presentadas, ofertas_creadas, fecha_publicacion, fecha_limite, "
+        "resumen_ia, estado_cumplimiento, recomendacion_ia "
         "FROM FAT.TLIC_OPORTUNIDAD WHERE no_cia = :1"
     )
     params = [no_cia]
@@ -251,4 +260,92 @@ def list_rubros(no_cia: str) -> list[dict]:
         "  ) WHERE ROWNUM = 1"
         ") ORDER BY r.descripcion",
         [no_cia],
+    )
+
+
+# --- Documentos propios de la empresa (para validar contra requisitos) ---
+
+def guardar_documento_empresa(
+    no_cia: str, punto: str | None, nombre_archivo: str, ruta_archivo: str,
+    descripcion: str | None, fecha_vencimiento: str | None,
+) -> int:
+    with client.cursor() as cur:
+        out_id = cur.var(oracledb.NUMBER)
+        cur.execute(
+            "INSERT INTO FAT.TLIC_DOCUMENTO_EMPRESA "
+            "(no_cia, punto, nombre_archivo, ruta_archivo, descripcion, fecha_vencimiento) "
+            "VALUES (:no_cia, :punto, :nombre, :ruta, :descripcion, "
+            "TO_DATE(:fecha_vencimiento, 'YYYY-MM-DD')) RETURNING id INTO :out_id",
+            {
+                "no_cia": no_cia, "punto": punto, "nombre": nombre_archivo,
+                "ruta": ruta_archivo, "descripcion": descripcion,
+                "fecha_vencimiento": fecha_vencimiento, "out_id": out_id,
+            },
+        )
+        cur.connection.commit()
+        return int(out_id.getvalue()[0])
+
+
+def list_documentos_empresa(no_cia: str) -> list[dict]:
+    # vencido se calcula en SQL (no en Python) para que quede consistente
+    # sin importar la zona horaria del proceso que lo consuma.
+    return client.fetch_dicts(
+        "SELECT id, no_cia, punto, nombre_archivo, ruta_archivo, descripcion, "
+        "fecha_vencimiento, "
+        "CASE WHEN fecha_vencimiento IS NOT NULL AND fecha_vencimiento < TRUNC(SYSDATE) "
+        "     THEN 1 ELSE 0 END AS vencido, "
+        "subido_en "
+        "FROM FAT.TLIC_DOCUMENTO_EMPRESA WHERE no_cia = :1 ORDER BY nombre_archivo",
+        [no_cia],
+    )
+
+
+def get_documento_empresa(documento_empresa_id: int) -> dict | None:
+    rows = client.fetch_dicts(
+        "SELECT id, ruta_archivo, nombre_archivo FROM FAT.TLIC_DOCUMENTO_EMPRESA WHERE id = :1",
+        [documento_empresa_id],
+    )
+    return rows[0] if rows else None
+
+
+# --- Analisis IA + requisitos por oportunidad ---
+
+def guardar_analisis_oportunidad(
+    oportunidad_id: int, resumen_ia: str, estado_cumplimiento: str,
+    recomendacion_ia: str | None,
+) -> None:
+    with client.cursor() as cur:
+        cur.execute(
+            "UPDATE FAT.TLIC_OPORTUNIDAD SET resumen_ia = :1, estado_cumplimiento = :2, "
+            "recomendacion_ia = :3 WHERE id = :4",
+            [resumen_ia, estado_cumplimiento, recomendacion_ia, oportunidad_id],
+        )
+        cur.connection.commit()
+
+
+def reemplazar_requisitos(oportunidad_id: int, requisitos: list[dict]) -> None:
+    """Borra los requisitos previos de la oportunidad y guarda los nuevos --
+    cada "Analizar" es una foto nueva completa, no un merge incremental."""
+    with client.cursor() as cur:
+        cur.execute(
+            "DELETE FROM FAT.TLIC_REQUISITO WHERE oportunidad_id = :1", [oportunidad_id]
+        )
+        for r in requisitos:
+            cur.execute(
+                "INSERT INTO FAT.TLIC_REQUISITO "
+                "(oportunidad_id, descripcion, estado, justificacion, documento_empresa_id) "
+                "VALUES (:1, :2, :3, :4, :5)",
+                [
+                    oportunidad_id, r["descripcion"], r.get("estado", "sin_evaluar"),
+                    r.get("justificacion"), r.get("documento_empresa_id"),
+                ],
+            )
+        cur.connection.commit()
+
+
+def list_requisitos(oportunidad_id: int) -> list[dict]:
+    return client.fetch_dicts(
+        "SELECT id, descripcion, estado, justificacion, documento_empresa_id, actualizado_en "
+        "FROM FAT.TLIC_REQUISITO WHERE oportunidad_id = :1 ORDER BY id",
+        [oportunidad_id],
     )

@@ -17,6 +17,7 @@ from apps.fe import crypto
 from apps.legacy.repositories import lic_repo
 from apps.lic.models import ScrapeJob
 from apps.lic.services import pdf_rubros
+from apps.lic.services.analisis_licitacion import AnalisisError, analizar_licitacion
 from apps.lic.services.orchestrator import ejecutar_scrape
 from apps.lic.services.resumen_documento import resumir_documento
 from apps.lic.services.scraper import LicitacionesScraper, LoginError
@@ -260,3 +261,108 @@ def scrape_job_view(request, job_id: int):
         "terminado_en": job.terminado_en.isoformat() if job.terminado_en else None,
         "resumen": job.resumen,
     })
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def documentos_empresa_view(request):
+    """Documentos propios de la empresa (RNC, no-mora, garantías, etc.), usados
+    para evaluar contra los requisitos de una licitación -- distintos de los
+    documentos descargados del portal (que pertenecen a una oportunidad, no a
+    la empresa)."""
+    if request.method == "GET":
+        no_cia = request.GET.get("no_cia")
+        if not no_cia:
+            return _err("no_cia es requerido")
+        return JsonResponse({"documentos": lic_repo.list_documentos_empresa(no_cia)})
+
+    no_cia = request.POST.get("no_cia")
+    archivo = request.FILES.get("archivo")
+    if not no_cia or not archivo:
+        return _err("no_cia y archivo son requeridos")
+    punto = request.POST.get("punto") or None
+    descripcion = request.POST.get("descripcion") or None
+    fecha_vencimiento = request.POST.get("fecha_vencimiento") or None
+
+    destino = Path(settings.MEDIA_ROOT) / "lic" / no_cia / "documentos-empresa"
+    destino.mkdir(parents=True, exist_ok=True)
+    ruta_archivo = destino / archivo.name
+    if ruta_archivo.exists():
+        disambiguador = timezone.now().strftime("%Y%m%d%H%M%S%f")
+        ruta_archivo = ruta_archivo.with_stem(f"{ruta_archivo.stem}__{disambiguador}")
+    with open(ruta_archivo, "wb") as f:
+        for chunk in archivo.chunks():
+            f.write(chunk)
+
+    lic_repo.guardar_documento_empresa(
+        no_cia, punto, archivo.name, str(ruta_archivo), descripcion, fecha_vencimiento
+    )
+    return JsonResponse({"documentos": lic_repo.list_documentos_empresa(no_cia)}, status=201)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["POST"])
+def analizar_oportunidad_view(request, oportunidad_id: int):
+    """Genera (bajo demanda) el resumen, la lista de requisitos y la
+    evaluación de cumplimiento de una oportunidad contra los documentos
+    propios de la empresa. Reemplaza el análisis anterior si ya existía uno
+    (foto nueva, no acumulativo) -- útil para re-evaluar después de subir un
+    documento nuevo."""
+    oportunidad = lic_repo.get_oportunidad(oportunidad_id)
+    if not oportunidad:
+        return _err("Oportunidad no encontrada", status=404)
+
+    textos_licitacion = []
+    for doc in lic_repo.list_documentos(oportunidad_id):
+        if doc["estado"] != "ok":
+            continue
+        try:
+            textos_licitacion.append(pdf_rubros.extraer_texto_pdf(doc["ruta_archivo"]))
+        except Exception:  # noqa: BLE001 - .doc/escaneado sin texto, se omite y se sigue
+            logger.warning(
+                "lic.analizar: no se pudo extraer texto de %s (oportunidad=%s)",
+                doc["nombre_archivo"], oportunidad_id,
+            )
+
+    documentos_empresa = []
+    for d in lic_repo.list_documentos_empresa(oportunidad["no_cia"]):
+        try:
+            texto = pdf_rubros.extraer_texto_pdf(d["ruta_archivo"])
+        except Exception:  # noqa: BLE001
+            continue
+        documentos_empresa.append({
+            "id": d["id"], "nombre_archivo": d["nombre_archivo"],
+            "texto": texto, "vencido": bool(d.get("vencido")),
+        })
+
+    if not textos_licitacion:
+        return _err(
+            "Ninguno de los documentos descargados de esta oportunidad tiene texto "
+            "extraíble (¿son escaneados o formatos no-PDF?)", status=400,
+        )
+
+    try:
+        resultado = analizar_licitacion(oportunidad["titulo"] or "", textos_licitacion, documentos_empresa)
+    except AnalisisError as exc:
+        return _err(str(exc), status=502)
+
+    lic_repo.guardar_analisis_oportunidad(
+        oportunidad_id, resultado["resumen"], resultado["estado_cumplimiento"],
+        resultado["recomendacion"],
+    )
+    lic_repo.reemplazar_requisitos(oportunidad_id, resultado["requisitos"])
+
+    return JsonResponse({
+        "resumen": resultado["resumen"],
+        "recomendacion": resultado["recomendacion"],
+        "estado_cumplimiento": resultado["estado_cumplimiento"],
+        "requisitos": lic_repo.list_requisitos(oportunidad_id),
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def requisitos_view(request, oportunidad_id: int):
+    return JsonResponse({"requisitos": lic_repo.list_requisitos(oportunidad_id)})

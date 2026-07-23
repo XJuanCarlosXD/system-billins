@@ -10,6 +10,7 @@ import {
   Search,
   Settings,
   Sparkles,
+  Wand2,
 } from 'lucide-react'
 import { useCompany } from '@/hooks/use-company'
 import { Badge } from '@/components/ui/badge'
@@ -41,10 +42,13 @@ import {
   type Documento,
   LicApiError,
   type Oportunidad,
+  type Requisito,
+  useAnalizarOportunidad,
   useBuscarAhora,
   useDocumentos,
   useGenerarResumenDocumento,
   useOportunidades,
+  useRequisitos,
   useScrapeJobStatus,
 } from './api'
 
@@ -52,6 +56,47 @@ const TODOS = 'Todos'
 
 function formatDate(s: string | null): string {
   return s ? String(s).slice(0, 10) : ''
+}
+
+const CUMPLIMIENTO_INFO: Record<
+  'verde' | 'amarillo' | 'rojo',
+  { color: string; label: string }
+> = {
+  verde: { color: 'bg-green-500', label: 'Cumple los requisitos evaluados' },
+  amarillo: { color: 'bg-yellow-500', label: 'Cumple parcialmente' },
+  rojo: { color: 'bg-red-500', label: 'No cumple / faltan documentos' },
+}
+
+function CumplimientoDot({
+  estado,
+}: {
+  estado: 'verde' | 'amarillo' | 'rojo' | null
+}) {
+  if (!estado) {
+    return (
+      <span
+        title='Sin analizar todavía'
+        className='inline-block h-2.5 w-2.5 rounded-full bg-muted-foreground/30'
+      />
+    )
+  }
+  const info = CUMPLIMIENTO_INFO[estado]
+  return (
+    <span
+      title={info.label}
+      className={`inline-block h-2.5 w-2.5 rounded-full ${info.color}`}
+    />
+  )
+}
+
+const REQUISITO_ESTADO_INFO: Record<
+  Requisito['estado'],
+  { color: string; label: string }
+> = {
+  cumple: { color: 'bg-green-500', label: 'Cumple' },
+  parcial: { color: 'bg-yellow-500', label: 'Parcial' },
+  no_cumple: { color: 'bg-red-500', label: 'No cumple' },
+  sin_evaluar: { color: 'bg-muted-foreground/30', label: 'Sin evaluar' },
 }
 
 const DOC_ESTADO_VARIANT: Record<'ok' | 'error', 'default' | 'destructive'> = {
@@ -263,6 +308,9 @@ export function LicOportunidades() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className='w-10' title='¿Aplica según el análisis de IA?'>
+                  <span className='sr-only'>Cumplimiento</span>
+                </TableHead>
                 <TableHead>Referencia</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Entidad</TableHead>
@@ -279,6 +327,9 @@ export function LicOportunidades() {
                   onClick={() => setSelectedOportunidad(o)}
                   className='cursor-pointer hover:bg-muted/50'
                 >
+                  <TableCell>
+                    <CumplimientoDot estado={o.estado_cumplimiento} />
+                  </TableCell>
                   <TableCell className='font-mono text-xs'>{o.referencia}</TableCell>
                   <TableCell>{o.tipo_proceso}</TableCell>
                   <TableCell className='truncate max-w-[12rem]'>{o.entidad}</TableCell>
@@ -301,7 +352,7 @@ export function LicOportunidades() {
               ))}
               {rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className='text-center text-muted-foreground py-6'>
+                  <TableCell colSpan={8} className='text-center text-muted-foreground py-6'>
                     {oportunidades.length === 0
                       ? 'No se han descubierto oportunidades para esta empresa todavía. Use "Buscar ahora" o espere al cron diario.'
                       : 'Ninguna oportunidad coincide con el estado seleccionado.'}
@@ -320,34 +371,127 @@ export function LicOportunidades() {
           if (!v) setSelectedOportunidad(null)
         }}
       >
-        <DialogContent className='max-w-2xl max-h-[80vh] flex flex-col gap-0 p-0 overflow-hidden'>
+        <DialogContent className='max-w-3xl max-h-[85vh] flex flex-col gap-0 p-0 overflow-hidden'>
           <DialogHeader className='shrink-0 border-b px-6 py-4'>
-            <DialogTitle>Documentos — {selectedOportunidad?.referencia}</DialogTitle>
-            <DialogDescription>
-              Documentos descargados automáticamente desde el portal DGCP para esta
-              oportunidad.
+            <DialogTitle>{selectedOportunidad?.referencia}</DialogTitle>
+            <DialogDescription className='truncate'>
+              {selectedOportunidad?.titulo}
             </DialogDescription>
           </DialogHeader>
-          <div className='flex-1 overflow-y-auto px-6 py-4 space-y-3'>
-            <p className='text-sm text-muted-foreground truncate'>
-              {selectedOportunidad?.titulo}
-            </p>
-            {documentosQ.isLoading ? (
-              <Skeleton className='h-24 w-full' />
-            ) : !documentosQ.data?.documentos.length ? (
-              <p className='text-sm text-muted-foreground py-4'>
-                No hay documentos descargados para esta oportunidad.
-              </p>
-            ) : (
-              <ul className='space-y-2'>
-                {documentosQ.data.documentos.map((d) => (
-                  <DocumentoItem key={d.id} documento={d} />
-                ))}
-              </ul>
-            )}
+          <div className='flex-1 overflow-y-auto px-6 py-4 space-y-5'>
+            {selectedOportunidad && <AnalisisSeccion oportunidad={selectedOportunidad} />}
+
+            <div className='space-y-2'>
+              <h4 className='text-sm font-semibold'>Documentos descargados del portal</h4>
+              {documentosQ.isLoading ? (
+                <Skeleton className='h-24 w-full' />
+              ) : !documentosQ.data?.documentos.length ? (
+                <p className='text-sm text-muted-foreground py-4'>
+                  No hay documentos descargados para esta oportunidad.
+                </p>
+              ) : (
+                <ul className='space-y-2'>
+                  {documentosQ.data.documentos.map((d) => (
+                    <DocumentoItem key={d.id} documento={d} />
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+function AnalisisSeccion({ oportunidad }: { oportunidad: Oportunidad }) {
+  const analizar = useAnalizarOportunidad()
+  const requisitosQ = useRequisitos(oportunidad.id)
+  // El backend devuelve el resumen/recomendación ya guardados en la propia
+  // oportunidad (Task de análisis actualiza TLIC_OPORTUNIDAD); el resultado
+  // de la última mutación exitosa se usa mientras tanto para no esperar el
+  // refetch de la lista completa.
+  const resumen = analizar.data?.resumen ?? oportunidad.resumen_ia
+  const recomendacion = analizar.data?.recomendacion ?? oportunidad.recomendacion_ia
+  const estadoCumplimiento = analizar.data?.estado_cumplimiento ?? oportunidad.estado_cumplimiento
+  const requisitos = analizar.data?.requisitos ?? requisitosQ.data?.requisitos ?? []
+
+  return (
+    <div className='space-y-3 rounded-md border p-3'>
+      <div className='flex items-center justify-between gap-2'>
+        <div className='flex items-center gap-2'>
+          <CumplimientoDot estado={estadoCumplimiento} />
+          <h4 className='text-sm font-semibold'>Análisis con IA</h4>
+        </div>
+        <Button
+          type='button'
+          size='sm'
+          variant='outline'
+          className='gap-1.5'
+          disabled={analizar.isPending}
+          onClick={() =>
+            analizar.mutate(oportunidad.id, {
+              onError: (e) => toast.error(e.message),
+            })
+          }
+        >
+          <Wand2 className='h-3.5 w-3.5' />
+          {analizar.isPending
+            ? 'Analizando…'
+            : resumen
+              ? 'Volver a analizar'
+              : 'Analizar oportunidad'}
+        </Button>
+      </div>
+
+      {!resumen && !analizar.isPending && (
+        <p className='text-xs text-muted-foreground'>
+          Genera un resumen de la licitación, extrae los requisitos para
+          participar y evalúa cuáles cumple la empresa según los documentos
+          subidos en Configuración.
+        </p>
+      )}
+
+      {resumen && (
+        <p className='whitespace-pre-wrap text-sm'>{resumen}</p>
+      )}
+
+      {recomendacion && (
+        <p className='rounded bg-muted/50 px-3 py-2 text-sm'>
+          <span className='font-medium'>Recomendación: </span>
+          {recomendacion}
+        </p>
+      )}
+
+      {requisitos.length > 0 && (
+        <div className='overflow-x-auto rounded border'>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className='w-8' />
+                <TableHead>Requisito</TableHead>
+                <TableHead>Justificación</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {requisitos.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell>
+                    <span
+                      title={REQUISITO_ESTADO_INFO[r.estado].label}
+                      className={`inline-block h-2.5 w-2.5 rounded-full ${REQUISITO_ESTADO_INFO[r.estado].color}`}
+                    />
+                  </TableCell>
+                  <TableCell className='text-sm'>{r.descripcion}</TableCell>
+                  <TableCell className='text-xs text-muted-foreground'>
+                    {r.justificacion}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   )
 }
