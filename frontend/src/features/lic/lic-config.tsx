@@ -3,7 +3,7 @@
 // configuración de apps.lic (Task 10 backend) — no existe forma legacy Oracle Forms
 // (módulo nuevo del clon).
 import { useRef, useState } from 'react'
-import { Upload } from 'lucide-react'
+import { Eye, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -14,17 +14,35 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
   type Credencial,
+  type Rubro,
   useCredenciales,
   useGuardarCredencial,
   useProbarConexion,
   useRubros,
   useSubirRubrosPdf,
 } from './api'
+
+const RUBROS_PAGE_SIZE = 10
 
 function fmtDate(s: string | null): string {
   return s ? String(s).slice(0, 10) : ''
@@ -223,14 +241,7 @@ function EmpresaCard({ credencial }: { credencial: Credencial }) {
           {rubrosLoading ? (
             <Skeleton className='h-16 w-full' />
           ) : rubrosData?.rubros.length ? (
-            <ul className='mt-2 list-disc pl-5 text-sm'>
-              {rubrosData.rubros.map((r, i) => (
-                <li key={r.codigo ?? i}>
-                  {r.codigo ? `${r.codigo} — ` : ''}
-                  {r.descripcion}
-                </li>
-              ))}
-            </ul>
+            <RubrosTable rubros={rubrosData.rubros} />
           ) : (
             <p className='text-xs text-muted-foreground'>
               Aún no se han cargado rubros para esta empresa.
@@ -239,5 +250,108 @@ function EmpresaCard({ credencial }: { credencial: Credencial }) {
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+function RubrosTable({ rubros }: { rubros: Rubro[] }) {
+  const [page, setPage] = useState(1)
+  const [seleccionado, setSeleccionado] = useState<Rubro | null>(null)
+  const totalPages = Math.max(1, Math.ceil(rubros.length / RUBROS_PAGE_SIZE))
+  const paginados = rubros.slice(
+    (page - 1) * RUBROS_PAGE_SIZE,
+    page * RUBROS_PAGE_SIZE
+  )
+
+  return (
+    <div className='mt-2 space-y-2'>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className='w-28'>Código</TableHead>
+            <TableHead>Descripción</TableHead>
+            <TableHead className='w-16 text-right'>Detalles</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {paginados.map((r, i) => (
+            <TableRow
+              key={r.codigo ?? `${page}-${i}`}
+              className='cursor-pointer hover:bg-muted/50'
+              onClick={() => setSeleccionado(r)}
+            >
+              <TableCell className='font-mono text-xs'>
+                {r.codigo ?? '—'}
+              </TableCell>
+              <TableCell className='text-sm'>{r.descripcion}</TableCell>
+              <TableCell
+                className='text-right'
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Button
+                  size='sm'
+                  variant='ghost'
+                  title='Ver detalles'
+                  onClick={() => setSeleccionado(r)}
+                >
+                  <Eye className='h-4 w-4' />
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
+      {totalPages > 1 && (
+        <div className='flex items-center justify-between text-sm'>
+          <span className='text-muted-foreground'>
+            Página {page} de {totalPages} ({rubros.length} rubros)
+          </span>
+          <div className='flex gap-2'>
+            <Button
+              variant='outline'
+              size='sm'
+              disabled={page === 1}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              Anterior
+            </Button>
+            <Button
+              variant='outline'
+              size='sm'
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Siguiente
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <Dialog
+        open={!!seleccionado}
+        onOpenChange={(open) => {
+          if (!open) setSeleccionado(null)
+        }}
+      >
+        <DialogContent className='max-w-md'>
+          <DialogHeader>
+            <DialogTitle>Rubro {seleccionado?.codigo ?? ''}</DialogTitle>
+            <DialogDescription>
+              Categoría UNSPSC extraída del certificado RPE de esta empresa.
+            </DialogDescription>
+          </DialogHeader>
+          <div className='space-y-2 text-sm'>
+            <div>
+              <span className='text-muted-foreground'>Código: </span>
+              {seleccionado?.codigo ?? 'No especificado'}
+            </div>
+            <div>
+              <span className='text-muted-foreground'>Descripción: </span>
+              {seleccionado?.descripcion}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   )
 }

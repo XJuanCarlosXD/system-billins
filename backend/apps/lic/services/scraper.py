@@ -120,7 +120,13 @@ class LicitacionesScraper:
 
     def __enter__(self) -> "LicitacionesScraper":
         self._playwright = sync_playwright().start()
-        self._browser = self._playwright.chromium.launch(headless=self._headless)
+        # --disable-dev-shm-usage: el contenedor Docker tiene /dev/shm limitado
+        # a 64MB por defecto, insuficiente para Chromium y causa timeouts/
+        # crashes intermitentes; hace que Chromium use /tmp en su lugar
+        # (recomendación oficial de Playwright para entornos containerizados).
+        self._browser = self._playwright.chromium.launch(
+            headless=self._headless, args=["--disable-dev-shm-usage"]
+        )
         self._page = self._browser.new_page()
         return self
 
@@ -138,12 +144,17 @@ class LicitacionesScraper:
         # ASP.NET en vez de accessible names, que no existen en este formulario.
         logger.info("lic.scraper.login: iniciando sesión (usuario=%s)", usuario)
         page = self._page
-        page.goto(LOGIN_URL)
-        page.wait_for_load_state("load")
+        # wait_until="domcontentloaded" (no "load"/"networkidle"): el portal
+        # tiene un widget de chat embebido que sigue haciendo requests en
+        # background indefinidamente, así que "load"/"networkidle" pueden
+        # nunca resolver dentro del timeout — solo necesitamos el DOM listo
+        # para interactuar con el formulario. timeout=60000 porque el portal
+        # real puede tardar más de los 30000ms por defecto de Playwright.
+        page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=60000)
         page.locator("#ctl00_content__login_UserName").fill(usuario)
         page.locator("#ctl00_content__login_Password").fill(password)
         page.locator("#ctl00_content__login_LoginButton").click()
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("domcontentloaded", timeout=60000)
         if "Login.aspx" in page.url:
             logger.error("lic.scraper.login: fallo de autenticación (usuario=%s)", usuario)
             raise LoginError("Su intento de entrada no se proceso con éxito")
@@ -152,11 +163,13 @@ class LicitacionesScraper:
     def list_oportunidades(self, estado_filtro: str = "Todos") -> list[dict]:
         logger.info("lic.scraper.list_oportunidades: iniciando (estado_filtro=%s)", estado_filtro)
         page = self._page
-        page.goto(OPORTUNIDADES_URL)
-        page.wait_for_load_state("networkidle")
+        # domcontentloaded (no networkidle): ver comentario en login() — el
+        # widget de chat del portal impide que la red quede realmente idle.
+        page.goto(OPORTUNIDADES_URL, wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_load_state("domcontentloaded", timeout=60000)
         select = page.locator("select").first
         select.select_option(label=estado_filtro)
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("domcontentloaded", timeout=60000)
 
         wrappers = page.locator(".ws_rc_wrapper_opportunity")
         count = wrappers.count()
@@ -211,15 +224,17 @@ class LicitacionesScraper:
         logger.info("lic.scraper.download_documentos: iniciando (referencia=%s)", referencia)
         destino_dir.mkdir(parents=True, exist_ok=True)
         page = self._page
-        page.goto(OPORTUNIDADES_URL)
-        page.wait_for_load_state("networkidle")
+        # domcontentloaded (no networkidle): ver comentario en login() — el
+        # widget de chat del portal impide que la red quede realmente idle.
+        page.goto(OPORTUNIDADES_URL, wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_load_state("domcontentloaded", timeout=60000)
 
         # Igual que list_oportunidades: sin seleccionar "Todos" la vista por
         # defecto del portal puede no incluir todas las oportunidades y una
         # referencia real terminaría reportándose como "no encontrada".
         select = page.locator("select").first
         select.select_option(label="Todos")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("domcontentloaded", timeout=60000)
 
         wrappers = page.locator(".ws_rc_wrapper_opportunity")
         count = wrappers.count()
@@ -233,11 +248,18 @@ class LicitacionesScraper:
             logger.error("lic.scraper.download_documentos: referencia=%s no encontrada en el feed", referencia)
             raise ValueError(f"No se encontró la oportunidad con referencia {referencia!r}")
 
+        # target_row.click() dispara una actualización AJAX parcial de la
+        # página (un getAction() de Ariba), no una navegación completa — por
+        # eso NO se usa wait_for_load_state aquí (ese evento nunca llega para
+        # una actualización parcial). En vez de eso se espera directamente a
+        # que el enlace que realmente necesitamos aparezca en el DOM.
         target_row.click()
-        page.wait_for_load_state("networkidle")
-
         context = page.context
         cn_link = page.locator("a[href*='RedirectToContractNoticeInNewWindow']").first
+        try:
+            cn_link.wait_for(state="visible", timeout=15000)
+        except PlaywrightTimeoutError:
+            pass
         if cn_link.count() == 0:
             logger.error(
                 "lic.scraper.download_documentos: referencia=%s sin enlace al Aviso de Contrato", referencia
@@ -261,7 +283,7 @@ class LicitacionesScraper:
             ) from exc
 
         try:
-            cn_page.wait_for_load_state("networkidle")
+            cn_page.wait_for_load_state("domcontentloaded", timeout=60000)
 
             # La pestaña "4. Documentos" a veces requiere un clic explícito
             # para que la tabla se renderice/quede visible; si el enlace no
@@ -269,7 +291,7 @@ class LicitacionesScraper:
             # vistas la muestran expandida por defecto).
             try:
                 cn_page.locator("a[href='#ContractDocuments']").first.click(timeout=5000)
-                cn_page.wait_for_load_state("networkidle")
+                cn_page.wait_for_load_state("domcontentloaded", timeout=60000)
             except PlaywrightTimeoutError:
                 pass
 

@@ -207,9 +207,20 @@ def guardar_rubros(rubro_pdf_id: int, rubros: list[dict]) -> None:
 
 
 def list_rubros(no_cia: str) -> list[dict]:
+    # Solo se muestran los rubros del ULTIMO PDF cargado para esta empresa,
+    # no la union de todos los uploads historicos -- una carga nueva
+    # reemplaza la lista visible en vez de acumularse con las anteriores
+    # (evita duplicados cuando el mismo PDF se sube mas de una vez).
+    # Oracle 11g no soporta "FETCH FIRST ... ROWS ONLY" (12c+) -- se usa el
+    # patron clasico de subquery ordenada + ROWNUM = 1 para el top-1.
     return client.fetch_dicts(
         "SELECT r.codigo, r.descripcion FROM FAT.TLIC_RUBRO r "
-        "JOIN FAT.TLIC_RUBRO_PDF p ON p.id = r.rubro_pdf_id "
-        "WHERE p.no_cia = :1 ORDER BY r.descripcion",
+        "WHERE r.rubro_pdf_id = ("
+        "  SELECT id FROM ("
+        "    SELECT p.id FROM FAT.TLIC_RUBRO_PDF p "
+        "    WHERE p.no_cia = :1 AND p.estado_extraccion = 'hecho' "
+        "    ORDER BY p.id DESC"
+        "  ) WHERE ROWNUM = 1"
+        ") ORDER BY r.descripcion",
         [no_cia],
     )
