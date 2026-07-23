@@ -3,7 +3,7 @@
 // configuración de apps.lic (Task 10 backend) — no existe forma legacy Oracle Forms
 // (módulo nuevo del clon).
 import { useRef, useState } from 'react'
-import { Eye, Upload } from 'lucide-react'
+import { Eye, Plus, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -52,6 +52,7 @@ export function LicConfig() {
   const { data, isLoading } = useCredenciales()
   const guardarCredencial = useGuardarCredencial()
 
+  const [mostrarForm, setMostrarForm] = useState(false)
   const [noCia, setNoCia] = useState('')
   const [usuario, setUsuario] = useState('')
   const [password, setPassword] = useState('')
@@ -69,6 +70,7 @@ export function LicConfig() {
           setNoCia('')
           setUsuario('')
           setPassword('')
+          setMostrarForm(false)
         },
         onError: (e) => toast.error(e.message),
       }
@@ -77,15 +79,29 @@ export function LicConfig() {
 
   return (
     <div className='space-y-4'>
-      <div>
-        <h3 className='text-base font-semibold'>Configuración del portal DGCP</h3>
-        <p className='text-sm text-muted-foreground'>
-          Credenciales de acceso al portal de Compras y Contrataciones (DGCP) por
-          empresa, usadas por la búsqueda automática de licitaciones, y el PDF de
-          rubros RPE que clasifica las oportunidades encontradas.
-        </p>
+      <div className='flex items-start justify-between gap-3'>
+        <div>
+          <h3 className='text-base font-semibold'>Configuración del portal DGCP</h3>
+          <p className='text-sm text-muted-foreground'>
+            Credenciales de acceso al portal de Compras y Contrataciones (DGCP) por
+            empresa, usadas por la búsqueda automática de licitaciones, y el PDF de
+            rubros RPE que clasifica las oportunidades encontradas.
+          </p>
+        </div>
+        {!mostrarForm && (
+          <Button
+            type='button'
+            size='sm'
+            className='gap-1.5 shrink-0'
+            onClick={() => setMostrarForm(true)}
+          >
+            <Plus className='h-4 w-4' />
+            Nueva credencial de portal
+          </Button>
+        )}
       </div>
 
+      {mostrarForm && (
       <Card>
         <CardHeader className='pb-2'>
           <CardTitle className='text-base'>Nueva credencial de portal</CardTitle>
@@ -132,8 +148,17 @@ export function LicConfig() {
           <Button onClick={guardar} disabled={guardarCredencial.isPending}>
             {guardarCredencial.isPending ? 'Guardando…' : 'Guardar'}
           </Button>
+          <Button
+            type='button'
+            variant='ghost'
+            disabled={guardarCredencial.isPending}
+            onClick={() => setMostrarForm(false)}
+          >
+            Cancelar
+          </Button>
         </CardContent>
       </Card>
+      )}
 
       {isLoading ? (
         <Skeleton className='h-40 w-full' />

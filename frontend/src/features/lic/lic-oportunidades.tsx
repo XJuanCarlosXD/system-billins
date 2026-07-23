@@ -3,7 +3,14 @@
 // vivo de su estado. Módulo nuevo del clon (no hay pantalla legacy Oracle Forms).
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Eye, FileText, Loader2, Search } from 'lucide-react'
+import {
+  Eye,
+  FileText,
+  Loader2,
+  Search,
+  Settings,
+  Sparkles,
+} from 'lucide-react'
 import { useCompany } from '@/hooks/use-company'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,13 +23,12 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -32,17 +38,17 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
+  type Documento,
   LicApiError,
   type Oportunidad,
   useBuscarAhora,
   useDocumentos,
+  useGenerarResumenDocumento,
   useOportunidades,
   useScrapeJobStatus,
 } from './api'
 
-// Sentinela para "sin filtro" -- Radix SelectItem no admite value="" (rompe el
-// componente, ver feedback_inv_grupos_field_naming.md).
-const TODOS = '__todos__'
+const TODOS = 'Todos'
 
 function formatDate(s: string | null): string {
   return s ? String(s).slice(0, 10) : ''
@@ -69,6 +75,11 @@ export function LicOportunidades() {
   // anotado como pendiente ahí) y recién entonces valdría la pena mover el filtro al
   // servidor.
   const [estado, setEstado] = useState(TODOS)
+  // Parámetro de búsqueda configurable vía el botón de ajustes: por defecto el
+  // backend solo trae oportunidades cuya fecha límite no ha pasado
+  // (fecha_limite >= hoy, ver lic_repo.list_oportunidades) -- activar "todas"
+  // agrega también el historial de procesos ya cerrados/adjudicados.
+  const [todas, setTodas] = useState(false)
   // El guardia de concurrencia del backend (scrape_view) es POR no_cia: jobs para
   // empresas distintas corren en paralelo sin bloquearse (solo un job "todas las
   // empresas" bloquea a todos). Por eso el job en curso se rastrea junto con la
@@ -79,7 +90,7 @@ export function LicOportunidades() {
   const [job, setJob] = useState<{ jobId: number; company: string } | null>(null)
   const [selectedOportunidad, setSelectedOportunidad] = useState<Oportunidad | null>(null)
 
-  const { data, isLoading, refetch } = useOportunidades(selectedCompany)
+  const { data, isLoading, refetch } = useOportunidades(selectedCompany, undefined, todas)
   const buscarAhora = useBuscarAhora()
   const { data: jobStatus } = useScrapeJobStatus(job?.jobId ?? null)
   const documentosQ = useDocumentos(selectedOportunidad?.id ?? null)
@@ -179,19 +190,30 @@ export function LicOportunidades() {
       <div className='flex flex-wrap items-end gap-3'>
         <div>
           <Label className='text-xs'>Estado en el portal</Label>
-          <Select value={estado} onValueChange={setEstado}>
-            <SelectTrigger className='w-56 h-9'>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TODOS}>Todos</SelectItem>
-              {estadosDisponibles.map((e) => (
-                <SelectItem key={e} value={e}>
-                  {e}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Pocos valores distintos en la práctica (derivados de los datos reales,
+              no un enum fijo) -- botones en línea en vez de un dropdown que hay que
+              abrir para ver las opciones. */}
+          <div className='flex flex-wrap gap-1.5'>
+            <Button
+              type='button'
+              size='sm'
+              variant={estado === TODOS ? 'default' : 'outline'}
+              onClick={() => setEstado(TODOS)}
+            >
+              Todos
+            </Button>
+            {estadosDisponibles.map((e) => (
+              <Button
+                key={e}
+                type='button'
+                size='sm'
+                variant={estado === e ? 'default' : 'outline'}
+                onClick={() => setEstado(e)}
+              >
+                {e}
+              </Button>
+            ))}
+          </div>
         </div>
 
         <Button disabled={buscando || buscarAhora.isPending} onClick={handleBuscarAhora}>
@@ -205,6 +227,29 @@ export function LicOportunidades() {
             </>
           )}
         </Button>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button type='button' variant='outline' size='icon' title='Configurar búsqueda'>
+              <Settings className='h-4 w-4' />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className='w-72 space-y-3' align='start'>
+            <div>
+              <p className='text-sm font-medium'>Parámetros de búsqueda</p>
+              <p className='text-xs text-muted-foreground'>
+                Ajustan qué se muestra de lo ya encontrado, no lo que el scraper
+                busca en el portal.
+              </p>
+            </div>
+            <div className='flex items-center justify-between gap-3'>
+              <Label htmlFor='lic-todas' className='text-sm font-normal'>
+                Incluir cerradas/vencidas
+              </Label>
+              <Switch id='lic-todas' checked={todas} onCheckedChange={setTodas} />
+            </div>
+          </PopoverContent>
+        </Popover>
 
         <div className='ml-auto text-sm text-muted-foreground'>
           {rows.length} oportunidad{rows.length !== 1 ? 'es' : ''}
@@ -295,24 +340,8 @@ export function LicOportunidades() {
               </p>
             ) : (
               <ul className='space-y-2'>
-                {documentosQ.data.documentos.map((d, i) => (
-                  <li key={`${d.nombre_archivo}-${i}`} className='rounded border px-3 py-2 text-sm'>
-                    <div className='flex items-center justify-between gap-2'>
-                      <div className='flex items-center gap-2 min-w-0'>
-                        <FileText className='h-4 w-4 shrink-0 text-muted-foreground' />
-                        <span className='truncate'>{d.nombre_archivo}</span>
-                      </div>
-                      <Badge variant={DOC_ESTADO_VARIANT[d.estado]} className='shrink-0'>
-                        {d.estado === 'ok' ? 'Descargado' : 'Error'}
-                      </Badge>
-                    </div>
-                    <div className='mt-1 text-xs text-muted-foreground'>
-                      {d.tipo_documento || 'Sin tipo'}
-                    </div>
-                    {d.estado === 'error' && d.mensaje_error && (
-                      <p className='mt-1 text-xs text-destructive'>{d.mensaje_error}</p>
-                    )}
-                  </li>
+                {documentosQ.data.documentos.map((d) => (
+                  <DocumentoItem key={d.id} documento={d} />
                 ))}
               </ul>
             )}
@@ -320,5 +349,55 @@ export function LicOportunidades() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+function DocumentoItem({ documento: d }: { documento: Documento }) {
+  const generarResumen = useGenerarResumenDocumento()
+
+  return (
+    <li className='rounded border px-3 py-2 text-sm'>
+      <div className='flex items-center justify-between gap-2'>
+        <div className='flex items-center gap-2 min-w-0'>
+          <FileText className='h-4 w-4 shrink-0 text-muted-foreground' />
+          <span className='truncate'>{d.nombre_archivo}</span>
+        </div>
+        <Badge variant={DOC_ESTADO_VARIANT[d.estado]} className='shrink-0'>
+          {d.estado === 'ok' ? 'Descargado' : 'Error'}
+        </Badge>
+      </div>
+      <div className='mt-1 text-xs text-muted-foreground'>
+        {d.tipo_documento || 'Sin tipo'}
+      </div>
+      {d.estado === 'error' && d.mensaje_error && (
+        <p className='mt-1 text-xs text-destructive'>{d.mensaje_error}</p>
+      )}
+
+      {d.estado === 'ok' && (
+        <div className='mt-2'>
+          {d.resumen_ia ? (
+            <p className='whitespace-pre-wrap rounded bg-muted/50 px-2 py-1.5 text-xs'>
+              {d.resumen_ia}
+            </p>
+          ) : (
+            <Button
+              type='button'
+              size='sm'
+              variant='ghost'
+              className='h-7 gap-1.5 px-2 text-xs'
+              disabled={generarResumen.isPending}
+              onClick={() =>
+                generarResumen.mutate(d.id, {
+                  onError: (e) => toast.error(e.message),
+                })
+              }
+            >
+              <Sparkles className='h-3.5 w-3.5' />
+              {generarResumen.isPending ? 'Generando resumen…' : 'Generar resumen con IA'}
+            </Button>
+          )}
+        </div>
+      )}
+    </li>
   )
 }

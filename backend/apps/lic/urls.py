@@ -8,6 +8,7 @@ urlpatterns = [
     path("rubros-pdf/", views.rubros_pdf_view),
     path("oportunidades/", views.oportunidades_view),
     path("oportunidades/<int:oportunidad_id>/documentos/", views.documentos_view),
+    path("documentos/<int:documento_id>/resumen/", views.resumen_documento_view),
     path("scrape/", views.scrape_view),
     path("scrape/<int:job_id>/", views.scrape_job_view),
 ]

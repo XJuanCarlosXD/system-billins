@@ -77,11 +77,13 @@ export interface Oportunidad {
 }
 
 export interface Documento {
+  id: number
   tipo_documento: string | null
   nombre_archivo: string
   ruta_archivo: string
   estado: 'ok' | 'error'
   mensaje_error: string | null
+  resumen_ia: string | null
   descargado_en: string
 }
 
@@ -191,14 +193,18 @@ export function useSubirRubrosPdf() {
   })
 }
 
-export function useOportunidades(no_cia: string, estado?: string) {
+export function useOportunidades(
+  no_cia: string,
+  estado?: string,
+  todas?: boolean
+) {
   return useQuery({
-    queryKey: ['lic-oportunidades', no_cia, estado],
+    queryKey: ['lic-oportunidades', no_cia, estado, todas],
     queryFn: () =>
       licRequest<{ oportunidades: Oportunidad[] }>(
         `/lic/oportunidades/?no_cia=${encodeURIComponent(no_cia)}${
           estado ? `&estado=${encodeURIComponent(estado)}` : ''
-        }`
+        }${todas ? '&todas=1' : ''}`
       ),
     enabled: !!no_cia,
   })
@@ -212,6 +218,19 @@ export function useDocumentos(oportunidadId: number | null) {
         `/lic/oportunidades/${oportunidadId}/documentos/`
       ),
     enabled: !!oportunidadId,
+  })
+}
+
+export function useGenerarResumenDocumento() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (documentoId: number) =>
+      licRequest<{ resumen_ia: string }>(
+        `/lic/documentos/${documentoId}/resumen/`,
+        { method: 'POST' }
+      ),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ['lic-documentos'] }),
   })
 }
 

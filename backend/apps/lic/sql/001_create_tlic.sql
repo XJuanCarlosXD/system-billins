@@ -148,3 +148,19 @@ END;
 -- por eso es un ALTER TABLE aparte y no una reescritura del CREATE TABLE de arriba.
 ALTER TABLE FAT.TLIC_DOCUMENTO ADD MENSAJE_ERROR VARCHAR2(1000);
 /
+
+-- Agregado 2026-07-23: encontrado en prueba en vivo contra el portal real --
+-- algunos TIPO_DOCUMENTO del portal (ej. "Solicitud Compra o Contratacion...")
+-- superan 100 caracteres y causaban ORA-12899 al guardar. Se amplía a 300
+-- para igualar el ancho de NOMBRE_ARCHIVO, ya que es texto descriptivo libre
+-- del portal, no un código de longitud fija.
+ALTER TABLE FAT.TLIC_DOCUMENTO MODIFY TIPO_DOCUMENTO VARCHAR2(300);
+/
+
+-- Agregado 2026-07-23: resumen generado por IA bajo demanda (boton en el
+-- frontend, no automatico en cada scrape) con los puntos clave de un
+-- documento de licitacion. VARCHAR2 y no CLOB a proposito: apps.legacy.client
+-- no tiene un outputtypehandler para LOBs, así que un CLOB llegaría como
+-- objeto oracledb.LOB (no serializable a JSON) en vez de str.
+ALTER TABLE FAT.TLIC_DOCUMENTO ADD RESUMEN_IA VARCHAR2(4000);
+/

@@ -126,7 +126,14 @@ def upsert_oportunidad(no_cia: str, data: dict) -> tuple[int, bool]:
         return nuevo_id, True
 
 
-def list_oportunidades(no_cia: str, estado_portal: str | None = None) -> list[dict]:
+def list_oportunidades(
+    no_cia: str, estado_portal: str | None = None, solo_abiertas: bool = True
+) -> list[dict]:
+    """Por defecto solo trae oportunidades cuya fecha limite de ofertas no ha
+    pasado (las unicas en las que realmente se puede participar todavia) --
+    el portal en si mantiene el historial completo desde 2020, incluyendo
+    procesos ya cerrados/adjudicados hace años, que no son "oportunidades"
+    reales de negocio."""
     sql = (
         "SELECT id, referencia, tipo_proceso, entidad, titulo, estado_portal, "
         "ofertas_presentadas, ofertas_creadas, fecha_publicacion, fecha_limite "
@@ -136,6 +143,8 @@ def list_oportunidades(no_cia: str, estado_portal: str | None = None) -> list[di
     if estado_portal:
         sql += " AND estado_portal = :2"
         params.append(estado_portal)
+    if solo_abiertas:
+        sql += " AND fecha_limite >= TRUNC(SYSDATE)"
     sql += " ORDER BY fecha_limite ASC"
     return client.fetch_dicts(sql, params)
 
@@ -154,10 +163,29 @@ def guardar_documento(oportunidad_id: int, tipo_documento: str, nombre_archivo: 
 
 def list_documentos(oportunidad_id: int) -> list[dict]:
     return client.fetch_dicts(
-        "SELECT tipo_documento, nombre_archivo, ruta_archivo, estado, mensaje_error, descargado_en "
+        "SELECT id, tipo_documento, nombre_archivo, ruta_archivo, estado, mensaje_error, "
+        "resumen_ia, descargado_en "
         "FROM FAT.TLIC_DOCUMENTO WHERE oportunidad_id = :1 ORDER BY descargado_en",
         [oportunidad_id],
     )
+
+
+def get_documento(documento_id: int) -> dict | None:
+    rows = client.fetch_dicts(
+        "SELECT id, ruta_archivo, nombre_archivo, resumen_ia "
+        "FROM FAT.TLIC_DOCUMENTO WHERE id = :1",
+        [documento_id],
+    )
+    return rows[0] if rows else None
+
+
+def guardar_resumen_documento(documento_id: int, resumen: str) -> None:
+    with client.cursor() as cur:
+        cur.execute(
+            "UPDATE FAT.TLIC_DOCUMENTO SET resumen_ia = :1 WHERE id = :2",
+            [resumen, documento_id],
+        )
+        cur.connection.commit()
 
 
 def tiene_documentos(oportunidad_id: int) -> bool:

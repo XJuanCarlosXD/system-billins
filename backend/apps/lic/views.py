@@ -18,6 +18,7 @@ from apps.legacy.repositories import lic_repo
 from apps.lic.models import ScrapeJob
 from apps.lic.services import pdf_rubros
 from apps.lic.services.orchestrator import ejecutar_scrape
+from apps.lic.services.resumen_documento import resumir_documento
 from apps.lic.services.scraper import LicitacionesScraper, LoginError
 
 logger = logging.getLogger(__name__)
@@ -158,14 +159,43 @@ def oportunidades_view(request):
     estado = request.GET.get("estado")
     if not no_cia:
         return _err("no_cia es requerido")
+    # todas=1 permite ver tambien las ya cerradas (historico); por defecto
+    # solo se muestran las que aun aceptan ofertas.
+    solo_abiertas = request.GET.get("todas") != "1"
     # TODO: paginate if volume grows
-    return JsonResponse({"oportunidades": lic_repo.list_oportunidades(no_cia, estado)})
+    return JsonResponse({
+        "oportunidades": lic_repo.list_oportunidades(no_cia, estado, solo_abiertas)
+    })
 
 
 @login_required
 @require_http_methods(["GET"])
 def documentos_view(request, oportunidad_id: int):
     return JsonResponse({"documentos": lic_repo.list_documentos(oportunidad_id)})
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["POST"])
+def resumen_documento_view(request, documento_id: int):
+    """Genera (bajo demanda) un resumen con IA de un documento ya descargado.
+
+    No se corre automaticamente en cada scrape para no generar costo de API
+    sin control por cada documento nuevo -- el usuario lo dispara desde el
+    frontend para el documento que realmente le interesa revisar.
+    """
+    documento = lic_repo.get_documento(documento_id)
+    if not documento:
+        return _err("Documento no encontrado", status=404)
+    try:
+        texto = pdf_rubros.extraer_texto_pdf(documento["ruta_archivo"])
+        resumen = resumir_documento(texto)
+    except Exception as exc:  # noqa: BLE001 - PDF sin texto o fallo real de la API
+        return _err(f"No se pudo generar el resumen: {exc}", status=400)
+
+    resumen = resumen[:4000]  # margen de seguridad ante VARCHAR2(4000)
+    lic_repo.guardar_resumen_documento(documento_id, resumen)
+    return JsonResponse({"resumen_ia": resumen})
 
 
 @login_required
