@@ -2,7 +2,8 @@
 // y PDF de rubros RPE usado para clasificar oportunidades. Equivale a la pantalla de
 // configuración de apps.lic (Task 10 backend) — no existe forma legacy Oracle Forms
 // (módulo nuevo del clon).
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -104,6 +105,7 @@ export function LicConfig() {
             </Label>
             <Input
               type='password'
+              autoComplete='new-password'
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className='h-9'
@@ -134,7 +136,23 @@ function EmpresaCard({ credencial }: { credencial: Credencial }) {
   const probarConexion = useProbarConexion()
   const { data: rubrosData, isLoading: rubrosLoading } = useRubros(no_cia)
   const subirRubros = useSubirRubrosPdf()
-  const [archivoNombre, setArchivoNombre] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [archivo, setArchivo] = useState<File | null>(null)
+
+  const handleSubirRubros = () => {
+    if (!archivo) return
+    subirRubros.mutate(
+      { no_cia, archivo },
+      {
+        onSuccess: (r) => {
+          toast.success(`Rubros extraídos: ${r.rubros.length} encontrados`)
+          setArchivo(null)
+          if (fileRef.current) fileRef.current.value = ''
+        },
+        onError: (e) => toast.error(e.message),
+      }
+    )
+  }
 
   return (
     <Card>
@@ -178,34 +196,28 @@ function EmpresaCard({ credencial }: { credencial: Credencial }) {
           <Label className='text-xs'>PDF de rubros RPE</Label>
           <div className='flex items-center gap-3'>
             <Input
+              ref={fileRef}
               type='file'
               accept='application/pdf'
               className='h-9 max-w-sm'
               disabled={subirRubros.isPending}
-              onChange={(e) => {
-                const archivo = e.target.files?.[0]
-                if (!archivo) return
-                setArchivoNombre(archivo.name)
-                subirRubros.mutate(
-                  { no_cia, archivo },
-                  {
-                    onSuccess: (r) =>
-                      toast.success(
-                        `Rubros extraídos: ${r.rubros.length} encontrados`
-                      ),
-                    onError: (e) => {
-                      toast.error(e.message)
-                      setArchivoNombre(null)
-                    },
-                  }
-                )
-              }}
+              onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
             />
-            {archivoNombre && (
+            {archivo && (
               <Badge variant='outline' className='text-xs max-w-xs truncate'>
-                {subirRubros.isPending ? 'Procesando…' : archivoNombre}
+                {archivo.name}
               </Badge>
             )}
+            <Button
+              variant='secondary'
+              size='sm'
+              className='gap-2'
+              disabled={!archivo || subirRubros.isPending}
+              onClick={handleSubirRubros}
+            >
+              <Upload className='h-4 w-4' />
+              {subirRubros.isPending ? 'Subiendo…' : 'Subir'}
+            </Button>
           </div>
 
           {rubrosLoading ? (
@@ -213,7 +225,7 @@ function EmpresaCard({ credencial }: { credencial: Credencial }) {
           ) : rubrosData?.rubros.length ? (
             <ul className='mt-2 list-disc pl-5 text-sm'>
               {rubrosData.rubros.map((r, i) => (
-                <li key={i}>
+                <li key={r.codigo ?? i}>
                   {r.codigo ? `${r.codigo} — ` : ''}
                   {r.descripcion}
                 </li>
