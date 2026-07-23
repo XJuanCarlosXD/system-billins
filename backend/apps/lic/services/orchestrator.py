@@ -120,10 +120,19 @@ def _descargar_y_guardar_documentos(scraper, no_cia, referencia, oportunidad_id,
     """
     destino_dir = Path(settings.MEDIA_ROOT) / "lic" / no_cia / referencia
     try:
-        documentos = scraper.download_documentos(referencia, destino_dir)
+        resultado = scraper.download_documentos(referencia, destino_dir)
     except Exception as exc:  # noqa: BLE001 - un fallo de documentos no debe tumbar la empresa
         _agregar_error(resumen, no_cia, str(exc), referencia=referencia, contexto="documentos")
         return
+
+    documentos = resultado["documentos"]
+    detalle = resultado["detalle"]
+    if any(detalle.values()):
+        # Datos que el portal ya expone directamente en el Aviso de Contrato
+        # (descripción completa, unidad de requisición, presupuesto) -- no
+        # necesitan IA, se guardan tal cual se leen. Un campo faltante
+        # (varía según el tipo de proceso) simplemente no se actualiza.
+        lic_repo.actualizar_detalle_oportunidad(oportunidad_id, detalle)
 
     for doc in documentos:
         estado = doc.get("estado", "ok")

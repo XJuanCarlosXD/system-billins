@@ -78,6 +78,34 @@ def get_oportunidad(oportunidad_id: int) -> dict | None:
     return rows[0] if rows else None
 
 
+def actualizar_detalle_oportunidad(oportunidad_id: int, detalle: dict) -> None:
+    """Guarda datos que el scraper lee directamente del Aviso de Contrato (no
+    de la IA): descripción completa (reemplaza el título truncado por el
+    portal a ~100 caracteres en el feed de Oportunidades), unidad de
+    requisición y presupuesto estimado. Solo actualiza los campos que
+    vinieron con valor -- ``detalle`` puede traer alguno en None si esa
+    plantilla de proceso no lo expone."""
+    sets = []
+    params: dict = {"id": oportunidad_id}
+    if detalle.get("descripcion_completa"):
+        sets.append("titulo = :titulo")
+        params["titulo"] = detalle["descripcion_completa"][:500]
+    if detalle.get("unidad_requisicion"):
+        sets.append("unidad_requisicion = :unidad_requisicion")
+        params["unidad_requisicion"] = detalle["unidad_requisicion"][:200]
+    if detalle.get("presupuesto_estimado"):
+        sets.append("presupuesto_estimado = :presupuesto_estimado")
+        params["presupuesto_estimado"] = detalle["presupuesto_estimado"][:50]
+    if not sets:
+        return
+    with client.cursor() as cur:
+        cur.execute(
+            f"UPDATE FAT.TLIC_OPORTUNIDAD SET {', '.join(sets)} WHERE id = :id",
+            params,
+        )
+        cur.connection.commit()
+
+
 def upsert_oportunidad(no_cia: str, data: dict) -> tuple[int, bool]:
     """Inserta o actualiza una oportunidad por (no_cia, referencia). Retorna (id, es_nueva)."""
     existing = client.fetch_dicts(
@@ -145,7 +173,8 @@ def list_oportunidades(
     sql = (
         "SELECT id, referencia, tipo_proceso, entidad, titulo, estado_portal, "
         "ofertas_presentadas, ofertas_creadas, fecha_publicacion, fecha_limite, "
-        "resumen_ia, estado_cumplimiento, recomendacion_ia "
+        "resumen_ia, estado_cumplimiento, recomendacion_ia, "
+        "unidad_requisicion, presupuesto_estimado "
         "FROM FAT.TLIC_OPORTUNIDAD WHERE no_cia = :1"
     )
     params = [no_cia]

@@ -77,3 +77,9 @@ ALTER TABLE FAT.TLIC_DOCUMENTO_EMPRESA ADD PUNTO VARCHAR2(2);
 
 ALTER TABLE FAT.TLIC_DOCUMENTO_EMPRESA ADD FECHA_VENCIMIENTO DATE;
 /
+
+-- 2026-07-23: presupuesto estimado leido directamente del Aviso de Contrato
+-- (campo "Valor total del presupuesto"), texto libre con moneda incluida
+-- (ej. "248.000,00 DOP") para no complicar con parseo de decimales/moneda.
+ALTER TABLE FAT.TLIC_OPORTUNIDAD ADD PRESUPUESTO_ESTIMADO VARCHAR2(50);
+/

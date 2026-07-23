@@ -391,11 +391,26 @@ export function LicOportunidades() {
         <DialogContent className='max-w-3xl max-h-[85vh] flex flex-col gap-0 p-0 overflow-hidden'>
           <DialogHeader className='shrink-0 border-b px-6 py-4'>
             <DialogTitle>{selectedOportunidad?.referencia}</DialogTitle>
-            <DialogDescription className='truncate'>
-              {selectedOportunidad?.titulo}
-            </DialogDescription>
+            <DialogDescription>{selectedOportunidad?.titulo}</DialogDescription>
           </DialogHeader>
           <div className='flex-1 overflow-y-auto px-6 py-4 space-y-5'>
+            {selectedOportunidad?.unidad_requisicion || selectedOportunidad?.presupuesto_estimado ? (
+              <div className='flex flex-wrap gap-4 text-sm'>
+                {selectedOportunidad.unidad_requisicion && (
+                  <span>
+                    <span className='text-muted-foreground'>Unidad de requisición: </span>
+                    {selectedOportunidad.unidad_requisicion}
+                  </span>
+                )}
+                {selectedOportunidad.presupuesto_estimado && (
+                  <span>
+                    <span className='text-muted-foreground'>Presupuesto estimado: </span>
+                    {selectedOportunidad.presupuesto_estimado}
+                  </span>
+                )}
+              </div>
+            ) : null}
+
             {selectedOportunidad && <AnalisisSeccion oportunidad={selectedOportunidad} />}
 
             <div className='space-y-2'>

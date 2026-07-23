@@ -77,6 +77,8 @@ export interface Oportunidad {
   resumen_ia: string | null
   estado_cumplimiento: 'verde' | 'amarillo' | 'rojo' | null
   recomendacion_ia: string | null
+  unidad_requisicion: string | null
+  presupuesto_estimado: string | null
 }
 
 export interface DocumentoEmpresa {

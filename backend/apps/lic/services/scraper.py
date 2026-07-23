@@ -365,9 +365,65 @@ class LicitacionesScraper:
                 "lic.scraper.download_documentos: referencia=%s finalizado (%d ok, %d error de %d filas)",
                 referencia, ok_count, error_count, total_filas,
             )
-            return resultados
+            detalle = self._extraer_detalle_aviso_contrato(cn_page, referencia)
+            return {"documentos": resultados, "detalle": detalle}
         finally:
             cn_page.close()
+
+    @staticmethod
+    def _extraer_detalle_aviso_contrato(cn_page, referencia: str) -> dict:
+        """Lee del Aviso de Contrato (misma pestaña ya abierta para los
+        documentos) datos que el portal ya muestra directamente, sin
+        necesidad de IA: la descripción COMPLETA del proceso (el feed de
+        Oportunidades la trunca a ~100 caracteres via CSS ellipsis, ver
+        ``parse_oportunidad_row_html``), la unidad de requisición, y el
+        presupuesto estimado. Selectores verificados en vivo el 2026-07-23
+        contra CONADIS-DAF-CD-2026-0042 -- "Lugar de entrega" NO apareció en
+        ese proceso (varía según el tipo de proceso/plantilla Ariba), así que
+        no se intenta extraer acá; queda para una mejora futura si hace
+        falta. Cualquier campo no encontrado queda en ``None`` sin abortar
+        los demás ni la descarga de documentos que ya se completó."""
+        detalle: dict[str, str | None] = {
+            "descripcion_completa": None, "unidad_requisicion": None, "presupuesto_estimado": None,
+        }
+        try:
+            loc = cn_page.locator("#divDescriptionDiv_spnDescription").first
+            if loc.count() > 0:
+                detalle["descripcion_completa"] = loc.inner_text().strip() or None
+        except Exception:  # noqa: BLE001 - campo opcional, no debe tumbar el resto
+            logger.warning("lic.scraper: no se pudo leer descripción completa (referencia=%s)", referencia)
+
+        try:
+            loc = cn_page.locator(
+                "#fdsRequestSummaryInfoP2Gen_tblDetail_trRow6_tdCell2_spnBusinessOperationName"
+            ).first
+            if loc.count() > 0:
+                detalle["unidad_requisicion"] = loc.inner_text().strip() or None
+        except Exception:  # noqa: BLE001
+            logger.warning("lic.scraper: no se pudo leer unidad de requisición (referencia=%s)", referencia)
+
+        try:
+            # La moneda (id "...Currency") puede ser un <input> tipo VortalTextBox
+            # en vez de texto plano en algunas plantillas Ariba -- se lee con
+            # una función que sirve para ambos casos (value si es input,
+            # texto visible si no) en vez de asumir inner_text() ciegamente.
+            def _leer_valor(selector: str) -> str:
+                loc = cn_page.locator(selector).first
+                if loc.count() == 0:
+                    return ""
+                return (loc.evaluate(
+                    "el => (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') "
+                    "? el.value : el.textContent"
+                ) or "").strip()
+
+            valor = _leer_valor("#incSigefInfoViewIncludecbxTotalPriceListValueValue")
+            moneda = _leer_valor("#incSigefInfoViewIncludetxtTotalPriceListValueCurrency")
+            if valor:
+                detalle["presupuesto_estimado"] = f"{valor} {moneda}".strip()
+        except Exception:  # noqa: BLE001
+            logger.warning("lic.scraper: no se pudo leer presupuesto estimado (referencia=%s)", referencia)
+
+        return detalle
 
     @staticmethod
     def _ruta_sin_colision(
