@@ -60,11 +60,23 @@ function formatDate(s: string | null): string {
 
 const CUMPLIMIENTO_INFO: Record<
   'verde' | 'amarillo' | 'rojo',
-  { color: string; label: string }
+  { color: string; label: string; corto: string }
 > = {
-  verde: { color: 'bg-green-500', label: 'Cumple los requisitos evaluados' },
-  amarillo: { color: 'bg-yellow-500', label: 'Cumple parcialmente' },
-  rojo: { color: 'bg-red-500', label: 'No cumple / faltan documentos' },
+  verde: {
+    color: 'bg-green-500',
+    label: 'Cumple los requisitos evaluados',
+    corto: 'Aplica',
+  },
+  amarillo: {
+    color: 'bg-yellow-500',
+    label: 'Cumple parcialmente',
+    corto: 'Parcial',
+  },
+  rojo: {
+    color: 'bg-red-500',
+    label: 'No cumple / faltan documentos',
+    corto: 'No aplica',
+  },
 }
 
 function CumplimientoDot({
@@ -308,8 +320,8 @@ export function LicOportunidades() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className='w-10' title='¿Aplica según el análisis de IA?'>
-                  <span className='sr-only'>Cumplimiento</span>
+                <TableHead className='w-24' title='¿Aplica según el análisis de IA?'>
+                  Requisitos
                 </TableHead>
                 <TableHead>Referencia</TableHead>
                 <TableHead>Tipo</TableHead>
@@ -328,7 +340,12 @@ export function LicOportunidades() {
                   className='cursor-pointer hover:bg-muted/50'
                 >
                   <TableCell>
-                    <CumplimientoDot estado={o.estado_cumplimiento} />
+                    <span className='flex items-center gap-1.5 text-xs'>
+                      <CumplimientoDot estado={o.estado_cumplimiento} />
+                      {o.estado_cumplimiento
+                        ? CUMPLIMIENTO_INFO[o.estado_cumplimiento].corto
+                        : 'Sin analizar'}
+                    </span>
                   </TableCell>
                   <TableCell className='font-mono text-xs'>{o.referencia}</TableCell>
                   <TableCell>{o.tipo_proceso}</TableCell>
@@ -415,6 +432,22 @@ function AnalisisSeccion({ oportunidad }: { oportunidad: Oportunidad }) {
   const recomendacion = analizar.data?.recomendacion ?? oportunidad.recomendacion_ia
   const estadoCumplimiento = analizar.data?.estado_cumplimiento ?? oportunidad.estado_cumplimiento
   const requisitos = analizar.data?.requisitos ?? requisitosQ.data?.requisitos ?? []
+
+  // Este componente se monta de nuevo cada vez que se abre el diálogo para
+  // una oportunidad (está condicionado a `selectedOportunidad`), así que un
+  // efecto de una sola vez al montar es exactamente "apenas se abre el
+  // detalle" -- sin necesidad de un ref para no repetirlo, porque se
+  // desmonta al cerrar el diálogo. Solo dispara si nunca se ha analizado
+  // (oportunidad.resumen_ia es null); si ya hay un análisis previo, el
+  // usuario decide si lo repite con el botón "Volver a analizar".
+  useEffect(() => {
+    if (!oportunidad.resumen_ia) {
+      analizar.mutate(oportunidad.id, {
+        onError: (e) => toast.error(e.message),
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [oportunidad.id])
 
   return (
     <div className='space-y-3 rounded-md border p-3'>
