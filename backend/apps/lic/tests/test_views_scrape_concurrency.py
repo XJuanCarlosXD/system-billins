@@ -9,11 +9,13 @@ la vista rechaza esa segunda corrida con 409 en vez de crearla, y que casos que
 genuinamente NO se solapan (empresas distintas, corridas ya terminadas) sí
 proceden con normalidad.
 """
+import datetime
 import json
 
 import pytest
 from django.contrib.auth.models import User
 from django.test import Client
+from django.utils import timezone
 
 from apps.lic.models import ScrapeJob
 
@@ -97,3 +99,30 @@ def test_no_bloquea_si_la_corrida_previa_ya_termino(cliente, mocker):
     )
 
     assert resp.status_code == 200
+
+
+@pytest.mark.django_db
+def test_no_bloquea_job_corriendo_pero_huerfano_por_antiguedad(cliente, mocker):
+    """Un ScrapeJob "corriendo" mas viejo que SCRAPE_JOB_STALE_MINUTES se trata como
+    huerfano (el contenedor corre `uvicorn --reload`, un deploy a mitad de un scrape
+    mata el hilo sin que llegue a marcar estado="error") y no debe bloquear un nuevo
+    intento para el mismo alcance."""
+    job_viejo = ScrapeJob.objects.create(trigger="manual", no_cia="01", estado="corriendo")
+    # auto_now_add impide fijar iniciado_en en el create(); se sobreescribe despues
+    # con un .update() a nivel de queryset, que si lo permite.
+    ScrapeJob.objects.filter(id=job_viejo.id).update(
+        iniciado_en=timezone.now() - datetime.timedelta(minutes=61)
+    )
+    mocker.patch(
+        "apps.lic.views.lic_repo.list_credenciales",
+        return_value=[{"no_cia": "01", "estado": "activo"}],
+    )
+    mocker.patch("apps.lic.views.threading.Thread")
+
+    resp = cliente.post(
+        "/api/lic/scrape/", data=json.dumps({"no_cia": "01"}), content_type="application/json"
+    )
+
+    assert resp.status_code == 200
+    nuevo_job_id = resp.json()["job_id"]
+    assert nuevo_job_id != job_viejo.id
