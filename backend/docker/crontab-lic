@@ -1,0 +1,2 @@
+30 5 * * * root cd /app && python manage.py scrape_licitaciones >> /app/data/lic-cron.log 2>&1
+

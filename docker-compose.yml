@@ -45,6 +45,8 @@ services:
       - backend_data:/app/data
     restart: unless-stopped
     # ASGI: Django runserver es WSGI y no sirve /mcp/. Usamos uvicorn con --reload.
+    # El ENTRYPOINT de Dockerfile.dev (docker/entrypoint.sh) arranca cron y luego
+    # exec'ea este comando como PID del proceso principal.
     command: ["uvicorn", "facturation_api.asgi:application", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 volumes:

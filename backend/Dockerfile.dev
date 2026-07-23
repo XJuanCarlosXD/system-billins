@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         curl \
         unzip \
+        cron \
         $(apt-cache show libaio1t64 >/dev/null 2>&1 && echo libaio1t64 || echo libaio1) \
     && rm -rf /var/lib/apt/lists/*
 
@@ -27,8 +28,14 @@ ENV LD_LIBRARY_PATH=/opt/oracle/instantclient
 
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
+RUN playwright install --with-deps chromium
 
 # El codigo se monta por volumen en compose para hot reload con runserver.
 EXPOSE 8000
 
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+COPY docker/entrypoint.sh /entrypoint.sh
+COPY docker/crontab-lic /etc/cron.d/lic-cron
+RUN chmod +x /entrypoint.sh && chmod 0644 /etc/cron.d/lic-cron && crontab /etc/cron.d/lic-cron
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["uvicorn", "facturation_api.asgi:application", "--host", "0.0.0.0", "--port", "8000", "--reload"]
