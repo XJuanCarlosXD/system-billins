@@ -38,6 +38,7 @@ services:
     container_name: facturation_backend
     env_file:
       - ./backend/.env
+    init: true
     expose:
       - "8000"
     volumes:

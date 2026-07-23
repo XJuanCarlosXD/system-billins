@@ -1,2 +1,3 @@
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 30 5 * * * root cd /app && python manage.py scrape_licitaciones >> /app/data/lic-cron.log 2>&1
 
