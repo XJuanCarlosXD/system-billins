@@ -4,6 +4,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 const API_BASE =
   (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
 
+// Nota: los parámetros de los hooks de abajo usan snake_case (`no_cia`) en vez del
+// camelCase de `fe/api.ts` (`noCia`) -- deliberado: `no_cia` se pasa tal cual dentro de
+// `JSON.stringify({ no_cia })` como cuerpo de la request, así que mantener el mismo
+// nombre evita el mapeo camelCase↔snake_case en cada payload. Se documenta acá en vez de
+// renombrar porque no hay consumidores todavía (Tasks 12-14).
+
 function readCsrfToken(): string {
   if (typeof document === 'undefined') return ''
   const match = document.cookie
@@ -100,13 +106,30 @@ export interface ScrapeResumen {
   errores: ScrapeError[]
 }
 
-export interface ScrapeJobStatus {
-  id: number
-  estado: 'corriendo' | 'completado' | 'completado_con_errores' | 'error'
-  iniciado_en: string
-  terminado_en: string | null
-  resumen: ScrapeResumen
-}
+// Unión discriminada por `estado`: `ScrapeJob.resumen` (JSONField(default=dict)) solo se
+// asigna una vez, al final de `ejecutar_scrape` cuando termina con éxito (estado
+// completado/completado_con_errores). Los caminos que marcan estado="error" -- el wrapper
+// de hilo en views.py y el except del comando de cron -- fijan `estado` pero nunca tocan
+// `resumen`, que se queda en `{}` (el default del modelo). Mientras el job sigue
+// "corriendo" tampoco hay resumen todavía. Tiparlo como `ScrapeResumen` siempre habría
+// dejado pasar `data.resumen.errores` sin marcar error de tipos y reventado en runtime
+// (`TypeError: Cannot read properties of undefined`) apenas la UI de polling (Task 13)
+// leyera un job corriendo o fallado.
+export type ScrapeJobStatus =
+  | {
+      id: number
+      estado: 'corriendo' | 'error'
+      iniciado_en: string
+      terminado_en: string | null
+      resumen: Record<string, never>
+    }
+  | {
+      id: number
+      estado: 'completado' | 'completado_con_errores'
+      iniciado_en: string
+      terminado_en: string | null
+      resumen: ScrapeResumen
+    }
 
 export function useCredenciales() {
   return useQuery({
@@ -127,6 +150,9 @@ export function useGuardarCredencial() {
   })
 }
 
+// A diferencia de `fe/api.ts` (donde `useProbarConexion(noCia)` fija la empresa al
+// instanciar el hook), aquí `no_cia` viaja por llamada -- útil porque esta pantalla lista
+// credenciales de varias empresas a la vez y "probar" cualquier fila reusa el mismo hook.
 export function useProbarConexion() {
   return useMutation({
     mutationFn: (no_cia: string) =>
