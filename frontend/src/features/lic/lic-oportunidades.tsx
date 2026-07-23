@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -68,13 +69,21 @@ export function LicOportunidades() {
   // anotado como pendiente ahí) y recién entonces valdría la pena mover el filtro al
   // servidor.
   const [estado, setEstado] = useState(TODOS)
-  const [jobId, setJobId] = useState<number | null>(null)
+  // El guardia de concurrencia del backend (scrape_view) es POR no_cia: jobs para
+  // empresas distintas corren en paralelo sin bloquearse (solo un job "todas las
+  // empresas" bloquea a todos). Por eso el job en curso se rastrea junto con la
+  // empresa para la que se lanzó, no como un simple jobId -- así "Buscar ahora" para
+  // la empresa B nunca queda deshabilitado por un job de la empresa A, y los
+  // toasts/refetch de finalización solo aplican mientras se está viendo la empresa
+  // dueña de ese job (ver gating de `esJobDeEstaEmpresa` más abajo).
+  const [job, setJob] = useState<{ jobId: number; company: string } | null>(null)
   const [selectedOportunidad, setSelectedOportunidad] = useState<Oportunidad | null>(null)
 
   const { data, isLoading, refetch } = useOportunidades(selectedCompany)
   const buscarAhora = useBuscarAhora()
-  const { data: jobStatus } = useScrapeJobStatus(jobId)
+  const { data: jobStatus } = useScrapeJobStatus(job?.jobId ?? null)
   const documentosQ = useDocumentos(selectedOportunidad?.id ?? null)
+  const esJobDeEstaEmpresa = job?.company === selectedCompany
 
   const oportunidades = data?.oportunidades ?? []
 
@@ -96,42 +105,58 @@ export function LicOportunidades() {
   // en un efecto, cuando el job pasa de "corriendo" a un estado final, usando un ref
   // para no repetir el refetch/toast si el componente vuelve a renderizar con el mismo
   // job ya resuelto (ej. al cambiar el filtro de estado).
+  //
+  // También se guarda contra el job aquí gatillado por una empresa DISTINTA a la que
+  // se está viendo ahora mismo (`esJobDeEstaEmpresa`): sin ese guardia, terminar un job
+  // de la empresa A mientras el usuario ya cambió a la empresa B refrescaría/mostraría
+  // el toast de A encima de los datos de B -- y al marcar el ref como "manejado" nunca
+  // se le mostraría ese resultado al volver a A. El guardia hace que el efecto no toque
+  // el ref en absoluto mientras la empresa no coincide, así que el toast/refetch de A
+  // sigue pendiente y se dispara correctamente si el usuario vuelve a seleccionar A.
   const lastHandledJobRef = useRef<number | null>(null)
   useEffect(() => {
-    if (!jobId || !jobStatus || jobStatus.estado === 'corriendo') return
-    if (lastHandledJobRef.current === jobId) return
-    lastHandledJobRef.current = jobId
+    if (!job || !esJobDeEstaEmpresa || !jobStatus || jobStatus.estado === 'corriendo') return
+    if (lastHandledJobRef.current === job.jobId) return
+    lastHandledJobRef.current = job.jobId
 
-    refetch()
     if (jobStatus.estado === 'completado') {
+      refetch()
       toast.success(
         `Búsqueda completada: ${jobStatus.resumen.oportunidades_nuevas} oportunidad(es) nueva(s), ` +
           `${jobStatus.resumen.documentos_descargados} documento(s) descargado(s)`
       )
     } else if (jobStatus.estado === 'completado_con_errores') {
+      refetch()
       toast.warning(
         `Búsqueda completada con ${jobStatus.resumen.errores.length} error(es). ` +
           `${jobStatus.resumen.oportunidades_nuevas} oportunidad(es) nueva(s).`
       )
     } else if (jobStatus.estado === 'error') {
+      // No se refresca la lista: un job en "error" no llegó a modificar datos (ver
+      // `_ejecutar_scrape_seguro` en views.py -- se marca error antes de escribir
+      // ningún resumen), así que no hay nada nuevo que traer del backend.
       toast.error('La búsqueda terminó con error. Intente de nuevo más tarde.')
     }
-  }, [jobId, jobStatus, refetch])
+  }, [job, esJobDeEstaEmpresa, jobStatus, refetch])
 
-  const buscando = jobStatus?.estado === 'corriendo'
+  const buscando = esJobDeEstaEmpresa && jobStatus?.estado === 'corriendo'
 
   const handleBuscarAhora = () => {
-    buscarAhora.mutate(selectedCompany, {
+    const company = selectedCompany
+    buscarAhora.mutate(company, {
       onSuccess: (res) => {
-        setJobId(res.job_id)
+        setJob({ jobId: res.job_id, company })
         toast.info('Búsqueda iniciada en el portal DGCP')
       },
       onError: (e) => {
         // Bug #2 del reference: un 409 de la guardia de concurrencia (Task 10) trae
         // job_id del job que YA está corriendo -- en vez de un error sin salida, se
-        // engancha el polling a ESE job para mostrar su progreso en tiempo real.
+        // engancha el polling a ESE job para mostrar su progreso en tiempo real. Ese
+        // job en curso cubre `company` (el guardia solo lo devuelve cuando coincide con
+        // esa empresa o es un job de "todas las empresas"), así que asociarlo a
+        // `company` aquí es correcto para el gating de arriba.
         if (e instanceof LicApiError && e.job_id) {
-          setJobId(e.job_id)
+          setJob({ jobId: e.job_id, company })
           toast.info('Ya hay una búsqueda en curso para esta empresa. Mostrando su progreso.')
         } else {
           toast.error(e.message)
@@ -253,6 +278,10 @@ export function LicOportunidades() {
         <DialogContent className='max-w-2xl max-h-[80vh] flex flex-col gap-0 p-0 overflow-hidden'>
           <DialogHeader className='shrink-0 border-b px-6 py-4'>
             <DialogTitle>Documentos — {selectedOportunidad?.referencia}</DialogTitle>
+            <DialogDescription>
+              Documentos descargados automáticamente desde el portal DGCP para esta
+              oportunidad.
+            </DialogDescription>
           </DialogHeader>
           <div className='flex-1 overflow-y-auto px-6 py-4 space-y-3'>
             <p className='text-sm text-muted-foreground truncate'>
