@@ -140,3 +140,11 @@ BEGIN
     :NEW.ID := FAT.SEQ_TLIC_DOCUMENTO.NEXTVAL;
 END;
 /
+
+-- Agregado 2026-07-22 (Task 7, fix de code review): guarda el mensaje de error real de
+-- un documento individual que falló al descargarse, en vez de sobrecargar RUTA_ARCHIVO
+-- (que además es VARCHAR2(500) y podía truncar con ORA-12899). Mismo patrón que
+-- TLIC_RUBRO_PDF.MENSAJE_ERROR. La tabla ya estaba viva y vacía al momento del cambio,
+-- por eso es un ALTER TABLE aparte y no una reescritura del CREATE TABLE de arriba.
+ALTER TABLE FAT.TLIC_DOCUMENTO ADD MENSAJE_ERROR VARCHAR2(1000);
+/

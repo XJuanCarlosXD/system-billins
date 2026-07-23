@@ -1124,164 +1124,58 @@ git commit -m "feat(lic): extraccion de rubros RPE desde PDF (pypdf + Claude)"
 > `guardar_documento()` para no romper el insert con ORA-01400. El código y los tests reales
 > (5, no 2) quedan documentados abajo en vez de los originales.
 
+> **Nota post-review de código (2026-07-22, commit `4593a2a` → fix posterior):** una revisión
+> de calidad de ese primer commit encontró 3 issues Important + 1 Minor, todos corregidos en
+> el mismo día en un commit separado (no un amend):
+> 1. **Aislamiento por documento en la persistencia:** cada llamada a
+>    `lic_repo.guardar_documento()` ahora tiene su propio try/except dentro del loop de
+>    `_descargar_y_guardar_documentos` — antes, si el INSERT del documento N fallaba (p.ej.
+>    ORA-12899), la excepción escapaba sin capturar hasta el `except Exception` a nivel de
+>    empresa, saltándose en silencio todos los documentos/oportunidades restantes de esa
+>    corrida para esa empresa.
+> 2. **Reintento cuando quedan cero documentos:** se agregó `lic_repo.tiene_documentos(id) ->
+>    bool` (`SELECT COUNT(*) ... WHERE oportunidad_id = :1`). Antes, `es_nueva` (derivado solo
+>    de si la fila ya existía en `TLIC_OPORTUNIDAD`) decidía si se llamaba a
+>    `download_documentos` — así que si esa llamada fallaba por completo (excepción, no una
+>    fila individual) en el primer avistamiento de una oportunidad, esta quedaba marcada como
+>    "no nueva" en la próxima corrida y sus documentos NUNCA se reintentaban. La condición pasó
+>    de `if not es_nueva: continue` a `if not es_nueva and lic_repo.tiene_documentos(id):
+>    continue` — una oportunidad ya vista pero sin documentos guardados se reintenta.
+> 3. **`resumen["errores"]` estructurado:** pasó de ser un `dict` con claves ambiguas (`no_cia`
+>    plano para errores de empresa, `"no_cia:referencia:documentos"` concatenado con `:` para
+>    errores de documentos — inseguro si algún valor real trajera `:`, y consumido
+>    directamente por el endpoint de status de Task 13) a una `list[dict]` con
+>    `{"no_cia", "referencia", "contexto", "mensaje"}` (`contexto` ∈
+>    `"credencial"|"login"|"empresa"|"documentos"|"persistencia"`; `referencia` es `None` para
+>    errores a nivel de empresa). El chequeo "¿hubo errores?" (`resumen["errores"]` truthy →
+>    `completado_con_errores`) sigue funcionando igual porque una lista vacía también es
+>    falsy.
+> 4. **Columna `MENSAJE_ERROR` real:** se agregó `ALTER TABLE FAT.TLIC_DOCUMENTO ADD
+>    MENSAJE_ERROR VARCHAR2(1000);` (mismo patrón que `TLIC_RUBRO_PDF.MENSAJE_ERROR`), ejecutado
+>    en vivo contra Oracle vía `client.execute(...)` desde un shell de Django dentro del
+>    contenedor (no hay `sqlplus` en el VM ni en el contenedor; `apps/legacy/client.py` usa
+>    `oracledb` en modo thick con DSN `10.0.0.51:1521/AB`). `lic_repo.guardar_documento()` ahora
+>    acepta `mensaje_error: str | None = None` y lo pasa como sexto bind. `ruta_archivo` y
+>    `nombre_archivo` dejaron de sobrecargarse con el texto del error (que además arriesgaba
+>    truncar con ORA-12899 contra `VARCHAR2(500)`, un fallo no protegido que agravaba el issue
+>    #1) — ambos quedan con el placeholder corto `"(descarga fallida)"` y el mensaje real va
+>    solo a `MENSAJE_ERROR`. Verificado en vivo contra Oracle real (no solo mocks): insert +
+>    `tiene_documentos()` + limpieza, sin dejar filas huérfanas.
+>
+> El código, los tests (8, no 5) y el DDL reales quedan documentados abajo en vez de la
+> primera corrección.
+
 - [ ] **Step 1: Write the failing test**
 
-```python
-from unittest.mock import MagicMock, patch
-
-from apps.lic.models import ScrapeJob
-from apps.lic.services.orchestrator import ejecutar_scrape
-import pytest
-
-
-@pytest.mark.django_db
-def test_ejecutar_scrape_marks_job_completado_when_no_errors():
-    job = ScrapeJob.objects.create(trigger="manual", no_cia="01")
-    credencial = {"no_cia": "01", "usuario_portal": "abregonza", "password_cifrado": "x"}
-
-    with patch("apps.lic.services.orchestrator.lic_repo") as repo, \
-         patch("apps.lic.services.orchestrator.crypto") as crypto, \
-         patch("apps.lic.services.orchestrator.LicitacionesScraper") as ScraperCls:
-        repo.get_credencial_con_password.return_value = credencial
-        crypto.decrypt.return_value = "plain-password"
-        repo.upsert_oportunidad.return_value = (1, True)
-        scraper_instance = MagicMock()
-        scraper_instance.list_oportunidades.return_value = [
-            {"referencia": "REF-1", "titulo": "algo"}
-        ]
-        scraper_instance.download_documentos.return_value = [
-            {"tipo_documento": "Pliego", "nombre_archivo": "pliego.pdf", "ruta_archivo": "/x/pliego.pdf", "estado": "ok"}
-        ]
-        ScraperCls.return_value.__enter__.return_value = scraper_instance
-
-        ejecutar_scrape(job, empresas=["01"])
-
-    job.refresh_from_db()
-    assert job.estado == "completado"
-    assert job.resumen["oportunidades_nuevas"] == 1
-    assert job.resumen["documentos_descargados"] == 1
-    repo.guardar_documento.assert_called_once_with(
-        1, "Pliego", "pliego.pdf", "/x/pliego.pdf", estado="ok"
-    )
-
-
-@pytest.mark.django_db
-def test_ejecutar_scrape_marks_job_con_errores_when_login_fails():
-    job = ScrapeJob.objects.create(trigger="manual", no_cia="01")
-    credencial = {"no_cia": "01", "usuario_portal": "abregonza", "password_cifrado": "x"}
-
-    with patch("apps.lic.services.orchestrator.lic_repo") as repo, \
-         patch("apps.lic.services.orchestrator.crypto") as crypto, \
-         patch("apps.lic.services.orchestrator.LicitacionesScraper") as ScraperCls:
-        repo.get_credencial_con_password.return_value = credencial
-        crypto.decrypt.return_value = "plain-password"
-        scraper_instance = MagicMock()
-        from apps.lic.services.scraper import LoginError
-        scraper_instance.login.side_effect = LoginError("credenciales invalidas")
-        ScraperCls.return_value.__enter__.return_value = scraper_instance
-
-        ejecutar_scrape(job, empresas=["01"])
-
-    job.refresh_from_db()
-    assert job.estado == "completado_con_errores"
-    assert "01" in job.resumen["errores"]
-
-
-@pytest.mark.django_db
-def test_ejecutar_scrape_does_not_download_documents_for_existing_oportunidad():
-    """Solo se descargan documentos para oportunidades NUEVAS, no las ya vistas."""
-    job = ScrapeJob.objects.create(trigger="manual", no_cia="01")
-    credencial = {"no_cia": "01", "usuario_portal": "abregonza", "password_cifrado": "x"}
-
-    with patch("apps.lic.services.orchestrator.lic_repo") as repo, \
-         patch("apps.lic.services.orchestrator.crypto") as crypto, \
-         patch("apps.lic.services.orchestrator.LicitacionesScraper") as ScraperCls:
-        repo.get_credencial_con_password.return_value = credencial
-        crypto.decrypt.return_value = "plain-password"
-        repo.upsert_oportunidad.return_value = (1, False)  # ya existía
-        scraper_instance = MagicMock()
-        scraper_instance.list_oportunidades.return_value = [
-            {"referencia": "REF-1", "titulo": "algo"}
-        ]
-        ScraperCls.return_value.__enter__.return_value = scraper_instance
-
-        ejecutar_scrape(job, empresas=["01"])
-
-    scraper_instance.download_documentos.assert_not_called()
-    job.refresh_from_db()
-    assert job.resumen["oportunidades_nuevas"] == 0
-    assert job.resumen["documentos_descargados"] == 0
-
-
-@pytest.mark.django_db
-def test_ejecutar_scrape_continues_when_document_download_fails():
-    """Un fallo al descargar documentos de UNA oportunidad no debe tumbar toda la corrida."""
-    job = ScrapeJob.objects.create(trigger="manual", no_cia="01")
-    credencial = {"no_cia": "01", "usuario_portal": "abregonza", "password_cifrado": "x"}
-
-    with patch("apps.lic.services.orchestrator.lic_repo") as repo, \
-         patch("apps.lic.services.orchestrator.crypto") as crypto, \
-         patch("apps.lic.services.orchestrator.LicitacionesScraper") as ScraperCls:
-        repo.get_credencial_con_password.return_value = credencial
-        crypto.decrypt.return_value = "plain-password"
-        repo.upsert_oportunidad.return_value = (1, True)
-        scraper_instance = MagicMock()
-        scraper_instance.list_oportunidades.return_value = [
-            {"referencia": "REF-1", "titulo": "algo"}
-        ]
-        scraper_instance.download_documentos.side_effect = RuntimeError("timeout de red")
-        ScraperCls.return_value.__enter__.return_value = scraper_instance
-
-        ejecutar_scrape(job, empresas=["01"])
-
-    job.refresh_from_db()
-    # La oportunidad SÍ se registró como nueva; el fallo de documentos queda en errores pero
-    # no bloquea el resto de la corrida (aquí "el resto" es solo esta empresa/oportunidad,
-    # pero el punto es que el job completa, no explota).
-    assert job.resumen["oportunidades_nuevas"] == 1
-    assert job.estado == "completado_con_errores"
-    assert "01:REF-1:documentos" in job.resumen["errores"]
-
-
-@pytest.mark.django_db
-def test_ejecutar_scrape_uses_placeholder_for_failed_document_entry():
-    """Una entrada de documento individual con estado='error' trae nombre/ruta en None
-    (ver scraper.py::download_documentos); NOMBRE_ARCHIVO y RUTA_ARCHIVO son NOT NULL en
-    Oracle (y '' se trata como NULL), así que debe sustituirse por un placeholder no vacío
-    en vez de propagar None/''."""
-    job = ScrapeJob.objects.create(trigger="manual", no_cia="01")
-    credencial = {"no_cia": "01", "usuario_portal": "abregonza", "password_cifrado": "x"}
-
-    with patch("apps.lic.services.orchestrator.lic_repo") as repo, \
-         patch("apps.lic.services.orchestrator.crypto") as crypto, \
-         patch("apps.lic.services.orchestrator.LicitacionesScraper") as ScraperCls:
-        repo.get_credencial_con_password.return_value = credencial
-        crypto.decrypt.return_value = "plain-password"
-        repo.upsert_oportunidad.return_value = (1, True)
-        scraper_instance = MagicMock()
-        scraper_instance.list_oportunidades.return_value = [
-            {"referencia": "REF-1", "titulo": "algo"}
-        ]
-        scraper_instance.download_documentos.return_value = [
-            {
-                "tipo_documento": None,
-                "nombre_archivo": None,
-                "ruta_archivo": None,
-                "estado": "error",
-                "error": "descarga fallida",
-            }
-        ]
-        ScraperCls.return_value.__enter__.return_value = scraper_instance
-
-        ejecutar_scrape(job, empresas=["01"])
-
-    job.refresh_from_db()
-    assert job.resumen["documentos_descargados"] == 0
-    args, kwargs = repo.guardar_documento.call_args
-    assert args[2]  # nombre_archivo no vacío
-    assert args[3]  # ruta_archivo no vacío
-    assert kwargs["estado"] == "error"
-```
+See `backend/apps/lic/tests/test_orchestrator.py` for the real, current file (8 tests) — too
+long to duplicate here twice over two rounds of fixes without drifting from the source of
+truth. Summary of the 8 tests: `marks_job_completado_when_no_errors`,
+`marks_job_con_errores_when_login_fails`, `marks_job_con_errores_when_credencial_missing`,
+`does_not_download_documents_for_existing_oportunidad_con_documentos`,
+`retries_documents_for_previously_seen_oportunidad_without_documents` (new, covers fix #2),
+`continues_when_document_download_fails`,
+`uses_placeholder_and_mensaje_error_for_failed_document_entry` (updated for fix #4),
+`continues_when_guardar_documento_fails_for_one_document` (new, covers fix #1).
 
 - [ ] **Step 2: Run to verify it fails**
 
@@ -1292,6 +1186,9 @@ docker exec -it facturation_backend pytest apps/lic/tests/test_orchestrator.py -
 Expected: `ModuleNotFoundError: No module named 'apps.lic.services.orchestrator'`. (Verificado en vivo el 2026-07-22.)
 
 - [ ] **Step 3: Implement it**
+
+Final version (post code-review fixes) — see `backend/apps/lic/services/orchestrator.py` for
+the source of truth. Structure:
 
 ```python
 """Orquesta una corrida de scraping: usado tanto por el comando de cron como por el
@@ -1314,13 +1211,13 @@ def ejecutar_scrape(job: ScrapeJob, empresas: list[str]) -> None:
         "oportunidades_nuevas": 0,
         "documentos_descargados": 0,
         "empresas_procesadas": [],
-        "errores": {},
+        "errores": [],  # list[dict]: {no_cia, referencia, contexto, mensaje}
     }
 
     for no_cia in empresas:
         credencial = lic_repo.get_credencial_con_password(no_cia)
         if not credencial:
-            resumen["errores"][no_cia] = "sin credencial configurada"
+            _agregar_error(resumen, no_cia, "sin credencial configurada", contexto="credencial")
             continue
 
         try:
@@ -1331,18 +1228,20 @@ def ejecutar_scrape(job: ScrapeJob, empresas: list[str]) -> None:
                 oportunidades = scraper.list_oportunidades()
                 for data in oportunidades:
                     oportunidad_id, es_nueva = lic_repo.upsert_oportunidad(no_cia, data)
-                    if not es_nueva:
+                    # Reintentar si quedó sin documentos guardados (fallo total previo).
+                    if not es_nueva and lic_repo.tiene_documentos(oportunidad_id):
                         continue
-                    resumen["oportunidades_nuevas"] += 1
+                    if es_nueva:
+                        resumen["oportunidades_nuevas"] += 1
                     _descargar_y_guardar_documentos(
                         scraper, no_cia, data["referencia"], oportunidad_id, resumen
                     )
             resumen["empresas_procesadas"].append(no_cia)
         except LoginError as exc:
             lic_repo.marcar_login_resultado(no_cia, ok=False, mensaje_error=str(exc))
-            resumen["errores"][no_cia] = str(exc)
+            _agregar_error(resumen, no_cia, str(exc), contexto="login")
         except Exception as exc:  # noqa: BLE001 - se registra y se sigue con las demás empresas
-            resumen["errores"][no_cia] = str(exc)
+            _agregar_error(resumen, no_cia, str(exc), contexto="empresa")
 
     job.resumen = resumen
     job.estado = "completado_con_errores" if resumen["errores"] else "completado"
@@ -1350,60 +1249,81 @@ def ejecutar_scrape(job: ScrapeJob, empresas: list[str]) -> None:
     job.save()
 
 
+def _agregar_error(resumen, no_cia, mensaje, *, referencia=None, contexto):
+    resumen["errores"].append(
+        {"no_cia": no_cia, "referencia": referencia, "contexto": contexto, "mensaje": mensaje}
+    )
+
+
 def _descargar_y_guardar_documentos(scraper, no_cia, referencia, oportunidad_id, resumen):
-    """Descarga los documentos oficiales de una oportunidad recién descubierta y los
-    persiste con ``lic_repo.guardar_documento``.
-
-    ``LicitacionesScraper.download_documentos`` puede fallar por completo (referencia no
-    encontrada en el feed, Aviso de Contrato sin sección de documentos, etc.) — ese caso se
-    captura aquí para que un problema de documentos en una oportunidad no tumbe el resto de
-    la corrida de la empresa.
-
-    Cuando la descarga en sí funciona pero un documento puntual falla, ``download_documentos``
-    ya lo reporta como una entrada con ``estado: "error"`` y ``tipo_documento``/
-    ``nombre_archivo``/``ruta_archivo`` en ``None`` (ver docstring real en
-    ``scraper.py::download_documentos``). ``NOMBRE_ARCHIVO`` y ``RUTA_ARCHIVO`` son
-    ``NOT NULL`` en ``FAT.TLIC_DOCUMENTO`` (y Oracle trata `''` como NULL), así que esas
-    entradas necesitan un valor de reemplazo no vacío para poder insertarse.
-    """
     destino_dir = Path(settings.MEDIA_ROOT) / "lic" / no_cia / referencia
     try:
         documentos = scraper.download_documentos(referencia, destino_dir)
     except Exception as exc:  # noqa: BLE001 - un fallo de documentos no debe tumbar la empresa
-        resumen["errores"][f"{no_cia}:{referencia}:documentos"] = str(exc)
+        _agregar_error(resumen, no_cia, str(exc), referencia=referencia, contexto="documentos")
         return
+
     for doc in documentos:
         estado = doc.get("estado", "ok")
         nombre_archivo = doc.get("nombre_archivo") or "(descarga fallida)"
-        ruta_archivo = doc.get("ruta_archivo") or f"error: {doc.get('error', 'desconocido')}"
-        lic_repo.guardar_documento(
-            oportunidad_id,
-            doc.get("tipo_documento"),
-            nombre_archivo,
-            ruta_archivo,
-            estado=estado,
-        )
+        ruta_archivo = doc.get("ruta_archivo") or "(descarga fallida)"
+        mensaje_error = doc.get("error") if estado == "error" else None
+        try:
+            lic_repo.guardar_documento(
+                oportunidad_id, doc.get("tipo_documento"), nombre_archivo, ruta_archivo,
+                estado=estado, mensaje_error=mensaje_error,
+            )
+        except Exception as exc:  # noqa: BLE001 - un documento no debe tumbar los demás
+            _agregar_error(resumen, no_cia, str(exc), referencia=referencia, contexto="persistencia")
+            continue
         if estado == "ok":
             resumen["documentos_descargados"] += 1
 ```
 
+Companion changes made in the same fix:
+- `backend/apps/legacy/repositories/lic_repo.py`: `guardar_documento(...)` gained
+  `mensaje_error: str | None = None` (6th bind, inserted into the new column);
+  `list_documentos(...)` now also selects `mensaje_error`; added
+  `tiene_documentos(oportunidad_id: int) -> bool` (`SELECT COUNT(*) FROM
+  FAT.TLIC_DOCUMENTO WHERE oportunidad_id = :1`).
+- `backend/apps/lic/sql/001_create_tlic.sql`: appended (not rewritten — table was already
+  live) `ALTER TABLE FAT.TLIC_DOCUMENTO ADD MENSAJE_ERROR VARCHAR2(1000);`, run live against
+  Oracle via `docker exec facturation_backend python manage.py shell -c "from
+  apps.legacy.client import execute; execute('ALTER TABLE FAT.TLIC_DOCUMENTO ADD
+  MENSAJE_ERROR VARCHAR2(1000)')"` (no `sqlplus` available on the VM or in the container;
+  `apps/legacy/client.py` uses `oracledb` thick mode against DSN `10.0.0.51:1521/AB`).
+  Verified afterward with a live insert/read/cleanup smoke test (not just mocks) using
+  `lic_repo.guardar_documento`/`tiene_documentos` directly against Oracle, no orphaned rows
+  left behind.
+
 - [ ] **Step 4: Run tests to verify they pass**
 
 ```bash
-docker exec -it facturation_backend pytest apps/lic/tests/test_orchestrator.py -v
+docker exec -it facturation_backend pytest apps/lic/ -v
 ```
 
-Expected: 5 passed (not 2 — the original draft's test count). Verificado en vivo el 2026-07-22:
-`apps/lic/tests/test_orchestrator.py .....  [100%]`, 5 passed in 1.28s. Full `apps/lic/`
-suite also re-run: 23 passed, no regressions in `test_lic_repo.py`/`test_pdf_rubros.py`/
-`test_scraper_parsing.py`.
+First round (commit `4593a2a`): `apps/lic/tests/test_orchestrator.py .....  [100%]`, 5
+passed. Full `apps/lic/` suite: 23 passed.
+
+Second round, after the 4 code-review fixes above: `apps/lic/tests/test_orchestrator.py
+........  [30%]`, 8 passed (3 new tests: credencial-missing, retry-on-zero-documents,
+per-document-persistence-failure-isolation; 2 existing tests updated for the structured
+`errores` list and `mensaje_error`). Full `apps/lic/` suite re-run: **26 passed**, no
+regressions in `test_lic_repo.py` (8)/`test_pdf_rubros.py` (8)/`test_scraper_parsing.py` (2).
 
 - [ ] **Step 5: Commit**
 
 ```bash
+# First commit (Task 7 base implementation):
 git add backend/apps/lic/services/orchestrator.py backend/apps/lic/tests/test_orchestrator.py \
         backend/docs/superpowers/plans/2026-07-22-lic-portal-integracion.md
 git commit -m "feat(lic): orquestador de scraping con descarga de documentos para oportunidades nuevas"
+
+# Second commit, same day, after the code-review fixes (NOT an amend):
+git add backend/apps/lic/services/orchestrator.py backend/apps/lic/tests/test_orchestrator.py \
+        backend/apps/legacy/repositories/lic_repo.py backend/apps/lic/sql/001_create_tlic.sql \
+        backend/docs/superpowers/plans/2026-07-22-lic-portal-integracion.md
+git commit -m "fix(lic): aislar fallos por documento, permitir reintento y estructurar errores en orquestador"
 ```
 
 ---

@@ -141,22 +141,38 @@ def list_oportunidades(no_cia: str, estado_portal: str | None = None) -> list[di
 
 
 def guardar_documento(oportunidad_id: int, tipo_documento: str, nombre_archivo: str,
-                       ruta_archivo: str, estado: str = "ok") -> None:
+                       ruta_archivo: str, estado: str = "ok",
+                       mensaje_error: str | None = None) -> None:
     with client.cursor() as cur:
         cur.execute(
             "INSERT INTO FAT.TLIC_DOCUMENTO (oportunidad_id, tipo_documento, nombre_archivo, "
-            "ruta_archivo, estado) VALUES (:1, :2, :3, :4, :5)",
-            [oportunidad_id, tipo_documento, nombre_archivo, ruta_archivo, estado],
+            "ruta_archivo, estado, mensaje_error) VALUES (:1, :2, :3, :4, :5, :6)",
+            [oportunidad_id, tipo_documento, nombre_archivo, ruta_archivo, estado, mensaje_error],
         )
         cur.connection.commit()
 
 
 def list_documentos(oportunidad_id: int) -> list[dict]:
     return client.fetch_dicts(
-        "SELECT tipo_documento, nombre_archivo, ruta_archivo, estado, descargado_en "
+        "SELECT tipo_documento, nombre_archivo, ruta_archivo, estado, mensaje_error, descargado_en "
         "FROM FAT.TLIC_DOCUMENTO WHERE oportunidad_id = :1 ORDER BY descargado_en",
         [oportunidad_id],
     )
+
+
+def tiene_documentos(oportunidad_id: int) -> bool:
+    """True si la oportunidad ya tiene al menos un documento registrado (ok o error).
+
+    Usado por el orquestador para permitir reintentar la descarga de documentos en una
+    corrida futura cuando ``download_documentos`` falló por completo (excepción, no una
+    fila individual) en la primera pasada de una oportunidad ya vista — de lo contrario
+    ``es_nueva=False`` en pasadas siguientes la dejaría sin documentos para siempre.
+    """
+    row = client.fetch_one(
+        "SELECT COUNT(*) FROM FAT.TLIC_DOCUMENTO WHERE oportunidad_id = :1",
+        [oportunidad_id],
+    )
+    return bool(row and row[0] > 0)
 
 
 def guardar_rubro_pdf(no_cia: str, nombre_archivo: str, ruta_archivo: str) -> int:
