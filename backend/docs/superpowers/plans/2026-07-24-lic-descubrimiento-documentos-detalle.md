@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ampliar el descubrimiento de licitaciones del módulo LIC vía la Búsqueda avanzada pública del portal DGCP (con paginación real), agregar un catálogo administrable de tipos de documento de empresa con una vista dedicada de subida en Configuración, extender el análisis con IA para listar productos/servicios pedidos y documentos faltantes (solo señalar, sin generar), y reemplazar el modal de detalle de una oportunidad por una página completa con orden fijo (descripción → requisitos → productos → documentos) y botones de descarga reales.
+**Goal:** Ampliar el descubrimiento de licitaciones del módulo LIC vía la Búsqueda avanzada pública del portal DGCP (con paginación real), agregar un catálogo administrable de tipos de documento de empresa con una vista dedicada de subida en Configuración, hacer que el scraper (no la IA) extraiga productos/servicios y modalidad de entrega directo del portal, dar a la IA un rol acotado a la página de detalle (recomendar precio en batch usando un historial que una consulta de código ya encontró), reemplazar el modal de detalle por una página completa con orden fijo (descripción → requisitos → productos → documentos), y agregar un flujo de "aplicar a la licitación" (preparar oferta + adjuntar documentos) con envío final sujeto a confirmación humana explícita.
 
 **Architecture:** Backend Django "vistas planas" (sin DRF, mismo estilo que el resto de `apps/lic`) + repositorio Oracle (`apps/legacy/repositories/lic_repo.py`, patrón secuencia+trigger). Frontend React + TanStack Router (rutas por archivo) + TanStack Query, mismos hooks/convenciones ya usados en `features/lic/api.ts`. Sin dependencias nuevas.
 
@@ -1623,6 +1623,14 @@ END;
 -- derivado (se recalcula en cada analisis), no se justifica tabla hija para esto.
 ALTER TABLE FAT.TLIC_OPORTUNIDAD ADD DOCUMENTOS_FALTANTES VARCHAR2(2000);
 /
+
+-- Modalidad de entrega de la oferta/documentacion segun el propio proceso: 'fisica',
+-- 'virtual', 'ambas', o NULL si el portal no lo especifico para ese proceso.
+ALTER TABLE FAT.TLIC_OPORTUNIDAD ADD MODALIDAD_ENTREGA VARCHAR2(10);
+/
+ALTER TABLE FAT.TLIC_OPORTUNIDAD ADD CONSTRAINT CK_TLIC_OPORTUNIDAD_MODALIDAD
+    CHECK (MODALIDAD_ENTREGA IN ('fisica', 'virtual', 'ambas'));
+/
 ```
 
 - [ ] **Step 2: Ejecutar contra Oracle en la VM**
@@ -2037,7 +2045,86 @@ oportunidad(oportunidad_id, detalle)`)
 Run: `docker compose exec -T backend python manage.py test apps.lic.tests.test_orchestrator -v 2`
 Expected: `OK` (todos, incluyendo los preexistentes y los de los Tasks 3 y 15)
 
-- [ ] **Step 6: Conectar `documentos_faltantes` en `ejecutar_analisis_oportunidad`** (sin tocar productos)
+- [ ] **Step 6: Extraer `modalidad_entrega` (física/virtual/ambas) — mismo método, sin IA**
+
+Igual que el selector de productos del Step 1, el campo exacto del Aviso de Contrato donde el
+portal indica la modalidad de entrega **no se verificó en vivo** para esta tarea — se confirma
+antes de dar el paso por completo, ajustando el selector propuesto abajo si no coincide.
+
+Agregar al test de scraper (`test_scraper_advanced_search_parse.py` o un archivo dedicado
+`test_scraper_detalle_aviso.py`, según convenga):
+
+```python
+from apps.lic.services.scraper import _normalizar_modalidad_entrega
+
+
+def test_normalizar_modalidad_entrega_fisica():
+    assert _normalizar_modalidad_entrega("Entrega física obligatoria") == "fisica"
+
+
+def test_normalizar_modalidad_entrega_virtual():
+    assert _normalizar_modalidad_entrega("Entrega virtual (portal)") == "virtual"
+
+
+def test_normalizar_modalidad_entrega_ambas():
+    assert _normalizar_modalidad_entrega("Física o virtual, a elección del oferente") == "ambas"
+
+
+def test_normalizar_modalidad_entrega_desconocida_da_none():
+    assert _normalizar_modalidad_entrega("") is None
+    assert _normalizar_modalidad_entrega(None) is None
+```
+
+Run: `docker compose exec -T backend python manage.py test apps.lic.tests.test_scraper_advanced_search_parse -v 2` (o el archivo que corresponda)
+Expected: FAIL — `ImportError: cannot import name '_normalizar_modalidad_entrega'`
+
+Implementar en `scraper.py`:
+
+```python
+def _normalizar_modalidad_entrega(texto: str | None) -> str | None:
+    """Normaliza el texto libre del portal a 'fisica'|'virtual'|'ambas'|None. El
+    texto exacto que usa el portal para este campo se confirma en vivo (ver nota
+    del plan); esta funcion cubre las variantes mas obvias y devuelve None ante
+    cualquier texto que no reconozca en vez de adivinar."""
+    if not texto:
+        return None
+    t = texto.strip().lower()
+    tiene_fisica = "física" in t or "fisica" in t
+    tiene_virtual = "virtual" in t
+    if tiene_fisica and tiene_virtual:
+        return "ambas"
+    if tiene_fisica:
+        return "fisica"
+    if tiene_virtual:
+        return "virtual"
+    return None
+```
+
+Agregar la lectura del campo dentro de `_extraer_detalle_aviso_contrato` (mismo patrón try/except
+que los demás campos de ese método), agregando `"modalidad_entrega": None` al dict inicial:
+
+```python
+        try:
+            loc = cn_page.locator("#spnDeliveryModeValue").first
+            if loc.count() > 0:
+                detalle["modalidad_entrega"] = _normalizar_modalidad_entrega(loc.inner_text())
+        except Exception:  # noqa: BLE001 - campo opcional, no debe tumbar el resto
+            logger.warning("lic.scraper: no se pudo leer modalidad de entrega (referencia=%s)", referencia)
+```
+
+Extender `lic_repo.actualizar_detalle_oportunidad` para aceptar `modalidad_entrega` (agregar junto
+a los demás `if detalle.get(...)` de esa función):
+
+```python
+    if detalle.get("modalidad_entrega"):
+        sets.append("modalidad_entrega = :modalidad_entrega")
+        params["modalidad_entrega"] = detalle["modalidad_entrega"]
+```
+
+Run: `docker compose exec -T backend python manage.py test apps.lic.tests.test_scraper_advanced_search_parse -v 2`
+Expected: `OK`
+
+- [ ] **Step 7: Conectar `documentos_faltantes` en `ejecutar_analisis_oportunidad`** (sin tocar productos)
 
 Reemplazar únicamente la llamada a `guardar_analisis_oportunidad` dentro de
 `ejecutar_analisis_oportunidad` (líneas 182-185 del archivo original, antes de
@@ -2063,16 +2150,16 @@ Reemplazar únicamente la llamada a `guardar_analisis_oportunidad` dentro de
 Esta función **no** toca `TLIC_PRODUCTO` ni devuelve `productos` -- eso ya lo puebla el scraper
 (Step 5 de esta misma tarea), independientemente de si el análisis IA se corrió o no.
 
-- [ ] **Step 7: Correr toda la suite de `apps.lic`**
+- [ ] **Step 8: Correr toda la suite de `apps.lic`**
 
 Run: `docker compose exec -T backend python manage.py test apps.lic -v 2`
 Expected: `OK`
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add backend/apps/lic/services/scraper.py backend/apps/lic/services/orchestrator.py backend/apps/lic/services/analisis_licitacion.py backend/apps/lic/tests/test_scraper_advanced_search_parse.py backend/apps/lic/tests/test_orchestrator.py
-git commit -m "feat(lic): scraper extrae productos del Aviso de Contrato (sin IA) + conectar documentos_faltantes"
+git add backend/apps/lic/services/scraper.py backend/apps/lic/services/orchestrator.py backend/apps/lic/services/analisis_licitacion.py backend/apps/legacy/repositories/lic_repo.py backend/apps/lic/tests/test_scraper_advanced_search_parse.py backend/apps/lic/tests/test_orchestrator.py
+git commit -m "feat(lic): scraper extrae productos y modalidad de entrega del Aviso de Contrato (sin IA) + conectar documentos_faltantes"
 ```
 
 ### Task 16: Endpoint de productos, descarga, y precio (búsqueda por código + recomendación IA)
@@ -2235,43 +2322,41 @@ def buscar_precio_historico(no_cia: str, texto_producto: str) -> list[dict]:
 Run: `docker compose exec -T backend python manage.py test apps.lic.tests.test_lic_repo_productos.test_buscar_precio_historico_encuentra_por_descripcion_similar -v 2`
 Expected: `OK`
 
-- [ ] **Step 8: `apps/lic/services/recomendar_precio.py` — la IA solo recomienda con datos ya encontrados**
+- [ ] **Step 8: `apps/lic/services/recomendar_precio.py` — UNA sola llamada de IA para TODOS los productos**
+
+> **Corrección 2026-07-24 (tercera vuelta):** la IA no recomienda producto por producto en
+> llamadas separadas -- recibe TODOS los productos de la oportunidad (cada uno con su historial
+> ya buscado por código) en una sola llamada y devuelve las recomendaciones de todos a la vez.
 
 Escribir el test en `backend/apps/lic/tests/test_recomendar_precio.py` (crear):
 
 ```python
 from unittest.mock import patch
 
-from apps.lic.services.recomendar_precio import recomendar_precio
+from apps.lic.services.recomendar_precio import recomendar_precios
 
 
-def test_recomendar_precio_usa_solo_el_historial_entregado():
-    historial = [{"no_produ": "LAPTOP01", "descripcion": "Laptop core i5 16GB",
-                  "precio": 45000, "fecha": "2026-05-10"}]
+def test_recomendar_precios_una_sola_llamada_para_varios_productos():
+    productos = [
+        {"id": 1, "descripcion": "100 laptops core i5"},
+        {"id": 2, "descripcion": "Servicio de instalación"},
+    ]
+    historiales = {
+        1: [{"no_produ": "LAPTOP01", "descripcion": "Laptop core i5 16GB", "precio": 45000, "fecha": "2026-05-10"}],
+        2: [],
+    }
     with patch("apps.lic.services.recomendar_precio._llamar_claude") as llamar_claude:
         llamar_claude.return_value = (
-            '{"precio_sugerido": "45,000 - 47,000 DOP", '
-            '"justificacion": "Se cotizó un producto similar en mayo 2026 a 45,000 DOP"}'
+            '{"1": {"precio_sugerido": "45,000 - 47,000 DOP", "justificacion": "Se cotizó similar en mayo"}, '
+            '"2": {"precio_sugerido": null, "justificacion": "Sin historial"}}'
         )
-        resultado = recomendar_precio("100 laptops core i5", historial)
+        resultado = recomendar_precios(productos, historiales)
 
-    assert resultado == {
-        "precio_sugerido": "45,000 - 47,000 DOP",
-        "justificacion": "Se cotizó un producto similar en mayo 2026 a 45,000 DOP",
-    }
-    # El prompt debe incluir el historial recibido, no inventar uno propio
+    assert llamar_claude.call_count == 1  # UNA sola llamada para ambos productos
+    assert resultado[1]["precio_sugerido"] == "45,000 - 47,000 DOP"
+    assert resultado[2]["precio_sugerido"] is None
     prompt_enviado = llamar_claude.call_args[0][0]
-    assert "45000" in prompt_enviado or "45,000" in prompt_enviado
-
-
-def test_recomendar_precio_sin_historial_lo_deja_explicito_en_el_prompt():
-    with patch("apps.lic.services.recomendar_precio._llamar_claude") as llamar_claude:
-        llamar_claude.return_value = '{"precio_sugerido": null, "justificacion": "Sin historial"}'
-        resultado = recomendar_precio("producto nuevo sin historial", [])
-
-    assert resultado["precio_sugerido"] is None
-    prompt_enviado = llamar_claude.call_args[0][0]
-    assert "no hay historial" in prompt_enviado.lower() or "sin historial" in prompt_enviado.lower()
+    assert "100 laptops core i5" in prompt_enviado and "Servicio de instalación" in prompt_enviado
 ```
 
 Run: `docker compose exec -T backend python manage.py test apps.lic.tests.test_recomendar_precio -v 2`
@@ -2280,11 +2365,12 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'apps.lic.services.reco
 Crear `backend/apps/lic/services/recomendar_precio.py`:
 
 ```python
-"""Recomendacion de precio para un producto/servicio pedido por una licitacion --
-la IA NUNCA busca el historial por su cuenta, solo redacta una recomendacion a
-partir del historial que ya trajo lic_repo.buscar_precio_historico (codigo, sin
-IA). No repite informacion que la licitacion ya trae (la descripcion del
-producto la aporta quien llama, no se le pide "extraer" nada)."""
+"""Recomendacion de precio para TODOS los productos/servicios de una
+oportunidad en una sola llamada a Claude -- la IA NUNCA busca el historial
+por su cuenta (eso ya lo trae lic_repo.buscar_precio_historico, codigo puro,
+uno por producto) ni recibe una llamada separada por producto: se le manda
+todo junto y devuelve todo junto. No repite informacion que la licitacion ya
+trae (las descripciones las aporta quien llama)."""
 import json
 import logging
 
@@ -2303,7 +2389,7 @@ def _llamar_claude(prompt: str) -> str:
     client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
     mensaje = client.messages.create(
         model=settings.ASISTENTE_DEFAULT_MODEL,
-        max_tokens=500,
+        max_tokens=2000,
         messages=[{"role": "user", "content": prompt}],
     )
     return mensaje.content[0].text
@@ -2318,25 +2404,32 @@ def _limpiar_fences_markdown(texto: str) -> str:
     return "\n".join(lineas).strip()
 
 
-def recomendar_precio(descripcion_producto: str, historial: list[dict]) -> dict:
-    if historial:
-        bloque_historial = "\n".join(
-            f"- {h['descripcion']}: {h['precio']} (facturado/cotizado el {h['fecha']})"
-            for h in historial[:10]
-        )
-    else:
-        bloque_historial = "(no hay historial de precios previos para nada parecido en el sistema)"
+def recomendar_precios(productos: list[dict], historiales: dict[int, list[dict]]) -> dict[int, dict]:
+    """``productos`` es [{"id", "descripcion"}], ``historiales`` es {producto_id:
+    [{"descripcion","precio","fecha"}]} ya buscado por buscar_precio_historico.
+    Retorna {producto_id: {"precio_sugerido", "justificacion"}}."""
+    bloques = []
+    for p in productos:
+        historial = historiales.get(p["id"], [])
+        if historial:
+            bloque_hist = "\n".join(
+                f"    - {h['descripcion']}: {h['precio']} (facturado/cotizado el {h['fecha']})"
+                for h in historial[:10]
+            )
+        else:
+            bloque_hist = "    (sin historial de precios previos parecido en el sistema)"
+        bloques.append(f'  Producto id={p["id"]}: "{p["descripcion"]}"\n{bloque_hist}')
 
     prompt = (
-        "Eres un asistente que ayuda a una empresa dominicana a fijar un precio para "
-        f"participar en una licitación pública. Producto/servicio pedido: \"{descripcion_producto}\".\n\n"
-        f"Historial de precios ya facturados/cotizados por la empresa para productos parecidos:\n"
-        f"{bloque_historial}\n\n"
-        "Devuelve SOLO un objeto JSON (sin texto adicional, sin markdown):\n"
-        '{"precio_sugerido": "rango o monto en DOP, o null si el historial no alcanza para '
-        'sugerir nada", "justificacion": "1-2 frases explicando la sugerencia basada SOLO en '
-        'el historial de arriba"}\n\n'
-        "No inventes precios de mercado que no estén en el historial entregado."
+        "Eres un asistente que ayuda a una empresa dominicana a fijar precios para participar "
+        "en una licitación pública. Para CADA producto/servicio de abajo, con su historial de "
+        "precios ya facturados/cotizados por la empresa para algo parecido:\n\n"
+        + "\n\n".join(bloques) + "\n\n"
+        "Devuelve SOLO un objeto JSON (sin texto adicional, sin markdown) con esta forma exacta "
+        "-- una clave por cada id de producto de arriba, como string:\n"
+        '{"<id>": {"precio_sugerido": "rango o monto en DOP, o null si el historial no alcanza", '
+        '"justificacion": "1-2 frases basadas SOLO en el historial de ese producto"}, ...}\n\n'
+        "No inventes precios de mercado que no estén en el historial entregado para cada producto."
     )
 
     respuesta = _llamar_claude(prompt)
@@ -2344,81 +2437,93 @@ def recomendar_precio(descripcion_producto: str, historial: list[dict]) -> dict:
     try:
         data = json.loads(respuesta_limpia)
     except (json.JSONDecodeError, TypeError) as exc:
-        logger.warning("Respuesta de Claude no es JSON valido para recomendar_precio: %r", respuesta)
+        logger.warning("Respuesta de Claude no es JSON valido para recomendar_precios: %r", respuesta)
         raise RecomendacionPrecioError("La IA no devolvió una respuesta utilizable") from exc
 
-    return {
-        "precio_sugerido": data.get("precio_sugerido"),
-        "justificacion": str(data.get("justificacion", ""))[:1000],
-    }
+    resultado: dict[int, dict] = {}
+    for p in productos:
+        entrada = data.get(str(p["id"])) or {}
+        resultado[p["id"]] = {
+            "precio_sugerido": entrada.get("precio_sugerido"),
+            "justificacion": str(entrada.get("justificacion", ""))[:1000],
+        }
+    return resultado
 ```
 
 Run: `docker compose exec -T backend python manage.py test apps.lic.tests.test_recomendar_precio -v 2`
 Expected: `OK`
 
-- [ ] **Step 9: Endpoint `POST /api/lic/productos/<id>/recomendar-precio/`**
+- [ ] **Step 9: Endpoint `POST /api/lic/oportunidades/<id>/recomendar-precios/` (batch, no por producto)**
 
 Escribir el test en `test_views_productos.py`:
 
 ```python
 @pytest.mark.django_db
-def test_recomendar_precio_producto(cliente_autenticado):
+def test_recomendar_precios_de_la_oportunidad(cliente_autenticado):
     oportunidad_id, _ = lic_repo.upsert_oportunidad("01", {"referencia": "REF-VIEW-2", "titulo": "x"})
-    lic_repo.reemplazar_productos(oportunidad_id, [{"descripcion": "100 laptops", "cantidad": "100"}])
-    producto = lic_repo.list_productos(oportunidad_id)[0]
+    lic_repo.reemplazar_productos(oportunidad_id, [
+        {"descripcion": "100 laptops", "cantidad": "100"},
+        {"descripcion": "Servicio de instalación", "cantidad": "1"},
+    ])
 
     with patch("apps.lic.views.lic_repo.buscar_precio_historico") as buscar, \
-         patch("apps.lic.views.recomendar_precio") as recomendar:
+         patch("apps.lic.views.recomendar_precios") as recomendar:
         buscar.return_value = []
-        recomendar.return_value = {"precio_sugerido": None, "justificacion": "Sin historial"}
-        resp = cliente_autenticado.post(f"/api/lic/productos/{producto['id']}/recomendar-precio/")
+        productos = lic_repo.list_productos(oportunidad_id)
+        recomendar.return_value = {
+            productos[0]["id"]: {"precio_sugerido": None, "justificacion": "Sin historial"},
+            productos[1]["id"]: {"precio_sugerido": None, "justificacion": "Sin historial"},
+        }
+        resp = cliente_autenticado.post(f"/api/lic/oportunidades/{oportunidad_id}/recomendar-precios/")
 
     assert resp.status_code == 200
-    assert resp.json()["justificacion"] == "Sin historial"
+    assert recomendar.call_count == 1  # UNA sola llamada para los 2 productos
+    body = resp.json()
+    assert len(body["recomendaciones"]) == 2
 ```
 
 (agregar `from unittest.mock import patch` a los imports del archivo de test si no está)
 
-Run: `docker compose exec -T backend python manage.py test apps.lic.tests.test_views_productos.test_recomendar_precio_producto -v 2`
+Run: `docker compose exec -T backend python manage.py test apps.lic.tests.test_views_productos.test_recomendar_precios_de_la_oportunidad -v 2`
 Expected: FAIL — 404 (la ruta no existe)
 
-Agregar a `lic_repo.py`:
-
-```python
-def get_producto(producto_id: int) -> dict | None:
-    rows = client.fetch_dicts(
-        "SELECT id, oportunidad_id, descripcion, cantidad FROM FAT.TLIC_PRODUCTO WHERE id = :1",
-        [producto_id],
-    )
-    return rows[0] if rows else None
-```
-
-Agregar a `views.py` (import `from apps.lic.services.recomendar_precio import recomendar_precio,
+Agregar a `views.py` (import `from apps.lic.services.recomendar_precio import recomendar_precios,
 RecomendacionPrecioError` al inicio, junto a los demás imports de `apps.lic.services`):
 
 ```python
 @login_required
 @csrf_exempt
 @require_http_methods(["POST"])
-def recomendar_precio_view(request, producto_id: int):
-    producto = lic_repo.get_producto(producto_id)
-    if not producto:
-        return _err("Producto no encontrado", status=404)
+def recomendar_precios_oportunidad_view(request, oportunidad_id: int):
+    oportunidad = lic_repo.get_oportunidad(oportunidad_id)
+    if not oportunidad:
+        return _err("Oportunidad no encontrada", status=404)
 
-    oportunidad = lic_repo.get_oportunidad(producto["oportunidad_id"])
-    historial = lic_repo.buscar_precio_historico(oportunidad["no_cia"], producto["descripcion"])
+    productos = lic_repo.list_productos(oportunidad_id)
+    if not productos:
+        return _err("Esta oportunidad no tiene productos/servicios registrados", status=400)
+
+    historiales = {
+        p["id"]: lic_repo.buscar_precio_historico(oportunidad["no_cia"], p["descripcion"])
+        for p in productos
+    }
     try:
-        resultado = recomendar_precio(producto["descripcion"], historial)
+        recomendaciones = recomendar_precios(productos, historiales)
     except RecomendacionPrecioError as exc:
         return _err(str(exc), status=400)
 
-    return JsonResponse({"historial": historial, **resultado})
+    return JsonResponse({
+        "recomendaciones": [
+            {"producto_id": pid, "historial": historiales.get(pid, []), **rec}
+            for pid, rec in recomendaciones.items()
+        ]
+    })
 ```
 
 Agregar a `urls.py`:
 
 ```python
-    path("productos/<int:producto_id>/recomendar-precio/", views.recomendar_precio_view),
+    path("oportunidades/<int:oportunidad_id>/recomendar-precios/", views.recomendar_precios_oportunidad_view),
 ```
 
 Run: `docker compose exec -T backend python manage.py test apps.lic.tests.test_views_productos -v 2`
@@ -2433,7 +2538,7 @@ Expected: `OK`
 
 ```bash
 git add backend/apps/legacy/repositories/lic_repo.py backend/apps/lic/services/recomendar_precio.py backend/apps/lic/views.py backend/apps/lic/urls.py backend/apps/lic/tests/test_lic_repo_productos.py backend/apps/lic/tests/test_recomendar_precio.py backend/apps/lic/tests/test_views_productos.py
-git commit -m "feat(lic): buscar precio historico por codigo + recomendacion de precio con IA"
+git commit -m "feat(lic): buscar precio historico por codigo + recomendacion de precio en batch con IA"
 ```
 
 ---
@@ -2472,6 +2577,7 @@ export interface Oportunidad {
   unidad_requisicion: string | null
   presupuesto_estimado: string | null
   documentos_faltantes: DocumentoFaltante[] | null
+  modalidad_entrega: 'fisica' | 'virtual' | 'ambas' | null
 }
 
 export interface Producto {
@@ -2485,7 +2591,11 @@ export interface Producto {
 recomendación + estado_cumplimiento + requisitos) -- productos ya no viene del análisis de IA,
 así que no se le agrega ese campo (corrección 2026-07-24).
 
-Actualizar `Producto` con `cantidad`, y agregar los tipos de precio:
+Actualizar `Oportunidad` (además de `documentos_faltantes`, ver más abajo) agregando
+`modalidad_entrega: 'fisica' | 'virtual' | 'ambas' | null`.
+
+Actualizar `Producto` con `cantidad`, y agregar los tipos de precio (forma **batch**, no por
+producto individual -- corrección 2026-07-24 tercera vuelta):
 
 ```typescript
 export interface Producto {
@@ -2502,14 +2612,15 @@ export interface PrecioHistorico {
   fecha: string
 }
 
-export interface RecomendacionPrecio {
+export interface RecomendacionPrecioProducto {
+  producto_id: number
   historial: PrecioHistorico[]
   precio_sugerido: string | null
   justificacion: string
 }
 ```
 
-- [ ] **Step 2: Agregar `useProductos`, `useRecomendarPrecio` y `documentoDescargarUrl`**
+- [ ] **Step 2: Agregar `useProductos`, `useRecomendarPrecios` (batch) y `documentoDescargarUrl`**
 
 Agregar después de `useRequisitos` (al final del archivo):
 
@@ -2525,11 +2636,12 @@ export function useProductos(oportunidadId: number | null) {
   })
 }
 
-export function useRecomendarPrecio() {
+// UNA sola llamada para TODOS los productos de la oportunidad, no una por producto.
+export function useRecomendarPrecios() {
   return useMutation({
-    mutationFn: (productoId: number) =>
-      licRequest<RecomendacionPrecio>(
-        `/lic/productos/${productoId}/recomendar-precio/`,
+    mutationFn: (oportunidadId: number) =>
+      licRequest<{ recomendaciones: RecomendacionPrecioProducto[] }>(
+        `/lic/oportunidades/${oportunidadId}/recomendar-precios/`,
         { method: 'POST' }
       ),
   })
@@ -2604,7 +2716,7 @@ def list_oportunidades(
         "SELECT id, referencia, tipo_proceso, entidad, titulo, estado_portal, "
         "ofertas_presentadas, ofertas_creadas, fecha_publicacion, fecha_limite, "
         "resumen_ia, estado_cumplimiento, recomendacion_ia, "
-        "unidad_requisicion, presupuesto_estimado, documentos_faltantes "
+        "unidad_requisicion, presupuesto_estimado, documentos_faltantes, modalidad_entrega "
         "FROM FAT.TLIC_OPORTUNIDAD WHERE no_cia = :1"
     )
     params = [no_cia]
@@ -2670,6 +2782,7 @@ import {
   type DocumentoFaltante,
   type Oportunidad,
   type Producto,
+  type RecomendacionPrecioProducto,
   type Requisito,
   documentoDescargarUrl,
   useAnalizarOportunidad,
@@ -2677,7 +2790,7 @@ import {
   useGenerarResumenDocumento,
   useOportunidades,
   useProductos,
-  useRecomendarPrecio,
+  useRecomendarPrecios,
   useRequisitos,
 } from './api'
 import { useCompany } from '@/hooks/use-company'
@@ -2768,6 +2881,16 @@ function SeccionDescripcion({ oportunidad }: { oportunidad: Oportunidad }) {
             />
           )}
           <h4 className='text-sm font-semibold'>1. Descripción</h4>
+          {oportunidad.modalidad_entrega && (
+            <Badge
+              variant={oportunidad.modalidad_entrega === 'fisica' ? 'destructive' : 'outline'}
+              title='Modalidad de entrega de la oferta/documentación según el proceso'
+            >
+              {oportunidad.modalidad_entrega === 'fisica' && 'Entrega física requerida'}
+              {oportunidad.modalidad_entrega === 'virtual' && 'Entrega virtual'}
+              {oportunidad.modalidad_entrega === 'ambas' && 'Física o virtual'}
+            </Badge>
+          )}
         </div>
         <Button
           type='button'
@@ -2856,16 +2979,36 @@ function SeccionRequisitos({ oportunidad }: { oportunidad: Oportunidad }) {
   )
 }
 
-// 3. Productos/servicios (del scraper, sin IA) + recomendar precio (IA, bajo demanda) +
-//    documentos faltantes (codigo puro)
+// 3. Productos/servicios (del scraper, sin IA) + recomendar precio en BATCH (una sola
+//    llamada de IA para todos, bajo demanda) + documentos faltantes (codigo puro)
 function SeccionProductos({ oportunidad }: { oportunidad: Oportunidad }) {
   const productosQ = useProductos(oportunidad.id)
+  const recomendar = useRecomendarPrecios()
   const productos = productosQ.data?.productos ?? []
   const faltantes: DocumentoFaltante[] = oportunidad.documentos_faltantes ?? []
+  const recomendaciones = recomendar.data?.recomendaciones ?? []
+  const porProducto = new Map(recomendaciones.map((r) => [r.producto_id, r]))
 
   return (
     <section className='space-y-3 rounded-md border p-4'>
-      <h4 className='text-sm font-semibold'>3. Productos/servicios</h4>
+      <div className='flex items-center justify-between gap-2'>
+        <h4 className='text-sm font-semibold'>3. Productos/servicios</h4>
+        {productos.length > 0 && (
+          <Button
+            type='button'
+            size='sm'
+            variant='outline'
+            className='gap-1.5'
+            disabled={recomendar.isPending}
+            onClick={() =>
+              recomendar.mutate(oportunidad.id, { onError: (e) => toast.error(e.message) })
+            }
+          >
+            <Sparkles className='h-3.5 w-3.5' />
+            {recomendar.isPending ? 'Recomendando precios…' : 'Recomendar precios'}
+          </Button>
+        )}
+      </div>
       {productosQ.isLoading ? (
         <Skeleton className='h-16 w-full' />
       ) : productos.length === 0 ? (
@@ -2875,7 +3018,7 @@ function SeccionProductos({ oportunidad }: { oportunidad: Oportunidad }) {
       ) : (
         <ul className='space-y-2'>
           {productos.map((p) => (
-            <ProductoItem key={p.id} producto={p} />
+            <ProductoItem key={p.id} producto={p} recomendacion={porProducto.get(p.id)} />
           ))}
         </ul>
       )}
@@ -2897,38 +3040,29 @@ function SeccionProductos({ oportunidad }: { oportunidad: Oportunidad }) {
   )
 }
 
-function ProductoItem({ producto: p }: { producto: Producto }) {
-  const recomendar = useRecomendarPrecio()
-
+function ProductoItem({
+  producto: p,
+  recomendacion,
+}: {
+  producto: Producto
+  recomendacion: RecomendacionPrecioProducto | undefined
+}) {
   return (
     <li className='rounded border px-3 py-2 text-sm'>
-      <div className='flex items-center justify-between gap-2'>
-        <span>
-          {p.descripcion}
-          {p.cantidad && <span className='ml-1.5 text-xs text-muted-foreground'>(cant. {p.cantidad})</span>}
-        </span>
-        <Button
-          type='button'
-          size='sm'
-          variant='ghost'
-          className='h-7 gap-1.5 px-2 text-xs shrink-0'
-          disabled={recomendar.isPending}
-          onClick={() => recomendar.mutate(p.id, { onError: (e) => toast.error(e.message) })}
-        >
-          <Sparkles className='h-3.5 w-3.5' />
-          {recomendar.isPending ? 'Buscando…' : 'Recomendar precio'}
-        </Button>
-      </div>
-      {recomendar.data && (
+      <span>
+        {p.descripcion}
+        {p.cantidad && <span className='ml-1.5 text-xs text-muted-foreground'>(cant. {p.cantidad})</span>}
+      </span>
+      {recomendacion && (
         <div className='mt-2 space-y-1 rounded bg-muted/50 px-2 py-1.5 text-xs'>
           <p>
             <span className='font-medium'>Precio sugerido: </span>
-            {recomendar.data.precio_sugerido ?? 'Sin suficiente historial'}
+            {recomendacion.precio_sugerido ?? 'Sin suficiente historial'}
           </p>
-          <p className='text-muted-foreground'>{recomendar.data.justificacion}</p>
-          {recomendar.data.historial.length > 0 && (
+          <p className='text-muted-foreground'>{recomendacion.justificacion}</p>
+          {recomendacion.historial.length > 0 && (
             <ul className='text-muted-foreground'>
-              {recomendar.data.historial.slice(0, 5).map((h, i) => (
+              {recomendacion.historial.slice(0, 5).map((h, i) => (
                 <li key={i}>
                   {h.descripcion} — {h.precio} ({String(h.fecha).slice(0, 10)})
                 </li>
@@ -3343,8 +3477,596 @@ git commit -m "feat(lic): reemplazar modal de detalle por navegacion a pagina co
 
 ---
 
-## Self-Review de este plan (incluye la corrección del 2026-07-24, segunda vuelta)
+## Parte E — Aplicar a la licitación desde la página (preparar oferta + envío con confirmación)
 
+> **Agregado 2026-07-24 (tercera vuelta).** El envío final ante el portal DGCP es una acción
+> vinculante -- **ningún paso de esta parte ejecuta un envío real contra una licitación real**
+> durante su implementación/pruebas. `confirmar_envio_oferta` solo se prueba con mocks; su
+> verificación en vivo contra el portal real queda fuera de este plan y solo la debe disparar el
+> usuario explícitamente, más adelante, cuando de verdad quiera enviar una oferta.
+
+### Task 21: Modelo `OfertaJob` + `lic_repo.documentos_a_subir`
+
+**Files:**
+- Create: `backend/apps/lic/migrations/0002_ofertajob.py` (vía `makemigrations`)
+- Modify: `backend/apps/lic/models.py`
+- Modify: `backend/apps/legacy/repositories/lic_repo.py`
+- Test: `backend/apps/lic/tests/test_lic_repo_oferta.py` (crear)
+
+- [ ] **Step 1: Agregar el modelo `OfertaJob` (mismo patrón que `ScrapeJob`)**
+
+Agregar a `backend/apps/lic/models.py` (mismo archivo donde vive `ScrapeJob`, mismo estilo de
+campos):
+
+```python
+class OfertaJob(models.Model):
+    ESTADOS = [
+        ("corriendo", "Corriendo"),
+        ("listo_para_enviar", "Listo para enviar"),
+        ("faltan_documentos", "Faltan documentos"),
+        ("error", "Error"),
+        ("enviado", "Enviado"),
+    ]
+    oportunidad_id = models.IntegerField()
+    estado = models.CharField(max_length=20, choices=ESTADOS, default="corriendo")
+    resumen = models.JSONField(default=dict)
+    iniciado_en = models.DateTimeField(auto_now_add=True)
+    terminado_en = models.DateTimeField(null=True, blank=True)
+```
+
+Run: `docker compose exec -T backend python manage.py makemigrations lic`
+Expected: crea `backend/apps/lic/migrations/0002_ofertajob.py` (o el número que corresponda según
+las migraciones ya existentes del app `lic`).
+
+Run: `docker compose exec -T backend python manage.py migrate lic`
+Expected: `Applying lic.000X_ofertajob... OK`
+
+- [ ] **Step 2: Escribir el test de `documentos_a_subir`**
+
+```python
+# backend/apps/lic/tests/test_lic_repo_oferta.py
+import pytest
+from apps.legacy.repositories import lic_repo
+
+
+@pytest.mark.django_db
+def test_documentos_a_subir_devuelve_solo_los_requisitos_con_documento_vigente():
+    oportunidad_id, _ = lic_repo.upsert_oportunidad("01", {"referencia": "REF-OFERTA-1", "titulo": "x"})
+    tipo_id = lic_repo.crear_tipo_documento("OFERTA1", "Tipo para oferta")
+    doc_id = lic_repo.guardar_documento_empresa(
+        "01", None, "doc.pdf", "/x/doc.pdf", None, None, tipo_documento_id=tipo_id
+    )
+    lic_repo.reemplazar_requisitos(oportunidad_id, [
+        {"descripcion": "Tipo para oferta vigente", "estado": "cumple", "documento_empresa_id": doc_id},
+        {"descripcion": "Otro requisito sin documento", "estado": "no_cumple", "documento_empresa_id": None},
+    ])
+
+    resultado = lic_repo.documentos_a_subir(oportunidad_id)
+
+    assert resultado["listos"] == [{"documento_empresa_id": doc_id, "ruta_archivo": "/x/doc.pdf",
+                                      "nombre_archivo": "doc.pdf"}]
+    assert resultado["faltantes"] == ["Otro requisito sin documento"]
+```
+
+Run: `docker compose exec -T backend python manage.py test apps.lic.tests.test_lic_repo_oferta -v 2`
+Expected: FAIL — `AttributeError: ... has no attribute 'documentos_a_subir'`
+
+- [ ] **Step 3: Implementar `documentos_a_subir` en `lic_repo.py`**
+
+```python
+def documentos_a_subir(oportunidad_id: int) -> dict:
+    """Para Parte E (preparar_oferta): separa los requisitos de la oportunidad
+    entre los que ya tienen un documento de empresa vigente resuelto (listos
+    para adjuntar en la oferta, uno por uno) y los que no (quedan como
+    'faltantes', el usuario los ve antes de decidir si continua)."""
+    requisitos = list_requisitos(oportunidad_id)
+    listos: list[dict] = []
+    faltantes: list[str] = []
+    vistos: set[int] = set()
+    for r in requisitos:
+        doc_id = r.get("documento_empresa_id")
+        if r["estado"] == "cumple" and doc_id and doc_id not in vistos:
+            documento = get_documento_empresa(doc_id)
+            if documento:
+                vistos.add(doc_id)
+                listos.append({
+                    "documento_empresa_id": doc_id,
+                    "ruta_archivo": documento["ruta_archivo"],
+                    "nombre_archivo": documento["nombre_archivo"],
+                })
+        elif r["estado"] != "cumple":
+            faltantes.append(r["descripcion"])
+    return {"listos": listos, "faltantes": faltantes}
+```
+
+Run: `docker compose exec -T backend python manage.py test apps.lic.tests.test_lic_repo_oferta -v 2`
+Expected: `OK`
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add backend/apps/lic/models.py backend/apps/lic/migrations/ backend/apps/legacy/repositories/lic_repo.py backend/apps/lic/tests/test_lic_repo_oferta.py
+git commit -m "feat(lic): modelo OfertaJob y lic_repo.documentos_a_subir para preparar ofertas"
+```
+
+### Task 22: `preparar_oferta()` en el scraper + endpoint + polling
+
+**Files:**
+- Modify: `backend/apps/lic/services/scraper.py`
+- Modify: `backend/apps/lic/views.py`
+- Modify: `backend/apps/lic/urls.py`
+- Test: `backend/apps/lic/tests/test_views_oferta.py` (crear)
+
+No hay test de navegador real para `preparar_oferta` (mismo criterio que el resto de
+`LicitacionesScraper`: se implementa directo y se verifica en vivo aparte, SIN riesgo porque este
+método nunca hace clic en el botón final de envío del portal — solo adjunta documentos).
+
+- [ ] **Step 1: Implementar `preparar_oferta` en `scraper.py`**
+
+Agregar como método de `LicitacionesScraper`, después de `download_documentos`:
+
+```python
+    def preparar_oferta(self, referencia: str, documentos: list[dict]) -> dict:
+        """Adjunta los documentos ya resueltos (Task 21: lic_repo.documentos_a_subir)
+        a la oferta de la oportunidad con la referencia dada, DOCUMENTO POR
+        DOCUMENTO -- sin hacer clic en el botón final de envío del portal (eso
+        es confirmar_envio_oferta, método separado). Verificado en vivo el
+        2026-07-24 (Sección "Mis ofertas" de la vista de detalle de una
+        oportunidad expone un botón "Crear oferta" cuando aún no se ha
+        comenzado una).
+
+        Cada documento se sube en su propio try/except: si uno falla, el
+        resto continúa (mismo criterio que download_documentos)."""
+        logger.info("lic.scraper.preparar_oferta: iniciando (referencia=%s)", referencia)
+        page = self._page
+        page.goto(self.OPORTUNIDADES_URL, wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_load_state("domcontentloaded", timeout=60000)
+        select = page.locator("select").first
+        select.select_option(label="Todos")
+        page.wait_for_load_state("domcontentloaded", timeout=60000)
+
+        wrappers = page.locator(".ws_rc_wrapper_opportunity")
+        count = wrappers.count()
+        target_row = None
+        for i in range(count):
+            ref_text = wrappers.nth(i).locator(".ws_rc_reference").first.inner_text().strip()
+            if ref_text == referencia:
+                target_row = wrappers.nth(i)
+                break
+        if target_row is None:
+            raise ValueError(f"No se encontró la oportunidad con referencia {referencia!r}")
+        target_row.click()
+
+        crear_oferta_btn = page.get_by_role("button", name="Crear oferta")
+        try:
+            crear_oferta_btn.wait_for(state="visible", timeout=10000)
+            crear_oferta_btn.click()
+            page.wait_for_load_state("domcontentloaded", timeout=60000)
+        except PlaywrightTimeoutError:
+            pass  # ya existía una oferta en curso, se continúa sobre ella
+
+        resultados = []
+        for doc in documentos:
+            try:
+                # Selector del control de adjuntar de la oferta -- a confirmar en vivo antes
+                # de dar este paso por completo (mismo criterio que el resto del scraper).
+                upload_input = page.locator("input[type='file']").first
+                upload_input.set_input_files(doc["ruta_archivo"])
+                page.wait_for_timeout(1000)
+                resultados.append({"documento_empresa_id": doc["documento_empresa_id"], "estado": "ok"})
+            except Exception as exc:  # noqa: BLE001 - un documento no debe tumbar los demás
+                logger.exception(
+                    "lic.scraper.preparar_oferta: fallo al adjuntar documento %s", doc["nombre_archivo"]
+                )
+                resultados.append({
+                    "documento_empresa_id": doc["documento_empresa_id"], "estado": "error", "error": str(exc),
+                })
+
+        return {"documentos_adjuntados": resultados}
+```
+
+- [ ] **Step 2: Escribir el test del endpoint (mockea el scraper por completo)**
+
+```python
+# backend/apps/lic/tests/test_views_oferta.py
+from unittest.mock import MagicMock, patch
+
+import pytest
+from django.contrib.auth import get_user_model
+from django.test import Client
+
+from apps.legacy.repositories import lic_repo
+
+
+@pytest.fixture
+def cliente_autenticado(db):
+    User = get_user_model()
+    user = User.objects.create_user(username="tester3", password="x")
+    client = Client()
+    client.force_login(user)
+    return client
+
+
+@pytest.mark.django_db
+def test_preparar_oferta_view_dispara_job_y_responde_job_id(cliente_autenticado):
+    oportunidad_id, _ = lic_repo.upsert_oportunidad("01", {"referencia": "REF-OFERTA-2", "titulo": "x"})
+
+    with patch("apps.lic.views.threading.Thread") as ThreadCls:
+        resp = cliente_autenticado.post(f"/api/lic/oportunidades/{oportunidad_id}/preparar-oferta/")
+
+    assert resp.status_code == 200
+    assert "job_id" in resp.json()
+    ThreadCls.return_value.start.assert_called_once()
+```
+
+Run: `docker compose exec -T backend python manage.py test apps.lic.tests.test_views_oferta -v 2`
+Expected: FAIL — 404 (la ruta no existe)
+
+- [ ] **Step 3: Implementar la vista y el hilo de fondo**
+
+Agregar a `views.py` (imports: `from apps.lic.models import OfertaJob` junto al de `ScrapeJob`):
+
+```python
+def _ejecutar_preparar_oferta_seguro(job: OfertaJob, no_cia: str, referencia: str) -> None:
+    try:
+        credencial = lic_repo.get_credencial_con_password(no_cia)
+        if not credencial:
+            raise LoginError("Sin credencial configurada")
+        password = crypto.decrypt(credencial["password_cifrado"])
+        info = lic_repo.documentos_a_subir(job.oportunidad_id)
+        with LicitacionesScraper() as scraper:
+            scraper.login(credencial["usuario_portal"], password)
+            resultado = scraper.preparar_oferta(referencia, info["listos"])
+        job.resumen = {**resultado, "documentos_faltantes": info["faltantes"]}
+        job.estado = "faltan_documentos" if info["faltantes"] else "listo_para_enviar"
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("preparar_oferta falló para el job %s", job.id)
+        job.resumen = {"error": str(exc)}
+        job.estado = "error"
+    job.terminado_en = timezone.now()
+    job.save()
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["POST"])
+def preparar_oferta_view(request, oportunidad_id: int):
+    oportunidad = lic_repo.get_oportunidad(oportunidad_id)
+    if not oportunidad:
+        return _err("Oportunidad no encontrada", status=404)
+    job = OfertaJob.objects.create(oportunidad_id=oportunidad_id)
+    thread = threading.Thread(
+        target=_ejecutar_preparar_oferta_seguro,
+        args=(job, oportunidad["no_cia"], oportunidad["referencia"]),
+        daemon=True,
+    )
+    thread.start()
+    return JsonResponse({"job_id": job.id})
+
+
+@login_required
+@require_http_methods(["GET"])
+def oferta_job_view(request, job_id: int):
+    try:
+        job = OfertaJob.objects.get(id=job_id)
+    except OfertaJob.DoesNotExist:
+        return _err("Job no encontrado", status=404)
+    return JsonResponse({
+        "id": job.id, "estado": job.estado, "resumen": job.resumen,
+        "iniciado_en": job.iniciado_en.isoformat(),
+        "terminado_en": job.terminado_en.isoformat() if job.terminado_en else None,
+    })
+```
+
+Agregar a `urls.py`:
+
+```python
+    path("oportunidades/<int:oportunidad_id>/preparar-oferta/", views.preparar_oferta_view),
+    path("oferta-jobs/<int:job_id>/", views.oferta_job_view),
+```
+
+Run: `docker compose exec -T backend python manage.py test apps.lic.tests.test_views_oferta -v 2`
+Expected: `OK`
+
+- [ ] **Step 4: Correr toda la suite y commit**
+
+Run: `docker compose exec -T backend python manage.py test apps.lic -v 2`
+Expected: `OK`
+
+```bash
+git add backend/apps/lic/services/scraper.py backend/apps/lic/views.py backend/apps/lic/urls.py backend/apps/lic/tests/test_views_oferta.py
+git commit -m "feat(lic): preparar_oferta adjunta documentos sin enviar (job en segundo plano + polling)"
+```
+
+### Task 23: `confirmar_envio_oferta()` (solo mocks) + UI de confirmación en dos pasos
+
+**Files:**
+- Modify: `backend/apps/lic/services/scraper.py`
+- Modify: `backend/apps/lic/views.py`
+- Modify: `backend/apps/lic/urls.py`
+- Modify: `frontend/src/features/lic/lic-oportunidad-detalle.tsx`
+- Modify: `frontend/src/features/lic/api.ts`
+- Test: `backend/apps/lic/tests/test_views_oferta.py`
+
+- [ ] **Step 1: Implementar `confirmar_envio_oferta` (código, sin probarlo contra el portal real)**
+
+Agregar a `scraper.py`, después de `preparar_oferta`:
+
+```python
+    def confirmar_envio_oferta(self, referencia: str) -> dict:
+        """Hace clic en el botón final de envío del portal -- SOLO se llama tras
+        confirmación humana explícita desde el frontend (ver vista/endpoint
+        separados). No se verifica en vivo contra una licitación real como
+        parte de este plan; cualquier prueba end-to-end real la dispara el
+        usuario deliberadamente, más adelante."""
+        logger.warning("lic.scraper.confirmar_envio_oferta: ENVIANDO OFERTA REAL (referencia=%s)", referencia)
+        page = self._page
+        enviar_btn = page.get_by_role("button", name="Enviar oferta")
+        enviar_btn.click()
+        page.wait_for_load_state("domcontentloaded", timeout=60000)
+        return {"enviado": True}
+```
+
+- [ ] **Step 2: Escribir el test del endpoint (mock total, nunca toca Playwright real)**
+
+```python
+@pytest.mark.django_db
+def test_confirmar_envio_oferta_view_requiere_job_listo_para_enviar(cliente_autenticado):
+    oportunidad_id, _ = lic_repo.upsert_oportunidad("01", {"referencia": "REF-OFERTA-3", "titulo": "x"})
+    from apps.lic.models import OfertaJob
+    OfertaJob.objects.create(oportunidad_id=oportunidad_id, estado="faltan_documentos")
+
+    resp = cliente_autenticado.post(f"/api/lic/oportunidades/{oportunidad_id}/confirmar-envio-oferta/")
+
+    assert resp.status_code == 400
+    assert "faltan" in resp.json()["error"].lower()
+
+
+@pytest.mark.django_db
+def test_confirmar_envio_oferta_view_envia_cuando_esta_listo(cliente_autenticado):
+    oportunidad_id, _ = lic_repo.upsert_oportunidad("01", {"referencia": "REF-OFERTA-4", "titulo": "x"})
+    from apps.lic.models import OfertaJob
+    OfertaJob.objects.create(oportunidad_id=oportunidad_id, estado="listo_para_enviar")
+    credencial = {"no_cia": "01", "usuario_portal": "abregonza", "password_cifrado": "x"}
+
+    with patch("apps.lic.views.lic_repo.get_credencial_con_password", return_value=credencial), \
+         patch("apps.lic.views.crypto.decrypt", return_value="plain"), \
+         patch("apps.lic.views.LicitacionesScraper") as ScraperCls:
+        scraper_instance = MagicMock()
+        scraper_instance.confirmar_envio_oferta.return_value = {"enviado": True}
+        ScraperCls.return_value.__enter__.return_value = scraper_instance
+        resp = cliente_autenticado.post(f"/api/lic/oportunidades/{oportunidad_id}/confirmar-envio-oferta/")
+
+    assert resp.status_code == 200
+    scraper_instance.confirmar_envio_oferta.assert_called_once_with("REF-OFERTA-4")
+```
+
+Run: `docker compose exec -T backend python manage.py test apps.lic.tests.test_views_oferta -v 2`
+Expected: FAIL — 404 (la ruta no existe)
+
+- [ ] **Step 3: Implementar la vista**
+
+Agregar a `views.py`:
+
+```python
+@login_required
+@csrf_exempt
+@require_http_methods(["POST"])
+def confirmar_envio_oferta_view(request, oportunidad_id: int):
+    """Envío real y vinculante -- SOLO se llama cuando el usuario confirma
+    explícitamente desde el frontend (diálogo de confirmación, ver Step 5).
+    Requiere que el último OfertaJob de esta oportunidad haya terminado en
+    'listo_para_enviar' (sin documentos_faltantes pendientes)."""
+    job = OfertaJob.objects.filter(oportunidad_id=oportunidad_id).order_by("-iniciado_en").first()
+    if not job or job.estado != "listo_para_enviar":
+        return _err(
+            "La oferta no está lista para enviar (faltan documentos o no se preparó todavía)",
+            status=400,
+        )
+    oportunidad = lic_repo.get_oportunidad(oportunidad_id)
+    credencial = lic_repo.get_credencial_con_password(oportunidad["no_cia"])
+    if not credencial:
+        return _err("Sin credencial configurada para esta empresa", status=400)
+    password = crypto.decrypt(credencial["password_cifrado"])
+    with LicitacionesScraper() as scraper:
+        scraper.login(credencial["usuario_portal"], password)
+        resultado = scraper.confirmar_envio_oferta(oportunidad["referencia"])
+    job.estado = "enviado"
+    job.save()
+    return JsonResponse(resultado)
+```
+
+Agregar a `urls.py`:
+
+```python
+    path("oportunidades/<int:oportunidad_id>/confirmar-envio-oferta/", views.confirmar_envio_oferta_view),
+```
+
+Run: `docker compose exec -T backend python manage.py test apps.lic.tests.test_views_oferta -v 2`
+Expected: `OK`
+
+- [ ] **Step 4: Frontend — hooks (`api.ts`)**
+
+Agregar a `frontend/src/features/lic/api.ts`:
+
+```typescript
+export interface OfertaJobStatus {
+  id: number
+  estado: 'corriendo' | 'listo_para_enviar' | 'faltan_documentos' | 'error' | 'enviado'
+  resumen: { documentos_adjuntados?: unknown[]; documentos_faltantes?: string[]; error?: string }
+  iniciado_en: string
+  terminado_en: string | null
+}
+
+export function usePrepararOferta() {
+  return useMutation({
+    mutationFn: (oportunidadId: number) =>
+      licRequest<{ job_id: number }>(`/lic/oportunidades/${oportunidadId}/preparar-oferta/`, {
+        method: 'POST',
+      }),
+  })
+}
+
+export function useOfertaJobStatus(jobId: number | null) {
+  return useQuery({
+    queryKey: ['lic-oferta-job', jobId],
+    queryFn: () => licRequest<OfertaJobStatus>(`/lic/oferta-jobs/${jobId}/`),
+    enabled: !!jobId,
+    refetchInterval: (query) => (query.state.data?.estado === 'corriendo' ? 2000 : false),
+  })
+}
+
+export function useConfirmarEnvioOferta() {
+  return useMutation({
+    mutationFn: (oportunidadId: number) =>
+      licRequest<{ enviado: boolean }>(
+        `/lic/oportunidades/${oportunidadId}/confirmar-envio-oferta/`,
+        { method: 'POST' }
+      ),
+  })
+}
+```
+
+- [ ] **Step 5: Frontend — sección de documentos (Task 19) gana el flujo de aplicar**
+
+Agregar a `lic-oportunidad-detalle.tsx`, dentro de `SeccionDocumentos` (después del `<h4>`, antes
+de la lista de documentos):
+
+```typescript
+function SeccionDocumentos({ oportunidadId }: { oportunidadId: number }) {
+  const documentosQ = useDocumentos(oportunidadId)
+  const prepararOferta = usePrepararOferta()
+  const [jobId, setJobId] = useState<number | null>(null)
+  const { data: jobStatus } = useOfertaJobStatus(jobId)
+  const confirmarEnvio = useConfirmarEnvioOferta()
+  const [confirmarAbierto, setConfirmarAbierto] = useState(false)
+
+  return (
+    <section className='space-y-2 rounded-md border p-4'>
+      <div className='flex items-center justify-between gap-2'>
+        <h4 className='text-sm font-semibold'>4. Documentos de la licitación</h4>
+        <Button
+          type='button'
+          size='sm'
+          variant='outline'
+          disabled={prepararOferta.isPending || jobStatus?.estado === 'corriendo'}
+          onClick={() =>
+            prepararOferta.mutate(oportunidadId, {
+              onSuccess: (r) => setJobId(r.job_id),
+              onError: (e) => toast.error(e.message),
+            })
+          }
+        >
+          {jobStatus?.estado === 'corriendo' ? 'Preparando oferta…' : 'Preparar oferta'}
+        </Button>
+      </div>
+
+      {jobStatus && jobStatus.estado !== 'corriendo' && (
+        <div className='rounded border p-3 text-sm space-y-2'>
+          {jobStatus.estado === 'error' && (
+            <p className='text-destructive'>Error: {jobStatus.resumen.error}</p>
+          )}
+          {jobStatus.resumen.documentos_faltantes && jobStatus.resumen.documentos_faltantes.length > 0 && (
+            <div>
+              <p className='font-medium text-destructive'>Documentos faltantes:</p>
+              <ul className='list-disc pl-5'>
+                {jobStatus.resumen.documentos_faltantes.map((f, i) => <li key={i}>{f}</li>)}
+              </ul>
+            </div>
+          )}
+          {jobStatus.estado === 'listo_para_enviar' && (
+            <Button type='button' size='sm' variant='destructive' onClick={() => setConfirmarAbierto(true)}>
+              Confirmar y enviar oferta
+            </Button>
+          )}
+          {jobStatus.estado === 'enviado' && (
+            <p className='font-medium text-green-600'>Oferta enviada.</p>
+          )}
+        </div>
+      )}
+
+      <Dialog open={confirmarAbierto} onOpenChange={setConfirmarAbierto}>
+        <DialogContent className='max-w-md'>
+          <DialogHeader>
+            <DialogTitle>Confirmar envío de oferta</DialogTitle>
+            <DialogDescription>
+              Esto somete una oferta vinculante ante el portal DGCP. No se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant='ghost' onClick={() => setConfirmarAbierto(false)}>Cancelar</Button>
+            <Button
+              variant='destructive'
+              disabled={confirmarEnvio.isPending}
+              onClick={() =>
+                confirmarEnvio.mutate(oportunidadId, {
+                  onSuccess: () => setConfirmarAbierto(false),
+                  onError: (e) => toast.error(e.message),
+                })
+              }
+            >
+              {confirmarEnvio.isPending ? 'Enviando…' : 'Sí, enviar oferta'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {documentosQ.isLoading ? (
+        <Skeleton className='h-24 w-full' />
+      ) : !documentosQ.data?.documentos.length ? (
+        <p className='text-sm text-muted-foreground py-2'>
+          No hay documentos descargados para esta oportunidad.
+        </p>
+      ) : (
+        <ul className='space-y-2'>
+          {documentosQ.data.documentos.map((d) => (
+            <DocumentoItem key={d.id} documento={d} />
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+```
+
+(reemplaza la función `SeccionDocumentos` completa del Task 19; agregar los imports nuevos --
+`type OfertaJobStatus` no hace falta importarlo explícitamente en el componente, pero sí
+`usePrepararOferta`, `useOfertaJobStatus`, `useConfirmarEnvioOferta`, y de `@/components/ui/dialog`:
+`Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle` -- agregarlos
+al bloque de imports del archivo)
+
+- [ ] **Step 6: Verificación de tipos + correr suite backend**
+
+Run: `cd frontend && npx tsc --noEmit`
+Expected: sin errores.
+
+Run: `docker compose exec -T backend python manage.py test apps.lic -v 2`
+Expected: `OK`
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add backend/apps/lic/services/scraper.py backend/apps/lic/views.py backend/apps/lic/urls.py backend/apps/lic/tests/test_views_oferta.py frontend/src/features/lic/lic-oportunidad-detalle.tsx frontend/src/features/lic/api.ts
+git commit -m "feat(lic): confirmar_envio_oferta con confirmacion humana explicita en el frontend"
+```
+
+**IMPORTANTE para quien ejecute esta tarea:** no dispares `preparar_oferta` ni mucho menos
+`confirmar_envio_oferta` contra una licitación real durante la verificación de esta tarea — toda
+la verificación de este Task se hace con los tests mockeados de arriba. Si en algún punto hace
+falta smoke-testear el flujo completo contra el portal real, eso lo pide el usuario explícitamente
+en otra sesión, no como parte de esta ejecución autónoma.
+
+---
+
+## Self-Review de este plan (incluye correcciones del 2026-07-24, segunda y tercera vuelta)
+
+- **Parte E (agregada en la tercera vuelta):** Tasks 21-23. `preparar_oferta` adjunta documentos
+  sin enviar (verificable en vivo sin riesgo); `confirmar_envio_oferta` existe como método/endpoint
+  separados, solo probados con mocks, nunca ejercidos contra una licitación real dentro de este
+  plan, y el frontend exige un diálogo de confirmación explícito antes de llamarlo — cumple la
+  restricción del usuario y el precedente ya documentado en la Fase 1 original de este módulo.
+  Precio pasó de una recomendación por producto a una sola llamada por oportunidad (Task 16 Steps
+  7-11 reescritos) y se agregó el badge de modalidad de entrega (Task 15 Step 6, Task 19).
 - **Cobertura del spec:** Parte A → Tasks 1-4 (descubrimiento vía Búsqueda avanzada). Parte B →
   Tasks 5-11 (catálogo de documentos). Parte C → Tasks 12-16, corregida: productos/servicios los
   extrae el SCRAPER por código (Task 15, dentro de `_extraer_detalle_aviso_contrato`), las
