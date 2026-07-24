@@ -1,27 +1,14 @@
 // Oportunidades descubiertas en el portal DGCP para la empresa activa: tabla filtrable
 // por estado_portal + botón "Buscar ahora" que dispara un ScrapeJob y hace polling en
-// vivo de su estado. Módulo nuevo del clon (no hay pantalla legacy Oracle Forms).
+// vivo de su estado. Click en una fila navega al detalle en pagina completa
+// (/lic/oportunidades/$oportunidadId) en vez de abrir un modal.
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import { toast } from 'sonner'
-import {
-  Eye,
-  FileText,
-  Loader2,
-  Search,
-  Settings,
-  Sparkles,
-  Wand2,
-} from 'lucide-react'
+import { Eye, Loader2, Search, Settings } from 'lucide-react'
 import { useCompany } from '@/hooks/use-company'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import {
   Popover,
@@ -39,16 +26,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
-  type Documento,
   LicApiError,
-  type Oportunidad,
-  type Requisito,
-  useAnalizarOportunidad,
   useBuscarAhora,
-  useDocumentos,
-  useGenerarResumenDocumento,
   useOportunidades,
-  useRequisitos,
   useScrapeJobStatus,
 } from './api'
 
@@ -101,21 +81,6 @@ function CumplimientoDot({
   )
 }
 
-const REQUISITO_ESTADO_INFO: Record<
-  Requisito['estado'],
-  { color: string; label: string }
-> = {
-  cumple: { color: 'bg-green-500', label: 'Cumple' },
-  parcial: { color: 'bg-yellow-500', label: 'Parcial' },
-  no_cumple: { color: 'bg-red-500', label: 'No cumple' },
-  sin_evaluar: { color: 'bg-muted-foreground/30', label: 'Sin evaluar' },
-}
-
-const DOC_ESTADO_VARIANT: Record<'ok' | 'error', 'default' | 'destructive'> = {
-  ok: 'default',
-  error: 'destructive',
-}
-
 export function LicOportunidades() {
   const { selectedCompany } = useCompany()
 
@@ -145,12 +110,10 @@ export function LicOportunidades() {
   // toasts/refetch de finalización solo aplican mientras se está viendo la empresa
   // dueña de ese job (ver gating de `esJobDeEstaEmpresa` más abajo).
   const [job, setJob] = useState<{ jobId: number; company: string } | null>(null)
-  const [selectedOportunidad, setSelectedOportunidad] = useState<Oportunidad | null>(null)
 
   const { data, isLoading, refetch } = useOportunidades(selectedCompany, undefined, todas)
   const buscarAhora = useBuscarAhora()
   const { data: jobStatus } = useScrapeJobStatus(job?.jobId ?? null)
-  const documentosQ = useDocumentos(selectedOportunidad?.id ?? null)
   const esJobDeEstaEmpresa = job?.company === selectedCompany
 
   const oportunidades = data?.oportunidades ?? []
@@ -334,20 +297,24 @@ export function LicOportunidades() {
             </TableHeader>
             <TableBody>
               {rows.map((o) => (
-                <TableRow
-                  key={o.id}
-                  onClick={() => setSelectedOportunidad(o)}
-                  className='cursor-pointer hover:bg-muted/50'
-                >
+                <TableRow key={o.id} className='hover:bg-muted/50'>
                   <TableCell>
-                    <span className='flex items-center gap-1.5 text-xs'>
+                    <Link
+                      to='/lic/oportunidades/$oportunidadId'
+                      params={{ oportunidadId: String(o.id) }}
+                      className='flex items-center gap-1.5 text-xs'
+                    >
                       <CumplimientoDot estado={o.estado_cumplimiento} />
                       {o.estado_cumplimiento
                         ? CUMPLIMIENTO_INFO[o.estado_cumplimiento].corto
                         : 'Sin analizar'}
-                    </span>
+                    </Link>
                   </TableCell>
-                  <TableCell className='font-mono text-xs'>{o.referencia}</TableCell>
+                  <TableCell className='font-mono text-xs'>
+                    <Link to='/lic/oportunidades/$oportunidadId' params={{ oportunidadId: String(o.id) }}>
+                      {o.referencia}
+                    </Link>
+                  </TableCell>
                   <TableCell>{o.tipo_proceso}</TableCell>
                   <TableCell className='truncate max-w-[12rem]'>{o.entidad}</TableCell>
                   <TableCell className='truncate max-w-sm'>{o.titulo}</TableCell>
@@ -355,14 +322,11 @@ export function LicOportunidades() {
                   <TableCell>
                     <Badge variant='outline'>{o.estado_portal || 'Sin estado'}</Badge>
                   </TableCell>
-                  <TableCell className='text-right' onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      size='sm'
-                      variant='ghost'
-                      onClick={() => setSelectedOportunidad(o)}
-                      title='Ver documentos'
-                    >
-                      <Eye className='h-4 w-4' />
+                  <TableCell className='text-right'>
+                    <Button size='sm' variant='ghost' asChild title='Ver detalle'>
+                      <Link to='/lic/oportunidades/$oportunidadId' params={{ oportunidadId: String(o.id) }}>
+                        <Eye className='h-4 w-4' />
+                      </Link>
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -380,209 +344,6 @@ export function LicOportunidades() {
           </Table>
         </div>
       )}
-
-      {/* Detalle de documentos descargados para la oportunidad seleccionada */}
-      <Dialog
-        open={!!selectedOportunidad}
-        onOpenChange={(v) => {
-          if (!v) setSelectedOportunidad(null)
-        }}
-      >
-        <DialogContent className='max-w-3xl max-h-[85vh] flex flex-col gap-0 p-0 overflow-hidden'>
-          <DialogHeader className='shrink-0 border-b px-6 py-4'>
-            <DialogTitle>{selectedOportunidad?.referencia}</DialogTitle>
-            <DialogDescription>{selectedOportunidad?.titulo}</DialogDescription>
-          </DialogHeader>
-          <div className='flex-1 overflow-y-auto px-6 py-4 space-y-5'>
-            {selectedOportunidad?.unidad_requisicion || selectedOportunidad?.presupuesto_estimado ? (
-              <div className='flex flex-wrap gap-4 text-sm'>
-                {selectedOportunidad.unidad_requisicion && (
-                  <span>
-                    <span className='text-muted-foreground'>Unidad de requisición: </span>
-                    {selectedOportunidad.unidad_requisicion}
-                  </span>
-                )}
-                {selectedOportunidad.presupuesto_estimado && (
-                  <span>
-                    <span className='text-muted-foreground'>Presupuesto estimado: </span>
-                    {selectedOportunidad.presupuesto_estimado}
-                  </span>
-                )}
-              </div>
-            ) : null}
-
-            {selectedOportunidad && <AnalisisSeccion oportunidad={selectedOportunidad} />}
-
-            <div className='space-y-2'>
-              <h4 className='text-sm font-semibold'>Documentos descargados del portal</h4>
-              {documentosQ.isLoading ? (
-                <Skeleton className='h-24 w-full' />
-              ) : !documentosQ.data?.documentos.length ? (
-                <p className='text-sm text-muted-foreground py-4'>
-                  No hay documentos descargados para esta oportunidad.
-                </p>
-              ) : (
-                <ul className='space-y-2'>
-                  {documentosQ.data.documentos.map((d) => (
-                    <DocumentoItem key={d.id} documento={d} />
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
-  )
-}
-
-function AnalisisSeccion({ oportunidad }: { oportunidad: Oportunidad }) {
-  const analizar = useAnalizarOportunidad()
-  const requisitosQ = useRequisitos(oportunidad.id)
-  // El backend devuelve el resumen/recomendación ya guardados en la propia
-  // oportunidad (Task de análisis actualiza TLIC_OPORTUNIDAD); el resultado
-  // de la última mutación exitosa se usa mientras tanto para no esperar el
-  // refetch de la lista completa.
-  const resumen = analizar.data?.resumen ?? oportunidad.resumen_ia
-  const recomendacion = analizar.data?.recomendacion ?? oportunidad.recomendacion_ia
-  const estadoCumplimiento = analizar.data?.estado_cumplimiento ?? oportunidad.estado_cumplimiento
-  const requisitos = analizar.data?.requisitos ?? requisitosQ.data?.requisitos ?? []
-
-  // El análisis (resumen, requisitos, evaluación) NO se dispara acá al
-  // abrir el detalle -- eso implicaría una llamada a la IA en vivo cada vez
-  // que alguien mira una oportunidad, con el usuario esperando. Ya viene
-  // pre-calculado por el scraper apenas descubre la oportunidad (ver
-  // `_analizar_y_registrar` en `orchestrator.py`), así que lo que se ve acá
-  // es lo que ya está guardado en `oportunidad.resumen_ia`/etc. Este botón
-  // es solo para volver a correrlo a mano cuando haga falta (ej. después de
-  // subir un documento nuevo de la empresa).
-
-  return (
-    <div className='space-y-3 rounded-md border p-3'>
-      <div className='flex items-center justify-between gap-2'>
-        <div className='flex items-center gap-2'>
-          <CumplimientoDot estado={estadoCumplimiento} />
-          <h4 className='text-sm font-semibold'>Análisis con IA</h4>
-        </div>
-        <Button
-          type='button'
-          size='sm'
-          variant='outline'
-          className='gap-1.5'
-          disabled={analizar.isPending}
-          onClick={() =>
-            analizar.mutate(oportunidad.id, {
-              onError: (e) => toast.error(e.message),
-            })
-          }
-        >
-          <Wand2 className='h-3.5 w-3.5' />
-          {analizar.isPending
-            ? 'Analizando…'
-            : resumen
-              ? 'Volver a analizar'
-              : 'Analizar oportunidad'}
-        </Button>
-      </div>
-
-      {!resumen && !analizar.isPending && (
-        <p className='text-xs text-muted-foreground'>
-          Genera un resumen de la licitación, extrae los requisitos para
-          participar y evalúa cuáles cumple la empresa según los documentos
-          subidos en Configuración.
-        </p>
-      )}
-
-      {resumen && (
-        <p className='whitespace-pre-wrap text-sm'>{resumen}</p>
-      )}
-
-      {recomendacion && (
-        <p className='rounded bg-muted/50 px-3 py-2 text-sm'>
-          <span className='font-medium'>Recomendación: </span>
-          {recomendacion}
-        </p>
-      )}
-
-      {requisitos.length > 0 && (
-        <div className='overflow-x-auto rounded border'>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className='w-8' />
-                <TableHead>Requisito</TableHead>
-                <TableHead>Justificación</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {requisitos.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell>
-                    <span
-                      title={REQUISITO_ESTADO_INFO[r.estado].label}
-                      className={`inline-block h-2.5 w-2.5 rounded-full ${REQUISITO_ESTADO_INFO[r.estado].color}`}
-                    />
-                  </TableCell>
-                  <TableCell className='text-sm'>{r.descripcion}</TableCell>
-                  <TableCell className='text-xs text-muted-foreground'>
-                    {r.justificacion}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function DocumentoItem({ documento: d }: { documento: Documento }) {
-  const generarResumen = useGenerarResumenDocumento()
-
-  return (
-    <li className='rounded border px-3 py-2 text-sm'>
-      <div className='flex items-center justify-between gap-2'>
-        <div className='flex items-center gap-2 min-w-0'>
-          <FileText className='h-4 w-4 shrink-0 text-muted-foreground' />
-          <span className='truncate'>{d.nombre_archivo}</span>
-        </div>
-        <Badge variant={DOC_ESTADO_VARIANT[d.estado]} className='shrink-0'>
-          {d.estado === 'ok' ? 'Descargado' : 'Error'}
-        </Badge>
-      </div>
-      <div className='mt-1 text-xs text-muted-foreground'>
-        {d.tipo_documento || 'Sin tipo'}
-      </div>
-      {d.estado === 'error' && d.mensaje_error && (
-        <p className='mt-1 text-xs text-destructive'>{d.mensaje_error}</p>
-      )}
-
-      {d.estado === 'ok' && (
-        <div className='mt-2'>
-          {d.resumen_ia ? (
-            <p className='whitespace-pre-wrap rounded bg-muted/50 px-2 py-1.5 text-xs'>
-              {d.resumen_ia}
-            </p>
-          ) : (
-            <Button
-              type='button'
-              size='sm'
-              variant='ghost'
-              className='h-7 gap-1.5 px-2 text-xs'
-              disabled={generarResumen.isPending}
-              onClick={() =>
-                generarResumen.mutate(d.id, {
-                  onError: (e) => toast.error(e.message),
-                })
-              }
-            >
-              <Sparkles className='h-3.5 w-3.5' />
-              {generarResumen.isPending ? 'Generando resumen…' : 'Generar resumen con IA'}
-            </Button>
-          )}
-        </div>
-      )}
-    </li>
   )
 }
