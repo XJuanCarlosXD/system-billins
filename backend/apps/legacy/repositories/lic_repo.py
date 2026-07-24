@@ -297,18 +297,21 @@ def list_rubros(no_cia: str) -> list[dict]:
 def guardar_documento_empresa(
     no_cia: str, punto: str | None, nombre_archivo: str, ruta_archivo: str,
     descripcion: str | None, fecha_vencimiento: str | None,
+    tipo_documento_id: int | None = None,
 ) -> int:
     with client.cursor() as cur:
         out_id = cur.var(oracledb.NUMBER)
         cur.execute(
             "INSERT INTO FAT.TLIC_DOCUMENTO_EMPRESA "
-            "(no_cia, punto, nombre_archivo, ruta_archivo, descripcion, fecha_vencimiento) "
+            "(no_cia, punto, nombre_archivo, ruta_archivo, descripcion, fecha_vencimiento, "
+            "tipo_documento_id) "
             "VALUES (:no_cia, :punto, :nombre, :ruta, :descripcion, "
-            "TO_DATE(:fecha_vencimiento, 'YYYY-MM-DD')) RETURNING id INTO :out_id",
+            "TO_DATE(:fecha_vencimiento, 'YYYY-MM-DD'), :tipo_documento_id) RETURNING id INTO :out_id",
             {
                 "no_cia": no_cia, "punto": punto, "nombre": nombre_archivo,
                 "ruta": ruta_archivo, "descripcion": descripcion,
-                "fecha_vencimiento": fecha_vencimiento, "out_id": out_id,
+                "fecha_vencimiento": fecha_vencimiento, "tipo_documento_id": tipo_documento_id,
+                "out_id": out_id,
             },
         )
         cur.connection.commit()
@@ -319,14 +322,54 @@ def list_documentos_empresa(no_cia: str) -> list[dict]:
     # vencido se calcula en SQL (no en Python) para que quede consistente
     # sin importar la zona horaria del proceso que lo consuma.
     return client.fetch_dicts(
-        "SELECT id, no_cia, punto, nombre_archivo, ruta_archivo, descripcion, "
-        "fecha_vencimiento, "
-        "CASE WHEN fecha_vencimiento IS NOT NULL AND fecha_vencimiento < TRUNC(SYSDATE) "
+        "SELECT d.id, d.no_cia, d.punto, d.nombre_archivo, d.ruta_archivo, d.descripcion, "
+        "d.fecha_vencimiento, d.tipo_documento_id, t.nombre AS tipo_documento_nombre, "
+        "CASE WHEN d.fecha_vencimiento IS NOT NULL AND d.fecha_vencimiento < TRUNC(SYSDATE) "
         "     THEN 1 ELSE 0 END AS vencido, "
-        "subido_en "
-        "FROM FAT.TLIC_DOCUMENTO_EMPRESA WHERE no_cia = :1 ORDER BY nombre_archivo",
+        "d.subido_en "
+        "FROM FAT.TLIC_DOCUMENTO_EMPRESA d "
+        "LEFT JOIN FAT.TLIC_TIPO_DOCUMENTO t ON t.id = d.tipo_documento_id "
+        "WHERE d.no_cia = :1 ORDER BY d.nombre_archivo",
         [no_cia],
     )
+
+
+# --- Catalogo de tipos de documento (Configuracion > Licitacion) ---
+
+def crear_tipo_documento(codigo: str, nombre: str) -> int:
+    with client.cursor() as cur:
+        out_id = cur.var(oracledb.NUMBER)
+        cur.execute(
+            "INSERT INTO FAT.TLIC_TIPO_DOCUMENTO (codigo, nombre) VALUES (:1, :2) "
+            "RETURNING id INTO :3",
+            [codigo, nombre, out_id],
+        )
+        cur.connection.commit()
+        return int(out_id.getvalue()[0])
+
+
+def list_tipos_documento(solo_activos: bool = True) -> list[dict]:
+    sql = "SELECT id, codigo, nombre, activo FROM FAT.TLIC_TIPO_DOCUMENTO"
+    if solo_activos:
+        sql += " WHERE activo = 'S'"
+    sql += " ORDER BY nombre"
+    return client.fetch_dicts(sql, [])
+
+
+def actualizar_tipo_documento(tipo_id: int, nombre: str | None = None, activo: str | None = None) -> None:
+    sets = []
+    params: dict = {"id": tipo_id}
+    if nombre is not None:
+        sets.append("nombre = :nombre")
+        params["nombre"] = nombre
+    if activo is not None:
+        sets.append("activo = :activo")
+        params["activo"] = activo
+    if not sets:
+        return
+    with client.cursor() as cur:
+        cur.execute(f"UPDATE FAT.TLIC_TIPO_DOCUMENTO SET {', '.join(sets)} WHERE id = :id", params)
+        cur.connection.commit()
 
 
 def get_documento_empresa(documento_empresa_id: int) -> dict | None:
