@@ -56,12 +56,23 @@ Con las credenciales reales de la empresa 01 (`abregonza`, desde `TLIC_CREDENCIA
 
 - El scraper debe traer **todo lo publicado** (sin filtrar por Category/rubro) usando la
   Búsqueda avanzada pública, hasta un tope configurable (1000 por defecto) — el propio análisis
-  de IA existente (semáforo verde/amarillo/rojo de cumplimiento) más la nueva sección de
+  de IA existente (semáforo verde/amarillo/rojo de cumplimiento) más la sección de
   productos/servicios (ver más abajo) son las que ayudan al usuario a decidir "aplica o no",
   no un filtro previo por categoría.
 - La IA **solo señala** qué tipos de documento del catálogo faltan o están vencidos para una
   licitación — no redacta ni genera documentos. Los certificados oficiales (DGI, TSS, RNC,
   Registro Mercantil) no los puede generar la IA de todas formas; eso queda fuera de alcance.
+- **Corrección 2026-07-24 (segunda vuelta):** los productos/servicios que pide una licitación
+  **ya están en la propia página del proceso en el portal** (igual que la descripción completa,
+  la unidad de requisición y el presupuesto estimado que ya se extraen sin IA vía
+  `_extraer_detalle_aviso_contrato`) — es dato estructurado, no texto libre que haga falta
+  interpretar. Por lo tanto **el scraper los extrae directamente (código/parsing), no la IA**.
+  La IA no debe usarse para repetir información que la licitación ya trae por sí sola, ni para
+  hacer las comparaciones de documentos (eso ya era código puro en `documentos_faltantes()` y
+  se mantiene así). El único rol de la IA en este plan queda acotado a la página de detalle,
+  con dos funciones: **recomendar precio** y **buscar precio histórico en el sistema** para los
+  productos/servicios pedidos — y la búsqueda del histórico también es una consulta de código
+  (no IA); la IA solo redacta la recomendación a partir de esos datos ya encontrados.
 
 ## Parte A — Scraper: descubrimiento vía Búsqueda avanzada pública
 
@@ -98,13 +109,28 @@ Con las credenciales reales de la empresa 01 (`abregonza`, desde `TLIC_CREDENCIA
   error `"documentos"` con mensaje explícito y no bloquea el resto de la corrida — mismo
   criterio de aislamiento de errores que ya usa el orquestador.
 
+### Extracción de productos/servicios por código (sin IA)
+
+`LicitacionesScraper._extraer_detalle_aviso_contrato` (mismo método que ya lee
+`descripcion_completa`/`unidad_requisicion`/`presupuesto_estimado` del Aviso de Contrato, sin
+IA) gana un campo más: `productos`, una lista de `{"descripcion": str, "cantidad": str | None}`
+leída de la sección de ítems/rubros solicitados que el propio Aviso de Contrato ya expone como
+tabla estructurada (mismo tipo de tabla que `#grdGridDocumentList_tbl` para documentos, pero
+para los renglones de la solicitud). El selector exacto de esa tabla se confirma en vivo durante
+la verificación del Task 4 del plan (igual que se hizo para el resto de `_extraer_detalle_aviso_
+contrato`) — si el nombre/estructura real difiere de lo documentado aquí, se ajusta con el mismo
+criterio conservador que el resto del scraper (un campo que no se puede leer queda en `None`/
+lista vacía, sin abortar la descarga de documentos que ya se completó). Se guarda en la tabla
+`TLIC_PRODUCTO` (ver Parte C) vía `lic_repo.reemplazar_productos`, igual que el resto del detalle
+scrapeado — no vía IA.
+
 ### Modelo de datos
 
 - `TLIC_OPORTUNIDAD` no necesita columnas nuevas para esto (`ENTIDAD`, `REFERENCIA`, `TITULO`,
   `FECHA_PUBLICACION`, `FECHA_LIMITE`, `PRESUPUESTO_ESTIMADO`, `ESTADO_PORTAL` ya existen). El
   upsert desde la búsqueda avanzada puebla estos mismos campos; si luego el flujo autenticado
-  encuentra más detalle (unidad de requisición, descripción completa), lo actualiza igual que hoy
-  vía `actualizar_detalle_oportunidad`.
+  encuentra más detalle (unidad de requisición, descripción completa, productos), lo actualiza
+  igual que hoy vía `actualizar_detalle_oportunidad`.
 
 ## Parte B — Configuración › Licitación: catálogo de tipos de documento + vista dedicada
 
@@ -150,38 +176,67 @@ Con las credenciales reales de la empresa 01 (`abregonza`, desde `TLIC_CREDENCIA
   (botón Nuevo, editar/activar-desactivar por fila) siguiendo el patrón ya usado en los catálogos
   de INV (`sigaft-crud-pagination`).
 
-## Parte C — Análisis IA: productos/servicios + documentos faltantes (solo señalar)
+## Parte C — Documentos faltantes (código puro) + IA acotada a precio en el detalle
 
-### `apps/lic/services/analisis_licitacion.py`
+Esta parte cambió de alcance respecto a la primera versión del spec: la IA **no** extrae
+productos/servicios (eso lo hace el scraper, Parte A) y **no** hace las comparaciones contra el
+catálogo de documentos (eso ya era y sigue siendo código puro). El único uso de IA que agrega esta
+parte es una recomendación de precio en la página de detalle, a partir de datos que ya trajo una
+consulta de código — la IA nunca busca ni compara por su cuenta, solo redacta la recomendación.
 
-- El prompt a Claude en `analizar_licitacion` gana una sección nueva en el JSON de salida:
-  `"productos": [{"descripcion": "..."}]` — productos o servicios concretos que la licitación
-  pide adquirir/contratar, extraídos del mismo texto que ya se le manda (pliego/TDR), 3-10 ítems,
-  mismo criterio de "no inventar" que ya aplica a requisitos.
-- El bloque de documentos de empresa que se le pasa a Claude para evaluar requisitos ahora incluye
-  el nombre del tipo de documento del catálogo (`tipo_documento_nombre`) además del nombre de
-  archivo, para que el matching sea más preciso cuando un requisito menciona un tipo concreto
-  ("Registro Mercantil vigente").
-- Nueva función pura `documentos_faltantes(requisitos: list[dict], documentos_empresa: list[dict])
-  -> list[dict]`: para cada tipo de documento del catálogo (`TLIC_TIPO_DOCUMENTO` activo) que
-  aparezca mencionado en algún requisito con estado `no_cumple` o `parcial` y sin
-  `documento_empresa_id` resuelto (o con uno vencido), arma una entrada
-  `{"tipo_documento": nombre, "motivo": "no subido" | "vencido"}`. Es puro post-procesamiento
-  sobre datos ya calculados — no es una llamada adicional a la IA.
+### `apps/lic/services/analisis_licitacion.py` — solo documentos faltantes (sin tocar el prompt)
+
+- El bloque de documentos de empresa que se le pasa a Claude para evaluar **requisitos** (lo que
+  ya existía en Fase 2, sin cambios de alcance aquí) incluye el nombre del tipo de documento del
+  catálogo (`tipo_documento_nombre`) además del nombre de archivo, para que el matching sea más
+  preciso cuando un requisito menciona un tipo concreto ("Registro Mercantil vigente"). El prompt
+  de `analizar_licitacion` NO gana una sección de productos.
+- Función pura `documentos_faltantes(requisitos: list[dict], tipos_catalogo: list[dict],
+  documentos_empresa: list[dict]) -> list[dict]`: para cada tipo de documento del catálogo
+  (`TLIC_TIPO_DOCUMENTO` activo) que aparezca mencionado en algún requisito con estado
+  `no_cumple` o `parcial` y sin `documento_empresa_id` resuelto (o con uno vencido), arma una
+  entrada `{"tipo_documento": nombre, "motivo": "no subido" | "vencido"}`. Es puro
+  post-procesamiento sobre datos ya calculados por el análisis de requisitos existente — no es
+  una llamada adicional a la IA.
 - `ejecutar_analisis_oportunidad` guarda este resultado junto con el resto (nueva columna
   `FAT.TLIC_OPORTUNIDAD.DOCUMENTOS_FALTANTES` tipo `VARCHAR2(2000)` con el JSON serializado, mismo
-  criterio que `RESUMEN_IA`/`RECOMENDACION_IA` — no se crea tabla aparte para algo derivado y
-  pequeño).
+  criterio que `RESUMEN_IA`/`RECOMENDACION_IA`).
 - Tabla nueva `FAT.TLIC_PRODUCTO` (mismo patrón hijo que `TLIC_REQUISITO`): `ID`,
-  `OPORTUNIDAD_ID` (FK), `DESCRIPCION` (VARCHAR2(500)), `ACTUALIZADO_EN`. `reemplazar_productos`
-  en `lic_repo` sigue el mismo patrón que `reemplazar_requisitos` (borra e inserta en cada
-  análisis).
+  `OPORTUNIDAD_ID` (FK), `DESCRIPCION` (VARCHAR2(500)), `CANTIDAD` (VARCHAR2(50)),
+  `ACTUALIZADO_EN`. `reemplazar_productos` en `lic_repo` la puebla el **scraper** (vía
+  `actualizar_detalle_oportunidad`/orquestador, Parte A) cada vez que descubre/actualiza una
+  oportunidad — no el análisis de IA.
+
+### Precio: búsqueda histórica (código) + recomendación (IA), solo en la página de detalle
+
+- `apps/legacy/repositories/lic_repo.py` gana `buscar_precio_historico(no_cia: str,
+  texto_producto: str) -> list[dict]`: búsqueda de código (`LIKE` sobre la descripción del
+  producto, sin IA) contra `FAT.TFAT_FACTURAL` + `FAT.TFAT_FACTURA` (join por no_cia/punto/
+  tipo_factura/no_factura, mismo patrón que otros joins de `fat_repo`), devolviendo
+  `{no_produ, descripcion, precio, fecha}` ordenado por fecha descendente — el precio más
+  reciente al que se facturó/cotizó algo con nombre parecido. No requiere IA; es una consulta SQL.
+- `apps/lic/services/recomendar_precio.py` (nuevo): una función `recomendar_precio(descripcion_
+  producto: str, historial: list[dict]) -> dict` con una única llamada a Claude que recibe **solo**
+  la descripción del producto pedido por la licitación y el historial de precios ya encontrado por
+  `buscar_precio_historico` (puede venir vacío), y devuelve `{"precio_sugerido": str | None,
+  "justificacion": str}`. La IA no busca nada por su cuenta ni repite la descripción del producto
+  como si fuera un hallazgo — solo recomienda con base en lo que se le entrega.
+- Endpoint nuevo `POST /api/lic/productos/<id>/recomendar-precio/`: toma el producto (por id),
+  llama `buscar_precio_historico` con su descripción, le pasa el resultado a
+  `recomendar_precio`, y devuelve `{"historial": [...], "precio_sugerido": ..., "justificacion":
+  ...}`. Se dispara bajo demanda desde un botón en la página de detalle (Parte D, sección 3), no
+  automáticamente en cada scrape — mismo criterio que "Generar resumen con IA" ya usa para
+  documentos.
 
 ### Endpoints
 
-- `GET /api/lic/oportunidades/<id>/productos/` — igual forma que `requisitos_view`.
-- `analizar_oportunidad_view` y el resumen que ya devuelve `AnalisisOportunidad` ganan
-  `productos: Producto[]` y `documentos_faltantes: {tipo_documento, motivo}[]`.
+- `GET /api/lic/oportunidades/<id>/productos/` — lista los productos que el scraper guardó para
+  esa oportunidad (no requiere análisis de IA previo, están desde que se descubrió la
+  oportunidad).
+- `analizar_oportunidad_view` sigue devolviendo `AnalisisOportunidad` (resumen, requisitos,
+  recomendación) sin `productos` — productos se consulta aparte porque no depende de análisis IA.
+- `analizar_oportunidad_view` y `list_oportunidades` ganan `documentos_faltantes:
+  {tipo_documento, motivo}[]`.
 
 ## Parte D — Vista de detalle: página completa, orden fijo, descarga real
 
@@ -199,9 +254,11 @@ Con las credenciales reales de la empresa 01 (`abregonza`, desde `TLIC_CREDENCIA
   1. **Descripción** — resumen IA + descripción completa/unidad de requisición/presupuesto
      estimado (lo que hoy está arriba del `AnalisisSeccion` en el modal).
   2. **Requisitos** — tabla existente (estado/descripción/justificación).
-  3. **Productos/servicios** — tabla nueva (Parte C), incluye también el bloque "Documentos
-     faltantes" como sub-sección aquí (es la contraparte accionable de esta sección: qué falta
-     conseguir para poder cumplir).
+  3. **Productos/servicios** — tabla con lo que el scraper ya extrajo de la licitación (Parte A),
+     con un botón "Recomendar precio" por fila que dispara `POST /api/lic/productos/<id>/
+     recomendar-precio/` (Parte C) y muestra el historial encontrado + la recomendación de la IA
+     inline. Incluye también el bloque "Documentos faltantes" como sub-sección aquí (es la
+     contraparte accionable de esta sección: qué falta conseguir para poder cumplir).
   4. **Documentos de la licitación** — lista existente de `TLIC_DOCUMENTO`, con botón de
      descarga nuevo por cada uno (nuevo endpoint `GET /api/lic/documentos/<id>/descargar/`, mismo
      patrón `FileResponse` que en la Parte B).
@@ -235,7 +292,12 @@ Con las credenciales reales de la empresa 01 (`abregonza`, desde `TLIC_CREDENCIA
 ## Fuera de alcance
 
 - Que la IA redacte o genere documentos faltantes (solo se señala qué falta).
+- Que la IA extraiga productos/servicios o compare documentos — eso es código (scraper +
+  `documentos_faltantes()`), la IA solo recomienda precio con datos ya encontrados.
 - Filtrar el descubrimiento por rubro/categoría (se trae todo lo `Published`; el semáforo de
   cumplimiento + productos/servicios son las señales para decidir "aplica o no").
 - Migrar los documentos de empresa ya subidos con `DESCRIPCION` libre a un `TIPO_DOCUMENTO_ID`
   retroactivamente.
+- Matching difuso avanzado (fuzzy/embeddings) entre la descripción del producto de la licitación
+  y el catálogo interno — `buscar_precio_historico` usa `LIKE` simple sobre texto; mejorarlo
+  queda para una iteración futura si el `LIKE` resulta insuficiente en la práctica.
