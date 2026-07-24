@@ -19,3 +19,18 @@ class ScrapeJob(models.Model):
 
     class Meta:
         ordering = ["-iniciado_en"]
+
+
+class OfertaJob(models.Model):
+    ESTADOS = [
+        ("corriendo", "Corriendo"),
+        ("listo_para_enviar", "Listo para enviar"),
+        ("faltan_documentos", "Faltan documentos"),
+        ("error", "Error"),
+        ("enviado", "Enviado"),
+    ]
+    oportunidad_id = models.IntegerField()
+    estado = models.CharField(max_length=20, choices=ESTADOS, default="corriendo")
+    resumen = models.JSONField(default=dict)
+    iniciado_en = models.DateTimeField(auto_now_add=True)
+    terminado_en = models.DateTimeField(null=True, blank=True)

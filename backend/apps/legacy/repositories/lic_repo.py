@@ -487,3 +487,28 @@ def list_requisitos(oportunidad_id: int) -> list[dict]:
         "FROM FAT.TLIC_REQUISITO WHERE oportunidad_id = :1 ORDER BY id",
         [oportunidad_id],
     )
+
+
+def documentos_a_subir(oportunidad_id: int) -> dict:
+    """Para Parte E (preparar_oferta): separa los requisitos de la oportunidad
+    entre los que ya tienen un documento de empresa vigente resuelto (listos
+    para adjuntar en la oferta, uno por uno) y los que no (quedan como
+    'faltantes', el usuario los ve antes de decidir si continua)."""
+    requisitos = list_requisitos(oportunidad_id)
+    listos: list[dict] = []
+    faltantes: list[str] = []
+    vistos: set[int] = set()
+    for r in requisitos:
+        doc_id = r.get("documento_empresa_id")
+        if r["estado"] == "cumple" and doc_id and doc_id not in vistos:
+            documento = get_documento_empresa(doc_id)
+            if documento:
+                vistos.add(doc_id)
+                listos.append({
+                    "documento_empresa_id": doc_id,
+                    "ruta_archivo": documento["ruta_archivo"],
+                    "nombre_archivo": documento["nombre_archivo"],
+                })
+        elif r["estado"] != "cumple":
+            faltantes.append(r["descripcion"])
+    return {"listos": listos, "faltantes": faltantes}

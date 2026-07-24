@@ -18,6 +18,16 @@ def _limpiar_catalogo_tipo_documento_de_prueba():
 
     def _borrar():
         with legacy_client.cursor() as cur:
+            # TLIC_REQUISITO puede referenciar (documento_empresa_id) un documento de
+            # empresa de tipo de prueba dejado por una corrida anterior -- FK_TLIC_REQ_
+            # DOCEMP no tiene ON DELETE CASCADE, así que se borra primero o el DELETE de
+            # TLIC_DOCUMENTO_EMPRESA de abajo revienta con ORA-02292.
+            cur.execute(
+                "DELETE FROM FAT.TLIC_REQUISITO WHERE documento_empresa_id IN ("
+                "SELECT id FROM FAT.TLIC_DOCUMENTO_EMPRESA WHERE tipo_documento_id IN ("
+                "SELECT id FROM FAT.TLIC_TIPO_DOCUMENTO WHERE codigo LIKE 'TEST%' "
+                "OR codigo LIKE 'SMOKE%' OR codigo LIKE 'OFERTA%'))"
+            )
             cur.execute(
                 "DELETE FROM FAT.TLIC_DOCUMENTO_EMPRESA WHERE tipo_documento_id IN ("
                 "SELECT id FROM FAT.TLIC_TIPO_DOCUMENTO WHERE codigo LIKE 'TEST%' "
