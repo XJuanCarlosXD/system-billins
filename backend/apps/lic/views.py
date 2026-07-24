@@ -15,7 +15,7 @@ from django.views.decorators.http import require_http_methods
 
 from apps.fe import crypto
 from apps.legacy.repositories import lic_repo
-from apps.lic.models import ScrapeJob
+from apps.lic.models import OfertaJob, ScrapeJob
 from apps.lic.services import pdf_rubros
 from apps.lic.services.analisis_licitacion import AnalisisError, ejecutar_analisis_oportunidad
 from apps.lic.services.orchestrator import ejecutar_scrape
@@ -420,4 +420,55 @@ def recomendar_precios_oportunidad_view(request, oportunidad_id: int):
             {"producto_id": pid, "historial": historiales.get(pid, []), **rec}
             for pid, rec in recomendaciones.items()
         ]
+    })
+
+
+def _ejecutar_preparar_oferta_seguro(job: OfertaJob, no_cia: str, referencia: str) -> None:
+    try:
+        credencial = lic_repo.get_credencial_con_password(no_cia)
+        if not credencial:
+            raise LoginError("Sin credencial configurada")
+        password = crypto.decrypt(credencial["password_cifrado"])
+        info = lic_repo.documentos_a_subir(job.oportunidad_id)
+        with LicitacionesScraper() as scraper:
+            scraper.login(credencial["usuario_portal"], password)
+            resultado = scraper.preparar_oferta(referencia, info["listos"])
+        job.resumen = {**resultado, "documentos_faltantes": info["faltantes"]}
+        job.estado = "faltan_documentos" if info["faltantes"] else "listo_para_enviar"
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("preparar_oferta falló para el job %s", job.id)
+        job.resumen = {"error": str(exc)}
+        job.estado = "error"
+    job.terminado_en = timezone.now()
+    job.save()
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["POST"])
+def preparar_oferta_view(request, oportunidad_id: int):
+    oportunidad = lic_repo.get_oportunidad(oportunidad_id)
+    if not oportunidad:
+        return _err("Oportunidad no encontrada", status=404)
+    job = OfertaJob.objects.create(oportunidad_id=oportunidad_id)
+    thread = threading.Thread(
+        target=_ejecutar_preparar_oferta_seguro,
+        args=(job, oportunidad["no_cia"], oportunidad["referencia"]),
+        daemon=True,
+    )
+    thread.start()
+    return JsonResponse({"job_id": job.id})
+
+
+@login_required
+@require_http_methods(["GET"])
+def oferta_job_view(request, job_id: int):
+    try:
+        job = OfertaJob.objects.get(id=job_id)
+    except OfertaJob.DoesNotExist:
+        return _err("Job no encontrado", status=404)
+    return JsonResponse({
+        "id": job.id, "estado": job.estado, "resumen": job.resumen,
+        "iniciado_en": job.iniciado_en.isoformat(),
+        "terminado_en": job.terminado_en.isoformat() if job.terminado_en else None,
     })

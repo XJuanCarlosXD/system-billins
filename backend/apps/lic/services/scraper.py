@@ -545,6 +545,80 @@ class LicitacionesScraper:
         finally:
             cn_page.close()
 
+    def preparar_oferta(self, referencia: str, documentos: list[dict]) -> dict:
+        """Adjunta los documentos ya resueltos (lic_repo.documentos_a_subir)
+        a la oferta de la oportunidad con la referencia dada, DOCUMENTO POR
+        DOCUMENTO -- sin hacer clic en el botón final de envío del portal (eso
+        es confirmar_envio_oferta, método separado). Verificación en vivo
+        contra una oportunidad real queda fuera de este cambio (ver nota en
+        el plan de este módulo, Parte E): el flujo de "Crear oferta" y el
+        control de adjuntar documentos de la sección de oferta del portal no
+        se ejercieron en vivo, dado el riesgo de dejar una oferta a medio
+        preparar en un proceso real ajeno a pruebas. Selectores best-effort,
+        a confirmar cuando el usuario pida explícitamente probar este flujo.
+
+        Cada documento se sube en su propio try/except: si uno falla, el
+        resto continúa (mismo criterio que download_documentos)."""
+        logger.info("lic.scraper.preparar_oferta: iniciando (referencia=%s)", referencia)
+        page = self._page
+        page.goto(OPORTUNIDADES_URL, wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_load_state("domcontentloaded", timeout=60000)
+        select = page.locator("select").first
+        select.select_option(label="Todos")
+        page.wait_for_load_state("domcontentloaded", timeout=60000)
+
+        wrappers = page.locator(".ws_rc_wrapper_opportunity")
+        count = wrappers.count()
+        target_row = None
+        for i in range(count):
+            ref_text = wrappers.nth(i).locator(".ws_rc_reference").first.inner_text().strip()
+            if ref_text == referencia:
+                target_row = wrappers.nth(i)
+                break
+        if target_row is None:
+            raise ValueError(f"No se encontró la oportunidad con referencia {referencia!r}")
+        target_row.click()
+
+        crear_oferta_btn = page.get_by_role("button", name="Crear oferta")
+        try:
+            crear_oferta_btn.wait_for(state="visible", timeout=10000)
+            crear_oferta_btn.click()
+            page.wait_for_load_state("domcontentloaded", timeout=60000)
+        except PlaywrightTimeoutError:
+            pass  # ya existía una oferta en curso, se continúa sobre ella
+
+        resultados = []
+        for doc in documentos:
+            try:
+                # Selector del control de adjuntar de la oferta -- best-effort, no
+                # verificado en vivo (ver docstring del método).
+                upload_input = page.locator("input[type='file']").first
+                upload_input.set_input_files(doc["ruta_archivo"])
+                page.wait_for_timeout(1000)
+                resultados.append({"documento_empresa_id": doc["documento_empresa_id"], "estado": "ok"})
+            except Exception as exc:  # noqa: BLE001 - un documento no debe tumbar los demás
+                logger.exception(
+                    "lic.scraper.preparar_oferta: fallo al adjuntar documento %s", doc["nombre_archivo"]
+                )
+                resultados.append({
+                    "documento_empresa_id": doc["documento_empresa_id"], "estado": "error", "error": str(exc),
+                })
+
+        return {"documentos_adjuntados": resultados}
+
+    def confirmar_envio_oferta(self, referencia: str) -> dict:
+        """Hace clic en el botón final de envío del portal -- SOLO se llama tras
+        confirmación humana explícita desde el frontend (ver vista/endpoint
+        separados). No se verifica en vivo contra una licitación real como
+        parte de este plan; cualquier prueba end-to-end real la dispara el
+        usuario deliberadamente, más adelante."""
+        logger.warning("lic.scraper.confirmar_envio_oferta: ENVIANDO OFERTA REAL (referencia=%s)", referencia)
+        page = self._page
+        enviar_btn = page.get_by_role("button", name="Enviar oferta")
+        enviar_btn.click()
+        page.wait_for_load_state("domcontentloaded", timeout=60000)
+        return {"enviado": True}
+
     @staticmethod
     def _extraer_detalle_aviso_contrato(cn_page, referencia: str) -> dict:
         """Lee del Aviso de Contrato (misma pestaña ya abierta para los
