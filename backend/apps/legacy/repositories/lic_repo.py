@@ -1,6 +1,8 @@
 """Repositorio LIC: acceso a las tablas FAT.TLIC_* vía apps.legacy.client (thick mode)."""
 from __future__ import annotations
 
+import json
+
 import oracledb
 
 from apps.legacy import client
@@ -384,15 +386,52 @@ def get_documento_empresa(documento_empresa_id: int) -> dict | None:
 
 def guardar_analisis_oportunidad(
     oportunidad_id: int, resumen_ia: str, estado_cumplimiento: str,
-    recomendacion_ia: str | None,
+    recomendacion_ia: str | None, documentos_faltantes: list[dict] | None = None,
 ) -> None:
     with client.cursor() as cur:
         cur.execute(
             "UPDATE FAT.TLIC_OPORTUNIDAD SET resumen_ia = :1, estado_cumplimiento = :2, "
-            "recomendacion_ia = :3 WHERE id = :4",
-            [resumen_ia, estado_cumplimiento, recomendacion_ia, oportunidad_id],
+            "recomendacion_ia = :3, documentos_faltantes = :4 WHERE id = :5",
+            [
+                resumen_ia, estado_cumplimiento, recomendacion_ia,
+                json.dumps(documentos_faltantes or [], ensure_ascii=False)[:2000],
+                oportunidad_id,
+            ],
         )
         cur.connection.commit()
+
+
+def get_oportunidad_completa(oportunidad_id: int) -> dict | None:
+    rows = client.fetch_dicts(
+        "SELECT id, no_cia, referencia, titulo, resumen_ia, estado_cumplimiento, "
+        "recomendacion_ia, documentos_faltantes "
+        "FROM FAT.TLIC_OPORTUNIDAD WHERE id = :1",
+        [oportunidad_id],
+    )
+    return rows[0] if rows else None
+
+
+def reemplazar_productos(oportunidad_id: int, productos: list[dict]) -> None:
+    """Poblada por el SCRAPER (Parte A/orchestrator), no por IA -- cada corrida que
+    releé el Aviso de Contrato es una foto nueva completa, mismo patron que
+    reemplazar_requisitos."""
+    with client.cursor() as cur:
+        cur.execute("DELETE FROM FAT.TLIC_PRODUCTO WHERE oportunidad_id = :1", [oportunidad_id])
+        for p in productos:
+            cur.execute(
+                "INSERT INTO FAT.TLIC_PRODUCTO (oportunidad_id, descripcion, cantidad) "
+                "VALUES (:1, :2, :3)",
+                [oportunidad_id, p["descripcion"], p.get("cantidad")],
+            )
+        cur.connection.commit()
+
+
+def list_productos(oportunidad_id: int) -> list[dict]:
+    return client.fetch_dicts(
+        "SELECT id, descripcion, cantidad, actualizado_en FROM FAT.TLIC_PRODUCTO "
+        "WHERE oportunidad_id = :1 ORDER BY id",
+        [oportunidad_id],
+    )
 
 
 def reemplazar_requisitos(oportunidad_id: int, requisitos: list[dict]) -> None:
