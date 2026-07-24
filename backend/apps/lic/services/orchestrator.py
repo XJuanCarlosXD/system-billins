@@ -22,6 +22,8 @@ def ejecutar_scrape(job: ScrapeJob, empresas: list[str]) -> None:
         "errores": [],
     }
 
+    _descubrir_via_busqueda_avanzada(empresas, resumen)
+
     for no_cia in empresas:
         credencial = lic_repo.get_credencial_con_password(no_cia)
         if not credencial:
@@ -65,6 +67,27 @@ def ejecutar_scrape(job: ScrapeJob, empresas: list[str]) -> None:
     job.estado = "completado_con_errores" if resumen["errores"] else "completado"
     job.terminado_en = timezone.now()
     job.save()
+
+
+def _descubrir_via_busqueda_avanzada(empresas: list[str], resumen: dict) -> None:
+    """Corre UNA sola vez por corrida (no depende de credenciales -- la Búsqueda
+    avanzada es pública) y hace upsert de las oportunidades encontradas para
+    CADA empresa de ``empresas``: las licitaciones públicas aplican por igual a
+    todas las empresas del grupo, el filtrado por aplicabilidad real lo hace el
+    análisis de IA por empresa más adelante, no el descubrimiento. Un fallo acá
+    (portal caído, cambio de layout) se registra como error aislado y NO
+    bloquea el resto de la corrida -- el feed autenticado por empresa sigue
+    corriendo igual como respaldo."""
+    try:
+        with LicitacionesScraper() as scraper:
+            oportunidades = scraper.buscar_avanzada(status="Published", tope=1000)
+    except Exception as exc:  # noqa: BLE001 - fallo aislado, no debe tumbar la corrida
+        _agregar_error(resumen, "*", str(exc), contexto="busqueda_avanzada")
+        return
+
+    for no_cia in empresas:
+        for data in oportunidades:
+            lic_repo.upsert_oportunidad(no_cia, data)
 
 
 def _agregar_error(resumen: dict, no_cia: str, mensaje: str, *,

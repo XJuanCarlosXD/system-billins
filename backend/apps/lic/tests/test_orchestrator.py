@@ -12,17 +12,22 @@ def test_ejecutar_scrape_marks_job_completado_when_no_errors():
 
     with patch("apps.lic.services.orchestrator.lic_repo") as repo, \
          patch("apps.lic.services.orchestrator.crypto") as crypto, \
-         patch("apps.lic.services.orchestrator.LicitacionesScraper") as ScraperCls:
+         patch("apps.lic.services.orchestrator.LicitacionesScraper") as ScraperCls, \
+         patch("apps.lic.services.orchestrator.ejecutar_analisis_oportunidad"):
         repo.get_credencial_con_password.return_value = credencial
         crypto.decrypt.return_value = "plain-password"
         repo.upsert_oportunidad.return_value = (1, True)
         scraper_instance = MagicMock()
+        scraper_instance.buscar_avanzada.return_value = []
         scraper_instance.list_oportunidades.return_value = [
             {"referencia": "REF-1", "titulo": "algo"}
         ]
-        scraper_instance.download_documentos.return_value = [
-            {"tipo_documento": "Pliego", "nombre_archivo": "pliego.pdf", "ruta_archivo": "/x/pliego.pdf", "estado": "ok"}
-        ]
+        scraper_instance.download_documentos.return_value = {
+            "documentos": [
+                {"tipo_documento": "Pliego", "nombre_archivo": "pliego.pdf", "ruta_archivo": "/x/pliego.pdf", "estado": "ok"}
+            ],
+            "detalle": {},
+        }
         ScraperCls.return_value.__enter__.return_value = scraper_instance
 
         ejecutar_scrape(job, empresas=["01"])
@@ -133,9 +138,12 @@ def test_ejecutar_scrape_retries_documents_for_previously_seen_oportunidad_witho
         scraper_instance.list_oportunidades.return_value = [
             {"referencia": "REF-1", "titulo": "algo"}
         ]
-        scraper_instance.download_documentos.return_value = [
-            {"tipo_documento": "Pliego", "nombre_archivo": "pliego.pdf", "ruta_archivo": "/x/pliego.pdf", "estado": "ok"}
-        ]
+        scraper_instance.download_documentos.return_value = {
+            "documentos": [
+                {"tipo_documento": "Pliego", "nombre_archivo": "pliego.pdf", "ruta_archivo": "/x/pliego.pdf", "estado": "ok"}
+            ],
+            "detalle": {},
+        }
         ScraperCls.return_value.__enter__.return_value = scraper_instance
 
         ejecutar_scrape(job, empresas=["01"])
@@ -200,15 +208,18 @@ def test_ejecutar_scrape_uses_placeholder_and_mensaje_error_for_failed_document_
         scraper_instance.list_oportunidades.return_value = [
             {"referencia": "REF-1", "titulo": "algo"}
         ]
-        scraper_instance.download_documentos.return_value = [
-            {
-                "tipo_documento": None,
-                "nombre_archivo": None,
-                "ruta_archivo": None,
-                "estado": "error",
-                "error": "descarga fallida",
-            }
-        ]
+        scraper_instance.download_documentos.return_value = {
+            "documentos": [
+                {
+                    "tipo_documento": None,
+                    "nombre_archivo": None,
+                    "ruta_archivo": None,
+                    "estado": "error",
+                    "error": "descarga fallida",
+                }
+            ],
+            "detalle": {},
+        }
         ScraperCls.return_value.__enter__.return_value = scraper_instance
 
         ejecutar_scrape(job, empresas=["01"])
@@ -241,10 +252,13 @@ def test_ejecutar_scrape_continues_when_guardar_documento_fails_for_one_document
         scraper_instance.list_oportunidades.return_value = [
             {"referencia": "REF-1", "titulo": "algo"}
         ]
-        scraper_instance.download_documentos.return_value = [
-            {"tipo_documento": "Pliego", "nombre_archivo": "pliego.pdf", "ruta_archivo": "/x/pliego.pdf", "estado": "ok"},
-            {"tipo_documento": "Anexo", "nombre_archivo": "anexo.pdf", "ruta_archivo": "/x/anexo.pdf", "estado": "ok"},
-        ]
+        scraper_instance.download_documentos.return_value = {
+            "documentos": [
+                {"tipo_documento": "Pliego", "nombre_archivo": "pliego.pdf", "ruta_archivo": "/x/pliego.pdf", "estado": "ok"},
+                {"tipo_documento": "Anexo", "nombre_archivo": "anexo.pdf", "ruta_archivo": "/x/anexo.pdf", "estado": "ok"},
+            ],
+            "detalle": {},
+        }
         ScraperCls.return_value.__enter__.return_value = scraper_instance
 
         ejecutar_scrape(job, empresas=["01"])
@@ -259,3 +273,64 @@ def test_ejecutar_scrape_continues_when_guardar_documento_fails_for_one_document
         for e in errores
     )
     assert job.estado == "completado_con_errores"
+
+
+@pytest.mark.django_db
+def test_ejecutar_scrape_descubre_via_busqueda_avanzada_antes_del_login_por_empresa():
+    """La busqueda avanzada publica corre UNA vez por corrida (no depende de
+    credenciales) y hace upsert para cada empresa activa antes de procesar
+    login/documentos por empresa."""
+    job = ScrapeJob.objects.create(trigger="manual", no_cia=None)
+    credencial = {"no_cia": "01", "usuario_portal": "abregonza", "password_cifrado": "x"}
+
+    with patch("apps.lic.services.orchestrator.lic_repo") as repo, \
+         patch("apps.lic.services.orchestrator.crypto") as crypto, \
+         patch("apps.lic.services.orchestrator.LicitacionesScraper") as ScraperCls:
+        repo.get_credencial_con_password.return_value = credencial
+        crypto.decrypt.return_value = "plain-password"
+        repo.upsert_oportunidad.return_value = (1, True)
+        repo.tiene_documentos.return_value = True  # ya tiene documentos, no reintenta descarga
+        scraper_instance = MagicMock()
+        scraper_instance.buscar_avanzada.return_value = [
+            {"referencia": "PUB-1", "entidad": "Ministerio X", "titulo": "algo",
+             "estado_portal": "Published", "fecha_publicacion": "2026-07-24 09:00",
+             "fecha_limite": "2026-07-30 09:00", "presupuesto_estimado": "100,000 Dominican Pesos"}
+        ]
+        scraper_instance.list_oportunidades.return_value = []
+        ScraperCls.return_value.__enter__.return_value = scraper_instance
+
+        ejecutar_scrape(job, empresas=["01"])
+
+    scraper_instance.buscar_avanzada.assert_called_once_with(status="Published", tope=1000)
+    repo.upsert_oportunidad.assert_any_call("01", scraper_instance.buscar_avanzada.return_value[0])
+    job.refresh_from_db()
+    assert job.resumen["errores"] == []
+
+
+@pytest.mark.django_db
+def test_ejecutar_scrape_continua_si_busqueda_avanzada_falla():
+    """Un fallo en la busqueda avanzada publica (portal caido, cambio de layout) no debe
+    tumbar el resto de la corrida -- se registra como error aislado y se sigue con el
+    feed autenticado normal."""
+    job = ScrapeJob.objects.create(trigger="manual", no_cia="01")
+    credencial = {"no_cia": "01", "usuario_portal": "abregonza", "password_cifrado": "x"}
+
+    with patch("apps.lic.services.orchestrator.lic_repo") as repo, \
+         patch("apps.lic.services.orchestrator.crypto") as crypto, \
+         patch("apps.lic.services.orchestrator.LicitacionesScraper") as ScraperCls:
+        repo.get_credencial_con_password.return_value = credencial
+        crypto.decrypt.return_value = "plain-password"
+        scraper_instance = MagicMock()
+        scraper_instance.buscar_avanzada.side_effect = RuntimeError("selector no encontrado")
+        scraper_instance.list_oportunidades.return_value = []
+        ScraperCls.return_value.__enter__.return_value = scraper_instance
+
+        ejecutar_scrape(job, empresas=["01"])
+
+    job.refresh_from_db()
+    assert job.estado == "completado_con_errores"
+    errores = job.resumen["errores"]
+    assert any(
+        e["contexto"] == "busqueda_avanzada" and e["mensaje"] == "selector no encontrado"
+        for e in errores
+    )
