@@ -81,6 +81,13 @@ export interface Oportunidad {
   presupuesto_estimado: string | null
 }
 
+export interface TipoDocumento {
+  id: number
+  codigo: string
+  nombre: string
+  activo: 'S' | 'N'
+}
+
 export interface DocumentoEmpresa {
   id: number
   no_cia: string
@@ -89,6 +96,8 @@ export interface DocumentoEmpresa {
   ruta_archivo: string
   descripcion: string | null
   fecha_vencimiento: string | null
+  tipo_documento_id: number | null
+  tipo_documento_nombre: string | null
   vencido: 0 | 1
   subido_en: string
 }
@@ -307,6 +316,7 @@ export function useSubirDocumentoEmpresa() {
       archivo: File
       descripcion?: string
       fecha_vencimiento?: string
+      tipo_documento_id?: number
     }) => {
       const form = new FormData()
       form.append('no_cia', payload.no_cia)
@@ -315,6 +325,8 @@ export function useSubirDocumentoEmpresa() {
       if (payload.descripcion) form.append('descripcion', payload.descripcion)
       if (payload.fecha_vencimiento)
         form.append('fecha_vencimiento', payload.fecha_vencimiento)
+      if (payload.tipo_documento_id)
+        form.append('tipo_documento_id', String(payload.tipo_documento_id))
       return licRequest<{ documentos: DocumentoEmpresa[] }>(
         '/lic/documentos-empresa/',
         { method: 'POST', body: form }
@@ -323,6 +335,41 @@ export function useSubirDocumentoEmpresa() {
     onSuccess: (_data, variables) =>
       qc.invalidateQueries({ queryKey: ['lic-documentos-empresa', variables.no_cia] }),
   })
+}
+
+export function useTiposDocumento() {
+  return useQuery({
+    queryKey: ['lic-tipos-documento'],
+    queryFn: () => licRequest<{ tipos: TipoDocumento[] }>('/lic/tipos-documento/'),
+  })
+}
+
+export function useCrearTipoDocumento() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { codigo: string; nombre: string }) =>
+      licRequest<{ tipo: TipoDocumento }>('/lic/tipos-documento/', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['lic-tipos-documento'] }),
+  })
+}
+
+export function useActualizarTipoDocumento() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { id: number; nombre?: string; activo?: 'S' | 'N' }) =>
+      licRequest<{ tipos: TipoDocumento[] }>(`/lic/tipos-documento/${payload.id}/`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['lic-tipos-documento'] }),
+  })
+}
+
+export function documentoEmpresaDescargarUrl(documentoEmpresaId: number): string {
+  return `${API_BASE}/lic/documentos-empresa/${documentoEmpresaId}/descargar/`
 }
 
 export function useAnalizarOportunidad() {
