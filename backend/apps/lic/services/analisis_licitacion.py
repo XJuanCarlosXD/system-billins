@@ -132,6 +132,41 @@ def analizar_licitacion(
     }
 
 
+def documentos_faltantes(
+    requisitos: list[dict], tipos_catalogo: list[dict], documentos_empresa: list[dict],
+) -> list[dict]:
+    """Post-procesamiento puro (sin llamada a IA): para cada tipo de documento del
+    catálogo que aparezca mencionado por nombre en algún requisito evaluado como
+    'no_cumple' o 'parcial', arma una entrada {"tipo_documento", "motivo"} -- "no
+    subido" si ningún documento de empresa de ese tipo existe, "vencido" si existe
+    pero está marcado vencido. Solo señala; no genera ni redacta nada."""
+    documentos_por_tipo_id = {d["id"]: d for d in documentos_empresa}
+
+    faltantes: list[dict] = []
+    vistos: set[str] = set()
+    for r in requisitos:
+        if r["estado"] not in ("no_cumple", "parcial"):
+            continue
+        descripcion_baja = r["descripcion"].lower()
+        for tipo in tipos_catalogo:
+            if tipo["nombre"].lower() not in descripcion_baja:
+                continue
+            if tipo["nombre"] in vistos:
+                continue
+            doc_id = r.get("documento_empresa_id")
+            doc = documentos_por_tipo_id.get(doc_id) if doc_id else None
+            if doc is None:
+                motivo = "no subido"
+            elif doc.get("vencido"):
+                motivo = "vencido"
+            else:
+                continue  # tiene documento vigente de ese tipo, pero el requisito
+                          # sigue 'parcial' por otra razón no relacionada al tipo
+            vistos.add(tipo["nombre"])
+            faltantes.append({"tipo_documento": tipo["nombre"], "motivo": motivo})
+    return faltantes
+
+
 def ejecutar_analisis_oportunidad(oportunidad_id: int) -> dict:
     """Junta el texto de los documentos de la oportunidad + los de la empresa,
     llama a ``analizar_licitacion`` y guarda el resultado -- función
