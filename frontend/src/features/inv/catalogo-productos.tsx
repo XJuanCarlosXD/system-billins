@@ -79,6 +79,11 @@ export function CatalogoProductos() {
   const [companiasAlmacenes, setCompaniasAlmacenes] = useState<CiaAlmacenes[]>([])
   const [unidades, setUnidades] = useState<{ unidad: string; descripcion?: string; descri?: string }[]>([])
   const [refsEmpaque, setRefsEmpaque] = useState<{ referencia: string; descripcion?: string; descri?: string }[]>([])
+  // Lista de precio "por defecto" (FAT.TFAT_TIPO_PRECIO) de la empresa activa,
+  // para poder asignarle un precio de venta directo al producto sin salir de
+  // este modal. Se prefiere la lista '01' (VENTAS); si no existe, la primera.
+  const [listaPrecioDefault, setListaPrecioDefault] = useState<{ no_lista: string; descripcion: string } | null>(null)
+  const [precioVenta, setPrecioVenta] = useState('')
 
   type EmpaqueRow = {
     empaque: number
@@ -181,6 +186,16 @@ export function CatalogoProductos() {
         setRefsEmpaque(items)
       })
       .catch(() => setRefsEmpaque([]))
+
+    regalGeneralApi.fatListasPrecio(selectedCompany, selectedPoint || '01')
+      .then((data: any) => {
+        const tipos = data?.tipos ?? []
+        const preferida = tipos.find((t: any) => String(t.no_lista) === '01') ?? tipos[0]
+        setListaPrecioDefault(preferida
+          ? { no_lista: String(preferida.no_lista), descripcion: preferida.descripcion || '' }
+          : null)
+      })
+      .catch(() => setListaPrecioDefault(null))
   }, [selectedCompany, selectedPoint])
 
   // Empresas activas + sus almacenes, para "Asignar a Almacén(es)" al crear
@@ -256,23 +271,37 @@ export function CatalogoProductos() {
     setPage(1)
   }
 
+  const [loadingCodigo, setLoadingCodigo] = useState(false)
+
+  // Código del producto: SIEMPRE lo asigna el sistema desde la secuencia
+  // legacy TINV_NEXT_PRODU — el usuario nunca lo tipea, para evitar choques
+  // con códigos ya usados. Si el preview falla, este botón permite reintentar.
+  const fetchNextCodigo = async () => {
+    setLoadingCodigo(true)
+    try {
+      const next = await apiFetch<{ siguiente?: string }>(`/inv/productos/next-codigo/`)
+      if (next?.siguiente) {
+        setForm((f) => ({ ...f, no_produ: next.siguiente! }))
+        setAutoCodigo(true)
+      } else {
+        toast.error('No se pudo generar el código automático. Intenta de nuevo.')
+      }
+    } catch {
+      toast.error('No se pudo generar el código automático. Intenta de nuevo.')
+    } finally {
+      setLoadingCodigo(false)
+    }
+  }
+
   const openCreate = async () => {
     setForm(emptyForm)
     setEditingProdu(null)
     setEmpaques([])
     setAlmacenesSel(new Set())
     setAutoCodigo(false)
+    setPrecioVenta('')
     setFormOpen(true)
-    // Auto-pre-fill del codigo desde la secuencia legacy TINV_NEXT_PRODU
-    try {
-      const next = await apiFetch<{ siguiente?: string }>(`/inv/productos/next-codigo/`)
-      if (next?.siguiente) {
-        setForm((f) => ({ ...f, no_produ: next.siguiente! }))
-        setAutoCodigo(true)
-      }
-    } catch {
-      /* preview falla -> el usuario puede tipearlo manualmente */
-    }
+    await fetchNextCodigo()
   }
 
   const loadEmpaques = async (no_produ: string) => {
@@ -334,6 +363,7 @@ export function CatalogoProductos() {
     setSelected(null)
     setEmpaques([])
     setAlmacenesSel(new Set())
+    setPrecioVenta('')
     setFormOpen(true)
     loadEmpaques(p.no_produ)
     // Precarga los almacenes donde el producto YA está asignado, para que
@@ -476,6 +506,25 @@ export function CatalogoProductos() {
         }
       }
 
+      // Precio de venta directo: solo al crear. Inserta/actualiza el detalle
+      // en la lista de precio por defecto de la empresa (FAT.TFAT_LISTA_PRECIO)
+      // para que el producto quede vendible sin pasar por la pantalla aparte
+      // de Listas de Precio.
+      if (!isEdit && precioVenta.trim() && listaPrecioDefault) {
+        try {
+          await regalGeneralApi.fatUpsertListaPrecio({
+            kind: 'detalle',
+            no_cia: selectedCompany,
+            punto: selectedPoint || '01',
+            no_lista: listaPrecioDefault.no_lista,
+            no_produ: savedNoProdu,
+            precio: parseFloat(precioVenta) || 0,
+          })
+        } catch (err: any) {
+          toast.error(`Producto guardado, pero el precio no se pudo asignar: ${err?.message || err}`)
+        }
+      }
+
       const asignados: unknown[] = data?.data?.almacenes_asignados ?? []
       const sufijoAsignacion = asignados.length > 0 ? ` (${asignados.length} almacén(es) asignado(s))` : ''
       toast.success(isEdit
@@ -486,6 +535,7 @@ export function CatalogoProductos() {
       setForm(emptyForm)
       setEmpaques([])
       setAlmacenesSel(new Set())
+      setPrecioVenta('')
       // Forzar refresh de la lista (re-trigger del useEffect)
       setSearch((s) => s)
       if (!isEdit) setPage(1)
@@ -503,14 +553,14 @@ export function CatalogoProductos() {
   return (
     <div className='space-y-4'>
       {/* Header */}
-      <div className='flex items-center justify-between'>
+      <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
         <div>
           <h2 className='text-lg font-semibold'>Catálogo de Productos</h2>
           <p className='text-sm text-muted-foreground'>
             {total > 0 ? `${total.toLocaleString()} productos` : 'Empresa: ' + selectedCompany}
           </p>
         </div>
-        <Button size='sm' className='gap-1' onClick={openCreate}>
+        <Button size='sm' className='gap-1 w-full sm:w-auto' onClick={openCreate}>
           <Plus className='h-4 w-4' /> Nuevo Producto
         </Button>
       </div>
@@ -625,8 +675,8 @@ export function CatalogoProductos() {
       </div>
 
       {/* Pagination */}
-      <div className='flex items-center justify-between text-sm'>
-        <div className='flex items-center gap-2 text-muted-foreground'>
+      <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm'>
+        <div className='flex flex-wrap items-center gap-2 text-muted-foreground'>
           <span>Filas por página:</span>
           <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1) }}>
             <SelectTrigger className='h-7 w-[70px] text-xs'>
@@ -653,9 +703,9 @@ export function CatalogoProductos() {
       {/* Detail dialog */}
       {selected && (
         <Dialog open onOpenChange={() => setSelected(null)}>
-          <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
+          <DialogContent className='max-w-[92vw] sm:max-w-[70vw] max-h-[80vh] overflow-y-auto'>
             <DialogHeader>
-              <div className='flex items-center justify-between gap-2 pr-6'>
+              <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pr-6'>
                 <DialogTitle className='flex items-center gap-2'>
                   <span className='font-mono text-base'>{selected.no_produ}</span>
                   {selected.activo === 'N' && <Badge variant='secondary'>Inactivo</Badge>}
@@ -733,17 +783,37 @@ export function CatalogoProductos() {
           <DialogHeader className='shrink-0 border-b px-6 py-4'>
             <DialogTitle>{editingProdu ? `Editar Producto ${editingProdu}` : 'Nuevo Producto'}</DialogTitle>
           </DialogHeader>
-          <div className='grid grid-cols-2 gap-4 px-6 py-4 overflow-y-auto flex-1'>
+          <div className='grid grid-cols-1 sm:grid-cols-2 gap-4 px-6 py-4 overflow-y-auto flex-1'>
             <div className='space-y-1'>
               <Label htmlFor='np-codigo'>Código <span className='text-destructive'>*</span></Label>
-              <Input
-                id='np-codigo'
-                className='h-9 font-mono uppercase'
-                placeholder='00012345'
-                value={form.no_produ}
-                disabled={!!editingProdu}
-                onChange={(e) => { setAutoCodigo(false); setForm((f) => ({ ...f, no_produ: e.target.value.toUpperCase() })) }}
-              />
+              <div className='flex items-center gap-2'>
+                <Input
+                  id='np-codigo'
+                  className='h-9 font-mono uppercase disabled:opacity-100 disabled:bg-muted'
+                  placeholder='Generando...'
+                  value={form.no_produ}
+                  disabled
+                  readOnly
+                />
+                {!editingProdu && (
+                  <Button
+                    type='button'
+                    size='sm'
+                    variant='outline'
+                    className='h-9 shrink-0'
+                    disabled={loadingCodigo}
+                    onClick={fetchNextCodigo}
+                    title='Generar otro código'
+                  >
+                    {loadingCodigo ? '...' : 'Regenerar'}
+                  </Button>
+                )}
+              </div>
+              {!editingProdu && (
+                <p className='text-xs text-muted-foreground mt-1'>
+                  Asignado automáticamente por el sistema. No es editable.
+                </p>
+              )}
             </div>
             <div className='space-y-1'>
               <Label htmlFor='np-activo'>Estado</Label>
@@ -758,7 +828,7 @@ export function CatalogoProductos() {
               </Select>
             </div>
 
-            <div className='col-span-2 space-y-1'>
+            <div className='col-span-1 sm:col-span-2 space-y-1'>
               <div className='flex items-center justify-between'>
                 <Label htmlFor='np-desc'>Descripción <span className='text-destructive'>*</span></Label>
                 <span
@@ -879,15 +949,37 @@ export function CatalogoProductos() {
               />
             </div>
 
-            <div className='space-y-1 col-span-2'>
-              <div className='flex items-center gap-3 h-9'>
+            {!editingProdu && (
+              <div className='space-y-1'>
+                <Label htmlFor='np-precio'>Precio de Venta (RD$)</Label>
+                <Input
+                  id='np-precio'
+                  className='h-9 text-right tabular-nums'
+                  type='number'
+                  min={0}
+                  step='0.01'
+                  placeholder='0.00'
+                  value={precioVenta}
+                  onChange={(e) => setPrecioVenta(e.target.value)}
+                  disabled={!listaPrecioDefault}
+                />
+                <p className='text-xs text-muted-foreground mt-1'>
+                  {listaPrecioDefault
+                    ? `Se asigna directo a la lista ${listaPrecioDefault.no_lista} — ${listaPrecioDefault.descripcion}. Déjalo en blanco para asignar el precio después.`
+                    : 'No hay lista de precios configurada para esta empresa. Créala primero en FAT › Listas de Precio.'}
+                </p>
+              </div>
+            )}
+
+            <div className='space-y-1 col-span-1 sm:col-span-2'>
+              <div className='flex flex-wrap items-center gap-3'>
                 <Switch
                   checked={form.tiene_impuesto}
                   onCheckedChange={(v) => setForm((f) => ({ ...f, tiene_impuesto: !!v }))}
                 />
                 <Label className='cursor-pointer'>Aplica ITBIS</Label>
                 {form.tiene_impuesto && (
-                  <div className='flex items-center gap-2 ml-4'>
+                  <div className='flex items-center gap-2 sm:ml-4'>
                     <Label htmlFor='np-itbis' className='text-xs'>% ITBIS:</Label>
                     <Input
                       id='np-itbis'
@@ -905,7 +997,7 @@ export function CatalogoProductos() {
             </div>
 
             {/* Acordeón Detalles del producto (legacy FINV111) */}
-            <div className='col-span-2 border-t pt-3 mt-1'>
+            <div className='col-span-1 sm:col-span-2 border-t pt-3 mt-1'>
               <button
                 type='button'
                 onClick={() => setDetallesOpen((v) => !v)}
@@ -948,7 +1040,7 @@ export function CatalogoProductos() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className='col-span-2 space-y-1'>
+                <div className='col-span-1 sm:col-span-2 space-y-1'>
                   <div className='flex items-center justify-between'>
                     <Label htmlFor='np-esp'>Especificaciones</Label>
                     <span className={`text-xs tabular-nums ${form.especificaciones.length > 100 ? 'text-destructive' : form.especificaciones.length >= 90 ? 'text-amber-600' : 'text-muted-foreground'}`}>
@@ -996,7 +1088,7 @@ export function CatalogoProductos() {
                     onChange={(e) => setForm((f) => ({ ...f, porc_otros_impuestos: e.target.value }))}
                   />
                 </div>
-                <div className='col-span-2 flex flex-wrap items-center gap-6 pt-1'>
+                <div className='col-span-1 sm:col-span-2 flex flex-wrap items-center gap-6 pt-1'>
                   <div className='flex items-center gap-2'>
                     <Switch
                       checked={form.permite_desc}
@@ -1021,7 +1113,7 @@ export function CatalogoProductos() {
                 pero no asignado" y el primer movimiento revienta con parent
                 key not found contra TINV_EPRODUCTO). Al editar, precarga los
                 almacenes donde ya está asignado (ver openEdit). */}
-            <div className='col-span-2 border-t pt-3 mt-1 space-y-2'>
+            <div className='col-span-1 sm:col-span-2 border-t pt-3 mt-1 space-y-2'>
               <div>
                 <Label className='text-sm font-medium'>Asignar a Empresa(s) / Almacén(es)</Label>
                 <p className='text-xs text-muted-foreground mt-0.5'>
@@ -1080,7 +1172,7 @@ export function CatalogoProductos() {
             </div>
 
             {/* Empaques: tabla editable (TINV_EMPAQUE) */}
-            <div className='col-span-2 border-t pt-3 mt-1'>
+            <div className='col-span-1 sm:col-span-2 border-t pt-3 mt-1'>
               <div className='flex items-center justify-between mb-2'>
                 <div>
                   <Label className='text-sm font-medium'>Empaques</Label>
@@ -1215,7 +1307,7 @@ export function CatalogoProductos() {
             <Button variant='outline' onClick={() => { setFormOpen(false); setEditingProdu(null) }} disabled={saving}>
               Cancelar
             </Button>
-            <Button onClick={handleSave} disabled={saving}>
+            <Button onClick={handleSave} disabled={saving || (!editingProdu && (loadingCodigo || !form.no_produ))}>
               {saving ? 'Guardando...' : editingProdu ? 'Guardar Cambios' : 'Crear Producto'}
             </Button>
           </DialogFooter>

@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Bot,
   LockKeyhole,
+  Menu,
   Plus,
   Receipt,
   Search,
@@ -19,6 +20,13 @@ import { useCompany } from '@/context/company-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { AsistenteChat } from './chat'
 import { AsistenteSidebar } from './sidebar'
 
@@ -64,6 +72,7 @@ export function AsistentePage() {
   const apiKeyOk = status?.api_key_configurada === true
 
   const [convId, setConvId] = useState<string | null>(null)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const qc = useQueryClient()
   const { selectedCompany, selectedPoint } = useCompany()
   const createMut = useMutation({
@@ -77,13 +86,47 @@ export function AsistentePage() {
 
   if (apiKeyOk) {
     return (
-      <div className='flex h-svh w-full'>
-        <AsistenteSidebar selectedConvId={convId} onSelectConv={setConvId} />
+      <div className='flex h-svh w-full overflow-hidden'>
+        {/* Escritorio: sidebar de conversaciones siempre visible. */}
+        <div className='hidden sm:flex'>
+          <AsistenteSidebar selectedConvId={convId} onSelectConv={setConvId} />
+        </div>
+
+        {/* Móvil: la lista de conversaciones vive en un drawer, para que el
+            chat ocupe toda la pantalla (igual que el sidebar principal de la
+            app). Se abre desde el botón hamburguesa del header del chat. */}
+        <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+          <SheetContent side='left' className='w-72 p-0 sm:hidden'>
+            <SheetHeader className='sr-only'>
+              <SheetTitle>Conversaciones</SheetTitle>
+              <SheetDescription>Lista de conversaciones del asistente.</SheetDescription>
+            </SheetHeader>
+            <AsistenteSidebar
+              selectedConvId={convId}
+              onSelectConv={(id) => { setConvId(id); setMobileNavOpen(false) }}
+            />
+          </SheetContent>
+        </Sheet>
+
         <div className='min-w-0 flex-1'>
           {convId ? (
-            <AsistenteChat convId={convId} onConvSwitch={setConvId} />
+            <AsistenteChat
+              convId={convId}
+              onConvSwitch={setConvId}
+              onOpenMobileNav={() => setMobileNavOpen(true)}
+            />
           ) : (
-            <div className='flex h-full flex-col items-center justify-center gap-4 text-center'>
+            <div className='relative flex h-full flex-col items-center justify-center gap-4 px-4 text-center'>
+              <Button
+                type='button'
+                size='icon'
+                variant='ghost'
+                className='absolute left-2 top-2 sm:hidden'
+                aria-label='Abrir conversaciones'
+                onClick={() => setMobileNavOpen(true)}
+              >
+                <Menu size={18} />
+              </Button>
               <div className='flex size-14 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/60 text-primary-foreground shadow-md'>
                 <Bot size={26} />
               </div>

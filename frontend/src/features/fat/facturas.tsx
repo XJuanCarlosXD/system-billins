@@ -317,7 +317,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
             factura(s)
           </p>
         </div>
-        <div className='flex gap-2'>
+        <div className='flex flex-wrap gap-2'>
           <Button variant='outline' size='sm' onClick={exportPdf}>
             <Printer className='mr-2 h-4 w-4' /> PDF
           </Button>
@@ -410,6 +410,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
       </div>
 
       {/* Tabla */}
+      <div className='rounded-md border overflow-x-auto'>
       <Table>
         <TableHeader>
           <TableRow>
@@ -509,9 +510,10 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
           })}
         </TableBody>
       </Table>
+      </div>
 
       {/* Paginación */}
-      <div className='flex items-center justify-between text-sm'>
+      <div className='flex flex-wrap items-center justify-between gap-2 text-sm'>
         <span className='text-muted-foreground'>
           Página {page} de {totalPages} — {total.toLocaleString()} total
         </span>
@@ -542,7 +544,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
         open={!!selected || loadingDetail}
         onOpenChange={() => setSelected(null)}
       >
-        <DialogContent className='flex h-[70vh] w-[80vw] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none'>
+        <DialogContent className='flex h-[85vh] w-[95vw] max-w-none flex-col gap-0 overflow-hidden p-0 sm:h-[70vh] sm:w-[80vw] sm:max-w-none'>
           <DialogHeader className='shrink-0 border-b bg-background px-6 py-4 pr-12'>
             <div className='flex flex-wrap items-center gap-4'>
               <DialogTitle className='mr-2 text-lg'>
@@ -572,7 +574,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
                     {selected.fecha} · {selected.vendedor || 'Sin vendedor'}
                   </span>
 
-                  <div className='ml-auto flex gap-2'>
+                  <div className='ml-auto flex flex-wrap gap-2'>
                     <Button variant='outline' size='sm' onClick={printDetail}>
                       <Printer className='mr-1 h-4 w-4' /> Imprimir
                     </Button>
@@ -640,6 +642,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
 
           {selected && !loadingDetail && (
             <div className='flex-1 overflow-y-auto px-6 py-2'>
+              <div className='overflow-x-auto'>
               <Table>
                 <TableHeader className='sticky top-0 z-10 bg-background'>
                   <TableRow>
@@ -699,6 +702,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
                     ))}
                 </TableBody>
               </Table>
+              </div>
 
               {selected.nota && (
                 <p className='mt-3 rounded border bg-muted/30 p-2 text-xs text-muted-foreground'>
@@ -710,7 +714,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
 
           {/* Footer sticky con totales */}
           {selected && !loadingDetail && (
-            <div className='flex shrink-0 items-center justify-between border-t bg-background px-6 py-3 text-sm'>
+            <div className='flex shrink-0 flex-wrap items-center justify-between gap-2 border-t bg-background px-6 py-3 text-sm'>
               <span className='text-gray-500'>
                 {selected.lineas.filter((l) => l.st_anulado !== 'S').length}{' '}
                 línea
@@ -719,7 +723,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
                   ? 's'
                   : ''}
               </span>
-              <div className='flex items-center gap-6 font-mono'>
+              <div className='flex flex-wrap items-center gap-x-6 gap-y-1 font-mono'>
                 <span className='text-gray-600'>
                   Subtotal <b className='ml-1'>{fmtN(selected.total_linea)}</b>
                 </span>

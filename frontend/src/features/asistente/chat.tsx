@@ -6,6 +6,7 @@ import {
   FileText,
   Globe,
   Loader2,
+  Menu,
   Paperclip,
   Sparkles,
   Square,
@@ -40,6 +41,7 @@ type Props = {
   onConvSwitch?: (id: string) => void
   onToolsChange?: (tools: any) => void
   onTotalsChange?: (totals: any) => void
+  onOpenMobileNav?: () => void
 }
 
 const ACCEPTED_TYPES = [
@@ -98,6 +100,7 @@ export function AsistenteChat({
   onConvSwitch,
   onToolsChange,
   onTotalsChange,
+  onOpenMobileNav,
 }: Props) {
   const { state, send, cancel, reset } = useChatStream(convId)
   const { selectedCompany, selectedPoint } = useCompany()
@@ -277,6 +280,18 @@ export function AsistenteChat({
       {/* ---- Header ---- */}
       <header className='flex flex-none items-center justify-between gap-2 border-b px-4 py-2.5'>
         <div className='flex min-w-0 items-center gap-2.5'>
+          {onOpenMobileNav && (
+            <Button
+              type='button'
+              size='icon'
+              variant='ghost'
+              className='size-8 flex-none sm:hidden'
+              aria-label='Abrir conversaciones'
+              onClick={onOpenMobileNav}
+            >
+              <Menu size={18} />
+            </Button>
+          )}
           <div className='flex size-8 flex-none items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/60 text-primary-foreground shadow-sm'>
             <Bot size={16} />
           </div>

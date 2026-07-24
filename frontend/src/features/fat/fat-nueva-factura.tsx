@@ -953,7 +953,7 @@ export function NuevaFactura({ noCia, punto }: Props) {
   return (
     <div className='space-y-4 p-4' ref={formRef}>
       {/* ── Toolbar ── */}
-      <div className='flex items-center justify-between'>
+      <div className='flex flex-wrap items-center justify-between gap-2'>
         <h1 className='text-xl font-bold'>Nueva Factura</h1>
         <div className='flex gap-2'>
           <Button
@@ -974,7 +974,7 @@ export function NuevaFactura({ noCia, punto }: Props) {
           Datos del Documento
         </p>
 
-        <div className='grid grid-cols-6 gap-3'>
+        <div className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3'>
           <div className='space-y-1'>
             <Label>Cotizacion/Pedido</Label>
             <Input
@@ -1236,7 +1236,7 @@ export function NuevaFactura({ noCia, punto }: Props) {
           Configuracion Comercial
         </p>
 
-        <div className='grid grid-cols-6 gap-3'>
+        <div className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3'>
           <div className='space-y-1'>
             <Label>Vendedor</Label>
             <Select value={vendedor} onValueChange={setVendedor}>
@@ -1322,7 +1322,7 @@ export function NuevaFactura({ noCia, punto }: Props) {
           )}
         </div>
 
-        <div className='grid grid-cols-6 gap-3'>
+        <div className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3'>
           <div className='space-y-1'>
             <Label>Tasa Cambio US</Label>
             <Input
@@ -1639,7 +1639,7 @@ export function NuevaFactura({ noCia, punto }: Props) {
 
         {lineas.length > 0 && (
           <div className='flex justify-end border-t pt-3'>
-            <div className='w-80 space-y-1.5 text-sm'>
+            <div className='w-full sm:w-80 space-y-1.5 text-sm'>
               <div className='flex justify-between text-gray-600'>
                 <span>Subtotal bruto:</span>
                 <span className='font-mono'>{fmtN(subtotalBruto)}</span>
@@ -1686,7 +1686,7 @@ export function NuevaFactura({ noCia, punto }: Props) {
 
       {/* ── Client Search Modal ── */}
       <Dialog open={clienteModalOpen} onOpenChange={setClienteModalOpen}>
-        <DialogContent className='flex h-[70vh] w-[60vw] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none'>
+        <DialogContent className='flex h-[85vh] w-[95vw] max-w-none flex-col gap-0 overflow-hidden p-0 sm:h-[70vh] sm:w-[60vw] sm:max-w-none'>
           <DialogHeader className='shrink-0 border-b px-6 py-4'>
             <DialogTitle>Buscar Cliente</DialogTitle>
           </DialogHeader>
@@ -1703,7 +1703,7 @@ export function NuevaFactura({ noCia, punto }: Props) {
               autoFocus
             />
           </div>
-          <div className='flex-1 overflow-y-auto px-6 py-2'>
+          <div className='flex-1 overflow-x-auto overflow-y-auto px-6 py-2'>
             <Table>
               <TableHeader className='sticky top-0 z-10 bg-background'>
                 <TableRow>

@@ -339,6 +339,16 @@ export const sidebarData: SidebarData = {
           icon: Package,
           items: [
             {
+              title: 'Configuración',
+              items: [
+                {
+                  title: 'Catálogo de Productos',
+                  url: '/inv',
+                  search: { section: 'configuracion', view: 'productos' },
+                },
+              ],
+            },
+            {
               title: 'Procesos',
               items: [
                 {
