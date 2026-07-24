@@ -8,7 +8,7 @@ from pathlib import Path
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
-from django.http import JsonResponse
+from django.http import FileResponse, Http404, JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -284,6 +284,8 @@ def documentos_empresa_view(request):
     punto = request.POST.get("punto") or None
     descripcion = request.POST.get("descripcion") or None
     fecha_vencimiento = request.POST.get("fecha_vencimiento") or None
+    tipo_documento_id_raw = request.POST.get("tipo_documento_id")
+    tipo_documento_id = int(tipo_documento_id_raw) if tipo_documento_id_raw else None
 
     destino = Path(settings.MEDIA_ROOT) / "lic" / no_cia / "documentos-empresa"
     destino.mkdir(parents=True, exist_ok=True)
@@ -296,9 +298,57 @@ def documentos_empresa_view(request):
             f.write(chunk)
 
     lic_repo.guardar_documento_empresa(
-        no_cia, punto, archivo.name, str(ruta_archivo), descripcion, fecha_vencimiento
+        no_cia, punto, archivo.name, str(ruta_archivo), descripcion, fecha_vencimiento,
+        tipo_documento_id=tipo_documento_id,
     )
     return JsonResponse({"documentos": lic_repo.list_documentos_empresa(no_cia)}, status=201)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def tipos_documento_view(request):
+    if request.method == "GET":
+        return JsonResponse({"tipos": lic_repo.list_tipos_documento(solo_activos=False)})
+
+    data, err = _parse_json_body(request)
+    if err:
+        return err
+    codigo = data.get("codigo")
+    nombre = data.get("nombre")
+    if not codigo or not nombre:
+        return _err("codigo y nombre son requeridos")
+    tipo_id = lic_repo.crear_tipo_documento(codigo, nombre)
+    return JsonResponse(
+        {"tipo": {"id": tipo_id, "codigo": codigo, "nombre": nombre, "activo": "S"}},
+        status=201,
+    )
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["PATCH"])
+def tipo_documento_detail_view(request, tipo_id: int):
+    data, err = _parse_json_body(request)
+    if err:
+        return err
+    lic_repo.actualizar_tipo_documento(
+        tipo_id, nombre=data.get("nombre"), activo=data.get("activo")
+    )
+    return JsonResponse({"tipos": lic_repo.list_tipos_documento(solo_activos=False)})
+
+
+@login_required
+@require_http_methods(["GET"])
+def documento_empresa_descargar_view(request, documento_empresa_id: int):
+    documento = lic_repo.get_documento_empresa(documento_empresa_id)
+    if not documento or not Path(documento["ruta_archivo"]).exists():
+        raise Http404("Documento no encontrado")
+    return FileResponse(
+        open(documento["ruta_archivo"], "rb"),
+        as_attachment=True,
+        filename=documento["nombre_archivo"],
+    )
 
 
 @login_required
