@@ -437,6 +437,26 @@ def list_productos(oportunidad_id: int) -> list[dict]:
     )
 
 
+def buscar_precio_historico(no_cia: str, texto_producto: str) -> list[dict]:
+    """Busqueda de CODIGO (LIKE, sin IA) del precio mas reciente al que se
+    factuo/cotizo algo con nombre parecido -- join FAT.TFAT_FACTURAL +
+    FAT.TFAT_FACTURA por (no_cia, punto, tipo_factura, no_factura), igual
+    patron de join que el resto de fat_repo. No intenta fuzzy matching
+    avanzado: un LIKE simple sobre la descripcion es suficiente para dar a la
+    IA (apps.lic.services.recomendar_precio) contexto real en vez de nada --
+    mejorar el matching queda fuera de alcance de este plan."""
+    patron = f"%{texto_producto.strip()}%"
+    return client.fetch_dicts(
+        "SELECT fl.no_produ, fl.descripcion, fl.precio, f.fecha "
+        "FROM FAT.TFAT_FACTURAL fl "
+        "JOIN FAT.TFAT_FACTURA f ON f.no_cia = fl.no_cia AND f.punto = fl.punto "
+        "  AND f.tipo_factura = fl.tipo_factura AND f.no_factura = fl.no_factura "
+        "WHERE fl.no_cia = :1 AND UPPER(fl.descripcion) LIKE UPPER(:2) "
+        "ORDER BY f.fecha DESC",
+        [no_cia, patron],
+    )
+
+
 def reemplazar_requisitos(oportunidad_id: int, requisitos: list[dict]) -> None:
     """Borra los requisitos previos de la oportunidad y guarda los nuevos --
     cada "Analizar" es una foto nueva completa, no un merge incremental."""

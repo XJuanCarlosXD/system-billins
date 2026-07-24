@@ -19,6 +19,7 @@ from apps.lic.models import ScrapeJob
 from apps.lic.services import pdf_rubros
 from apps.lic.services.analisis_licitacion import AnalisisError, ejecutar_analisis_oportunidad
 from apps.lic.services.orchestrator import ejecutar_scrape
+from apps.lic.services.recomendar_precio import RecomendacionPrecioError, recomendar_precios
 from apps.lic.services.resumen_documento import resumir_documento
 from apps.lic.services.scraper import LicitacionesScraper, LoginError
 
@@ -372,3 +373,51 @@ def analizar_oportunidad_view(request, oportunidad_id: int):
 @require_http_methods(["GET"])
 def requisitos_view(request, oportunidad_id: int):
     return JsonResponse({"requisitos": lic_repo.list_requisitos(oportunidad_id)})
+
+
+@login_required
+@require_http_methods(["GET"])
+def productos_view(request, oportunidad_id: int):
+    return JsonResponse({"productos": lic_repo.list_productos(oportunidad_id)})
+
+
+@login_required
+@require_http_methods(["GET"])
+def documento_descargar_view(request, documento_id: int):
+    documento = lic_repo.get_documento(documento_id)
+    if not documento or not Path(documento["ruta_archivo"]).exists():
+        raise Http404("Documento no encontrado")
+    return FileResponse(
+        open(documento["ruta_archivo"], "rb"),
+        as_attachment=True,
+        filename=documento["nombre_archivo"],
+    )
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["POST"])
+def recomendar_precios_oportunidad_view(request, oportunidad_id: int):
+    oportunidad = lic_repo.get_oportunidad(oportunidad_id)
+    if not oportunidad:
+        return _err("Oportunidad no encontrada", status=404)
+
+    productos = lic_repo.list_productos(oportunidad_id)
+    if not productos:
+        return _err("Esta oportunidad no tiene productos/servicios registrados", status=400)
+
+    historiales = {
+        p["id"]: lic_repo.buscar_precio_historico(oportunidad["no_cia"], p["descripcion"])
+        for p in productos
+    }
+    try:
+        recomendaciones = recomendar_precios(productos, historiales)
+    except RecomendacionPrecioError as exc:
+        return _err(str(exc), status=400)
+
+    return JsonResponse({
+        "recomendaciones": [
+            {"producto_id": pid, "historial": historiales.get(pid, []), **rec}
+            for pid, rec in recomendaciones.items()
+        ]
+    })

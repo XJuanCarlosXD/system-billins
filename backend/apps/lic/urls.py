@@ -15,6 +15,9 @@ urlpatterns = [
     path("tipos-documento/<int:tipo_id>/", views.tipo_documento_detail_view),
     path("oportunidades/<int:oportunidad_id>/analizar/", views.analizar_oportunidad_view),
     path("oportunidades/<int:oportunidad_id>/requisitos/", views.requisitos_view),
+    path("oportunidades/<int:oportunidad_id>/productos/", views.productos_view),
+    path("oportunidades/<int:oportunidad_id>/recomendar-precios/", views.recomendar_precios_oportunidad_view),
+    path("documentos/<int:documento_id>/descargar/", views.documento_descargar_view),
     path("scrape/", views.scrape_view),
     path("scrape/<int:job_id>/", views.scrape_job_view),
 ]
