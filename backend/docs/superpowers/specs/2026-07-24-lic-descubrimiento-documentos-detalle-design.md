@@ -73,6 +73,22 @@ Con las credenciales reales de la empresa 01 (`abregonza`, desde `TLIC_CREDENCIA
   con dos funciones: **recomendar precio** y **buscar precio histórico en el sistema** para los
   productos/servicios pedidos — y la búsqueda del histórico también es una consulta de código
   (no IA); la IA solo redacta la recomendación a partir de esos datos ya encontrados.
+- **Corrección 2026-07-24 (tercera vuelta):** tres ajustes más pedidos por el usuario:
+  1. La recomendación de precio **no es una llamada de IA por producto** — es UNA sola llamada
+     que recibe TODOS los productos de la oportunidad (con su historial ya buscado por código,
+     uno por uno) y devuelve la recomendación de todos a la vez. Ver Parte C actualizada.
+  2. El detalle de una licitación debe mostrar un **badge de modalidad de entrega** (física /
+     virtual / ambas) cuando el portal lo especifica — algunas licitaciones exigen entregar la
+     oferta/documentos en físico, otras aceptan virtual, otras cualquiera de las dos. Es dato
+     que el propio proceso expone (se extrae por código, mismo criterio que el resto del
+     detalle scrapeado), no algo que la IA deba inferir.
+  3. Nueva **Parte E**: botón en la página de detalle para que el scraper prepare y adjunte los
+     documentos de la oferta (documento por documento, según lo que pida cada tipo requerido) y
+     la deje lista en el portal — pero el **envío final es un paso separado con confirmación
+     humana explícita** (no autonomático), dado que es una oferta vinculante ante un sistema del
+     Estado. Mismo criterio de cautela que ya estaba documentado desde la Fase 1 de este módulo
+     (`2026-07-22-lic-portal-integracion-design.md`, sección "Fuera de alcance": "Fase 4...
+     requiere su propio diseño con aprobación humana explícita antes de cualquier envío real").
 
 ## Parte A — Scraper: descubrimiento vía Búsqueda avanzada pública
 
@@ -215,18 +231,30 @@ consulta de código — la IA nunca busca ni compara por su cuenta, solo redacta
   tipo_factura/no_factura, mismo patrón que otros joins de `fat_repo`), devolviendo
   `{no_produ, descripcion, precio, fecha}` ordenado por fecha descendente — el precio más
   reciente al que se facturó/cotizó algo con nombre parecido. No requiere IA; es una consulta SQL.
-- `apps/lic/services/recomendar_precio.py` (nuevo): una función `recomendar_precio(descripcion_
-  producto: str, historial: list[dict]) -> dict` con una única llamada a Claude que recibe **solo**
-  la descripción del producto pedido por la licitación y el historial de precios ya encontrado por
-  `buscar_precio_historico` (puede venir vacío), y devuelve `{"precio_sugerido": str | None,
-  "justificacion": str}`. La IA no busca nada por su cuenta ni repite la descripción del producto
-  como si fuera un hallazgo — solo recomienda con base en lo que se le entrega.
-- Endpoint nuevo `POST /api/lic/productos/<id>/recomendar-precio/`: toma el producto (por id),
-  llama `buscar_precio_historico` con su descripción, le pasa el resultado a
-  `recomendar_precio`, y devuelve `{"historial": [...], "precio_sugerido": ..., "justificacion":
-  ...}`. Se dispara bajo demanda desde un botón en la página de detalle (Parte D, sección 3), no
+- `apps/lic/services/recomendar_precio.py` (nuevo): una función `recomendar_precios(productos:
+  list[dict], historiales: dict[int, list[dict]]) -> dict[int, dict]` con **una única llamada** a
+  Claude para TODA la oportunidad (no una por producto) — recibe la lista completa de productos
+  con su descripción y el historial ya encontrado por `buscar_precio_historico` para cada uno
+  (puede venir vacío por producto), y devuelve `{producto_id: {"precio_sugerido": str | None,
+  "justificacion": str}}` para todos a la vez. La IA no busca nada por su cuenta ni repite las
+  descripciones como si fueran un hallazgo — solo recomienda con base en lo que se le entrega.
+- Endpoint nuevo `POST /api/lic/oportunidades/<id>/recomendar-precios/`: lista los productos de la
+  oportunidad, llama `buscar_precio_historico` por cada uno (código, en un loop — sigue sin ser
+  IA), arma el dict de historiales, y hace UNA llamada a `recomendar_precios` con todo junto.
+  Se dispara bajo demanda desde un botón único en la página de detalle (Parte D, sección 3), no
   automáticamente en cada scrape — mismo criterio que "Generar resumen con IA" ya usa para
   documentos.
+
+### Modalidad de entrega (física / virtual / ambas)
+
+- `_extraer_detalle_aviso_contrato` gana un campo más: `modalidad_entrega` (`"fisica" | "virtual"
+  | "ambas" | None`), leído del campo del Aviso de Contrato donde el portal indica cómo debe
+  entregarse la oferta/documentación (selector exacto a confirmar en vivo, mismo criterio de
+  verificación que el resto del detalle scrapeado). `TLIC_OPORTUNIDAD` gana la columna
+  `MODALIDAD_ENTREGA VARCHAR2(10)`.
+- La página de detalle (Parte D, sección 1 - Descripción) muestra un badge según el valor:
+  "Entrega física requerida" (con énfasis, para que no se pase por alto) / "Entrega virtual" /
+  "Física o virtual" / sin badge si el portal no lo especificó para ese proceso.
 
 ### Endpoints
 
@@ -236,7 +264,58 @@ consulta de código — la IA nunca busca ni compara por su cuenta, solo redacta
 - `analizar_oportunidad_view` sigue devolviendo `AnalisisOportunidad` (resumen, requisitos,
   recomendación) sin `productos` — productos se consulta aparte porque no depende de análisis IA.
 - `analizar_oportunidad_view` y `list_oportunidades` ganan `documentos_faltantes:
-  {tipo_documento, motivo}[]`.
+  {tipo_documento, motivo}[]` y `modalidad_entrega`.
+
+## Parte E — Aplicar a la licitación desde la página (preparar oferta + envío con confirmación)
+
+Botón "Preparar oferta" en la página de detalle (sección 4, junto a documentos) que dispara al
+scraper para que arme la oferta en el portal DGCP con los documentos que correspondan — pero el
+envío final queda como un paso aparte, con confirmación humana explícita.
+
+### Backend
+
+- `LicitacionesScraper.preparar_oferta(referencia: str, no_cia: str, documentos: list[dict]) ->
+  dict`: hace login, ubica la oportunidad en el feed autenticado (mismo patrón que
+  `download_documentos`), hace clic en "Crear oferta" (botón ya confirmado en vivo el
+  2026-07-24 en la vista de detalle de una oportunidad: "Todavía no ha comenzado a crear la
+  oferta. Puede empezar cuando desee." + botón "Crear oferta"), y por cada documento requerido
+  (cruce entre `TLIC_REQUISITO`/catálogo de tipos y `TLIC_DOCUMENTO_EMPRESA` vigente, igual
+  criterio que `documentos_faltantes()`) lo sube **documento por documento**, registrando por
+  cada uno si se adjuntó bien o falló — sin hacer clic en el botón final de envío del portal.
+  Retorna `{"documentos_adjuntados": [...], "documentos_faltantes": [...], "estado":
+  "listo_para_enviar" | "faltan_documentos"}`.
+- Reutiliza el patrón `ScrapeJob`/hilo en segundo plano ya existente (nuevo modelo
+  `OfertaJob` o reutilizar `ScrapeJob` con un campo `tipo` — decisión de implementación libre,
+  documentar la elegida) para no bloquear la request mientras Playwright trabaja.
+- Endpoint `POST /api/lic/oportunidades/<id>/preparar-oferta/` — dispara el job, devuelve
+  `job_id`; `GET /api/lic/oferta-jobs/<job_id>/` para polling (mismo patrón que scrape).
+- **Envío final** (`confirmar_envio_oferta`, método aparte en `LicitacionesScraper`) es una
+  función y un endpoint (`POST /api/lic/oportunidades/<id>/confirmar-envio-oferta/`)
+  **completamente separados** de `preparar_oferta` — nunca se llaman en cadena automáticamente.
+  Solo hace clic en el botón real de envío del portal cuando el usuario lo confirma
+  explícitamente desde el frontend, y solo si el job de preparación terminó en
+  `"listo_para_enviar"` (si quedaron `documentos_faltantes`, el botón de confirmar queda
+  deshabilitado con una advertencia).
+
+### Frontend
+
+- En la sección 4 (Documentos) de la página de detalle: botón "Preparar oferta" → polling de
+  `OfertaJob` (igual patrón que "Buscar ahora") → al terminar, muestra un resumen: documentos
+  adjuntados (✓) y documentos que faltaron (✗, con el tipo de documento). Si quedó
+  `"listo_para_enviar"`, aparece un botón separado **"Confirmar y enviar oferta"** con un diálogo
+  de confirmación explícito (texto claro: "Esto somete una oferta vinculante ante el portal DGCP,
+  no se puede deshacer") antes de disparar `confirmar-envio-oferta`.
+
+### Seguridad y verificación
+
+- **Nunca** se ejecuta un envío real contra una licitación real durante el desarrollo/pruebas de
+  esta parte — los tests de `confirmar_envio_oferta` mockean la llamada a Playwright, igual que
+  el resto del scraper no tiene pruebas de navegador real automatizadas. La verificación en vivo
+  de `preparar_oferta` (adjuntar documentos) se puede probar contra una oportunidad real sin
+  riesgo porque no dispara el envío; la verificación en vivo de `confirmar_envio_oferta` en
+  cambio **no se debe correr contra una licitación real** sin que el usuario lo pida
+  explícitamente en el momento (mismo criterio que "Fase 4" ya documentaba desde el diseño
+  original de este módulo).
 
 ## Parte D — Vista de detalle: página completa, orden fijo, descarga real
 
@@ -301,3 +380,7 @@ consulta de código — la IA nunca busca ni compara por su cuenta, solo redacta
 - Matching difuso avanzado (fuzzy/embeddings) entre la descripción del producto de la licitación
   y el catálogo interno — `buscar_precio_historico` usa `LIKE` simple sobre texto; mejorarlo
   queda para una iteración futura si el `LIKE` resulta insuficiente en la práctica.
+- Envío automático/desatendido de ofertas sin confirmación humana — la Parte E siempre requiere
+  un clic explícito separado para el envío final, sin excepción.
+- Editar/retirar una oferta ya enviada, o dar seguimiento post-envío (eso seguiría siendo la
+  Fase 5 "monitoreo de resultados" del diseño original, no cubierta aquí).
