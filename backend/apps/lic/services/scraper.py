@@ -17,6 +17,10 @@ OPORTUNIDADES_URL = (
     "https://portal.comprasdominicana.gob.do/DO1BusinessLine/Tendering/"
     "OpportunityDossierWorkspace/Index"
 )
+BUSQUEDA_AVANZADA_URL = (
+    "https://comunidad.comprasdominicana.gob.do/Public/Tendering/"
+    "ContractNoticeManagement/Index"
+)
 
 
 def _parse_fecha(texto: str) -> str | None:
@@ -97,6 +101,44 @@ def parse_documento_row_html(html: str) -> dict:
         "tipo_documento": tipo_el.text.strip() if tipo_el else "",
         "document_id": document_id,
     }
+
+
+def parse_advanced_search_row_html(html: str) -> dict:
+    """Parsea una fila ``<tr>`` de la tabla de resultados de la Búsqueda avanzada
+    pública (``Public/Tendering/ContractNoticeManagement/Index``, sin login) --
+    columnas Contracting Authority / Reference / Description / Official Publish
+    Date / Replies Deadline / Base Price / Status / Detail. A diferencia de
+    ``parse_oportunidad_row_html`` (feed autenticado, personalizado por
+    empresa) esta pantalla es pública y trae todo lo publicado, sin matching
+    por rubro."""
+    soup = BeautifulSoup(html, "html.parser")
+    row = soup.select_one("tr") or soup
+    celdas = row.select("td")
+    if len(celdas) < 7:
+        raise ValueError(f"Fila de búsqueda avanzada con {len(celdas)} celdas, se esperaban 7+")
+
+    return {
+        "entidad": celdas[0].get_text(strip=True) or None,
+        "referencia": celdas[1].get_text(strip=True),
+        "titulo": celdas[2].get_text(strip=True) or None,
+        "fecha_publicacion": _parse_fecha_busqueda_avanzada(celdas[3].get_text(strip=True)),
+        "fecha_limite": _parse_fecha_busqueda_avanzada(celdas[4].get_text(strip=True)),
+        "presupuesto_estimado": celdas[5].get_text(strip=True) or None,
+        "estado_portal": celdas[6].get_text(strip=True) or None,
+    }
+
+
+def _parse_fecha_busqueda_avanzada(texto: str) -> str | None:
+    """Convierte 'dd/mm/YYYY HH:MM (UTC -4 hours)' -> 'YYYY-mm-dd HH:MM'. Formato
+    distinto al de ``_parse_fecha`` (feed autenticado, sin sufijo de zona horaria)."""
+    texto = texto.strip()
+    if not texto:
+        return None
+    match = re.match(r"(\d{2}/\d{2}/\d{4} \d{2}:\d{2})", texto)
+    if not match:
+        return None
+    dt = datetime.strptime(match.group(1), "%d/%m/%Y %H:%M")
+    return dt.strftime("%Y-%m-%d %H:%M")
 
 
 class LoginError(Exception):
@@ -180,6 +222,71 @@ class LicitacionesScraper:
         logger.info(
             "lic.scraper.list_oportunidades: %d oportunidades encontradas (estado_filtro=%s)",
             len(resultados), estado_filtro,
+        )
+        return resultados
+
+    def buscar_avanzada(self, status: str = "Published", tope: int = 1000) -> list[dict]:
+        """Descubre licitaciones vía la pantalla PÚBLICA de Búsqueda avanzada
+        (no requiere login) -- a diferencia de ``list_oportunidades`` (feed
+        autenticado, personalizado por empresa según sus rubros RPE
+        registrados), esta trae TODO lo publicado en el portal, sin filtrar
+        por categoría. El propio análisis con IA (semáforo de cumplimiento +
+        productos/servicios) es lo que ayuda al usuario a decidir "aplica o
+        no" -- no un filtro previo aquí.
+
+        Verificado en vivo el 2026-07-24: el link "(Advanced search)" abre un
+        formulario con un solo botón "Go" relevante para este caso (Status);
+        los resultados se paginan con un link "More Items" al pie de la tabla
+        que se hace clic repetidamente hasta agotarse o llegar a ``tope``.
+        """
+        logger.info("lic.scraper.buscar_avanzada: iniciando (status=%s, tope=%d)", status, tope)
+        page = self._page
+        page.goto(self.BUSQUEDA_AVANZADA_URL, wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_load_state("domcontentloaded", timeout=60000)
+
+        page.get_by_role("link", name="(Advanced search)").click()
+        page.wait_for_load_state("domcontentloaded", timeout=60000)
+        # El combobox de Status no tiene un accessible name propio en el HTML real del
+        # portal (ver snapshot capturado 2026-07-24) -- se selecciona por posición dentro
+        # de la fila "Status" en vez de por rol/nombre.
+        status_row = page.locator("tr", has=page.locator("td", has_text="Status"))
+        if status_row.count():
+            status_row.locator("select").first.select_option(label=status)
+        page.get_by_role("button", name="Go").click()
+        page.wait_for_load_state("domcontentloaded", timeout=60000)
+
+        resultados: list[dict] = []
+        vistos: set[str] = set()
+        while len(resultados) < tope:
+            filas = page.locator("table tr").filter(has=page.locator("a", has_text="Detail"))
+            count = filas.count()
+            nuevas = 0
+            for i in range(count):
+                html = filas.nth(i).evaluate("el => el.outerHTML")
+                try:
+                    data = parse_advanced_search_row_html(html)
+                except ValueError:
+                    continue
+                if data["referencia"] in vistos:
+                    continue
+                vistos.add(data["referencia"])
+                resultados.append(data)
+                nuevas += 1
+                if len(resultados) >= tope:
+                    break
+
+            more_link = page.get_by_role("link", name="More Items")
+            if len(resultados) >= tope or more_link.count() == 0 or nuevas == 0:
+                # nuevas == 0: la última pasada de "More Items" no agregó filas nuevas
+                # (fin real de resultados), evita loop infinito si el link queda visible
+                # pero ya no carga nada más.
+                break
+            more_link.click()
+            page.wait_for_load_state("domcontentloaded", timeout=60000)
+
+        logger.info(
+            "lic.scraper.buscar_avanzada: %d oportunidades encontradas (status=%s)",
+            len(resultados), status,
         )
         return resultados
 
