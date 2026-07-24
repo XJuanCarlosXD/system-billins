@@ -63,6 +63,11 @@ export interface Credencial {
   ultimo_error: string | null
 }
 
+export interface DocumentoFaltante {
+  tipo_documento: string
+  motivo: 'no subido' | 'vencido'
+}
+
 export interface Oportunidad {
   id: number
   referencia: string
@@ -79,6 +84,29 @@ export interface Oportunidad {
   recomendacion_ia: string | null
   unidad_requisicion: string | null
   presupuesto_estimado: string | null
+  documentos_faltantes: DocumentoFaltante[] | null
+  modalidad_entrega: 'fisica' | 'virtual' | 'ambas' | null
+}
+
+export interface Producto {
+  id: number
+  descripcion: string
+  cantidad: string | null
+  actualizado_en: string
+}
+
+export interface PrecioHistorico {
+  no_produ: string
+  descripcion: string
+  precio: number
+  fecha: string
+}
+
+export interface RecomendacionPrecioProducto {
+  producto_id: number
+  historial: PrecioHistorico[]
+  precio_sugerido: string | null
+  justificacion: string
 }
 
 export interface TipoDocumento {
@@ -393,4 +421,30 @@ export function useRequisitos(oportunidadId: number | null) {
       ),
     enabled: !!oportunidadId,
   })
+}
+
+export function useProductos(oportunidadId: number | null) {
+  return useQuery({
+    queryKey: ['lic-productos', oportunidadId],
+    queryFn: () =>
+      licRequest<{ productos: Producto[] }>(
+        `/lic/oportunidades/${oportunidadId}/productos/`
+      ),
+    enabled: !!oportunidadId,
+  })
+}
+
+// UNA sola llamada para TODOS los productos de la oportunidad, no una por producto.
+export function useRecomendarPrecios() {
+  return useMutation({
+    mutationFn: (oportunidadId: number) =>
+      licRequest<{ recomendaciones: RecomendacionPrecioProducto[] }>(
+        `/lic/oportunidades/${oportunidadId}/recomendar-precios/`,
+        { method: 'POST' }
+      ),
+  })
+}
+
+export function documentoDescargarUrl(documentoId: number): string {
+  return `${API_BASE}/lic/documentos/${documentoId}/descargar/`
 }
