@@ -233,6 +233,11 @@ export function CatalogoProductos() {
       .catch(() => setCompaniasAlmacenes([]))
   }, [])
 
+  // Se incrementa tras crear/editar un producto para forzar un refetch de la
+  // lista aunque search/grupo/linea/page no hayan cambiado de valor (p.ej.
+  // el usuario crea sin haber escrito nada en el buscador).
+  const [refreshKey, setRefreshKey] = useState(0)
+
   // Load products
   useEffect(() => {
     if (!selectedCompany) return
@@ -257,7 +262,7 @@ export function CatalogoProductos() {
       })
       .catch((err) => setError(err.message ?? 'Error al cargar productos'))
       .finally(() => setLoading(false))
-  }, [selectedCompany, search, grupo, linea, page, pageSize])
+  }, [selectedCompany, search, grupo, linea, page, pageSize, refreshKey])
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
@@ -536,8 +541,9 @@ export function CatalogoProductos() {
       setEmpaques([])
       setAlmacenesSel(new Set())
       setPrecioVenta('')
-      // Forzar refresh de la lista (re-trigger del useEffect)
-      setSearch((s) => s)
+      // Forzar refresh de la lista (re-trigger del useEffect) aunque los
+      // filtros actuales no hayan cambiado de valor.
+      setRefreshKey((k) => k + 1)
       if (!isEdit) setPage(1)
     } catch (err: any) {
       toast.error(`Error: ${err.message}`)
