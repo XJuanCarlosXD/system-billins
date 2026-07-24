@@ -62,3 +62,15 @@ def test_buscar_precio_historico_encuentra_por_descripcion_similar():
             "DELETE FROM FAT.TFAT_FACTURA WHERE no_cia='01' AND no_factura='9999999'"
         )
         cur.connection.commit()
+
+
+@pytest.mark.django_db
+def test_list_oportunidades_incluye_documentos_faltantes_parseado():
+    oportunidad_id = _crear_oportunidad(referencia="REF-PROD-4")
+    faltantes = [{"tipo_documento": "RNC", "motivo": "no subido"}]
+    lic_repo.guardar_analisis_oportunidad(
+        oportunidad_id, "r", "rojo", None, documentos_faltantes=faltantes
+    )
+    oportunidades = lic_repo.list_oportunidades("01", solo_abiertas=False)
+    encontrada = next(o for o in oportunidades if o["id"] == oportunidad_id)
+    assert encontrada["documentos_faltantes"] == faltantes

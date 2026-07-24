@@ -179,7 +179,7 @@ def list_oportunidades(
         "SELECT id, referencia, tipo_proceso, entidad, titulo, estado_portal, "
         "ofertas_presentadas, ofertas_creadas, fecha_publicacion, fecha_limite, "
         "resumen_ia, estado_cumplimiento, recomendacion_ia, "
-        "unidad_requisicion, presupuesto_estimado "
+        "unidad_requisicion, presupuesto_estimado, documentos_faltantes, modalidad_entrega "
         "FROM FAT.TLIC_OPORTUNIDAD WHERE no_cia = :1"
     )
     params = [no_cia]
@@ -189,7 +189,11 @@ def list_oportunidades(
     if solo_abiertas:
         sql += " AND fecha_limite >= TRUNC(SYSDATE)"
     sql += " ORDER BY fecha_limite ASC"
-    return client.fetch_dicts(sql, params)
+    filas = client.fetch_dicts(sql, params)
+    for fila in filas:
+        crudo = fila.pop("documentos_faltantes", None)
+        fila["documentos_faltantes"] = json.loads(crudo) if crudo else []
+    return filas
 
 
 def guardar_documento(oportunidad_id: int, tipo_documento: str, nombre_archivo: str,
