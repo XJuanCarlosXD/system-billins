@@ -59,6 +59,7 @@ export function OdcOrdenes() {
   })
   const [selected, setSelected] = useState<Orden | null>(null)
   const [openAnular, setOpenAnular] = useState(false)
+  const [openCerrar, setOpenCerrar] = useState(false)
   const [motivo, setMotivo] = useState('')
 
   const ordenesQ = useQuery<Orden[]>({
@@ -96,6 +97,7 @@ export function OdcOrdenes() {
     onSuccess: () => {
       toast.success('Orden cerrada')
       qc.invalidateQueries({ queryKey: ['odc-ordenes'] })
+      setOpenCerrar(false)
       setSelected(null)
     },
     onError: (e: any) => toast.error(e?.detail?.error || 'Error al cerrar'),
@@ -296,9 +298,17 @@ export function OdcOrdenes() {
                 <CheckCircle2 className="h-4 w-4 mr-1" /> Autorizar
               </Button>
             )}
-            {/* Cerrar (= Marcar Recibida): orden Pendiente ya autorizada */}
+            {/* Cerrar (= Marcar Recibida): orden Pendiente ya autorizada.
+                Requiere confirmación explícita -- esta acción es definitiva
+                (deja estado='R') y bloquea toda futura entrada de mercancía
+                contra la orden en INV, aunque no se haya recibido nada
+                todavía. Antes llamaba a cerrar.mutate directo desde este
+                mismo botón, sin paso intermedio: un doble clic o un clic
+                por costumbre justo después de "Autorizar" cerraba la orden
+                antes de recibir la mercancía físicamente (ver
+                docs/superpowers/plans -- bug reportado 2026-07-24). */}
             {selected && selected.st_anulado === 'A' && selected.estado === 'P' && !!selected.autorizada_por && (
-              <Button size="sm" variant="outline" onClick={() => cerrar.mutate(selected)} disabled={cerrar.isPending}>
+              <Button size="sm" variant="outline" onClick={() => setOpenCerrar(true)} disabled={cerrar.isPending}>
                 <Lock className="h-4 w-4 mr-1" /> Marcar Recibida
               </Button>
             )}
@@ -307,6 +317,32 @@ export function OdcOrdenes() {
                 <XCircle className="h-4 w-4 mr-1" /> Anular
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={openCerrar} onOpenChange={setOpenCerrar}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Marcar Orden ODC-{selected?.no_orden} como Recibida</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Esta acción es definitiva: cierra la orden y ya no se podrá usar
+            para registrar entrada de mercancía en Inventario. Úsela SOLO
+            después de haber recibido físicamente todos los productos y
+            registrado su entrada en "Entrada Mercancía Almacén" /
+            "Entrada de Compras". Si aún no ha recibido la mercancía,
+            cancele y haga la entrada primero.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpenCerrar(false)}>Cancelar</Button>
+            <Button
+              variant="destructive"
+              onClick={() => selected && cerrar.mutate(selected)}
+              disabled={cerrar.isPending}
+            >
+              {cerrar.isPending ? 'Cerrando…' : 'Sí, ya recibí la mercancía'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -33,6 +33,7 @@ export function OdcRecibir() {
   const { selectedCompany, selectedPoint } = useCompany()
   const [filtros, setFiltros] = useState({ search: '', fecha_desde: '', fecha_hasta: '' })
   const [selected, setSelected] = useState<Orden | null>(null)
+  const [confirmarCierre, setConfirmarCierre] = useState(false)
 
   // Pendientes de recepción = estado='P' AND st_anulado='A' AND autorizada_por NOT NULL.
   const { data: dataRaw = [], isLoading } = useQuery<Orden[]>({
@@ -74,6 +75,7 @@ export function OdcRecibir() {
       toast.success(`Orden ODC-${selected?.no_orden} marcada como Recibida`)
       qc.invalidateQueries({ queryKey: ['odc-pend-recibir'] })
       qc.invalidateQueries({ queryKey: ['odc-ordenes'] })
+      setConfirmarCierre(false)
       setSelected(null)
     },
     onError: (e: any) => toast.error(e?.detail?.error || 'Error al marcar como recibida'),
@@ -265,8 +267,13 @@ export function OdcRecibir() {
                   <div className="font-semibold"><span className="text-muted-foreground">Total:</span> RD$ {fmt(detalleQ.data.cabecera.total_neto)}</div>
                 </div>
                 <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                  Al marcar como recibida, la orden pasa a estado <b>Recibida</b> en una sola operación.
-                  La captura por línea de cantidades parciales se entrega en el siguiente sprint.
+                  <b>Este botón NO actualiza el inventario.</b> Solo cierra la orden en Compras;
+                  las cantidades "Recibida" de la tabla arriba no cambian y el stock no se mueve.
+                  Para recibir la mercancía de verdad (y que sí impacte el inventario), use{' '}
+                  <b>Inventario → Entrada de Compras</b>, cargando esta orden por su número —
+                  ese proceso sí actualiza existencias. Use "Marcar Recibida" únicamente para
+                  cerrar administrativamente una orden que ya se recibió por esa vía, o que no
+                  se va a recibir. Es una acción definitiva y no se puede deshacer.
                 </div>
               </div>
             )}
@@ -278,12 +285,41 @@ export function OdcRecibir() {
               </Button>
             )}
             {selected && (
-              <Button size="sm" onClick={() => cerrar.mutate(selected)} disabled={cerrar.isPending}>
+              <Button size="sm" onClick={() => setConfirmarCierre(true)} disabled={cerrar.isPending}>
                 {cerrar.isPending
-                  ? <><CheckCircle2 className="h-4 w-4 mr-1 animate-pulse" /> Recibiendo…</>
+                  ? <><CheckCircle2 className="h-4 w-4 mr-1 animate-pulse" /> Cerrando…</>
                   : <><Lock className="h-4 w-4 mr-1" /> Marcar Recibida</>}
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmación: "Marcar Recibida" solo cierra la orden en ODC, no toca
+          inventario (ver cerrar_orden en odc_repo.py) -- sin este paso
+          intermedio, un clic apurado justo después de autorizar dejaba
+          órdenes cerradas (estado='R') sin haber recibido nada, bloqueando
+          después la Entrada de Compras real en INV (bug reportado 2026-07-24). */}
+      <Dialog open={confirmarCierre} onOpenChange={setConfirmarCierre}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>¿Cerrar la orden ODC-{selected?.no_orden} sin pasar por Inventario?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Esto cierra la orden definitivamente sin actualizar el stock. Si todavía necesita
+            registrar la entrada física de la mercancía, cancele y use{' '}
+            <b>Inventario → Entrada de Compras</b> en su lugar — esa es la única forma de que el
+            inventario refleje lo recibido.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmarCierre(false)}>Cancelar</Button>
+            <Button
+              variant="destructive"
+              onClick={() => selected && cerrar.mutate(selected)}
+              disabled={cerrar.isPending}
+            >
+              Sí, cerrar sin recibir en inventario
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

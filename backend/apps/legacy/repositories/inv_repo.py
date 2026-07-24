@@ -2791,6 +2791,18 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
             no_produ = (lin.get('no_produ') or '').strip().upper()
             if not no_produ:
                 raise ValueError(f"Linea {idx}: no_produ requerido")
+            # Validar que el producto exista ANTES de insertar -- sin esto, un
+            # codigo mal escrito/no seleccionado del buscador llega hasta el
+            # INSERT en TINV_EPRODUCTO/TINV_MOVIMIENTO y Oracle lo rechaza con
+            # ORA-02291 ("parent key not found"), que el usuario ve como un
+            # error crudo sin sentido en vez de un mensaje claro.
+            cur.execute(
+                "SELECT 1 FROM INV.TINV_PRODUCTO WHERE no_produ=:1", [no_produ])
+            if not cur.fetchone():
+                raise ValueError(
+                    f"Linea {idx}: el producto '{no_produ}' no existe. "
+                    "Selecciónelo desde el buscador en vez de escribir el código a mano."
+                )
             almacen_origen = (lin.get('almacen') or almacen or '').strip()
             if not almacen_origen:
                 raise ValueError(f"Linea {idx}: almacen requerido")
