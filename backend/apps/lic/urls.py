@@ -20,6 +20,7 @@ urlpatterns = [
     path("documentos/<int:documento_id>/descargar/", views.documento_descargar_view),
     path("oportunidades/<int:oportunidad_id>/preparar-oferta/", views.preparar_oferta_view),
     path("oferta-jobs/<int:job_id>/", views.oferta_job_view),
+    path("oportunidades/<int:oportunidad_id>/confirmar-envio-oferta/", views.confirmar_envio_oferta_view),
     path("scrape/", views.scrape_view),
     path("scrape/<int:job_id>/", views.scrape_job_view),
 ]

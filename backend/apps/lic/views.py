@@ -472,3 +472,30 @@ def oferta_job_view(request, job_id: int):
         "iniciado_en": job.iniciado_en.isoformat(),
         "terminado_en": job.terminado_en.isoformat() if job.terminado_en else None,
     })
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["POST"])
+def confirmar_envio_oferta_view(request, oportunidad_id: int):
+    """Envío real y vinculante -- SOLO se llama cuando el usuario confirma
+    explícitamente desde el frontend (diálogo de confirmación). Requiere que
+    el último OfertaJob de esta oportunidad haya terminado en
+    'listo_para_enviar' (sin documentos_faltantes pendientes)."""
+    job = OfertaJob.objects.filter(oportunidad_id=oportunidad_id).order_by("-iniciado_en").first()
+    if not job or job.estado != "listo_para_enviar":
+        return _err(
+            "La oferta no está lista para enviar (faltan documentos o no se preparó todavía)",
+            status=400,
+        )
+    oportunidad = lic_repo.get_oportunidad(oportunidad_id)
+    credencial = lic_repo.get_credencial_con_password(oportunidad["no_cia"])
+    if not credencial:
+        return _err("Sin credencial configurada para esta empresa", status=400)
+    password = crypto.decrypt(credencial["password_cifrado"])
+    with LicitacionesScraper() as scraper:
+        scraper.login(credencial["usuario_portal"], password)
+        resultado = scraper.confirmar_envio_oferta(oportunidad["referencia"])
+    job.estado = "enviado"
+    job.save()
+    return JsonResponse(resultado)

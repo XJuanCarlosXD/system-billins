@@ -448,3 +448,39 @@ export function useRecomendarPrecios() {
 export function documentoDescargarUrl(documentoId: number): string {
   return `${API_BASE}/lic/documentos/${documentoId}/descargar/`
 }
+
+export interface OfertaJobStatus {
+  id: number
+  estado: 'corriendo' | 'listo_para_enviar' | 'faltan_documentos' | 'error' | 'enviado'
+  resumen: { documentos_adjuntados?: unknown[]; documentos_faltantes?: string[]; error?: string }
+  iniciado_en: string
+  terminado_en: string | null
+}
+
+export function usePrepararOferta() {
+  return useMutation({
+    mutationFn: (oportunidadId: number) =>
+      licRequest<{ job_id: number }>(`/lic/oportunidades/${oportunidadId}/preparar-oferta/`, {
+        method: 'POST',
+      }),
+  })
+}
+
+export function useOfertaJobStatus(jobId: number | null) {
+  return useQuery({
+    queryKey: ['lic-oferta-job', jobId],
+    queryFn: () => licRequest<OfertaJobStatus>(`/lic/oferta-jobs/${jobId}/`),
+    enabled: !!jobId,
+    refetchInterval: (query) => (query.state.data?.estado === 'corriendo' ? 2000 : false),
+  })
+}
+
+export function useConfirmarEnvioOferta() {
+  return useMutation({
+    mutationFn: (oportunidadId: number) =>
+      licRequest<{ enviado: boolean }>(
+        `/lic/oportunidades/${oportunidadId}/confirmar-envio-oferta/`,
+        { method: 'POST' }
+      ),
+  })
+}

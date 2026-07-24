@@ -1,12 +1,21 @@
 // Pagina de detalle de una oportunidad (reemplaza el modal): orden fijo
 // 1. Descripcion, 2. Requisitos, 3. Productos/servicios (+ documentos
 // faltantes), 4. Documentos de la licitacion con descarga.
+import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { ArrowLeft, Download, FileText, Sparkles, Wand2 } from 'lucide-react'
 import { useCompany } from '@/hooks/use-company'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -25,9 +34,12 @@ import {
   type Requisito,
   documentoDescargarUrl,
   useAnalizarOportunidad,
+  useConfirmarEnvioOferta,
   useDocumentos,
   useGenerarResumenDocumento,
+  useOfertaJobStatus,
   useOportunidades,
+  usePrepararOferta,
   useProductos,
   useRecomendarPrecios,
   useRequisitos,
@@ -316,10 +328,82 @@ function ProductoItem({
 // 4. Documentos de la licitacion
 function SeccionDocumentos({ oportunidadId }: { oportunidadId: number }) {
   const documentosQ = useDocumentos(oportunidadId)
+  const prepararOferta = usePrepararOferta()
+  const [jobId, setJobId] = useState<number | null>(null)
+  const { data: jobStatus } = useOfertaJobStatus(jobId)
+  const confirmarEnvio = useConfirmarEnvioOferta()
+  const [confirmarAbierto, setConfirmarAbierto] = useState(false)
 
   return (
     <section className='space-y-2 rounded-md border p-4'>
-      <h4 className='text-sm font-semibold'>4. Documentos de la licitación</h4>
+      <div className='flex items-center justify-between gap-2'>
+        <h4 className='text-sm font-semibold'>4. Documentos de la licitación</h4>
+        <Button
+          type='button'
+          size='sm'
+          variant='outline'
+          disabled={prepararOferta.isPending || jobStatus?.estado === 'corriendo'}
+          onClick={() =>
+            prepararOferta.mutate(oportunidadId, {
+              onSuccess: (r) => setJobId(r.job_id),
+              onError: (e) => toast.error(e.message),
+            })
+          }
+        >
+          {jobStatus?.estado === 'corriendo' ? 'Preparando oferta…' : 'Preparar oferta'}
+        </Button>
+      </div>
+
+      {jobStatus && jobStatus.estado !== 'corriendo' && (
+        <div className='rounded border p-3 text-sm space-y-2'>
+          {jobStatus.estado === 'error' && (
+            <p className='text-destructive'>Error: {jobStatus.resumen.error}</p>
+          )}
+          {jobStatus.resumen.documentos_faltantes && jobStatus.resumen.documentos_faltantes.length > 0 && (
+            <div>
+              <p className='font-medium text-destructive'>Documentos faltantes:</p>
+              <ul className='list-disc pl-5'>
+                {jobStatus.resumen.documentos_faltantes.map((f, i) => <li key={i}>{f}</li>)}
+              </ul>
+            </div>
+          )}
+          {jobStatus.estado === 'listo_para_enviar' && (
+            <Button type='button' size='sm' variant='destructive' onClick={() => setConfirmarAbierto(true)}>
+              Confirmar y enviar oferta
+            </Button>
+          )}
+          {jobStatus.estado === 'enviado' && (
+            <p className='font-medium text-green-600'>Oferta enviada.</p>
+          )}
+        </div>
+      )}
+
+      <Dialog open={confirmarAbierto} onOpenChange={setConfirmarAbierto}>
+        <DialogContent className='max-w-md'>
+          <DialogHeader>
+            <DialogTitle>Confirmar envío de oferta</DialogTitle>
+            <DialogDescription>
+              Esto somete una oferta vinculante ante el portal DGCP. No se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant='ghost' onClick={() => setConfirmarAbierto(false)}>Cancelar</Button>
+            <Button
+              variant='destructive'
+              disabled={confirmarEnvio.isPending}
+              onClick={() =>
+                confirmarEnvio.mutate(oportunidadId, {
+                  onSuccess: () => setConfirmarAbierto(false),
+                  onError: (e) => toast.error(e.message),
+                })
+              }
+            >
+              {confirmarEnvio.isPending ? 'Enviando…' : 'Sí, enviar oferta'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {documentosQ.isLoading ? (
         <Skeleton className='h-24 w-full' />
       ) : !documentosQ.data?.documentos.length ? (
