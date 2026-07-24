@@ -195,8 +195,9 @@ def ejecutar_analisis_oportunidad(oportunidad_id: int) -> dict:
                 doc["nombre_archivo"], oportunidad_id,
             )
 
+    documentos_empresa_reales = lic_repo.list_documentos_empresa(oportunidad["no_cia"])
     documentos_empresa = []
-    for d in lic_repo.list_documentos_empresa(oportunidad["no_cia"]):
+    for d in documentos_empresa_reales:
         try:
             texto = pdf_rubros.extraer_texto_pdf(d["ruta_archivo"])
         except Exception:  # noqa: BLE001
@@ -217,6 +218,11 @@ def ejecutar_analisis_oportunidad(oportunidad_id: int) -> dict:
     lic_repo.guardar_analisis_oportunidad(
         oportunidad_id, resultado["resumen"], resultado["estado_cumplimiento"],
         resultado["recomendacion"],
+        documentos_faltantes=documentos_faltantes(
+            resultado["requisitos"],
+            lic_repo.list_tipos_documento(),
+            documentos_empresa_reales,
+        ),
     )
     lic_repo.reemplazar_requisitos(oportunidad_id, resultado["requisitos"])
     resultado["requisitos"] = lic_repo.list_requisitos(oportunidad_id)

@@ -98,6 +98,9 @@ def actualizar_detalle_oportunidad(oportunidad_id: int, detalle: dict) -> None:
     if detalle.get("presupuesto_estimado"):
         sets.append("presupuesto_estimado = :presupuesto_estimado")
         params["presupuesto_estimado"] = detalle["presupuesto_estimado"][:50]
+    if detalle.get("modalidad_entrega"):
+        sets.append("modalidad_entrega = :modalidad_entrega")
+        params["modalidad_entrega"] = detalle["modalidad_entrega"]
     if not sets:
         return
     with client.cursor() as cur:

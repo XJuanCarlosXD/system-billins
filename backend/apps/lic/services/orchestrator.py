@@ -150,12 +150,16 @@ def _descargar_y_guardar_documentos(scraper, no_cia, referencia, oportunidad_id,
 
     documentos = resultado["documentos"]
     detalle = resultado["detalle"]
-    if any(detalle.values()):
+    if any(v for k, v in detalle.items() if k != "productos"):
         # Datos que el portal ya expone directamente en el Aviso de Contrato
-        # (descripción completa, unidad de requisición, presupuesto) -- no
-        # necesitan IA, se guardan tal cual se leen. Un campo faltante
-        # (varía según el tipo de proceso) simplemente no se actualiza.
+        # (descripción completa, unidad de requisición, presupuesto,
+        # modalidad de entrega) -- no necesitan IA, se guardan tal cual se
+        # leen. Un campo faltante (varía según el tipo de proceso) simplemente
+        # no se actualiza. "productos" se excluye de este chequeo porque va a
+        # su propia tabla (TLIC_PRODUCTO), no a columnas de TLIC_OPORTUNIDAD.
         lic_repo.actualizar_detalle_oportunidad(oportunidad_id, detalle)
+    if detalle.get("productos"):
+        lic_repo.reemplazar_productos(oportunidad_id, detalle["productos"])
 
     for doc in documentos:
         estado = doc.get("estado", "ok")

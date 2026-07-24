@@ -334,3 +334,31 @@ def test_ejecutar_scrape_continua_si_busqueda_avanzada_falla():
         e["contexto"] == "busqueda_avanzada" and e["mensaje"] == "selector no encontrado"
         for e in errores
     )
+
+
+@pytest.mark.django_db
+def test_ejecutar_scrape_guarda_productos_extraidos_por_el_scraper():
+    job = ScrapeJob.objects.create(trigger="manual", no_cia="01")
+    credencial = {"no_cia": "01", "usuario_portal": "abregonza", "password_cifrado": "x"}
+
+    with patch("apps.lic.services.orchestrator.lic_repo") as repo, \
+         patch("apps.lic.services.orchestrator.crypto") as crypto, \
+         patch("apps.lic.services.orchestrator.LicitacionesScraper") as ScraperCls, \
+         patch("apps.lic.services.orchestrator.ejecutar_analisis_oportunidad"):
+        repo.get_credencial_con_password.return_value = credencial
+        crypto.decrypt.return_value = "plain-password"
+        repo.upsert_oportunidad.return_value = (1, True)
+        scraper_instance = MagicMock()
+        scraper_instance.buscar_avanzada.return_value = []
+        scraper_instance.list_oportunidades.return_value = [{"referencia": "REF-1", "titulo": "algo"}]
+        scraper_instance.download_documentos.return_value = {
+            "documentos": [],
+            "detalle": {"productos": [{"descripcion": "100 laptops", "cantidad": "100"}]},
+        }
+        ScraperCls.return_value.__enter__.return_value = scraper_instance
+
+        ejecutar_scrape(job, empresas=["01"])
+
+    repo.reemplazar_productos.assert_called_once_with(
+        1, [{"descripcion": "100 laptops", "cantidad": "100"}]
+    )

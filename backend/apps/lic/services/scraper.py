@@ -106,25 +106,28 @@ def parse_documento_row_html(html: str) -> dict:
 def parse_advanced_search_row_html(html: str) -> dict:
     """Parsea una fila ``<tr>`` de la tabla de resultados de la Búsqueda avanzada
     pública (``Public/Tendering/ContractNoticeManagement/Index``, sin login) --
-    columnas Contracting Authority / Reference / Description / Official Publish
-    Date / Replies Deadline / Base Price / Status / Detail. A diferencia de
+    10 columnas reales verificadas en vivo el 2026-07-24 (celda 0 = Country,
+    oculta en texto plano; celda 4 = columna sin encabezado visible; celda 9 =
+    link "Detail"): Country(0) / Contracting Authority(1) / Reference(2) /
+    Description(3) / (4) / Official Publish Date(5) / Replies Deadline(6) /
+    Base Price(7) / Status(8) / Detail(9). A diferencia de
     ``parse_oportunidad_row_html`` (feed autenticado, personalizado por
     empresa) esta pantalla es pública y trae todo lo publicado, sin matching
     por rubro."""
     soup = BeautifulSoup(html, "html.parser")
     row = soup.select_one("tr") or soup
     celdas = row.select("td")
-    if len(celdas) < 7:
-        raise ValueError(f"Fila de búsqueda avanzada con {len(celdas)} celdas, se esperaban 7+")
+    if len(celdas) < 9:
+        raise ValueError(f"Fila de búsqueda avanzada con {len(celdas)} celdas, se esperaban 9+")
 
     return {
-        "entidad": celdas[0].get_text(strip=True) or None,
-        "referencia": celdas[1].get_text(strip=True),
-        "titulo": celdas[2].get_text(strip=True) or None,
-        "fecha_publicacion": _parse_fecha_busqueda_avanzada(celdas[3].get_text(strip=True)),
-        "fecha_limite": _parse_fecha_busqueda_avanzada(celdas[4].get_text(strip=True)),
-        "presupuesto_estimado": celdas[5].get_text(strip=True) or None,
-        "estado_portal": celdas[6].get_text(strip=True) or None,
+        "entidad": celdas[1].get_text(strip=True) or None,
+        "referencia": celdas[2].get_text(strip=True),
+        "titulo": celdas[3].get_text(strip=True) or None,
+        "fecha_publicacion": _parse_fecha_busqueda_avanzada(celdas[5].get_text(strip=True)),
+        "fecha_limite": _parse_fecha_busqueda_avanzada(celdas[6].get_text(strip=True)),
+        "presupuesto_estimado": celdas[7].get_text(strip=True) or None,
+        "estado_portal": celdas[8].get_text(strip=True) or None,
     }
 
 
@@ -139,6 +142,65 @@ def _parse_fecha_busqueda_avanzada(texto: str) -> str | None:
         return None
     dt = datetime.strptime(match.group(1), "%d/%m/%Y %H:%M")
     return dt.strftime("%Y-%m-%d %H:%M")
+
+
+def parse_productos_aviso_contrato_html(tabla_html: str) -> list[dict]:
+    """Parsea los renglones de producto/servicio de la pestaña "2. Artículos y
+    Preguntas" del Aviso de Contrato -- dato estructurado que el portal ya
+    expone directamente (igual que la descripción completa/unidad de
+    requisición/presupuesto que lee ``_extraer_detalle_aviso_contrato``), por
+    eso se extrae por código y NO con IA.
+
+    Verificado en vivo el 2026-07-24 contra AGN-DAF-CM-2025-0038: NO es una
+    tabla plana como se asumió originalmente -- es un widget "FlatTree" de
+    Ariba (``div.FlatTree``/``table.Flt``) donde cada renglón de
+    producto/servicio real es un ``<tr>`` con clase ``QuestionLine`` (a
+    diferencia de ``DivisionLine``, que es un encabezado de agrupación como
+    "Cuestionario", sin producto propio). La descripción vive en el primer
+    ``span.VortalSpan`` dentro de ``td.MainLineContentCell`` de esa fila. No
+    se encontró una columna de cantidad separada en el proceso verificado --
+    ``cantidad`` queda en ``None`` salvo que un renglón sí la traiga (algunas
+    plantillas Ariba sí la incluyen); no se aborta ni se inventa un valor."""
+    soup = BeautifulSoup(tabla_html, "html.parser")
+    productos = []
+    for fila in soup.select("tr.QuestionLine"):
+        celda = fila.select_one("td.MainLineContentCell")
+        if celda is None:
+            continue
+        desc_el = celda.select_one("span.VortalSpan") or celda
+        descripcion = desc_el.get_text(strip=True)
+        if not descripcion:
+            continue
+        cant_el = fila.select_one("[id*='Quantity'], [id*='quantity']")
+        productos.append({
+            "descripcion": descripcion,
+            "cantidad": cant_el.get_text(strip=True) if cant_el else None,
+        })
+    return productos
+
+
+def _normalizar_modalidad_entrega(texto: str | None) -> str | None:
+    """Normaliza el texto libre del portal a 'fisica'|'virtual'|'ambas'|None.
+
+    Verificado en vivo el 2026-07-24 contra AGN-DAF-CM-2025-0038: el campo
+    real (``#...spnDeliveryConditions``, dentro de "Modo de presentación de
+    ofertas") no usa las palabras "física"/"virtual" sino "Plataforma"
+    (entrega por el portal, equivalente a virtual) y "papel" (entrega física
+    en papel) -- el valor real encontrado fue "Plataforma y papel". Se
+    reconocen ambos vocabularios; cualquier texto que no coincida con ninguno
+    da None en vez de adivinar."""
+    if not texto:
+        return None
+    t = texto.strip().lower()
+    tiene_fisica = "física" in t or "fisica" in t or "papel" in t
+    tiene_virtual = "virtual" in t or "plataforma" in t
+    if tiene_fisica and tiene_virtual:
+        return "ambas"
+    if tiene_fisica:
+        return "fisica"
+    if tiene_virtual:
+        return "virtual"
+    return None
 
 
 class LoginError(Exception):
@@ -241,24 +303,30 @@ class LicitacionesScraper:
         """
         logger.info("lic.scraper.buscar_avanzada: iniciando (status=%s, tope=%d)", status, tope)
         page = self._page
-        page.goto(self.BUSQUEDA_AVANZADA_URL, wait_until="domcontentloaded", timeout=60000)
+        page.goto(BUSQUEDA_AVANZADA_URL, wait_until="domcontentloaded", timeout=60000)
         page.wait_for_load_state("domcontentloaded", timeout=60000)
 
         page.get_by_role("link", name="(Advanced search)").click()
         page.wait_for_load_state("domcontentloaded", timeout=60000)
         # El combobox de Status no tiene un accessible name propio en el HTML real del
-        # portal (ver snapshot capturado 2026-07-24) -- se selecciona por posición dentro
-        # de la fila "Status" en vez de por rol/nombre.
-        status_row = page.locator("tr", has=page.locator("td", has_text="Status"))
-        if status_row.count():
-            status_row.locator("select").first.select_option(label=status)
+        # portal -- verificado en vivo el 2026-07-24 que su id real es #selRequestStatus
+        # (a diferencia de #selCountry / #selProcedure, los otros dos selects del
+        # formulario de Búsqueda avanzada).
+        status_select = page.locator("#selRequestStatus")
+        if status_select.count():
+            status_select.select_option(label=status)
         page.get_by_role("button", name="Go").click()
         page.wait_for_load_state("domcontentloaded", timeout=60000)
 
         resultados: list[dict] = []
         vistos: set[str] = set()
         while len(resultados) < tope:
-            filas = page.locator("table tr").filter(has=page.locator("a", has_text="Detail"))
+            # Scoping por id (en vez de "table tr" a secas, que también matcheaba
+            # filas ajenas del formulario de búsqueda, p.ej. el listbox de países) --
+            # verificado en vivo el 2026-07-24: la tabla de resultados real es
+            # "...grdResultList_tbl" y cada fila de datos trae "grdResultList_tr" en
+            # su id (la fila de encabezado, en cambio, termina en "..._header").
+            filas = page.locator("tr[id*='grdResultList_tr']")
             count = filas.count()
             nuevas = 0
             for i in range(count):
@@ -490,8 +558,9 @@ class LicitacionesScraper:
         no se intenta extraer acá; queda para una mejora futura si hace
         falta. Cualquier campo no encontrado queda en ``None`` sin abortar
         los demás ni la descarga de documentos que ya se completó."""
-        detalle: dict[str, str | None] = {
+        detalle: dict[str, object] = {
             "descripcion_completa": None, "unidad_requisicion": None, "presupuesto_estimado": None,
+            "productos": [], "modalidad_entrega": None,
         }
         try:
             loc = cn_page.locator("#divDescriptionDiv_spnDescription").first
@@ -529,6 +598,38 @@ class LicitacionesScraper:
                 detalle["presupuesto_estimado"] = f"{valor} {moneda}".strip()
         except Exception:  # noqa: BLE001
             logger.warning("lic.scraper: no se pudo leer presupuesto estimado (referencia=%s)", referencia)
+
+        try:
+            # La pestaña "2. Artículos y Preguntas" (#Questionnaire) trae el widget
+            # FlatTree con los renglones de producto/servicio -- a veces requiere un
+            # clic explícito para renderizarse, igual que "4. Documentos" en
+            # download_documentos(). Selector verificado en vivo el 2026-07-24 contra
+            # AGN-DAF-CM-2025-0038: no es "#grdLineItemsListP2Gen" (ese id no existe
+            # en el DOM real), es un <div class="FlatTree"> con filas <tr
+            # class="... QuestionLine ...">, ver parse_productos_aviso_contrato_html.
+            try:
+                cn_page.locator("a[href='#Questionnaire']").first.click(timeout=5000)
+                cn_page.wait_for_load_state("domcontentloaded", timeout=60000)
+            except PlaywrightTimeoutError:
+                pass
+            tabla = cn_page.locator("div.FlatTree").first
+            if tabla.count() > 0:
+                html_tabla = tabla.evaluate("el => el.outerHTML")
+                detalle["productos"] = parse_productos_aviso_contrato_html(html_tabla)
+        except Exception:  # noqa: BLE001 - campo opcional, no debe tumbar el resto
+            logger.warning("lic.scraper: no se pudo leer productos/items (referencia=%s)", referencia)
+
+        try:
+            # Selector verificado en vivo el 2026-07-24: "#spnDeliveryModeValue" no
+            # existe en el DOM real -- el campo real es un span cuyo id termina en
+            # "spnDeliveryConditions" (el prefijo completo varía según la plantilla
+            # Ariba del proceso, por eso se matchea por sufijo con *=), con valores
+            # como "Plataforma y papel" (ver _normalizar_modalidad_entrega).
+            loc = cn_page.locator("[id*='spnDeliveryConditions']").first
+            if loc.count() > 0:
+                detalle["modalidad_entrega"] = _normalizar_modalidad_entrega(loc.inner_text())
+        except Exception:  # noqa: BLE001 - campo opcional, no debe tumbar el resto
+            logger.warning("lic.scraper: no se pudo leer modalidad de entrega (referencia=%s)", referencia)
 
         return detalle
 
