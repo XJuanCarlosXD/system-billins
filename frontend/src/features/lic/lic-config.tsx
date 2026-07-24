@@ -3,6 +3,7 @@
 // configuración de apps.lic (Task 10 backend) — no existe forma legacy Oracle Forms
 // (módulo nuevo del clon).
 import { useRef, useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import { Eye, Plus, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -34,14 +35,11 @@ import {
 } from '@/components/ui/table'
 import {
   type Credencial,
-  type DocumentoEmpresa,
   type Rubro,
   useCredenciales,
-  useDocumentosEmpresa,
   useGuardarCredencial,
   useProbarConexion,
   useRubros,
-  useSubirDocumentoEmpresa,
   useSubirRubrosPdf,
 } from './api'
 
@@ -88,7 +86,12 @@ export function LicConfig() {
           <p className='text-sm text-muted-foreground'>
             Credenciales de acceso al portal de Compras y Contrataciones (DGCP) por
             empresa, usadas por la búsqueda automática de licitaciones, y el PDF de
-            rubros RPE que clasifica las oportunidades encontradas.
+            rubros RPE que clasifica las oportunidades encontradas. Los documentos propios
+            de la empresa (RNC, constancias, etc.) se administran en{' '}
+            <Link to='/lic/config/documentos' className='underline'>
+              Documentos de la empresa
+            </Link>
+            .
           </p>
         </div>
         {!mostrarForm && (
@@ -276,147 +279,8 @@ function EmpresaCard({ credencial }: { credencial: Credencial }) {
             </p>
           )}
         </div>
-
-        <DocumentosEmpresaSection noCia={no_cia} />
       </CardContent>
     </Card>
-  )
-}
-
-function DocumentosEmpresaSection({ noCia }: { noCia: string }) {
-  const { data, isLoading } = useDocumentosEmpresa(noCia)
-  const subir = useSubirDocumentoEmpresa()
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [archivo, setArchivo] = useState<File | null>(null)
-  const [punto, setPunto] = useState('')
-  const [descripcion, setDescripcion] = useState('')
-  const [fechaVencimiento, setFechaVencimiento] = useState('')
-
-  const handleSubir = () => {
-    if (!archivo) return
-    subir.mutate(
-      {
-        no_cia: noCia,
-        punto: punto || undefined,
-        archivo,
-        descripcion: descripcion || undefined,
-        fecha_vencimiento: fechaVencimiento || undefined,
-      },
-      {
-        onSuccess: () => {
-          toast.success('Documento de la empresa guardado')
-          setArchivo(null)
-          setPunto('')
-          setDescripcion('')
-          setFechaVencimiento('')
-          if (fileRef.current) fileRef.current.value = ''
-        },
-        onError: (e) => toast.error(e.message),
-      }
-    )
-  }
-
-  return (
-    <div className='space-y-1.5 border-t pt-3'>
-      <Label className='text-xs'>
-        Documentos de la empresa (RNC, no-mora, garantías, etc.)
-      </Label>
-      <p className='text-xs text-muted-foreground'>
-        Se usan para evaluar automáticamente si la empresa cumple los
-        requisitos de cada licitación al analizarla con IA.
-      </p>
-      <div className='flex flex-wrap items-end gap-2'>
-        <Input
-          ref={fileRef}
-          type='file'
-          className='h-9 max-w-xs'
-          disabled={subir.isPending}
-          onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
-        />
-        <Input
-          placeholder='Punto (opcional)'
-          value={punto}
-          onChange={(e) => setPunto(e.target.value)}
-          className='h-9 w-28'
-          maxLength={2}
-        />
-        <Input
-          placeholder='Descripción (ej. RNC vigente)'
-          value={descripcion}
-          onChange={(e) => setDescripcion(e.target.value)}
-          className='h-9 max-w-xs'
-        />
-        <div>
-          <Label className='text-[10px] text-muted-foreground'>Vence</Label>
-          <Input
-            type='date'
-            value={fechaVencimiento}
-            onChange={(e) => setFechaVencimiento(e.target.value)}
-            className='h-9'
-          />
-        </div>
-        <Button
-          type='button'
-          size='sm'
-          variant='secondary'
-          className='gap-2'
-          disabled={!archivo || subir.isPending}
-          onClick={handleSubir}
-        >
-          <Upload className='h-4 w-4' />
-          {subir.isPending ? 'Subiendo…' : 'Subir'}
-        </Button>
-      </div>
-
-      {isLoading ? (
-        <Skeleton className='h-12 w-full' />
-      ) : data?.documentos.length ? (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Documento</TableHead>
-              <TableHead>Punto</TableHead>
-              <TableHead>Vence</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.documentos.map((d) => (
-              <DocumentoEmpresaRow key={d.id} documento={d} />
-            ))}
-          </TableBody>
-        </Table>
-      ) : (
-        <p className='text-xs text-muted-foreground'>
-          Aún no se han subido documentos propios de la empresa.
-        </p>
-      )}
-    </div>
-  )
-}
-
-function DocumentoEmpresaRow({ documento: d }: { documento: DocumentoEmpresa }) {
-  return (
-    <TableRow>
-      <TableCell className='text-sm'>
-        {d.nombre_archivo}
-        {d.descripcion && (
-          <span className='ml-1.5 text-xs text-muted-foreground'>
-            ({d.descripcion})
-          </span>
-        )}
-      </TableCell>
-      <TableCell className='text-sm'>{d.punto ?? '—'}</TableCell>
-      <TableCell>
-        {d.fecha_vencimiento ? (
-          <Badge variant={d.vencido ? 'destructive' : 'outline'}>
-            {String(d.fecha_vencimiento).slice(0, 10)}
-            {d.vencido ? ' (vencido)' : ''}
-          </Badge>
-        ) : (
-          <span className='text-xs text-muted-foreground'>Sin vencimiento</span>
-        )}
-      </TableCell>
-    </TableRow>
   )
 }
 

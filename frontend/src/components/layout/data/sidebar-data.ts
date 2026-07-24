@@ -326,6 +326,7 @@ export const sidebarData: SidebarData = {
               title: 'Configuración',
               items: [
                 { title: 'Empresas y Rubros RPE', url: '/lic/config' },
+                { title: 'Documentos de la empresa', url: '/lic/config/documentos' },
                 { title: 'Tipos de documento', url: '/lic/config/tipos-documento' },
               ],
             },
