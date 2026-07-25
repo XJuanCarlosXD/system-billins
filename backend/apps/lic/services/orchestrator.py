@@ -13,6 +13,15 @@ from apps.lic.models import ScrapeJob
 from apps.lic.services.analisis_licitacion import AnalisisError, ejecutar_analisis_oportunidad
 from apps.lic.services.scraper import LicitacionesScraper, LoginError
 
+# Tope de oportunidades SOLO descubiertas por Busqueda avanzada (no en el feed
+# personalizado) que se intentan descargar+analizar por corrida y por empresa --
+# cada una implica abrir una pestana nueva del Aviso de Contrato (10-30s), y el
+# lote pendiente puede ser de cientos: sin tope, una sola corrida de "Buscar
+# ahora" podria tardar horas. El resto del backlog se recoge en corridas
+# siguientes (cron diario o nuevos clics en "Buscar ahora"), priorizando
+# siempre las de fecha limite mas proxima (list_oportunidades ya ordena asi).
+BACKFILL_BUSQUEDA_AVANZADA_LIMITE = 30
+
 
 def ejecutar_scrape(job: ScrapeJob, empresas: list[str]) -> None:
     resumen = {
@@ -56,6 +65,13 @@ def ejecutar_scrape(job: ScrapeJob, empresas: list[str]) -> None:
                     # re-correrlo a mano (p.ej. después de subir un documento nuevo de la
                     # empresa), pero el flujo normal no depende de él.
                     _analizar_y_registrar(no_cia, data["referencia"], oportunidad_id, resumen)
+
+                # Backfill acotado: oportunidades que SOLO trajo la Busqueda avanzada
+                # (Parte A) -- el bucle de arriba ya cubrio las del feed personalizado,
+                # pero buscar_avanzada() solo hace upsert (Task 3), nunca descarga
+                # documentos ni analiza. Sin este paso quedarian vacias para siempre,
+                # aunque el usuario abra su detalle -- reusa la MISMA sesion ya logueada.
+                _backfill_busqueda_avanzada(scraper, no_cia, resumen)
             resumen["empresas_procesadas"].append(no_cia)
         except LoginError as exc:
             lic_repo.marcar_login_resultado(no_cia, ok=False, mensaje_error=str(exc))
@@ -88,6 +104,26 @@ def _descubrir_via_busqueda_avanzada(empresas: list[str], resumen: dict) -> None
     for no_cia in empresas:
         for data in oportunidades:
             lic_repo.upsert_oportunidad(no_cia, data)
+
+
+def _backfill_busqueda_avanzada(scraper, no_cia: str, resumen: dict) -> None:
+    """Descarga documentos + analiza con IA las oportunidades de ``no_cia`` que
+    ya existen en TLIC_OPORTUNIDAD (por venir de buscar_avanzada, Task 3) pero
+    todavia no tienen documentos -- hasta ``BACKFILL_BUSQUEDA_AVANZADA_LIMITE``
+    por corrida, priorizando fecha limite mas proxima. Reutiliza exactamente
+    ``_descargar_y_guardar_documentos``/``_analizar_y_registrar`` (mismo
+    tratamiento que las del feed personalizado). Es normal y esperado que
+    algunas fallen con contexto="documentos" (la referencia no aparece en el
+    feed autenticado de esta empresa -- DGCP no la matcheo a ningun rubro
+    registrado); eso no bloquea el resto del backfill."""
+    pendientes = [
+        o for o in lic_repo.list_oportunidades(no_cia, solo_abiertas=True)
+        if not lic_repo.tiene_documentos(o["id"])
+    ][:BACKFILL_BUSQUEDA_AVANZADA_LIMITE]
+
+    for o in pendientes:
+        _descargar_y_guardar_documentos(scraper, no_cia, o["referencia"], o["id"], resumen)
+        _analizar_y_registrar(no_cia, o["referencia"], o["id"], resumen)
 
 
 def _agregar_error(resumen: dict, no_cia: str, mensaje: str, *,

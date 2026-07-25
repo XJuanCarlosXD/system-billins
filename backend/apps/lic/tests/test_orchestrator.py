@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 from apps.lic.models import ScrapeJob
 from apps.lic.services.orchestrator import ejecutar_scrape
@@ -17,6 +17,7 @@ def test_ejecutar_scrape_marks_job_completado_when_no_errors():
         repo.get_credencial_con_password.return_value = credencial
         crypto.decrypt.return_value = "plain-password"
         repo.upsert_oportunidad.return_value = (1, True)
+        repo.list_oportunidades.return_value = []  # backfill de Busqueda avanzada: no-op
         scraper_instance = MagicMock()
         scraper_instance.buscar_avanzada.return_value = []
         scraper_instance.list_oportunidades.return_value = [
@@ -105,6 +106,7 @@ def test_ejecutar_scrape_does_not_download_documents_for_existing_oportunidad_co
         crypto.decrypt.return_value = "plain-password"
         repo.upsert_oportunidad.return_value = (1, False)  # ya existía
         repo.tiene_documentos.return_value = True  # y ya tiene documentos guardados
+        repo.list_oportunidades.return_value = []  # backfill de Busqueda avanzada: no-op
         scraper_instance = MagicMock()
         scraper_instance.list_oportunidades.return_value = [
             {"referencia": "REF-1", "titulo": "algo"}
@@ -134,6 +136,7 @@ def test_ejecutar_scrape_retries_documents_for_previously_seen_oportunidad_witho
         crypto.decrypt.return_value = "plain-password"
         repo.upsert_oportunidad.return_value = (1, False)  # ya vista antes
         repo.tiene_documentos.return_value = False  # pero sin documentos guardados
+        repo.list_oportunidades.return_value = []  # backfill de Busqueda avanzada: no-op
         scraper_instance = MagicMock()
         scraper_instance.list_oportunidades.return_value = [
             {"referencia": "REF-1", "titulo": "algo"}
@@ -166,6 +169,7 @@ def test_ejecutar_scrape_continues_when_document_download_fails():
         repo.get_credencial_con_password.return_value = credencial
         crypto.decrypt.return_value = "plain-password"
         repo.upsert_oportunidad.return_value = (1, True)
+        repo.list_oportunidades.return_value = []  # backfill de Busqueda avanzada: no-op
         scraper_instance = MagicMock()
         scraper_instance.list_oportunidades.return_value = [
             {"referencia": "REF-1", "titulo": "algo"}
@@ -204,6 +208,7 @@ def test_ejecutar_scrape_uses_placeholder_and_mensaje_error_for_failed_document_
         repo.get_credencial_con_password.return_value = credencial
         crypto.decrypt.return_value = "plain-password"
         repo.upsert_oportunidad.return_value = (1, True)
+        repo.list_oportunidades.return_value = []  # backfill de Busqueda avanzada: no-op
         scraper_instance = MagicMock()
         scraper_instance.list_oportunidades.return_value = [
             {"referencia": "REF-1", "titulo": "algo"}
@@ -248,6 +253,7 @@ def test_ejecutar_scrape_continues_when_guardar_documento_fails_for_one_document
         crypto.decrypt.return_value = "plain-password"
         repo.upsert_oportunidad.return_value = (1, True)
         repo.guardar_documento.side_effect = [RuntimeError("ORA-12899"), None]
+        repo.list_oportunidades.return_value = []  # backfill de Busqueda avanzada: no-op
         scraper_instance = MagicMock()
         scraper_instance.list_oportunidades.return_value = [
             {"referencia": "REF-1", "titulo": "algo"}
@@ -290,6 +296,7 @@ def test_ejecutar_scrape_descubre_via_busqueda_avanzada_antes_del_login_por_empr
         crypto.decrypt.return_value = "plain-password"
         repo.upsert_oportunidad.return_value = (1, True)
         repo.tiene_documentos.return_value = True  # ya tiene documentos, no reintenta descarga
+        repo.list_oportunidades.return_value = []  # backfill de Busqueda avanzada: no-op
         scraper_instance = MagicMock()
         scraper_instance.buscar_avanzada.return_value = [
             {"referencia": "PUB-1", "entidad": "Ministerio X", "titulo": "algo",
@@ -348,6 +355,7 @@ def test_ejecutar_scrape_guarda_productos_extraidos_por_el_scraper():
         repo.get_credencial_con_password.return_value = credencial
         crypto.decrypt.return_value = "plain-password"
         repo.upsert_oportunidad.return_value = (1, True)
+        repo.list_oportunidades.return_value = []  # backfill de Busqueda avanzada: no-op
         scraper_instance = MagicMock()
         scraper_instance.buscar_avanzada.return_value = []
         scraper_instance.list_oportunidades.return_value = [{"referencia": "REF-1", "titulo": "algo"}]
@@ -362,3 +370,71 @@ def test_ejecutar_scrape_guarda_productos_extraidos_por_el_scraper():
     repo.reemplazar_productos.assert_called_once_with(
         1, [{"descripcion": "100 laptops", "cantidad": "100"}]
     )
+
+
+@pytest.mark.django_db
+def test_ejecutar_scrape_backfill_descarga_y_analiza_oportunidades_de_busqueda_avanzada():
+    """Las oportunidades que SOLO trajo buscar_avanzada (Task 3) quedan en TLIC_OPORTUNIDAD
+    sin documentos ni analisis -- el backfill debe intentar descargarlas/analizarlas
+    tambien, reutilizando la misma sesion ya logueada, no solo las del feed personalizado."""
+    job = ScrapeJob.objects.create(trigger="manual", no_cia="01")
+    credencial = {"no_cia": "01", "usuario_portal": "abregonza", "password_cifrado": "x"}
+
+    with patch("apps.lic.services.orchestrator.lic_repo") as repo, \
+         patch("apps.lic.services.orchestrator.crypto") as crypto, \
+         patch("apps.lic.services.orchestrator.LicitacionesScraper") as ScraperCls, \
+         patch("apps.lic.services.orchestrator.ejecutar_analisis_oportunidad"):
+        repo.get_credencial_con_password.return_value = credencial
+        crypto.decrypt.return_value = "plain-password"
+        repo.upsert_oportunidad.return_value = (1, True)
+        repo.tiene_documentos.return_value = False
+        repo.list_oportunidades.return_value = [
+            {"id": 42, "referencia": "PUB-1", "titulo": "algo"},
+        ]
+        scraper_instance = MagicMock()
+        scraper_instance.buscar_avanzada.return_value = []
+        scraper_instance.list_oportunidades.return_value = []  # nada en el feed personalizado
+        scraper_instance.download_documentos.return_value = {
+            "documentos": [
+                {"tipo_documento": "Pliego", "nombre_archivo": "p.pdf", "ruta_archivo": "/x/p.pdf", "estado": "ok"}
+            ],
+            "detalle": {},
+        }
+        ScraperCls.return_value.__enter__.return_value = scraper_instance
+
+        ejecutar_scrape(job, empresas=["01"])
+
+    scraper_instance.download_documentos.assert_called_once_with("PUB-1", ANY)
+    job.refresh_from_db()
+    assert job.resumen["documentos_descargados"] == 1
+
+
+@pytest.mark.django_db
+def test_ejecutar_scrape_backfill_respeta_el_tope_por_corrida():
+    """No debe intentar descargar mas de BACKFILL_BUSQUEDA_AVANZADA_LIMITE oportunidades
+    de Busqueda avanzada por corrida -- el resto queda para la proxima."""
+    from apps.lic.services.orchestrator import BACKFILL_BUSQUEDA_AVANZADA_LIMITE
+
+    job = ScrapeJob.objects.create(trigger="manual", no_cia="01")
+    credencial = {"no_cia": "01", "usuario_portal": "abregonza", "password_cifrado": "x"}
+
+    with patch("apps.lic.services.orchestrator.lic_repo") as repo, \
+         patch("apps.lic.services.orchestrator.crypto") as crypto, \
+         patch("apps.lic.services.orchestrator.LicitacionesScraper") as ScraperCls, \
+         patch("apps.lic.services.orchestrator.ejecutar_analisis_oportunidad"):
+        repo.get_credencial_con_password.return_value = credencial
+        crypto.decrypt.return_value = "plain-password"
+        repo.tiene_documentos.return_value = False
+        repo.list_oportunidades.return_value = [
+            {"id": i, "referencia": f"PUB-{i}", "titulo": "algo"}
+            for i in range(BACKFILL_BUSQUEDA_AVANZADA_LIMITE + 10)
+        ]
+        scraper_instance = MagicMock()
+        scraper_instance.buscar_avanzada.return_value = []
+        scraper_instance.list_oportunidades.return_value = []
+        scraper_instance.download_documentos.return_value = {"documentos": [], "detalle": {}}
+        ScraperCls.return_value.__enter__.return_value = scraper_instance
+
+        ejecutar_scrape(job, empresas=["01"])
+
+    assert scraper_instance.download_documentos.call_count == BACKFILL_BUSQUEDA_AVANZADA_LIMITE
