@@ -358,7 +358,7 @@ class LicitacionesScraper:
         )
         return resultados
 
-    def descargar_documentos_publico(self, referencia: str, destino_dir: Path) -> dict:
+    def descargar_documentos_publico(self, referencia: str, destino_dir: Path, tope: int = 1000) -> dict:
         """Descarga los documentos oficiales de una oportunidad usando el modal
         PUBLICO "Detail" de la Busqueda avanzada (sin login) -- a diferencia de
         ``download_documentos`` (requiere encontrar la referencia en el feed
@@ -367,16 +367,24 @@ class LicitacionesScraper:
         oportunidad publicada, sin importar si alguna empresa la tiene
         matcheada o no -- que es la gran mayoria de lo que trae buscar_avanzada.
 
-        Verificado en vivo el 2026-07-25: la busqueda por "Request Reference"
-        (#txtReference) en el formulario de Busqueda avanzada aisla la fila
-        exacta; su link "Detail" abre un modal cuyo iframe
-        (OpportunityDetailModal_iframe, URL Public/Tendering/
-        OpportunityDetail/Index?noticeUID=...) expone la MISMA tabla de
-        documentos (#grdGridDocumentList_tbl) que el Aviso de Contrato
-        autenticado -- mismo parseo (parse_documento_row_html) y mismo patron
-        de descarga. El modal se cierra con el boton #tbToolBar_btnClose
-        (dentro del iframe) para dejar la pagina lista para la siguiente
-        busqueda si se reutiliza la misma sesion de navegador.
+        IMPORTANTE (verificado en vivo el 2026-07-25): el formulario de
+        Busqueda avanzada del portal NO filtra de verdad por ninguno de sus
+        campos (#txtReference, "all these words", etc. -- se probaron varios,
+        todos devuelven siempre el mismo listado sin filtrar, aparente bug/
+        limitacion del propio backend de DGCP). Por eso este metodo NO confia
+        en el buscador: pagina los resultados igual que ``buscar_avanzada``
+        (clic en "More Items") comparando la referencia de cada fila hasta
+        encontrar la exacta, y recien ahi hace clic en su "Detail". Mas lento
+        que un filtro real, pero es la unica forma confirmada de no abrir el
+        detalle de una oportunidad equivocada.
+
+        El link "Detail" abre un modal cuyo iframe (OpportunityDetailModal_
+        iframe, URL Public/Tendering/OpportunityDetail/Index?noticeUID=...)
+        expone la MISMA tabla de documentos (#grdGridDocumentList_tbl) que el
+        Aviso de Contrato autenticado -- mismo parseo (parse_documento_row_html)
+        y mismo patron de descarga. El modal se cierra con el boton
+        #tbToolBar_btnClose (dentro del iframe) para dejar la pagina lista
+        para la siguiente busqueda si se reutiliza la misma sesion.
         """
         logger.info(
             "lic.scraper.descargar_documentos_publico: iniciando (referencia=%s)", referencia
@@ -387,21 +395,50 @@ class LicitacionesScraper:
         page.wait_for_load_state("domcontentloaded", timeout=60000)
         page.get_by_role("link", name="(Advanced search)").click()
         page.wait_for_load_state("domcontentloaded", timeout=60000)
-        page.locator("#txtReference").fill(referencia)
+        status_select = page.locator("#selRequestStatus")
+        if status_select.count():
+            status_select.select_option(label="Published")
         page.get_by_role("button", name="Go").click()
         page.wait_for_load_state("domcontentloaded", timeout=60000)
 
-        filas = page.locator("tr[id*='grdResultList_tr']")
-        if filas.count() == 0:
+        fila_objetivo = None
+        vistas = 0
+        # "More Items" REEMPLAZA las filas visibles (no las agrega al final, verificado
+        # en vivo el 2026-07-25) -- igual que buscar_avanzada(), cada pasada se re-escanean
+        # TODAS las filas actualmente visibles en vez de asumir un rango nuevo por indice.
+        while fila_objetivo is None and vistas < tope:
+            filas = page.locator("tr[id*='grdResultList_tr']")
+            count = filas.count()
+            nuevas = 0
+            for i in range(count):
+                html = filas.nth(i).evaluate("el => el.outerHTML")
+                try:
+                    data = parse_advanced_search_row_html(html)
+                except ValueError:
+                    continue
+                nuevas += 1
+                if data["referencia"] == referencia:
+                    fila_objetivo = filas.nth(i)
+                    break
+            vistas += nuevas
+            if fila_objetivo is not None:
+                break
+            more_link = page.get_by_role("link", name="More Items")
+            if more_link.count() == 0 or nuevas == 0:
+                break
+            more_link.click()
+            page.wait_for_load_state("domcontentloaded", timeout=60000)
+
+        if fila_objetivo is None:
             logger.error(
-                "lic.scraper.descargar_documentos_publico: referencia=%s sin resultados en Busqueda avanzada",
-                referencia,
+                "lic.scraper.descargar_documentos_publico: referencia=%s no encontrada tras paginar %d filas",
+                referencia, vistas,
             )
             raise ValueError(
                 f"No se encontró la oportunidad con referencia {referencia!r} en la Búsqueda avanzada"
             )
 
-        filas.nth(0).locator("a", has_text="Detail").first.click()
+        fila_objetivo.locator("a", has_text="Detail").first.click()
 
         modal_frame = None
         for _ in range(20):
@@ -481,6 +518,7 @@ class LicitacionesScraper:
                 "lic.scraper.descargar_documentos_publico: referencia=%s finalizado (%d ok de %d filas)",
                 referencia, ok_count, total_filas,
             )
+            detalle = self._extraer_detalle_publico(modal_frame, referencia)
         finally:
             try:
                 modal_frame.locator("#tbToolBar_btnClose").click(timeout=5000)
@@ -490,7 +528,51 @@ class LicitacionesScraper:
                     referencia,
                 )
 
-        return {"documentos": resultados, "detalle": {}}
+        return {"documentos": resultados, "detalle": detalle}
+
+    @staticmethod
+    def _extraer_detalle_publico(modal_frame, referencia: str) -> dict:
+        """Lee del modal PUBLICO de Busqueda avanzada los mismos campos que
+        ``_extraer_detalle_aviso_contrato`` lee del Aviso de Contrato
+        autenticado -- pero esta vista publica usa OTROS ids (verificado en
+        vivo el 2026-07-25 contra AGN-DAF-CM-2025-0038) y no expone pestañas
+        (no se pudo confirmar en vivo un equivalente publico a "Articulos y
+        Preguntas" ni al campo de modalidad de entrega): ``productos`` y
+        ``modalidad_entrega`` quedan en su valor vacío/None por ahora, sin
+        abortar el resto -- si el usuario los necesita para las oportunidades
+        que solo pasan por este camino publico, es una mejora futura acotada
+        a agregar esos dos selectores cuando se confirmen en vivo."""
+        detalle: dict[str, object] = {
+            "descripcion_completa": None, "unidad_requisicion": None, "presupuesto_estimado": None,
+            "productos": [], "modalidad_entrega": None,
+        }
+        try:
+            loc = modal_frame.locator(
+                "#fdsRequestSummaryInfo_tblDetail_trRowDescription_tdCell2_spnDescription"
+            ).first
+            if loc.count() > 0:
+                detalle["descripcion_completa"] = loc.inner_text().strip() or None
+        except Exception:  # noqa: BLE001 - campo opcional, no debe tumbar el resto
+            logger.warning("lic.scraper: no se pudo leer descripción completa pública (referencia=%s)", referencia)
+
+        try:
+            def _leer_valor(selector: str) -> str:
+                loc = modal_frame.locator(selector).first
+                if loc.count() == 0:
+                    return ""
+                return (loc.evaluate(
+                    "el => (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') "
+                    "? el.value : el.textContent"
+                ) or "").strip()
+
+            valor = _leer_valor("#incSigefInfoViewIncludecbxTotalPriceListValueValue")
+            moneda = _leer_valor("#incSigefInfoViewIncludetxtTotalPriceListValueCurrency")
+            if valor:
+                detalle["presupuesto_estimado"] = f"{valor} {moneda}".strip()
+        except Exception:  # noqa: BLE001
+            logger.warning("lic.scraper: no se pudo leer presupuesto estimado público (referencia=%s)", referencia)
+
+        return detalle
 
     def download_documentos(self, referencia: str, destino_dir: Path) -> list[dict]:
         """Descarga los documentos oficiales del proceso (Pliego de Condiciones,
