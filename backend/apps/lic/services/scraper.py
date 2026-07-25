@@ -358,6 +358,140 @@ class LicitacionesScraper:
         )
         return resultados
 
+    def descargar_documentos_publico(self, referencia: str, destino_dir: Path) -> dict:
+        """Descarga los documentos oficiales de una oportunidad usando el modal
+        PUBLICO "Detail" de la Busqueda avanzada (sin login) -- a diferencia de
+        ``download_documentos`` (requiere encontrar la referencia en el feed
+        AUTENTICADO de una empresa, que solo trae lo que matchea al rubro RPE
+        registrado de esa empresa), este camino funciona para CUALQUIER
+        oportunidad publicada, sin importar si alguna empresa la tiene
+        matcheada o no -- que es la gran mayoria de lo que trae buscar_avanzada.
+
+        Verificado en vivo el 2026-07-25: la busqueda por "Request Reference"
+        (#txtReference) en el formulario de Busqueda avanzada aisla la fila
+        exacta; su link "Detail" abre un modal cuyo iframe
+        (OpportunityDetailModal_iframe, URL Public/Tendering/
+        OpportunityDetail/Index?noticeUID=...) expone la MISMA tabla de
+        documentos (#grdGridDocumentList_tbl) que el Aviso de Contrato
+        autenticado -- mismo parseo (parse_documento_row_html) y mismo patron
+        de descarga. El modal se cierra con el boton #tbToolBar_btnClose
+        (dentro del iframe) para dejar la pagina lista para la siguiente
+        busqueda si se reutiliza la misma sesion de navegador.
+        """
+        logger.info(
+            "lic.scraper.descargar_documentos_publico: iniciando (referencia=%s)", referencia
+        )
+        destino_dir.mkdir(parents=True, exist_ok=True)
+        page = self._page
+        page.goto(BUSQUEDA_AVANZADA_URL, wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_load_state("domcontentloaded", timeout=60000)
+        page.get_by_role("link", name="(Advanced search)").click()
+        page.wait_for_load_state("domcontentloaded", timeout=60000)
+        page.locator("#txtReference").fill(referencia)
+        page.get_by_role("button", name="Go").click()
+        page.wait_for_load_state("domcontentloaded", timeout=60000)
+
+        filas = page.locator("tr[id*='grdResultList_tr']")
+        if filas.count() == 0:
+            logger.error(
+                "lic.scraper.descargar_documentos_publico: referencia=%s sin resultados en Busqueda avanzada",
+                referencia,
+            )
+            raise ValueError(
+                f"No se encontró la oportunidad con referencia {referencia!r} en la Búsqueda avanzada"
+            )
+
+        filas.nth(0).locator("a", has_text="Detail").first.click()
+
+        modal_frame = None
+        for _ in range(20):
+            for f in page.frames:
+                if "OpportunityDetail" in f.url:
+                    modal_frame = f
+                    break
+            if modal_frame is not None:
+                break
+            page.wait_for_timeout(500)
+        if modal_frame is None:
+            logger.error(
+                "lic.scraper.descargar_documentos_publico: referencia=%s no abrió el modal de detalle",
+                referencia,
+            )
+            raise DocumentoNoDisponibleError(
+                f"No se pudo abrir el detalle público de {referencia!r}"
+            )
+        modal_frame.wait_for_load_state("domcontentloaded", timeout=30000)
+
+        resultados: list[dict] = []
+        nombres_usados: set[str] = set()
+        try:
+            tabla = modal_frame.locator("#grdGridDocumentList_tbl")
+            filas_docs = tabla.locator("tr[id^='grdGridDocumentList_tr']")
+            total_filas = filas_docs.count()
+
+            for i in range(total_filas):
+                fila = filas_docs.nth(i)
+                try:
+                    fila_html = fila.evaluate("el => el.outerHTML")
+                    datos = parse_documento_row_html(fila_html)
+                    nombre_archivo = datos["nombre_archivo"]
+                    tipo_documento = datos["tipo_documento"]
+                    document_id = datos["document_id"]
+
+                    if nombre_archivo is None:
+                        raise DocumentoNoDisponibleError(
+                            f"Fila {i} de la tabla de documentos sin nombre de archivo reconocible"
+                        )
+                    descargar_loc = fila.locator("a[id^='lnkDownloadLinkP3Gen_']")
+                    if descargar_loc.count() == 0:
+                        raise DocumentoNoDisponibleError(
+                            f"Documento {nombre_archivo!r} sin enlace de descarga"
+                        )
+
+                    ruta_archivo = self._ruta_sin_colision(
+                        destino_dir, nombre_archivo, document_id, nombres_usados
+                    )
+                    with page.expect_download() as download_info:
+                        descargar_loc.first.click()
+                    download = download_info.value
+                    download.save_as(str(ruta_archivo))
+
+                    resultados.append({
+                        "tipo_documento": tipo_documento,
+                        "nombre_archivo": ruta_archivo.name,
+                        "ruta_archivo": str(ruta_archivo),
+                        "estado": "ok",
+                    })
+                except Exception as exc:  # noqa: BLE001 - se registra y se continúa a propósito
+                    logger.exception(
+                        "lic.scraper.descargar_documentos_publico: referencia=%s fallo al descargar documento %d/%d",
+                        referencia, i + 1, total_filas,
+                    )
+                    resultados.append({
+                        "tipo_documento": None,
+                        "nombre_archivo": None,
+                        "ruta_archivo": None,
+                        "estado": "error",
+                        "error": str(exc),
+                    })
+                    continue
+
+            ok_count = sum(1 for r in resultados if r["estado"] == "ok")
+            logger.info(
+                "lic.scraper.descargar_documentos_publico: referencia=%s finalizado (%d ok de %d filas)",
+                referencia, ok_count, total_filas,
+            )
+        finally:
+            try:
+                modal_frame.locator("#tbToolBar_btnClose").click(timeout=5000)
+            except Exception:  # noqa: BLE001 - cerrar el modal es best-effort
+                logger.warning(
+                    "lic.scraper.descargar_documentos_publico: no se pudo cerrar el modal (referencia=%s)",
+                    referencia,
+                )
+
+        return {"documentos": resultados, "detalle": {}}
+
     def download_documentos(self, referencia: str, destino_dir: Path) -> list[dict]:
         """Descarga los documentos oficiales del proceso (Pliego de Condiciones,
         especificaciones/fichas técnicas, anexos, etc.) publicados por la

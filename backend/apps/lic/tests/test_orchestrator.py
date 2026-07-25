@@ -394,7 +394,7 @@ def test_ejecutar_scrape_backfill_descarga_y_analiza_oportunidades_de_busqueda_a
         scraper_instance = MagicMock()
         scraper_instance.buscar_avanzada.return_value = []
         scraper_instance.list_oportunidades.return_value = []  # nada en el feed personalizado
-        scraper_instance.download_documentos.return_value = {
+        scraper_instance.descargar_documentos_publico.return_value = {
             "documentos": [
                 {"tipo_documento": "Pliego", "nombre_archivo": "p.pdf", "ruta_archivo": "/x/p.pdf", "estado": "ok"}
             ],
@@ -404,7 +404,7 @@ def test_ejecutar_scrape_backfill_descarga_y_analiza_oportunidades_de_busqueda_a
 
         ejecutar_scrape(job, empresas=["01"])
 
-    scraper_instance.download_documentos.assert_called_once_with("PUB-1", ANY)
+    scraper_instance.descargar_documentos_publico.assert_called_once_with("PUB-1", ANY)
     job.refresh_from_db()
     assert job.resumen["documentos_descargados"] == 1
 
@@ -432,9 +432,9 @@ def test_ejecutar_scrape_backfill_respeta_el_tope_por_corrida():
         scraper_instance = MagicMock()
         scraper_instance.buscar_avanzada.return_value = []
         scraper_instance.list_oportunidades.return_value = []
-        scraper_instance.download_documentos.return_value = {"documentos": [], "detalle": {}}
+        scraper_instance.descargar_documentos_publico.return_value = {"documentos": [], "detalle": {}}
         ScraperCls.return_value.__enter__.return_value = scraper_instance
 
         ejecutar_scrape(job, empresas=["01"])
 
-    assert scraper_instance.download_documentos.call_count == BACKFILL_BUSQUEDA_AVANZADA_LIMITE
+    assert scraper_instance.descargar_documentos_publico.call_count == BACKFILL_BUSQUEDA_AVANZADA_LIMITE

@@ -110,20 +110,62 @@ def _backfill_busqueda_avanzada(scraper, no_cia: str, resumen: dict) -> None:
     """Descarga documentos + analiza con IA las oportunidades de ``no_cia`` que
     ya existen en TLIC_OPORTUNIDAD (por venir de buscar_avanzada, Task 3) pero
     todavia no tienen documentos -- hasta ``BACKFILL_BUSQUEDA_AVANZADA_LIMITE``
-    por corrida, priorizando fecha limite mas proxima. Reutiliza exactamente
-    ``_descargar_y_guardar_documentos``/``_analizar_y_registrar`` (mismo
-    tratamiento que las del feed personalizado). Es normal y esperado que
-    algunas fallen con contexto="documentos" (la referencia no aparece en el
-    feed autenticado de esta empresa -- DGCP no la matcheo a ningun rubro
-    registrado); eso no bloquea el resto del backfill."""
+    por corrida, priorizando fecha limite mas proxima.
+
+    Usa ``scraper.descargar_documentos_publico`` (modal "Detail" PUBLICO de
+    la Busqueda avanzada, sin login) en vez de ``download_documentos``
+    (requiere encontrar la referencia en el feed AUTENTICADO de la empresa).
+    Verificado en vivo el 2026-07-25: la gran mayoria de lo que descubre
+    buscar_avanzada NO aparece en el feed autenticado de ninguna empresa
+    (DGCP solo lo matchea ahi si coincide con un rubro RPE registrado) -- el
+    intento original de reusar ``_descargar_y_guardar_documentos`` fallaba
+    100% de las veces por esto mismo. El camino publico no depende de rubro
+    ni de credenciales, cubre cualquier oportunidad publicada."""
     pendientes = [
         o for o in lic_repo.list_oportunidades(no_cia, solo_abiertas=True)
         if not lic_repo.tiene_documentos(o["id"])
     ][:BACKFILL_BUSQUEDA_AVANZADA_LIMITE]
 
     for o in pendientes:
-        _descargar_y_guardar_documentos(scraper, no_cia, o["referencia"], o["id"], resumen)
+        _descargar_y_guardar_documentos_publico(scraper, no_cia, o["referencia"], o["id"], resumen)
         _analizar_y_registrar(no_cia, o["referencia"], o["id"], resumen)
+
+
+def _descargar_y_guardar_documentos_publico(scraper, no_cia, referencia, oportunidad_id, resumen):
+    """Igual que ``_descargar_y_guardar_documentos`` pero via el modal publico
+    de la Busqueda avanzada (``scraper.descargar_documentos_publico``, sin
+    login) -- usado por el backfill de oportunidades que no aparecen en el
+    feed autenticado de ninguna empresa. Mismo criterio de aislamiento de
+    errores documentado en ``_descargar_y_guardar_documentos``."""
+    destino_dir = Path(settings.MEDIA_ROOT) / "lic" / no_cia / referencia
+    try:
+        resultado = scraper.descargar_documentos_publico(referencia, destino_dir)
+    except Exception as exc:  # noqa: BLE001 - un fallo de documentos no debe tumbar la empresa
+        _agregar_error(resumen, no_cia, str(exc), referencia=referencia, contexto="documentos")
+        return
+
+    documentos = resultado["documentos"]
+    detalle = resultado["detalle"]
+    if any(v for k, v in detalle.items() if k != "productos"):
+        lic_repo.actualizar_detalle_oportunidad(oportunidad_id, detalle)
+    if detalle.get("productos"):
+        lic_repo.reemplazar_productos(oportunidad_id, detalle["productos"])
+
+    for doc in documentos:
+        estado = doc.get("estado", "ok")
+        nombre_archivo = doc.get("nombre_archivo") or "(descarga fallida)"
+        ruta_archivo = doc.get("ruta_archivo") or "(descarga fallida)"
+        mensaje_error = doc.get("error") if estado == "error" else None
+        try:
+            lic_repo.guardar_documento(
+                oportunidad_id, doc.get("tipo_documento"), nombre_archivo, ruta_archivo,
+                estado=estado, mensaje_error=mensaje_error,
+            )
+        except Exception as exc:  # noqa: BLE001 - un documento no debe tumbar los demás
+            _agregar_error(resumen, no_cia, str(exc), referencia=referencia, contexto="persistencia")
+            continue
+        if estado == "ok":
+            resumen["documentos_descargados"] += 1
 
 
 def _agregar_error(resumen: dict, no_cia: str, mensaje: str, *,
