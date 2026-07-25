@@ -113,9 +113,66 @@ function VolverLink() {
   )
 }
 
-// 1. Descripcion
+// 1. Descripcion -- SOLO campos reales extraidos por codigo del portal (scraper), sin
+// resumen ni texto generado por IA. La IA no repite informacion que la licitacion ya
+// trae por si sola; su unico rol en esta pagina es evaluar requisitos (seccion 2, ya
+// existia desde antes -- texto libre en PDF, no es un campo estructurado del portal) y
+// recomendar precio (seccion 3).
 function SeccionDescripcion({ oportunidad }: { oportunidad: Oportunidad }) {
+  return (
+    <section className='space-y-3 rounded-md border p-4'>
+      <div className='flex items-center gap-2'>
+        <h4 className='text-sm font-semibold'>1. Descripción</h4>
+        {oportunidad.modalidad_entrega && (
+          <Badge
+            variant={oportunidad.modalidad_entrega === 'fisica' ? 'destructive' : 'outline'}
+            title='Modalidad de entrega de la oferta/documentación según el proceso'
+          >
+            {oportunidad.modalidad_entrega === 'fisica' && 'Entrega física requerida'}
+            {oportunidad.modalidad_entrega === 'virtual' && 'Entrega virtual'}
+            {oportunidad.modalidad_entrega === 'ambas' && 'Física o virtual'}
+          </Badge>
+        )}
+        {oportunidad.estado_portal && <Badge variant='outline'>{oportunidad.estado_portal}</Badge>}
+      </div>
+
+      <div className='flex flex-wrap gap-4 text-sm'>
+        {oportunidad.unidad_requisicion && (
+          <span><span className='text-muted-foreground'>Unidad de requisición: </span>{oportunidad.unidad_requisicion}</span>
+        )}
+        {oportunidad.presupuesto_estimado && (
+          <span><span className='text-muted-foreground'>Presupuesto estimado: </span>{oportunidad.presupuesto_estimado}</span>
+        )}
+        {oportunidad.fecha_publicacion && (
+          <span><span className='text-muted-foreground'>Fecha de publicación: </span>{String(oportunidad.fecha_publicacion).slice(0, 10)}</span>
+        )}
+        {oportunidad.fecha_limite && (
+          <span><span className='text-muted-foreground'>Fecha límite: </span>{String(oportunidad.fecha_limite).slice(0, 10)}</span>
+        )}
+      </div>
+
+      {oportunidad.titulo && (
+        <p className='whitespace-pre-wrap text-sm'>{oportunidad.titulo}</p>
+      )}
+      {!oportunidad.unidad_requisicion && !oportunidad.presupuesto_estimado && !oportunidad.titulo && (
+        <p className='text-xs text-muted-foreground'>
+          El portal no expuso más detalle estructurado para este proceso (varía según el
+          tipo de licitación).
+        </p>
+      )}
+    </section>
+  )
+}
+
+// 2. Requisitos -- unico uso de IA que "analiza" en vez de solo recomendar: el texto de
+// los requisitos vive como texto libre dentro del PDF descargado, no como un campo
+// estructurado del portal, así que evaluar si la empresa cumple cada uno sí requiere
+// lectura/comprensión de lenguaje natural (no es algo que un scraper por código pueda
+// resolver de forma confiable).
+function SeccionRequisitos({ oportunidad }: { oportunidad: Oportunidad }) {
   const analizar = useAnalizarOportunidad()
+  const requisitosQ = useRequisitos(oportunidad.id)
+  const requisitos = analizar.data?.requisitos ?? requisitosQ.data?.requisitos ?? []
   const resumen = analizar.data?.resumen ?? oportunidad.resumen_ia
   const recomendacion = analizar.data?.recomendacion ?? oportunidad.recomendacion_ia
   const estadoCumplimiento = analizar.data?.estado_cumplimiento ?? oportunidad.estado_cumplimiento
@@ -130,17 +187,7 @@ function SeccionDescripcion({ oportunidad }: { oportunidad: Oportunidad }) {
               className={`inline-block h-2.5 w-2.5 rounded-full ${CUMPLIMIENTO_INFO[estadoCumplimiento].color}`}
             />
           )}
-          <h4 className='text-sm font-semibold'>1. Descripción</h4>
-          {oportunidad.modalidad_entrega && (
-            <Badge
-              variant={oportunidad.modalidad_entrega === 'fisica' ? 'destructive' : 'outline'}
-              title='Modalidad de entrega de la oferta/documentación según el proceso'
-            >
-              {oportunidad.modalidad_entrega === 'fisica' && 'Entrega física requerida'}
-              {oportunidad.modalidad_entrega === 'virtual' && 'Entrega virtual'}
-              {oportunidad.modalidad_entrega === 'ambas' && 'Física o virtual'}
-            </Badge>
-          )}
+          <h4 className='text-sm font-semibold'>2. Requisitos</h4>
         </div>
         <Button
           type='button'
@@ -153,50 +200,20 @@ function SeccionDescripcion({ oportunidad }: { oportunidad: Oportunidad }) {
           }
         >
           <Wand2 className='h-3.5 w-3.5' />
-          {analizar.isPending ? 'Analizando…' : resumen ? 'Volver a analizar' : 'Analizar oportunidad'}
+          {analizar.isPending ? 'Evaluando…' : requisitos.length ? 'Volver a evaluar' : 'Evaluar requisitos'}
         </Button>
       </div>
 
-      <div className='flex flex-wrap gap-4 text-sm'>
-        {oportunidad.unidad_requisicion && (
-          <span><span className='text-muted-foreground'>Unidad de requisición: </span>{oportunidad.unidad_requisicion}</span>
-        )}
-        {oportunidad.presupuesto_estimado && (
-          <span><span className='text-muted-foreground'>Presupuesto estimado: </span>{oportunidad.presupuesto_estimado}</span>
-        )}
-        {oportunidad.fecha_limite && (
-          <span><span className='text-muted-foreground'>Fecha límite: </span>{String(oportunidad.fecha_limite).slice(0, 10)}</span>
-        )}
-      </div>
-
-      {resumen && <p className='whitespace-pre-wrap text-sm'>{resumen}</p>}
+      {resumen && <p className='whitespace-pre-wrap text-sm text-muted-foreground'>{resumen}</p>}
       {recomendacion && (
         <p className='rounded bg-muted/50 px-3 py-2 text-sm'>
           <span className='font-medium'>Recomendación: </span>{recomendacion}
         </p>
       )}
-      {!resumen && !analizar.isPending && (
-        <p className='text-xs text-muted-foreground'>
-          Genera un resumen de la licitación, extrae los requisitos para participar y
-          evalúa cuáles cumple la empresa según los documentos subidos en Configuración.
-        </p>
-      )}
-    </section>
-  )
-}
 
-// 2. Requisitos
-function SeccionRequisitos({ oportunidad }: { oportunidad: Oportunidad }) {
-  const analizar = useAnalizarOportunidad()
-  const requisitosQ = useRequisitos(oportunidad.id)
-  const requisitos = analizar.data?.requisitos ?? requisitosQ.data?.requisitos ?? []
-
-  return (
-    <section className='space-y-2 rounded-md border p-4'>
-      <h4 className='text-sm font-semibold'>2. Requisitos</h4>
       {requisitos.length === 0 ? (
         <p className='text-sm text-muted-foreground'>
-          Sin requisitos evaluados todavía. Use "Analizar oportunidad" arriba.
+          Sin requisitos evaluados todavía. Use "Evaluar requisitos" arriba.
         </p>
       ) : (
         <div className='overflow-x-auto rounded border'>
