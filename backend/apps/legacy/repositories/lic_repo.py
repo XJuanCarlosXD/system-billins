@@ -101,6 +101,9 @@ def actualizar_detalle_oportunidad(oportunidad_id: int, detalle: dict) -> None:
     if detalle.get("modalidad_entrega"):
         sets.append("modalidad_entrega = :modalidad_entrega")
         params["modalidad_entrega"] = detalle["modalidad_entrega"]
+    if detalle.get("lugar_entrega"):
+        sets.append("lugar_entrega = :lugar_entrega")
+        params["lugar_entrega"] = detalle["lugar_entrega"][:500]
     if not sets:
         return
     with client.cursor() as cur:
@@ -167,33 +170,77 @@ def upsert_oportunidad(no_cia: str, data: dict) -> tuple[int, bool]:
         return nuevo_id, True
 
 
+# Provincia Santo Domingo + Distrito Nacional (área metropolitana de la capital) --
+# ver `lugar_entrega` en el docstring de `scraper._extraer_detalle_publico`: el
+# portal no expone una "provincia" estructurada, solo texto libre de dirección,
+# por eso el filtro es LIKE sobre ese texto crudo en vez de un código exacto.
+_FILTRO_SANTO_DOMINGO_SQL = (
+    "(UPPER(lugar_entrega) LIKE '%SANTO DOMINGO%' "
+    "OR UPPER(lugar_entrega) LIKE '%DISTRITO NACIONAL%')"
+)
+
+
 def list_oportunidades(
-    no_cia: str, estado_portal: str | None = None, solo_abiertas: bool = True
-) -> list[dict]:
+    no_cia: str, estado_portal: str | None = None, solo_abiertas: bool = True,
+    solo_santo_domingo: bool = False, page: int = 1, page_size: int | None = None,
+) -> dict:
     """Por defecto solo trae oportunidades cuya fecha limite de ofertas no ha
     pasado (las unicas en las que realmente se puede participar todavia) --
     el portal en si mantiene el historial completo desde 2020, incluyendo
     procesos ya cerrados/adjudicados hace años, que no son "oportunidades"
-    reales de negocio."""
-    sql = (
+    reales de negocio.
+
+    Con ``page_size`` dado, pagina server-side y devuelve
+    ``{"oportunidades": [...], "total": N}`` -- sin ``page_size``, devuelve
+    todas las filas en una sola pagina (mismo shape, ``total`` igual a
+    ``len(oportunidades)``) para no romper otros llamadores existentes.
+
+    La BD real es Oracle 11g (verificado en vivo el 2026-07-27 via
+    v$version) -- NO soporta ``OFFSET ... FETCH NEXT`` (sintaxis de Oracle
+    12c+, dio ORA-00933 al probarlo). Se usa el patrón clásico de 11g:
+    subconsulta con ``ROWNUM`` envuelta dos veces (la primera aplica
+    ORDER BY + corta en el tope superior, la segunda corta el piso) --
+    Oracle solo permite filtrar ROWNUM directamente contra "<=", nunca
+    contra un piso, por eso hace falta el doble anidado."""
+    where = ["no_cia = :no_cia"]
+    params: dict = {"no_cia": no_cia}
+    if estado_portal:
+        where.append("estado_portal = :estado_portal")
+        params["estado_portal"] = estado_portal
+    if solo_abiertas:
+        where.append("fecha_limite >= TRUNC(SYSDATE)")
+    if solo_santo_domingo:
+        where.append(_FILTRO_SANTO_DOMINGO_SQL)
+    where_sql = " AND ".join(where)
+
+    total = client.fetch_dicts(
+        f"SELECT COUNT(*) AS total FROM FAT.TLIC_OPORTUNIDAD WHERE {where_sql}", params,
+    )[0]["total"]
+
+    sql_base = (
         "SELECT id, referencia, tipo_proceso, entidad, titulo, estado_portal, "
         "ofertas_presentadas, ofertas_creadas, fecha_publicacion, fecha_limite, "
         "resumen_ia, estado_cumplimiento, recomendacion_ia, "
-        "unidad_requisicion, presupuesto_estimado, documentos_faltantes, modalidad_entrega "
-        "FROM FAT.TLIC_OPORTUNIDAD WHERE no_cia = :1"
+        "unidad_requisicion, presupuesto_estimado, documentos_faltantes, modalidad_entrega, "
+        "lugar_entrega "
+        f"FROM FAT.TLIC_OPORTUNIDAD WHERE {where_sql} ORDER BY fecha_limite ASC"
     )
-    params = [no_cia]
-    if estado_portal:
-        sql += " AND estado_portal = :2"
-        params.append(estado_portal)
-    if solo_abiertas:
-        sql += " AND fecha_limite >= TRUNC(SYSDATE)"
-    sql += " ORDER BY fecha_limite ASC"
+    if page_size is not None:
+        params["fila_hasta"] = max(page, 1) * page_size
+        params["fila_desde"] = max(page - 1, 0) * page_size
+        sql = (
+            "SELECT * FROM ("
+            f"SELECT sub.*, ROWNUM rnum FROM ({sql_base}) sub WHERE ROWNUM <= :fila_hasta"
+            ") WHERE rnum > :fila_desde"
+        )
+    else:
+        sql = sql_base
     filas = client.fetch_dicts(sql, params)
     for fila in filas:
+        fila.pop("rnum", None)
         crudo = fila.pop("documentos_faltantes", None)
         fila["documentos_faltantes"] = json.loads(crudo) if crudo else []
-    return filas
+    return {"oportunidades": filas, "total": total}
 
 
 def guardar_documento(oportunidad_id: int, tipo_documento: str, nombre_archivo: str,
@@ -409,13 +456,26 @@ def guardar_analisis_oportunidad(
 
 
 def get_oportunidad_completa(oportunidad_id: int) -> dict | None:
+    """Trae UNA oportunidad por id, sin filtro de provincia/paginación -- a
+    diferencia de ``list_oportunidades`` (que ahora solo muestra Santo
+    Domingo/Distrito Nacional para la lista), la página de detalle debe
+    poder abrir cualquier oportunidad ya conocida (ej. desde un link
+    guardado) independientemente de ese filtro de negocio de la lista."""
     rows = client.fetch_dicts(
-        "SELECT id, no_cia, referencia, titulo, resumen_ia, estado_cumplimiento, "
-        "recomendacion_ia, documentos_faltantes "
+        "SELECT id, no_cia, referencia, tipo_proceso, entidad, titulo, estado_portal, "
+        "ofertas_presentadas, ofertas_creadas, fecha_publicacion, fecha_limite, "
+        "resumen_ia, estado_cumplimiento, recomendacion_ia, "
+        "unidad_requisicion, presupuesto_estimado, documentos_faltantes, modalidad_entrega, "
+        "lugar_entrega "
         "FROM FAT.TLIC_OPORTUNIDAD WHERE id = :1",
         [oportunidad_id],
     )
-    return rows[0] if rows else None
+    if not rows:
+        return None
+    fila = rows[0]
+    crudo = fila.pop("documentos_faltantes", None)
+    fila["documentos_faltantes"] = json.loads(crudo) if crudo else []
+    return fila
 
 
 def reemplazar_productos(oportunidad_id: int, productos: list[dict]) -> None:

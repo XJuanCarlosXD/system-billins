@@ -3,10 +3,12 @@
 // vivo de su estado. Click en una fila navega al detalle en pagina completa
 // (/lic/oportunidades/$oportunidadId) en vez de abrir un modal.
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { getCoreRowModel, useReactTable, type PaginationState } from '@tanstack/react-table'
 import { Link } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { Eye, Loader2, Search, Settings } from 'lucide-react'
 import { useCompany } from '@/hooks/use-company'
+import { DataTablePagination } from '@/components/data-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -25,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import type { Oportunidad } from './api'
 import {
   LicApiError,
   useBuscarAhora,
@@ -84,24 +87,28 @@ function CumplimientoDot({
 export function LicOportunidades() {
   const { selectedCompany } = useCompany()
 
-  // Nota sobre el filtro de estado (bug #3 del reference): `estado_portal` no tiene un
-  // enum fijo -- son valores tal cual los reporta el portal (ej. "SELECCIÓN", "OFERTA EN
-  // ANÁLISIS"), capturados por el scraper desde `.ws_rc_state`. No hay catálogo de esos
-  // valores en el backend (oportunidades_view solo hace WHERE estado_portal = :estado,
-  // exact-match) ni justifica agregar uno para una lista que hoy no pagina (ver TODO en
-  // `lic_repo.list_oportunidades` / `oportunidades_view`). Por eso: se trae la lista SIN
-  // filtro de servidor (una sola consulta), el dropdown de estado se arma dinámicamente
-  // con los valores distintos que de verdad aparecen en esos datos, y el filtro se aplica
-  // en el cliente sobre ese mismo resultado. Si el volumen de oportunidades por empresa
-  // creciera al punto de que esto duela, el primer paso sería paginar el backend (ya
-  // anotado como pendiente ahí) y recién entonces valdría la pena mover el filtro al
-  // servidor.
+  // Nota sobre el filtro de estado (bug #3 del reference, actualizado 2026-07-27 al
+  // agregar paginación server-side): `estado_portal` no tiene un enum fijo -- son
+  // valores tal cual los reporta el portal (ej. "SELECCIÓN", "OFERTA EN ANÁLISIS"),
+  // capturados por el scraper desde `.ws_rc_state`. El filtro en sí ahora se aplica en
+  // el SERVIDOR (oportunidades_view ya hacía WHERE estado_portal = :estado exact-match,
+  // pero antes el frontend nunca le pasaba el valor elegido -- filtraba en el cliente
+  // sobre la lista completa). Con paginación real, filtrar solo en el cliente rompería
+  // (solo vería estados presentes en la página actual), así que ahora se manda al
+  // backend. El dropdown de botones, sin embargo, se sigue armando con los valores
+  // distintos que aparecen en la página actual (no existe un catálogo fijo ni un
+  // endpoint de valores distintos) -- limitación conocida y aceptada: puede tardar en
+  // mostrar un botón para un estado que no apareció todavía en la página visible.
   const [estado, setEstado] = useState(TODOS)
   // Parámetro de búsqueda configurable vía el botón de ajustes: por defecto el
   // backend solo trae oportunidades cuya fecha límite no ha pasado
   // (fecha_limite >= hoy, ver lic_repo.list_oportunidades) -- activar "todas"
   // agrega también el historial de procesos ya cerrados/adjudicados.
   const [todas, setTodas] = useState(false)
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 20,
+  })
   // El guardia de concurrencia del backend (scrape_view) es POR no_cia: jobs para
   // empresas distintas corren en paralelo sin bloquearse (solo un job "todas las
   // empresas" bloquea a todos). Por eso el job en curso se rastrea junto con la
@@ -111,12 +118,20 @@ export function LicOportunidades() {
   // dueña de ese job (ver gating de `esJobDeEstaEmpresa` más abajo).
   const [job, setJob] = useState<{ jobId: number; company: string } | null>(null)
 
-  const { data, isLoading, refetch } = useOportunidades(selectedCompany, undefined, todas)
+  const { data, isLoading, refetch } = useOportunidades(
+    selectedCompany,
+    estado === TODOS ? undefined : estado,
+    todas,
+    pagination.pageIndex + 1,
+    pagination.pageSize
+  )
   const buscarAhora = useBuscarAhora()
   const { data: jobStatus } = useScrapeJobStatus(job?.jobId ?? null)
   const esJobDeEstaEmpresa = job?.company === selectedCompany
 
   const oportunidades = data?.oportunidades ?? []
+  const total = data?.total ?? 0
+  const rows = oportunidades
 
   const estadosDisponibles = useMemo(() => {
     const set = new Set<string>()
@@ -126,10 +141,22 @@ export function LicOportunidades() {
     return Array.from(set).sort()
   }, [oportunidades])
 
-  const rows = useMemo(
-    () => (estado === TODOS ? oportunidades : oportunidades.filter((o) => o.estado_portal === estado)),
-    [oportunidades, estado]
-  )
+  // Volver a la primera página cuando cambia la empresa o cualquier filtro -- de lo
+  // contrario se podría pedir una página que no existe para el nuevo filtro/empresa
+  // (ej. estar en la página 5 y cambiar a una empresa con solo 1 página de resultados).
+  useEffect(() => {
+    setPagination((p) => (p.pageIndex === 0 ? p : { ...p, pageIndex: 0 }))
+  }, [selectedCompany, estado, todas])
+
+  const table = useReactTable<Oportunidad>({
+    data: rows,
+    columns: [],
+    manualPagination: true,
+    pageCount: Math.max(1, Math.ceil(total / pagination.pageSize)),
+    state: { pagination },
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+  })
 
   // Bug #1 del reference: NO se puede refetch() en el cuerpo del render en cada pasada
   // (efecto secundario durante render + reintento infinito). Se dispara UNA sola vez,
@@ -272,7 +299,7 @@ export function LicOportunidades() {
         </Popover>
 
         <div className='ml-auto text-sm text-muted-foreground'>
-          {rows.length} oportunidad{rows.length !== 1 ? 'es' : ''}
+          {total} oportunidad{total !== 1 ? 'es' : ''}
         </div>
       </div>
 
@@ -334,14 +361,15 @@ export function LicOportunidades() {
               {rows.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={8} className='text-center text-muted-foreground py-6'>
-                    {oportunidades.length === 0
-                      ? 'No se han descubierto oportunidades para esta empresa todavía. Use "Buscar ahora" o espere al cron diario.'
+                    {total === 0
+                      ? 'No se han descubierto oportunidades en Santo Domingo/Distrito Nacional para esta empresa todavía. Use "Buscar ahora" o espere al cron diario.'
                       : 'Ninguna oportunidad coincide con el estado seleccionado.'}
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
+          <DataTablePagination table={table} className='px-4 py-3' />
         </div>
       )}
     </div>

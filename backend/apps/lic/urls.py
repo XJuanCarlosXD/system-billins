@@ -7,6 +7,7 @@ urlpatterns = [
     path("credenciales/probar-conexion/", views.probar_conexion_view),
     path("rubros-pdf/", views.rubros_pdf_view),
     path("oportunidades/", views.oportunidades_view),
+    path("oportunidades/<int:oportunidad_id>/", views.oportunidad_detail_view),
     path("oportunidades/<int:oportunidad_id>/documentos/", views.documentos_view),
     path("documentos/<int:documento_id>/resumen/", views.resumen_documento_view),
     path("documentos-empresa/", views.documentos_empresa_view),

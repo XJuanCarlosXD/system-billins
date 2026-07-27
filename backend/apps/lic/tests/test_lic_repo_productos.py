@@ -1,5 +1,3 @@
-import json
-
 import pytest
 from apps.legacy.repositories import lic_repo
 
@@ -28,7 +26,7 @@ def test_guardar_analisis_oportunidad_con_documentos_faltantes():
         documentos_faltantes=faltantes,
     )
     oportunidad = lic_repo.get_oportunidad_completa(oportunidad_id)
-    assert json.loads(oportunidad["documentos_faltantes"]) == faltantes
+    assert oportunidad["documentos_faltantes"] == faltantes
 
 
 @pytest.mark.django_db
@@ -71,6 +69,6 @@ def test_list_oportunidades_incluye_documentos_faltantes_parseado():
     lic_repo.guardar_analisis_oportunidad(
         oportunidad_id, "r", "rojo", None, documentos_faltantes=faltantes
     )
-    oportunidades = lic_repo.list_oportunidades("01", solo_abiertas=False)
+    oportunidades = lic_repo.list_oportunidades("01", solo_abiertas=False)["oportunidades"]
     encontrada = next(o for o in oportunidades if o["id"] == oportunidad_id)
     assert encontrada["documentos_faltantes"] == faltantes

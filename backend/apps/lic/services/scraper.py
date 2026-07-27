@@ -591,10 +591,21 @@ class LicitacionesScraper:
 
         ``modalidad_entrega`` no se pudo confirmar en vivo un equivalente
         público al campo de modalidad de entrega del Aviso de Contrato
-        autenticado -- queda en None por ahora, sin abortar el resto."""
+        autenticado -- queda en None por ahora, sin abortar el resto.
+
+        ``lugar_entrega`` se agregó el 2026-07-27 tras explorar el modal
+        manualmente con Playwright: existe en la sección "Object of the
+        Contract" -> "Place of works" (id
+        "fdsObjectOfTheContract_tblDetail_trRowPlaceOfWorks_tdCell2_
+        spnspnPlaceOfWorks"), pero el formato de líneas VARÍA -- a veces trae
+        dirección+provincia+región+país (4 líneas), a veces solo
+        región+país (3 líneas, sin dirección ni provincia explícitas). Por
+        eso se guarda el texto crudo tal cual (para filtrar por Santo
+        Domingo con LIKE sobre ese texto en ``lic_repo``) en vez de intentar
+        parsear una "provincia" estructurada que no siempre está presente."""
         detalle: dict[str, object] = {
             "descripcion_completa": None, "unidad_requisicion": None, "presupuesto_estimado": None,
-            "productos": [], "modalidad_entrega": None,
+            "productos": [], "modalidad_entrega": None, "lugar_entrega": None,
         }
         try:
             loc = modal_frame.locator(
@@ -604,6 +615,16 @@ class LicitacionesScraper:
                 detalle["descripcion_completa"] = loc.inner_text().strip() or None
         except Exception:  # noqa: BLE001 - campo opcional, no debe tumbar el resto
             logger.warning("lic.scraper: no se pudo leer descripción completa pública (referencia=%s)", referencia)
+
+        try:
+            loc = modal_frame.locator(
+                "#fdsObjectOfTheContract_tblDetail_trRowPlaceOfWorks_tdCell2_spnspnPlaceOfWorks"
+            ).first
+            if loc.count() > 0:
+                texto = loc.inner_text().strip()
+                detalle["lugar_entrega"] = (" ".join(texto.split()))[:500] or None
+        except Exception:  # noqa: BLE001 - campo opcional, no debe tumbar el resto
+            logger.warning("lic.scraper: no se pudo leer lugar de entrega público (referencia=%s)", referencia)
 
         try:
             def _leer_valor(selector: str) -> str:
@@ -902,13 +923,18 @@ class LicitacionesScraper:
         ``parse_oportunidad_row_html``), la unidad de requisición, y el
         presupuesto estimado. Selectores verificados en vivo el 2026-07-23
         contra CONADIS-DAF-CD-2026-0042 -- "Lugar de entrega" NO apareció en
-        ese proceso (varía según el tipo de proceso/plantilla Ariba), así que
-        no se intenta extraer acá; queda para una mejora futura si hace
-        falta. Cualquier campo no encontrado queda en ``None`` sin abortar
-        los demás ni la descarga de documentos que ya se completó."""
+        ese proceso (varía según el tipo de proceso/plantilla Ariba). El
+        2026-07-27 se confirmó en vivo que la vista PUBLICA del modal de
+        Detalle SÍ expone ese campo bajo "Object of the Contract" -> "Place
+        of works" (ver ``_extraer_detalle_publico``); acá se intenta el
+        mismo campo por si esta plantilla autenticada también lo trae con un
+        id equivalente (best-effort, sin verificación en vivo -- el resto de
+        selectores de este método si están confirmados). Cualquier campo no
+        encontrado queda en ``None`` sin abortar los demás ni la descarga de
+        documentos que ya se completó."""
         detalle: dict[str, object] = {
             "descripcion_completa": None, "unidad_requisicion": None, "presupuesto_estimado": None,
-            "productos": [], "modalidad_entrega": None,
+            "productos": [], "modalidad_entrega": None, "lugar_entrega": None,
         }
         try:
             loc = cn_page.locator("#divDescriptionDiv_spnDescription").first
@@ -925,6 +951,16 @@ class LicitacionesScraper:
                 detalle["unidad_requisicion"] = loc.inner_text().strip() or None
         except Exception:  # noqa: BLE001
             logger.warning("lic.scraper: no se pudo leer unidad de requisición (referencia=%s)", referencia)
+
+        try:
+            loc = cn_page.locator(
+                "#fdsObjectOfTheContract_tblDetail_trRowPlaceOfWorks_tdCell2_spnspnPlaceOfWorks"
+            ).first
+            if loc.count() > 0:
+                texto = loc.inner_text().strip()
+                detalle["lugar_entrega"] = (" ".join(texto.split()))[:500] or None
+        except Exception:  # noqa: BLE001 - campo opcional, no debe tumbar el resto
+            logger.warning("lic.scraper: no se pudo leer lugar de entrega (referencia=%s)", referencia)
 
         try:
             # La moneda (id "...Currency") puede ser un <input> tipo VortalTextBox

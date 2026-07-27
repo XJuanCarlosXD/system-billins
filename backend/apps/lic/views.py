@@ -164,10 +164,40 @@ def oportunidades_view(request):
     # todas=1 permite ver tambien las ya cerradas (historico); por defecto
     # solo se muestran las que aun aceptan ofertas.
     solo_abiertas = request.GET.get("todas") != "1"
-    # TODO: paginate if volume grows
+    # Filtro fijo de negocio: la lista solo debe mostrar oportunidades de la
+    # provincia Santo Domingo/Distrito Nacional (pedido explícito del usuario,
+    # 2026-07-27) -- no es un toggle en el frontend, siempre se aplica acá.
+    solo_santo_domingo = True
+    try:
+        page = int(request.GET.get("page", "1"))
+        page_size = int(request.GET.get("page_size", "20"))
+    except ValueError:
+        return _err("page/page_size deben ser numéricos")
+    if page < 1 or page_size < 1:
+        return _err("page/page_size deben ser mayores a 0")
+
+    resultado = lic_repo.list_oportunidades(
+        no_cia, estado, solo_abiertas,
+        solo_santo_domingo=solo_santo_domingo, page=page, page_size=page_size,
+    )
     return JsonResponse({
-        "oportunidades": lic_repo.list_oportunidades(no_cia, estado, solo_abiertas)
+        "oportunidades": resultado["oportunidades"],
+        "total": resultado["total"],
+        "page": page,
+        "page_size": page_size,
     })
+
+
+@login_required
+@require_http_methods(["GET"])
+def oportunidad_detail_view(request, oportunidad_id: int):
+    """Trae UNA oportunidad por id, sin el filtro de Santo Domingo/Distrito
+    Nacional ni paginación que sí aplica ``oportunidades_view`` (la lista) --
+    la página de detalle debe poder abrir cualquier oportunidad ya conocida."""
+    oportunidad = lic_repo.get_oportunidad_completa(oportunidad_id)
+    if not oportunidad:
+        return _err("Oportunidad no encontrada", status=404)
+    return JsonResponse({"oportunidad": oportunidad})
 
 
 @login_required

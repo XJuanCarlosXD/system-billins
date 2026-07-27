@@ -107,6 +107,58 @@ def test_upsert_oportunidad_insert_binds_match_placeholders(mock_client):
     assert set(params.keys()) == _bind_names(sql)
 
 
+def test_list_oportunidades_retorna_total_y_oportunidades(mock_client):
+    mock_client.fetch_dicts.side_effect = [
+        [{"total": 3}],
+        [{"id": 1, "documentos_faltantes": None}],
+    ]
+    resultado = lic_repo.list_oportunidades("01")
+    assert resultado["total"] == 3
+    assert resultado["oportunidades"] == [{"id": 1, "documentos_faltantes": []}]
+
+
+def test_list_oportunidades_sin_page_size_no_pagina(mock_client):
+    mock_client.fetch_dicts.side_effect = [[{"total": 0}], []]
+    lic_repo.list_oportunidades("01")
+    sql_conteo, params_conteo = mock_client.fetch_dicts.call_args_list[0][0]
+    sql_filas, params_filas = mock_client.fetch_dicts.call_args_list[1][0]
+    assert "ROWNUM" not in sql_filas
+    assert set(params_conteo.keys()) == _bind_names(sql_conteo)
+    assert set(params_filas.keys()) == _bind_names(sql_filas)
+
+
+def test_list_oportunidades_con_page_size_pagina_con_rownum(mock_client):
+    """Oracle 11g (BD real, verificado en vivo el 2026-07-27) no soporta
+    OFFSET/FETCH -- se pagina con el patrón clásico de ROWNUM anidado."""
+    mock_client.fetch_dicts.side_effect = [[{"total": 50}], []]
+    lic_repo.list_oportunidades("01", page=3, page_size=20)
+    sql_filas, params_filas = mock_client.fetch_dicts.call_args_list[1][0]
+    assert "ROWNUM <= :fila_hasta" in sql_filas
+    assert "rnum > :fila_desde" in sql_filas
+    assert params_filas["fila_hasta"] == 60
+    assert params_filas["fila_desde"] == 40
+    assert set(params_filas.keys()) == _bind_names(sql_filas)
+
+
+def test_list_oportunidades_solo_santo_domingo_agrega_filtro_lugar(mock_client):
+    mock_client.fetch_dicts.side_effect = [[{"total": 0}], []]
+    lic_repo.list_oportunidades("01", solo_santo_domingo=True)
+    sql_conteo = mock_client.fetch_dicts.call_args_list[0][0][0]
+    sql_filas = mock_client.fetch_dicts.call_args_list[1][0][0]
+    assert "UPPER(lugar_entrega) LIKE '%SANTO DOMINGO%'" in sql_conteo
+    assert "UPPER(lugar_entrega) LIKE '%SANTO DOMINGO%'" in sql_filas
+    assert "DISTRITO NACIONAL" in sql_filas
+
+
+def test_list_oportunidades_sin_solo_santo_domingo_no_agrega_filtro(mock_client):
+    # "lugar_entrega" SI aparece en el SELECT (columna siempre traida) -- lo que no
+    # debe aparecer es el filtro LIKE cuando solo_santo_domingo=False (default).
+    mock_client.fetch_dicts.side_effect = [[{"total": 0}], []]
+    lic_repo.list_oportunidades("01", solo_santo_domingo=False)
+    sql_filas = mock_client.fetch_dicts.call_args_list[1][0][0]
+    assert "UPPER(lugar_entrega) LIKE" not in sql_filas
+
+
 def test_upsert_oportunidad_update_binds_match_placeholders(mock_client):
     """Regresion ORA-01036: idem para la rama UPDATE, que es la que
     realmente fallaba (el dict compartido traia no_cia/referencia, que el

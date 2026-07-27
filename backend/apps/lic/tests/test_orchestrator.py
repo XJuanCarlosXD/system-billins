@@ -17,7 +17,7 @@ def test_ejecutar_scrape_marks_job_completado_when_no_errors():
         repo.get_credencial_con_password.return_value = credencial
         crypto.decrypt.return_value = "plain-password"
         repo.upsert_oportunidad.return_value = (1, True)
-        repo.list_oportunidades.return_value = []  # backfill de Busqueda avanzada: no-op
+        repo.list_oportunidades.return_value = {"oportunidades": [], "total": 0}  # backfill de Busqueda avanzada: no-op
         scraper_instance = MagicMock()
         scraper_instance.buscar_avanzada.return_value = []
         scraper_instance.list_oportunidades.return_value = [
@@ -106,7 +106,7 @@ def test_ejecutar_scrape_does_not_download_documents_for_existing_oportunidad_co
         crypto.decrypt.return_value = "plain-password"
         repo.upsert_oportunidad.return_value = (1, False)  # ya existía
         repo.tiene_documentos.return_value = True  # y ya tiene documentos guardados
-        repo.list_oportunidades.return_value = []  # backfill de Busqueda avanzada: no-op
+        repo.list_oportunidades.return_value = {"oportunidades": [], "total": 0}  # backfill de Busqueda avanzada: no-op
         scraper_instance = MagicMock()
         scraper_instance.list_oportunidades.return_value = [
             {"referencia": "REF-1", "titulo": "algo"}
@@ -136,7 +136,7 @@ def test_ejecutar_scrape_retries_documents_for_previously_seen_oportunidad_witho
         crypto.decrypt.return_value = "plain-password"
         repo.upsert_oportunidad.return_value = (1, False)  # ya vista antes
         repo.tiene_documentos.return_value = False  # pero sin documentos guardados
-        repo.list_oportunidades.return_value = []  # backfill de Busqueda avanzada: no-op
+        repo.list_oportunidades.return_value = {"oportunidades": [], "total": 0}  # backfill de Busqueda avanzada: no-op
         scraper_instance = MagicMock()
         scraper_instance.list_oportunidades.return_value = [
             {"referencia": "REF-1", "titulo": "algo"}
@@ -169,7 +169,7 @@ def test_ejecutar_scrape_continues_when_document_download_fails():
         repo.get_credencial_con_password.return_value = credencial
         crypto.decrypt.return_value = "plain-password"
         repo.upsert_oportunidad.return_value = (1, True)
-        repo.list_oportunidades.return_value = []  # backfill de Busqueda avanzada: no-op
+        repo.list_oportunidades.return_value = {"oportunidades": [], "total": 0}  # backfill de Busqueda avanzada: no-op
         scraper_instance = MagicMock()
         scraper_instance.list_oportunidades.return_value = [
             {"referencia": "REF-1", "titulo": "algo"}
@@ -208,7 +208,7 @@ def test_ejecutar_scrape_uses_placeholder_and_mensaje_error_for_failed_document_
         repo.get_credencial_con_password.return_value = credencial
         crypto.decrypt.return_value = "plain-password"
         repo.upsert_oportunidad.return_value = (1, True)
-        repo.list_oportunidades.return_value = []  # backfill de Busqueda avanzada: no-op
+        repo.list_oportunidades.return_value = {"oportunidades": [], "total": 0}  # backfill de Busqueda avanzada: no-op
         scraper_instance = MagicMock()
         scraper_instance.list_oportunidades.return_value = [
             {"referencia": "REF-1", "titulo": "algo"}
@@ -253,7 +253,7 @@ def test_ejecutar_scrape_continues_when_guardar_documento_fails_for_one_document
         crypto.decrypt.return_value = "plain-password"
         repo.upsert_oportunidad.return_value = (1, True)
         repo.guardar_documento.side_effect = [RuntimeError("ORA-12899"), None]
-        repo.list_oportunidades.return_value = []  # backfill de Busqueda avanzada: no-op
+        repo.list_oportunidades.return_value = {"oportunidades": [], "total": 0}  # backfill de Busqueda avanzada: no-op
         scraper_instance = MagicMock()
         scraper_instance.list_oportunidades.return_value = [
             {"referencia": "REF-1", "titulo": "algo"}
@@ -296,7 +296,7 @@ def test_ejecutar_scrape_descubre_via_busqueda_avanzada_antes_del_login_por_empr
         crypto.decrypt.return_value = "plain-password"
         repo.upsert_oportunidad.return_value = (1, True)
         repo.tiene_documentos.return_value = True  # ya tiene documentos, no reintenta descarga
-        repo.list_oportunidades.return_value = []  # backfill de Busqueda avanzada: no-op
+        repo.list_oportunidades.return_value = {"oportunidades": [], "total": 0}  # backfill de Busqueda avanzada: no-op
         scraper_instance = MagicMock()
         scraper_instance.buscar_avanzada.return_value = [
             {"referencia": "PUB-1", "entidad": "Ministerio X", "titulo": "algo",
@@ -355,7 +355,7 @@ def test_ejecutar_scrape_guarda_productos_extraidos_por_el_scraper():
         repo.get_credencial_con_password.return_value = credencial
         crypto.decrypt.return_value = "plain-password"
         repo.upsert_oportunidad.return_value = (1, True)
-        repo.list_oportunidades.return_value = []  # backfill de Busqueda avanzada: no-op
+        repo.list_oportunidades.return_value = {"oportunidades": [], "total": 0}  # backfill de Busqueda avanzada: no-op
         scraper_instance = MagicMock()
         scraper_instance.buscar_avanzada.return_value = []
         scraper_instance.list_oportunidades.return_value = [{"referencia": "REF-1", "titulo": "algo"}]
@@ -388,9 +388,10 @@ def test_ejecutar_scrape_backfill_descarga_y_analiza_oportunidades_de_busqueda_a
         crypto.decrypt.return_value = "plain-password"
         repo.upsert_oportunidad.return_value = (1, True)
         repo.tiene_documentos.return_value = False
-        repo.list_oportunidades.return_value = [
-            {"id": 42, "referencia": "PUB-1", "titulo": "algo"},
-        ]
+        repo.list_oportunidades.return_value = {
+            "oportunidades": [{"id": 42, "referencia": "PUB-1", "titulo": "algo"}],
+            "total": 1,
+        }
         scraper_instance = MagicMock()
         scraper_instance.buscar_avanzada.return_value = []
         scraper_instance.list_oportunidades.return_value = []  # nada en el feed personalizado
@@ -425,10 +426,13 @@ def test_ejecutar_scrape_backfill_respeta_el_tope_por_corrida():
         repo.get_credencial_con_password.return_value = credencial
         crypto.decrypt.return_value = "plain-password"
         repo.tiene_documentos.return_value = False
-        repo.list_oportunidades.return_value = [
+        oportunidades_backlog = [
             {"id": i, "referencia": f"PUB-{i}", "titulo": "algo"}
             for i in range(BACKFILL_BUSQUEDA_AVANZADA_LIMITE + 10)
         ]
+        repo.list_oportunidades.return_value = {
+            "oportunidades": oportunidades_backlog, "total": len(oportunidades_backlog),
+        }
         scraper_instance = MagicMock()
         scraper_instance.buscar_avanzada.return_value = []
         scraper_instance.list_oportunidades.return_value = []

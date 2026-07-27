@@ -38,7 +38,7 @@ import {
   useDocumentos,
   useGenerarResumenDocumento,
   useOfertaJobStatus,
-  useOportunidades,
+  useOportunidad,
   usePrepararOferta,
   useProductos,
   useRecomendarPrecios,
@@ -68,8 +68,8 @@ const DOC_ESTADO_VARIANT: Record<'ok' | 'error', 'default' | 'destructive'> = {
 
 export function LicOportunidadDetalle({ oportunidadId }: { oportunidadId: number }) {
   const { selectedCompany } = useCompany()
-  const { data, isLoading } = useOportunidades(selectedCompany, undefined, true)
-  const oportunidad = data?.oportunidades.find((o) => o.id === oportunidadId) ?? null
+  const { data, isLoading } = useOportunidad(oportunidadId)
+  const oportunidad = data?.oportunidad ?? null
 
   if (isLoading) return <Skeleton className='h-96 w-full' />
   if (!oportunidad) {

@@ -86,6 +86,7 @@ export interface Oportunidad {
   presupuesto_estimado: string | null
   documentos_faltantes: DocumentoFaltante[] | null
   modalidad_entrega: 'fisica' | 'virtual' | 'ambas' | null
+  lugar_entrega: string | null
 }
 
 export interface Producto {
@@ -266,17 +267,33 @@ export function useSubirRubrosPdf() {
 export function useOportunidades(
   no_cia: string,
   estado?: string,
-  todas?: boolean
+  todas?: boolean,
+  page: number = 1,
+  pageSize: number = 20
 ) {
   return useQuery({
-    queryKey: ['lic-oportunidades', no_cia, estado, todas],
+    queryKey: ['lic-oportunidades', no_cia, estado, todas, page, pageSize],
     queryFn: () =>
-      licRequest<{ oportunidades: Oportunidad[] }>(
+      licRequest<{
+        oportunidades: Oportunidad[]
+        total: number
+        page: number
+        page_size: number
+      }>(
         `/lic/oportunidades/?no_cia=${encodeURIComponent(no_cia)}${
           estado ? `&estado=${encodeURIComponent(estado)}` : ''
-        }${todas ? '&todas=1' : ''}`
+        }${todas ? '&todas=1' : ''}&page=${page}&page_size=${pageSize}`
       ),
     enabled: !!no_cia,
+  })
+}
+
+export function useOportunidad(oportunidadId: number | null) {
+  return useQuery({
+    queryKey: ['lic-oportunidad', oportunidadId],
+    queryFn: () =>
+      licRequest<{ oportunidad: Oportunidad }>(`/lic/oportunidades/${oportunidadId}/`),
+    enabled: !!oportunidadId,
   })
 }
 

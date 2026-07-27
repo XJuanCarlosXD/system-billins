@@ -122,7 +122,7 @@ def _backfill_busqueda_avanzada(scraper, no_cia: str, resumen: dict) -> None:
     100% de las veces por esto mismo. El camino publico no depende de rubro
     ni de credenciales, cubre cualquier oportunidad publicada."""
     pendientes = [
-        o for o in lic_repo.list_oportunidades(no_cia, solo_abiertas=True)
+        o for o in lic_repo.list_oportunidades(no_cia, solo_abiertas=True)["oportunidades"]
         if not lic_repo.tiene_documentos(o["id"])
     ][:BACKFILL_BUSQUEDA_AVANZADA_LIMITE]
 
