@@ -771,13 +771,19 @@ def rep_mayor_auxiliar(no_cia: str, punto: str, desde: str, hasta: str,
 
 
 def rep_606(no_cia: str, anio: int, mes: int, punto: str = ''):
-    """Reporte 606 - ITBIS en compras locales (Formato DGII)."""
+    """Reporte 606 - ITBIS en compras locales (Formato DGII).
+
+    Solo incluye documentos con NCF registrado: el usuario reporto que estaba
+    devolviendo tambien gastos sin NCF, y para el 606 solo aplican los que
+    tienen comprobante fiscal.
+    """
     conditions = [
         "d.no_cia=:1",
         "EXTRACT(YEAR FROM d.fecha)=:2",
         "EXTRACT(MONTH FROM d.fecha)=:3",
         # TCXP_DOCUMENTO.tipo_movi es 'D'/'C' (un caracter) — 'C' = factura/credito
         "d.tipo_movi='C'",
+        "TRIM(d.ncf) IS NOT NULL",
     ]
     params = [no_cia, anio, mes]
     if punto:
