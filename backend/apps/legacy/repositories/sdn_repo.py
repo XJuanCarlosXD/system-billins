@@ -575,6 +575,21 @@ def reabrir_nomina(no_cia: str, punto: str, nomina: str, usuario: str) -> dict:
     return get_nomina(no_cia, punto, nomina)
 
 
+def _fraccion_salario_periodo(cabecera: dict) -> float:
+    """Fraccion del salario mensual que corresponde a UN periodo de esta
+    nomina, segun FORMA_PAGO ('M'=Mensual, 'Q'=Quincenal, 'S'=Semanal;
+    dominio ya usado en sdn-def-nominas.tsx). Se deriva de
+    FACTOR_CALCULO_DIARIO (dias/mes que la nomina usa para su tarifa diaria,
+    tipicamente 30) para no inventar una constante nueva: Mensual = mismo
+    factor (fraccion 1, sin cambio de comportamiento), Quincenal = 15 dias,
+    Semanal = 7 dias.
+    """
+    forma_pago = (cabecera.get('forma_pago') or 'M').upper()
+    factor_diario = float(cabecera.get('factor_calculo_diario') or 30) or 30
+    dias_periodo = {'Q': 15, 'S': 7}.get(forma_pago, factor_diario)
+    return dias_periodo / factor_diario
+
+
 # ---- Volante (Pre-Nómina) ----
 def volante_nomina(no_cia: str, punto: str, nomina: str) -> dict:
     """Devuelve la pre-nómina del período actual de la nómina:
@@ -594,6 +609,16 @@ def volante_nomina(no_cia: str, punto: str, nomina: str) -> dict:
     ano = int(cabecera['ano_proceso'])
     mes = int(cabecera['mes_proceso'])
     periodo = int(cabecera.get('periodo') or 1)
+    # El salario base por periodo depende de FORMA_PAGO (M/Q/S, ya elegido al
+    # crear la nomina en sdn-def-nominas.tsx): un periodo Quincenal (2 por
+    # mes) o Semanal solo corresponde a una fraccion del salario mensual, no
+    # al mes completo. Se deriva de FACTOR_CALCULO_DIARIO (dias por mes que
+    # usa la nomina para su tarifa diaria, tipicamente 30) para mantener la
+    # misma base de calculo que el resto del sistema. Antes este fallback
+    # usaba siempre el salario mensual completo, duplicando el pago cuando
+    # una nomina quincenal se procesaba en sus dos periodos (reporte
+    # 2e651537 de MPILAR: "esta calculando los dos periodos de 15 y 30").
+    fraccion_periodo = _fraccion_salario_periodo(cabecera)
 
     rows = client.fetch_dicts(
         "SELECT e.no_empleado, "
@@ -625,7 +650,7 @@ def volante_nomina(no_cia: str, punto: str, nomina: str) -> dict:
         salario = float(r.get('salario_mensual') or 0)
         ingresos = float(r.get('total_ingresos') or 0)
         deduc = float(r.get('total_deducciones') or 0)
-        bruto = ingresos if ingresos > 0 else salario
+        bruto = ingresos if ingresos > 0 else salario * fraccion_periodo
         neto = bruto - deduc
         detalle.append({
             'no_empleado': int(r['no_empleado']),
@@ -1187,6 +1212,7 @@ def rep_informe_nomina(*, no_cia: str, punto: str, nomina: str,
         params['no_depto'] = no_depto
     sql += " ORDER BY e.apellido, e.nombre"
 
+    fraccion_periodo = _fraccion_salario_periodo(cab)
     rows = client.fetch_dicts(sql, params)
     detalle = []
     tot_sal = tot_ing = tot_ded = tot_neto = 0.0
@@ -1194,7 +1220,7 @@ def rep_informe_nomina(*, no_cia: str, punto: str, nomina: str,
         sal = float(r.get('salario_mensual') or 0)
         ing = float(r.get('total_ingresos') or 0)
         ded = float(r.get('total_deducciones') or 0)
-        bruto = ing if ing > 0 else sal
+        bruto = ing if ing > 0 else sal * fraccion_periodo
         neto = bruto - ded
         tot_sal += sal; tot_ing += ing; tot_ded += ded; tot_neto += neto
         detalle.append({
