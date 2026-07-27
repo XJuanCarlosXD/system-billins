@@ -2,6 +2,7 @@ from apps.lic.services.scraper import (
     _normalizar_modalidad_entrega,
     parse_advanced_search_row_html,
     parse_productos_aviso_contrato_html,
+    parse_productos_lista_articulos_html,
 )
 
 FILA_HTML = """
@@ -104,3 +105,70 @@ def test_normalizar_modalidad_entrega_ambas():
 def test_normalizar_modalidad_entrega_desconocida_da_none():
     assert _normalizar_modalidad_entrega("") is None
     assert _normalizar_modalidad_entrega(None) is None
+
+
+# Fixture basado en el HTML real capturado en vivo el 2026-07-27 contra
+# HMDAG-DAF-CD-2026-0122 (modal PUBLICO de Detalle, sección "Cuestionario" ->
+# "Lista de artículos"), simplificado sin los ids/atributos irrelevantes.
+CONTENEDOR_LISTA_ARTICULOS_HTML = """
+<table id="fdsQuestionnaireFieldset_tblDetails">
+  <tr class="FltTr QuestionnaireLine DivisionLine">
+    <td class="FltRootContentTd"><span class="VortalSpan">Cuestionario</span></td>
+  </tr>
+  <tr class="FltTr QuestionnaireLine QuestionLine ComplexQuestionLine">
+    <td class="MainLineContentCell"><span class="VortalSpan">Lista de artículos</span></td>
+  </tr>
+  <tr class="PriceListLineRow" id="BILTtl-622344625">
+    <td class="PriceListLineCellTop PriceListLineTablePriceCell">
+      <span data-prop="ClnPT">120,000.00</span>
+    </td>
+  </tr>
+  <tr class="PriceListLineRow" id="BILItm-DO1_BILN_349960187">
+    <td class="PriceListLineCellTop PriceListLineTableCodeCell">
+      <span data-prop="ItmCd">1</span>
+    </td>
+    <td class="PriceListLineCellTop PriceListLineTableCodeCell">
+      <span id="incQuestionnaireDO1_BILN_349960187_CategoryCode_LookupText_fullMessage">14111703 - Toallas de papel</span>
+    </td>
+    <td class="PriceListLineCellTop PriceListLineTableCodeCell">2.3.3.2.01</td>
+    <td class="PriceListLineCellTop PriceListLineTableDescriptionCell">
+      <span data-prop="Desc">PAPEL TUALLA</span>
+    </td>
+    <td class="PriceListLineCellTop PriceListLineTableQuantityCell">
+      <span data-prop="Qtd">40</span>
+    </td>
+    <td class="PriceListLineCellTop PriceListLineTableQuantityCell">
+      <span class="VortalSpan">PAQ</span>
+    </td>
+    <td class="PriceListLineCellTop PriceListLineTablePriceCell">
+      <span data-prop="ClnP">3,000</span>
+    </td>
+    <td class="PriceListLineCellTop PriceListLineTablePriceCell">
+      <span data-prop="ClnPT">120,000.00</span>
+    </td>
+  </tr>
+</table>
+"""
+
+
+def test_parse_productos_lista_articulos_html_extrae_el_renglon_real():
+    productos = parse_productos_lista_articulos_html(CONTENEDOR_LISTA_ARTICULOS_HTML)
+    assert productos == [
+        {
+            "descripcion": "PAPEL TUALLA",
+            "cantidad": "40",
+            "unidad": "PAQ",
+            "precio_unitario_estimado": "3,000",
+            "precio_total_estimado": "120,000.00",
+            "categoria_unspsc": "14111703 - Toallas de papel",
+        }
+    ]
+
+
+def test_parse_productos_lista_articulos_html_ignora_fila_de_subtotal():
+    productos = parse_productos_lista_articulos_html(CONTENEDOR_LISTA_ARTICULOS_HTML)
+    assert len(productos) == 1
+
+
+def test_parse_productos_lista_articulos_html_sin_filas_da_lista_vacia():
+    assert parse_productos_lista_articulos_html("<table id='fdsQuestionnaireFieldset_tblDetails'></table>") == []

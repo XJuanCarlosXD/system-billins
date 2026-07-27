@@ -179,6 +179,52 @@ def parse_productos_aviso_contrato_html(tabla_html: str) -> list[dict]:
     return productos
 
 
+def parse_productos_lista_articulos_html(contenedor_html: str) -> list[dict]:
+    """Parsea los renglones de producto/servicio de la sección "Cuestionario" ->
+    "Lista de artículos" del modal PUBLICO de Detalle (Búsqueda avanzada) --
+    dato estructurado que el portal ya expone directamente, por eso se
+    extrae por código y NO con IA.
+
+    Verificado en vivo el 2026-07-27 contra HMDAG-DAF-CD-2026-0122 (1 renglón,
+    "PAPEL TUALLA") e ITLA-CCC-PEPU-2026-0006 (1 renglón, "Derechos de paso...")
+    con Playwright manual, página por página: los productos NO están en una
+    tabla separada de "items" (de ahí que búsquedas automatizadas por id
+    ["Item", "Product", "LineItem"] no encontraran nada) sino anidados dentro
+    del widget FlatTree del cuestionario (contenedor con id estático
+    "fdsQuestionnaireFieldset_tblDetails"). Cada renglón de producto real es
+    un <tr class="PriceListLineRow"> que SÍ trae un <span data-prop="Desc">;
+    el renglón de subtotal (id "BILTtl-...", misma clase) nunca lo trae, por
+    eso se usa como filtro en vez de una clase/id distintos."""
+    soup = BeautifulSoup(contenedor_html, "html.parser")
+    productos = []
+    for fila in soup.select("tr.PriceListLineRow"):
+        desc_el = fila.select_one("span[data-prop='Desc']")
+        if desc_el is None:
+            continue
+        cant_el = fila.select_one("span[data-prop='Qtd']")
+        precio_unit_el = fila.select_one("span[data-prop='ClnP']")
+        precio_total_el = fila.select_one("span[data-prop='ClnPT']")
+        # La clase "PriceListLineTableQuantityCell" se repite en 2 columnas
+        # (Cantidad y Unidad) -- la segunda ocurrencia es la de Unidad, que no
+        # trae su propio data-prop, solo un span.VortalSpan con el texto.
+        celdas_cantidad = fila.select("td.PriceListLineTableQuantityCell")
+        unidad = None
+        if len(celdas_cantidad) >= 2:
+            unidad_span = celdas_cantidad[1].select_one("span.VortalSpan")
+            if unidad_span:
+                unidad = unidad_span.get_text(strip=True)
+        categoria_el = fila.select_one("[id*='CategoryCode_LookupText_fullMessage']")
+        productos.append({
+            "descripcion": desc_el.get_text(strip=True),
+            "cantidad": cant_el.get_text(strip=True) if cant_el else None,
+            "unidad": unidad,
+            "precio_unitario_estimado": precio_unit_el.get_text(strip=True) if precio_unit_el else None,
+            "precio_total_estimado": precio_total_el.get_text(strip=True) if precio_total_el else None,
+            "categoria_unspsc": categoria_el.get_text(strip=True) if categoria_el else None,
+        })
+    return productos
+
+
 def _normalizar_modalidad_entrega(texto: str | None) -> str | None:
     """Normaliza el texto libre del portal a 'fisica'|'virtual'|'ambas'|None.
 
@@ -535,13 +581,17 @@ class LicitacionesScraper:
         """Lee del modal PUBLICO de Busqueda avanzada los mismos campos que
         ``_extraer_detalle_aviso_contrato`` lee del Aviso de Contrato
         autenticado -- pero esta vista publica usa OTROS ids (verificado en
-        vivo el 2026-07-25 contra AGN-DAF-CM-2025-0038) y no expone pestañas
-        (no se pudo confirmar en vivo un equivalente publico a "Articulos y
-        Preguntas" ni al campo de modalidad de entrega): ``productos`` y
-        ``modalidad_entrega`` quedan en su valor vacío/None por ahora, sin
-        abortar el resto -- si el usuario los necesita para las oportunidades
-        que solo pasan por este camino publico, es una mejora futura acotada
-        a agregar esos dos selectores cuando se confirmen en vivo."""
+        vivo el 2026-07-25 contra AGN-DAF-CM-2025-0038).
+
+        ``productos`` se agregó el 2026-07-27 tras explorar el modal
+        manualmente con Playwright, página por página: SÍ existe en esta
+        vista pública, anidado dentro de "Cuestionario" -> "Lista de
+        artículos" (ver ``parse_productos_lista_articulos_html``), no en una
+        sección con nombre obvio como "Items"/"Products".
+
+        ``modalidad_entrega`` no se pudo confirmar en vivo un equivalente
+        público al campo de modalidad de entrega del Aviso de Contrato
+        autenticado -- queda en None por ahora, sin abortar el resto."""
         detalle: dict[str, object] = {
             "descripcion_completa": None, "unidad_requisicion": None, "presupuesto_estimado": None,
             "productos": [], "modalidad_entrega": None,
@@ -571,6 +621,14 @@ class LicitacionesScraper:
                 detalle["presupuesto_estimado"] = f"{valor} {moneda}".strip()
         except Exception:  # noqa: BLE001
             logger.warning("lic.scraper: no se pudo leer presupuesto estimado público (referencia=%s)", referencia)
+
+        try:
+            contenedor = modal_frame.locator("#fdsQuestionnaireFieldset_tblDetails").first
+            if contenedor.count() > 0:
+                html_productos = contenedor.evaluate("el => el.outerHTML")
+                detalle["productos"] = parse_productos_lista_articulos_html(html_productos)
+        except Exception:  # noqa: BLE001 - campo opcional, no debe tumbar el resto
+            logger.warning("lic.scraper: no se pudo leer productos públicos (referencia=%s)", referencia)
 
         return detalle
 
