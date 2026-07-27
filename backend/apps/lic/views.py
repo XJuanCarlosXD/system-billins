@@ -285,6 +285,27 @@ def scrape_job_view(request, job_id: int):
         job = ScrapeJob.objects.get(id=job_id)
     except ScrapeJob.DoesNotExist:
         return _err("Job no encontrado", status=404)
+    # Mismo criterio de "huérfano" que la guardia de concurrencia de scrape_view
+    # (uvicorn --reload mata el hilo real en un deploy a mitad de corrida sin que
+    # llegue a marcar estado="error"): sin esto, este endpoint devolvería
+    # "corriendo" para siempre y el polling del frontend quedaría con el spinner
+    # trabado indefinidamente en vez de mostrarle un error al usuario.
+    if job.estado == "corriendo":
+        limite = timezone.now() - timedelta(minutes=SCRAPE_JOB_STALE_MINUTES)
+        if job.iniciado_en < limite:
+            job.estado = "error"
+            job.terminado_en = timezone.now()
+            job.resumen = {
+                "oportunidades_nuevas": 0, "documentos_descargados": 0,
+                "empresas_procesadas": [], "errores": [{
+                    "no_cia": job.no_cia, "referencia": None, "contexto": "huerfano",
+                    "mensaje": (
+                        f"Job huérfano: sin avance por más de {SCRAPE_JOB_STALE_MINUTES} "
+                        "minutos (probablemente el proceso se reinició a mitad de la corrida)."
+                    ),
+                }],
+            }
+            job.save()
     return JsonResponse({
         "id": job.id,
         "estado": job.estado,
