@@ -37,17 +37,15 @@ export function CxpMovimientos() {
   const [desde, setDesde] = useState(isoFirstOfMonth())
   const [hasta, setHasta] = useState(isoToday())
 
-  const baseParams = { no_cia: noCia || '', punto: punto || '' }
-
   const { data: cuenta } = useQuery<ProvCuenta>({
     queryKey: ['cxp-cuenta', noCia, punto, noProveedor],
-    queryFn: () => api.cxpGetProveedorCuenta(noProveedor, baseParams),
+    queryFn: () => api.cxpGetProveedorCuenta(noProveedor, noCia || '', punto || ''),
     enabled: !!noCia && !!noProveedor,
   })
 
   const { data: movs = [], isLoading } = useQuery<Movimiento[]>({
     queryKey: ['cxp-movimientos', noCia, punto, noProveedor, desde, hasta],
-    queryFn: () => api.cxpListMovimientosProveedor(noProveedor, { ...baseParams, desde, hasta }),
+    queryFn: () => api.cxpListMovimientosProveedor(noProveedor, noCia || '', punto || '', desde, hasta),
     enabled: !!noCia && !!noProveedor,
   })
 

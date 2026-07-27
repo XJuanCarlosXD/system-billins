@@ -944,9 +944,21 @@ def entrada_documento(d):
     fecha         = d.get("fecha", "")
     fecha_vence   = d.get("fecha_vence", fecha)
     valor         = float(d.get("valor_original") or d.get("valor") or 0)
-    # Oracle TIPO_MOVI = 'D' (debito) / 'C' (credito); accept both long and short forms
-    _tm_raw       = d.get("tipo_movi", "C")
-    tipo_movi     = "D" if str(_tm_raw).upper() in ("D", "DEBITO", "DEBIT") else "C"
+    # TIPO_MOVI ('D'=debito / 'C'=credito) es una propiedad fija del tipo de
+    # documento (TCXP_TDOCU.TIPO_MOVI, ej. ND/AD/BD='D', FP/NC/AC='C'), NO
+    # una eleccion del usuario. El frontend de Entrada de Documentos nunca
+    # envia "tipo_movi", asi que confiar en d.get("tipo_movi","C") hacia
+    # SIEMPRE 'C' para cualquier tipo -- invisible en FP (su default real
+    # tambien es 'C') pero silenciosamente mal para ND/AD/BD ('D'), dejando
+    # esos documentos con signo de saldo invertido (ver reporte de soporte
+    # de MPILAR: Nota de Debito no aparecia como saldo a favor al aplicar).
+    _tdocu_rows = client.fetch_dicts(
+        "SELECT tipo_movi FROM CXP.TCXP_TDOCU WHERE tipo_docu=:1", [tipo_docu])
+    if _tdocu_rows:
+        tipo_movi = (_tdocu_rows[0]["tipo_movi"] or "C").upper()
+    else:
+        _tm_raw   = d.get("tipo_movi", "C")
+        tipo_movi = "D" if str(_tm_raw).upper() in ("D", "DEBITO", "DEBIT") else "C"
     # TIPO_TRANSACCION is VARCHAR2(1): 'K'=compra local, 'C'=compra exterior
     # Accept legacy '01'/'02' or short 'K'/'C' forms
     _tt = str(d.get("tipo_transaccion") or "K").strip()

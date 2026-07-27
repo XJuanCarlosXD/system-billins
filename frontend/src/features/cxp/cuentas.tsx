@@ -38,17 +38,15 @@ export function CxpCuentas() {
   const [tipoMovi, setTipoMovi] = useState('')
   const [enCero, setEnCero] = useState('N')
 
-  const baseParams = { no_cia: noCia || '', punto: punto || '' }
-
   const { data: cuenta, isLoading: loadingCuenta } = useQuery<ProvCuenta>({
     queryKey: ['cxp-cuenta', noCia, punto, noProveedor],
-    queryFn: () => api.cxpGetProveedorCuenta(noProveedor, baseParams),
+    queryFn: () => api.cxpGetProveedorCuenta(noProveedor, noCia || '', punto || ''),
     enabled: !!noCia && !!noProveedor,
   })
 
   const { data: docs = [], isLoading: loadingDocs } = useQuery<CuentaDoc[]>({
     queryKey: ['cxp-cuentas-docs', noCia, punto, noProveedor, tipoMovi, enCero],
-    queryFn: () => api.cxpListCuentasProveedor(noProveedor, { ...baseParams, tipo_movi: tipoMovi, en_cero: enCero }),
+    queryFn: () => api.cxpListCuentasProveedor(noProveedor, noCia || '', punto || '', tipoMovi, enCero),
     enabled: !!noCia && !!noProveedor,
   })
 

@@ -1214,8 +1214,10 @@ export const regalGeneralApi = {
       ncf_opcional?: string
     }>(`/cxp/proveedores/${encodeURIComponent(no)}/ncf-info/?no_cia=${noCia}&punto=${punto}`),
 
-  cxpListCuentasProveedor: (no: string, noCia: string, punto: string) =>
-    request<any[]>(`/cxp/proveedores/${encodeURIComponent(no)}/cuentas/?no_cia=${noCia}&punto=${punto}`),
+  cxpListCuentasProveedor: (no: string, noCia: string, punto: string, tipoMovi = "", enCero = "") => {
+    const qs = new URLSearchParams({ no_cia: noCia, punto, ...(tipoMovi && { tipo_movi: tipoMovi }), ...(enCero && { en_cero: enCero }) }).toString()
+    return request<any[]>(`/cxp/proveedores/${encodeURIComponent(no)}/cuentas/?${qs}`)
+  },
 
   cxpListMovimientosProveedor: (no: string, noCia: string, punto: string, desde = "", hasta = "") => {
     const qs = new URLSearchParams({ no_cia: noCia, punto, ...(desde && { desde }), ...(hasta && { hasta }) }).toString()
