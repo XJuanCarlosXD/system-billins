@@ -62,13 +62,15 @@ const today = new Date().toISOString().slice(0, 10)
 const curYear = new Date().getFullYear()
 const curMonth = new Date().getMonth() + 1
 
-// NCF DGI real = posiciones_fijas_ncf (B01-B15 o E31/E32) || LPAD(ncf,8,'0').
+// NCF DGI real: posiciones_fijas_ncf (B01-B15 o E31/E32) || LPAD(ncf).
+// B01..B15 usan 8 dígitos (total 11); e-CF (E31/E32) usan 10 (total 13).
 // CODIGO_NCF/TIPO_NCF_FISCAL son legacy y suelen venir vacíos.
+const ncfWidth = (pos: string): number => (pos.startsWith('E') ? 10 : 8)
 const ncfDgi = (doc: any): string => {
   const pos = (doc?.posiciones_fijas_ncf ?? '').toString().trim().toUpperCase()
   const n = doc?.ncf
   if (!pos || n == null || n === '') return ''
-  return pos + String(n).padStart(8, '0')
+  return pos + String(n).padStart(ncfWidth(pos), '0')
 }
 
 // ─── Selector de proveedor: input código + lupa + modal de búsqueda ──────────
@@ -419,9 +421,10 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
         setNcfInfo(r)
         if (r?.codigo_ncf && r?.prox_ncf != null) {
           // Pre-fill NCF (numero) y tipo_ncf (posiciones_fijas, p.ej. B11)
+          const _pos = (r.posiciones_fijas || '').toUpperCase()
           setForm((f) => ({
             ...f,
-            ncf: String(r.prox_ncf!).padStart(8, '0'),
+            ncf: String(r.prox_ncf!).padStart(ncfWidth(_pos), '0'),
             tipo_ncf: r.posiciones_fijas || f.tipo_ncf,
           }))
         }
@@ -590,22 +593,27 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
               <Input
                 value={form.ncf}
                 onChange={(e) => {
-                  const raw = e.target.value.replace(/[^0-9]/g, '').slice(0, 8)
+                  const _pos = (form.tipo_ncf || ncfInfo?.posiciones_fijas || '').toUpperCase()
+                  const raw = e.target.value.replace(/[^0-9]/g, '').slice(0, ncfWidth(_pos))
                   setForm((f) => ({ ...f, ncf: raw }))
                 }}
                 onBlur={() => {
+                  const _pos = (form.tipo_ncf || ncfInfo?.posiciones_fijas || '').toUpperCase()
                   const n = (form.ncf || '').replace(/[^0-9]/g, '')
-                  if (n) setForm((f) => ({ ...f, ncf: n.padStart(8, '0') }))
+                  if (n) setForm((f) => ({ ...f, ncf: n.padStart(ncfWidth(_pos), '0') }))
                 }}
                 className='h-10 font-mono flex-1'
                 placeholder={ncfInfo?.codigo_ncf ? 'auto' : 'ej. 281'}
                 inputMode='numeric'
-                maxLength={8}
+                maxLength={ncfWidth((form.tipo_ncf || ncfInfo?.posiciones_fijas || '').toUpperCase())}
               />
             </div>
             {form.ncf && (
               <div className='text-[10px] text-muted-foreground font-mono'>
-                NCF DGI: {(form.tipo_ncf || ncfInfo?.posiciones_fijas || '').toUpperCase()}{form.ncf.padStart(8, '0')}
+                {(() => {
+                  const _pos = (form.tipo_ncf || ncfInfo?.posiciones_fijas || '').toUpperCase()
+                  return `NCF DGI: ${_pos}${form.ncf.padStart(ncfWidth(_pos), '0')}`
+                })()}
               </div>
             )}
           </div>

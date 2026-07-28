@@ -5,7 +5,10 @@ from ..dtos import NCFRange, DocumentType
 
 
 def _compose_ncf_dgi(posiciones: str | None, ncf_num) -> str:
-    """Compone el NCF DGI real: prefijo (B01..B15) + LPAD(NCF, 8, '0').
+    """Compone el NCF DGI real: prefijo + LPAD(NCF).
+
+    NCF tradicional (B01..B15) usa 8 dígitos (total 11).
+    e-CF (E31/E32) usa 10 dígitos (total 13).
 
     Devuelve '' si falta cualquiera de los dos datos.
     """
@@ -16,7 +19,8 @@ def _compose_ncf_dgi(posiciones: str | None, ncf_num) -> str:
         n = 0
     if not p or n <= 0:
         return ''
-    return f"{p}{n:08d}"
+    width = 10 if p.startswith('E') else 8
+    return f"{p}{n:0{width}d}"
 
 
 # ── Tipos de Documento ───────────────────────────────────────────────────────

@@ -49,14 +49,14 @@ const fmt = (n: number) => n?.toLocaleString('es-DO', { minimumFractionDigits: 2
 const fmtDate = (s: string) => s ? s.split('-').reverse().join('/') : ''
 const PAGE = 50
 
-// NCF DGI real = prefijo posiciones_fijas_ncf (B01..B15) + LPAD(NCF, 8, '0').
-// Mostrar solo el prefijo o solo el correlativo se ve como NCF incompleto al
-// validar contra DGI.
+// NCF DGI real: prefijo + LPAD(NCF). Tradicional (B01..B15) usa 8 dígitos
+// (total 11). e-CF (E31/E32) usa 10 dígitos (total 13).
 function composeNcfDgi(prefix: string | null | undefined, ncf: number | null | undefined): string {
   const p = (prefix || '').trim().toUpperCase()
   const n = typeof ncf === 'number' ? ncf : Number(ncf)
   if (!p || !n || n <= 0) return p || (n ? String(n) : '')
-  return `${p}${String(n).padStart(8, '0')}`
+  const width = p.startsWith('E') ? 10 : 8
+  return `${p}${String(n).padStart(width, '0')}`
 }
 
 function diasVencidos(fechaVence: string): number | null {

@@ -929,10 +929,12 @@ def _check_ncf_duplicate(cur, no_cia, no_proveedor, ncf_num, pos_ncf,
         params += [exclude[0], exclude[1]]
     row = cur.execute(sql, params).fetchone()
     if row:
+        _pos_up = str(pos_ncf).upper()
+        _width  = 10 if _pos_up.startswith('E') else 8
         raise ValueError(
             "El NCF {0}{1} ya esta registrado para este proveedor "
             "(documento {2} {3}). No se permite duplicar NCF en CxP.".format(
-                str(pos_ncf).upper(), str(ncf_num).zfill(8),
+                _pos_up, str(ncf_num).zfill(_width),
                 row[0], row[1],
             )
         )

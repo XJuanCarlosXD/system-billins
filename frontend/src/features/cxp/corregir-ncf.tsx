@@ -47,12 +47,14 @@ const fmt = (n: any) =>
 
 const TIPOS_NCF = ['B01', 'B02', 'B03', 'B04', 'B11', 'B13', 'B14', 'B15', 'E31', 'E32']
 
-// NCF DGI real = posiciones_fijas_ncf || LPAD(ncf, 8, '0')
+// NCF DGI real: prefijo + LPAD(ncf). B01..B15 usan 8 dígitos (total 11);
+// e-CF (E31/E32) usan 10 dígitos (total 13).
+const ncfWidth = (pos: string): number => (pos.startsWith('E') ? 10 : 8)
 const ncfDgi = (doc: any): string => {
   const pos = (doc?.posiciones_fijas_ncf ?? '').toString().trim().toUpperCase()
   const n = doc?.ncf
   if (!pos || n == null || n === '') return ''
-  return pos + String(n).padStart(8, '0')
+  return pos + String(n).padStart(ncfWidth(pos), '0')
 }
 
 const EMPTY_FORM = {
@@ -101,7 +103,11 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
   const openEdit = (doc: any) => {
     setForm({
       tipo_ncf: (doc.posiciones_fijas_ncf || '').toString().trim().toUpperCase(),
-      ncf: doc.ncf != null && doc.ncf !== '' ? String(doc.ncf).padStart(8, '0') : '',
+      ncf: doc.ncf != null && doc.ncf !== ''
+        ? String(doc.ncf).padStart(
+            ncfWidth((doc.posiciones_fijas_ncf || '').toString().trim().toUpperCase()),
+            '0')
+        : '',
       rnc: doc.rnc || '',
       impuesto: doc.impuesto ? String(doc.impuesto) : '',
       itbis_retenido: doc.itbis_retenido ? String(doc.itbis_retenido) : '',
@@ -133,7 +139,9 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
     onSuccess: () => {
       toast.success(
         `NCF del documento ${editing.tipo_docu}-${editing.no_docu} corregido` +
-          (form.tipo_ncf && form.ncf ? ` (${form.tipo_ncf}${form.ncf.padStart(8, '0')})` : '')
+          (form.tipo_ncf && form.ncf
+            ? ` (${form.tipo_ncf}${form.ncf.padStart(ncfWidth(form.tipo_ncf), '0')})`
+            : '')
       )
       qc.invalidateQueries({ queryKey: ['cxp-corregir-ncf'] })
       setEditing(null)
@@ -299,23 +307,24 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
                   <Input
                     value={form.ncf}
                     onChange={(e) => {
-                      const raw = e.target.value.replace(/[^0-9]/g, '').slice(0, 8)
+                      const w = ncfWidth(form.tipo_ncf)
+                      const raw = e.target.value.replace(/[^0-9]/g, '').slice(0, w)
                       setForm((f) => ({ ...f, ncf: raw }))
                     }}
                     onBlur={() => {
                       const n = (form.ncf || '').replace(/[^0-9]/g, '')
-                      if (n) setForm((f) => ({ ...f, ncf: n.padStart(8, '0') }))
+                      if (n) setForm((f) => ({ ...f, ncf: n.padStart(ncfWidth(form.tipo_ncf), '0') }))
                     }}
                     className='h-10 font-mono'
                     inputMode='numeric'
-                    maxLength={8}
-                    placeholder='ej. 00000281'
+                    maxLength={ncfWidth(form.tipo_ncf)}
+                    placeholder={ncfWidth(form.tipo_ncf) === 10 ? 'ej. 0000000281' : 'ej. 00000281'}
                   />
                 </div>
               </div>
               {form.tipo_ncf && form.ncf && (
                 <div className='font-mono text-xs text-muted-foreground'>
-                  NCF DGI resultante: {form.tipo_ncf}{form.ncf.padStart(8, '0')}
+                  NCF DGI resultante: {form.tipo_ncf}{form.ncf.padStart(ncfWidth(form.tipo_ncf), '0')}
                 </div>
               )}
               <div className='grid grid-cols-2 gap-3'>
