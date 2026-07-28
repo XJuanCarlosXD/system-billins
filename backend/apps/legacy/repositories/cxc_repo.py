@@ -921,16 +921,192 @@ def save_documento(d: dict):
 
 # --- PROCESOS ----------------------------------------------------------------
 
-def reversar_documento(no_cia: str, no_docu: str, tipo_doc_rev: str = '',
+def _next_no_docu_cxc(cur, no_cia: str, punto: str, tipo_docu: str) -> str:
+    """Reserva el siguiente no_docu POR TIPO usando CXC.TCXC_SECUENCIA (mismo
+    patron que cxp_repo._next_no_docu). NO reutilizar get_next_no_doc: esa
+    calcula un maximo GLOBAL cruzando todos los tipos de documento (asi crea
+    RI/FC nuevos), no sirve para reservar la numeracion de un tipo especifico
+    como el ajuste AC/AD.
+    """
+    row = cur.execute(
+        "SELECT ult_docu FROM CXC.TCXC_SECUENCIA "
+        "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 FOR UPDATE",
+        [no_cia, punto, tipo_docu]).fetchone()
+    if row:
+        a_usar = row[0] or 1
+        cur.execute(
+            "UPDATE CXC.TCXC_SECUENCIA SET ult_docu=:1 "
+            "WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4",
+            [a_usar + 1, no_cia, punto, tipo_docu])
+    else:
+        row_max = cur.execute(
+            "SELECT NVL(MAX(TO_NUMBER(no_docu)),0) FROM CXC.TCXC_DOCUMENTO "
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 "
+            "  AND REGEXP_LIKE(no_docu, '^[0-9]+$')",
+            [no_cia, punto, tipo_docu]).fetchone()
+        a_usar = (row_max[0] if row_max else 0) + 1
+        cur.execute(
+            "INSERT INTO CXC.TCXC_SECUENCIA(no_cia,punto,tipo_docu,ult_docu) "
+            "VALUES(:1,:2,:3,:4)",
+            [no_cia, punto, tipo_docu, a_usar + 1])
+    return str(int(a_usar)).zfill(7)
+
+
+def reversar_documento(no_cia: str, no_docu: str, tipo_docu: str = '',
+                       punto: str = '01', tipo_doc_rev: str = '',
                        fecha_trans: str = '', liberar_ncf: bool = False,
                        usuario: str = ''):
+    """
+    Reversa (anula) un documento CxC y genera automaticamente el ajuste
+    contrario (AC/AD, TCXC_TDOCU.tipo_transaccion='A') que lo contrarresta
+    contablemente -- mismo patron ya probado en cxp_repo.reversar_documento.
+
+    CRITICO: no_docu NO es unico por si solo. TCXC_SECUENCIA numera POR TIPO
+    (no_cia+punto+tipo_docu), asi que el mismo numero se repite entre tipos
+    distintos en datos historicos/migrados: no_docu='0000001' existe a la vez
+    como AC, AD, FC, RI, NC, ND... para la misma compania. La version anterior
+    de esta funcion buscaba/anulaba SOLO por no_cia+no_docu, sin tipo_docu ni
+    punto en el WHERE -- podia anular el documento equivocado, o VARIOS
+    documentos de tipos distintos con el mismo numero a la vez, y nunca
+    generaba ningun ajuste contable (dejaba el reverso sin rastro contable).
+    Reportado por MPILAR: "tengo un RI que necesito reversar y no hace nada".
+
+    Si el documento reversado tiene aplicaciones registradas en
+    TCXC_REFEDOCU (ej. un RI aplicado contra facturas), se revierte tambien
+    el saldo de cada documento referenciado -- si no, las facturas seguirian
+    mostrando saldo reducido aunque el pago que las cubrio ya fue anulado.
+    """
+    if not tipo_docu:
+        raise ValueError(
+            "tipo_docu es requerido para reversar: el numero de documento "
+            "se repite entre distintos tipos, no alcanza con el numero solo.")
+    punto = punto or '01'
+    no_docu = str(no_docu).strip()
+    if no_docu.isdigit():
+        no_docu = no_docu.zfill(7)
+
+    rows = client.fetch_dicts(
+        "SELECT NVL(st_anulado,'N') AS st_anulado, no_cliente, tipo_movi, "
+        "NVL(valor_original,0) AS valor_original "
+        "FROM CXC.TCXC_DOCUMENTO "
+        "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+        [no_cia, punto, tipo_docu, no_docu])
+    if not rows:
+        raise ValueError(f"Documento {tipo_docu}-{no_docu} no encontrado")
+    doc = rows[0]
+    if doc['st_anulado'] == 'S':
+        raise ValueError("Documento ya está reversado")
+
+    monto = round(abs(float(doc['valor_original'] or 0)), 2)
+    tipo_movi_orig = (doc.get('tipo_movi') or 'D').upper()
+    # FC/ND (D, aumenta lo que debe el cliente) -> AC (C) lo cancela.
+    # RI/NC/BC/AF (C, reduce lo que debe) -> AD (D) lo cancela.
+    tipo_movi_ajuste = 'C' if tipo_movi_orig == 'D' else 'D'
+
+    ajuste = None
     with client.cursor() as cur:
+        # Revertir aplicaciones: si este documento se aplico contra otros
+        # (ej. un RI aplicado contra facturas), esos documentos recuperan el
+        # saldo que este pago/nota les habia reducido.
+        aplicaciones = cur.execute(
+            "SELECT tipo_refe, no_refe, NVL(monto,0) "
+            "FROM CXC.TCXC_REFEDOCU "
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+            [no_cia, punto, tipo_docu, no_docu]).fetchall()
+        for tipo_refe, no_refe, monto_apl in aplicaciones:
+            if not monto_apl:
+                continue
+            cur.execute(
+                "UPDATE CXC.TCXC_DOCUMENTO SET saldo=NVL(saldo,0)+:1 "
+                "WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4 AND no_docu=:5",
+                [float(monto_apl), no_cia, punto, tipo_refe, no_refe])
+
+        if monto > 0:
+            tdoc_rows = client.fetch_dicts(
+                "SELECT tipo_docu, NVL(cuenta,'') AS cuenta, "
+                "NVL(centro_costo,'0000000000') AS centro_costo "
+                "FROM CXC.TCXC_TDOCU WHERE no_cia=:1 AND tipo_transaccion='A' AND tipo_movi=:2",
+                [no_cia, tipo_movi_ajuste])
+            if not tdoc_rows:
+                raise ValueError("Falta tipo de ajuste AC/AD configurado en TCXC_TDOCU")
+            td = tdoc_rows[0]
+
+            # Cuenta CxC del cliente, misma fuente que crear_recibo_cobro.
+            cli_row = cur.execute(
+                "SELECT NVL(t.cuenta_cliente,'') "
+                "FROM CXC.TCXC_CLIENTE c "
+                "LEFT JOIN CXC.TCXC_TCONTABLE t ON t.no_cia=c.no_cia AND t.tipo_contable=c.tipo_contable "
+                "WHERE c.no_cia=:1 AND c.no_cliente=:2",
+                [no_cia, doc['no_cliente']]).fetchone()
+            cuenta_cliente = (cli_row[0] if cli_row else '') or ''
+
+            no_docu_ajuste = _next_no_docu_cxc(cur, no_cia, punto, td['tipo_docu'])
+            detalle_ajuste = (
+                f"{'AC' if tipo_movi_ajuste == 'C' else 'AD'} POR REVERSO "
+                f"{tipo_docu}-{no_docu}"
+            )[:100]
+            fecha_ajuste = fecha_trans or date.today().isoformat()
+
+            # valor_original/debito/credito repiten el mismo valor (:7): en
+            # modo thick, una lista posicional exige un valor POR OCURRENCIA
+            # de cada :N y lanza ORA-01008 si :7 aparece 3 veces con una
+            # lista de un solo elemento en esa posicion -- usar nbinds().
+            cur.execute(
+                "INSERT INTO CXC.TCXC_DOCUMENTO ("
+                " no_cia, punto, tipo_docu, no_docu, no_cliente, fecha, "
+                " valor_original, debito, credito, saldo, tipo_movi, "
+                " vendedor, tipo_transaccion, tasa_us, st_anulado, "
+                " detalle, st_generado_cnt, desde_auxiliar"
+                ") VALUES (:1,:2,:3,:4,:5,TO_DATE(:6,'YYYY-MM-DD'),"
+                " :7,:7,:7,0,:8,'0000','A',1,'N',:9,'N','N')",
+                client.nbinds(
+                    no_cia, punto, td['tipo_docu'], no_docu_ajuste, doc['no_cliente'],
+                    fecha_ajuste, monto, tipo_movi_ajuste, detalle_ajuste))
+            # Convencion confirmada contra un AD real del legado (no_docu
+            # 0000458): la linea de la cuenta del CLIENTE lleva el MISMO
+            # tipo_movi que el encabezado (asi el auxiliar del cliente/estado
+            # de cuenta refleja el signo correcto); la cuenta de ajuste
+            # (4201-01) lleva el OPUESTO, para que la partida cuadre.
+            contrario = 'D' if tipo_movi_ajuste == 'C' else 'C'
+            cur.execute(
+                "INSERT INTO CXC.TCXC_DCDOCU ("
+                " no_cia, punto, tipo_docu, no_docu, cuenta, tipo_movi, "
+                " monto, centro_costo, no_cliente"
+                ") VALUES (:1,:2,:3,:4,:5,:6,:7,:8,:9)",
+                [no_cia, punto, td['tipo_docu'], no_docu_ajuste, td['cuenta'],
+                 contrario, monto, td['centro_costo'], doc['no_cliente']])
+            if cuenta_cliente:
+                cur.execute(
+                    "INSERT INTO CXC.TCXC_DCDOCU ("
+                    " no_cia, punto, tipo_docu, no_docu, cuenta, tipo_movi, "
+                    " monto, centro_costo, no_cliente"
+                    ") VALUES (:1,:2,:3,:4,:5,:6,:7,'0000000000',:8)",
+                    [no_cia, punto, td['tipo_docu'], no_docu_ajuste, cuenta_cliente,
+                     tipo_movi_ajuste, monto, doc['no_cliente']])
+            cur.execute(
+                "INSERT INTO CXC.TCXC_REFEDOCU "
+                "(no_cia, punto, tipo_docu, no_docu, no_cliente, tipo_refe, no_refe, monto) "
+                "VALUES (:1,:2,:3,:4,:5,:6,:7,:8)",
+                [no_cia, punto, td['tipo_docu'], no_docu_ajuste, doc['no_cliente'],
+                 tipo_docu, no_docu, monto])
+            ajuste = {'tipo_docu': td['tipo_docu'], 'no_docu': no_docu_ajuste, 'monto': monto}
+
+        ncf_clear = ", ncf=NULL, posiciones_fijas_ncf=NULL" if liberar_ncf else ""
         cur.execute(
-            "UPDATE CXC.TCXC_DOCUMENTO SET st_anulado='S', detalle='ANULADO' "
-            "WHERE no_cia=:1 AND no_docu=:2",
-            [no_cia, no_docu])
+            "UPDATE CXC.TCXC_DOCUMENTO SET st_anulado='S', saldo=0, "
+            "detalle='REVERSADO', tipo_docu_r=:1, no_docu_r=:2" + ncf_clear + " "
+            "WHERE no_cia=:3 AND punto=:4 AND tipo_docu=:5 AND no_docu=:6",
+            [ajuste['tipo_docu'] if ajuste else None,
+             ajuste['no_docu'] if ajuste else None,
+             no_cia, punto, tipo_docu, no_docu])
         cur.connection.commit()
-    return no_docu
+
+    return {
+        'ok': True,
+        'no_docu': no_docu,
+        'no_doc_rev': (ajuste['no_docu'] if ajuste else no_docu),
+        'ajuste': ajuste,
+    }
 
 def get_facturas_pendientes_cliente(no_cia: str, no_cliente: str, punto: str = ''):
     """Documentos DR (facturas/débitos) con saldo > 0 del cliente, no aplicados aún

@@ -477,15 +477,23 @@ class CxcSaldosMenoresView(APIView):
 class CxcReversarView(APIView):
     def post(self, request):
         try:
-            no_doc_rev = repo.reversar_documento(
+            if not request.data.get("tipo_doc"):
+                return Response(
+                    {"error": "tipo_doc es requerido: el numero de documento "
+                              "se repite entre tipos (RI/FC/NC/...), no alcanza "
+                              "con el numero solo para identificar cual reversar."},
+                    status=400)
+            result = repo.reversar_documento(
                 request.data["no_cia"],
                 request.data["no_doc"],
-                request.data["tipo_doc_rev"],
-                request.data["fecha_trans"],
-                request.data.get("liberar_ncf", False),
-                request.user.username
+                tipo_docu=request.data["tipo_doc"],
+                punto=request.data.get("punto", "01"),
+                tipo_doc_rev=request.data.get("tipo_doc_rev", ""),
+                fecha_trans=request.data.get("fecha_trans", ""),
+                liberar_ncf=request.data.get("liberar_ncf", False),
+                usuario=request.user.username,
             )
-            return Response({"ok": True, "no_doc_rev": no_doc_rev})
+            return Response(result)
         except Exception as e:
             return Response({"error": str(e)}, status=400)
 

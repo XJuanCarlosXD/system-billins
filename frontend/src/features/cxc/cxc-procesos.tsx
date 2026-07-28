@@ -290,9 +290,9 @@ export function CxcDocumentos({ noCia, punto }: P) {
 // ─── FCXC208 Reversar Documento ───────────────────────────────────────────────
 export function CxcReversar({ noCia, punto = '01', mes = 1, ano = 2025 }: P) {
   const [tdocus, setTdocus] = useState<any[]>([])
+  const [tipoDoc, setTipoDoc] = useState('')
   const [noDoc, setNoDoc] = useState('')
   const [docInfo, setDocInfo] = useState<any>(null)
-  const [tipoDocRev, setTipoDocRev] = useState('')
   const [fechaTrans, setFechaTrans] = useState(today)
   const [liberarNcf, setLiberarNcf] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -301,25 +301,35 @@ export function CxcReversar({ noCia, punto = '01', mes = 1, ano = 2025 }: P) {
 
   useEffect(() => { regalGeneralApi.cxcListTdocu(noCia).then(setTdocus) }, [noCia])
 
+  // No. Documento en CXC NO es unico por si solo: el mismo numero se repite
+  // entre tipos de documento (RI, FC, NC, AC... comparten numeracion propia
+  // cada uno). Sin elegir el Tipo primero, "Buscar" puede traer un documento
+  // de OTRO tipo con el mismo numero -- por eso Tipo es obligatorio aqui.
   const buscarDoc = async () => {
-    setError(''); setDocInfo(null)
+    setError(''); setDocInfo(null); setSuccess('')
+    if (!tipoDoc) { setError('Seleccione el tipo de documento primero (ej. RI)'); return }
     if (!noDoc.trim()) return
     try {
-      const d = await regalGeneralApi.cxcGetDocumento(noCia, noDoc)
-      if (!d) { setError('Documento no encontrado'); return }
+      const d = await regalGeneralApi.cxcGetDocumento(noCia, noDoc, tipoDoc)
+      if (!d) { setError(`Documento ${tipoDoc}-${noDoc} no encontrado`); return }
       setDocInfo(d)
-    } catch { setError('Documento no encontrado') }
+    } catch { setError(`Documento ${tipoDoc}-${noDoc} no encontrado`) }
   }
 
   const reversar = async () => {
     setError(''); setSuccess('')
     if (!docInfo) { setError('Busque un documento primero'); return }
-    if (!tipoDocRev) { setError('Seleccione tipo de documento para reverso'); return }
     setSaving(true)
     try {
-      const r = await regalGeneralApi.cxcReversar({ no_cia: noCia, no_doc: noDoc, tipo_doc_rev: tipoDocRev, fecha_trans: fechaTrans, liberar_ncf: liberarNcf })
-      setSuccess(`Reverso creado: documento ${r.no_doc_rev}`)
-      setDocInfo(null); setNoDoc(''); setTipoDocRev('')
+      const r = await regalGeneralApi.cxcReversar({
+        no_cia: noCia, punto, no_doc: noDoc, tipo_doc: tipoDoc,
+        fecha_trans: fechaTrans, liberar_ncf: liberarNcf,
+      })
+      const ajusteTxt = r.ajuste
+        ? ` — generó ${r.ajuste.tipo_docu}-${r.ajuste.no_docu} (RD$ ${Number(r.ajuste.monto).toLocaleString('es-DO', { minimumFractionDigits: 2 })})`
+        : ''
+      setSuccess(`Documento ${tipoDoc}-${noDoc} reversado${ajusteTxt}`)
+      setDocInfo(null); setNoDoc('')
     } catch (e: any) { setError(e?.message || 'Error') } finally { setSaving(false) }
   }
 
@@ -327,15 +337,27 @@ export function CxcReversar({ noCia, punto = '01', mes = 1, ano = 2025 }: P) {
     <div className="p-6 space-y-6 max-w-2xl">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Reversar Documento</h1>
-        <p className="text-sm text-muted-foreground mt-1">Genera un documento contrario que anula el original. La operación es irreversible.</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Busca un documento activo y reviértelo (queda anulado y saldo 0). El sistema
+          genera automáticamente la Nota de Débito/Crédito de ajuste que lo contrarresta.
+          La operación es irreversible.
+        </p>
       </div>
 
       <div className="space-y-3 border rounded-lg p-4">
         <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Documento a Reversar</h2>
         <div className="flex gap-2">
+          <div className="w-56 space-y-1">
+            <Label>Tipo *</Label>
+            <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+              value={tipoDoc} onChange={e => { setTipoDoc(e.target.value); setDocInfo(null) }}>
+              <option value="">-- Seleccione --</option>
+              {tdocus.map(t => <option key={t.tipo_doc} value={t.tipo_doc}>{t.tipo_doc} — {t.descripcion}</option>)}
+            </select>
+          </div>
           <div className="flex-1 space-y-1">
             <Label>No. Documento</Label>
-            <Input value={noDoc} onChange={e => setNoDoc(e.target.value)} onKeyDown={e => e.key === 'Enter' && buscarDoc()} className="font-mono" />
+            <Input value={noDoc} onChange={e => setNoDoc(e.target.value)} onKeyDown={e => e.key === 'Enter' && buscarDoc()} className="font-mono" placeholder="ej. 4874" />
           </div>
           <div className="flex items-end">
             <Button onClick={buscarDoc} variant="secondary"><Search className="h-4 w-4 mr-1" />Buscar</Button>
@@ -348,25 +370,18 @@ export function CxcReversar({ noCia, punto = '01', mes = 1, ano = 2025 }: P) {
             <div><span className="text-muted-foreground">Valor:</span> {fmt(docInfo.valor)}</div>
             <div className="col-span-2"><span className="text-muted-foreground">Cliente:</span> {docInfo.no_cliente} — {docInfo.nombre_cliente}</div>
             <div><span className="text-muted-foreground">NCF:</span> <span className="font-mono">{docInfo.ncf || '—'}</span></div>
+            {docInfo.estado === 'R' && (
+              <div className="col-span-3 text-red-600 font-medium">Este documento ya está reversado.</div>
+            )}
           </div>
         )}
       </div>
 
       <div className="space-y-3 border rounded-lg p-4">
         <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Parámetros de Reverso</h2>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label>Reversar Con Tipo Doc.</Label>
-            <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-              value={tipoDocRev} onChange={e => setTipoDocRev(e.target.value)}>
-              <option value="">-- Seleccione --</option>
-              {tdocus.map(t => <option key={t.tipo_doc} value={t.tipo_doc}>{t.tipo_doc} — {t.descripcion}</option>)}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <Label>Fecha Transacción</Label>
-            <Input type="date" value={fechaTrans} onChange={e => setFechaTrans(e.target.value)} />
-          </div>
+        <div className="space-y-1 max-w-xs">
+          <Label>Fecha Transacción</Label>
+          <Input type="date" value={fechaTrans} onChange={e => setFechaTrans(e.target.value)} />
         </div>
         <div className="flex items-center gap-2">
           <input type="checkbox" checked={liberarNcf} onChange={e => setLiberarNcf(e.target.checked)} className="h-4 w-4" />
@@ -377,7 +392,7 @@ export function CxcReversar({ noCia, punto = '01', mes = 1, ano = 2025 }: P) {
       {error && <p className="text-sm text-red-500 bg-red-50 border border-red-200 rounded p-2">{error}</p>}
       {success && <p className="text-sm text-green-600 bg-green-50 border border-green-200 rounded p-2">{success}</p>}
 
-      <Button onClick={reversar} disabled={saving || !docInfo} className="gap-2 w-full">
+      <Button onClick={reversar} disabled={saving || !docInfo || docInfo?.estado === 'R'} className="gap-2 w-full">
         <RotateCcw className="h-4 w-4" />{saving ? 'Reversando...' : 'Reversar Documento'}
       </Button>
     </div>
