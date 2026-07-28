@@ -451,6 +451,18 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
   // valor_original en TCXP_DOCUMENTO (mismo semántico que el legado).
   const totalDocumento = Number(form.valor_bienes || 0) + Number(impuesto || 0)
 
+  // Tras registrar una Nota de Débito/Ajuste Débito (saldo a favor del
+  // proveedor), MPILAR reportó dos veces que "no trae las facturas
+  // pendientes" -- el backend si las trae (endpoint aplicar-movimientos
+  // probado con datos reales), pero ella esperaba elegir la factura
+  // afectada en el mismo momento de registrar, no en una pantalla aparte
+  // (Aplicación de Movimientos). Se integra aqui: al guardar un ND/AD se
+  // muestran de una vez las facturas pendientes del mismo proveedor para
+  // aplicar sin salir de esta pantalla.
+  const [docRecienCreado, setDocRecienCreado] = useState<{
+    tipoDocu: string; noDocu: string; proveedorNo: string; proveedorNombre: string
+  } | null>(null)
+
   const onSave = async () => {
     if (!punto) {
       toast.error('Seleccione un punto de trabajo')
@@ -483,6 +495,12 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
         ? ` — Retenido ITBIS RD$ ${Number(form.itbis_retenido || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })} / ISR RD$ ${Number(form.isr_retenido || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })}`
         : ''
       toast.success(`Documento ${res.no_docu} creado (ITBIS RD$ ${Number(impuesto || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })})${retTxt}`)
+      if (tipoDocu === 'ND' || tipoDocu === 'AD') {
+        setDocRecienCreado({
+          tipoDocu, noDocu: res.no_docu,
+          proveedorNo: proveedor.no_proveedor, proveedorNombre: proveedor.nombre,
+        })
+      }
       setProveedor(null)
       // reset preservando los defaults del catálogo
       const defRet = tiposRetencion.find((r) => r.por_defecto === 'S')
@@ -810,7 +828,146 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
           {saving ? 'Guardando…' : 'Guardar Documento'}
         </Button>
       </div>
+
+      {docRecienCreado && (
+        <AplicarDocRecienCreado
+          noCia={noCia}
+          punto={punto}
+          docInfo={docRecienCreado}
+          onDone={() => setDocRecienCreado(null)}
+        />
+      )}
     </div>
+  )
+}
+
+// Tras registrar un ND/AD, deja elegir de inmediato contra qué facturas
+// pendientes del mismo proveedor se aplica -- ver comentario en
+// CxpEntradaDocumentos.onSave. Reusa el mismo endpoint que la pantalla
+// "Aplicación de Movimientos" (aplicar-movimientos), ya probado con datos
+// reales; aquí el "saldo a favor" ya se conoce (el doc recién creado), asi
+// que se salta el paso de elegirlo.
+function AplicarDocRecienCreado({
+  noCia, punto, docInfo, onDone,
+}: {
+  noCia: string; punto: string
+  docInfo: { tipoDocu: string; noDocu: string; proveedorNo: string; proveedorNombre: string }
+  onDone: () => void
+}) {
+  const [montos, setMontos] = useState<Record<string, string>>({})
+
+  const q = useQuery({
+    queryKey: ['cxp-aplicar-movimientos', noCia, punto, docInfo.proveedorNo, docInfo.tipoDocu, docInfo.noDocu],
+    queryFn: () => api.cxpAplicarMovimientosGet({
+      no_cia: noCia, punto, no_proveedor: docInfo.proveedorNo,
+      tipo_docu: docInfo.tipoDocu, no_docu: docInfo.noDocu,
+    }),
+  })
+
+  const favor = (q.data?.a_favor || []).find(
+    (d: any) => d.tipo_docu === docInfo.tipoDocu && d.no_docu === docInfo.noDocu,
+  )
+  const pendientes = q.data?.pendientes || []
+  const disponible = favor ? Math.abs(Number(favor.saldo || 0)) : 0
+
+  const keyOf = (d: any) => `${d.tipo_docu}|${d.no_docu}`
+  const totalAplicar = useMemo(
+    () => Object.values(montos).reduce((acc, v) => acc + (Number(v) || 0), 0),
+    [montos],
+  )
+
+  const autoLlenar = (d: any) => {
+    const yaEste = Number(montos[keyOf(d)] || 0)
+    const disponibleSinEste = disponible - (totalAplicar - yaEste)
+    const monto = Math.min(Number(d.saldo || 0), Math.max(disponibleSinEste, 0))
+    setMontos((m) => ({ ...m, [keyOf(d)]: monto > 0 ? monto.toFixed(2) : '' }))
+  }
+
+  const aplicar = useMutation({
+    mutationFn: () => api.cxpAplicarMovimientos({
+      no_cia: noCia, punto, tipo_docu: docInfo.tipoDocu, no_docu: docInfo.noDocu,
+      aplicaciones: pendientes
+        .map((d: any) => ({ tipo_docu: d.tipo_docu, no_docu: d.no_docu, monto: Number(montos[keyOf(d)] || 0) }))
+        .filter((a: any) => a.monto > 0),
+    }),
+    onSuccess: (r: any) => {
+      toast.success(`${docInfo.tipoDocu}-${docInfo.noDocu} aplicado contra ${r.aplicaciones.length} factura(s).`)
+      onDone()
+    },
+    onError: (e: any) => toast.error(e?.detail?.error || e?.message || 'No se pudo aplicar'),
+  })
+
+  return (
+    <Card className='border-emerald-300'>
+      <CardHeader className='pb-2'>
+        <CardTitle className='flex items-center justify-between text-sm'>
+          <span>
+            Aplicar {docInfo.tipoDocu}-{docInfo.noDocu} contra facturas pendientes de {docInfo.proveedorNombre}
+          </span>
+          <Button variant='ghost' size='sm' onClick={onDone}>Omitir por ahora</Button>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className='space-y-3'>
+        {q.isLoading ? (
+          <p className='text-sm text-muted-foreground'>Cargando facturas pendientes…</p>
+        ) : pendientes.length === 0 ? (
+          <p className='text-sm text-muted-foreground'>
+            {docInfo.proveedorNombre} no tiene facturas pendientes (créditos con saldo, sin pago bloqueado) para aplicar ahora mismo.
+          </p>
+        ) : (
+          <>
+            <div className='flex flex-wrap items-center gap-x-4 gap-y-1 rounded border bg-muted/40 px-3 py-2 text-sm'>
+              <span>Disponible: <b className='font-mono tabular-nums'>RD$ {fmt(disponible)}</b></span>
+              <span>A aplicar: <b className='font-mono tabular-nums'>RD$ {fmt(totalAplicar)}</b></span>
+            </div>
+            <div className='overflow-x-auto rounded border'>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Factura</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead className='text-right'>Saldo</TableHead>
+                    <TableHead className='w-36 text-right'>Monto a aplicar</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pendientes.map((d: any) => (
+                    <TableRow key={keyOf(d)}>
+                      <TableCell className='font-mono'>{d.tipo_docu}-{d.no_docu}</TableCell>
+                      <TableCell>{d.fecha}</TableCell>
+                      <TableCell
+                        className='cursor-pointer text-right font-mono tabular-nums underline-offset-2 hover:underline'
+                        title='Click para aplicar el máximo posible a esta factura'
+                        onClick={() => autoLlenar(d)}
+                      >
+                        RD$ {fmt(d.saldo)}
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type='number' step='0.01' min='0' className='h-9 text-right font-mono'
+                          placeholder='0.00'
+                          value={montos[keyOf(d)] || ''}
+                          onChange={(e) => setMontos((m) => ({ ...m, [keyOf(d)]: e.target.value }))}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <div className='flex justify-end gap-2'>
+              <Button variant='outline' onClick={onDone}>Omitir por ahora</Button>
+              <Button
+                onClick={() => aplicar.mutate()}
+                disabled={totalAplicar <= 0 || totalAplicar > disponible + 0.005 || aplicar.isPending}
+              >
+                <Play className='mr-2 h-4 w-4' /> {aplicar.isPending ? 'Aplicando…' : 'Aplicar'}
+              </Button>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
