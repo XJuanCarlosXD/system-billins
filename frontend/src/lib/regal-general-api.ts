@@ -987,6 +987,15 @@ export const regalGeneralApi = {
   cxcListClientes: (noCia: string, q = '', page = 1) => request<{ items: any[]; count: number }>(`/cxc/clientes/?no_cia=${noCia}&q=${encodeURIComponent(q)}&page=${page}`),
   cxcGetCliente: (noCia: string, noCliente: string) => request<any>(`/cxc/clientes/${noCia}/${noCliente}/`),
   cxcSaveCliente: (d: any) => request<any>('/cxc/clientes/', { method: 'POST', body: JSON.stringify(d) }),
+  // Autocompletar por RNC/Cedula consultando el buscador publico de la DGII
+  // (scrape en vivo, la DGII no tiene API oficial). found=false si no esta
+  // inscrito o la DGII no respondio -- nunca bloquea el registro manual.
+  cxcRncLookup: (rnc: string) => request<{
+    found: boolean; nombre?: string; nombre_comercial?: string
+    categoria?: string; regimen_pagos?: string; estado?: string
+    actividad_economica?: string; administracion_local?: string
+    facturador_electronico?: string; rnc?: string; tipo_persona_sugerida?: string
+  }>(`/cxc/rnc-lookup/?rnc=${encodeURIComponent(rnc)}`),
   cxcDeleteCliente: (noCia: string, noCliente: string) => request<any>(`/cxc/clientes/${noCia}/${noCliente}/`, { method: 'DELETE' }),
   cxcGetClientesRuta: (noCia: string, ruta: string) => request<any[]>(`/cxc/clientes-ruta/?no_cia=${noCia}&ruta=${ruta}`),
   cxcAsignarClienteRuta: (d: any) => request<any>('/cxc/clientes-ruta/', { method: 'POST', body: JSON.stringify(d) }),

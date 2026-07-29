@@ -76,7 +76,7 @@ export function CxcClientes({ noCia, punto = '01' }: P) {
 
   const openNew = () => {
     setForm({ ...BLANK_CLIENTE, no_cia: noCia, punto })
-    setIsNew(true); setError(''); setOpen(true)
+    setIsNew(true); setError(''); setRncLookupMsg(''); setOpen(true)
   }
 
   // get_cliente devuelve las columnas reales de TCXC_CLIENTE (tipo_contable,
@@ -95,10 +95,44 @@ export function CxcClientes({ noCia, punto = '01' }: P) {
         no_cia: noCia, punto,
       })
     } catch { setForm({ ...row, no_cia: noCia, punto, contactos: [], referencias: [], referencias_banco: [] }) }
-    setIsNew(false); setError(''); setOpen(true)
+    setIsNew(false); setError(''); setRncLookupMsg(''); setOpen(true)
   }
 
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }))
+
+  // Autocompletar por RNC: la DGII no tiene API oficial, se consulta su
+  // buscador publico en vivo (scrape). Nunca bloquea el registro -- si no
+  // encuentra nada, el operador simplemente sigue llenando a mano.
+  const [buscandoRnc, setBuscandoRnc] = useState(false)
+  const [rncLookupMsg, setRncLookupMsg] = useState('')
+  const buscarPorRnc = async () => {
+    const rnc = (form.rnc || '').trim()
+    if (!rnc) { setRncLookupMsg('Escribe un RNC o cédula primero'); return }
+    setBuscandoRnc(true); setRncLookupMsg('')
+    try {
+      const r = await regalGeneralApi.cxcRncLookup(rnc)
+      if (!r.found) {
+        setRncLookupMsg('La DGII no tiene ese RNC/cédula registrado — sigue llenando a mano.')
+        return
+      }
+      setForm((f: any) => ({
+        ...f,
+        nombre_cliente: f.nombre_cliente || r.nombre || f.nombre_cliente,
+        tipo_persona: r.tipo_persona_sugerida || f.tipo_persona,
+        // Sugerencia de comprobante: persona juridica -> credito fiscal
+        // (B01/FC-001), persona fisica -> consumidor final (B02/FT-001).
+        // El operador puede cambiarlo libremente en el select de abajo
+        // (ahi tambien estan B11/B13/B14/B15 para los casos especiales).
+        codigo_ncf: f.codigo_ncf || (r.tipo_persona_sugerida === 'F' ? 'FT-001' : 'FC-001'),
+      }))
+      const estadoTxt = r.estado ? ` (estado DGII: ${r.estado})` : ''
+      setRncLookupMsg(`Encontrado: ${r.nombre}${estadoTxt}. Revisa el Tipo Contable/Cliente y el comprobante sugerido.`)
+    } catch {
+      setRncLookupMsg('No se pudo consultar la DGII ahora mismo — sigue llenando a mano.')
+    } finally {
+      setBuscandoRnc(false)
+    }
+  }
 
   const save = async () => {
     setSaving(true); setError('')
@@ -249,9 +283,17 @@ export function CxcClientes({ noCia, punto = '01' }: P) {
                   <Label>Nombre Comercial</Label>
                   <Input value={form.nombre_comercial} onChange={e => set('nombre_comercial', e.target.value)} maxLength={40} />
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1 col-span-2">
                   <Label>RNC / Cédula</Label>
-                  <Input value={form.rnc} onChange={e => set('rnc', e.target.value)} maxLength={16} />
+                  <div className="flex gap-2">
+                    <Input value={form.rnc} onChange={e => { set('rnc', e.target.value); setRncLookupMsg('') }}
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), buscarPorRnc())}
+                      maxLength={16} className="flex-1" />
+                    <Button type="button" variant="secondary" size="sm" onClick={buscarPorRnc} disabled={buscandoRnc}>
+                      <Search className="h-4 w-4 mr-1" />{buscandoRnc ? 'Buscando…' : 'Buscar en DGII'}
+                    </Button>
+                  </div>
+                  {rncLookupMsg && <p className="text-xs text-muted-foreground">{rncLookupMsg}</p>}
                 </div>
                 <div className="space-y-1">
                   <Label>Tipo Persona</Label>

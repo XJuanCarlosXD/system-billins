@@ -11,7 +11,7 @@ from .cxc_views import (
     CxcTdocuView, CxcTcliView, CxcSupervisoresView,
     CxcVendedoresView, CxcRutasView, CxcTcontableView,
     CxcCiudadesView, CxcBarriosView, CxcZonasView, CxcCadenasView,
-    CxcClientesView, CxcClienteDetailView, CxcClientesRutaView,
+    CxcClientesView, CxcClienteDetailView, CxcClientesRutaView, CxcRncLookupView,
     CxcDocumentosView, CxcDocumentoDetailView, CxcNextDocView,
     CxcReversarView, CxcPagosMasivosView, CxcLiberarCreditoView,
     CxcCorregirNcfView,
@@ -48,6 +48,7 @@ urlpatterns = [
     path('cadenas/', CxcCadenasView.as_view()),
     # Clientes
     path('clientes/', CxcClientesView.as_view()),
+    path('rnc-lookup/', CxcRncLookupView.as_view()),
     # Recibo de Cobro (flujo legado FCXC201 con aplicación a TCXC_REFEDOCU)
     # NOTA: este path DEBE ir ANTES de clientes/<no_cia>/<no_cliente>/ porque Django
     # hace first-match; si no, 234/facturas-pendientes se interpreta como (no_cia=234, no_cliente=facturas-pendientes).

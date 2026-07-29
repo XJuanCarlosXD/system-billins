@@ -291,6 +291,21 @@ class CxcClientesView(APIView):
         page = int(request.query_params.get("page", 1))
         return Response(repo.search_clientes(no_cia, q, page))
 
+
+@_auth
+class CxcRncLookupView(APIView):
+    """GET /api/cxc/rnc-lookup/?rnc=... — autocompletar datos de un cliente
+    nuevo consultando el buscador publico de la DGII. Nunca bloquea el
+    registro del cliente: si la DGII no responde o el RNC no esta
+    inscrito, devuelve found=false y el operador sigue llenando a mano."""
+    def get(self, request):
+        rnc = request.query_params.get("rnc", "")
+        from apps.legacy.repositories.dgii_rnc_lookup import consultar_rnc
+        datos = consultar_rnc(rnc)
+        if not datos:
+            return Response({"found": False})
+        return Response({"found": True, **datos})
+
     def post(self, request):
         try:
             no_cliente = repo.save_cliente(request.data)
