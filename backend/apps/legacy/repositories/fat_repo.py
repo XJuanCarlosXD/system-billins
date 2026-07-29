@@ -2390,12 +2390,32 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
         if afecta_cxc == 'S':
             fp = '4'
         cur.execute(
-            "SELECT NVL(codigo_ncf,'') FROM CXC.TCXC_CLIENTE "
+            "SELECT NVL(codigo_ncf,''), NVL(rnc,'') FROM CXC.TCXC_CLIENTE "
             "WHERE no_cia=:1 AND punto=:2 AND no_cliente=:3",
             [no_cia, punto, no_cliente])
         cli_ncf_row = cur.fetchone()
         codigo_ncf_cliente = (cli_ncf_row[0] or "").strip().upper() if cli_ncf_row else ""
-        codigo_ncf_emitir = (codigo_ncf or "").strip().upper() or codigo_ncf_cliente or codigo_ncf_doc
+        cliente_tiene_rnc = bool((cli_ncf_row[1] or "").strip()) if cli_ncf_row else False
+        codigo_ncf_emitir = (codigo_ncf or "").strip().upper() or codigo_ncf_cliente
+        if not codigo_ncf_emitir:
+            # Si el cliente no tiene CODIGO_NCF propio configurado (p.ej. se
+            # registro directo en el legado y ese campo quedo vacio), NO
+            # asumir ciegamente la serie por defecto del TIPO DE DOCUMENTO
+            # (eso daba B02/Consumo aun cuando el cliente tiene RNC y es
+            # fiscal, solo porque se facturo como FT en vez de FC). Si el
+            # cliente tiene RNC, buscar la serie B01 (Credito Fiscal) real de
+            # esta compania en vez de la del tipo de documento.
+            if cliente_tiene_rnc:
+                cur.execute(
+                    "SELECT codigo_ncf FROM CNT.TCNT_NCF "
+                    "WHERE no_localidad=:1 AND posiciones_fijas='B01' "
+                    "  AND ROWNUM=1",
+                    [no_cia])
+                b01_row = cur.fetchone()
+                if b01_row and b01_row[0]:
+                    codigo_ncf_emitir = b01_row[0].strip().upper()
+            if not codigo_ncf_emitir:
+                codigo_ncf_emitir = codigo_ncf_doc
         ncf_val = None
         tipo_ncf_fiscal = ""
         posiciones_fijas_ncf = ""

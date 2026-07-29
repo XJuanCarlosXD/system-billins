@@ -176,6 +176,13 @@ export function NuevaFactura({ noCia, punto }: Props) {
 
   // NCF derivado del cliente
   const [codigoNcfDeCliente, setCodigoNcfDeCliente] = useState<string>('')
+  // Override manual del comprobante (serie NCF): MPILAR reporto que un
+  // cliente registrado directo en el legado (por un error al registrarlo
+  // aqui) facturaba con B02 aunque tiene RNC y es fiscal, sin forma de
+  // corregirlo desde esta pantalla. El backend ahora ya infiere B01 cuando
+  // el cliente tiene RNC y no tiene codigo_ncf propio configurado, pero se
+  // deja este selector como escape manual para cualquier caso excepcional.
+  const [codigoNcfOverride, setCodigoNcfOverride] = useState<string>('')
   const [proximoNcf, setProximoNcf] = useState<ProximoNcf | null>(null)
   const [proximoNoFactura, setProximoNoFactura] = useState<number | null>(null)
 
@@ -535,24 +542,29 @@ export function NuevaFactura({ noCia, punto }: Props) {
 
   // ── Derivar tipo NCF del cliente y cargar próximo NCF ─────────
   useEffect(() => {
-    let cancelled = false
+    setCodigoNcfOverride('') // nuevo cliente -> limpiar cualquier override previo
     if (!clienteSeleccionado) {
       setCodigoNcfDeCliente('')
-      setProximoNcf(null)
       return
     }
     // El campo codigo_ncf viene en el objeto cliente (fatListClientes lo incluye)
     const codigoNcf = (clienteSeleccionado as any).codigo_ncf as
       | string
       | undefined
-    if (!codigoNcf) {
-      setCodigoNcfDeCliente('')
+    setCodigoNcfDeCliente(codigoNcf || '')
+  }, [clienteSeleccionado])
+
+  // Previsualiza el proximo NCF de la serie efectiva (override manual si el
+  // usuario eligio uno, si no la del cliente).
+  const codigoNcfEfectivo = codigoNcfOverride || codigoNcfDeCliente
+  useEffect(() => {
+    let cancelled = false
+    if (!codigoNcfEfectivo) {
       setProximoNcf(null)
       return
     }
-    setCodigoNcfDeCliente(codigoNcf)
     regalGeneralApi
-      .fatProximoNcf(noCia, codigoNcf)
+      .fatProximoNcf(noCia, codigoNcfEfectivo)
       .then((data) => {
         if (!cancelled) setProximoNcf(data)
       })
@@ -562,7 +574,7 @@ export function NuevaFactura({ noCia, punto }: Props) {
     return () => {
       cancelled = true
     }
-  }, [clienteSeleccionado, noCia])
+  }, [codigoNcfEfectivo, noCia])
 
   // ── Próximo no_factura (desde TFAT_SECUENCIA) ─────────────
   useEffect(() => {
@@ -886,7 +898,7 @@ export function NuevaFactura({ noCia, punto }: Props) {
         punto,
         tipo_factura: tipoDoc,
         no_cliente: noCliente,
-        codigo_ncf: codigoNcfDeCliente,
+        codigo_ncf: codigoNcfEfectivo,
         fecha,
         vendedor,
         forma_pago: formaPago,
@@ -1177,16 +1189,24 @@ export function NuevaFactura({ noCia, punto }: Props) {
                   </span>
                 </div>
               )}
-              {codigoNcfDeCliente && (
-                <div className='shrink-0'>
-                  <span className='block text-xs font-medium text-emerald-600'>
-                    Tipo NCF
-                  </span>
-                  <span className='font-mono font-semibold text-emerald-900'>
-                    {codigoNcfDeCliente}
-                  </span>
-                </div>
-              )}
+              <div className='shrink-0'>
+                <span className='block text-xs font-medium text-emerald-600'>
+                  Comprobante
+                </span>
+                <select
+                  className='h-7 rounded border border-emerald-300 bg-white px-1 font-mono text-sm font-semibold text-emerald-900'
+                  value={codigoNcfOverride || codigoNcfDeCliente}
+                  onChange={(e) => setCodigoNcfOverride(e.target.value)}
+                  title='Comprobante fiscal a emitir. Por defecto el del cliente; se puede cambiar para este documento.'
+                >
+                  {!codigoNcfDeCliente && <option value=''>-- Por tipo documento --</option>}
+                  {ncfRanges.map((n) => (
+                    <option key={n.codigo_ncf} value={n.codigo_ncf}>
+                      {n.codigo_ncf} - {n.tipo_ncf_fiscal}
+                    </option>
+                  ))}
+                </select>
+              </div>
               {proximoNcf && (
                 <div className='shrink-0'>
                   <span className='block text-xs font-medium text-emerald-600'>

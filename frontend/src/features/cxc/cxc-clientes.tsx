@@ -79,10 +79,21 @@ export function CxcClientes({ noCia, punto = '01' }: P) {
     setIsNew(true); setError(''); setOpen(true)
   }
 
+  // get_cliente devuelve las columnas reales de TCXC_CLIENTE (tipo_contable,
+  // tipo_cliente, no_cadena); el formulario/Sel usan los alias cortos
+  // (tipo_conta, tipo_cli, cadena) que save_cliente tambien acepta -- sin
+  // este mapeo, al editar un cliente existente esos 3 selects se ven vacios
+  // aunque el dato si este guardado.
   const openEdit = async (row: any) => {
     try {
       const detail = await regalGeneralApi.cxcGetCliente(noCia, row.no_cliente)
-      setForm({ ...detail, no_cia: noCia, punto })
+      setForm({
+        ...detail,
+        tipo_cli: detail.tipo_cliente ?? detail.tipo_cli,
+        tipo_conta: detail.tipo_contable ?? detail.tipo_conta,
+        cadena: detail.no_cadena ?? detail.cadena,
+        no_cia: noCia, punto,
+      })
     } catch { setForm({ ...row, no_cia: noCia, punto, contactos: [], referencias: [], referencias_banco: [] }) }
     setIsNew(false); setError(''); setOpen(true)
   }
@@ -252,11 +263,11 @@ export function CxcClientes({ noCia, punto = '01' }: P) {
                 </div>
                 <div className="space-y-1">
                   <Label>Tipo de Cliente *</Label>
-                  <Sel field="tipo_cli" opts={tclis} valKey="tipo_cli" />
+                  <Sel field="tipo_cli" opts={tclis} valKey="tipo_cliente" />
                 </div>
                 <div className="space-y-1">
                   <Label>Tipo Contable *</Label>
-                  <Sel field="tipo_conta" opts={tcontables} valKey="tipo_conta" />
+                  <Sel field="tipo_conta" opts={tcontables} valKey="tipo_contable" />
                 </div>
                 <div className="space-y-1">
                   <Label>NCF del Cliente</Label>
@@ -318,7 +329,7 @@ export function CxcClientes({ noCia, punto = '01' }: P) {
                 </div>
                 <div className="space-y-1">
                   <Label>Cadena</Label>
-                  <Sel field="cadena" opts={cadenas} valKey="cadena" labelKey="nombre" />
+                  <Sel field="cadena" opts={cadenas} valKey="no_cadena" />
                 </div>
                 <div className="space-y-1">
                   <Label>Vendedor</Label>

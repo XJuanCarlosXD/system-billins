@@ -488,6 +488,11 @@ def save_cliente(d: dict):
         errores.append("Debe seleccionar el Tipo Contable")
     if not tipo_cliente:
         errores.append("Debe seleccionar el Tipo de Cliente")
+    # TIPO_CONTABLE/TIPO_CLIENTE son VARCHAR2(2) — sin este check, un mal
+    # armado del select en el frontend (enviar la descripcion en vez del
+    # codigo) revienta como ORA-12899 crudo en vez de un mensaje claro.
+    _check_len(errores, "Tipo Contable", tipo_contable, 2)
+    _check_len(errores, "Tipo de Cliente", tipo_cliente, 2)
     _check_len(errores, "Nombre", nombre, 40)
     _check_len(errores, "Cédula", d.get('cedula', ''), 12)
     _check_len(errores, "RNC / Cédula", d.get('rnc', ''), 16)
@@ -523,9 +528,16 @@ def save_cliente(d: dict):
     with client.cursor() as cur:
         is_new = not d.get('no_cliente')
         if is_new:
+            # FOR UPDATE: sin esto, dos usuarios registrando un cliente al
+            # mismo tiempo pueden leer el mismo prox_cliente antes de que
+            # cualquiera de los dos incremente, y el segundo INSERT choca
+            # con ORA-00001 (PK duplicada) -- se ve como "el sistema no me
+            # dejo registrar el cliente" sin explicacion clara. Mismo patron
+            # ya usado para no_docu en cxp_repo._next_no_docu y
+            # cxc_repo._next_no_docu_cxc.
             row = cur.execute(
                 "SELECT NVL(prox_cliente,1) FROM CXC.TCXC_PUNTO "
-                "WHERE no_cia=:1 AND punto=:2", [no_cia, punto]).fetchone()
+                "WHERE no_cia=:1 AND punto=:2 FOR UPDATE", [no_cia, punto]).fetchone()
             next_num = row[0] if row else 1
             d['no_cliente'] = str(next_num).zfill(6)
             cur.execute(
