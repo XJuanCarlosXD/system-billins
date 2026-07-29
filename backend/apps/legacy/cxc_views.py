@@ -291,6 +291,13 @@ class CxcClientesView(APIView):
         page = int(request.query_params.get("page", 1))
         return Response(repo.search_clientes(no_cia, q, page))
 
+    def post(self, request):
+        try:
+            no_cliente = repo.save_cliente(request.data)
+            return Response({"ok": True, "no_cliente": no_cliente})
+        except Exception as e:
+            return Response({"error": str(e)}, status=400)
+
 
 @_auth
 class CxcRncLookupView(APIView):
@@ -305,13 +312,6 @@ class CxcRncLookupView(APIView):
         if not datos:
             return Response({"found": False})
         return Response({"found": True, **datos})
-
-    def post(self, request):
-        try:
-            no_cliente = repo.save_cliente(request.data)
-            return Response({"ok": True, "no_cliente": no_cliente})
-        except Exception as e:
-            return Response({"error": str(e)}, status=400)
 
 
 @_auth
