@@ -439,7 +439,15 @@ def get_cliente(no_cia: str, no_cliente: str, punto: str = ''):
         filters.append("c.punto=:3")
         params.append(punto)
     rows = client.fetch_dicts(
-        "SELECT c.*, NVL(c.debitos,0)-NVL(c.creditos,0) saldo_actual "
+        "SELECT c.*, NVL(c.debitos,0)-NVL(c.creditos,0) saldo_actual, "
+        # El formulario de edicion usa los alias cortos (nombre_cliente, tipo_conta,
+        # tipo_cli, ruta, cadena, dias_credito, email, celular) que search_clientes ya
+        # devuelve -- sin estos mismos alias aqui, "c.*" trae los nombres reales de
+        # columna (nombre, tipo_contable, tipo_cliente, ruta_entrega, no_cadena, plazo,
+        # email1, telefono2) y esos campos se ven vacios al abrir "Editar Cliente".
+        "c.nombre nombre_cliente, c.tipo_contable tipo_conta, c.tipo_cliente tipo_cli, "
+        "c.ruta_entrega ruta, c.no_cadena cadena, NVL(c.plazo,0) dias_credito, "
+        "c.email1 email, c.telefono2 celular "
         f"FROM CXC.TCXC_CLIENTE c WHERE {' AND '.join(filters)}",
         params)
     if not rows:

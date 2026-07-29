@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { ApiError, regalGeneralApi } from '@/lib/regal-general-api'
 import { useToast } from '@/hooks/use-toast'
@@ -63,6 +63,8 @@ interface CondicionPago {
 interface NcfInfo {
   codigo_ncf: string
   tipo_ncf_fiscal: string
+  posiciones_fijas?: string
+  descripcion?: string
   prox_ncf: number
   ncf_final: number
   ncf_inicial: number
@@ -193,6 +195,29 @@ export function NuevaFactura({ noCia, punto }: Props) {
   const [noCliente, setNoCliente] = useState('')
   const [direccion, setDireccion] = useState('')
   const [rnc, setRnc] = useState('')
+  // Regla DGI: Credito Fiscal (B01), Regimenes Especiales (B14) y Gubernamental
+  // (B15) exigen RNC/Cedula del comprador; Consumo (B02) es para cuando no lo
+  // hay. El selector de comprobante solo debe ofrecer estos 4 tipos, y filtrados
+  // segun si el documento tiene RNC, para que el operador no pueda emitir un
+  // B01/B14/B15 sin RNC ni un B02 con RNC.
+  const ncfRangesFiltrados = useMemo(() => {
+    const tiposConRnc = ['B01', 'B14', 'B15']
+    const tiposSinRnc = ['B02']
+    const permitidos = rnc.trim() ? tiposConRnc : tiposSinRnc
+    return ncfRanges.filter((n) =>
+      permitidos.includes((n.posiciones_fijas || n.tipo_ncf_fiscal || '').toUpperCase())
+    )
+  }, [ncfRanges, rnc])
+  // Si el comprobante actual (del cliente o el override) deja de ser valido
+  // porque el RNC se agrego/quito, saltar al primer comprobante permitido en
+  // vez de dejar el select mostrando una opcion que ya no esta en la lista.
+  useEffect(() => {
+    const efectivo = codigoNcfOverride || codigoNcfDeCliente
+    const sigueSiendoValido = ncfRangesFiltrados.some((n) => n.codigo_ncf === efectivo)
+    if (!sigueSiendoValido && ncfRangesFiltrados.length > 0) {
+      setCodigoNcfOverride(ncfRangesFiltrados[0].codigo_ncf)
+    }
+  }, [ncfRangesFiltrados, codigoNcfDeCliente])
   // Nombre/RNC de ESTE documento, editables: clientes genericos compartidos
   // (ej. 142 CONSUMIDOR FINAL) se usan para ventas a terceros reales que
   // necesitan su propio nombre/RNC en la factura -- nunca modifica el
@@ -1217,12 +1242,13 @@ export function NuevaFactura({ noCia, punto }: Props) {
                   className='h-7 rounded border border-emerald-300 bg-white px-1 font-mono text-sm font-semibold text-emerald-900'
                   value={codigoNcfOverride || codigoNcfDeCliente}
                   onChange={(e) => setCodigoNcfOverride(e.target.value)}
-                  title='Comprobante fiscal a emitir. Por defecto el del cliente; se puede cambiar para este documento.'
+                  title='Comprobante fiscal a emitir. Con RNC solo Credito Fiscal (B01), Regimenes Especiales (B14) o Gubernamental (B15); sin RNC solo Consumo (B02).'
                 >
                   {!codigoNcfDeCliente && <option value=''>-- Por tipo documento --</option>}
-                  {ncfRanges.map((n) => (
+                  {ncfRangesFiltrados.map((n) => (
                     <option key={n.codigo_ncf} value={n.codigo_ncf}>
-                      {n.codigo_ncf} - {n.tipo_ncf_fiscal}
+                      {n.codigo_ncf} - {n.posiciones_fijas || n.tipo_ncf_fiscal}
+                      {n.descripcion ? ` - ${n.descripcion}` : ''}
                     </option>
                   ))}
                 </select>
