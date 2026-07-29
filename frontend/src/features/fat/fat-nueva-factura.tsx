@@ -1100,10 +1100,16 @@ export function NuevaFactura({ noCia, punto }: Props) {
         {/* NCF info card */}
         {ncfInfo && (
           <div
-            className={`flex flex-wrap items-center gap-6 rounded-md border p-3 text-sm ${ncfInfo.critical ? 'border-red-300 bg-red-50' : ncfInfo.low_stock ? 'border-yellow-300 bg-yellow-50' : 'border-blue-200 bg-blue-50'}`}
+            className={`flex flex-wrap items-center gap-6 rounded-md border p-3 text-sm ${
+              ncfInfo.critical
+                ? 'border-red-300 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100'
+                : ncfInfo.low_stock
+                  ? 'border-yellow-300 bg-yellow-50 text-yellow-900 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-100'
+                  : 'border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-100'
+            }`}
           >
             <div>
-              <span className='mb-0.5 block text-xs font-medium text-gray-500 uppercase'>
+              <span className='mb-0.5 block text-xs font-medium text-gray-500 uppercase dark:text-gray-400'>
                 NCF Proximo
               </span>
               <span className='font-mono text-xl font-bold tracking-widest'>
@@ -1111,7 +1117,7 @@ export function NuevaFactura({ noCia, punto }: Props) {
               </span>
             </div>
             <div>
-              <span className='mb-0.5 block text-xs font-medium text-gray-500 uppercase'>
+              <span className='mb-0.5 block text-xs font-medium text-gray-500 uppercase dark:text-gray-400'>
                 Serie
               </span>
               <span className='font-mono font-semibold'>
@@ -1119,13 +1125,13 @@ export function NuevaFactura({ noCia, punto }: Props) {
               </span>
             </div>
             <div>
-              <span className='mb-0.5 block text-xs font-medium text-gray-500 uppercase'>
+              <span className='mb-0.5 block text-xs font-medium text-gray-500 uppercase dark:text-gray-400'>
                 Tipo Fiscal
               </span>
               <span>{ncfInfo.posiciones_fijas || ncfInfo.tipo_ncf_fiscal || '—'}</span>
             </div>
             <div>
-              <span className='mb-0.5 block text-xs font-medium text-gray-500 uppercase'>
+              <span className='mb-0.5 block text-xs font-medium text-gray-500 uppercase dark:text-gray-400'>
                 Disponibles
               </span>
               <div className='flex items-center gap-2'>
