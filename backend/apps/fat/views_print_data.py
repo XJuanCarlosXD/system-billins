@@ -189,10 +189,13 @@ def fat_factura_print_data(request, tipo: str, no_factura: str):
         'porc_impuesto': factura.get('porc_impuesto') or 0,
     }
 
+    # nombre_cliente_factura/rnc_factura: override por documento (ej. venta
+    # a un tercero facturada bajo el cliente generico "Consumidor Final").
+    # Si no se capturo ninguno, cae al nombre/RNC del cliente como siempre.
     cliente = {
         'no': factura.get('no_cliente'),
-        'nombre': (factura.get('nombre_cliente') or cliente_row.get('nombre') or '').strip() or '(sin nombre)',
-        'rnc': (cliente_row.get('rnc') or '').strip(),
+        'nombre': (factura.get('nombre_cliente_factura') or factura.get('nombre_cliente') or cliente_row.get('nombre') or '').strip() or '(sin nombre)',
+        'rnc': (factura.get('rnc_factura') or cliente_row.get('rnc') or '').strip(),
         'direccion': (cliente_row.get('direccion') or '').strip(),
         'telefono': (cliente_row.get('telefono') or '').strip(),
         'email': (cliente_row.get('email') or '').strip(),

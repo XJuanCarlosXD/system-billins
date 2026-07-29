@@ -1731,7 +1731,8 @@ def list_facturas(no_cia: str, punto: str, page: int = 1, page_size: int = 30,
 def get_factura(no_cia: str, punto: str, tipo_factura: str, no_factura: str) -> dict | None:
     rows = client.fetch_dicts(
         "SELECT f.no_cia, f.punto, f.tipo_factura, f.no_factura, f.no_cliente, "
-        "c.nombre AS nombre_cliente, f.fecha, f.vendedor, "
+        "c.nombre AS nombre_cliente, f.nombre_cliente_factura, f.rnc_factura, "
+        "f.fecha, f.vendedor, "
         "f.total_linea, f.descuento, f.impuesto, f.total_neto, f.propina, "
         "f.estado, f.ncf, f.posiciones_fijas_ncf, f.codigo_ncf, f.tipo_ncf_fiscal, "
         "f.plazo_pago, NVL(tp.descripcion, f.forma_pago_fat) AS forma_pago, f.no_condicion_pago, "
@@ -1763,6 +1764,8 @@ def get_factura(no_cia: str, punto: str, tipo_factura: str, no_factura: str) -> 
         'no_cia': r['no_cia'], 'punto': r['punto'], 'tipo_factura': r['tipo_factura'] or '',
         'no_factura': r['no_factura'] or '', 'no_cliente': int(r['no_cliente'] or 0),
         'nombre_cliente': (r['nombre_cliente'] or '').strip(),
+        'nombre_cliente_factura': (r['nombre_cliente_factura'] or '').strip(),
+        'rnc_factura': (r['rnc_factura'] or '').strip(),
         'fecha': str(r['fecha'])[:10] if r['fecha'] else None, 'vendedor': r['vendedor'] or '',
         'total_linea': float(r['total_linea'] or 0), 'descuento': float(r['descuento'] or 0),
         'impuesto': float(r['impuesto'] or 0), 'total_neto': float(r['total_neto'] or 0),
@@ -2355,7 +2358,16 @@ def list_empaques_producto(no_produ: str) -> list[dict]:
 def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
                    forma_pago, no_lista, nota, lineas, usuario,
                    codigo_ncf: str = "", detalle: str = "",
-                   valor_recibido: float = 0.0):
+                   valor_recibido: float = 0.0,
+                   nombre_cliente_factura: str = "", rnc_factura: str = ""):
+    # Override por documento del nombre/RNC del cliente -- necesario para
+    # clientes genericos compartidos (ej. 142 CONSUMIDOR FINAL, RNC
+    # generico) donde cada venta puede ser a una persona/empresa real
+    # distinta. NUNCA modifica el maestro TCXC_CLIENTE, solo esta factura
+    # puntual (impresion/consulta la usan si esta presente, si no cae al
+    # nombre/RNC del cliente como siempre). Reportado por MPILAR.
+    nombre_cliente_factura = (nombre_cliente_factura or "").strip()[:40] or None
+    rnc_factura = (rnc_factura or "").strip()[:16] or None
     tf = tipo_factura.strip().upper()
     fp = forma_pago.strip().upper() if forma_pago else ""
     detalle_s = str(detalle or '').strip()
@@ -2528,7 +2540,7 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
             "usuario,nota,no_formulario,tipo_transaccion,"
             "tasa_us,porc_impuesto,no_condicion_pago,tipo_moneda,"
             "propina,plazo_pago,afecta_cxc,forma_pago_fat,fecha_sysdate,detalle,"
-            "valor_recibido,valor_devuelto"
+            "valor_recibido,valor_devuelto,nombre_cliente_factura,rnc_factura"
             ") VALUES("
             ":1,:2,:3,:4,:5,TO_DATE(:6,'YYYY-MM-DD'),:7,"
             ":8,:9,:10,:11,'A',"
@@ -2537,13 +2549,14 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
             ":16,:17,:18,:19,"
             "57.5,18,'','RD',"
             "0,0,:20,:21,SYSDATE,:22,"
-            ":23,:24"
+            ":23,:24,:25,:26"
             ")",
             [no_cia, punto, tf, new_no_factura, no_cliente, fecha, vendedor,
              total_linea, total_descuento, total_impuesto, total_neto,
              ncf_val, codigo_ncf_emitir, tipo_ncf_fiscal, posiciones_fijas_ncf,
              usuario, nota, str(prox_formulario), tipo_transaccion,
-             afecta_cxc, fp, detalle_s, valor_recibido, valor_devuelto])
+             afecta_cxc, fp, detalle_s, valor_recibido, valor_devuelto,
+             nombre_cliente_factura, rnc_factura])
         for lin in lineas_calc:
             cur.execute(
                 "INSERT INTO FAT.TFAT_FACTURAL("

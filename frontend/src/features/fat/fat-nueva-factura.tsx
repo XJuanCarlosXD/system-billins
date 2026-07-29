@@ -193,6 +193,11 @@ export function NuevaFactura({ noCia, punto }: Props) {
   const [noCliente, setNoCliente] = useState('')
   const [direccion, setDireccion] = useState('')
   const [rnc, setRnc] = useState('')
+  // Nombre/RNC de ESTE documento, editables: clientes genericos compartidos
+  // (ej. 142 CONSUMIDOR FINAL) se usan para ventas a terceros reales que
+  // necesitan su propio nombre/RNC en la factura -- nunca modifica el
+  // maestro del cliente, solo este documento. Reportado por MPILAR.
+  const [nombreFactura, setNombreFactura] = useState('')
   const [cargandoCliente, setCargandoCliente] = useState(false)
 
   // Client search modal
@@ -292,7 +297,11 @@ export function NuevaFactura({ noCia, punto }: Props) {
           setPlazoPago(conds[0].plazo_pago)
         }
 
-        setNcfRanges(ncfRes.items || [])
+        // fatNcf devuelve { ncf_ranges, document_types, ... } -- NO
+        // ".items". Con el nombre equivocado, ncfRanges quedaba SIEMPRE
+        // vacio (bug preexistente, invisible hasta que el selector de
+        // Comprobante empezo a depender de esta lista y salio vacio).
+        setNcfRanges(ncfRes.ncf_ranges || [])
 
         const listasArr: Lista[] =
           listasRes.tipos ??
@@ -412,6 +421,7 @@ export function NuevaFactura({ noCia, punto }: Props) {
     setNoClienteInput(String(c.no_cliente))
     setDireccion(c.direccion || '')
     setRnc(c.rnc || c.cedula || '')
+    setNombreFactura(c.nombre || '')
     if (c.vendedor) setVendedor(c.vendedor)
     if (c.plazo) setPlazoPago(c.plazo)
     setClienteModalOpen(false)
@@ -501,6 +511,7 @@ export function NuevaFactura({ noCia, punto }: Props) {
     setNoClienteInput('')
     setDireccion('')
     setRnc('')
+    setNombreFactura('')
     setCodigoNcfDeCliente('')
     setProximoNcf(null)
     setTimeout(() => noClienteInputRef.current?.focus(), 50)
@@ -899,6 +910,8 @@ export function NuevaFactura({ noCia, punto }: Props) {
         tipo_factura: tipoDoc,
         no_cliente: noCliente,
         codigo_ncf: codigoNcfEfectivo,
+        nombre_cliente_factura: nombreFactura,
+        rnc_factura: rnc,
         fecha,
         vendedor,
         forma_pago: formaPago,
@@ -1163,22 +1176,29 @@ export function NuevaFactura({ noCia, punto }: Props) {
             <div className='flex flex-1 flex-wrap items-center gap-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2'>
               <div className='min-w-0'>
                 <span className='block text-xs font-medium text-emerald-600'>
-                  Nombre
+                  Nombre (de este documento)
                 </span>
-                <span className='block truncate font-semibold text-emerald-900'>
-                  {clienteSeleccionado.nombre}
-                </span>
+                <Input
+                  value={nombreFactura}
+                  onChange={(e) => setNombreFactura(e.target.value.slice(0, 40))}
+                  className='h-7 border-emerald-300 bg-white font-semibold text-emerald-900'
+                  placeholder='Nombre del cliente'
+                  title='Nombre para esta factura. Por defecto el del cliente; util para clientes genericos (ej. Consumidor Final) donde cada venta es a alguien distinto.'
+                />
               </div>
-              {rnc && (
-                <div className='shrink-0'>
-                  <span className='block text-xs font-medium text-emerald-600'>
-                    RNC / Cedula
-                  </span>
-                  <span className='font-mono text-sm text-emerald-800'>
-                    {rnc}
-                  </span>
-                </div>
-              )}
+              <div className='shrink-0'>
+                <span className='block text-xs font-medium text-emerald-600'>
+                  RNC / Cedula (de este documento)
+                </span>
+                <Input
+                  value={rnc}
+                  onChange={(e) => setRnc(e.target.value.replace(/[^0-9]/g, '').slice(0, 11))}
+                  className='h-7 w-36 border-emerald-300 bg-white font-mono text-sm text-emerald-800'
+                  placeholder='RNC/Cedula'
+                  inputMode='numeric'
+                  title='RNC/Cedula para esta factura. Por defecto el del cliente; se puede cambiar o completar para clientes genericos.'
+                />
+              </div>
               {direccion && (
                 <div className='min-w-0'>
                   <span className='block text-xs font-medium text-emerald-600'>

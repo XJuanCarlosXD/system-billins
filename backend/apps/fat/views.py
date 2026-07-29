@@ -217,7 +217,9 @@ class FatFacturasView(APIView):
                 detalle=str(detalle).strip(), lineas=lineas,
                 usuario=request.user.username,
                 codigo_ncf=str(request.data.get('codigo_ncf', '')).strip(),
-                valor_recibido=valor_recibido)
+                valor_recibido=valor_recibido,
+                nombre_cliente_factura=str(request.data.get('nombre_cliente_factura', '')).strip(),
+                rnc_factura=str(request.data.get('rnc_factura', '')).strip())
             return Response(res, status=201)
         except ValueError as e:
             return Response({'detail': str(e)}, status=400)
