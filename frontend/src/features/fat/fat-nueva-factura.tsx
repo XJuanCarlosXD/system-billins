@@ -195,15 +195,20 @@ export function NuevaFactura({ noCia, punto }: Props) {
   const [noCliente, setNoCliente] = useState('')
   const [direccion, setDireccion] = useState('')
   const [rnc, setRnc] = useState('')
+  // Nombre/RNC de este documento solo son editables para el cliente generico
+  // "142 - CONSUMIDOR FINAL" (ventas de mostrador a terceros reales que
+  // comparten ese registro). Para cualquier otro cliente real, el nombre/RNC
+  // deben ser los del maestro -- editarlos ahi emitiria el documento con
+  // datos fiscales que no coinciden con el cliente registrado.
+  const puedeEditarNombreRnc = noCliente === '142'
   // Regla DGI: Credito Fiscal (B01), Regimenes Especiales (B14) y Gubernamental
-  // (B15) exigen RNC/Cedula del comprador; Consumo (B02) es para cuando no lo
-  // hay. El selector de comprobante solo debe ofrecer estos 4 tipos, y filtrados
-  // segun si el documento tiene RNC, para que el operador no pueda emitir un
-  // B01/B14/B15 sin RNC ni un B02 con RNC.
+  // (B15) exigen RNC/Cedula del comprador, asi que solo se ofrecen cuando el
+  // documento tiene RNC. Consumo (B02) SIEMPRE se mantiene disponible: muchos
+  // clientes genericos de "consumidor final" (ej. no_cliente 142) tienen un
+  // RNC/cedula placeholder guardado en el maestro aunque su comprobante real
+  // sea B02, y ocultarlo cuando hay RNC dejaba el selector sin esa opcion.
   const ncfRangesFiltrados = useMemo(() => {
-    const tiposConRnc = ['B01', 'B14', 'B15']
-    const tiposSinRnc = ['B02']
-    const permitidos = rnc.trim() ? tiposConRnc : tiposSinRnc
+    const permitidos = rnc.trim() ? ['B01', 'B02', 'B14', 'B15'] : ['B02']
     return ncfRanges.filter((n) =>
       permitidos.includes((n.posiciones_fijas || n.tipo_ncf_fiscal || '').toUpperCase())
     )
@@ -1117,7 +1122,7 @@ export function NuevaFactura({ noCia, punto }: Props) {
               <span className='mb-0.5 block text-xs font-medium text-gray-500 uppercase'>
                 Tipo Fiscal
               </span>
-              <span>{ncfInfo.tipo_ncf_fiscal}</span>
+              <span>{ncfInfo.posiciones_fijas || ncfInfo.tipo_ncf_fiscal || '—'}</span>
             </div>
             <div>
               <span className='mb-0.5 block text-xs font-medium text-gray-500 uppercase'>
@@ -1206,9 +1211,14 @@ export function NuevaFactura({ noCia, punto }: Props) {
                 <Input
                   value={nombreFactura}
                   onChange={(e) => setNombreFactura(e.target.value.slice(0, 40))}
-                  className='h-7 border-emerald-300 bg-white font-semibold text-emerald-900'
+                  disabled={!puedeEditarNombreRnc}
+                  className='h-7 border-emerald-300 bg-white font-semibold text-emerald-900 disabled:opacity-70'
                   placeholder='Nombre del cliente'
-                  title='Nombre para esta factura. Por defecto el del cliente; util para clientes genericos (ej. Consumidor Final) donde cada venta es a alguien distinto.'
+                  title={
+                    puedeEditarNombreRnc
+                      ? 'Nombre para esta factura. Cliente generico (Consumidor Final): cada venta puede ser a alguien distinto.'
+                      : 'Nombre del cliente registrado. Solo editable para el cliente generico Consumidor Final (142).'
+                  }
                 />
               </div>
               <div className='shrink-0'>
@@ -1218,10 +1228,15 @@ export function NuevaFactura({ noCia, punto }: Props) {
                 <Input
                   value={rnc}
                   onChange={(e) => setRnc(e.target.value.replace(/[^0-9]/g, '').slice(0, 11))}
-                  className='h-7 w-36 border-emerald-300 bg-white font-mono text-sm text-emerald-800'
+                  disabled={!puedeEditarNombreRnc}
+                  className='h-7 w-36 border-emerald-300 bg-white font-mono text-sm text-emerald-800 disabled:opacity-70'
                   placeholder='RNC/Cedula'
                   inputMode='numeric'
-                  title='RNC/Cedula para esta factura. Por defecto el del cliente; se puede cambiar o completar para clientes genericos.'
+                  title={
+                    puedeEditarNombreRnc
+                      ? 'RNC/Cedula para esta factura. Cliente generico (Consumidor Final): se puede cambiar o completar por venta.'
+                      : 'RNC/Cedula del cliente registrado. Solo editable para el cliente generico Consumidor Final (142).'
+                  }
                 />
               </div>
               {direccion && (
