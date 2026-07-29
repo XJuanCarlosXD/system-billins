@@ -699,6 +699,12 @@ def list_documentos(no_cia: str, punto: str = '', tipo_doc: str = '',
     return {'items': client.fetch_dicts(sql, params), 'count': total}
 
 def get_documento(no_cia: str, no_docu: str, tipo_docu: str = '', punto: str = ''):
+    # NO_DOCU se guarda con zfill(7) (ver reversar_documento) -- sin este
+    # mismo padding aqui, buscar "9466" no encontraba el "0009466" real y
+    # Reversar Documento decia "no encontrado" aunque el documento existiera.
+    no_docu = str(no_docu).strip()
+    if no_docu.isdigit():
+        no_docu = no_docu.zfill(7)
     sql = (
         "SELECT d.no_cia, d.punto, d.tipo_docu tipo_doc, d.no_docu no_doc, "
         "d.no_cliente, d.fecha, c.nombre nombre_cliente, c.rnc, "
