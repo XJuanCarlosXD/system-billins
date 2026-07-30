@@ -211,3 +211,123 @@ def update_estado(
             )
         cur.connection.commit()
     return {"reporte_id": reporte_id, "estado": nuevo_estado}
+
+
+RUN_ESTADOS_FINALES = ("COMPLETADO", "ERROR")
+
+
+def get_run_activo() -> dict | None:
+    with client.cursor() as cur:
+        cur.execute(
+            "SELECT RUN_ID, ESTADO, SOLICITADO_POR, FECHA_SOLICITUD "
+            "FROM ABREGONZA.TREP_AGENTE_RUN "
+            "WHERE ESTADO IN ('PENDIENTE','EN_PROCESO') "
+            "ORDER BY FECHA_SOLICITUD DESC FETCH FIRST 1 ROWS ONLY"
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        cols = [c[0].lower() for c in cur.description]
+        return dict(zip(cols, row))
+
+
+def crear_run(*, usuario: str) -> dict:
+    if get_run_activo():
+        raise ValidationError("run_activo_existente")
+
+    run_id = str(uuid.uuid4())
+    with client.cursor() as cur:
+        cur.execute(
+            "INSERT INTO ABREGONZA.TREP_AGENTE_RUN "
+            "(RUN_ID, ESTADO, SOLICITADO_POR, FECHA_SOLICITUD) "
+            "VALUES (:1, 'PENDIENTE', :2, SYSDATE)",
+            [run_id, usuario],
+        )
+        cur.connection.commit()
+    return {"run_id": run_id, "estado": "PENDIENTE"}
+
+
+def get_ultimo_run() -> dict | None:
+    with client.cursor() as cur:
+        cur.execute(
+            "SELECT RUN_ID, ESTADO, SOLICITADO_POR, FECHA_SOLICITUD, "
+            "       FECHA_FIN, RESUMEN, COMMIT_SHA "
+            "FROM ABREGONZA.TREP_AGENTE_RUN "
+            "ORDER BY FECHA_SOLICITUD DESC FETCH FIRST 1 ROWS ONLY"
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        cols = [c[0].lower() for c in cur.description]
+        r = dict(zip(cols, row))
+        if hasattr(r.get("resumen"), "read"):
+            r["resumen"] = r["resumen"].read()
+        return r
+
+
+def reclamar_pendiente() -> dict | None:
+    """Marca el run PENDIENTE mas antiguo como EN_PROCESO y devuelve los
+    reportes ABIERTO. El UPDATE con WHERE ESTADO='PENDIENTE' hace el reclamo
+    atomico: si dos llamadas concurrentes lo intentan, la segunda actualiza
+    0 filas y devuelve None en vez de duplicar el trabajo.
+    """
+    with client.cursor() as cur:
+        cur.execute(
+            "SELECT RUN_ID FROM ABREGONZA.TREP_AGENTE_RUN "
+            "WHERE ESTADO = 'PENDIENTE' "
+            "ORDER BY FECHA_SOLICITUD ASC FETCH FIRST 1 ROWS ONLY"
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        run_id = row[0]
+
+        cur.execute(
+            "UPDATE ABREGONZA.TREP_AGENTE_RUN SET ESTADO = 'EN_PROCESO' "
+            "WHERE RUN_ID = :1 AND ESTADO = 'PENDIENTE'",
+            [run_id],
+        )
+        if cur.rowcount != 1:
+            cur.connection.rollback()
+            return None
+        cur.connection.commit()
+
+        # DESCRIPCION es CLOB: hay que leerlo dentro del bloque `with`,
+        # antes de que la conexion vuelva al pool (mismo gotcha que
+        # get_reporte() mas arriba en este archivo).
+        cur.execute(
+            "SELECT REPORTE_ID, MODULO, TITULO, DESCRIPCION "
+            "FROM ABREGONZA.TREP_PROBLEMA WHERE ESTADO = 'ABIERTO' "
+            "ORDER BY FECHA_CREACION ASC"
+        )
+        reportes = []
+        for reporte_id, modulo, titulo, descripcion in cur.fetchall():
+            reportes.append({
+                "reporte_id": reporte_id,
+                "modulo": modulo,
+                "titulo": titulo,
+                "descripcion": (
+                    descripcion.read() if hasattr(descripcion, "read")
+                    else (descripcion or "")
+                ),
+            })
+    return {"run_id": run_id, "reportes": reportes}
+
+
+def finalizar_run(
+    run_id: str, *, estado: str, resumen: str, commit_sha: str | None,
+) -> dict:
+    estado = (estado or "").upper()
+    if estado not in RUN_ESTADOS_FINALES:
+        raise ValidationError("estado_invalido")
+
+    with client.cursor() as cur:
+        cur.execute(
+            "UPDATE ABREGONZA.TREP_AGENTE_RUN SET ESTADO = :1, RESUMEN = :2, "
+            "COMMIT_SHA = :3, FECHA_FIN = SYSDATE WHERE RUN_ID = :4",
+            [estado, resumen or "", commit_sha, run_id],
+        )
+        if cur.rowcount != 1:
+            raise LookupError("not_found")
+        cur.connection.commit()
+    return {"run_id": run_id, "estado": estado}
