@@ -404,9 +404,17 @@ def get_proveedor_ncf_info(no_cia, punto, no_proveedor):
 
 
 def get_proveedor_cuenta(no_cia, punto, no_proveedor):
-    """Account summary for FCXP502/503 header"""
+    """Account summary for FCXP502/503 header, y cuenta/cuenta_prima por
+    defecto para el movimiento contable de Entrada de Documentos (Fcxp201):
+    TCXP_TPROVEEDOR.CUENTA/CUENTA_PRIMA/CENTRO_COSTO estan configuradas por
+    TIPO_PROVEEDOR (ej. 01=Proveedores Nacionales -> cuenta 2101-01,
+    Cuentas por Pagar), no por proveedor individual."""
     prov = client.fetch_dicts(
-        "SELECT no_proveedor, nombre, rnc, categoria, clasificacion FROM CXP.TCXP_DPROVEEDOR WHERE no_proveedor=:1",
+        "SELECT d.no_proveedor, d.nombre, d.rnc, d.categoria, d.clasificacion, "
+        "d.tipo_proveedor, d.cuenta_gasto, t.cuenta, t.cuenta_prima, t.centro_costo "
+        "FROM CXP.TCXP_DPROVEEDOR d "
+        "LEFT JOIN CXP.TCXP_TPROVEEDOR t ON t.tipo_proveedor=d.tipo_proveedor "
+        "WHERE d.no_proveedor=:1",
         [no_proveedor])
     if not prov:
         return None
@@ -423,6 +431,24 @@ def get_proveedor_cuenta(no_cia, punto, no_proveedor):
     """, [no_cia, punto, no_proveedor])
     data.update(fin[0] if fin else {})
     return data
+
+
+def get_cuenta_itbis_default(no_cia: str) -> str:
+    """Cuenta contable de ITBIS deducible/pagado mas usada historicamente
+    por esta empresa en TCXP_DCDOCU (no hay columna de config dedicada
+    para esto, a diferencia de CUENTA_ITBIS_RETENIDO/CUENTA_ISR en
+    TCNT_CIAS). Comprobado contra datos reales: 2106-02 domina en las
+    companias 01-04 (miles de lineas), la 05 usa 1304-05."""
+    row = client.fetch_one(
+        "SELECT cuenta FROM ("
+        "  SELECT dc.cuenta FROM CXP.TCXP_DCDOCU dc "
+        "  JOIN CNT.TCNT_CATALOGO c ON c.cuenta=dc.cuenta "
+        "  WHERE dc.no_cia=:1 AND UPPER(c.nombre) LIKE '%ITBIS%' "
+        "  AND UPPER(c.nombre) NOT LIKE '%RETEN%' "
+        "  GROUP BY dc.cuenta ORDER BY COUNT(*) DESC"
+        ") WHERE ROWNUM = 1",
+        [no_cia])
+    return row[0] if row else ''
 
 
 def list_cuentas_proveedor(no_cia, punto, no_proveedor, tipo_movi='', en_cero='N'):
@@ -814,6 +840,67 @@ def rep_606(no_cia: str, anio: int, mes: int, punto: str = ''):
     total_itbis = sum((r.get('itbis_facturado') or 0) for r in rows)
     return {'items': rows, 'count': len(rows),
             'total_monto': total_monto, 'total_itbis': total_itbis}
+
+
+def archivo_dgii_606(no_cia: str, anio: int, mes: int, punto: str = '') -> tuple[str, int]:
+    """Genera el contenido del archivo 606 (formato DGII, pipe-delimited) tal
+    como lo produce el legado (ver C:\\archivo_ncf\\archivo_606_*.txt).
+
+    Limitacion conocida (no resuelta, revisar con un contador antes de
+    enviar a DGII): la columna Monto Facturado en Servicios vs en Bienes
+    (campos 8/9) no tiene una fuente confiable en el esquema actual --
+    TCXP_DOCUMENTO.valor_bienes/valor_servicio existen pero
+    entrada_documento() no los llena para documentos nuevos. Se usa una
+    regla aproximada: tipo_gasto='03' (Arrendamientos) va a Servicios,
+    todo lo demas va a Bienes -- coincide con los ejemplos reales
+    revisados pero no esta garantizado para todos los casos.
+    """
+    from .fat_repo import _compose_ncf_dgi, _tipo_id_de_rnc
+    conditions = [
+        "d.no_cia=:1", "EXTRACT(YEAR FROM d.fecha)=:2", "EXTRACT(MONTH FROM d.fecha)=:3",
+        "d.tipo_movi='C'", "TRIM(d.ncf) IS NOT NULL",
+    ]
+    params: list = [no_cia, anio, mes]
+    if punto:
+        params.append(punto)
+        conditions.append('d.punto=:' + str(len(params)))
+    where = ' AND '.join(conditions)
+    rows = client.fetch_dicts(
+        "SELECT d.rnc, d.ncf, d.posiciones_fijas_ncf, d.tipo_gasto, "
+        "TO_CHAR(d.fecha,'YYYYMMDD') fecha, "
+        "NVL(d.valor_original,0) valor_original, NVL(d.impuesto,0) impuesto, "
+        "NVL(d.itbis_retenido,0) itbis_retenido, NVL(d.isr_retenido,0) isr_retenido, "
+        "d.tipo_retencion, NVL(d.isc,0) isc, NVL(d.otros_impuestos,0) otros_impuestos, "
+        "NVL(d.propina,0) propina, NVL(d.forma_pago,4) forma_pago "
+        "FROM CXP.TCXP_DOCUMENTO d WHERE " + where + " ORDER BY d.fecha, d.ncf",
+        params)
+
+    cia = client.fetch_one("SELECT rnc FROM FAT.TFAT_CIAS WHERE no_cia=:1", [no_cia])
+    rnc_empresa = (cia[0] if cia else '') or ''
+
+    lineas = []
+    for r in rows:
+        ncf_dgi = _compose_ncf_dgi(r['posiciones_fijas_ncf'], r['ncf'])
+        tipo_gasto = f"{int(r['tipo_gasto']):02d}" if str(r['tipo_gasto'] or '').isdigit() else '02'
+        es_servicio = (r['tipo_gasto'] or '').strip() == '03'
+        total = float(r['valor_original'])
+        monto_servicios = total if es_servicio else 0.0
+        monto_bienes = 0.0 if es_servicio else total
+        campos = [
+            r['rnc'] or '', _tipo_id_de_rnc(r['rnc']), tipo_gasto, ncf_dgi, '',
+            r['fecha'] or '', r['fecha'] or '',
+            f"{monto_servicios:.2f}", f"{monto_bienes:.2f}", f"{total:.2f}",
+            f"{float(r['impuesto']):.2f}", f"{float(r['itbis_retenido']):.2f}",
+            '0', '0.00', f"{float(r['impuesto']):.2f}", '0',
+            str(int(r['tipo_retencion'])) if r['tipo_retencion'] else '',
+            f"{float(r['isr_retenido']):.2f}", '0',
+            f"{float(r['isc']):.2f}", f"{float(r['otros_impuestos']):.2f}",
+            f"{float(r['propina']):.2f}", f"{int(r['forma_pago']):02d}",
+        ]
+        lineas.append('|'.join(campos))
+
+    contenido = f"606|{rnc_empresa}|{anio}{mes:02d}|{len(lineas)}\n" + '\n'.join(lineas) + ('\n' if lineas else '')
+    return contenido, len(lineas)
 
 
 def rep_607(no_cia: str, anio: int, mes: int, punto: str = ''):

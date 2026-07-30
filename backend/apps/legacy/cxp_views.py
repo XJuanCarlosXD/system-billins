@@ -159,6 +159,14 @@ def cxp_proveedor_cuenta(request, no):
 @login_required
 @csrf_exempt
 @require_http_methods(['GET'])
+def cxp_cuenta_itbis_default(request):
+    no_cia = request.GET.get('no_cia', '01')
+    return JsonResponse({'cuenta': cxp_repo.get_cuenta_itbis_default(no_cia)})
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
 def cxp_tipos_gasto(request):
     return JsonResponse(cxp_repo.list_tipos_gasto(), safe=False)
 

@@ -1202,6 +1202,9 @@ export const regalGeneralApi = {
   cxpGetProveedorCuenta: (no: string, noCia: string, punto: string) =>
     request<any>(`/cxp/proveedores/${encodeURIComponent(no)}/cuenta/?no_cia=${noCia}&punto=${punto}`),
 
+  cxpGetCuentaItbisDefault: (noCia: string) =>
+    request<{ cuenta: string }>(`/cxp/cuenta-itbis-default/?no_cia=${noCia}`),
+
   cxpListTiposGasto: () =>
     request<{ tipo_gasto: string; descripcion: string }[]>(`/cxp/tipos-gasto/`),
 

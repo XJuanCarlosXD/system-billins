@@ -73,16 +73,19 @@ const ncfDgi = (doc: any): string => {
   return pos + String(n).padStart(ncfWidth(pos), '0')
 }
 
-// Tasas estándar DGII de retención por tipo (CXP.TCXP_TIPO_RETENCION_DGII no
-// guarda el porcentaje, solo la descripción — son las tasas vigentes de Ley
-// 11-92/Norma 08-04). isr = % sobre el valor de bienes/servicios;
-// itbis = % sobre el ITBIS facturado. Son un punto de partida: el campo
-// sigue siendo editable a mano si el caso concreto usa otra tasa.
+// Tasas de retención por tipo, punto de partida editable (el campo sigue
+// siendo 100% editable a mano). Revisadas contra un caso real del legado
+// (alquiler, tipo 1: ISR 15% e ITBIS 100% retenido) y contra el promedio
+// historico en TCXP_DOCUMENTO -- el ITBIS retenido en servicios de
+// personas fisicas es tipicamente 100%, no 30% como se asumio al
+// principio. Hay variacion real caso a caso (proveedor persona fisica vs
+// juridica, umbrales, etc.) que ninguna formula fija captura del todo;
+// por eso el campo sigue siendo editable.
 const TASAS_RETENCION: Record<string, { isr: number; itbis: number }> = {
-  '1': { isr: 0.10, itbis: 0 },     // Alquileres
-  '2': { isr: 0.10, itbis: 0.30 },  // Honorarios por servicios (persona física)
-  '3': { isr: 0.10, itbis: 0 },     // Otras rentas
-  '4': { isr: 0.10, itbis: 0 },     // Otras rentas (renta presunta)
+  '1': { isr: 0.15, itbis: 1.00 },  // Alquileres (caso real verificado en el legado)
+  '2': { isr: 0.10, itbis: 1.00 },  // Honorarios por servicios (persona física)
+  '3': { isr: 0.10, itbis: 1.00 },  // Otras rentas
+  '4': { isr: 0.10, itbis: 1.00 },  // Otras rentas (renta presunta)
   '5': { isr: 0.10, itbis: 0 },     // Intereses pagados a personas jurídicas residentes
   '6': { isr: 0.10, itbis: 0 },     // Intereses pagados a personas físicas residentes
   '7': { isr: 0.05, itbis: 1.00 },  // Pagos de entidades del Estado (retiene 100% ITBIS)
@@ -492,8 +495,8 @@ function MovimientoContableGrid({
         <div className='flex gap-4 text-xs'>
           <span>Total Débito: <b className='font-mono'>{fmt(totalDebito)}</b></span>
           <span>Total Crédito: <b className='font-mono'>{fmt(totalCredito)}</b></span>
-          <span className='font-semibold text-emerald-700' title='Lo que queda pendiente de pagar al proveedor después de las retenciones; no tiene que dar cero'>
-            Neto a pagar al proveedor: <b className='font-mono'>{fmt(diferencia)}</b>
+          <span className={diferencia !== 0 ? 'font-semibold text-red-600' : 'font-semibold text-emerald-700'}>
+            Diferencia: <b className='font-mono'>{fmt(diferencia)}</b>
           </span>
         </div>
       </div>
@@ -614,11 +617,12 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
   }, [proveedor?.no_proveedor]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Trae el porcentaje de ITBIS y las cuentas contables por defecto de la
-  // empresa (TCNT_CIAS.CUENTA_ITBIS_RETENIDO / CUENTA_ISR) — el legado las
-  // usa para generar el asiento automaticamente sin que el usuario tenga
-  // que escribir nada.
+  // empresa: TCNT_CIAS.CUENTA_ITBIS_RETENIDO / CUENTA_ISR (config real por
+  // empresa) y la cuenta de ITBIS deducible mas usada historicamente
+  // (TCXP_DCDOCU no tiene columna de config para esto, se infiere).
   const [cuentaItbisRetenido, setCuentaItbisRetenido] = useState('')
   const [cuentaIsrCia, setCuentaIsrCia] = useState('')
+  const [cuentaItbisDeducible, setCuentaItbisDeducible] = useState('')
   useEffect(() => {
     if (!noCia) return
     api.cntGetCia(noCia)
@@ -629,11 +633,15 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
         setCuentaIsrCia(c?.cuenta_isr || '')
       })
       .catch(() => { /* default 18, sin cuentas de retencion */ })
+    api.cxpGetCuentaItbisDefault(noCia)
+      .then((r) => setCuentaItbisDeducible(r?.cuenta || ''))
+      .catch(() => setCuentaItbisDeducible(''))
   }, [noCia])
 
-  // Carga la cuenta contable del proveedor (TCXP_TPROVEEDOR.CUENTA según
-  // su TIPO_PROVEEDOR) para mostrarla al usuario antes de guardar.
-  const [cuentaProveedor, setCuentaProveedor] = useState<{ cuenta: string; cuenta_prima?: string; nombre?: string } | null>(null)
+  // Carga la cuenta contable del proveedor (TCXP_TPROVEEDOR.CUENTA/
+  // CUENTA_PRIMA según su TIPO_PROVEEDOR — ej. "Proveedores Nacionales"
+  // -> Cuentas por Pagar) para el movimiento contable de abajo.
+  const [cuentaProveedor, setCuentaProveedor] = useState<{ cuenta: string; cuenta_prima?: string; cuenta_gasto?: string; nombre?: string } | null>(null)
   useEffect(() => {
     if (!proveedor?.no_proveedor || !punto) { setCuentaProveedor(null); return }
     api.cxpGetProveedorCuenta(proveedor.no_proveedor, noCia, punto)
@@ -643,33 +651,38 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
 
   // Movimiento contable (TCXP_DCDOCU): en el legado esto se genera SOLO,
   // automaticamente, a medida que se llenan ITBIS/retenciones — el usuario
-  // no escribe cuentas a mano salvo que algo este mal y quiera corregirlo.
-  // Reglas (iguales al legado):
-  //  - Débito a la cuenta del proveedor (TCXP_TPROVEEDOR.CUENTA) por el
-  //    total del documento (bienes + ITBIS).
-  //  - Crédito a TCNT_CIAS.CUENTA_ITBIS_RETENIDO por el ITBIS retenido,
-  //    si lo hay.
-  //  - Crédito a TCNT_CIAS.CUENTA_ISR por el ISR retenido, si lo hay.
-  // La diferencia entre Débito y Crédito de esta grilla es lo que
-  // realmente queda pendiente de pagar al proveedor (el resto ya se
-  // retuvo) — no tiene que dar cero, ese saldo lo carga el documento en
-  // TCXP_DOCUMENTO. Si el usuario edita la grilla a mano, se deja de
-  // regenerar automáticamente.
+  // no escribe cuentas a mano salvo la cuenta de gasto (no hay forma
+  // confiable de adivinarla) o para corregir algo. Partida doble completa,
+  // verificada contra un caso real del legado (alquiler, doc FP-08616):
+  //  - Débito: cuenta de GASTO (el usuario la elige, ej. 6102-17
+  //    Arrendamientos) por el valor de bienes/servicios sin ITBIS.
+  //  - Débito: TCNT_CIAS.CUENTA_ITBIS_DEDUCIBLE (inferida) por el ITBIS
+  //    facturado completo.
+  //  - Crédito: TCXP_TPROVEEDOR.CUENTA (Cuentas por Pagar) por el NETO a
+  //    pagar = total del documento menos ITBIS/ISR retenidos.
+  //  - Crédito: TCNT_CIAS.CUENTA_ITBIS_RETENIDO por el ITBIS retenido.
+  //  - Crédito: TCNT_CIAS.CUENTA_ISR por el ISR retenido.
+  // Débito y Crédito cuadran exactamente (Diferencia = 0), igual que en
+  // Forms. Si el usuario edita la grilla a mano, se deja de regenerar.
   const [lineasContables, setLineasContables] = useState<LineaContable[]>([filaVacia()])
   const [lineasTocadas, setLineasTocadas] = useState(false)
   useEffect(() => {
     if (lineasTocadas) return
-    const total = Number(form.valor_bienes || 0) + Number(impuesto || 0)
+    const base = Number(form.valor_bienes || 0)
+    const itbisFacturado = Number(impuesto || 0)
     const itbisRet = Number(form.itbis_retenido || 0)
     const isrRet = Number(form.isr_retenido || 0)
+    const total = base + itbisFacturado
+    const netoAPagar = total - itbisRet - isrRet
     const nuevas: LineaContable[] = []
-    if (total > 0 || cuentaProveedor?.cuenta) {
-      nuevas.push({
-        cuenta: cuentaProveedor?.cuenta || '',
-        centroCosto: '',
-        debito: total > 0 ? total.toFixed(2) : '',
-        credito: '',
-      })
+    if (base > 0) {
+      nuevas.push({ cuenta: cuentaProveedor?.cuenta_gasto || '', centroCosto: '', debito: base.toFixed(2), credito: '' })
+    }
+    if (itbisFacturado > 0) {
+      nuevas.push({ cuenta: cuentaItbisDeducible, centroCosto: '', debito: itbisFacturado.toFixed(2), credito: '' })
+    }
+    if (total > 0 && cuentaProveedor?.cuenta) {
+      nuevas.push({ cuenta: cuentaProveedor.cuenta, centroCosto: '', debito: '', credito: netoAPagar.toFixed(2) })
     }
     if (itbisRet > 0) {
       nuevas.push({ cuenta: cuentaItbisRetenido, centroCosto: '', debito: '', credito: itbisRet.toFixed(2) })
@@ -678,7 +691,7 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
       nuevas.push({ cuenta: cuentaIsrCia, centroCosto: '', debito: '', credito: isrRet.toFixed(2) })
     }
     setLineasContables(nuevas.length > 0 ? nuevas : [filaVacia()])
-  }, [cuentaProveedor?.cuenta, cuentaItbisRetenido, cuentaIsrCia,
+  }, [cuentaProveedor?.cuenta, cuentaProveedor?.cuenta_gasto, cuentaItbisRetenido, cuentaIsrCia, cuentaItbisDeducible,
       form.valor_bienes, impuesto, form.itbis_retenido, form.isr_retenido, lineasTocadas])
 
   // Retención ISR/ITBIS: igual que el ITBIS principal, se sugiere

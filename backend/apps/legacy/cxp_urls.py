@@ -14,6 +14,7 @@ urlpatterns = [
     path('proveedores/', cxp_views.cxp_proveedores),
     path('proveedores/<str:no>/', cxp_views.cxp_proveedor),
     path('proveedores/<str:no>/cuenta/', cxp_views.cxp_proveedor_cuenta),
+    path('cuenta-itbis-default/', cxp_views.cxp_cuenta_itbis_default),
     path('proveedores/<str:no>/ncf-info/', cxp_views.cxp_proveedor_ncf_info),
     path('proveedores/<str:no>/cuentas/', cxp_views.cxp_cuentas_proveedor),
     path('proveedores/<str:no>/movimientos/', cxp_views.cxp_movimientos_proveedor),
