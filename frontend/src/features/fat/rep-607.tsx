@@ -10,9 +10,21 @@ interface Props { noCia: string; punto: string }
 
 type Ncf607 = {
   ncf: number; codigo_ncf: string; tipo_ncf_fiscal: string
+  posiciones_fijas_ncf: string; ncf_dgi: string
   no_factura: string; tipo_factura: string; fecha: string
   rnc: string; nombre_cliente: string
   total_neto: number; impuesto: number; total_linea: number
+}
+
+// NCF DGI real: prefijo (posiciones_fijas_ncf, ej. B01/B02/E31) + numero con
+// padding. codigo_ncf/tipo_ncf_fiscal son campos legacy casi siempre vacios
+// -- no usar para mostrar el comprobante ni el tipo al usuario.
+function ncfDgiDe(r: Ncf607): string {
+  if (r.ncf_dgi) return r.ncf_dgi
+  const p = (r.posiciones_fijas_ncf || '').trim().toUpperCase()
+  if (!p || !r.ncf) return r.ncf ? String(r.ncf) : ''
+  const width = p.startsWith('E') ? 10 : 8
+  return `${p}${String(r.ncf).padStart(width, '0')}`
 }
 
 const PAGINA_TAM = 50
@@ -53,8 +65,8 @@ export function RepNcf607({ noCia, punto }: Props) {
     const meta = await buildReportMeta(noCia, punto, periodoLabel)
     downloadCsv(
       `fat-ncf-607-${desde}-${hasta}.csv`,
-      ['NCF', 'Cod. NCF', 'Tipo NCF', 'No. Factura', 'Tipo', 'Fecha', 'RNC', 'Cliente', 'Total Neto', 'ITBIS', 'Total Línea'],
-      rows.map((r) => [r.ncf, r.codigo_ncf, r.tipo_ncf_fiscal, r.no_factura, r.tipo_factura,
+      ['NCF', 'Tipo NCF', 'No. Factura', 'Tipo', 'Fecha', 'RNC', 'Cliente', 'Total Neto', 'ITBIS', 'Total Línea'],
+      rows.map((r) => [ncfDgiDe(r), r.posiciones_fijas_ncf, r.no_factura, r.tipo_factura,
                        r.fecha, r.rnc, r.nombre_cliente,
                        Number(r.total_neto ?? 0).toFixed(2), Number(r.impuesto ?? 0).toFixed(2),
                        Number(r.total_linea ?? 0).toFixed(2)]),
@@ -81,16 +93,16 @@ export function RepNcf607({ noCia, punto }: Props) {
     <div class="hdr"><h3>${meta.empresa}</h3>
     <div class="sub">NCF Formato 607 · ${periodoLabel}</div>
     <div class="sub">Generado: ${meta.fecha}</div></div>
-    <table><thead><tr><th>NCF</th><th>Cod.</th><th>Tipo</th><th>Factura</th><th>T.Fact.</th>
+    <table><thead><tr><th>NCF</th><th>Tipo</th><th>Factura</th><th>T.Fact.</th>
     <th>Fecha</th><th>RNC</th><th>Cliente</th><th class="r">Total Neto</th><th class="r">ITBIS</th><th class="r">Total Línea</th></tr></thead>
     <tbody>${rows.map((r) => `<tr>
-    <td>${r.ncf}</td><td>${r.codigo_ncf}</td><td>${r.tipo_ncf_fiscal}</td>
+    <td>${ncfDgiDe(r)}</td><td>${r.posiciones_fijas_ncf || ''}</td>
     <td>${r.no_factura}</td><td>${r.tipo_factura}</td><td>${r.fecha}</td>
     <td>${r.rnc}</td><td>${r.nombre_cliente}</td>
     <td class="r">${Number(r.total_neto ?? 0).toFixed(2)}</td>
     <td class="r">${Number(r.impuesto ?? 0).toFixed(2)}</td>
     <td class="r">${Number(r.total_linea ?? 0).toFixed(2)}</td></tr>`).join('')}
-    <tr class="total"><td colspan="8"><b>TOTALES — ${rows.length} registros</b></td>
+    <tr class="total"><td colspan="7"><b>TOTALES — ${rows.length} registros</b></td>
     <td class="r"><b>${totalNeto.toFixed(2)}</b></td>
     <td class="r"><b>${totalItbis.toFixed(2)}</b></td>
     <td class="r"><b>${totalLinea.toFixed(2)}</b></td></tr>
@@ -135,8 +147,7 @@ export function RepNcf607({ noCia, punto }: Props) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className='w-20'>NCF</TableHead>
-            <TableHead className='w-20 text-center'>Cod. NCF</TableHead>
+            <TableHead className='w-28'>NCF</TableHead>
             <TableHead className='w-20 text-center'>Tipo NCF</TableHead>
             <TableHead className='w-24'>No. Factura</TableHead>
             <TableHead className='w-20'>Tipo</TableHead>
@@ -149,14 +160,13 @@ export function RepNcf607({ noCia, punto }: Props) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {loading && <TableRow><TableCell colSpan={11} className='py-10 text-center text-muted-foreground'>Cargando...</TableCell></TableRow>}
-          {!loading && !loaded && <TableRow><TableCell colSpan={11} className='py-10 text-center text-muted-foreground'>Seleccione el rango de fechas y presione Generar.</TableCell></TableRow>}
-          {!loading && loaded && rows.length === 0 && <TableRow><TableCell colSpan={11} className='py-10 text-center text-muted-foreground'>Sin comprobantes en este período.</TableCell></TableRow>}
+          {loading && <TableRow><TableCell colSpan={10} className='py-10 text-center text-muted-foreground'>Cargando...</TableCell></TableRow>}
+          {!loading && !loaded && <TableRow><TableCell colSpan={10} className='py-10 text-center text-muted-foreground'>Seleccione el rango de fechas y presione Generar.</TableCell></TableRow>}
+          {!loading && loaded && rows.length === 0 && <TableRow><TableCell colSpan={10} className='py-10 text-center text-muted-foreground'>Sin comprobantes en este período.</TableCell></TableRow>}
           {paginaRows.map((row, i) => (
             <TableRow key={`${row.ncf}-${i}`}>
-              <TableCell className='font-mono text-xs'>{row.ncf}</TableCell>
-              <TableCell className='text-center font-mono text-xs'>{row.codigo_ncf}</TableCell>
-              <TableCell className='text-center font-mono text-xs'>{row.tipo_ncf_fiscal}</TableCell>
+              <TableCell className='font-mono text-xs'>{ncfDgiDe(row)}</TableCell>
+              <TableCell className='text-center font-mono text-xs'>{row.posiciones_fijas_ncf || '—'}</TableCell>
               <TableCell className='font-mono text-xs'>{row.no_factura}</TableCell>
               <TableCell className='font-mono text-xs'>{row.tipo_factura}</TableCell>
               <TableCell className='text-xs'>{row.fecha}</TableCell>
@@ -169,7 +179,7 @@ export function RepNcf607({ noCia, punto }: Props) {
           ))}
           {rows.length > 0 && (
             <TableRow className='border-t-2 font-semibold bg-muted/40'>
-              <TableCell colSpan={8} className='text-right'>TOTALES ({rows.length} registros)</TableCell>
+              <TableCell colSpan={7} className='text-right'>TOTALES ({rows.length} registros)</TableCell>
               <TableCell className='text-right font-mono'>{fmtN(totalNeto)}</TableCell>
               <TableCell className='text-right font-mono'>{fmtN(totalItbis)}</TableCell>
               <TableCell className='text-right font-mono'>{fmtN(totalLinea)}</TableCell>
