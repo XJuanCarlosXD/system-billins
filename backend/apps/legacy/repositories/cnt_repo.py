@@ -23,20 +23,22 @@ def list_catalogo(search=None, tipo=None, clase=None, activa=None):
         LEFT JOIN CNT.TCNT_TCUENTA t ON t.tipo = c.tipo
         WHERE 1=1
     """
-    params = []
+    # dict de binds nombrados: ":s" se repite 2 veces en el SQL, con lista
+    # posicional el modo thick exige un valor por OCURRENCIA y lanza
+    # ORA-01008; con dict se resuelve por nombre (ver client.nbinds).
+    params: dict = {}
     if search:
         sql += " AND (UPPER(c.cuenta) LIKE UPPER(:s) OR UPPER(c.nombre) LIKE UPPER(:s))"
-        params.append(f"%{search}%")
+        params['s'] = f"%{search}%"
     if tipo is not None:
         sql += " AND c.tipo = :t"
-        params.append(tipo)
+        params['t'] = tipo
     if clase:
         sql += " AND UPPER(c.clase) = UPPER(:cl)"
-        params.append(clase)
+        params['cl'] = clase
     if activa is not None:
-        val = 'S' if activa else 'N'
         sql += " AND c.activa = :ac"
-        params.append(val)
+        params['ac'] = 'S' if activa else 'N'
     sql += " ORDER BY c.cuenta"
     return client.fetch_dicts(sql, params)
 
