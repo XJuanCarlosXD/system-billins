@@ -1165,6 +1165,28 @@ def entrada_documento(d):
                     d.get("usuario", "API"),
                 ])
 
+        # El legado nunca deja grabar un documento sin su partida doble
+        # (ver Fcxp201: no permite COMMIT si Debe<>Haber). El API se estaba
+        # usando sin este candado -- tanto la UI antigua como llamadas
+        # directas (pruebas de integracion INV->CXP, etc.) podian grabar
+        # TCXP_DOCUMENTO sin ninguna linea en TCXP_DCDOCU, dejando el
+        # documento sin movimiento contable ni rastro en 606/mayor (ver
+        # FP-0008558..0008594 y FP-0008619). Se valida aqui, no solo en el
+        # frontend, para cubrir cualquier caller presente o futuro.
+        _lineas_in = d.get("lineas", [])
+        if not _lineas_in:
+            raise ValueError(
+                "El documento debe incluir la distribucion contable "
+                "(lineas de Debito/Credito) -- no se puede grabar sin ella.")
+        _tot_deb = sum(float(l.get("monto") or 0) for l in _lineas_in
+                       if (l.get("tipo_movi") or "D").upper() == "D")
+        _tot_cre = sum(float(l.get("monto") or 0) for l in _lineas_in
+                       if (l.get("tipo_movi") or "D").upper() == "C")
+        if round(abs(_tot_deb - _tot_cre), 2) > 0.01:
+            raise ValueError(
+                "La distribucion contable no cuadra: Debito {:.2f} vs "
+                "Credito {:.2f}.".format(_tot_deb, _tot_cre))
+
         cur.execute(
             "DELETE FROM CXP.TCXP_DCDOCU "
             "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
