@@ -814,6 +814,10 @@ def rep_606(no_cia: str, anio: int, mes: int, punto: str = ''):
         "d.tipo_movi='C'",
         "TRIM(d.ncf) IS NOT NULL",
         "NVL(UPPER(d.posiciones_fijas_ncf),'') NOT IN ('B02','E32')",
+        # Un documento reversado (status='R') no representa una compra real
+        # ante la DGII -- el mismo patron usado para NCF duplicados (ver
+        # _check_ncf_duplicate) aplica aqui: no debe listarse ni exportarse.
+        "NVL(d.status,'A') <> 'R'",
     ]
     params = [no_cia, anio, mes]
     if punto:
@@ -866,6 +870,8 @@ def archivo_dgii_606(no_cia: str, anio: int, mes: int, punto: str = '') -> tuple
         # B02/E32 (Factura de Consumo) no debe aparecer como comprobante de
         # compra -- la empresa lo emite al vender, no lo recibe al comprar.
         "NVL(UPPER(d.posiciones_fijas_ncf),'') NOT IN ('B02','E32')",
+        # Reversado (status='R') = no es una compra real, no va al archivo DGII.
+        "NVL(d.status,'A') <> 'R'",
     ]
     params: list = [no_cia, anio, mes]
     if punto:
