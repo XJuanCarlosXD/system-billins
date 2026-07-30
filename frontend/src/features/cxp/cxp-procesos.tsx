@@ -73,6 +73,21 @@ const ncfDgi = (doc: any): string => {
   return pos + String(n).padStart(ncfWidth(pos), '0')
 }
 
+// Tasas estándar DGII de retención por tipo (CXP.TCXP_TIPO_RETENCION_DGII no
+// guarda el porcentaje, solo la descripción — son las tasas vigentes de Ley
+// 11-92/Norma 08-04). isr = % sobre el valor de bienes/servicios;
+// itbis = % sobre el ITBIS facturado. Son un punto de partida: el campo
+// sigue siendo editable a mano si el caso concreto usa otra tasa.
+const TASAS_RETENCION: Record<string, { isr: number; itbis: number }> = {
+  '1': { isr: 0.10, itbis: 0 },     // Alquileres
+  '2': { isr: 0.10, itbis: 0.30 },  // Honorarios por servicios (persona física)
+  '3': { isr: 0.10, itbis: 0 },     // Otras rentas
+  '4': { isr: 0.10, itbis: 0 },     // Otras rentas (renta presunta)
+  '5': { isr: 0.10, itbis: 0 },     // Intereses pagados a personas jurídicas residentes
+  '6': { isr: 0.10, itbis: 0 },     // Intereses pagados a personas físicas residentes
+  '7': { isr: 0.05, itbis: 1.00 },  // Pagos de entidades del Estado (retiene 100% ITBIS)
+}
+
 // ─── Selector de proveedor: input código + lupa + modal de búsqueda ──────────
 // Patrón igual al selector de cliente en FAT nueva-factura.
 export function ProveedorPicker({
@@ -317,6 +332,135 @@ export function ProveedorPicker({
   )
 }
 
+// ─── Cuenta contable del documento (movimiento TCXP_DCDOCU) ─────────────────
+// En el legado (Fcxp201/Fcxp210) el operador ve la cuenta contable que va a
+// afectar el documento y la puede corregir, no es un dato de solo lectura.
+// Arranca sugerida desde la cuenta del proveedor pero es 100% editable:
+// texto libre con lupa para buscar/validar contra el catálogo de CNT.
+function CuentaContableField({
+  value,
+  onChange,
+  sugerida,
+  nombreProveedor,
+}: {
+  value: string
+  onChange: (v: string) => void
+  sugerida?: string
+  nombreProveedor?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const [results, setResults] = useState<any[]>([])
+  const [searching, setSearching] = useState(false)
+  const [descripcion, setDescripcion] = useState('')
+
+  useEffect(() => {
+    if (!value) { setDescripcion(''); return }
+    api.cntGetCuenta(value)
+      .then((c: any) => setDescripcion(c?.descripcion || c?.nombre || ''))
+      .catch(() => setDescripcion(''))
+  }, [value])
+
+  const buscar = async (q: string) => {
+    if (q.trim().length < 1) { setResults([]); return }
+    setSearching(true)
+    try {
+      const rows = await api.cntCatalogo({ search: q, activa: true })
+      setResults(rows)
+    } catch {
+      setResults([])
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  const aplicar = (c: any) => {
+    onChange(c.cuenta)
+    setOpen(false)
+    setSearch('')
+    setResults([])
+  }
+
+  return (
+    <div className='space-y-1'>
+      <Label className='text-xs'>Cuenta Contable (Distribución)</Label>
+      <div className='flex items-center gap-2'>
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={sugerida ? `Sugerida: ${sugerida}` : 'Ej. 2104-02'}
+          className='h-10 w-40 font-mono'
+        />
+        <Button
+          type='button' variant='outline' className='h-10 px-3'
+          title='Buscar cuenta'
+          onClick={() => { setOpen(true); setSearch(''); setResults([]) }}
+        >
+          <Search className='h-4 w-4' />
+        </Button>
+        {descripcion && (
+          <span className='truncate text-sm text-muted-foreground'>· {descripcion}</span>
+        )}
+        {!value && sugerida && (
+          <button
+            type='button'
+            onClick={() => onChange(sugerida)}
+            className='text-xs text-emerald-700 hover:underline'
+          >
+            usar sugerida ({sugerida}{nombreProveedor ? ` · ${nombreProveedor}` : ''})
+          </button>
+        )}
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className='flex h-auto max-h-[80vh] min-h-[40vh] w-[90vw] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-h-[80vh] sm:max-w-none lg:w-[50vw]'>
+          <DialogHeader className='shrink-0 border-b px-6 py-4'>
+            <DialogTitle>Buscar Cuenta Contable</DialogTitle>
+          </DialogHeader>
+          <div className='shrink-0 border-b bg-background px-6 py-3'>
+            <Input
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); buscar(e.target.value) }}
+              placeholder='Buscar por código o nombre de la cuenta…'
+              className='h-11 text-base'
+              autoFocus
+            />
+          </div>
+          <div className='flex-1 overflow-auto px-6 py-2'>
+            <Table>
+              <TableHeader className='sticky top-0 z-10 bg-background'>
+                <TableRow>
+                  <TableHead className='w-32'>Cuenta</TableHead>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead className='w-24 text-center'>Acción</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {results.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={3} className='py-12 text-center text-gray-400'>
+                      {searching ? 'Buscando…' : search.length >= 1 ? 'Sin resultados' : 'Escriba para buscar'}
+                    </TableCell>
+                  </TableRow>
+                )}
+                {results.map((c: any) => (
+                  <TableRow key={c.cuenta} className='cursor-pointer hover:bg-blue-50' onDoubleClick={() => aplicar(c)}>
+                    <TableCell className='font-mono font-semibold'>{c.cuenta}</TableCell>
+                    <TableCell className='font-medium'>{c.descripcion}</TableCell>
+                    <TableCell className='text-center'>
+                      <Button size='sm' className='h-7 px-3' onClick={() => aplicar(c)}>Seleccionar</Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
 // ─── FCXP201 — Entrada de Documentos DR/CR ──────────────────────────────────
 export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
   const [tiposDocu, setTiposDocu] = useState<any[]>([])
@@ -355,11 +499,11 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
   useEffect(() => {
     api.cxpListTiposDocu(noCia).then(setTiposDocu).catch(() => {})
     api.cxpListTiposGasto().then(setTiposGasto).catch(() => {})
-    api.cxpListTiposRetencion().then((rows) => {
-      setTiposRetencion(rows)
-      const def = rows.find((r) => r.por_defecto === 'S')
-      if (def) setForm((f) => ({ ...f, tipo_retencion: String(def.tipo_retencion) }))
-    }).catch(() => {})
+    // El tipo de retencion NO se preselecciona: la mayoria de los documentos
+    // no llevan retencion, y auto-elegir "Honorarios" (el que trae
+    // POR_DEFECTO='S' en TCXP_TIPO_RETENCION_DGII) hacia que se calculara
+    // retencion en documentos que no la llevan. Arranca en "Ninguna".
+    api.cxpListTiposRetencion().then(setTiposRetencion).catch(() => {})
     api.cxpListFormasPago().then((rows) => {
       setFormasPago(rows)
       const def = rows.find((r) => r.por_defecto === 'S')
@@ -403,6 +547,42 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
       .then((r: any) => setCuentaProveedor(r))
       .catch(() => setCuentaProveedor(null))
   }, [proveedor?.no_proveedor, noCia, punto])
+
+  // Movimiento contable (TCXP_DCDOCU) del documento: en el legado (Fcxp201/
+  // Fcxp210) el operador ve y puede corregir la cuenta que afecta el
+  // documento, no solo la cuenta por defecto del proveedor. Arranca con la
+  // cuenta del proveedor pero es editable; si el usuario la cambia, ya no se
+  // vuelve a pisar automáticamente al cambiar de proveedor.
+  const [cuentaContable, setCuentaContable] = useState('')
+  const [cuentaTocada, setCuentaTocada] = useState(false)
+  useEffect(() => {
+    if (cuentaTocada) return
+    setCuentaContable(cuentaProveedor?.cuenta || '')
+  }, [cuentaProveedor?.cuenta, cuentaTocada])
+
+  // Retención ISR/ITBIS: igual que el ITBIS principal, se sugiere
+  // automáticamente según el tipo de retención elegido (tasas estándar DGII)
+  // pero el operador puede editarla si el cálculo no aplica al caso —
+  // mismo patrón "auto / editar" que el campo ITBIS de arriba.
+  const [editandoRetenciones, setEditandoRetenciones] = useState(false)
+  useEffect(() => {
+    if (editandoRetenciones) return
+    if (!form.tipo_retencion) {
+      setForm((f) => (f.itbis_retenido || f.isr_retenido) ? { ...f, itbis_retenido: '', isr_retenido: '' } : f)
+      return
+    }
+    const tasas = TASAS_RETENCION[form.tipo_retencion]
+    if (!tasas) return
+    const base = Number(form.valor_bienes || 0)
+    const itbisBase = Number(impuesto || 0)
+    const isr = base * tasas.isr
+    const itbisRet = itbisBase * tasas.itbis
+    setForm((f) => ({
+      ...f,
+      isr_retenido: isr > 0 ? isr.toFixed(2) : '',
+      itbis_retenido: itbisRet > 0 ? itbisRet.toFixed(2) : '',
+    }))
+  }, [form.tipo_retencion, form.valor_bienes, impuesto, editandoRetenciones])
 
   // NCF del proveedor: si TCXP_BPROVEEDOR.codigo_ncf != null, el proveedor
   // es informal y el sistema autoasigna NCF B11 desde CNT.TCNT_NCF. Si
@@ -474,6 +654,18 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
     }
     setSaving(true)
     try {
+      const totalDoc = Number(form.valor_bienes) + Number(impuesto || 0)
+      // Movimiento contable (TCXP_DCDOCU): igual que en el legado, el monto
+      // total del documento se distribuye a la cuenta elegida arriba. El
+      // signo es el contrario al de la cabecera (TCXP_TDOCU.tipo_movi) para
+      // que la partida doble cuadre: FP/NC (cabecera 'C', aumenta lo que
+      // debemos) debita la cuenta de gasto; ND/AD/BD (cabecera 'D') la
+      // acredita.
+      const tipoMoviCabecera = (tiposDocu.find((t: any) => (t.codigo ?? t.tipo_docu) === tipoDocu)?.tipo_movi || 'C').toUpperCase()
+      const tipoMoviLinea = tipoMoviCabecera === 'D' ? 'C' : 'D'
+      const lineas = cuentaContable
+        ? [{ cuenta: cuentaContable, monto: totalDoc, tipo_movi: tipoMoviLinea }]
+        : undefined
       const res = await api.cxpEntradaDocumento({
         no_cia: noCia,
         punto,
@@ -481,7 +673,7 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
         no_proveedor: proveedor.no_proveedor,
         ...form,
         // valor_original = bienes + ITBIS (total del documento)
-        valor_original: Number(form.valor_bienes) + Number(impuesto || 0),
+        valor_original: totalDoc,
         impuesto: Number(impuesto || 0),
         isc:             form.isc             ? Number(form.isc)             : 0,
         otros_impuestos: form.otros_impuestos ? Number(form.otros_impuestos) : 0,
@@ -490,6 +682,7 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
         itbis_retenido:  form.itbis_retenido  ? Number(form.itbis_retenido)  : 0,
         isr_retenido:    form.isr_retenido    ? Number(form.isr_retenido)    : 0,
         forma_pago:      form.forma_pago      ? Number(form.forma_pago)      : null,
+        ...(lineas ? { lineas } : {}),
       })
       const retTxt = (Number(form.itbis_retenido || 0) > 0 || Number(form.isr_retenido || 0) > 0)
         ? ` — Retenido ITBIS RD$ ${Number(form.itbis_retenido || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })} / ISR RD$ ${Number(form.isr_retenido || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })}`
@@ -502,8 +695,8 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
         })
       }
       setProveedor(null)
-      // reset preservando los defaults del catálogo
-      const defRet = tiposRetencion.find((r) => r.por_defecto === 'S')
+      // reset preservando el default del catálogo de forma de pago; la
+      // retención arranca en "Ninguna" (ver nota arriba).
       const defFp  = formasPago.find((r) => r.por_defecto === 'S')
       setForm({
         fecha: today,
@@ -517,11 +710,14 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
         otros_impuestos: '',
         propina: '',
         tipo_gasto: '',
-        tipo_retencion: defRet ? String(defRet.tipo_retencion) : '',
+        tipo_retencion: '',
         itbis_retenido: '',
         isr_retenido: '',
         forma_pago:    defFp  ? String(defFp.forma_pago) : '',
       })
+      setEditandoRetenciones(false)
+      setCuentaContable('')
+      setCuentaTocada(false)
       setImpuesto('')
       setEditandoItbis(false)
       const next = await api.cxpGetSiguienteNoDocu(noCia, punto, tipoDocu)
@@ -761,30 +957,28 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
           </div>
           <div className='min-w-0 space-y-1'>
             <Label className='text-xs flex items-center justify-between'>
-              <span>ITBIS Retenido</span>
-              {Number(impuesto || 0) > 0 && (
-                <button
-                  type='button'
-                  onClick={() => setForm((f) => ({ ...f, itbis_retenido: impuesto }))}
-                  className='text-[10px] text-emerald-700 hover:underline'
-                >
-                  100% (RD$ {Number(impuesto).toLocaleString('es-DO', { minimumFractionDigits: 2 })})
-                </button>
-              )}
+              <span>ITBIS Retenido {form.tipo_retencion && !editandoRetenciones && '(auto)'}</span>
+              <button
+                type='button'
+                onClick={() => setEditandoRetenciones(!editandoRetenciones)}
+                className='text-[10px] text-emerald-700 hover:underline'
+              >
+                {editandoRetenciones ? 'auto' : 'editar'}
+              </button>
             </Label>
             <Input
               type='number' step='0.01' placeholder='0.00'
               value={form.itbis_retenido}
-              onChange={(e) => setForm((f) => ({ ...f, itbis_retenido: e.target.value }))}
+              onChange={(e) => { setEditandoRetenciones(true); setForm((f) => ({ ...f, itbis_retenido: e.target.value })) }}
               className='h-10 text-right font-mono'
             />
           </div>
           <div className='min-w-0 space-y-1'>
-            <Label className='text-xs'>ISR Retenido</Label>
+            <Label className='text-xs'>ISR Retenido {form.tipo_retencion && !editandoRetenciones && '(auto)'}</Label>
             <Input
               type='number' step='0.01' placeholder='0.00'
               value={form.isr_retenido}
-              onChange={(e) => setForm((f) => ({ ...f, isr_retenido: e.target.value }))}
+              onChange={(e) => { setEditandoRetenciones(true); setForm((f) => ({ ...f, isr_retenido: e.target.value })) }}
               className='h-10 text-right font-mono'
             />
           </div>
@@ -808,18 +1002,14 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
             </Select>
           </div>
 
-          {cuentaProveedor && (
-            <div className='space-y-1 md:col-span-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm'>
-              <span className='text-xs text-emerald-700'>Cuenta contable destino: </span>
-              <span className='font-mono font-semibold text-emerald-900'>{cuentaProveedor.cuenta}</span>
-              {cuentaProveedor.nombre && (
-                <span className='ml-2 text-emerald-800'>· {cuentaProveedor.nombre}</span>
-              )}
-              {cuentaProveedor.cuenta_prima && (
-                <span className='ml-2 text-xs text-emerald-700'>(prima: <span className='font-mono'>{cuentaProveedor.cuenta_prima}</span>)</span>
-              )}
-            </div>
-          )}
+          <div className='md:col-span-3'>
+            <CuentaContableField
+              value={cuentaContable}
+              onChange={(v) => { setCuentaTocada(true); setCuentaContable(v) }}
+              sugerida={cuentaProveedor?.cuenta}
+              nombreProveedor={cuentaProveedor?.nombre}
+            />
+          </div>
         </CardContent>
       </Card>
       <div className='flex justify-end gap-2'>
