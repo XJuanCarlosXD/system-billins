@@ -110,6 +110,29 @@ export function imagenReporteUrl(reporteId: string, imagenId: string) {
   return `${API_BASE}/reportes/${reporteId}/imagen/${imagenId}/`
 }
 
+export type EstadoRun = 'PENDIENTE' | 'EN_PROCESO' | 'COMPLETADO' | 'ERROR'
+
+export type AgenteRun = {
+  run_id: string
+  estado: EstadoRun
+  solicitado_por: string
+  fecha_solicitud: string
+  fecha_fin: string | null
+  resumen: string | null
+  commit_sha: string | null
+}
+
+export function lanzarAgente() {
+  return request<{ run_id: string; estado: EstadoRun }>(
+    '/reportes/agente/lanzar/',
+    { method: 'POST' }
+  )
+}
+
+export function getEstadoAgente() {
+  return request<AgenteRun | Record<string, never>>('/reportes/agente/estado/')
+}
+
 export async function fileToBase64(file: File): Promise<string> {
   const dataUrl: string = await new Promise((resolve, reject) => {
     const r = new FileReader()

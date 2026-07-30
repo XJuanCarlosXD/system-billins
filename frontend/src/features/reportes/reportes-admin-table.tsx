@@ -1,14 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { ApiError } from '@/lib/api-client'
 import {
+  getEstadoAgente,
   getReporte,
   imagenReporteUrl,
+  lanzarAgente,
   listReportes,
   MODULOS_REPORTE,
   patchReporte,
   type EstadoReporte,
+  type EstadoRun,
   type ReporteResumen,
 } from '@/lib/api-client-reportes'
 import { Badge } from '@/components/ui/badge'
@@ -78,6 +82,7 @@ export function ReportesAdminTable() {
 
   return (
     <div className='space-y-4'>
+      <AgenteBoton />
       <div className='flex flex-wrap gap-2'>
         <Select value={estadoFiltro} onValueChange={setEstadoFiltro}>
           <SelectTrigger className='w-48'>
@@ -163,6 +168,83 @@ export function ReportesAdminTable() {
         reporteId={seleccionado?.reporte_id ?? null}
         onOpenChange={(open) => !open && setSeleccionado(null)}
       />
+    </div>
+  )
+}
+
+function AgenteBoton() {
+  const queryClient = useQueryClient()
+  const runAnteriorRef = useRef<EstadoRun | undefined>(undefined)
+
+  const estadoQuery = useQuery({
+    queryKey: ['reportes', 'agente', 'estado'],
+    queryFn: getEstadoAgente,
+    refetchInterval: (query) => {
+      const estado = (query.state.data as { estado?: EstadoRun })?.estado
+      return estado === 'PENDIENTE' || estado === 'EN_PROCESO' ? 5000 : false
+    },
+  })
+
+  const run =
+    estadoQuery.data && 'estado' in estadoQuery.data ? estadoQuery.data : null
+
+  useEffect(() => {
+    const estadoActual = run?.estado
+    const anterior = runAnteriorRef.current
+    if (
+      anterior &&
+      anterior !== estadoActual &&
+      (estadoActual === 'COMPLETADO' || estadoActual === 'ERROR')
+    ) {
+      queryClient.invalidateQueries({ queryKey: ['reportes', 'admin'] })
+    }
+    runAnteriorRef.current = estadoActual
+  }, [run?.estado, queryClient])
+
+  const lanzar = useMutation({
+    mutationFn: lanzarAgente,
+    onSuccess: () => {
+      toast.success('Agente lanzado, revisando reportes abiertos...')
+      queryClient.invalidateQueries({ queryKey: ['reportes', 'agente', 'estado'] })
+    },
+    onError: (err) => {
+      if (err instanceof ApiError && err.status === 409) {
+        toast.error('Ya hay una corrida del agente en curso')
+      } else {
+        toast.error('No se pudo lanzar el agente')
+      }
+    },
+  })
+
+  const enCurso = run?.estado === 'PENDIENTE' || run?.estado === 'EN_PROCESO'
+
+  return (
+    <div className='flex flex-col gap-1 rounded-md border p-3'>
+      <div className='flex items-center justify-between gap-2'>
+        <div>
+          <p className='text-sm font-medium'>Resolver todo con Agente</p>
+          <p className='text-muted-foreground text-xs'>
+            Lanza a Claude Code para diagnosticar y corregir ahora mismo
+            todos los reportes abiertos.
+          </p>
+        </div>
+        <Button
+          disabled={enCurso || lanzar.isPending}
+          onClick={() => lanzar.mutate()}
+        >
+          {(enCurso || lanzar.isPending) && (
+            <Loader2 className='mr-2 size-4 animate-spin' />
+          )}
+          Resolver todo con Agente
+        </Button>
+      </div>
+      {run && (run.estado === 'COMPLETADO' || run.estado === 'ERROR') && (
+        <p className='text-muted-foreground text-xs'>
+          Última corrida ({run.estado}
+          {run.fecha_fin ? `, ${new Date(run.fecha_fin).toLocaleString()}` : ''}
+          ): {run.resumen || 'sin resumen'}
+        </p>
+      )}
     </div>
   )
 }
