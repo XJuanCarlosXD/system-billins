@@ -560,6 +560,7 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
     fecha: today,
     fecha_vence: '',
     valor_bienes: '',
+    valor_servicio: '',
     descripcion: '',
     rnc: '',
     ncf: '',
@@ -668,7 +669,7 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
   const [lineasTocadas, setLineasTocadas] = useState(false)
   useEffect(() => {
     if (lineasTocadas) return
-    const base = Number(form.valor_bienes || 0)
+    const base = Number(form.valor_bienes || 0) + Number(form.valor_servicio || 0)
     const itbisFacturado = Number(impuesto || 0)
     const itbisRet = Number(form.itbis_retenido || 0)
     const isrRet = Number(form.isr_retenido || 0)
@@ -692,31 +693,46 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
     }
     setLineasContables(nuevas.length > 0 ? nuevas : [filaVacia()])
   }, [cuentaProveedor?.cuenta, cuentaProveedor?.cuenta_gasto, cuentaItbisRetenido, cuentaIsrCia, cuentaItbisDeducible,
-      form.valor_bienes, impuesto, form.itbis_retenido, form.isr_retenido, lineasTocadas])
+      form.valor_bienes, form.valor_servicio, impuesto, form.itbis_retenido, form.isr_retenido, lineasTocadas])
 
   // Retención ISR/ITBIS: igual que el ITBIS principal, se sugiere
   // automáticamente según el tipo de retención elegido (tasas estándar DGII)
   // pero el operador puede editarla si el cálculo no aplica al caso —
   // mismo patrón "auto / editar" que el campo ITBIS de arriba.
+  //
+  // Sin tipo de retención elegido (caso por defecto, servicios comprados a
+  // proveedores comunes): el legado retiene automaticamente el 30% del
+  // ITBIS facturado sobre el VALOR DEL SERVICIO (nunca sobre bienes) —
+  // verificado contra 7 documentos reales del legado (RMM CONSULTING,
+  // INMOBILIARIA GREIMAR: itbis_retenido/impuesto = 0.30 exacto en todos).
+  // No aplica a bancos/tarjetas de credito (BANRESERVAS, TC *) -- esos
+  // quedan en 0 en el legado, el operador lo edita a mano si no aplica.
   const [editandoRetenciones, setEditandoRetenciones] = useState(false)
   useEffect(() => {
     if (editandoRetenciones) return
-    if (!form.tipo_retencion) {
+    const baseBienesServicio = Number(form.valor_bienes || 0) + Number(form.valor_servicio || 0)
+    if (form.tipo_retencion) {
+      const tasas = TASAS_RETENCION[form.tipo_retencion]
+      if (!tasas) return
+      const itbisBase = Number(impuesto || 0)
+      const isr = baseBienesServicio * tasas.isr
+      const itbisRet = itbisBase * tasas.itbis
+      setForm((f) => ({
+        ...f,
+        isr_retenido: isr > 0 ? isr.toFixed(2) : '',
+        itbis_retenido: itbisRet > 0 ? itbisRet.toFixed(2) : '',
+      }))
+      return
+    }
+    const valorServicio = Number(form.valor_servicio || 0)
+    if (valorServicio <= 0) {
       setForm((f) => (f.itbis_retenido || f.isr_retenido) ? { ...f, itbis_retenido: '', isr_retenido: '' } : f)
       return
     }
-    const tasas = TASAS_RETENCION[form.tipo_retencion]
-    if (!tasas) return
-    const base = Number(form.valor_bienes || 0)
-    const itbisBase = Number(impuesto || 0)
-    const isr = base * tasas.isr
-    const itbisRet = itbisBase * tasas.itbis
-    setForm((f) => ({
-      ...f,
-      isr_retenido: isr > 0 ? isr.toFixed(2) : '',
-      itbis_retenido: itbisRet > 0 ? itbisRet.toFixed(2) : '',
-    }))
-  }, [form.tipo_retencion, form.valor_bienes, impuesto, editandoRetenciones])
+    const itbisServicio = valorServicio * (porcItbis / 100)
+    const itbisRet30 = itbisServicio * 0.30
+    setForm((f) => ({ ...f, isr_retenido: '', itbis_retenido: itbisRet30 > 0 ? itbisRet30.toFixed(2) : '' }))
+  }, [form.tipo_retencion, form.valor_bienes, form.valor_servicio, impuesto, porcItbis, editandoRetenciones])
 
   // NCF del proveedor: si TCXP_BPROVEEDOR.codigo_ncf != null, el proveedor
   // es informal y el sistema autoasigna NCF B11 desde CNT.TCNT_NCF. Si
@@ -746,24 +762,26 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
       .catch(() => setNcfInfo(null))
   }, [proveedor?.no_proveedor, noCia, punto])
 
-  // Auto-calcula el ITBIS desde el valor de bienes (sin ITBIS):
-  //   itbis = base × porc/100
-  //   total = base + itbis (es lo que se registra como valor del documento)
+  // Auto-calcula el ITBIS desde el valor de bienes + valor del servicio
+  // (sin ITBIS):
+  //   itbis = (bienes + servicio) × porc/100
+  //   total = bienes + servicio + itbis (es lo que se registra como valor
+  //   del documento)
   // Si el proveedor está exento o el ITBIS está siendo editado a mano,
   // no recalcula.
   useEffect(() => {
     if (editandoItbis) return
-    const base = Number(form.valor_bienes || 0)
+    const base = Number(form.valor_bienes || 0) + Number(form.valor_servicio || 0)
     if (!base) { setImpuesto(''); return }
     const exento = (proveedor?.excento_itbis || 'N').toUpperCase() === 'S'
     if (exento) { setImpuesto('0'); return }
     const itbis = base * (porcItbis / 100)
     setImpuesto(itbis.toFixed(2))
-  }, [form.valor_bienes, porcItbis, proveedor?.no_proveedor, proveedor?.excento_itbis, editandoItbis])
+  }, [form.valor_bienes, form.valor_servicio, porcItbis, proveedor?.no_proveedor, proveedor?.excento_itbis, editandoItbis])
 
-  // Total del documento = bienes + ITBIS. Es lo que se guarda como
-  // valor_original en TCXP_DOCUMENTO (mismo semántico que el legado).
-  const totalDocumento = Number(form.valor_bienes || 0) + Number(impuesto || 0)
+  // Total del documento = bienes + servicio + ITBIS. Es lo que se guarda
+  // como valor_original en TCXP_DOCUMENTO (mismo semántico que el legado).
+  const totalDocumento = Number(form.valor_bienes || 0) + Number(form.valor_servicio || 0) + Number(impuesto || 0)
 
   // Tras registrar una Nota de Débito/Ajuste Débito (saldo a favor del
   // proveedor), MPILAR reportó dos veces que "no trae las facturas
@@ -782,13 +800,13 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
       toast.error('Seleccione un punto de trabajo')
       return
     }
-    if (!tipoDocu || !proveedor?.no_proveedor || !form.valor_bienes) {
-      toast.error('Tipo de documento, proveedor y valor de bienes son requeridos')
+    if (!tipoDocu || !proveedor?.no_proveedor || (!form.valor_bienes && !form.valor_servicio)) {
+      toast.error('Tipo de documento, proveedor y valor de bienes o servicio son requeridos')
       return
     }
     setSaving(true)
     try {
-      const totalDoc = Number(form.valor_bienes) + Number(impuesto || 0)
+      const totalDoc = Number(form.valor_bienes || 0) + Number(form.valor_servicio || 0) + Number(impuesto || 0)
       // Movimiento contable (TCXP_DCDOCU): cada fila de la grilla de arriba
       // se manda tal cual el operador la dejó — débito o crédito por línea,
       // igual que en el legado (Fcxp201/Fcxp210).
@@ -836,6 +854,7 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
         fecha: today,
         fecha_vence: '',
         valor_bienes: '',
+        valor_servicio: '',
         descripcion: '',
         rnc: '',
         ncf: '',
@@ -966,7 +985,7 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
             )}
           </div>
           <div className='min-w-0 space-y-1'>
-            <Label className='text-xs'>Valor de Bienes (sin ITBIS) *</Label>
+            <Label className='text-xs'>Valor de Bienes (sin ITBIS)</Label>
             <Input
               type='number'
               step='0.01'
@@ -976,6 +995,23 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
               }
               className='h-10 text-right font-mono'
             />
+          </div>
+          <div className='min-w-0 space-y-1'>
+            <Label className='text-xs'>Valor del Servicio (sin ITBIS)</Label>
+            <Input
+              type='number'
+              step='0.01'
+              value={form.valor_servicio}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, valor_servicio: e.target.value }))
+              }
+              className='h-10 text-right font-mono'
+            />
+            {Number(form.valor_servicio || 0) > 0 && !form.tipo_retencion && (
+              <div className='text-[10px] text-muted-foreground'>
+                Retiene 30% del ITBIS del servicio (2103-07) — editable abajo
+              </div>
+            )}
           </div>
           <div className='min-w-0 space-y-1'>
             <Label className='text-xs flex items-center justify-between'>

@@ -1094,8 +1094,9 @@ def entrada_documento(d):
                 "valor_original=:4, debito=:5, credito=:6, saldo=:7, "
                 "tipo_movi=:8, tipo_transaccion=:9, detalle=:10, "
                 "ncf=:11, rnc=:12, impuesto=:13, "
-                "itbis_retenido=:14, isr_retenido=:15, forma_pago=:16 "
-                "WHERE no_cia=:17 AND punto=:18 AND tipo_docu=:19 AND no_docu=:20",
+                "itbis_retenido=:14, isr_retenido=:15, forma_pago=:16, "
+                "valor_bienes=:17, valor_servicio=:18 "
+                "WHERE no_cia=:19 AND punto=:20 AND tipo_docu=:21 AND no_docu=:22",
                 [
                     no_proveedor, fecha, fecha_vence,
                     valor,          # :4 valor_original
@@ -1108,6 +1109,8 @@ def entrada_documento(d):
                     float(d.get("itbis_retenido") or 0),
                     float(d.get("isr_retenido") or 0),
                     int(d.get("forma_pago") or 1),
+                    float(d.get("valor_bienes") or 0) or None,
+                    float(d.get("valor_servicio") or 0) or None,
                     no_cia, punto, tipo_docu, no_docu,
                 ])
         else:
@@ -1134,19 +1137,23 @@ def entrada_documento(d):
             _tipo_ret   = int(_tipo_ret) if _tipo_ret not in (None, '', 0) else None
             _forma_pago = d.get("forma_pago")
             _forma_pago = int(_forma_pago) if _forma_pago not in (None, '') else None
+            _valor_bienes   = float(d.get("valor_bienes") or 0) or None
+            _valor_servicio = float(d.get("valor_servicio") or 0) or None
             cur.execute(
                 "INSERT INTO CXP.TCXP_DOCUMENTO("
                 "no_cia,punto,tipo_docu,no_docu,no_proveedor,tipo_movi,tipo_transaccion,"
                 "fecha,fecha_vence,status,valor_original,debito,credito,saldo,"
                 "impuesto,itbis_retenido,isr_retenido,rnc,ncf,posiciones_fijas_ncf,detalle,"
                 "isc,otros_impuestos,propina,tipo_gasto,tipo_retencion,forma_pago,"
+                "valor_bienes,valor_servicio,"
                 "st_generado_cnt,pago_bloqueado,estado_encf,usuario,fecha_sysdate"
                 ") VALUES("
                 ":1,:2,:3,:4,:5,:6,:7,"
                 "TO_DATE(:8,'YYYY-MM-DD'),TO_DATE(:9,'YYYY-MM-DD'),'A',:10,:11,:12,:13,"
                 ":14,:15,:16,:17,:18,:19,:20,"
                 ":21,:22,:23,:24,:25,:26,"
-                "'N','N',0,:27,SYSDATE"
+                ":27,:28,"
+                "'N','N',0,:29,SYSDATE"
                 ")",
                 [
                     no_cia, punto, tipo_docu, no_docu, no_proveedor,
@@ -1162,6 +1169,7 @@ def entrada_documento(d):
                     d.get("rnc", ""), _ncf_num, _pos_ncf, detalle,
                     _isc, _otros_imp, _propina,
                     _tipo_gasto, _tipo_ret, _forma_pago,
+                    _valor_bienes, _valor_servicio,
                     d.get("usuario", "API"),
                 ])
 
