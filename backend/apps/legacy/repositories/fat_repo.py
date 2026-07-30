@@ -1179,7 +1179,8 @@ def rep_ncf_607(no_cia: str, desde: str, hasta: str) -> list[dict]:
         extra.append(f"AND TRUNC(f.fecha) <= TO_DATE(:{len(params)},'YYYY-MM-DD')")
     extra_sql = " ".join(extra)
     rows = client.fetch_dicts(
-        f"SELECT f.ncf, f.codigo_ncf, f.tipo_ncf_fiscal, f.no_factura, f.tipo_factura, "
+        f"SELECT f.ncf, f.codigo_ncf, f.tipo_ncf_fiscal, f.posiciones_fijas_ncf, "
+        f"f.no_factura, f.tipo_factura, "
         f"f.fecha, cl.rnc, cl.nombre AS nombre_cliente, "
         f"NVL(f.total_neto,0) AS total_neto, NVL(f.impuesto,0) AS impuesto, "
         f"NVL(f.total_linea,0) AS total_linea "
@@ -1192,6 +1193,8 @@ def rep_ncf_607(no_cia: str, desde: str, hasta: str) -> list[dict]:
         params)
     return [{'ncf': int(r['ncf']), 'codigo_ncf': r['codigo_ncf'] or '',
              'tipo_ncf_fiscal': r['tipo_ncf_fiscal'] or '',
+             'posiciones_fijas_ncf': (r['posiciones_fijas_ncf'] or '').strip().upper(),
+             'ncf_dgi': _compose_ncf_dgi(r['posiciones_fijas_ncf'], r['ncf']),
              'no_factura': r['no_factura'] or '', 'tipo_factura': r['tipo_factura'] or '',
              'fecha': str(r['fecha'])[:10] if r['fecha'] else None,
              'rnc': r['rnc'] or '', 'nombre_cliente': (r['nombre_cliente'] or '').strip(),
