@@ -801,7 +801,10 @@ def rep_606(no_cia: str, anio: int, mes: int, punto: str = ''):
 
     Solo incluye documentos con NCF registrado: el usuario reporto que estaba
     devolviendo tambien gastos sin NCF, y para el 606 solo aplican los que
-    tienen comprobante fiscal.
+    tienen comprobante fiscal. Se excluyen B02/E32 (Factura de Consumo): ese
+    tipo de NCF lo EMITE la empresa al vender a un consumidor final, no algo
+    que deba recibir como comprobante de compra -- si aparece uno es un
+    error de captura del proveedor/informal.
     """
     conditions = [
         "d.no_cia=:1",
@@ -810,6 +813,7 @@ def rep_606(no_cia: str, anio: int, mes: int, punto: str = ''):
         # TCXP_DOCUMENTO.tipo_movi es 'D'/'C' (un caracter) — 'C' = factura/credito
         "d.tipo_movi='C'",
         "TRIM(d.ncf) IS NOT NULL",
+        "NVL(UPPER(d.posiciones_fijas_ncf),'') NOT IN ('B02','E32')",
     ]
     params = [no_cia, anio, mes]
     if punto:
@@ -859,6 +863,9 @@ def archivo_dgii_606(no_cia: str, anio: int, mes: int, punto: str = '') -> tuple
     conditions = [
         "d.no_cia=:1", "EXTRACT(YEAR FROM d.fecha)=:2", "EXTRACT(MONTH FROM d.fecha)=:3",
         "d.tipo_movi='C'", "TRIM(d.ncf) IS NOT NULL",
+        # B02/E32 (Factura de Consumo) no debe aparecer como comprobante de
+        # compra -- la empresa lo emite al vender, no lo recibe al comprar.
+        "NVL(UPPER(d.posiciones_fijas_ncf),'') NOT IN ('B02','E32')",
     ]
     params: list = [no_cia, anio, mes]
     if punto:
