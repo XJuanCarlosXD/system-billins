@@ -377,6 +377,14 @@ def inv_movimientos(request):
                 vendedor=str(payload.get('vendedor', '')).strip(),
                 tipo_docu_devuelto=str(payload.get('tipo_docu_devuelto', '')).strip(),
                 no_docu_devuelto=str(payload.get('no_docu_devuelto', '')).strip(),
+                ncf=str(payload.get('ncf', '')).strip(),
+                pct_itbis=float(payload.get('pct_itbis') or 0),
+                # El selector de Entrada de Compras manda 'contado'/'credito'
+                # (texto), no el codigo DGII de TCXP_FORMA_PAGO_DGII (1-7) que
+                # espera el espejo en CxP.
+                forma_pago={'contado': 1, 'credito': 4}.get(
+                    str(payload.get('forma_pago', '')).strip().lower()),
+                fecha_vcto=str(payload.get('fecha_vcto', '')).strip()[:10],
             )
         except ValueError as e:
             return JsonResponse({"error": str(e)}, status=400)

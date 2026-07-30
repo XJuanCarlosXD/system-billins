@@ -2751,7 +2751,10 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                                  nota: str = '', no_proveedor: str = '',
                                  rnc: str = '', no_cliente: str = '',
                                  vendedor: str = '', tipo_docu_devuelto: str = '',
-                                 no_docu_devuelto: str = '') -> dict:
+                                 no_docu_devuelto: str = '',
+                                 ncf: str = '', pct_itbis: float = 0.0,
+                                 forma_pago: int | None = None,
+                                 fecha_vcto: str = '') -> dict:
     """Crea un documento de inventario con N lineas.
 
     Soporta los 10 tipos del legado:
@@ -2836,6 +2839,11 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                 tiene_imp, porc_prod = _producto_impuesto_info(cur, no_produ)
                 porc = porc_prod if tiene_imp == 'S' else 0.0
                 impuesto_linea = round(base_linea * porc / 100, 2)
+            elif tipo_docu == 'EC' and pct_itbis:
+                # Entrada de Compras: el %ITBIS se captura una vez en el
+                # encabezado (no por producto) y antes se perdia porque el
+                # payload nunca llegaba mas alla del frontend.
+                impuesto_linea = round(base_linea * float(pct_itbis) / 100, 2)
             else:
                 impuesto_linea = 0.0
             total_bruto += valor_linea
@@ -2906,6 +2914,19 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
         ncf_val, posiciones_fijas_ncf = (None, None)
         if tipo_docu in _TIPOS_AUTO_IMPUESTO:
             ncf_val, posiciones_fijas_ncf = _emitir_ncf_inv(cur, no_cia)
+        elif ncf:
+            # NCF del proveedor tecleado a mano (Entrada de Compras) -- antes
+            # se perdia porque el payload nunca llegaba mas alla del
+            # frontend. Formato libre "B0100000123" / "E310000000123".
+            # El prefijo NCF SIEMPRE son 3 caracteres (letra+2 digitos: B01,
+            # B02...B19, E31...E47) -- NO cortar en el primer digito, eso
+            # parte "B01" en "B"+"0100000555" y el numero queda con 10
+            # digitos en vez de 8 (ORA-01438, precision de columna).
+            ncf_raw = ncf.strip().upper()
+            prefijo, digitos = ncf_raw[:3], ncf_raw[3:]
+            if prefijo and digitos.isdigit():
+                posiciones_fijas_ncf = prefijo
+                ncf_val = int(digitos)
         _upsert_rme_header(
             cur, no_cia=no_cia, punto=punto, tipo_docu=tipo_docu,
             no_docu=no_docu, fecha=fecha, tipo_movi=tipo_movi,
@@ -2919,6 +2940,30 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
             valor_bienes=valor_bienes,
             ncf=ncf_val, posiciones_fijas_ncf=posiciones_fijas_ncf)
         cur.connection.commit()
+
+    cxp_mirror = None
+    if tipo_docu == 'EC' and no_proveedor:
+        # Espejo en CxP (genera el documento FP que alimenta el 606 y el
+        # saldo del proveedor), igual que DV espeja en CxC. Requiere
+        # proveedor; si el proveedor no existe en CXP o algo falla, la
+        # entrada de compras en INV ya quedo confirmada (existencia +
+        # costo) y solo se reporta el error del espejo, no se revierte.
+        from .cxp_repo import entrada_documento as _cxp_entrada_documento
+        try:
+            cxp_no_docu = _cxp_entrada_documento({
+                'no_cia': no_cia, 'punto': punto, 'tipo_docu': 'FP',
+                'no_proveedor': no_proveedor,
+                'fecha': fecha, 'fecha_vence': fecha_vcto or fecha,
+                'valor_original': total_neto,
+                'impuesto': total_impuesto,
+                'rnc': rnc, 'ncf': ncf_val, 'posiciones_fijas_ncf': posiciones_fijas_ncf,
+                'forma_pago': forma_pago,
+                'detalle': (nota or f'Entrada de Compras INV {no_docu}')[:100],
+                'usuario': usuario,
+            })
+            cxp_mirror = {'no_docu': cxp_no_docu, 'tipo_docu': 'FP'}
+        except Exception as exc:
+            cxp_mirror = {'error': str(exc)}
 
     cxc_mirror = None
     if tipo_docu == 'DV':
@@ -2942,6 +2987,7 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
         'no_cia': no_cia, 'punto': punto, 'tipo_docu': tipo_docu,
         'no_docu': no_docu, 'lineas_creadas': creadas,
         'ncf': ncf_val, 'ncf_dgi': ncf_dgi, 'cxc_mirror': cxc_mirror,
+        'cxp_mirror': cxp_mirror,
         'tipo_movi': tipo_movi, 'fecha': fecha, 'nota': nota,
     }
 
