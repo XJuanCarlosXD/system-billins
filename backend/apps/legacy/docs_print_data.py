@@ -2039,7 +2039,8 @@ def cxp_rep_606_print_data(request):
     filas = [{
         'rnc': i.get('rnc_proveedor') or '',
         'nombre': i.get('nombre_proveedor') or '',
-        'ncf': i.get('ncf') or '',
+        'ncf': (_compose_ncf_dgi(i.get('tipo_ncf'), i.get('ncf'))
+                or (str(i['ncf']) if i.get('ncf') else '')),
         'fecha': _fd(i.get('fecha')),
         'monto_facturado': _money_or_zero(i.get('monto_facturado')),
         'itbis_facturado': _money_or_zero(i.get('itbis_facturado')),
