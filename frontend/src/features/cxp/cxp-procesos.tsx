@@ -492,8 +492,8 @@ function MovimientoContableGrid({
         <div className='flex gap-4 text-xs'>
           <span>Total Débito: <b className='font-mono'>{fmt(totalDebito)}</b></span>
           <span>Total Crédito: <b className='font-mono'>{fmt(totalCredito)}</b></span>
-          <span className={diferencia !== 0 ? 'font-semibold text-red-600' : 'font-semibold text-emerald-700'}>
-            Diferencia: <b className='font-mono'>{fmt(diferencia)}</b>
+          <span className='font-semibold text-emerald-700' title='Lo que queda pendiente de pagar al proveedor después de las retenciones; no tiene que dar cero'>
+            Neto a pagar al proveedor: <b className='font-mono'>{fmt(diferencia)}</b>
           </span>
         </div>
       </div>
@@ -613,15 +613,22 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
     if (proveedor?.rnc) setForm((f) => ({ ...f, rnc: proveedor.rnc }))
   }, [proveedor?.no_proveedor]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Trae el porcentaje de ITBIS configurado para la empresa (TCNT_CIAS.ITBIS).
+  // Trae el porcentaje de ITBIS y las cuentas contables por defecto de la
+  // empresa (TCNT_CIAS.CUENTA_ITBIS_RETENIDO / CUENTA_ISR) — el legado las
+  // usa para generar el asiento automaticamente sin que el usuario tenga
+  // que escribir nada.
+  const [cuentaItbisRetenido, setCuentaItbisRetenido] = useState('')
+  const [cuentaIsrCia, setCuentaIsrCia] = useState('')
   useEffect(() => {
     if (!noCia) return
     api.cntGetCia(noCia)
       .then((c: any) => {
         const p = Number(c?.itbis ?? c?.porc_impuesto ?? 18)
         if (p > 0) setPorcItbis(p)
+        setCuentaItbisRetenido(c?.cuenta_itbis_retenido || '')
+        setCuentaIsrCia(c?.cuenta_isr || '')
       })
-      .catch(() => { /* default 18 */ })
+      .catch(() => { /* default 18, sin cuentas de retencion */ })
   }, [noCia])
 
   // Carga la cuenta contable del proveedor (TCXP_TPROVEEDOR.CUENTA según
@@ -634,24 +641,45 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
       .catch(() => setCuentaProveedor(null))
   }, [proveedor?.no_proveedor, noCia, punto])
 
-  // Movimiento contable (TCXP_DCDOCU) del documento: en el legado (Fcxp201/
-  // Fcxp210) esta es una grilla de varias lineas (Cuenta/Centro Costo/
-  // Débito/Crédito), no un dato de solo lectura. La primera fila arranca
-  // sugerida con la cuenta del proveedor y el total del documento en
-  // Débito; si el usuario toca la grilla (agrega/edita algo), ya no se
-  // vuelve a pisar automáticamente.
+  // Movimiento contable (TCXP_DCDOCU): en el legado esto se genera SOLO,
+  // automaticamente, a medida que se llenan ITBIS/retenciones — el usuario
+  // no escribe cuentas a mano salvo que algo este mal y quiera corregirlo.
+  // Reglas (iguales al legado):
+  //  - Débito a la cuenta del proveedor (TCXP_TPROVEEDOR.CUENTA) por el
+  //    total del documento (bienes + ITBIS).
+  //  - Crédito a TCNT_CIAS.CUENTA_ITBIS_RETENIDO por el ITBIS retenido,
+  //    si lo hay.
+  //  - Crédito a TCNT_CIAS.CUENTA_ISR por el ISR retenido, si lo hay.
+  // La diferencia entre Débito y Crédito de esta grilla es lo que
+  // realmente queda pendiente de pagar al proveedor (el resto ya se
+  // retuvo) — no tiene que dar cero, ese saldo lo carga el documento en
+  // TCXP_DOCUMENTO. Si el usuario edita la grilla a mano, se deja de
+  // regenerar automáticamente.
   const [lineasContables, setLineasContables] = useState<LineaContable[]>([filaVacia()])
   const [lineasTocadas, setLineasTocadas] = useState(false)
   useEffect(() => {
     if (lineasTocadas) return
     const total = Number(form.valor_bienes || 0) + Number(impuesto || 0)
-    setLineasContables([{
-      cuenta: cuentaProveedor?.cuenta || '',
-      centroCosto: '',
-      debito: total > 0 ? total.toFixed(2) : '',
-      credito: '',
-    }])
-  }, [cuentaProveedor?.cuenta, form.valor_bienes, impuesto, lineasTocadas])
+    const itbisRet = Number(form.itbis_retenido || 0)
+    const isrRet = Number(form.isr_retenido || 0)
+    const nuevas: LineaContable[] = []
+    if (total > 0 || cuentaProveedor?.cuenta) {
+      nuevas.push({
+        cuenta: cuentaProveedor?.cuenta || '',
+        centroCosto: '',
+        debito: total > 0 ? total.toFixed(2) : '',
+        credito: '',
+      })
+    }
+    if (itbisRet > 0) {
+      nuevas.push({ cuenta: cuentaItbisRetenido, centroCosto: '', debito: '', credito: itbisRet.toFixed(2) })
+    }
+    if (isrRet > 0) {
+      nuevas.push({ cuenta: cuentaIsrCia, centroCosto: '', debito: '', credito: isrRet.toFixed(2) })
+    }
+    setLineasContables(nuevas.length > 0 ? nuevas : [filaVacia()])
+  }, [cuentaProveedor?.cuenta, cuentaItbisRetenido, cuentaIsrCia,
+      form.valor_bienes, impuesto, form.itbis_retenido, form.isr_retenido, lineasTocadas])
 
   // Retención ISR/ITBIS: igual que el ITBIS principal, se sugiere
   // automáticamente según el tipo de retención elegido (tasas estándar DGII)
