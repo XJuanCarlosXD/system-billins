@@ -1169,6 +1169,11 @@ def rep_ventas_producto(no_cia: str, punto: str, desde: str, hasta: str,
 # ── Reporte NCF 607 ───────────────────────────────────────────────────────────
 
 def rep_ncf_607(no_cia: str, desde: str, hasta: str) -> list[dict]:
+    """Reporte 607 DGII. Los NCF de Consumo (B02/E32) no se reportan aqui:
+    la DGII no exige identificar al comprador en esas ventas, y el usuario
+    confirmo que el 607 real del legado solo lista comprobantes con cliente
+    identificable (B01 credito fiscal, B14 regimenes especiales, B15
+    gubernamental, notas de credito/debito, etc — no factura de consumo)."""
     params: list = [no_cia]
     extra = []
     if desde:
@@ -1188,7 +1193,8 @@ def rep_ncf_607(no_cia: str, desde: str, hasta: str) -> list[dict]:
         f"LEFT JOIN CXC.TCXC_CLIENTE cl "
         f"  ON cl.no_cia = f.no_cia AND cl.punto = f.punto AND cl.no_cliente = f.no_cliente "
         f"WHERE f.no_cia=:1 AND f.ncf IS NOT NULL "
-        f"AND NVL(f.st_anulado,'N')='N' {extra_sql} "
+        f"AND NVL(f.st_anulado,'N')='N' "
+        f"AND NVL(UPPER(f.posiciones_fijas_ncf),'') NOT IN ('B02','E32') {extra_sql} "
         f"ORDER BY f.fecha, f.ncf",
         params)
     return [{'ncf': int(r['ncf']), 'codigo_ncf': r['codigo_ncf'] or '',
