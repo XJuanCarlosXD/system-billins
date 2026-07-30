@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileSpreadsheet, FileText, Printer, ShieldCheck, RefreshCw } from 'lucide-react'
+import { FileSpreadsheet, FileText, Printer, ShieldCheck, RefreshCw, FileDown } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -81,6 +81,19 @@ export function RepNcf607({ noCia, punto }: Props) {
     window.open(`${API_BASE}/fat/reportes/607/pdf/?${qs}`, '_blank')
   }
 
+  // Archivo de texto para subir al portal de la DGII (formato 607, pipe-
+  // delimited) -- distinto del PDF/Excel de arriba, es el que exige la ley.
+  // Usa el año/mes del "desde" seleccionado (la DGII exige un periodo
+  // mensual, no un rango arbitrario).
+  const openArchivoDgii = () => {
+    if (!desde) return
+    const [anio, mesStr] = desde.split('-')
+    window.open(
+      regalGeneralApi.fatArchivoDgii607Url(noCia, punto, Number(anio), Number(mesStr)),
+      '_blank',
+    )
+  }
+
   const exportPdf = async () => {
     const meta = await buildReportMeta(noCia, punto, periodoLabel)
     const win = window.open('', '_blank')!
@@ -123,6 +136,9 @@ export function RepNcf607({ noCia, punto }: Props) {
           <Button variant='outline' size='sm' onClick={exportPdf} disabled={!loaded}><Printer className='mr-1 h-4 w-4' /> PDF</Button>
           <Button variant='outline' size='sm' onClick={openListadoPdf} disabled={!loaded}><FileText className='mr-1 h-4 w-4' /> Imprimir PDF</Button>
           <Button variant='outline' size='sm' onClick={exportCsv} disabled={!loaded}><FileSpreadsheet className='mr-1 h-4 w-4' /> Excel</Button>
+          <Button variant='outline' size='sm' onClick={openArchivoDgii} disabled={!loaded} title='Archivo de texto para subir al portal de la DGII'>
+            <FileDown className='mr-1 h-4 w-4' /> Archivo DGII (607)
+          </Button>
         </div>
       </div>
 

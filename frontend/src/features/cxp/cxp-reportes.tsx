@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Search, Printer } from 'lucide-react'
+import { Search, Printer, FileDown } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 
 interface P { noCia: string; punto?: string; mes?: number; ano?: number }
@@ -206,6 +206,13 @@ export function CxpRep606({ noCia, punto = '', mes = curMonth, ano = curYear }: 
           <Button onClick={() => openPrint('cxp-rep-606', { no_cia: noCia, punto, anio: selAnio, mes: selMes })}
             size="sm" variant="outline" className="h-8 gap-1" disabled={!data}>
             <Printer className="h-4 w-4" />Imprimir PDF
+          </Button>
+          <Button
+            onClick={() => window.open(regalGeneralApi.cxpArchivoDgii606Url(noCia, parseInt(selAnio), parseInt(selMes), punto), '_blank')}
+            size="sm" variant="outline" className="h-8 gap-1" disabled={!data}
+            title="Archivo de texto para subir al portal de la DGII"
+          >
+            <FileDown className="h-4 w-4" />Archivo DGII (606)
           </Button>
         </div>
       </div>

@@ -1,6 +1,7 @@
 """Vistas FAT - endpoints completos de Facturacion."""
 import calendar
 from datetime import date
+from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -947,6 +948,37 @@ class FatRep607View(APIView):
                              'total_itbis': total_itbis, 'count': len(rows)})
         except Exception as e:
             return Response({'detail': str(e)}, status=500)
+
+
+class FatArchivoDgii607View(APIView):
+    """GET /api/fat/reportes/607/archivo-dgii/?no_cia=01&ano=2026&mes=7
+
+    Genera el archivo de texto pipe-delimited para subir a la DGII (formato
+    607), igual al que produce el legado en C:\\archivo_ncf\\archivo_607_*.txt.
+    No incluye NCF de Consumo (B02/E32) -- esos no se reportan individualmente.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        no_cia = request.query_params.get('no_cia')
+        punto = request.query_params.get('punto', '01')
+        if not no_cia:
+            return Response({'detail': 'no_cia es requerido'}, status=400)
+        forbidden = _check_fat_access(request.user.username, no_cia, punto)
+        if forbidden:
+            return forbidden
+        try:
+            ano = int(request.query_params.get('ano') or 0)
+            mes = int(request.query_params.get('mes') or 0)
+        except ValueError:
+            return Response({'detail': 'ano y mes deben ser numericos'}, status=400)
+        if not ano or not mes:
+            return Response({'detail': 'ano y mes son requeridos'}, status=400)
+        contenido, cantidad = fat_repo.archivo_dgii_607(no_cia, ano, mes)
+        resp = HttpResponse(contenido, content_type='text/plain; charset=utf-8')
+        resp['Content-Disposition'] = f'attachment; filename="607_{no_cia}_{ano}{mes:02d}.txt"'
+        resp['X-Registros'] = str(cantidad)
+        return resp
 
 
 class FatRepNcfNulosView(APIView):

@@ -1202,6 +1202,78 @@ def rep_ncf_607(no_cia: str, desde: str, hasta: str) -> list[dict]:
              'total_linea': float(r['total_linea'])} for r in rows]
 
 
+def _tipo_id_de_rnc(rnc: str) -> str:
+    """1=RNC (9 digitos), 2=Cedula (11 digitos) -- regla DGII por longitud."""
+    solo_digitos = ''.join(ch for ch in (rnc or '') if ch.isdigit())
+    return '2' if len(solo_digitos) == 11 else '1'
+
+
+def archivo_dgii_607(no_cia: str, ano: int, mes: int) -> tuple[str, int]:
+    """Genera el contenido del archivo 607 (formato DGII, pipe-delimited) tal
+    como lo produce el legado (ver C:\\archivo_ncf\\archivo_607_*.txt).
+
+    Regla clave descubierta comparando contra archivos reales del legado:
+    los NCF de Consumo (B02/E32, "factura de consumidor final") NO se
+    reportan linea por linea en el 607 -- DGII no exige identificar al
+    comprador en esas ventas. Solo se reportan comprobantes con cliente
+    identificable (credito fiscal, gubernamental, regimenes especiales,
+    notas de credito/debito, etc).
+
+    Limitacion conocida (no resuelta): NCF_MODIFICADO (columna 4, para NC/ND
+    que referencian la factura original) se deja en blanco -- el clon no
+    tiene aun un enlace explicito factura->nota de credito para resolverlo.
+    Revisar con un contador antes de enviar a DGII si el periodo tiene
+    notas de credito/debito.
+    """
+    from .. import client as _client
+    rows = _client.fetch_dicts(
+        "SELECT NVL(f.rnc_factura, cl.rnc) rnc, f.ncf, f.posiciones_fijas_ncf, f.tipo_ingreso, "
+        "TO_CHAR(f.fecha,'YYYYMMDD') fecha, TO_CHAR(f.fecha_retencion,'YYYYMMDD') fecha_retencion, "
+        "NVL(f.total_neto,0) total_neto, NVL(f.total_linea,0) total_linea, NVL(f.impuesto,0) impuesto, "
+        "NVL(f.itbis_retenido,0) itbis_retenido, NVL(f.isr_retenido,0) isr_retenido, "
+        "f.forma_pago_fat, tp.tipo_pago_fiscal forma_pago_dgii "
+        "FROM FAT.TFAT_FACTURA f "
+        "LEFT JOIN CXC.TCXC_CLIENTE cl "
+        "  ON cl.no_cia = f.no_cia AND cl.punto = f.punto AND cl.no_cliente = f.no_cliente "
+        "LEFT JOIN FAT.TFAT_TIPO_PAGO tp ON tp.no_cia=f.no_cia AND tp.tipo_pago=f.forma_pago_fat "
+        "WHERE f.no_cia=:1 AND EXTRACT(YEAR FROM f.fecha)=:2 AND EXTRACT(MONTH FROM f.fecha)=:3 "
+        "AND NVL(f.st_anulado,'N')='N' AND f.ncf IS NOT NULL "
+        "AND NVL(UPPER(f.posiciones_fijas_ncf),'') NOT IN ('B02','E32') "
+        "ORDER BY f.fecha, f.ncf",
+        [no_cia, ano, mes])
+
+    cia = _client.fetch_one("SELECT rnc FROM FAT.TFAT_CIAS WHERE no_cia=:1", [no_cia])
+    rnc_empresa = (cia[0] if cia else '') or ''
+
+    lineas = []
+    for r in rows:
+        ncf_dgi = _compose_ncf_dgi(r['posiciones_fijas_ncf'], r['ncf'])
+        tipo_ingreso = f"{int(r['tipo_ingreso'] or 1):02d}"
+        col_pago = int(r['forma_pago_dgii'] or 0)
+        # Columnas 17-23: Efectivo/Cheque-Transf/Tarjeta/Credito/Bonos/Permuta/Otras.
+        # NOTA: en TFAT_FACTURA, total_neto es el TOTAL con ITBIS incluido y
+        # total_linea es la base sin ITBIS (nombres al reves de lo esperado,
+        # verificado contra un documento real: total_neto=7642.54,
+        # total_linea=6476.73, impuesto=1165.81 -> 6476.73+1165.81=7642.54).
+        montos_pago = ['0.00'] * 7
+        total_doc = float(r['total_neto'])
+        if 1 <= col_pago <= 7:
+            montos_pago[col_pago - 1] = f"{total_doc:.2f}"
+        campos = [
+            r['rnc'] or '', _tipo_id_de_rnc(r['rnc']), ncf_dgi, '',
+            tipo_ingreso, r['fecha'] or '', r['fecha_retencion'] or '',
+            f"{float(r['total_linea']):.2f}", f"{float(r['impuesto']):.2f}",
+            f"{float(r['itbis_retenido']):.2f}", '',
+            f"{float(r['isr_retenido']):.2f}", '',
+            '0.00', '0.00', '0.00',
+            *montos_pago,
+        ]
+        lineas.append('|'.join(campos))
+
+    contenido = f"607|{rnc_empresa}|{ano}{mes:02d}|{len(lineas)}\n" + '\n'.join(lineas) + ('\n' if lineas else '')
+    return contenido, len(lineas)
+
+
 # ── Reporte NCF Nulos ─────────────────────────────────────────────────────────
 
 def rep_ncf_nulos(no_cia: str, desde: str, hasta: str) -> list[dict]:

@@ -915,6 +915,10 @@ export const regalGeneralApi = {
     request<{ items: Array<Record<string, any>>; total_neto: number; total_itbis: number; count: number }>(
       `/fat/rep-607/?no_cia=${encodeURIComponent(no_cia)}&punto=${encodeURIComponent(punto)}&desde=${desde}&hasta=${hasta}`),
 
+  // URL del archivo de texto para subir a la DGII (formato 607, pipe-delimited).
+  fatArchivoDgii607Url: (no_cia: string, punto: string, ano: number, mes: number) =>
+    `${API_BASE}/fat/reportes/607/archivo-dgii/?no_cia=${encodeURIComponent(no_cia)}&punto=${encodeURIComponent(punto)}&ano=${ano}&mes=${mes}`,
+
   fatRepNcfNulos: (no_cia: string, punto: string, desde: string, hasta: string) =>
     request<{ items: Array<Record<string, any>>; count: number }>(
       `/fat/rep-ncf-nulos/?no_cia=${encodeURIComponent(no_cia)}&punto=${encodeURIComponent(punto)}&desde=${desde}&hasta=${hasta}`),
@@ -1288,6 +1292,11 @@ export const regalGeneralApi = {
   cxpRep606: (noCia: string, anio: number, mes: number, punto?: string) => {
     const qs = new URLSearchParams({ no_cia: noCia, anio: String(anio), mes: String(mes), ...(punto && { punto }) }).toString()
     return request<any>(`/cxp/rep-606/?${qs}`)
+  },
+  // URL del archivo de texto para subir a la DGII (formato 606, pipe-delimited).
+  cxpArchivoDgii606Url: (noCia: string, anio: number, mes: number, punto?: string) => {
+    const qs = new URLSearchParams({ no_cia: noCia, anio: String(anio), mes: String(mes), ...(punto && { punto }) }).toString()
+    return `${API_BASE}/cxp/rep-606/archivo-dgii/?${qs}`
   },
   cxpRep607: (noCia: string, anio: number, mes: number, punto?: string) => {
     const qs = new URLSearchParams({ no_cia: noCia, anio: String(anio), mes: String(mes), ...(punto && { punto }) }).toString()

@@ -1,6 +1,6 @@
 import json
 import datetime
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
@@ -162,6 +162,31 @@ def cxp_proveedor_cuenta(request, no):
 def cxp_cuenta_itbis_default(request):
     no_cia = request.GET.get('no_cia', '01')
     return JsonResponse({'cuenta': cxp_repo.get_cuenta_itbis_default(no_cia)})
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
+def cxp_rep_606_archivo_dgii(request):
+    """GET /api/cxp/rep-606/archivo-dgii/?no_cia=&anio=&mes=&punto=
+
+    Genera el archivo de texto pipe-delimited para subir a la DGII (formato
+    606), igual al que produce el legado en C:\\archivo_ncf\\archivo_606_*.txt.
+    """
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto') or ''
+    try:
+        anio = int(request.GET.get('anio') or 0)
+        mes = int(request.GET.get('mes') or 0)
+    except ValueError:
+        return JsonResponse({'detail': 'anio y mes deben ser numericos'}, status=400)
+    if not anio or not mes:
+        return JsonResponse({'detail': 'anio y mes son requeridos'}, status=400)
+    contenido, cantidad = cxp_repo.archivo_dgii_606(no_cia, anio, mes, punto)
+    resp = HttpResponse(contenido, content_type='text/plain; charset=utf-8')
+    resp['Content-Disposition'] = f'attachment; filename="606_{no_cia}_{anio}{mes:02d}.txt"'
+    resp['X-Registros'] = str(cantidad)
+    return resp
 
 
 @login_required

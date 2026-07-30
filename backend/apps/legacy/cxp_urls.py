@@ -45,6 +45,7 @@ urlpatterns = [
     path('rep-alfabetico/', cxp_views.cxp_rep_alfabetico),
     path('rep-mayor/', cxp_views.cxp_rep_mayor),
     path('rep-606/', cxp_views.cxp_rep_606),
+    path('rep-606/archivo-dgii/', cxp_views.cxp_rep_606_archivo_dgii),
     path('rep-607/', cxp_views.cxp_rep_607),
     path('rep-cuadre/', cxp_views.cxp_rep_cuadre),
     path('rep-retenciones/', cxp_views.cxp_rep_retenciones),
