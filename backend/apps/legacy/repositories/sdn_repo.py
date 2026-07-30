@@ -499,12 +499,21 @@ def anular_nomina(no_cia: str, punto: str, nomina: str) -> None:
 
 
 # ---- Cálculo de Nómina ----
+_DEDUCCIONES_AUTOMATICAS = ('01', '02')  # AFP, SFS/ARS (TSDN_DEDUCCIONES)
+
+
 def calcular_nomina(no_cia: str, punto: str, nomina: str, usuario: str) -> dict:
     """Marca CALCULO_NOMINA='S' en TSDN_NOMINA y registra auditoría.
 
-    MVP: cierra la definición. El cálculo de movimientos detallados
-    queda a cargo del proceso legacy hasta que se implemente la lógica
-    de ingresos/deducciones por concepto (forma legacy Fsdn202/Fsdn203).
+    Antes de cerrar el calculo, aplica automaticamente AFP y SFS/ARS
+    (deducciones 01/02 del catalogo TSDN_DEDUCCIONES, % + tope legal ya
+    configurados) a todos los empleados activos que aun no las tengan en
+    este periodo -- MPILAR reporto que tenia que registrarlas a mano cada
+    vez; aplicar_deduccion_masiva ya existia y calculaba bien (con tope
+    corregido en el mismo cambio), solo faltaba dispararla sola aqui. Si
+    un empleado ya tiene el movimiento (por ejemplo alguien la registro a
+    mano, o cambio de salario y se recalculo antes), no se duplica.
+    Ingresos/otros conceptos por linea siguen pendientes (Fsdn202/Fsdn203).
     """
     cur = get_nomina(no_cia, punto, nomina)
     if not cur:
@@ -513,6 +522,23 @@ def calcular_nomina(no_cia: str, punto: str, nomina: str, usuario: str) -> dict:
         raise ValueError(f"Nómina {nomina} no está activa")
     if cur.get('calculo_nomina') == 'S':
         raise ValueError(f"Nómina {nomina} ya fue calculada")
+
+    ano = int(cur['ano_proceso'])
+    mes = int(cur['mes_proceso'])
+    periodo = int(cur.get('periodo') or 1)
+    deducciones_auto = []
+    for no_ded in _DEDUCCIONES_AUTOMATICAS:
+        try:
+            r = aplicar_deduccion_masiva(
+                no_cia=no_cia, punto=punto, nomina=nomina,
+                ano=ano, mes=mes, periodo=periodo,
+                no_deduccion=no_ded, usuario=usuario)
+            deducciones_auto.append({'no_deduccion': no_ded, 'aplicados': r['cantidad'],
+                                      'total_monto': r['total_monto']})
+        except Exception as exc:
+            # No bloquea el calculo si una deduccion no aplica (ej. catalogo
+            # inactivo en alguna compania) -- se reporta, no se detiene.
+            deducciones_auto.append({'no_deduccion': no_ded, 'error': str(exc)})
 
     client.execute(
         "UPDATE SDN.TSDN_NOMINA SET calculo_nomina='S' "
@@ -533,7 +559,9 @@ def calcular_nomina(no_cia: str, punto: str, nomina: str, usuario: str) -> dict:
          cur.get('fecha_inicial'), cur.get('fecha_final'),
          (usuario or '').upper()[:30]],
     )
-    return get_nomina(no_cia, punto, nomina)
+    resultado = get_nomina(no_cia, punto, nomina)
+    resultado['deducciones_automaticas'] = deducciones_auto
+    return resultado
 
 
 def reabrir_nomina(no_cia: str, punto: str, nomina: str, usuario: str) -> dict:
@@ -842,7 +870,8 @@ def aplicar_deduccion_masiva(*, no_cia: str, punto: str, nomina: str,
     # Cabecera deducción
     ded = client.fetch_dicts(
         "SELECT no_deduccion, descripcion, descri_corta, porciento_monto, "
-        "       NVL(valor,0) AS valor, empleado_patrono, clase_deduccion, status "
+        "       NVL(valor,0) AS valor, empleado_patrono, clase_deduccion, status, "
+        "       NVL(tope_salario_deduccion,0) AS tope "
         "  FROM SDN.TSDN_DEDUCCIONES WHERE no_deduccion=:1",
         [no_ded],
     )
@@ -857,6 +886,7 @@ def aplicar_deduccion_masiva(*, no_cia: str, punto: str, nomina: str,
     #   M = el campo 'valor' es monto fijo a deducir.
     flag = str(d.get('porciento_monto') or '').strip().upper()
     valor_cat = float(d.get('valor') or 0)
+    tope = float(d.get('tope') or 0)
     if flag == 'P':
         porc = valor_cat; valor_fijo = 0.0
     else:
@@ -902,7 +932,11 @@ def aplicar_deduccion_masiva(*, no_cia: str, punto: str, nomina: str,
         emp_id = int(e['no_empleado'])
         sal = float(e.get('salario') or 0)
         if porc > 0:
-            monto = round(sal * porc / 100.0, 2)
+            # TOPE_SALARIO_DEDUCCION (TSDN_DEDUCCIONES) es el tope legal de
+            # cotizacion (AFP 120,000 / SFS 110,000): el % no aplica sobre
+            # todo el salario si este supera el tope, solo hasta el tope.
+            base = min(sal, tope) if tope > 0 else sal
+            monto = round(base * porc / 100.0, 2)
         else:
             monto = round(valor_fijo, 2)
         item = {
