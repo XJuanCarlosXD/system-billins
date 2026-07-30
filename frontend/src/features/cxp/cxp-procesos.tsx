@@ -332,41 +332,67 @@ export function ProveedorPicker({
   )
 }
 
-// ─── Cuenta contable del documento (movimiento TCXP_DCDOCU) ─────────────────
-// En el legado (Fcxp201/Fcxp210) el operador ve la cuenta contable que va a
-// afectar el documento y la puede corregir, no es un dato de solo lectura.
-// Arranca sugerida desde la cuenta del proveedor pero es 100% editable:
-// texto libre con lupa para buscar/validar contra el catálogo de CNT.
-function CuentaContableField({
-  value,
+// ─── Movimiento contable del documento (TCXP_DCDOCU) ────────────────────────
+// En el legado (Fcxp201/Fcxp210) esta seccion es una grilla real de varias
+// lineas — Componente / Cuenta / Centro Costo / Nombre Cuenta / Débito /
+// Crédito, con una fila de "Diferencia" abajo — no un solo campo de solo
+// lectura. El operador puede agregar lineas y repartir el documento entre
+// varias cuentas, igual que en Forms.
+export type LineaContable = {
+  cuenta: string
+  centroCosto: string
+  debito: string
+  credito: string
+}
+
+function filaVacia(): LineaContable {
+  return { cuenta: '', centroCosto: '', debito: '', credito: '' }
+}
+
+function MovimientoContableGrid({
+  lineas,
   onChange,
-  sugerida,
-  nombreProveedor,
 }: {
-  value: string
-  onChange: (v: string) => void
-  sugerida?: string
-  nombreProveedor?: string
+  lineas: LineaContable[]
+  onChange: (lineas: LineaContable[]) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const [nombres, setNombres] = useState<Record<string, string>>({})
+  const [buscarIdx, setBuscarIdx] = useState<number | null>(null)
   const [search, setSearch] = useState('')
   const [results, setResults] = useState<any[]>([])
   const [searching, setSearching] = useState(false)
-  const [descripcion, setDescripcion] = useState('')
 
+  const cuentasEnUso = useMemo(
+    () => Array.from(new Set(lineas.map((l) => l.cuenta).filter(Boolean))),
+    [lineas],
+  )
   useEffect(() => {
-    if (!value) { setDescripcion(''); return }
-    api.cntGetCuenta(value)
-      .then((c: any) => setDescripcion(c?.descripcion || c?.nombre || ''))
-      .catch(() => setDescripcion(''))
-  }, [value])
+    const faltantes = cuentasEnUso.filter((c) => !(c in nombres))
+    if (faltantes.length === 0) return
+    faltantes.forEach((c) => {
+      api.cntGetCuenta(c)
+        .then((r: any) => setNombres((n) => ({ ...n, [c]: r?.descripcion || r?.nombre || '' })))
+        .catch(() => setNombres((n) => ({ ...n, [c]: '' })))
+    })
+  }, [cuentasEnUso]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const actualizar = (i: number, patch: Partial<LineaContable>) => {
+    const copia = lineas.slice()
+    copia[i] = { ...copia[i], ...patch }
+    onChange(copia)
+  }
+  const agregarFila = () => onChange([...lineas, filaVacia()])
+  const quitarFila = (i: number) => onChange(lineas.length <= 1 ? [filaVacia()] : lineas.filter((_, idx) => idx !== i))
+
+  const totalDebito = lineas.reduce((s, l) => s + Number(l.debito || 0), 0)
+  const totalCredito = lineas.reduce((s, l) => s + Number(l.credito || 0), 0)
+  const diferencia = totalDebito - totalCredito
 
   const buscar = async (q: string) => {
     if (q.trim().length < 1) { setResults([]); return }
     setSearching(true)
     try {
-      const rows = await api.cntCatalogo({ search: q, activa: true })
-      setResults(rows)
+      setResults(await api.cntCatalogo({ search: q, activa: true }))
     } catch {
       setResults([])
     } finally {
@@ -375,44 +401,104 @@ function CuentaContableField({
   }
 
   const aplicar = (c: any) => {
-    onChange(c.cuenta)
-    setOpen(false)
+    if (buscarIdx == null) return
+    actualizar(buscarIdx, { cuenta: c.cuenta })
+    setNombres((n) => ({ ...n, [c.cuenta]: c.descripcion }))
+    setBuscarIdx(null)
     setSearch('')
     setResults([])
   }
 
   return (
-    <div className='space-y-1'>
-      <Label className='text-xs'>Cuenta Contable (Distribución)</Label>
-      <div className='flex items-center gap-2'>
-        <Input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={sugerida ? `Sugerida: ${sugerida}` : 'Ej. 2104-02'}
-          className='h-10 w-40 font-mono'
-        />
-        <Button
-          type='button' variant='outline' className='h-10 px-3'
-          title='Buscar cuenta'
-          onClick={() => { setOpen(true); setSearch(''); setResults([]) }}
-        >
-          <Search className='h-4 w-4' />
+    <div className='space-y-2'>
+      <Label className='text-xs'>Movimiento Contable (Distribución del documento)</Label>
+      <div className='overflow-x-auto rounded border'>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className='w-32'>Cuenta</TableHead>
+              <TableHead>Nombre Cuenta</TableHead>
+              <TableHead className='w-28'>Centro Costo</TableHead>
+              <TableHead className='w-28 text-right'>Débito</TableHead>
+              <TableHead className='w-28 text-right'>Crédito</TableHead>
+              <TableHead className='w-10' />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {lineas.map((l, i) => (
+              <TableRow key={i}>
+                <TableCell className='p-1'>
+                  <div className='flex items-center gap-1'>
+                    <Input
+                      value={l.cuenta}
+                      onChange={(e) => actualizar(i, { cuenta: e.target.value })}
+                      className='h-9 w-28 font-mono text-xs'
+                      placeholder='2104-02'
+                    />
+                    <Button
+                      type='button' variant='outline' size='sm' className='h-9 px-2'
+                      title='Buscar cuenta'
+                      onClick={() => { setBuscarIdx(i); setSearch(''); setResults([]) }}
+                    >
+                      <Search className='h-3 w-3' />
+                    </Button>
+                  </div>
+                </TableCell>
+                <TableCell className='truncate p-1 text-xs text-muted-foreground'>
+                  {l.cuenta ? (nombres[l.cuenta] ?? '…') : ''}
+                </TableCell>
+                <TableCell className='p-1'>
+                  <Input
+                    value={l.centroCosto}
+                    onChange={(e) => actualizar(i, { centroCosto: e.target.value })}
+                    className='h-9 font-mono text-xs'
+                  />
+                </TableCell>
+                <TableCell className='p-1'>
+                  <Input
+                    type='number' step='0.01'
+                    value={l.debito}
+                    onChange={(e) => actualizar(i, { debito: e.target.value, credito: e.target.value ? '' : l.credito })}
+                    className='h-9 text-right font-mono text-xs'
+                  />
+                </TableCell>
+                <TableCell className='p-1'>
+                  <Input
+                    type='number' step='0.01'
+                    value={l.credito}
+                    onChange={(e) => actualizar(i, { credito: e.target.value, debito: e.target.value ? '' : l.debito })}
+                    className='h-9 text-right font-mono text-xs'
+                  />
+                </TableCell>
+                <TableCell className='p-1'>
+                  <button
+                    type='button'
+                    onClick={() => quitarFila(i)}
+                    className='text-muted-foreground hover:text-red-600'
+                    title='Quitar línea'
+                  >
+                    ×
+                  </button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      <div className='flex items-center justify-between'>
+        <Button type='button' variant='outline' size='sm' onClick={agregarFila}>
+          + Línea
         </Button>
-        {descripcion && (
-          <span className='truncate text-sm text-muted-foreground'>· {descripcion}</span>
-        )}
-        {!value && sugerida && (
-          <button
-            type='button'
-            onClick={() => onChange(sugerida)}
-            className='text-xs text-emerald-700 hover:underline'
-          >
-            usar sugerida ({sugerida}{nombreProveedor ? ` · ${nombreProveedor}` : ''})
-          </button>
-        )}
+        <div className='flex gap-4 text-xs'>
+          <span>Total Débito: <b className='font-mono'>{fmt(totalDebito)}</b></span>
+          <span>Total Crédito: <b className='font-mono'>{fmt(totalCredito)}</b></span>
+          <span className={diferencia !== 0 ? 'font-semibold text-red-600' : 'font-semibold text-emerald-700'}>
+            Diferencia: <b className='font-mono'>{fmt(diferencia)}</b>
+          </span>
+        </div>
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={buscarIdx != null} onOpenChange={(o) => !o && setBuscarIdx(null)}>
         <DialogContent className='flex h-auto max-h-[80vh] min-h-[40vh] w-[90vw] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-h-[80vh] sm:max-w-none lg:w-[50vw]'>
           <DialogHeader className='shrink-0 border-b px-6 py-4'>
             <DialogTitle>Buscar Cuenta Contable</DialogTitle>
@@ -549,16 +635,23 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
   }, [proveedor?.no_proveedor, noCia, punto])
 
   // Movimiento contable (TCXP_DCDOCU) del documento: en el legado (Fcxp201/
-  // Fcxp210) el operador ve y puede corregir la cuenta que afecta el
-  // documento, no solo la cuenta por defecto del proveedor. Arranca con la
-  // cuenta del proveedor pero es editable; si el usuario la cambia, ya no se
-  // vuelve a pisar automáticamente al cambiar de proveedor.
-  const [cuentaContable, setCuentaContable] = useState('')
-  const [cuentaTocada, setCuentaTocada] = useState(false)
+  // Fcxp210) esta es una grilla de varias lineas (Cuenta/Centro Costo/
+  // Débito/Crédito), no un dato de solo lectura. La primera fila arranca
+  // sugerida con la cuenta del proveedor y el total del documento en
+  // Débito; si el usuario toca la grilla (agrega/edita algo), ya no se
+  // vuelve a pisar automáticamente.
+  const [lineasContables, setLineasContables] = useState<LineaContable[]>([filaVacia()])
+  const [lineasTocadas, setLineasTocadas] = useState(false)
   useEffect(() => {
-    if (cuentaTocada) return
-    setCuentaContable(cuentaProveedor?.cuenta || '')
-  }, [cuentaProveedor?.cuenta, cuentaTocada])
+    if (lineasTocadas) return
+    const total = Number(form.valor_bienes || 0) + Number(impuesto || 0)
+    setLineasContables([{
+      cuenta: cuentaProveedor?.cuenta || '',
+      centroCosto: '',
+      debito: total > 0 ? total.toFixed(2) : '',
+      credito: '',
+    }])
+  }, [cuentaProveedor?.cuenta, form.valor_bienes, impuesto, lineasTocadas])
 
   // Retención ISR/ITBIS: igual que el ITBIS principal, se sugiere
   // automáticamente según el tipo de retención elegido (tasas estándar DGII)
@@ -655,17 +748,17 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
     setSaving(true)
     try {
       const totalDoc = Number(form.valor_bienes) + Number(impuesto || 0)
-      // Movimiento contable (TCXP_DCDOCU): igual que en el legado, el monto
-      // total del documento se distribuye a la cuenta elegida arriba. El
-      // signo es el contrario al de la cabecera (TCXP_TDOCU.tipo_movi) para
-      // que la partida doble cuadre: FP/NC (cabecera 'C', aumenta lo que
-      // debemos) debita la cuenta de gasto; ND/AD/BD (cabecera 'D') la
-      // acredita.
-      const tipoMoviCabecera = (tiposDocu.find((t: any) => (t.codigo ?? t.tipo_docu) === tipoDocu)?.tipo_movi || 'C').toUpperCase()
-      const tipoMoviLinea = tipoMoviCabecera === 'D' ? 'C' : 'D'
-      const lineas = cuentaContable
-        ? [{ cuenta: cuentaContable, monto: totalDoc, tipo_movi: tipoMoviLinea }]
-        : undefined
+      // Movimiento contable (TCXP_DCDOCU): cada fila de la grilla de arriba
+      // se manda tal cual el operador la dejó — débito o crédito por línea,
+      // igual que en el legado (Fcxp201/Fcxp210).
+      const lineas = lineasContables
+        .filter((l) => l.cuenta && (Number(l.debito || 0) > 0 || Number(l.credito || 0) > 0))
+        .map((l) => ({
+          cuenta: l.cuenta,
+          centro_costo: l.centroCosto || undefined,
+          monto: Number(l.debito || 0) > 0 ? Number(l.debito) : Number(l.credito),
+          tipo_movi: Number(l.debito || 0) > 0 ? 'D' : 'C',
+        }))
       const res = await api.cxpEntradaDocumento({
         no_cia: noCia,
         punto,
@@ -682,7 +775,7 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
         itbis_retenido:  form.itbis_retenido  ? Number(form.itbis_retenido)  : 0,
         isr_retenido:    form.isr_retenido    ? Number(form.isr_retenido)    : 0,
         forma_pago:      form.forma_pago      ? Number(form.forma_pago)      : null,
-        ...(lineas ? { lineas } : {}),
+        ...(lineas.length > 0 ? { lineas } : {}),
       })
       const retTxt = (Number(form.itbis_retenido || 0) > 0 || Number(form.isr_retenido || 0) > 0)
         ? ` — Retenido ITBIS RD$ ${Number(form.itbis_retenido || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })} / ISR RD$ ${Number(form.isr_retenido || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })}`
@@ -716,8 +809,8 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
         forma_pago:    defFp  ? String(defFp.forma_pago) : '',
       })
       setEditandoRetenciones(false)
-      setCuentaContable('')
-      setCuentaTocada(false)
+      setLineasContables([filaVacia()])
+      setLineasTocadas(false)
       setImpuesto('')
       setEditandoItbis(false)
       const next = await api.cxpGetSiguienteNoDocu(noCia, punto, tipoDocu)
@@ -1003,11 +1096,9 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
           </div>
 
           <div className='md:col-span-3'>
-            <CuentaContableField
-              value={cuentaContable}
-              onChange={(v) => { setCuentaTocada(true); setCuentaContable(v) }}
-              sugerida={cuentaProveedor?.cuenta}
-              nombreProveedor={cuentaProveedor?.nombre}
+            <MovimientoContableGrid
+              lineas={lineasContables}
+              onChange={(v) => { setLineasTocadas(true); setLineasContables(v) }}
             />
           </div>
         </CardContent>
