@@ -2698,6 +2698,23 @@ def _upsert_rme_header(cur, *, no_cia, punto, tipo_docu, no_docu, fecha,
 _TIPOS_AUTO_IMPUESTO = {'DV', 'DC'}
 
 
+def _cuenta_inventario_producto(cur, no_produ: str) -> str:
+    """Cuenta de Inventario (activo) del grupo contable del producto.
+
+    Mismo campo que usa el legado en Entrada de Produccion (Finv204: SELECT
+    INVENTARIO FROM TINV_GRUPO_CONTABLE WHERE GRUPO_CONTABLE = :b1) -- es la
+    cuenta correcta para debitar en una compra de mercancia, no la cuenta_gasto
+    del proveedor (ese campo no aplica a compras de inventario y no esta
+    poblado en ningun proveedor real, ver auditoria 2026-07-31).
+    """
+    cur.execute(
+        "SELECT g.inventario FROM INV.TINV_PRODUCTO p "
+        "JOIN INV.TINV_GRUPO_CONTABLE g ON g.grupo_contable = p.grupo_contable "
+        "WHERE p.no_produ=:1", [no_produ])
+    row = cur.fetchone()
+    return (row[0] or '').strip() if row and row[0] else ''
+
+
 def _producto_impuesto_info(cur, no_produ: str) -> tuple[str, float]:
     cur.execute(
         "SELECT NVL(tiene_impuesto,'S'), NVL(porciento_impuesto,0) "
@@ -2790,6 +2807,7 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
         total_bruto = 0.0
         total_descuento = 0.0
         total_impuesto = 0.0
+        cuentas_inventario_ec: dict[str, float] = {}
         for idx, lin in enumerate(lineas, start=1):
             no_produ = (lin.get('no_produ') or '').strip().upper()
             if not no_produ:
@@ -2849,6 +2867,11 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
             total_bruto += valor_linea
             total_descuento += descuento_linea
             total_impuesto += impuesto_linea
+            if tipo_docu == 'EC':
+                _cta_inv_linea = _cuenta_inventario_producto(cur, no_produ)
+                if _cta_inv_linea:
+                    cuentas_inventario_ec[_cta_inv_linea] = (
+                        cuentas_inventario_ec.get(_cta_inv_linea, 0.0) + base_linea)
 
             # Garantizar la fila padre en TINV_EPRODUCTO antes del INSERT en
             # TINV_MOVIMIENTO (FK_TINV_MOVIMIENTO_EPRODUCTO revienta con
@@ -2957,22 +2980,36 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
         try:
             # entrada_documento exige partida doble balanceada (fix b75ef51).
             # Armamos el mismo asiento que la UI de Entrada de Documentos:
-            #   DEBITO cuenta_gasto del proveedor por valor_bienes
+            #   DEBITO cuenta de Inventario (TINV_GRUPO_CONTABLE.INVENTARIO)
+            #     de cada producto comprado, agrupado por grupo contable --
+            #     NO proveedor.cuenta_gasto (ese campo es para gastos, no
+            #     aplica a compras de mercancia y no esta poblado en ningun
+            #     proveedor real, ver auditoria 2026-07-31). Si algun producto
+            #     no resuelve grupo contable, cae en cuenta_gasto del
+            #     proveedor y luego en get_cuenta_compra_default como ultimo
+            #     recurso.
             #   DEBITO cuenta ITBIS deducible por impuesto (si > 0)
             #   CREDITO cuenta del tipo de proveedor por total_neto
             _prov = _cxp_get_prov_cuenta(no_cia, punto, no_proveedor) or {}
-            _cta_gasto = (_prov.get('cuenta_gasto') or '').strip() \
-                or (_cxp_get_cta_compra(no_cia) or '').strip()
-            _cta_prov  = (_prov.get('cuenta') or '').strip()
+            _cta_prov = (_prov.get('cuenta') or '').strip()
             _cta_itbis = (_cxp_get_cta_itbis(no_cia) or '').strip() if total_impuesto else ''
+            _cuentas_deb = dict(cuentas_inventario_ec)
+            _sin_grupo = round(valor_bienes - sum(_cuentas_deb.values()), 2)
+            if abs(_sin_grupo) > 0.01:
+                _cta_resto = (_prov.get('cuenta_gasto') or '').strip() \
+                    or (_cxp_get_cta_compra(no_cia) or '').strip()
+                if _cta_resto:
+                    _cuentas_deb[_cta_resto] = _cuentas_deb.get(_cta_resto, 0.0) + _sin_grupo
             _lineas_cnt = []
-            if _cta_gasto and _cta_prov:
-                _lineas_cnt.append({'cuenta': _cta_gasto, 'tipo_movi': 'D', 'monto': valor_bienes})
-                if total_impuesto and _cta_itbis:
-                    _lineas_cnt.append({'cuenta': _cta_itbis, 'tipo_movi': 'D', 'monto': total_impuesto})
-                    _lineas_cnt.append({'cuenta': _cta_prov,  'tipo_movi': 'C', 'monto': total_neto})
-                else:
-                    _lineas_cnt.append({'cuenta': _cta_prov,  'tipo_movi': 'C', 'monto': valor_bienes})
+            for _cta, _monto in _cuentas_deb.items():
+                if round(_monto, 2):
+                    _lineas_cnt.append({'cuenta': _cta, 'tipo_movi': 'D', 'monto': round(_monto, 2)})
+            if total_impuesto and _cta_itbis:
+                _lineas_cnt.append({'cuenta': _cta_itbis, 'tipo_movi': 'D', 'monto': total_impuesto})
+            if not (_lineas_cnt and _cta_prov):
+                _lineas_cnt = []
+            else:
+                _lineas_cnt.append({'cuenta': _cta_prov, 'tipo_movi': 'C', 'monto': total_neto})
             cxp_no_docu = _cxp_entrada_documento({
                 'no_cia': no_cia, 'punto': punto, 'tipo_docu': 'FP',
                 'no_proveedor': no_proveedor,
@@ -2981,7 +3018,7 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                 'impuesto': total_impuesto,
                 'valor_bienes': valor_bienes,
                 'rnc': rnc, 'ncf': ncf_val, 'posiciones_fijas_ncf': posiciones_fijas_ncf,
-                'forma_pago': forma_pago,
+                'forma_pago': forma_pago, 'tipo_gasto': '09',
                 'detalle': (nota or f'Entrada de Compras INV {no_docu}')[:100],
                 'usuario': usuario,
                 'lineas': _lineas_cnt,

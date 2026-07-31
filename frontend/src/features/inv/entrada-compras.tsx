@@ -398,6 +398,17 @@ export function EntradaCompras({ noCia, punto }: Props) {
         created.data?.no_docu ??
         ''
       toast.success(`Documento ${docNo} guardado correctamente`)
+      const cxpMirror = created.cxp_mirror ?? created.data?.cxp_mirror
+      if (tipoDocu === 'EC' && cxpMirror?.error) {
+        // El espejo en Cuentas por Pagar (que alimenta el 606) puede fallar
+        // sin revertir la entrada de inventario -- si eso pasa el operador
+        // debe saberlo para corregirlo manualmente en CxP, no descubrirlo
+        // dias despues cuando falte en el 606.
+        toast.error(
+          `La compra se guardó en Inventario, pero NO se generó el documento en Cuentas por Pagar (no aparecerá en el 606): ${cxpMirror.error}`,
+          { duration: 15000 }
+        )
+      }
       // Tipo Documento y Almacen se conservan: el operador registra varios
       // documentos seguidos del mismo tipo, y resetearlos hacia que el
       // siguiente Guardar cayera en "Seleccione el Tipo de Documento" sin
