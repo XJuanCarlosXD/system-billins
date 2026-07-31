@@ -12,6 +12,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { handleServerError } from '@/lib/handle-server-error'
 import { ApiError } from '@/lib/regal-general-api'
 import { logErrorAutomatico, mensajeDeError, reportarErrorConCaptura } from '@/lib/report-error'
+import { AppErrorBoundary } from './components/app-error-boundary'
 import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
 import { ThemeProvider } from './context/theme-provider'
@@ -113,17 +114,19 @@ if (!rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement)
   root.render(
     <StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
-          <FontProvider>
-            <DirectionProvider>
-              <CompanyProvider>
-                <RouterProvider router={router} />
-              </CompanyProvider>
-            </DirectionProvider>
-          </FontProvider>
-        </ThemeProvider>
-      </QueryClientProvider>
+      <AppErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider>
+            <FontProvider>
+              <DirectionProvider>
+                <CompanyProvider>
+                  <RouterProvider router={router} />
+                </CompanyProvider>
+              </DirectionProvider>
+            </FontProvider>
+          </ThemeProvider>
+        </QueryClientProvider>
+      </AppErrorBoundary>
     </StrictMode>
   )
 }
