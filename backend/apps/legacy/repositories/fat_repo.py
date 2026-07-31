@@ -2,6 +2,7 @@
 from __future__ import annotations
 from .. import client
 from ..dtos import NCFRange, DocumentType
+from apps.historial import repo as historial_repo
 
 
 def _compose_ncf_dgi(posiciones: str | None, ncf_num) -> str:
@@ -2750,6 +2751,10 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
                 "UPDATE CNT.TCNT_NCF SET prox_ncf=:1 "
                 "WHERE no_localidad=:2 AND codigo_ncf=:3",
                 [ncf_val + 1, no_cia, codigo_ncf_emitir])
+        historial_repo.log_evento(
+            cur, usuario=usuario, no_cia=no_cia, punto=punto, modulo="FAT",
+            tipo_documento=tf, no_documento=new_no_factura, accion="CREAR",
+        )
         cur.connection.commit()
     return {"no_factura": new_no_factura, "tipo_factura": tf, "ncf": ncf_val,
             "total_neto": total_neto, "total_linea": total_linea,
