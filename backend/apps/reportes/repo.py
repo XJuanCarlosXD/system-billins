@@ -10,6 +10,8 @@ from __future__ import annotations
 import base64
 import uuid
 
+import oracledb
+
 from apps.legacy import client
 
 ESTADOS_VALIDOS = ("ABIERTO", "EN_PROGRESO", "COMPLETADO", "CANCELADO")
@@ -23,6 +25,37 @@ MAX_IMAGEN_BYTES = 5 * 1024 * 1024
 
 class ValidationError(Exception):
     pass
+
+
+def log_error(
+    *, usuario: str | None, modulo: str | None, url: str | None,
+    status_http: int | None, mensaje: str, detalle: str | None = None,
+) -> int:
+    """Registro silencioso de un error. Best-effort: si Oracle está caído,
+    el caller decide si propagar o tragarse la excepción (la vista se la
+    traga, ver ErrorLogView)."""
+    with client.cursor() as cur:
+        out_id = cur.var(oracledb.NUMBER)
+        cur.execute(
+            "INSERT INTO ABREGONZA.TSYS_ERROR_LOG "
+            "(USUARIO, MODULO, URL, STATUS_HTTP, MENSAJE, DETALLE, FECHA) "
+            "VALUES (:1, :2, :3, :4, :5, :6, SYSDATE) "
+            "RETURNING ERROR_ID INTO :7",
+            [(usuario or "").upper()[:30] or None, (modulo or "").upper()[:20] or None,
+             (url or "")[:500] or None, status_http, (mensaje or "")[:1000], detalle,
+             out_id],
+        )
+        cur.connection.commit()
+    return int(out_id.getvalue()[0])
+
+
+def vincular_reporte(error_log_id: int, reporte_id: str) -> None:
+    with client.cursor() as cur:
+        cur.execute(
+            "UPDATE ABREGONZA.TSYS_ERROR_LOG SET REPORTE_ID = :1 WHERE ERROR_ID = :2",
+            [reporte_id, error_log_id],
+        )
+        cur.connection.commit()
 
 
 def _validar_imagenes(imagenes: list[dict]) -> list[tuple[str, str, bytes]]:
@@ -49,6 +82,7 @@ def _validar_imagenes(imagenes: list[dict]) -> list[tuple[str, str, bytes]]:
 def create_reporte(
     *, usuario: str, modulo: str | None, titulo: str | None,
     descripcion: str | None, imagenes: list[dict],
+    error_log_id: int | None = None,
 ) -> str:
     modulo = (modulo or "OTRO").upper()
     if modulo not in MODULOS_VALIDOS:
@@ -78,6 +112,8 @@ def create_reporte(
                  len(contenido)],
             )
         cur.connection.commit()
+    if error_log_id:
+        vincular_reporte(error_log_id, reporte_id)
     return reporte_id
 
 

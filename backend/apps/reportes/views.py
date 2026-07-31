@@ -42,12 +42,37 @@ class ReportesView(APIView):
                 titulo=body.get("titulo"),
                 descripcion=body.get("descripcion"),
                 imagenes=body.get("imagenes") or [],
+                error_log_id=body.get("error_log_id"),
             )
         except repo.ValidationError as e:
             return Response({"detail": str(e)}, status=400)
         return Response(
             {"reporte_id": reporte_id, "estado": "ABIERTO"}, status=201
         )
+
+
+class ErrorLogView(APIView):
+    """POST /api/reportes/error-log/ — registro silencioso de un error del
+    frontend (API error o crash de render). Best-effort: nunca devuelve 4xx/5xx
+    por una falla propia, para no interrumpir el flujo del usuario que ya tuvo
+    un error."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        body = request.data or {}
+        try:
+            error_id = repo.log_error(
+                usuario=_u(request),
+                modulo=body.get("modulo"),
+                url=body.get("url"),
+                status_http=body.get("status_http"),
+                mensaje=body.get("mensaje") or "error desconocido",
+                detalle=body.get("detalle"),
+            )
+        except Exception:  # noqa: BLE001
+            error_id = 0
+        return Response({"error_id": error_id}, status=201)
 
 
 class ReporteDetailView(APIView):
