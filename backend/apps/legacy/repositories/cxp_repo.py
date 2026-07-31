@@ -201,7 +201,8 @@ def get_documento(no_cia, punto, tipo_docu, no_docu):
                d.itbis_retenido, d.isr_retenido,
                d.tipo_movi, d.forma_pago, d.debito, d.credito,
                d.pago_bloqueado, d.detalle, d.usuario,
-               d.tipo_gasto, d.tipo_retencion
+               d.tipo_gasto, d.tipo_retencion,
+               d.valor_bienes, d.valor_servicio, d.isc, d.otros_impuestos, d.propina
         FROM CXP.TCXP_DOCUMENTO d
         JOIN CXP.TCXP_DPROVEEDOR p ON p.no_proveedor = d.no_proveedor
         WHERE d.no_cia=:1 AND d.punto=:2 AND d.tipo_docu=:3 AND d.no_docu=:4
@@ -1098,6 +1099,46 @@ def entrada_documento(d):
         saldo_inicial = -valor if tipo_movi == "D" else valor
 
         if no_docu:
+            # Editar un documento ya existente (usado por el boton "Editar"
+            # de Consulta de Documentos, que manda al usuario de vuelta a
+            # esta pantalla con todo precargado). Dos candados antes de
+            # permitirlo:
+            #  1) Solo el periodo contable en curso -- editar un periodo ya
+            #     cerrado desalinearia el 606 ya presentado (mismo criterio
+            #     que corregir_datos_dgii).
+            #  2) El documento no puede tener ya un pago/aplicacion parcial
+            #     (saldo != valor_original original) -- sobreescribir
+            #     valor_original/saldo aqui borraria el rastro de esa
+            #     aplicacion. Hay que revertirla primero (Reversar/Aplicacion
+            #     de Movimientos) en vez de editar por encima.
+            _actual = client.fetch_dicts(
+                "SELECT valor_original, saldo, "
+                "TO_CHAR(fecha,'YYYY-MM') AS periodo_docu "
+                "FROM CXP.TCXP_DOCUMENTO "
+                "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+                [no_cia, punto, tipo_docu, no_docu])
+            if not _actual:
+                raise ValueError(f"Documento {tipo_docu}-{no_docu} no encontrado")
+            _valor_orig_actual = float(_actual[0]['valor_original'] or 0)
+            _saldo_actual = float(_actual[0]['saldo'] or 0)
+            if round(abs(_saldo_actual), 2) != round(_valor_orig_actual, 2):
+                raise ValueError(
+                    "Este documento ya tiene pagos o aplicaciones parciales "
+                    "(saldo distinto del valor original) -- revierta esos "
+                    "movimientos antes de editarlo directamente."
+                )
+            _punto_rows = client.fetch_dicts(
+                "SELECT ano_proceso, mes_proceso FROM CXP.TCXP_PUNTO "
+                "WHERE no_cia=:1 AND punto=:2", [no_cia, punto])
+            if _punto_rows:
+                _periodo_actual = '{:04d}-{:02d}'.format(
+                    int(_punto_rows[0]['ano_proceso']), int(_punto_rows[0]['mes_proceso']))
+                if _actual[0]['periodo_docu'] != _periodo_actual:
+                    raise ValueError(
+                        'Solo se pueden editar documentos del periodo contable '
+                        'en curso ({0}). Este documento es de {1}.'.format(
+                            _periodo_actual, _actual[0]['periodo_docu']))
+
             _ncf_raw_u = str(d.get("ncf") or '').strip()
             _ncf_num_u = int(_ncf_raw_u) if _ncf_raw_u.isdigit() else None
             _pos_ncf_u = (

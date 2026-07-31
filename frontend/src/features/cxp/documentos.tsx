@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { Pencil } from 'lucide-react'
 import { api } from '@/lib/regal-general-api'
 import { useCompany } from '@/hooks/use-company'
@@ -10,11 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { downloadCsv } from '@/lib/csv-utils'
-import {
-  CxpCorregirDocumentoDialog,
-  esDocumentoDelMesEnCurso,
-  type CxpDocumentoParaCorregir,
-} from './corregir-documento-dialog'
+import { esDocumentoDelMesEnCurso } from './corregir-documento-dialog'
 
 interface Documento {
   no_cia: string; punto: string; tipo_docu: string; no_docu: string
@@ -77,6 +74,7 @@ function diasVencidos(fechaVence: string): number | null {
 }
 
 export function CxpDocumentos() {
+  const navigate = useNavigate()
   const { selectedCompany: noCia, selectedPoint: punto } = useCompany()
   const [noProveedor, setNoProveedor] = useState('')
   const [tipo, setTipo] = useState('')
@@ -86,7 +84,6 @@ export function CxpDocumentos() {
   const [status, setStatus] = useState('A')
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<string | null>(null)
-  const [editingDoc, setEditingDoc] = useState<CxpDocumentoParaCorregir | null>(null)
 
   const enabled = !!noCia
 
@@ -103,6 +100,29 @@ export function CxpDocumentos() {
     queryFn: () => api.cxpGetDocumento(selectedKey![0], selectedKey![1], selectedKey![2], selectedKey![3]),
     enabled: !!selected,
     staleTime: 0,
+  })
+
+  // Nombre de cada cuenta de la Distribución Contable -- el detalle solo
+  // trae el código (ej. "1104-01"), se resuelve contra el catálogo (CNT)
+  // para que se lea igual que en Entrada de Documentos (que ya lo hace).
+  const cuentasEnUso = Array.from(new Set((detalle?.lineas ?? []).map((l) => l.cuenta).filter(Boolean)))
+  const { data: nombresCuenta = {} } = useQuery<Record<string, string>>({
+    queryKey: ['cxp-documento-cuentas', cuentasEnUso.join(',')],
+    queryFn: async () => {
+      const entries = await Promise.all(
+        cuentasEnUso.map(async (c) => {
+          try {
+            const r: any = await api.cntGetCuenta(c)
+            return [c, r?.descripcion || r?.nombre || ''] as const
+          } catch {
+            return [c, ''] as const
+          }
+        })
+      )
+      return Object.fromEntries(entries)
+    },
+    enabled: cuentasEnUso.length > 0,
+    staleTime: 5 * 60_000,
   })
 
   const totalPages = Math.max(1, Math.ceil(data.length / PAGE))
@@ -274,23 +294,9 @@ export function CxpDocumentos() {
                       variant="outline"
                       disabled={!editable}
                       onClick={() =>
-                        setEditingDoc({
-                          no_cia: detalle.no_cia,
-                          punto: detalle.punto,
-                          tipo_docu: detalle.tipo_docu,
-                          no_docu: detalle.no_docu,
-                          nombre_proveedor: detalle.nombre_proveedor,
-                          fecha: detalle.fecha,
-                          valor_original: detalle.valor_original,
-                          ncf: detalle.ncf,
-                          posiciones_fijas_ncf: detalle.posiciones_fijas_ncf,
-                          rnc: detalle.rnc,
-                          impuesto: detalle.impuesto,
-                          itbis_retenido: detalle.itbis_retenido,
-                          isr_retenido: detalle.isr_retenido,
-                          tipo_gasto: detalle.tipo_gasto,
-                          tipo_retencion: detalle.tipo_retencion,
-                          forma_pago: detalle.forma_pago,
+                        navigate({
+                          to: '/cxp/entrada-documentos',
+                          search: { tipo: detalle.tipo_docu, no_docu: detalle.no_docu },
                         })
                       }
                     >
@@ -342,24 +348,28 @@ export function CxpDocumentos() {
               </div>
               {detalle.lineas?.length > 0 && (
                 <div>
-                  <p className="font-semibold mb-2">Distribución Contable</p>
-                  <div className="rounded border overflow-x-auto">
+                  <p className="font-semibold mb-2 text-sm">Distribución Contable</p>
+                  <div className="rounded-lg border overflow-x-auto">
                     <Table>
-                      <TableHeader>
+                      <TableHeader className="bg-muted/40">
                         <TableRow>
-                          <TableHead>Cuenta</TableHead>
-                          <TableHead>Tipo</TableHead>
-                          <TableHead className="text-right">Monto</TableHead>
+                          <TableHead className="py-3">Cuenta</TableHead>
+                          <TableHead className="py-3">Nombre Cuenta</TableHead>
+                          <TableHead className="py-3">Tipo</TableHead>
+                          <TableHead className="py-3 text-right">Monto</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {detalle.lineas.map((l, i) => (
                           <TableRow key={i}>
-                            <TableCell className="font-mono text-xs">{l.cuenta}</TableCell>
-                            <TableCell className="text-xs">
+                            <TableCell className="py-2.5 font-mono text-sm">{l.cuenta}</TableCell>
+                            <TableCell className="py-2.5 text-sm text-muted-foreground">
+                              {nombresCuenta[l.cuenta] ?? '…'}
+                            </TableCell>
+                            <TableCell className="py-2.5 text-sm">
                               {l.tipo_movi === 'D' ? 'Débito' : l.tipo_movi === 'C' ? 'Crédito' : l.tipo_movi}
                             </TableCell>
-                            <TableCell className="text-right font-mono text-xs">{fmt(l.monto)}</TableCell>
+                            <TableCell className="py-2.5 text-right font-mono text-sm">{fmt(l.monto)}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -371,13 +381,6 @@ export function CxpDocumentos() {
           )}
         </SheetContent>
       </Sheet>
-
-      <CxpCorregirDocumentoDialog
-        doc={editingDoc}
-        noCia={noCia ?? ''}
-        punto={punto ?? ''}
-        onOpenChange={(o) => !o && setEditingDoc(null)}
-      />
     </div>
   )
 }

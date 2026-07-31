@@ -4,6 +4,7 @@
 // Cada componente conecta a un endpoint ya existente en apps/legacy/cxp_views.py.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import {
   Save,
   RotateCcw,
@@ -414,66 +415,66 @@ function MovimientoContableGrid({
 
   return (
     <div className='space-y-2'>
-      <Label className='text-xs'>Movimiento Contable (Distribución del documento)</Label>
-      <div className='overflow-x-auto rounded border'>
+      <Label className='text-sm font-medium'>Movimiento Contable (Distribución del documento)</Label>
+      <div className='overflow-x-auto rounded-lg border'>
         <Table>
-          <TableHeader>
+          <TableHeader className='bg-muted/40'>
             <TableRow>
-              <TableHead className='w-32'>Cuenta</TableHead>
-              <TableHead>Nombre Cuenta</TableHead>
-              <TableHead className='w-28'>Centro Costo</TableHead>
-              <TableHead className='w-28 text-right'>Débito</TableHead>
-              <TableHead className='w-28 text-right'>Crédito</TableHead>
+              <TableHead className='w-36 py-3'>Cuenta</TableHead>
+              <TableHead className='py-3'>Nombre Cuenta</TableHead>
+              <TableHead className='w-32 py-3'>Centro Costo</TableHead>
+              <TableHead className='w-32 py-3 text-right'>Débito</TableHead>
+              <TableHead className='w-32 py-3 text-right'>Crédito</TableHead>
               <TableHead className='w-10' />
             </TableRow>
           </TableHeader>
           <TableBody>
             {lineas.map((l, i) => (
               <TableRow key={i}>
-                <TableCell className='p-1'>
-                  <div className='flex items-center gap-1'>
+                <TableCell className='p-2'>
+                  <div className='flex items-center gap-1.5'>
                     <Input
                       value={l.cuenta}
                       onChange={(e) => actualizar(i, { cuenta: e.target.value })}
-                      className='h-9 w-28 font-mono text-xs'
+                      className='h-10 w-28 font-mono text-sm'
                       placeholder='2104-02'
                     />
                     <Button
-                      type='button' variant='outline' size='sm' className='h-9 px-2'
+                      type='button' variant='outline' size='sm' className='h-10 px-2.5'
                       title='Buscar cuenta'
                       onClick={() => { setBuscarIdx(i); setSearch(''); setResults([]) }}
                     >
-                      <Search className='h-3 w-3' />
+                      <Search className='h-3.5 w-3.5' />
                     </Button>
                   </div>
                 </TableCell>
-                <TableCell className='truncate p-1 text-xs text-muted-foreground'>
+                <TableCell className='truncate p-2 text-sm text-muted-foreground'>
                   {l.cuenta ? (nombres[l.cuenta] ?? '…') : ''}
                 </TableCell>
-                <TableCell className='p-1'>
+                <TableCell className='p-2'>
                   <Input
                     value={l.centroCosto}
                     onChange={(e) => actualizar(i, { centroCosto: e.target.value })}
-                    className='h-9 font-mono text-xs'
+                    className='h-10 font-mono text-sm'
                   />
                 </TableCell>
-                <TableCell className='p-1'>
+                <TableCell className='p-2'>
                   <Input
                     type='number' step='0.01'
                     value={l.debito}
                     onChange={(e) => actualizar(i, { debito: e.target.value, credito: e.target.value ? '' : l.credito })}
-                    className='h-9 text-right font-mono text-xs'
+                    className='h-10 text-right font-mono text-sm'
                   />
                 </TableCell>
-                <TableCell className='p-1'>
+                <TableCell className='p-2'>
                   <Input
                     type='number' step='0.01'
                     value={l.credito}
                     onChange={(e) => actualizar(i, { credito: e.target.value, debito: e.target.value ? '' : l.debito })}
-                    className='h-9 text-right font-mono text-xs'
+                    className='h-10 text-right font-mono text-sm'
                   />
                 </TableCell>
-                <TableCell className='p-1'>
+                <TableCell className='p-2'>
                   <button
                     type='button'
                     onClick={() => quitarFila(i)}
@@ -488,11 +489,11 @@ function MovimientoContableGrid({
           </TableBody>
         </Table>
       </div>
-      <div className='flex items-center justify-between'>
+      <div className='flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2'>
         <Button type='button' variant='outline' size='sm' onClick={agregarFila}>
           + Línea
         </Button>
-        <div className='flex gap-4 text-xs'>
+        <div className='flex gap-5 text-sm'>
           <span>Total Débito: <b className='font-mono'>{fmt(totalDebito)}</b></span>
           <span>Total Crédito: <b className='font-mono'>{fmt(totalCredito)}</b></span>
           <span className={diferencia !== 0 ? 'font-semibold text-red-600' : 'font-semibold text-emerald-700'}>
@@ -551,11 +552,22 @@ function MovimientoContableGrid({
 }
 
 // ─── FCXP201 — Entrada de Documentos DR/CR ──────────────────────────────────
-export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
+export function CxpEntradaDocumentos({
+  noCia, punto = '', editTipo, editNoDocu,
+}: P & { editTipo?: string; editNoDocu?: string }) {
+  const navigate = useNavigate()
   const [tiposDocu, setTiposDocu] = useState<any[]>([])
   const [tipoDocu, setTipoDocu] = useState('')
   const [siguiente, setSiguiente] = useState('')
   const [proveedor, setProveedor] = useState<any | null>(null)
+  // Modo edicion: el boton "Editar" de Consulta de Documentos manda aqui con
+  // ?editar=<tipo>-<no_docu> en vez de un dialogo aparte -- asi el operador
+  // puede corregir TODO (valores, cuentas, NCF) con el mismo formulario
+  // completo que crea documentos nuevos, igual que el legado (Fcxp201
+  // reabre el mismo formulario para editar). cxpEntradaDocumento() hace
+  // UPDATE en vez de INSERT cuando se manda no_docu.
+  const [modoEdicion, setModoEdicion] = useState(false)
+  const [cargandoEdicion, setCargandoEdicion] = useState(false)
   const [form, setForm] = useState({
     fecha: today,
     fecha_vence: '',
@@ -596,12 +608,19 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
     api.cxpListTiposRetencion().then(setTiposRetencion).catch(() => {})
     api.cxpListFormasPago().then((rows) => {
       setFormasPago(rows)
+      // En modo edicion la forma de pago real del documento ya se carga
+      // aparte (ver efecto de carga de edicion abajo); no pisarla con el
+      // default de un documento nuevo.
+      if (editTipo && editNoDocu) return
       const def = rows.find((r) => r.por_defecto === 'S')
       if (def) setForm((f) => ({ ...f, forma_pago: String(def.forma_pago) }))
     }).catch(() => {})
-  }, [noCia])
+  }, [noCia, editTipo, editNoDocu])
 
   useEffect(() => {
+    // En modo edicion "siguiente" es el numero del documento que se esta
+    // editando (fijado por el efecto de carga), no el proximo numero libre.
+    if (editTipo && editNoDocu) return
     if (!tipoDocu || !punto) {
       setSiguiente('')
       return
@@ -610,12 +629,71 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
       .cxpGetSiguienteNoDocu(noCia, punto, tipoDocu)
       .then((r) => setSiguiente(r.siguiente || ''))
       .catch(() => setSiguiente(''))
-  }, [tipoDocu, noCia, punto])
+  }, [tipoDocu, noCia, punto, editTipo, editNoDocu])
 
-  // Cuando se carga un proveedor, traer su RNC por defecto.
+  // ── Carga del documento a editar (boton "Editar" desde Consulta de
+  // Documentos) ──────────────────────────────────────────────────────────
   useEffect(() => {
+    if (!editTipo || !editNoDocu || !noCia || !punto) return
+    setCargandoEdicion(true)
+    api.cxpGetDocumento(noCia, punto, editTipo, editNoDocu)
+      .then((doc: any) => {
+        if (!doc) {
+          toast.error(`No se encontró el documento ${editTipo}-${editNoDocu}`)
+          return
+        }
+        setModoEdicion(true)
+        setTipoDocu(doc.tipo_docu)
+        setSiguiente(doc.no_docu)
+        setProveedor({
+          no_proveedor: doc.no_proveedor,
+          nombre: doc.nombre_proveedor,
+          rnc: doc.rnc,
+          direccion: doc.direccion_proveedor,
+        })
+        const posNcf = (doc.posiciones_fijas_ncf || '').toString().trim().toUpperCase()
+        setForm({
+          fecha: doc.fecha || today,
+          fecha_vence: doc.fecha_vence || '',
+          valor_bienes: doc.valor_bienes != null ? String(doc.valor_bienes) : '',
+          valor_servicio: doc.valor_servicio != null ? String(doc.valor_servicio) : '',
+          descripcion: doc.detalle || '',
+          rnc: doc.rnc || '',
+          ncf: doc.ncf != null && doc.ncf !== '' ? String(doc.ncf).padStart(ncfWidth(posNcf), '0') : '',
+          tipo_ncf: posNcf,
+          isc: doc.isc != null ? String(doc.isc) : '',
+          otros_impuestos: doc.otros_impuestos != null ? String(doc.otros_impuestos) : '',
+          propina: doc.propina != null ? String(doc.propina) : '',
+          tipo_gasto: doc.tipo_gasto || '',
+          tipo_retencion: doc.tipo_retencion != null ? String(doc.tipo_retencion) : '',
+          itbis_retenido: doc.itbis_retenido ? String(doc.itbis_retenido) : '',
+          isr_retenido: doc.isr_retenido ? String(doc.isr_retenido) : '',
+          forma_pago: doc.forma_pago != null ? String(doc.forma_pago) : '',
+        })
+        setImpuesto(doc.impuesto ? String(doc.impuesto) : '')
+        setEditandoItbis(true)
+        setEditandoRetenciones(true)
+        const lineasCargadas: LineaContable[] = (doc.lineas || []).map((l: any) => ({
+          cuenta: l.cuenta || '',
+          centroCosto: l.centro_costo || '',
+          debito: l.tipo_movi === 'D' ? String(l.monto) : '',
+          credito: l.tipo_movi === 'C' ? String(l.monto) : '',
+        }))
+        setLineasContables(lineasCargadas.length > 0 ? lineasCargadas : [filaVacia()])
+        setLineasTocadas(true)
+      })
+      .catch((e: any) => toast.error(e?.detail?.error || e?.message || 'No se pudo cargar el documento'))
+      .finally(() => setCargandoEdicion(false))
+  }, [editTipo, editNoDocu, noCia, punto])
+
+  // Cuando se carga un proveedor, traer su RNC por defecto -- salvo en modo
+  // edicion, donde el RNC ya cargado es el que realmente se capturo en ese
+  // documento (puede diferir del RNC ficticio en ficha del proveedor, ver
+  // nota en entrada-compras.tsx sobre proveedores TC).
+  useEffect(() => {
+    if (editTipo && editNoDocu) return
     if (proveedor?.rnc) setForm((f) => ({ ...f, rnc: proveedor.rnc }))
-  }, [proveedor?.no_proveedor]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [proveedor?.no_proveedor, editTipo, editNoDocu]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Trae el porcentaje de ITBIS y las cuentas contables por defecto de la
   // empresa: TCNT_CIAS.CUENTA_ITBIS_RETENIDO / CUENTA_ISR (config real por
@@ -749,6 +827,9 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
     api.cxpGetProveedorNcfInfo(proveedor.no_proveedor, noCia, punto)
       .then((r) => {
         setNcfInfo(r)
+        // En modo edicion el NCF ya cargado es el real del documento -- no
+        // pisarlo con el "proximo NCF a autoasignar" de un documento nuevo.
+        if (editTipo && editNoDocu) return
         if (r?.codigo_ncf && r?.prox_ncf != null) {
           // Pre-fill NCF (numero) y tipo_ncf (posiciones_fijas, p.ej. B11)
           const _pos = (r.posiciones_fijas || '').toUpperCase()
@@ -760,7 +841,7 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
         }
       })
       .catch(() => setNcfInfo(null))
-  }, [proveedor?.no_proveedor, noCia, punto])
+  }, [proveedor?.no_proveedor, noCia, punto, editTipo, editNoDocu])
 
   // Auto-calcula el ITBIS desde el valor de bienes + valor del servicio
   // (sin ITBIS):
@@ -822,6 +903,7 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
         no_cia: noCia,
         punto,
         tipo_docu: tipoDocu,
+        ...(modoEdicion ? { no_docu: siguiente } : {}),
         no_proveedor: proveedor.no_proveedor,
         ...form,
         // valor_original = bienes + ITBIS (total del documento)
@@ -836,6 +918,13 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
         forma_pago:      form.forma_pago      ? Number(form.forma_pago)      : null,
         ...(lineas.length > 0 ? { lineas } : {}),
       })
+
+      if (modoEdicion) {
+        toast.success(`Documento ${tipoDocu}-${res.no_docu} actualizado`)
+        navigate({ to: '/cxp/documentos' })
+        return
+      }
+
       const retTxt = (Number(form.itbis_retenido || 0) > 0 || Number(form.isr_retenido || 0) > 0)
         ? ` — Retenido ITBIS RD$ ${Number(form.itbis_retenido || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })} / ISR RD$ ${Number(form.isr_retenido || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })}`
         : ''
@@ -882,16 +971,33 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
     }
   }
 
+  if (cargandoEdicion) {
+    return (
+      <div className='space-y-4 p-6'>
+        <p className='text-sm text-muted-foreground'>Cargando documento {editTipo}-{editNoDocu}…</p>
+      </div>
+    )
+  }
+
   return (
     <div className='space-y-4 p-6'>
       <h1 className='text-2xl font-semibold'>
-        FCXP201 — Entrada de Documentos DR/CR
+        {modoEdicion
+          ? `Editando ${tipoDocu}-${siguiente}`
+          : 'FCXP201 — Entrada de Documentos DR/CR'}
       </h1>
+      {modoEdicion && (
+        <p className='text-sm text-muted-foreground'>
+          Documento cargado desde Consulta de Documentos. Puede corregir cualquier
+          campo, incluida la distribución contable de abajo. Al guardar se actualiza
+          este mismo documento (no crea uno nuevo).
+        </p>
+      )}
       <Card>
         <CardContent className='grid grid-cols-1 gap-3 pt-6 md:grid-cols-3'>
           <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Tipo Documento *</Label>
-            <Select value={tipoDocu} onValueChange={setTipoDocu}>
+            <Select value={tipoDocu} onValueChange={setTipoDocu} disabled={modoEdicion}>
               <SelectTrigger className='h-10 w-full'>
                 <SelectValue placeholder='Seleccione…' />
               </SelectTrigger>
@@ -908,7 +1014,7 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
             </Select>
           </div>
           <div className='min-w-0 space-y-1'>
-            <Label className='text-xs'>Siguiente No.</Label>
+            <Label className='text-xs'>{modoEdicion ? 'Documento' : 'Siguiente No.'}</Label>
             <Input value={siguiente} disabled className='h-10 font-mono' />
           </div>
           <div className='min-w-0 space-y-1'>
@@ -1181,9 +1287,14 @@ export function CxpEntradaDocumentos({ noCia, punto = '' }: P) {
         </CardContent>
       </Card>
       <div className='flex justify-end gap-2'>
+        {modoEdicion && (
+          <Button variant='outline' onClick={() => navigate({ to: '/cxp/documentos' })} disabled={saving}>
+            Cancelar
+          </Button>
+        )}
         <Button onClick={onSave} disabled={saving}>
           <Save className='mr-2 h-4 w-4' />{' '}
-          {saving ? 'Guardando…' : 'Guardar Documento'}
+          {saving ? 'Guardando…' : modoEdicion ? 'Guardar Cambios' : 'Guardar Documento'}
         </Button>
       </div>
 
