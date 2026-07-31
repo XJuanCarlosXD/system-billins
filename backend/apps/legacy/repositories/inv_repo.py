@@ -2948,18 +2948,43 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
         # proveedor; si el proveedor no existe en CXP o algo falla, la
         # entrada de compras en INV ya quedo confirmada (existencia +
         # costo) y solo se reporta el error del espejo, no se revierte.
-        from .cxp_repo import entrada_documento as _cxp_entrada_documento
+        from .cxp_repo import (
+            entrada_documento as _cxp_entrada_documento,
+            get_proveedor_cuenta as _cxp_get_prov_cuenta,
+            get_cuenta_itbis_default as _cxp_get_cta_itbis,
+            get_cuenta_compra_default as _cxp_get_cta_compra,
+        )
         try:
+            # entrada_documento exige partida doble balanceada (fix b75ef51).
+            # Armamos el mismo asiento que la UI de Entrada de Documentos:
+            #   DEBITO cuenta_gasto del proveedor por valor_bienes
+            #   DEBITO cuenta ITBIS deducible por impuesto (si > 0)
+            #   CREDITO cuenta del tipo de proveedor por total_neto
+            _prov = _cxp_get_prov_cuenta(no_cia, punto, no_proveedor) or {}
+            _cta_gasto = (_prov.get('cuenta_gasto') or '').strip() \
+                or (_cxp_get_cta_compra(no_cia) or '').strip()
+            _cta_prov  = (_prov.get('cuenta') or '').strip()
+            _cta_itbis = (_cxp_get_cta_itbis(no_cia) or '').strip() if total_impuesto else ''
+            _lineas_cnt = []
+            if _cta_gasto and _cta_prov:
+                _lineas_cnt.append({'cuenta': _cta_gasto, 'tipo_movi': 'D', 'monto': valor_bienes})
+                if total_impuesto and _cta_itbis:
+                    _lineas_cnt.append({'cuenta': _cta_itbis, 'tipo_movi': 'D', 'monto': total_impuesto})
+                    _lineas_cnt.append({'cuenta': _cta_prov,  'tipo_movi': 'C', 'monto': total_neto})
+                else:
+                    _lineas_cnt.append({'cuenta': _cta_prov,  'tipo_movi': 'C', 'monto': valor_bienes})
             cxp_no_docu = _cxp_entrada_documento({
                 'no_cia': no_cia, 'punto': punto, 'tipo_docu': 'FP',
                 'no_proveedor': no_proveedor,
                 'fecha': fecha, 'fecha_vence': fecha_vcto or fecha,
                 'valor_original': total_neto,
                 'impuesto': total_impuesto,
+                'valor_bienes': valor_bienes,
                 'rnc': rnc, 'ncf': ncf_val, 'posiciones_fijas_ncf': posiciones_fijas_ncf,
                 'forma_pago': forma_pago,
                 'detalle': (nota or f'Entrada de Compras INV {no_docu}')[:100],
                 'usuario': usuario,
+                'lineas': _lineas_cnt,
             })
             cxp_mirror = {'no_docu': cxp_no_docu, 'tipo_docu': 'FP'}
         except Exception as exc:

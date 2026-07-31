@@ -451,6 +451,24 @@ def get_cuenta_itbis_default(no_cia: str) -> str:
     return row[0] if row else ''
 
 
+def get_cuenta_compra_default(no_cia: str) -> str:
+    """Cuenta de compras/gasto mas usada como DEBITO en TCXP_DCDOCU para
+    esta compania, excluyendo cuentas 21xx (pasivos, saldo por pagar) y
+    la cuenta de ITBIS deducible. Se usa como fallback cuando un
+    proveedor no tiene TCXP_DPROVEEDOR.CUENTA_GASTO configurada."""
+    row = client.fetch_one(
+        "SELECT cuenta FROM ("
+        "  SELECT dc.cuenta FROM CXP.TCXP_DCDOCU dc "
+        "  WHERE dc.no_cia=:1 AND dc.tipo_movi='D' "
+        "  AND dc.cuenta NOT LIKE '21%' "
+        "  AND dc.cuenta NOT LIKE '2106%' "
+        "  AND dc.cuenta IS NOT NULL "
+        "  GROUP BY dc.cuenta ORDER BY COUNT(*) DESC"
+        ") WHERE ROWNUM = 1",
+        [no_cia])
+    return row[0] if row else ''
+
+
 def list_cuentas_proveedor(no_cia, punto, no_proveedor, tipo_movi='', en_cero='N'):
     """FCXP502: document list for one proveedor"""
     conditions = ['d.no_cia=:1', 'd.punto=:2', 'd.no_proveedor=:3']
