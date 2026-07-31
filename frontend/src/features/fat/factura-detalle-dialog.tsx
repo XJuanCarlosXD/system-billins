@@ -2,6 +2,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useQuery } from '@tanstack/react-query'
+import { historialDocumento } from '@/lib/api-client-historial'
+import { HistorialTimeline } from '@/features/historial/historial-timeline'
 import { Printer } from 'lucide-react'
 import { fmtN } from './fat-export'
 
@@ -34,9 +38,11 @@ interface Props {
   loading: boolean
   onClose: () => void
   onPrint?: () => void
+  noCia: string
+  punto: string
 }
 
-export function FacturaDetalleDialog({ factura, loading, onClose, onPrint }: Props) {
+export function FacturaDetalleDialog({ factura, loading, onClose, onPrint, noCia, punto }: Props) {
   return (
     <Dialog open={!!factura || loading} onOpenChange={onClose}>
       <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
@@ -55,7 +61,12 @@ export function FacturaDetalleDialog({ factura, loading, onClose, onPrint }: Pro
 
         {loading && <p className='py-8 text-center text-muted-foreground'>Cargando detalle…</p>}
         {factura && !loading && (
-          <div className='space-y-4 text-sm'>
+          <Tabs defaultValue='datos'>
+            <TabsList>
+              <TabsTrigger value='datos'>Datos</TabsTrigger>
+              <TabsTrigger value='historial'>Historial</TabsTrigger>
+            </TabsList>
+            <TabsContent value='datos' className='space-y-4 text-sm'>
             <div className='grid grid-cols-2 gap-x-8 gap-y-1 rounded-lg border p-3'>
               <div><span className='text-muted-foreground'>Cliente:</span> <strong>{factura.nombre_cliente || `#${factura.no_cliente}`}</strong></div>
               <div><span className='text-muted-foreground'>Fecha:</span> {factura.fecha}</div>
@@ -122,9 +133,28 @@ export function FacturaDetalleDialog({ factura, loading, onClose, onPrint }: Pro
             {factura.nota && (
               <p className='rounded border bg-muted/30 p-2 text-xs text-muted-foreground'><strong>Nota:</strong> {factura.nota}</p>
             )}
-          </div>
+            </TabsContent>
+            <TabsContent value='historial'>
+              <FacturaHistorialTab
+                noCia={noCia} punto={punto}
+                tipoDocumento={factura.tipo_factura} noDocumento={factura.no_factura}
+              />
+            </TabsContent>
+          </Tabs>
         )}
       </DialogContent>
     </Dialog>
   )
+}
+
+function FacturaHistorialTab({
+  noCia, punto, tipoDocumento, noDocumento,
+}: { noCia: string; punto: string; tipoDocumento: string; noDocumento: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['historial-documento', 'FAT', noCia, punto, tipoDocumento, noDocumento],
+    queryFn: () =>
+      historialDocumento({ no_cia: noCia, punto, modulo: 'FAT', tipo_documento: tipoDocumento, no_documento: noDocumento }),
+  })
+  if (isLoading) return <p className='py-8 text-center text-muted-foreground'>Cargando historial…</p>
+  return <div className='py-2'><HistorialTimeline eventos={data?.items ?? []} modo='completo' /></div>
 }

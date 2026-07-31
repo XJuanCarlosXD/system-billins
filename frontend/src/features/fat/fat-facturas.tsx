@@ -343,6 +343,8 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
         loading={loadingDetail}
         onClose={() => setSelected(null)}
         onPrint={printDetail}
+        noCia={noCia}
+        punto={punto}
       />
 
       {/* Anulación modal */}
