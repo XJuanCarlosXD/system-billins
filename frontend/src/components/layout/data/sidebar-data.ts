@@ -8,6 +8,7 @@ import {
   Command,
   CreditCard,
   FileSearch,
+  History,
   LayoutDashboard,
   LifeBuoy,
   Package,
@@ -737,6 +738,11 @@ export const sidebarData: SidebarData = {
           title: 'Permisos',
           icon: ShieldCheck,
           url: '/sistema/usuarios',
+        },
+        {
+          title: 'Historial',
+          icon: History,
+          url: '/sistema/historial',
         },
         {
           title: 'Manuales',
