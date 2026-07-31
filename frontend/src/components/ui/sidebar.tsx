@@ -25,8 +25,10 @@ import {
 const SIDEBAR_COOKIE_NAME = 'sidebar_state'
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 // 16rem truncaba las opciones anidadas de 3er nivel con nombres largos
-// (ej. "Consulta / Impresion de Documentos", "Entrada de Documentos DR/CR").
-const SIDEBAR_WIDTH = '40vw'
+// (ej. "Consulta / Impresion de Documentos", "Entrada de Documentos DR/CR")
+// -- se ensancha a 18.5rem. El 40vw NO va aqui -- es para el panel de
+// detalle de documento en CxP (ver documentos.tsx SheetContent).
+const SIDEBAR_WIDTH = '18.5rem'
 const SIDEBAR_WIDTH_MOBILE = '18rem'
 const SIDEBAR_WIDTH_ICON = '3rem'
 const SIDEBAR_KEYBOARD_SHORTCUT = 'b'

@@ -261,7 +261,7 @@ export function CxpDocumentos() {
       )}
 
       <Sheet open={!!selected} onOpenChange={o => { if (!o) setSelected(null) }}>
-        <SheetContent className="max-w-[70vw] max-h-[70vh] overflow-y-auto">
+        <SheetContent className="max-w-[40vw] max-h-[70vh] overflow-y-auto">
           <SheetHeader>
             <SheetTitle>
               {detalle ? `${TIPO_DOC[detalle.tipo_docu] ?? detalle.tipo_docu} ${detalle.no_docu} — ${detalle.nombre_proveedor}` : 'Cargando…'}
