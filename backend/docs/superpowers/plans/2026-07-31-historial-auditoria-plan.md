@@ -10,6 +10,20 @@
 
 Spec: `backend/docs/superpowers/specs/2026-07-31-historial-auditoria-design.md`
 
+> **Errata (post-implementación, 2026-07-31):** dos desviaciones deliberadas del código
+> literal de este plan, aplicadas durante la ejecución y ya reflejadas en el código
+> real (ver comentarios inline en los archivos citados):
+> 1. **PK sin `IDENTITY`**: esta instancia de Oracle es 11g, que no soporta `GENERATED
+>    ALWAYS AS IDENTITY` (feature de 12c+). `BITACORA_ID`/`DETALLE_ID` se generan con
+>    secuencia + trigger `BEFORE INSERT`, mismo patrón ya usado en `apps/lic`. Ver
+>    `backend/apps/historial/sql/001_create_tsys_bitacora.sql`.
+> 2. **`RETURNING ... INTO` en vez de `SELECT MAX(...)`**: el código de Task 3 más
+>    abajo muestra una recuperación del ID recién insertado vía `SELECT MAX(BITACORA_ID)
+>    WHERE <campos>=...`, que resultó ser racy (dos inserts concurrentes podrían
+>    devolver el ID equivocado). Se reemplazó por `cur.var(oracledb.NUMBER)` +
+>    `RETURNING BITACORA_ID INTO :N`, mismo patrón que `apps/legacy/repositories/
+>    lic_repo.py`. Ver `backend/apps/historial/repo.py::log_evento`.
+
 ---
 
 ### Task 1: Oracle DDL — TSYS_BITACORA / TSYS_BITACORA_DETALLE

@@ -10,6 +10,21 @@
 
 Spec: `backend/docs/superpowers/specs/2026-07-31-historial-auditoria-design.md` (sección "Adición: registro y reporte automático de errores").
 
+> **Errata (post-implementación, 2026-07-31):** mismas dos desviaciones que en el plan
+> hermano de Historial/Auditoría (mismo motivo: Oracle 11g, mismo patrón ya validado
+> ahí), aplicadas aquí también:
+> 1. **PK sin `IDENTITY`**: `TSYS_ERROR_LOG.ERROR_ID` usa secuencia + trigger
+>    `BEFORE INSERT`, no `GENERATED ALWAYS AS IDENTITY`. Ver
+>    `backend/apps/reportes/sql/002_create_tsys_error_log.sql`.
+> 2. **`RETURNING ... INTO` en vez de `SELECT MAX(...)`**: `repo.log_error()` (Task 2)
+>    recupera el `ERROR_ID` recién insertado vía `cur.var(oracledb.NUMBER)` +
+>    `RETURNING ERROR_ID INTO :N`, no el `SELECT MAX(...)` racy que muestra el código
+>    de Task 2 más abajo. Ver `backend/apps/reportes/repo.py::log_error`.
+> 3. **Asimetría 401 corregida**: el código de Task 4 más abajo no distingue el
+>    status 401 (sesión expirada) del resto de los errores — se agregó esa exclusión
+>    en ambos chokepoints (`handle-server-error.ts` y `main.tsx`) para no
+>    loguear/ofrecer "Reportar" en cada expiración de sesión, un evento rutinario.
+
 ---
 
 ### Task 1: Oracle DDL — TSYS_ERROR_LOG
