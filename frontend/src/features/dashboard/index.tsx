@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   Building2,
   CheckCircle2,
+  History,
   Receipt,
   ShieldCheck,
   RefreshCw,
@@ -33,6 +34,8 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { apiClient, type Me, type NCFAlert } from '@/lib/api-client'
+import { historialMio, type EventoHistorial } from '@/lib/api-client-historial'
+import { HistorialTimeline } from '@/features/historial/historial-timeline'
 
 type VentaDia = { dia: string; total: number }
 
@@ -55,6 +58,7 @@ export function Dashboard() {
   const [me, setMe] = useState<Me | null>(null)
   const [alerts, setAlerts] = useState<NCFAlert[]>([])
   const [ventas, setVentas] = useState<{ items: VentaDia[]; ano: number; mes: number } | null>(null)
+  const [miActividad, setMiActividad] = useState<EventoHistorial[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -62,14 +66,16 @@ export function Dashboard() {
     setLoading(true)
     setError(null)
     try {
-      const [meRes, alertsRes, ventasRes] = await Promise.all([
+      const [meRes, alertsRes, ventasRes, historialRes] = await Promise.all([
         apiClient.me(),
         apiClient.fatNcfAlerts('low').catch(() => ({ alerts: [] })),
         apiClient.dashboardVentasMes('01').catch(() => null),
+        historialMio(8).catch(() => ({ items: [] })),
       ])
       setMe(meRes)
       setAlerts(alertsRes.alerts)
       setVentas(ventasRes)
+      setMiActividad(historialRes.items)
     } catch (e: any) {
       setError(e.message ?? 'Error al cargar dashboard')
     } finally {
@@ -410,6 +416,26 @@ export function Dashboard() {
                   </div>
                 ))}
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Mi actividad reciente */}
+        <Card className='mt-4'>
+          <CardHeader>
+            <CardTitle className='flex items-center gap-2'>
+              <History className='h-5 w-5' />
+              Mi actividad reciente
+            </CardTitle>
+            <CardDescription>
+              Tus últimas acciones registradas en el sistema (crear, editar, anular).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <Skeleton className='h-32 w-full' />
+            ) : (
+              <HistorialTimeline eventos={miActividad} modo='compacto' />
             )}
           </CardContent>
         </Card>
