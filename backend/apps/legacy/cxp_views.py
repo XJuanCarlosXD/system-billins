@@ -571,6 +571,7 @@ def cxp_corregir_ncf(request):
         return JsonResponse(rows, safe=False)
     try:
         data = json.loads(request.body)
+        data['usuario'] = request.user.username if request.user else ''
         result = cxp_repo.corregir_datos_dgii(data)
         return JsonResponse(result)
     except (KeyError, ValueError) as e:

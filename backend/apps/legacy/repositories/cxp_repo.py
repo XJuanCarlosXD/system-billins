@@ -1,6 +1,7 @@
 from __future__ import annotations
 from datetime import date
 from .. import client
+from apps.historial import repo as historial_repo
 
 
 def list_proveedores(search='', activo=''):
@@ -1457,13 +1458,26 @@ def corregir_datos_dgii(d):
 
     rows = client.fetch_dicts(
         "SELECT status, no_proveedor, "
-        "TO_CHAR(fecha,'YYYY-MM') AS periodo_docu "
+        "TO_CHAR(fecha,'YYYY-MM') AS periodo_docu, "
+        "ncf, posiciones_fijas_ncf, rnc, impuesto, itbis_retenido, "
+        "isr_retenido, tipo_gasto, tipo_retencion, forma_pago "
         "FROM CXP.TCXP_DOCUMENTO "
         "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
         [no_cia, punto, tipo_docu, no_docu])
     if not rows:
         raise ValueError('Documento no encontrado')
     _no_prov_actual = rows[0].get('no_proveedor')
+    _antes = {
+        "ncf": rows[0].get("ncf"),
+        "posiciones_fijas_ncf": rows[0].get("posiciones_fijas_ncf"),
+        "rnc": rows[0].get("rnc"),
+        "impuesto": rows[0].get("impuesto"),
+        "itbis_retenido": rows[0].get("itbis_retenido"),
+        "isr_retenido": rows[0].get("isr_retenido"),
+        "tipo_gasto": rows[0].get("tipo_gasto"),
+        "tipo_retencion": rows[0].get("tipo_retencion"),
+        "forma_pago": rows[0].get("forma_pago"),
+    }
 
     # Solo se permite corregir NCF/datos DGII de documentos del periodo
     # contable en curso (TCXP_PUNTO.ano_proceso/mes_proceso) -- editar un
@@ -1490,6 +1504,25 @@ def corregir_datos_dgii(d):
     _forma_pago = d.get('forma_pago')
     _forma_pago = int(_forma_pago) if _forma_pago not in (None, '') else None
 
+    _despues = {
+        "ncf": _ncf_num,
+        "posiciones_fijas_ncf": _pos_ncf,
+        "rnc": d.get('rnc', ''),
+        "impuesto": float(d.get('impuesto') or 0),
+        "itbis_retenido": float(d.get('itbis_retenido') or 0),
+        "isr_retenido": float(d.get('isr_retenido') or 0),
+        "tipo_gasto": _tipo_gasto,
+        "tipo_retencion": _tipo_ret,
+        "forma_pago": _forma_pago,
+    }
+    from apps.historial.diff import diff_campos
+    _cambios = diff_campos(_antes, _despues, etiquetas={
+        "ncf": "NCF", "posiciones_fijas_ncf": "Tipo NCF", "rnc": "RNC",
+        "impuesto": "ITBIS", "itbis_retenido": "ITBIS retenido",
+        "isr_retenido": "ISR retenido", "tipo_gasto": "Tipo de gasto",
+        "tipo_retencion": "Tipo de retención", "forma_pago": "Forma de pago",
+    })
+
     with client.cursor() as cur:
         _check_ncf_duplicate(cur, no_cia, _no_prov_actual, _ncf_num, _pos_ncf,
                              exclude=(tipo_docu, no_docu))
@@ -1507,6 +1540,11 @@ def corregir_datos_dgii(d):
                 _tipo_gasto, _tipo_ret, _forma_pago,
                 no_cia, punto, tipo_docu, no_docu,
             ])
+        historial_repo.log_evento(
+            cur, usuario=d.get("usuario", "API"), no_cia=no_cia, punto=punto,
+            modulo="CXP", tipo_documento=tipo_docu, no_documento=no_docu,
+            accion="EDITAR", cambios=_cambios,
+        )
         cur.connection.commit()
     return {'ok': True, 'tipo_docu': tipo_docu, 'no_docu': no_docu}
 
