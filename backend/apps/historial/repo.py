@@ -12,6 +12,8 @@ from typing import Any
 
 import oracledb
 
+from apps.legacy import client
+
 ACCIONES_VALIDAS = ("CREAR", "EDITAR", "ANULAR", "REVERSAR")
 
 _VERBOS = {"CREAR": "creó", "EDITAR": "editó", "ANULAR": "anuló", "REVERSAR": "reversó"}
@@ -75,3 +77,104 @@ def log_evento(
                 [bitacora_id, c["campo"][:60], c["etiqueta"][:60],
                  (c.get("valor_anterior") or "")[:1000], (c.get("valor_nuevo") or "")[:1000]],
             )
+
+
+def _attach_cambios(rows: list[dict]) -> list[dict]:
+    if not rows:
+        return rows
+    ids = [r["bitacora_id"] for r in rows]
+    placeholders = ",".join(f":{i+1}" for i in range(len(ids)))
+    detalle_rows = client.fetch_dicts(
+        f"SELECT BITACORA_ID AS bitacora_id, CAMPO AS campo, ETIQUETA AS etiqueta, "
+        f"VALOR_ANTERIOR AS valor_anterior, VALOR_NUEVO AS valor_nuevo "
+        f"FROM ABREGONZA.TSYS_BITACORA_DETALLE WHERE BITACORA_ID IN ({placeholders})",
+        ids,
+    )
+    por_id: dict[int, list[dict]] = {}
+    for d in detalle_rows:
+        por_id.setdefault(d["bitacora_id"], []).append({
+            "campo": d["campo"], "etiqueta": d["etiqueta"],
+            "valor_anterior": d["valor_anterior"], "valor_nuevo": d["valor_nuevo"],
+        })
+    for r in rows:
+        r["cambios"] = por_id.get(r["bitacora_id"], [])
+    return rows
+
+
+def list_mio(usuario: str, limit: int = 10) -> list[dict]:
+    limit = max(1, min(int(limit or 10), 100))
+    rows = client.fetch_dicts(
+        "SELECT * FROM ("
+        " SELECT BITACORA_ID AS bitacora_id, TO_CHAR(FECHA,'YYYY-MM-DD\"T\"HH24:MI:SS') AS fecha, "
+        "        USUARIO AS usuario, MODULO AS modulo, TIPO_DOCUMENTO AS tipo_documento, "
+        "        NO_DOCUMENTO AS no_documento, ACCION AS accion, MOTIVO AS motivo, "
+        "        DESCRIPCION AS descripcion "
+        " FROM ABREGONZA.TSYS_BITACORA WHERE UPPER(USUARIO) = :1 ORDER BY FECHA DESC"
+        f") WHERE ROWNUM <= {limit}",
+        [(usuario or "").upper()],
+    )
+    return _attach_cambios(rows)
+
+
+def list_admin(
+    *, usuario: str | None = None, modulo: str | None = None,
+    tipo_documento: str | None = None, no_documento: str | None = None,
+    accion: str | None = None, fecha_desde: str | None = None,
+    fecha_hasta: str | None = None, page: int = 1, page_size: int = 25,
+) -> dict:
+    where = []
+    params: list = []
+    if usuario:
+        params.append(usuario.upper()); where.append(f"UPPER(USUARIO) = :{len(params)}")
+    if modulo:
+        params.append(modulo.upper()); where.append(f"MODULO = :{len(params)}")
+    if tipo_documento:
+        params.append(tipo_documento.upper()); where.append(f"TIPO_DOCUMENTO = :{len(params)}")
+    if no_documento:
+        params.append(no_documento); where.append(f"NO_DOCUMENTO = :{len(params)}")
+    if accion:
+        params.append(accion.upper()); where.append(f"ACCION = :{len(params)}")
+    if fecha_desde:
+        params.append(fecha_desde); where.append(f"FECHA >= TO_DATE(:{len(params)},'YYYY-MM-DD')")
+    if fecha_hasta:
+        params.append(fecha_hasta); where.append(f"FECHA < TO_DATE(:{len(params)},'YYYY-MM-DD') + 1")
+    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+
+    page = max(1, int(page or 1))
+    page_size = max(1, min(int(page_size or 25), 100))
+    start = (page - 1) * page_size + 1
+    end = page * page_size
+
+    total_row = client.fetch_one(
+        f"SELECT COUNT(*) FROM ABREGONZA.TSYS_BITACORA {where_sql}", params)
+    total = int(total_row[0]) if total_row else 0
+
+    rows = client.fetch_dicts(
+        "SELECT bitacora_id, fecha, usuario, modulo, tipo_documento, no_documento, "
+        "       accion, motivo, descripcion FROM ("
+        " SELECT BITACORA_ID AS bitacora_id, TO_CHAR(FECHA,'YYYY-MM-DD\"T\"HH24:MI:SS') AS fecha, "
+        "        USUARIO AS usuario, MODULO AS modulo, TIPO_DOCUMENTO AS tipo_documento, "
+        "        NO_DOCUMENTO AS no_documento, ACCION AS accion, MOTIVO AS motivo, "
+        "        DESCRIPCION AS descripcion, "
+        "        ROW_NUMBER() OVER (ORDER BY FECHA DESC) AS rn "
+        f" FROM ABREGONZA.TSYS_BITACORA {where_sql}"
+        f") WHERE rn BETWEEN {start} AND {end}",
+        params,
+    )
+    return {"items": _attach_cambios(rows), "total": total}
+
+
+def list_documento(
+    *, no_cia: str, modulo: str, tipo_documento: str, no_documento: str,
+) -> list[dict]:
+    rows = client.fetch_dicts(
+        "SELECT BITACORA_ID AS bitacora_id, TO_CHAR(FECHA,'YYYY-MM-DD\"T\"HH24:MI:SS') AS fecha, "
+        "       USUARIO AS usuario, MODULO AS modulo, TIPO_DOCUMENTO AS tipo_documento, "
+        "       NO_DOCUMENTO AS no_documento, ACCION AS accion, MOTIVO AS motivo, "
+        "       DESCRIPCION AS descripcion "
+        "FROM ABREGONZA.TSYS_BITACORA "
+        "WHERE NO_CIA=:1 AND MODULO=:2 AND TIPO_DOCUMENTO=:3 AND NO_DOCUMENTO=:4 "
+        "ORDER BY FECHA DESC",
+        [no_cia, modulo.upper(), tipo_documento.upper(), no_documento],
+    )
+    return _attach_cambios(rows)

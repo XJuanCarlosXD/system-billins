@@ -23,4 +23,5 @@ urlpatterns = [
     path('api/', include('apps.mcp.urls')),
     path('api/', include('apps.asistente.urls')),
     path('api/', include('apps.reportes.urls')),
+    path('api/', include('apps.historial.urls')),
 ]
