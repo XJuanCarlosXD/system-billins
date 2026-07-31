@@ -165,7 +165,7 @@ def list_admin(
 
 
 def list_documento(
-    *, no_cia: str, modulo: str, tipo_documento: str, no_documento: str,
+    *, no_cia: str, punto: str, modulo: str, tipo_documento: str, no_documento: str,
 ) -> list[dict]:
     rows = client.fetch_dicts(
         "SELECT BITACORA_ID AS bitacora_id, TO_CHAR(FECHA,'YYYY-MM-DD\"T\"HH24:MI:SS') AS fecha, "
@@ -173,8 +173,8 @@ def list_documento(
         "       NO_DOCUMENTO AS no_documento, ACCION AS accion, MOTIVO AS motivo, "
         "       DESCRIPCION AS descripcion "
         "FROM ABREGONZA.TSYS_BITACORA "
-        "WHERE NO_CIA=:1 AND MODULO=:2 AND TIPO_DOCUMENTO=:3 AND NO_DOCUMENTO=:4 "
+        "WHERE NO_CIA=:1 AND PUNTO=:2 AND MODULO=:3 AND TIPO_DOCUMENTO=:4 AND NO_DOCUMENTO=:5 "
         "ORDER BY FECHA DESC",
-        [no_cia, modulo.upper(), tipo_documento.upper(), no_documento],
+        [no_cia, punto, modulo.upper(), tipo_documento.upper(), no_documento],
     )
     return _attach_cambios(rows)

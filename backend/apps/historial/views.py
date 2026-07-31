@@ -67,7 +67,7 @@ class HistorialDocumentoView(APIView):
                 return Response({"detail": "forbidden"}, status=403)
 
         items = repo.list_documento(
-            no_cia=no_cia, modulo=modulo,
+            no_cia=no_cia, punto=punto, modulo=modulo,
             tipo_documento=tipo_documento, no_documento=no_documento,
         )
         return Response({"items": items})

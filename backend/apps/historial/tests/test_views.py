@@ -99,3 +99,33 @@ def test_documento_ok_for_admin_regardless_of_doc_permission(monkeypatch, mock_u
         "/api/historial/documento/?no_cia=01&punto=01&modulo=FAT&tipo_documento=FT&no_documento=0001234"
     )
     assert resp.status_code == 200
+
+
+def test_documento_forwards_punto_to_repo(monkeypatch, mock_user):
+    """El punto de la querystring (ya validado contra los permisos del usuario)
+    debe llegar a repo.list_documento para que la SQL filtre por él — de lo
+    contrario dos documentos con el mismo tipo_documento+no_documento en
+    puntos distintos se mezclarían en la respuesta."""
+    from apps.historial import repo
+
+    calls = []
+
+    monkeypatch.setattr("apps.legacy.repositories.users_repo.is_dba", lambda u: False)
+    monkeypatch.setattr(
+        "apps.legacy.repositories.permissions_repo.list_user_doc_perms",
+        lambda usuario, modulo, no_cia, punto: [{"tipo_docu": "FT"}],
+    )
+
+    def fake_list_documento(**kw):
+        calls.append(kw)
+        return []
+
+    monkeypatch.setattr(repo, "list_documento", fake_list_documento)
+    client = APIClient()
+    client.force_authenticate(mock_user)
+    resp = client.get(
+        "/api/historial/documento/?no_cia=01&punto=02&modulo=FAT&tipo_documento=FT&no_documento=0001234"
+    )
+    assert resp.status_code == 200
+    assert len(calls) == 1
+    assert calls[0]["punto"] == "02"
