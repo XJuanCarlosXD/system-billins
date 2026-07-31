@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import oracledb
+
 ACCIONES_VALIDAS = ("CREAR", "EDITAR", "ANULAR", "REVERSAR")
 
 _VERBOS = {"CREAR": "creó", "EDITAR": "editó", "ANULAR": "anuló", "REVERSAR": "reversó"}
@@ -45,24 +47,26 @@ def log_evento(
     usuario_u = (usuario or "").upper()[:30]
     n_cambios = len(cambios or [])
     descripcion = _descripcion(usuario_u, accion, tipo_documento, no_documento, n_cambios)[:500]
+    motivo_trunc = (motivo or "")[:500] or None
 
+    # RETURNING ... INTO recupera el BITACORA_ID generado por el
+    # secuencia+trigger directo del INSERT (mismo patrón que
+    # apps/legacy/repositories/lic_repo.py). Un SELECT MAX(...) posterior
+    # sería racy si otro request inserta una fila entre el INSERT y el
+    # SELECT.
+    out_id = cur.var(oracledb.NUMBER)
     cur.execute(
         "INSERT INTO ABREGONZA.TSYS_BITACORA "
         "(USUARIO, NO_CIA, PUNTO, MODULO, TIPO_DOCUMENTO, NO_DOCUMENTO, "
         " ACCION, MOTIVO, DESCRIPCION, FECHA) "
-        "VALUES (:1, :2, :3, :4, :5, :6, :7, :8, :9, SYSDATE)",
+        "VALUES (:1, :2, :3, :4, :5, :6, :7, :8, :9, SYSDATE) "
+        "RETURNING BITACORA_ID INTO :10",
         [usuario_u, no_cia, punto, modulo.upper(), tipo_documento.upper(),
-         no_documento, accion, (motivo or None), descripcion],
+         no_documento, accion, motivo_trunc, descripcion, out_id],
     )
-    cur.execute(
-        "SELECT MAX(BITACORA_ID) FROM ABREGONZA.TSYS_BITACORA WHERE "
-        "USUARIO=:1 AND NO_CIA=:2 AND MODULO=:3 AND TIPO_DOCUMENTO=:4 "
-        "AND NO_DOCUMENTO=:5 AND ACCION=:6",
-        [usuario_u, no_cia, modulo.upper(), tipo_documento.upper(), no_documento, accion])
-    row = cur.fetchone()
-    bitacora_id = row[0] if row else None
+    bitacora_id = int(out_id.getvalue()[0])
 
-    if accion == "EDITAR" and cambios and bitacora_id is not None:
+    if accion == "EDITAR" and cambios:
         for c in cambios:
             cur.execute(
                 "INSERT INTO ABREGONZA.TSYS_BITACORA_DETALLE "

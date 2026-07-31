@@ -3,18 +3,28 @@ from types import SimpleNamespace
 from apps.historial import repo
 
 
+class _FakeOutVar:
+    """Simula el objeto que devuelve oracledb `cur.var(...)`: expone
+    `getvalue()` como lo hace el driver real tras un RETURNING ... INTO."""
+
+    def __init__(self, value):
+        self._value = value
+
+    def getvalue(self):
+        return [self._value]
+
+
 class FakeCursor:
     def __init__(self):
         self.executed: list[tuple[str, list]] = []
         self.committed = False
-        self._next_id = [501]
+        self._next_id = 501
+
+    def var(self, _typ):
+        return _FakeOutVar(self._next_id)
 
     def execute(self, sql, params=None):
         self.executed.append((sql, list(params or [])))
-
-    def fetchone(self):
-        row = tuple(self._next_id)
-        return row
 
     @property
     def connection(self):
