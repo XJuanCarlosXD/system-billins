@@ -52,3 +52,6 @@ Thumbs.db
 .vscode/
 .idea/
 .backup/
+
+# Claude Code worktrees (agent-managed isolated workspaces)
+.claude/worktrees/
