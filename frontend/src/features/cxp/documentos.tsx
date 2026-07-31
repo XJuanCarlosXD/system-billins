@@ -261,7 +261,11 @@ export function CxpDocumentos() {
       )}
 
       <Sheet open={!!selected} onOpenChange={o => { if (!o) setSelected(null) }}>
-        <SheetContent className="max-w-[40vw] max-h-[70vh] overflow-y-auto">
+        {/* SheetContent trae 'sm:max-w-sm' (384px) de base -- un max-w-[Xvw]
+            sin el prefijo sm: nunca lo vence (mismo gotcha que otros modales
+            del proyecto, ver memoria cxp-reversar-responsive): hay que pisarlo
+            con el mismo variant para que tailwind-merge lo reemplace. */}
+        <SheetContent className="sm:max-w-[40vw] max-h-[70vh] overflow-y-auto">
           <SheetHeader>
             <SheetTitle>
               {detalle ? `${TIPO_DOC[detalle.tipo_docu] ?? detalle.tipo_docu} ${detalle.no_docu} — ${detalle.nombre_proveedor}` : 'Cargando…'}
