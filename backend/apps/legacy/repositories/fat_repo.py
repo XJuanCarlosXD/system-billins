@@ -2882,6 +2882,10 @@ def anular_factura(no_cia, punto, tipo_factura, no_factura, usuario, motivo="", 
                 "WHERE NO_LOCALIDAD=:1 AND CODIGO_NCF=:2 "
                 "  AND PROX_NCF = :3 AND PROX_NCF > NCF_INICIAL",
                 [no_cia, codigo_ncf_fact, int(ncf_num) + 1])
+        historial_repo.log_evento(
+            cur, usuario=usuario, no_cia=no_cia, punto=punto, modulo="FAT",
+            tipo_documento=tf, no_documento=nf, accion="ANULAR", motivo=motivo,
+        )
         cur.connection.commit()
     return {"no_factura": nf, "tipo_factura": tf, "anulado": True, "motivo": motivo, "libero_ncf": liberar_ncf}
 
