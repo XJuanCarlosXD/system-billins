@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Pencil } from 'lucide-react'
 import { api } from '@/lib/regal-general-api'
 import { useCompany } from '@/hooks/use-company'
 import { Button } from '@/components/ui/button'
@@ -7,7 +8,13 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { downloadCsv } from '@/lib/csv-utils'
+import {
+  CxpCorregirDocumentoDialog,
+  esDocumentoDelMesEnCurso,
+  type CxpDocumentoParaCorregir,
+} from './corregir-documento-dialog'
 
 interface Documento {
   no_cia: string; punto: string; tipo_docu: string; no_docu: string
@@ -23,6 +30,7 @@ interface DocDetalle extends Documento {
   lineas: { cuenta: string; monto: number; tipo_movi: string }[]
   rnc: string; posiciones_fijas_ncf: string; ncf_dgi?: string; forma_pago: number
   debito: number; credito: number
+  tipo_gasto?: string | null; tipo_retencion?: number | null
 }
 
 const TIPO_DOC: Record<string, string> = {
@@ -78,6 +86,7 @@ export function CxpDocumentos() {
   const [status, setStatus] = useState('A')
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<string | null>(null)
+  const [editingDoc, setEditingDoc] = useState<CxpDocumentoParaCorregir | null>(null)
 
   const enabled = !!noCia
 
@@ -256,7 +265,49 @@ export function CxpDocumentos() {
                   </div>
                 )}
               </div>
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
+                {(() => {
+                  const editable = esDocumentoDelMesEnCurso(detalle.fecha) && detalle.status !== 'R'
+                  const editBtn = (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!editable}
+                      onClick={() =>
+                        setEditingDoc({
+                          no_cia: detalle.no_cia,
+                          punto: detalle.punto,
+                          tipo_docu: detalle.tipo_docu,
+                          no_docu: detalle.no_docu,
+                          nombre_proveedor: detalle.nombre_proveedor,
+                          fecha: detalle.fecha,
+                          valor_original: detalle.valor_original,
+                          ncf: detalle.ncf,
+                          posiciones_fijas_ncf: detalle.posiciones_fijas_ncf,
+                          rnc: detalle.rnc,
+                          impuesto: detalle.impuesto,
+                          itbis_retenido: detalle.itbis_retenido,
+                          isr_retenido: detalle.isr_retenido,
+                          tipo_gasto: detalle.tipo_gasto,
+                          tipo_retencion: detalle.tipo_retencion,
+                          forma_pago: detalle.forma_pago,
+                        })
+                      }
+                    >
+                      <Pencil className="mr-1 h-3.5 w-3.5" /> Editar
+                    </Button>
+                  )
+                  return editable ? editBtn : (
+                    <Tooltip>
+                      <TooltipTrigger asChild><span>{editBtn}</span></TooltipTrigger>
+                      <TooltipContent>
+                        {detalle.status === 'R'
+                          ? 'Documento reversado, no se puede editar.'
+                          : 'Solo se pueden editar documentos del mes en curso.'}
+                      </TooltipContent>
+                    </Tooltip>
+                  )
+                })()}
                 <Button
                   size="sm"
                   variant="outline"
@@ -320,6 +371,13 @@ export function CxpDocumentos() {
           )}
         </SheetContent>
       </Sheet>
+
+      <CxpCorregirDocumentoDialog
+        doc={editingDoc}
+        noCia={noCia ?? ''}
+        punto={punto ?? ''}
+        onOpenChange={(o) => !o && setEditingDoc(null)}
+      />
     </div>
   )
 }

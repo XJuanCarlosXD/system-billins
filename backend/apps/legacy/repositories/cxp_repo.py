@@ -200,7 +200,8 @@ def get_documento(no_cia, punto, tipo_docu, no_docu):
                d.tipo_transaccion, d.impuesto,
                d.itbis_retenido, d.isr_retenido,
                d.tipo_movi, d.forma_pago, d.debito, d.credito,
-               d.pago_bloqueado, d.detalle, d.usuario
+               d.pago_bloqueado, d.detalle, d.usuario,
+               d.tipo_gasto, d.tipo_retencion
         FROM CXP.TCXP_DOCUMENTO d
         JOIN CXP.TCXP_DPROVEEDOR p ON p.no_proveedor = d.no_proveedor
         WHERE d.no_cia=:1 AND d.punto=:2 AND d.tipo_docu=:3 AND d.no_docu=:4
@@ -1414,12 +1415,29 @@ def corregir_datos_dgii(d):
     no_docu   = str(d['no_docu']).strip()
 
     rows = client.fetch_dicts(
-        "SELECT status, no_proveedor FROM CXP.TCXP_DOCUMENTO "
+        "SELECT status, no_proveedor, "
+        "TO_CHAR(fecha,'YYYY-MM') AS periodo_docu "
+        "FROM CXP.TCXP_DOCUMENTO "
         "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
         [no_cia, punto, tipo_docu, no_docu])
     if not rows:
         raise ValueError('Documento no encontrado')
     _no_prov_actual = rows[0].get('no_proveedor')
+
+    # Solo se permite corregir NCF/datos DGII de documentos del periodo
+    # contable en curso (TCXP_PUNTO.ano_proceso/mes_proceso) -- editar un
+    # periodo ya cerrado desalinearia el 606 ya presentado ante la DGII.
+    _punto_rows = client.fetch_dicts(
+        "SELECT ano_proceso, mes_proceso FROM CXP.TCXP_PUNTO "
+        "WHERE no_cia=:1 AND punto=:2", [no_cia, punto])
+    if _punto_rows:
+        _periodo_actual = '{:04d}-{:02d}'.format(
+            int(_punto_rows[0]['ano_proceso']), int(_punto_rows[0]['mes_proceso']))
+        if rows[0].get('periodo_docu') != _periodo_actual:
+            raise ValueError(
+                'Solo se pueden corregir documentos del periodo contable en '
+                'curso ({0}). Este documento es de {1}.'.format(
+                    _periodo_actual, rows[0].get('periodo_docu')))
 
     _ncf_raw = str(d.get('ncf') or '').strip()
     _ncf_num = int(_ncf_raw) if _ncf_raw.isdigit() else None
