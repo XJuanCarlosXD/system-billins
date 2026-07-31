@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { handleServerError } from '@/lib/handle-server-error'
 import { ApiError } from '@/lib/regal-general-api'
+import { logErrorAutomatico, mensajeDeError, reportarErrorConCaptura } from '@/lib/report-error'
 import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
 import { ThemeProvider } from './context/theme-provider'
@@ -69,11 +70,23 @@ const queryClient = new QueryClient({
           const redirect = router.history.location.href
           router.navigate({ to: '/sign-in', search: { redirect } })
         }
+        return
       }
+      const { mensaje, statusHttp, detalle } = mensajeDeError(error)
+      logErrorAutomatico(mensaje, { statusHttp, detalle })
       if (status === 500 && import.meta.env.PROD) {
         // toast solo, no navegar (la navegacion automatica a /500 saca al
         // usuario de su flujo cuando un endpoint puntual falla).
-        toast.error('Error interno del servidor.')
+        toast.error('Error interno del servidor.', {
+          action: {
+            label: 'Reportar',
+            onClick: () => {
+              reportarErrorConCaptura(mensaje, detalle)
+                .then(() => toast.success('Error reportado. Gracias.'))
+                .catch(() => toast.error('No se pudo reportar el error.'))
+            },
+          },
+        })
       }
     },
   }),

@@ -1,5 +1,6 @@
 import { AxiosError } from 'axios'
 import { toast } from 'sonner'
+import { logErrorAutomatico, mensajeDeError, reportarErrorConCaptura } from './report-error'
 
 export function handleServerError(error: unknown) {
   if (import.meta.env.DEV) {
@@ -25,5 +26,17 @@ export function handleServerError(error: unknown) {
     }
   }
 
-  toast.error(errMsg)
+  const { mensaje, statusHttp, detalle } = mensajeDeError(error)
+  logErrorAutomatico(mensaje || errMsg, { statusHttp, detalle })
+
+  toast.error(errMsg, {
+    action: {
+      label: 'Reportar',
+      onClick: () => {
+        reportarErrorConCaptura(mensaje || errMsg, detalle)
+          .then(() => toast.success('Error reportado. Gracias.'))
+          .catch(() => toast.error('No se pudo reportar el error.'))
+      },
+    },
+  })
 }
