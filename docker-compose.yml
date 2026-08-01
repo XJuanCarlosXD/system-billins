@@ -14,7 +14,11 @@ services:
     restart: unless-stopped
 
   oracle-xe:
-    image: gvenzl/oracle-xe:21-slim-faststart
+    # Oracle Database Free (23ai) — reemplaza el intento anterior con
+    # oracle-xe:21 (contenedor quedó "Exited (10)", nunca llegó a usarse).
+    # Fork independiente del Oracle 11g original (10.0.0.51): ver
+    # docs/superpowers/specs/2026-08-01-separar-oracle-standalone-design.md.
+    image: gvenzl/oracle-free:23-slim-faststart
     container_name: facturation_oracle
     profiles: ["oracle"]
     environment:
