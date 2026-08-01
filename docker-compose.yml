@@ -26,20 +26,18 @@ services:
       - ORACLE_CHARACTERSET=AL32UTF8
       - APP_USER=sigaft
       - APP_USER_PASSWORD=Temp1234Oracle
-      # VM tiene solo 1.3GB RAM total (upgrade de hardware pendiente,
-      # no instalado todavia) -- sin esto Oracle calcula un SGA/PGA que no
-      # cabe y falla con ORA-27104. Recordar subir estos valores cuando
-      # llegue el upgrade de RAM.
-      - ORACLE_INIT_SGA_SIZE=384
-      - ORACLE_INIT_PGA_SIZE=256
+      # 2026-08-01: VM subida de 1.3GB -> 3GB RAM (Set-VMMemory) tras
+      # instalar el disco de 1TB. Valores ajustados a ese nuevo techo --
+      # antes eran 384/256 con shm_size 512m por el limite viejo de 1.3GB.
+      - ORACLE_INIT_SGA_SIZE=1024
+      - ORACLE_INIT_PGA_SIZE=512
     ports:
       - "1525:1521"
     volumes:
       - oracle_data:/opt/oracle/oradata
       - ./oracle_init:/container-entrypoint-initdb.d
       - ./oracle_dump:/dump
-    # Igual que arriba: 1g excedia el /dev/shm real del host (667MB).
-    shm_size: 512m
+    shm_size: 1200m
     restart: unless-stopped
 
   backend:
