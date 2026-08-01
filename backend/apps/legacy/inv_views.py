@@ -1795,3 +1795,99 @@ def inv_conteo_fisico_historico(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+# =============================================================================
+# Cierre Mensual (Finv402 + Finv403)
+# =============================================================================
+
+@login_required
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def inv_cierres(request):
+    """GET /api/inv/cierres/?no_cia&punto  -> historico de cierres (TINV_CIERRE)"""
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    forbidden = _check_inv_access(request.user.username, no_cia)
+    if forbidden:
+        return forbidden
+    try:
+        return JsonResponse({"items": _jsonify(inv_repo.list_cierres(no_cia, punto))})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["POST"])
+def inv_cierre_generar_asiento(request):
+    """POST /api/inv/cierre/generar-asiento/
+    body: { no_cia, punto, mes_proceso, ano_proceso }
+    Finv402 - marca los documentos INV del periodo en proceso como generados
+    al mayor (TINV_RME.ST_GENERADO_CNT='S'). No postea un asiento real en
+    CNT; el contador sigue posteando a mano en CNT usando el reporte
+    "Entrada de Diario" como fuente, igual que en FAT/CxC/CxP hoy.
+    """
+    try:
+        body = json.loads(request.body or b'{}')
+        no_cia = str(body.get('no_cia') or '01').strip()
+        punto = str(body.get('punto') or '01').strip()
+        mes_proceso = int(body.get('mes_proceso'))
+        ano_proceso = int(body.get('ano_proceso'))
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "no_cia, punto, mes_proceso y ano_proceso son requeridos"}, status=400)
+    forbidden = _check_inv_access(request.user.username, no_cia)
+    if forbidden:
+        return forbidden
+    try:
+        result = inv_repo.generar_asiento_mayor(no_cia, punto, mes_proceso, ano_proceso)
+        if body.get('cierre_periodo'):
+            usuario = request.user.username
+            fecha = str(body.get('fecha') or '')
+            result['cierre'] = inv_repo.cierre_mensual(
+                no_cia, punto, mes_proceso, ano_proceso, usuario, fecha_cierre=fecha)
+        return JsonResponse({
+            "message": f"{result['generados']} documento(s) generado(s) al mayor",
+            **result,
+        })
+    except PermissionError as e:
+        return JsonResponse({"error": str(e)}, status=403)
+    except ValueError as e:
+        return JsonResponse({"error": str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["POST"])
+def inv_cierre_mensual(request):
+    """POST /api/inv/cierre/mensual/
+    body: { no_cia, punto, mes, ano, fecha }
+    Finv403 - valida bloqueos legado (toma física pendiente, permiso
+    CERRAR_INV, documentos sin generar al mayor) y avanza
+    TINV_PUNTO.mes_proceso/ano_proceso al siguiente periodo.
+    """
+    try:
+        body = json.loads(request.body or b'{}')
+        no_cia = str(body.get('no_cia') or '01').strip()
+        punto = str(body.get('punto') or '01').strip()
+        mes = int(body.get('mes'))
+        ano = int(body.get('ano'))
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "no_cia, punto, mes y ano son requeridos"}, status=400)
+    forbidden = _check_inv_access(request.user.username, no_cia)
+    if forbidden:
+        return forbidden
+    try:
+        fecha = str(body.get('fecha') or '')
+        result = inv_repo.cierre_mensual(no_cia, punto, mes, ano, request.user.username, fecha_cierre=fecha)
+        message = ('Este periodo ya estaba cerrado' if result.get('status') == 'already_closed'
+                   else 'Cierre mensual ejecutado exitosamente')
+        return JsonResponse({"message": message, **result})
+    except PermissionError as e:
+        return JsonResponse({"error": str(e)}, status=403)
+    except ValueError as e:
+        return JsonResponse({"error": str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+

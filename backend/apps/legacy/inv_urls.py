@@ -74,6 +74,11 @@ urlpatterns = [
     # Cierre - Entrada de Diario
     path('cierre/entrada-diario/pdf/', inv_views.inv_cierre_entrada_diario_pdf),
 
+    # Cierre Mensual (Finv402 + Finv403)
+    path('cierres/', inv_views.inv_cierres),
+    path('cierre/generar-asiento/', inv_views.inv_cierre_generar_asiento),
+    path('cierre/mensual/', inv_views.inv_cierre_mensual),
+
     # Conteo Físico (FINV705)
     path('conteo-fisico/pendiente/',  inv_views.inv_conteo_fisico_pendiente),
     path('conteo-fisico/cargar/',     inv_views.inv_conteo_fisico_cargar),

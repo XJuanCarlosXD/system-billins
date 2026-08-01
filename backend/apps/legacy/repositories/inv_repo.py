@@ -2106,6 +2106,149 @@ def list_entrada_diario(no_cia: str, punto: str, ano: str, mes: str,
 
 
 # =============================================================================
+# Cierre Mensual de Inventario (Finv402 "Generación del Asiento Contable" +
+# Finv403 "Cierre Mensual")
+# =============================================================================
+#
+# Patrón alineado con fat_repo.cierre_mensual / cxc_repo.cierre_cxc: no
+# postea un asiento real en CNT.TCNT_ASIENTO (eso lo sigue haciendo el
+# contador a mano en CNT, usando el reporte "Entrada de Diario" como fuente),
+# solo marca TINV_RME.ST_GENERADO_CNT='S' y avanza TINV_PUNTO.mes_proceso/
+# ano_proceso. Los bloqueos (toma física pendiente, permiso CERRAR_INV,
+# documentos sin generar) sí se validan igual que en el legado Finv403.
+
+def list_cierres(no_cia: str, punto: str) -> list[dict]:
+    rows = client.fetch_dicts(
+        "SELECT ano, mes, fecha_cierre, fecha_sysdate, usuario "
+        "FROM INV.TINV_CIERRE WHERE no_cia=:1 AND punto=:2 ORDER BY ano DESC, mes DESC",
+        [no_cia, punto])
+    return [{'ano': int(r['ano']), 'mes': int(r['mes']),
+             'fecha_cierre': str(r['fecha_cierre'])[:10] if r['fecha_cierre'] else None,
+             'fecha_sysdate': str(r['fecha_sysdate'])[:10] if r['fecha_sysdate'] else None,
+             'usuario': r['usuario'] or ''} for r in rows]
+
+
+def list_movimientos_pendientes_cnt(no_cia: str, punto: str, mes: int, ano: int) -> list[dict]:
+    """Documentos INV (TINV_RME) del periodo aun sin marcar como generados al mayor."""
+    rows = client.fetch_dicts(
+        "SELECT tipo_docu, no_docu, fecha, total_neto "
+        "FROM INV.TINV_RME "
+        "WHERE no_cia=:1 AND punto=:2 "
+        "AND EXTRACT(YEAR FROM fecha)=:3 AND EXTRACT(MONTH FROM fecha)=:4 "
+        "AND NVL(st_generado_cnt,'N')='N' AND NVL(st_anulado,'N')='N' "
+        "ORDER BY fecha, tipo_docu, no_docu",
+        [no_cia, punto, int(ano), int(mes)])
+    return [{'tipo_docu': r['tipo_docu'], 'no_docu': r['no_docu'],
+             'fecha': str(r['fecha'])[:10] if r['fecha'] else None,
+             'total_neto': float(r['total_neto'] or 0)} for r in rows]
+
+
+def marcar_generado_cnt(no_cia: str, punto: str, mes: int, ano: int) -> dict:
+    """Marca los documentos INV (TINV_RME) pendientes del mes/ano como generados en CNT."""
+    with client.connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE INV.TINV_RME SET st_generado_cnt='S' "
+            "WHERE no_cia=:1 AND punto=:2 "
+            "AND EXTRACT(YEAR FROM fecha)=:3 AND EXTRACT(MONTH FROM fecha)=:4 "
+            "AND NVL(st_generado_cnt,'N')='N' AND NVL(st_anulado,'N')='N'",
+            [no_cia, punto, int(ano), int(mes)])
+        generados = cur.rowcount
+        conn.commit()
+    return {'generados': generados}
+
+
+def check_bloqueos_cierre(no_cia: str, punto: str) -> dict:
+    """Bloqueos legado (Finv403) antes de permitir el cierre mensual:
+    almacenes con toma física pendiente (TINV_EPRODUCTO.TOMA_FISICA='S')."""
+    rows = client.fetch_dicts(
+        "SELECT DISTINCT almacen FROM INV.TINV_EPRODUCTO "
+        "WHERE no_cia=:1 AND punto=:2 AND NVL(toma_fisica,'N')='S' ORDER BY almacen",
+        [no_cia, punto])
+    return {'almacenes_toma_fisica': [r['almacen'] for r in rows]}
+
+
+def tiene_permiso_cerrar(no_cia: str, punto: str, usuario: str) -> bool:
+    row = client.fetch_one(
+        "SELECT NVL(cerrar_inv,'N') FROM INV.TINV_USUARIO "
+        "WHERE no_cia=:1 AND punto=:2 AND UPPER(usuario)=UPPER(:3) AND NVL(activo,'N')='S'",
+        [no_cia, punto, usuario])
+    return bool(row and row[0] == 'S')
+
+
+def generar_asiento_mayor(no_cia: str, punto: str, mes_proceso: int, ano_proceso: int) -> dict:
+    """Finv402: marca al mayor los documentos INV pendientes del periodo en proceso."""
+    punto_row = get_punto(no_cia, punto)
+    if not punto_row:
+        raise ValueError('Punto no encontrado')
+    if int(punto_row['mes_proceso']) != int(mes_proceso) or int(punto_row['ano_proceso']) != int(ano_proceso):
+        raise ValueError(
+            f"El periodo en proceso de INV es {int(punto_row['mes_proceso']):02d}/{int(punto_row['ano_proceso'])} "
+            f"— no coincide con {int(mes_proceso):02d}/{int(ano_proceso)}")
+    return marcar_generado_cnt(no_cia, punto, mes_proceso, ano_proceso)
+
+
+def cierre_mensual(no_cia: str, punto: str, mes: int, ano: int, usuario: str,
+                   fecha_cierre: str = '') -> dict:
+    """Finv403: valida bloqueos y avanza TINV_PUNTO.mes_proceso/ano_proceso."""
+    if not tiene_permiso_cerrar(no_cia, punto, usuario):
+        raise PermissionError(f"El usuario {usuario} no tiene permiso CERRAR_INV en {no_cia}/{punto}")
+
+    punto_row = get_punto(no_cia, punto)
+    if not punto_row:
+        raise ValueError('Punto no encontrado')
+    if int(punto_row['mes_proceso']) != int(mes) or int(punto_row['ano_proceso']) != int(ano):
+        raise ValueError(
+            f"El periodo en proceso es {int(punto_row['mes_proceso']):02d}/{int(punto_row['ano_proceso'])} "
+            f"— no coincide con {int(mes):02d}/{int(ano)}")
+
+    bloqueos = check_bloqueos_cierre(no_cia, punto)
+    if bloqueos['almacenes_toma_fisica']:
+        raise ValueError(
+            "Hay almacenes con toma física pendiente: "
+            + ", ".join(bloqueos['almacenes_toma_fisica']))
+
+    pendientes = list_movimientos_pendientes_cnt(no_cia, punto, mes, ano)
+    if pendientes:
+        raise ValueError(
+            f"Hay {len(pendientes)} documento(s) sin generar al mayor. "
+            "Ejecute 'Generar Asiento al Mayor' antes de cerrar.")
+
+    existing = client.fetch_one(
+        "SELECT 1 FROM INV.TINV_CIERRE WHERE no_cia=:1 AND punto=:2 AND ano=:3 AND mes=:4",
+        [no_cia, punto, int(ano), int(mes)])
+    if existing:
+        return {'status': 'already_closed', 'ano': int(ano), 'mes': int(mes)}
+
+    nuevo_mes = int(mes) + 1
+    nuevo_ano = int(ano)
+    if nuevo_mes > 12:
+        nuevo_mes = 1
+        nuevo_ano += 1
+
+    with client.connection() as conn:
+        cur = conn.cursor()
+        if fecha_cierre:
+            cur.execute(
+                "INSERT INTO INV.TINV_CIERRE(no_cia,punto,ano,mes,fecha_cierre,fecha_sysdate,usuario) "
+                "VALUES(:1,:2,:3,:4,TO_DATE(:5,'YYYY-MM-DD'),SYSDATE,:6)",
+                [no_cia, punto, int(ano), int(mes), fecha_cierre, usuario])
+        else:
+            cur.execute(
+                "INSERT INTO INV.TINV_CIERRE(no_cia,punto,ano,mes,fecha_cierre,fecha_sysdate,usuario) "
+                "VALUES(:1,:2,:3,:4,SYSDATE,SYSDATE,:5)",
+                [no_cia, punto, int(ano), int(mes), usuario])
+        cur.execute(
+            "UPDATE INV.TINV_PUNTO SET mes_proceso=:1, ano_proceso=:2 "
+            "WHERE no_cia=:3 AND punto=:4",
+            [nuevo_mes, nuevo_ano, no_cia, punto])
+        conn.commit()
+
+    return {'status': 'closed', 'ano': int(ano), 'mes': int(mes),
+            'nuevo_mes': nuevo_mes, 'nuevo_ano': nuevo_ano}
+
+
+# =============================================================================
 # Conteo Físico (FINV705) — Ajuste Conteo Físico Vs. Existencia en Libro
 # =============================================================================
 #
