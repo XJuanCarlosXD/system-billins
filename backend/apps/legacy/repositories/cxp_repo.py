@@ -1331,7 +1331,7 @@ def reversar_documento(no_cia, punto, tipo_docu, no_docu, usuario="API", motivo=
         # tipos internos de ajuste y no lo que el usuario reversa.
         tipo_docu_ajuste = "ND" if tipo_movi_ajuste == "D" else "NC"
         tdoc_rows = client.fetch_dicts(
-            "SELECT tipo_docu, NVL(cuenta,'') AS cuenta, "
+            "SELECT tipo_docu, tipo_transaccion, NVL(cuenta,'') AS cuenta, "
             "NVL(centro_costo,'0000000000') AS centro_costo "
             "FROM CXP.TCXP_TDOCU WHERE tipo_docu=:1 AND tipo_movi=:2",
             [tipo_docu_ajuste, tipo_movi_ajuste])
@@ -1348,7 +1348,8 @@ def reversar_documento(no_cia, punto, tipo_docu, no_docu, usuario="API", motivo=
             _insert_cxp_ajuste_header(
                 cur, no_cia, punto, td["tipo_docu"], no_docu_ajuste,
                 doc["no_proveedor"], date.today().isoformat(), monto,
-                motivo_ajuste, tipo_movi_ajuste, usuario)
+                motivo_ajuste, tipo_movi_ajuste, usuario,
+                tipo_transaccion=td["tipo_transaccion"])
             _insert_cxp_ajuste_lineas(
                 cur, no_cia, punto, td["tipo_docu"], no_docu_ajuste,
                 doc["no_proveedor"], monto,
@@ -2156,19 +2157,24 @@ def aplicar_saldos_menores(no_cia: str, punto: str, max_saldo: float,
 
 def _insert_cxp_ajuste_header(cur, no_cia, punto, tipo_docu, no_docu,
                                no_proveedor, fecha, valor, motivo, tipo_movi,
-                               usuario):
+                               usuario, tipo_transaccion='A'):
     # CK_TCXPDOCU_DEBITO_CREDITO exige debito=credito=valor_original siempre
     # (igual que entrada_documento) -- la direccion D/C la marca tipo_movi,
     # no poner 0 en el lado contrario.
+    # tipo_transaccion por defecto 'A' (AJUSTE) para AD/AC reales (ver
+    # aplicar_saldos_menores); reversar_documento pasa el tipo_transaccion
+    # real de TCXP_TDOCU para ND/NC ('D'/'C') -- antes quedaba hardcodeado
+    # en 'A' para todo, asi que un reverso etiquetado ND se guardaba con
+    # tipo_transaccion de "ajuste" en vez de "nota de debito/credito".
     cur.execute(
         "INSERT INTO CXP.TCXP_DOCUMENTO ("
         " no_cia, punto, tipo_docu, no_docu, no_proveedor, tipo_movi,"
         " tipo_transaccion, fecha, status, valor_original, saldo,"
         " detalle, usuario, st_generado_cnt, st_impresion, debito, credito"
-        ") VALUES (:1,:2,:3,:4,:5,:6,'A',TO_DATE(:7,'YYYY-MM-DD'),"
-        " 'A',:8,0,:9,:10,'N','N',:11,:12)",
+        ") VALUES (:1,:2,:3,:4,:5,:6,:7,TO_DATE(:8,'YYYY-MM-DD'),"
+        " 'A',:9,0,:10,:11,'N','N',:12,:13)",
         [no_cia, punto, tipo_docu, no_docu, str(no_proveedor), tipo_movi,
-         fecha, valor, motivo, usuario, valor, valor])
+         tipo_transaccion, fecha, valor, motivo, usuario, valor, valor])
 
 
 def _insert_cxp_ajuste_lineas(cur, no_cia, punto, tipo_docu, no_docu,
