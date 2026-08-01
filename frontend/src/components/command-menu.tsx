@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/command'
 import { settingsCatalog } from '@/features/settings/data/settings-catalog'
 import { sidebarData } from './layout/data/sidebar-data'
-import type { NavGroup, NavSubItem } from './layout/types'
+import type { NavGroup, NavItem } from './layout/types'
 import { ScrollArea } from './ui/scroll-area'
 
 // Per-view keywords/descriptions for intelligent search
@@ -132,7 +132,7 @@ function flattenNav(groups: NavGroup[]): FlatItem[] {
         continue
       }
       if ('items' in item && item.items) {
-        for (const sub of item.items as NavSubItem[]) {
+        for (const sub of item.items as NavItem[]) {
           if ('url' in sub && sub.url) {
             const url = sub.url as string
             result.push({
@@ -174,6 +174,29 @@ function flattenNav(groups: NavGroup[]): FlatItem[] {
   return result
 }
 
+// sidebarData.modules[].navGroups es estructuralmente compatible con
+// NavItem[] (cada NavGroup {title, items} calza en NavCollapsible), asi
+// que reusamos flattenNav envolviendo cada modulo como un NavCollapsible
+// cuyos hijos son sus propias secciones (Proceso/Consultas/Reportes/...).
+function flattenModules(): FlatItem[] {
+  const modulesAsItems: NavItem[] = sidebarData.modules.map((m) => ({
+    title: m.title,
+    items: m.navGroups,
+  }))
+  return flattenNav([{ title: 'Modulos', items: modulesAsItems }])
+}
+
+function flattenHomeShortcuts(): FlatItem[] {
+  return sidebarData.homeShortcuts.map((s) => ({
+    id: String(s.url),
+    module: 'Inicio',
+    category: '',
+    title: s.title,
+    url: String(s.url),
+    keywords: VIEW_KEYWORDS[String(s.url)] ?? '',
+  }))
+}
+
 function flattenSettings(): FlatItem[] {
   const out: FlatItem[] = []
   for (const cat of settingsCatalog) {
@@ -202,7 +225,11 @@ function flattenSettings(): FlatItem[] {
   return out
 }
 
-const ALL_ITEMS = [...flattenNav(sidebarData.navGroups), ...flattenSettings()]
+const ALL_ITEMS = [
+  ...flattenModules(),
+  ...flattenHomeShortcuts(),
+  ...flattenSettings(),
+]
 
 function groupByModule(items: FlatItem[]): Map<string, FlatItem[]> {
   const map = new Map<string, FlatItem[]>()
