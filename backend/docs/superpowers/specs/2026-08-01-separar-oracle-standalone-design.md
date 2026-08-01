@@ -2,8 +2,10 @@
 
 - Fecha: 2026-08-01
 - Autor: JCABREU + Claude
-- Estado: **EN EJECUCIÓN — bloqueado en el paso 5 (levantar el contenedor)
-  por RAM insuficiente en la VM. Ver "Progreso 2026-08-01" al final.**
+- Estado: **COMPLETADO 2026-08-01 20:00 UTC. ZentoryERP corre standalone
+  sobre su propio Oracle en Docker. El Oracle original (10.0.0.51) sigue
+  intacto y operativo para el legado. Ver "Progreso 2026-08-01" al final
+  para el detalle completo (incluye el bloqueo de RAM y cómo se resolvió).**
 - Alcance: infraestructura — nueva instancia Oracle en Docker, migración de
   datos, corte de conexión del backend, backup recurrente.
 - Motivación del usuario: urgente/crítico, protección legal — que ZentoryERP
@@ -370,3 +372,101 @@ usuario):**
   `ORACLE_INIT_PGA_SIZE` y `shm_size` a valores más cómodos (ej. 1GB/512MB
   SGA, `shm_size: 1g`) — los valores actuales (384M/256M) son un mínimo
   de supervivencia para 1.3GB de RAM, no lo ideal para producción.
+
+## Progreso 2026-08-01 (continuación — cierre)
+
+**Se instaló un disco de 1TB físico en el servidor** (no se usó para la
+base en sí — los 12 schemas pesan 0.45GB, un disco de 1TB nunca fue el
+cuello de botella real). El verdadero fix fue de memoria:
+
+1. Esta máquina resultó ser también el **host Hyper-V** de la VM
+   `docker` (10.0.0.99) — `Get-VM` vía PowerShell directo (el binario
+   funciona invocado desde Bash aunque la herramienta PowerShell dedicada
+   de la sesión no esté disponible). La VM tenía memoria **estática**
+   (`DynamicMemoryEnabled=False`) fija en 1.5GB — ese es el número real
+   detrás del "1.3GB total" que bloqueaba todo.
+2. Apagado limpio de la VM (`shutdown -h now` dentro del guest, no del
+   host físico) → `Set-VMMemory -VMName docker -StartupBytes 3GB` →
+   `Start-VM`. La VM volvió con 2.8GB reales, `backend`/`caddy` se
+   recuperaron solos (`restart: unless-stopped`), confirmado contra
+   Oracle original sin intervención manual.
+3. Con más RAM: `ORACLE_INIT_SGA_SIZE=1024`, `ORACLE_INIT_PGA_SIZE=512`,
+   `shm_size: 1200m` (commit `690e034`). El contenedor Oracle Free
+   inicializó limpio esta vez — sin ORA-27104 — en ~7 minutos (lento por
+   solo 2 vCPUs, pero sin crashear).
+
+**Import de los datos (classic `imp`, no Data Pump — el dump es formato
+`exp` clásico):**
+
+1. Se crearon los 13 usuarios (`SDN,FAT,CNT,INV,CXC,CHC,CXP,ACF,ACC,ODC,
+   ABREGONZA,MAN,JCABREU`) con rol `DBA` — `imp` no crea usuarios como sí
+   hace Data Pump FULL.
+2. `imp ... FULL=Y IGNORE=Y` del dump de 218MB: **478 de 486 tablas**
+   importadas en el primer intento. Las 8 faltantes fallaban con
+   `ORA-00959: tablespace 'GPSC_DAT' does not exist` (tablas con columnas
+   LOB/BLOB con `STORE AS` explícito a ese tablespace, que no existe en
+   una instancia Oracle Free recién creada).
+3. Fix: `CREATE TABLESPACE GPSC_DAT ...` + reimport puntual de las 8 tablas
+   (`ACC.TACC_REPOSICION`, `CHC.TCHC_CHEQUE`, `CNT.TCNT_PUNTO`,
+   `CXP.TCXP_DOCUMENTO`, `FAT.TFAT_PLANTILLA_PDF`,
+   `FAT.TFAT_PLANTILLA_PDF_HIST`, `FAT.TFE_CONFIG`, `FAT.TFE_DOCUMENTO`)
+   vía `imp ... FROMUSER=<schema> TOUSER=<schema> TABLES=(...)`. Resultado:
+   **486/486 tablas presentes**, confirmado por diff exacto de listados
+   `dba_tables` origen vs destino.
+
+**Caveat real y documentado — pérdida de filas por expansión de charset:**
+el origen es `WE8MSWIN1252` (1 byte/char) y el destino `AL32UTF8` (2 bytes
+para acentos/ñ). Columnas `VARCHAR2(N)` definidas en BYTES cuyo contenido
+tiene texto acentuado cerca del límite exacto desbordan al convertir
+(`ORA-12899: value too large for column`). Total: **458 filas rechazadas
+de las importadas** (449 en el import principal + 7 en CHC + 2 en CXP),
+sobre un total de cientos de miles de filas — <0.1% del dataset. Verificado
+con conteos reales origen vs destino en las tablas de negocio más grandes:
+
+| Tabla | Origen | Destino | Diferencia |
+|---|---|---|---|
+| FAT.TFAT_FACTURA | 56,464 | 56,463 | -1 |
+| INV.TINV_PRODUCTO | 7,751 | 7,739 | -12 |
+| CXC.TCXC_CLIENTE | 2,853 | 2,823 | -30 |
+| CXP.TCXP_DOCUMENTO | 21,653 | 21,649 | -4 |
+| CNT.TCNT_PUNTO | 5 | 5 | 0 (exacto) |
+
+No se intentó corregir esto ampliando las columnas a `VARCHAR2(N CHAR)`
+en esta migración — es un cambio de schema deliberado que se deja como
+mejora futura, no algo para decidir apurado en un corte de producción.
+Las filas afectadas son casos extremos (texto con muchos acentos justo en
+el límite de la columna), no un patrón sistemático.
+
+**Corte real ejecutado:**
+
+- `backend/.env`: `ORACLE_DSN` de `10.0.0.51:1521/AB` →
+  `oracle-xe:1521/FREEPDB1` (nombre del servicio Docker, no
+  `host.docker.internal` como sugería el `.env.example` viejo — corregido
+  también). Backup del `.env` anterior guardado como
+  `.env.bak-pre-cutover-20260801` en la VM.
+- **Importante:** `docker compose restart backend` NO recarga
+  `env_file` en contenedores ya creados (Docker solo lee `env_file` al
+  crear el contenedor). Hubo que usar
+  `docker compose up -d --force-recreate backend`. Si en el futuro se
+  vuelve a tocar `.env`, usar `--force-recreate`, no `restart`.
+- Verificado end-to-end: login real vía `/api/auth/login/`,
+  `GET /api/inv/productos/` con sesión autenticada devolviendo datos reales
+  (`count: 7739`, coincide exacto con el conteo validado por SQL).
+- El Oracle original (10.0.0.51) se confirmó sano e intacto después del
+  corte (`SELECT banner FROM v$version` responde normal) — sigue sirviendo
+  al legado Forms sin cambios.
+
+**Backup recurrente activo:** `scripts/backup-oracle.sh` (expdp Data Pump
+del contenedor nuevo, `SCHEMAS=` los 12 + JCABREU, rotación de 14 días) +
+`/etc/cron.d/zentoryerp-oracle-backup` corriendo a las 3am todos los días.
+Primera corrida de prueba exitosa: `zentoryerp_backup_20260801.dmp`,
+completada en 4m22s sin errores (Data Pump funciona bien en esta instancia
+nueva — el problema de `ORA-39006`/`ORA-39213` era específico del Oracle
+11.2.0.1 original, no se repitió aquí). Pendiente manual: copiar backups
+fuera de la VM periódicamente para protección offsite real (no
+automatizado, es decisión del usuario sobre destino).
+
+**Estado final: ambas bases operativas y saludables.**
+- Original (10.0.0.51, Oracle 11g): intacta, sirviendo al legado.
+- Nueva (contenedor `facturation_oracle`, Oracle Free 23ai): poblada,
+  validada, y es la que usa ZentoryERP en producción desde este corte.
