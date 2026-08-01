@@ -2188,9 +2188,33 @@ def generar_asiento_mayor(no_cia: str, punto: str, mes_proceso: int, ano_proceso
     return marcar_generado_cnt(no_cia, punto, mes_proceso, ano_proceso)
 
 
+def _archivar_snapshot_mensual(cur, no_cia: str, punto: str, mes: int, ano: int) -> int:
+    """Archiva en TINV_EPRODUCTOH la existencia/costo de cada producto/almacen
+    del periodo que se cierra, y hace roll-forward en TINV_EPRODUCTO
+    (exist_ini_mes/costo_ini_mes = exist_actual/costo_actual) para que el
+    nuevo mes arranque con el saldo correcto. Esto es lo que hacia el cierre
+    legado (Finv403) en cada cierre real — TINV_EPRODUCTOH tiene historial
+    real desde 2021 hasta jun/2026, este flujo nuevo lo continua."""
+    cur.execute(
+        "INSERT INTO INV.TINV_EPRODUCTOH "
+        "(no_cia,punto,almacen,ano,mes,no_produ,exist_ini_mes,exist_actual,"
+        " costo_ini_mes,costo_actual,exist_porciones) "
+        "SELECT no_cia,punto,almacen,:1,:2,no_produ,exist_ini_mes,exist_actual,"
+        "       costo_ini_mes,costo_actual,exist_porciones "
+        "FROM INV.TINV_EPRODUCTO WHERE no_cia=:3 AND punto=:4",
+        [int(ano), int(mes), no_cia, punto])
+    filas = cur.rowcount
+    cur.execute(
+        "UPDATE INV.TINV_EPRODUCTO SET exist_ini_mes=exist_actual, costo_ini_mes=costo_actual "
+        "WHERE no_cia=:1 AND punto=:2",
+        [no_cia, punto])
+    return filas
+
+
 def cierre_mensual(no_cia: str, punto: str, mes: int, ano: int, usuario: str,
                    fecha_cierre: str = '') -> dict:
-    """Finv403: valida bloqueos y avanza TINV_PUNTO.mes_proceso/ano_proceso."""
+    """Finv403: valida bloqueos, archiva snapshot de existencias/costos y
+    avanza TINV_PUNTO.mes_proceso/ano_proceso."""
     if not tiene_permiso_cerrar(no_cia, punto, usuario):
         raise PermissionError(f"El usuario {usuario} no tiene permiso CERRAR_INV en {no_cia}/{punto}")
 
@@ -2238,6 +2262,7 @@ def cierre_mensual(no_cia: str, punto: str, mes: int, ano: int, usuario: str,
                 "INSERT INTO INV.TINV_CIERRE(no_cia,punto,ano,mes,fecha_cierre,fecha_sysdate,usuario) "
                 "VALUES(:1,:2,:3,:4,SYSDATE,SYSDATE,:5)",
                 [no_cia, punto, int(ano), int(mes), usuario])
+        productos_archivados = _archivar_snapshot_mensual(cur, no_cia, punto, mes, ano)
         cur.execute(
             "UPDATE INV.TINV_PUNTO SET mes_proceso=:1, ano_proceso=:2 "
             "WHERE no_cia=:3 AND punto=:4",
@@ -2245,7 +2270,8 @@ def cierre_mensual(no_cia: str, punto: str, mes: int, ano: int, usuario: str,
         conn.commit()
 
     return {'status': 'closed', 'ano': int(ano), 'mes': int(mes),
-            'nuevo_mes': nuevo_mes, 'nuevo_ano': nuevo_ano}
+            'nuevo_mes': nuevo_mes, 'nuevo_ano': nuevo_ano,
+            'productos_archivados': productos_archivados}
 
 
 # =============================================================================
