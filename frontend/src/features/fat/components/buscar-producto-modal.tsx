@@ -47,6 +47,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { MovimientosProductoModal } from './movimientos-producto-modal'
+import { CrearProductoModal } from './crear-producto-modal'
 
 export interface BuscarProductoModalProducto {
   no_produ: string
@@ -90,6 +91,10 @@ interface Props {
    * compra (Entrada de Compras) conviene false: el producto que se está
    * comprando normalmente aún no tiene existencia. */
   defaultSoloExistencia?: boolean
+  /** Permite crear un producto nuevo desde "sin resultados". Default true —
+   * solo se desactivaría explícitamente si algún caller decide que no debe
+   * ofrecerse ahí (ninguno lo hace hoy). */
+  permitirCrear?: boolean
 }
 
 const fmtN = (n: number) =>
@@ -124,6 +129,7 @@ export function BuscarProductoModal({
   noLista,
   defaultAlmacen = '',
   defaultSoloExistencia = true,
+  permitirCrear = true,
 }: Props) {
   const [search, setSearch] = useState('')
   // debouncedSearch = key efectiva para react-query. Se actualiza 300ms despues
@@ -153,6 +159,8 @@ export function BuscarProductoModal({
     punto: string
     almacen: string
   } | null>(null)
+
+  const [crearOpen, setCrearOpen] = useState(false)
 
   const cargarExistenciaProducto = useCallback(
     async (noProdu: string) => {
@@ -271,6 +279,25 @@ export function BuscarProductoModal({
           almacenes={almacenesParaMovi}
           defaultPunto={moviModal.punto}
           defaultAlmacen={moviModal.almacen}
+        />
+      )}
+      {crearOpen && (
+        <CrearProductoModal
+          open={crearOpen}
+          onClose={() => setCrearOpen(false)}
+          noCia={noCia}
+          descripcionInicial={debouncedSearch}
+          onCreated={(p) => {
+            setCrearOpen(false)
+            handleSelect({
+              no_produ: p.no_produ,
+              descri: p.descri,
+              precio: p.costo,
+              porciento_impuesto: p.porciento_impuesto,
+              unidad_empaque: 'UND',
+              existencia: 0,
+            })
+          }}
         />
       )}
       <Dialog
@@ -433,9 +460,20 @@ export function BuscarProductoModal({
                       colSpan={8}
                       className='py-12 text-center text-base text-gray-400'
                     >
-                      {debouncedSearch
-                        ? `No se encontraron productos para "${debouncedSearch}"`
-                        : 'Ingrese un término de búsqueda'}
+                      <p>
+                        {debouncedSearch
+                          ? `No se encontraron productos para "${debouncedSearch}"`
+                          : 'Ingrese un término de búsqueda'}
+                      </p>
+                      {permitirCrear && debouncedSearch && (
+                        <Button
+                          variant='link'
+                          className='mt-2'
+                          onClick={() => setCrearOpen(true)}
+                        >
+                          Crear producto "{debouncedSearch}" →
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 )}
