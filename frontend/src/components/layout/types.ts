@@ -40,10 +40,38 @@ type NavGroup = {
   items: NavItem[]
 }
 
-type SidebarData = {
-  user: User
-  teams: Team[]
+// Un modulo de negocio (Facturacion, Cuentas por Cobrar, ...). Cada uno
+// trae su propio arbol de 3 niveles (navGroups), que es lo unico que el
+// sidebar muestra cuando el usuario esta "dentro" de ese modulo.
+type SidebarModule = {
+  code: string
+  title: string
+  icon: React.ElementType
   navGroups: NavGroup[]
 }
 
-export type { SidebarData, NavGroup, NavItem, NavCollapsible, NavLink }
+// Accesos rapidos que no pertenecen a ningun modulo (Alertas NCF, Empresas,
+// Permisos, Historial, Manuales, Configuracion, Reportes de Problemas).
+// Viven solo en la pantalla de Inicio, no en el sidebar de un modulo.
+type HomeShortcut = {
+  title: string
+  url: LinkProps['to'] | (string & {})
+  icon: React.ElementType
+}
+
+type SidebarData = {
+  user: User
+  teams: Team[]
+  modules: SidebarModule[]
+  homeShortcuts: HomeShortcut[]
+}
+
+export type {
+  SidebarData,
+  SidebarModule,
+  HomeShortcut,
+  NavGroup,
+  NavItem,
+  NavCollapsible,
+  NavLink,
+}

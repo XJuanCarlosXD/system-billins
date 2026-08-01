@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  Archive,
   Banknote,
   BookOpen,
   Building2,
@@ -9,7 +10,6 @@ import {
   CreditCard,
   FileSearch,
   History,
-  LayoutDashboard,
   LifeBuoy,
   Package,
   Receipt,
@@ -34,725 +34,685 @@ export const sidebarData: SidebarData = {
       plan: 'ZentoryERP',
     },
   ],
-  navGroups: [
+  homeShortcuts: [
+    { title: 'Reportes de Problemas', url: '/reportes', icon: LifeBuoy },
+    { title: 'Alertas NCF', url: '/ncf-alerts', icon: AlertTriangle },
+    { title: 'Empresas', url: '/empresas', icon: Building2 },
+    { title: 'Permisos', url: '/sistema/usuarios', icon: ShieldCheck },
+    { title: 'Historial', url: '/sistema/historial', icon: History },
+    { title: 'Manuales', url: '/man', icon: BookOpen },
+    { title: 'Configuracion', url: '/settings', icon: Settings },
+  ],
+  modules: [
     {
-      title: 'General',
-      items: [
+      code: 'fat',
+      title: 'Facturacion',
+      icon: Receipt,
+      navGroups: [
         {
-          title: 'Dashboard',
-          url: '/',
-          icon: LayoutDashboard,
+          title: 'Proceso',
+          items: [
+            { title: 'Facturacion', url: '/fat/nueva-factura' },
+            { title: 'Cotizacion / Conduce', url: '/fat/nuevo-conduce' },
+            { title: 'Anular Factura', url: '/fat/anular-factura' },
+            { title: 'Cuadre de Caja', url: '/fat/cuadre-caja' },
+            { title: 'Vista de Cajero', url: '/fat/cajero' },
+          ],
         },
         {
-          title: 'Reportes de Problemas',
-          url: '/reportes',
-          icon: LifeBuoy,
+          title: 'Consultas',
+          items: [
+            { title: 'Consulta de Facturas', url: '/fat/facturas' },
+            {
+              title: 'Pedidos / Cotizaciones / Conduces',
+              url: '/fat/conduces',
+            },
+          ],
         },
         {
-          title: 'Alertas NCF',
-          url: '/ncf-alerts',
-          icon: AlertTriangle,
+          title: 'Reportes',
+          items: [
+            { title: 'Ventas por Producto', url: '/fat/rep-ventas' },
+            { title: 'Ventas por Cliente', url: '/fat/rep-ventas-cliente' },
+            {
+              title: 'Ventas por Vendedor',
+              url: '/fat/rep-ventas-vendedor',
+            },
+            { title: 'Analitica de Ventas', url: '/fat/rep-analitica' },
+            { title: 'Facturas con RNC', url: '/fat/rep-facturas-rnc' },
+            { title: 'Margen bruto', url: '/fat/rep-margen-bruto' },
+            { title: 'NCF Form 607', url: '/fat/rep-607' },
+            { title: 'NCF Nulos', url: '/fat/rep-ncf-nulos' },
+          ],
         },
         {
-          title: 'Empresas',
-          url: '/empresas',
-          icon: Building2,
+          title: 'Cierres',
+          items: [
+            { title: 'Imprimir Asiento Contable', url: '/fat/asiento-contable' },
+            { title: 'Generar Asiento al Mayor', url: '/fat/generar-asientos' },
+            { title: 'Cierre Mensual', url: '/fat/cierre-mensual' },
+          ],
         },
       ],
     },
     {
-      title: 'Operacion',
-      items: [
+      code: 'cxc',
+      title: 'Cuentas por Cobrar',
+      icon: CreditCard,
+      navGroups: [
         {
-          title: 'Facturacion',
-          icon: Receipt,
+          title: 'Clientes',
           items: [
+            { title: 'Clientes', url: '/cxc/clientes' },
             {
-              title: 'Proceso',
-              items: [
-                { title: 'Facturacion', url: '/fat/nueva-factura' },
-                { title: 'Cotizacion / Conduce', url: '/fat/nuevo-conduce' },
-                { title: 'Anular Factura', url: '/fat/anular-factura' },
-                { title: 'Cuadre de Caja', url: '/fat/cuadre-caja' },
-                { title: 'Vista de Cajero', url: '/fat/cajero' },
-              ],
-            },
-            {
-              title: 'Consultas',
-              items: [
-                { title: 'Consulta de Facturas', url: '/fat/facturas' },
-                {
-                  title: 'Pedidos / Cotizaciones / Conduces',
-                  url: '/fat/conduces',
-                },
-              ],
-            },
-            {
-              title: 'Reportes',
-              items: [
-                { title: 'Ventas por Producto', url: '/fat/rep-ventas' },
-                { title: 'Ventas por Cliente', url: '/fat/rep-ventas-cliente' },
-                {
-                  title: 'Ventas por Vendedor',
-                  url: '/fat/rep-ventas-vendedor',
-                },
-                { title: 'Analitica de Ventas', url: '/fat/rep-analitica' },
-                { title: 'Facturas con RNC', url: '/fat/rep-facturas-rnc' },
-                { title: 'Margen bruto', url: '/fat/rep-margen-bruto' },
-                { title: 'NCF Form 607', url: '/fat/rep-607' },
-                { title: 'NCF Nulos', url: '/fat/rep-ncf-nulos' },
-              ],
-            },
-            {
-              title: 'Cierres',
-              items: [
-                { title: 'Imprimir Asiento Contable', url: '/fat/asiento-contable' },
-                { title: 'Generar Asiento al Mayor', url: '/fat/generar-asientos' },
-                { title: 'Cierre Mensual', url: '/fat/cierre-mensual' },
-              ],
+              title: 'Asignacion Cliente a Ruta',
+              url: '/cxc/cliente-ruta',
             },
           ],
         },
         {
-          title: 'Cuentas por Cobrar',
-          icon: CreditCard,
+          title: 'Documentos',
           items: [
             {
-              title: 'Clientes',
-              items: [
-                { title: 'Clientes', url: '/cxc/clientes' },
-                {
-                  title: 'Asignacion Cliente a Ruta',
-                  url: '/cxc/cliente-ruta',
-                },
-              ],
+              title: 'Entrada de Transacciones',
+              url: '/cxc/transacciones',
             },
             {
-              title: 'Documentos',
-              items: [
-                {
-                  title: 'Entrada de Transacciones',
-                  url: '/cxc/transacciones',
-                },
-                {
-                  title: 'Consulta / Impresion de Documentos',
-                  url: '/cxc/documentos',
-                },
-              ],
-            },
-            {
-              title: 'Procesos',
-              items: [
-                { title: 'Reversar Documento', url: '/cxc/reversar' },
-                { title: 'Pagos Masivos', url: '/cxc/pagos-masivos' },
-                { title: 'Liberar Credito', url: '/cxc/liberar-credito' },
-                { title: 'Corregir / Liberar NCF', url: '/cxc/corregir-ncf' },
-                { title: 'Aplicar Saldos Menores', url: '/cxc/saldos-menores' },
-              ],
-            },
-            {
-              title: 'Consultas',
-              items: [
-                { title: 'Estado de Cuenta', url: '/cxc/estado-cuenta' },
-                {
-                  title: 'Balance de Clientes (Envejecimiento)',
-                  url: '/cxc/balance',
-                },
-                { title: 'Historico de Pagos', url: '/cxc/historico' },
-                { title: 'Libro de Ventas', url: '/cxc/libro-ventas' },
-              ],
-            },
-            {
-              title: 'Reportes',
-              items: [
-                {
-                  title: 'Envejecimiento de Cartera',
-                  url: '/cxc/rep-envejecimiento',
-                },
-                {
-                  title: 'Cobros por Vendedor',
-                  url: '/cxc/rep-cobros-vendedor',
-                },
-                {
-                  title: 'Comisiones por Vendedor',
-                  url: '/cxc/rep-comisiones',
-                },
-                { title: 'NCF Emitidos por Periodo', url: '/cxc/rep-ncf' },
-              ],
-            },
-            {
-              title: 'Cierre',
-              items: [
-                {
-                  title: 'Imprimir Asiento Contable',
-                  url: '/cxc/asiento-contable',
-                },
-                {
-                  title: 'Generar Asiento al Mayor',
-                  url: '/cxc/generar-asiento',
-                },
-                { title: 'Cierre de CxC', url: '/cxc/cierre' },
-              ],
+              title: 'Consulta / Impresion de Documentos',
+              url: '/cxc/documentos',
             },
           ],
         },
         {
-          title: 'Cuentas por Pagar',
-          icon: Wallet,
+          title: 'Procesos',
+          items: [
+            { title: 'Reversar Documento', url: '/cxc/reversar' },
+            { title: 'Pagos Masivos', url: '/cxc/pagos-masivos' },
+            { title: 'Liberar Credito', url: '/cxc/liberar-credito' },
+            { title: 'Corregir / Liberar NCF', url: '/cxc/corregir-ncf' },
+            { title: 'Aplicar Saldos Menores', url: '/cxc/saldos-menores' },
+          ],
+        },
+        {
+          title: 'Consultas',
+          items: [
+            { title: 'Estado de Cuenta', url: '/cxc/estado-cuenta' },
+            {
+              title: 'Balance de Clientes (Envejecimiento)',
+              url: '/cxc/balance',
+            },
+            { title: 'Historico de Pagos', url: '/cxc/historico' },
+            { title: 'Libro de Ventas', url: '/cxc/libro-ventas' },
+          ],
+        },
+        {
+          title: 'Reportes',
           items: [
             {
-              title: 'Proveedores',
-              items: [{ title: 'Proveedores', url: '/cxp/proveedores' }],
+              title: 'Envejecimiento de Cartera',
+              url: '/cxc/rep-envejecimiento',
             },
             {
-              title: 'Documentos',
-              items: [
-                {
-                  title: 'Entrada de Documentos DR/CR',
-                  url: '/cxp/entrada-documentos',
-                },
-                {
-                  title: 'Consulta / Impresion de Documentos',
-                  url: '/cxp/documentos',
-                },
-                { title: 'Cuentas por Pagar', url: '/cxp/cuentas' },
-                { title: 'Movimientos de Proveedor', url: '/cxp/movimientos' },
-              ],
+              title: 'Cobros por Vendedor',
+              url: '/cxc/rep-cobros-vendedor',
             },
             {
-              title: 'Procesos',
-              items: [
-                { title: 'Reversar Documento', url: '/cxp/reversar' },
-                { title: 'Liberar Debito', url: '/cxp/liberar-debito' },
-                { title: 'Aplicación de Movimientos', url: '/cxp/aplicar-movimientos' },
-                { title: 'Corregir NCF', url: '/cxp/corregir-ncf' },
-                { title: 'Aplicar Saldos Menores', url: '/cxp/saldos-menores' },
-                {
-                  title: 'Bloquear / Desbloquear Pago',
-                  url: '/cxp/bloquear-pago',
-                },
-                {
-                  title: 'Generar Solicitud a Cheque',
-                  url: '/cxp/generar-solicitud',
-                },
-                {
-                  title: 'Solicitudes de Pago',
-                  url: '/cxp/solicitudes-pago',
-                },
-              ],
+              title: 'Comisiones por Vendedor',
+              url: '/cxc/rep-comisiones',
+            },
+            { title: 'NCF Emitidos por Periodo', url: '/cxc/rep-ncf' },
+          ],
+        },
+        {
+          title: 'Cierre',
+          items: [
+            {
+              title: 'Imprimir Asiento Contable',
+              url: '/cxc/asiento-contable',
             },
             {
-              title: 'Consultas',
-              items: [
-                { title: 'Estado de Cuenta', url: '/cxp/estado-cuenta' },
-                { title: 'Antiguedad de Saldos', url: '/cxp/envejecimiento' },
-                {
-                  title: 'Movimientos de Proveedores',
-                  url: '/cxp/rep-movimientos',
-                },
-              ],
+              title: 'Generar Asiento al Mayor',
+              url: '/cxc/generar-asiento',
+            },
+            { title: 'Cierre de CxC', url: '/cxc/cierre' },
+          ],
+        },
+      ],
+    },
+    {
+      code: 'cxp',
+      title: 'Cuentas por Pagar',
+      icon: Wallet,
+      navGroups: [
+        {
+          title: 'Proveedores',
+          items: [{ title: 'Proveedores', url: '/cxp/proveedores' }],
+        },
+        {
+          title: 'Documentos',
+          items: [
+            {
+              title: 'Entrada de Documentos DR/CR',
+              url: '/cxp/entrada-documentos',
             },
             {
-              title: 'Reportes',
-              items: [
-                {
-                  title: 'Alfabetico de Proveedores',
-                  url: '/cxp/rep-alfabetico',
-                },
-                { title: 'Mayor Auxiliar CxP', url: '/cxp/rep-mayor' },
-                { title: 'ITBIS Compras Locales 606', url: '/cxp/rep-606' },
-                { title: 'Retenciones Proveedores 607', url: '/cxp/rep-607' },
-                { title: 'Cuadre Contable', url: '/cxp/rep-cuadre' },
-                { title: 'Certificado Retencion', url: '/cxp/rep-retenciones' },
-              ],
+              title: 'Consulta / Impresion de Documentos',
+              url: '/cxp/documentos',
+            },
+            { title: 'Cuentas por Pagar', url: '/cxp/cuentas' },
+            { title: 'Movimientos de Proveedor', url: '/cxp/movimientos' },
+          ],
+        },
+        {
+          title: 'Procesos',
+          items: [
+            { title: 'Reversar Documento', url: '/cxp/reversar' },
+            { title: 'Liberar Debito', url: '/cxp/liberar-debito' },
+            { title: 'Aplicación de Movimientos', url: '/cxp/aplicar-movimientos' },
+            { title: 'Corregir NCF', url: '/cxp/corregir-ncf' },
+            { title: 'Aplicar Saldos Menores', url: '/cxp/saldos-menores' },
+            {
+              title: 'Bloquear / Desbloquear Pago',
+              url: '/cxp/bloquear-pago',
             },
             {
-              title: 'Cierre',
-              items: [
-                {
-                  title: 'Imprimir Asiento Contable',
-                  url: '/cxp/asiento-contable',
-                },
-                {
-                  title: 'Generar Asiento a Contabilidad',
-                  url: '/cxp/generar-asiento',
-                },
-                { title: 'Cierre Mensual', url: '/cxp/cierre' },
-              ],
+              title: 'Generar Solicitud a Cheque',
+              url: '/cxp/generar-solicitud',
+            },
+            {
+              title: 'Solicitudes de Pago',
+              url: '/cxp/solicitudes-pago',
             },
           ],
         },
         {
-          title: 'Órdenes de Compra',
-          icon: ShoppingCart,
+          title: 'Consultas',
           items: [
+            { title: 'Estado de Cuenta', url: '/cxp/estado-cuenta' },
+            { title: 'Antiguedad de Saldos', url: '/cxp/envejecimiento' },
             {
-              title: 'Procesos',
-              items: [
-                { title: 'Entrada de Orden', url: '/odc/nueva-orden' },
-                {
-                  title: 'Entrada de Requisicion',
-                  url: '/odc/nueva-requisicion',
-                },
-                { title: 'Autorizar Ordenes', url: '/odc/autorizar' },
-                { title: 'Recibir Mercancia', url: '/odc/recibir' },
-                { title: 'Anular Orden / Requisicion', url: '/odc/anular' },
-              ],
-            },
-            {
-              title: 'Consultas',
-              items: [
-                { title: 'Consulta de Ordenes', url: '/odc/ordenes' },
-                {
-                  title: 'Consulta de Requisiciones',
-                  url: '/odc/requisiciones',
-                },
-              ],
-            },
-            {
-              title: 'Reportes',
-              items: [
-                { title: 'Movimientos Pendientes', url: '/odc/rep-pendientes' },
-                { title: 'Resumen de Ordenes', url: '/odc/rep-resumen' },
-                { title: 'Requisicion Detalle', url: '/odc/rep-requisiciones' },
-              ],
+              title: 'Movimientos de Proveedores',
+              url: '/cxp/rep-movimientos',
             },
           ],
         },
         {
-          title: 'Licitaciones',
-          icon: FileSearch,
+          title: 'Reportes',
           items: [
             {
-              title: 'Configuración',
-              items: [
-                { title: 'Empresas y Rubros RPE', url: '/lic/config' },
-                { title: 'Documentos de la empresa', url: '/lic/config/documentos' },
-                { title: 'Tipos de documento', url: '/lic/config/tipos-documento' },
-              ],
+              title: 'Alfabetico de Proveedores',
+              url: '/cxp/rep-alfabetico',
+            },
+            { title: 'Mayor Auxiliar CxP', url: '/cxp/rep-mayor' },
+            { title: 'ITBIS Compras Locales 606', url: '/cxp/rep-606' },
+            { title: 'Retenciones Proveedores 607', url: '/cxp/rep-607' },
+            { title: 'Cuadre Contable', url: '/cxp/rep-cuadre' },
+            { title: 'Certificado Retencion', url: '/cxp/rep-retenciones' },
+          ],
+        },
+        {
+          title: 'Cierre',
+          items: [
+            {
+              title: 'Imprimir Asiento Contable',
+              url: '/cxp/asiento-contable',
             },
             {
-              title: 'Consultas',
-              items: [{ title: 'Oportunidades', url: '/lic/oportunidades' }],
+              title: 'Generar Asiento a Contabilidad',
+              url: '/cxp/generar-asiento',
+            },
+            { title: 'Cierre Mensual', url: '/cxp/cierre' },
+          ],
+        },
+      ],
+    },
+    {
+      code: 'odc',
+      title: 'Ordenes de Compra',
+      icon: ShoppingCart,
+      navGroups: [
+        {
+          title: 'Procesos',
+          items: [
+            { title: 'Entrada de Orden', url: '/odc/nueva-orden' },
+            {
+              title: 'Entrada de Requisicion',
+              url: '/odc/nueva-requisicion',
+            },
+            { title: 'Autorizar Ordenes', url: '/odc/autorizar' },
+            { title: 'Recibir Mercancia', url: '/odc/recibir' },
+            { title: 'Anular Orden / Requisicion', url: '/odc/anular' },
+          ],
+        },
+        {
+          title: 'Consultas',
+          items: [
+            { title: 'Consulta de Ordenes', url: '/odc/ordenes' },
+            {
+              title: 'Consulta de Requisiciones',
+              url: '/odc/requisiciones',
             },
           ],
         },
         {
-          title: 'Inventario',
-          icon: Package,
+          title: 'Reportes',
+          items: [
+            { title: 'Movimientos Pendientes', url: '/odc/rep-pendientes' },
+            { title: 'Resumen de Ordenes', url: '/odc/rep-resumen' },
+            { title: 'Requisicion Detalle', url: '/odc/rep-requisiciones' },
+          ],
+        },
+      ],
+    },
+    {
+      code: 'lic',
+      title: 'Licitaciones',
+      icon: FileSearch,
+      navGroups: [
+        {
+          title: 'Configuración',
+          items: [
+            { title: 'Empresas y Rubros RPE', url: '/lic/config' },
+            { title: 'Documentos de la empresa', url: '/lic/config/documentos' },
+            { title: 'Tipos de documento', url: '/lic/config/tipos-documento' },
+          ],
+        },
+        {
+          title: 'Consultas',
+          items: [{ title: 'Oportunidades', url: '/lic/oportunidades' }],
+        },
+      ],
+    },
+    {
+      code: 'inv',
+      title: 'Inventario',
+      icon: Package,
+      navGroups: [
+        {
+          title: 'Configuración',
           items: [
             {
-              title: 'Configuración',
-              items: [
-                {
-                  title: 'Catálogo de Productos',
-                  url: '/inv',
-                  search: { section: 'configuracion', view: 'productos' },
-                },
-              ],
-            },
-            {
-              title: 'Procesos',
-              items: [
-                {
-                  title: 'Entrada de Compras',
-                  url: '/inv',
-                  search: { section: 'procesos', view: 'entrada-compras' },
-                },
-                {
-                  title: 'Entrada Mercancía Almacén',
-                  url: '/inv',
-                  search: { section: 'procesos', view: 'entrada-mercancia' },
-                },
-                {
-                  title: 'Salida de Mercancía',
-                  url: '/inv',
-                  search: { section: 'procesos', view: 'salida-mercancia' },
-                },
-                {
-                  title: 'Transferencia de Mercancía',
-                  url: '/inv',
-                  search: {
-                    section: 'procesos',
-                    view: 'transferencia-mercancia',
-                  },
-                },
-                {
-                  title: 'Devolución a Suplidores',
-                  url: '/inv',
-                  search: {
-                    section: 'procesos',
-                    view: 'devolucion-suplidores',
-                  },
-                },
-                {
-                  title: 'Devolución de Ventas',
-                  url: '/inv',
-                  search: { section: 'procesos', view: 'devolucion-ventas' },
-                },
-                {
-                  title: 'Reversar Documento',
-                  url: '/inv',
-                  search: { section: 'procesos', view: 'reversar-documento' },
-                },
-                {
-                  title: 'Impresión de Documentos',
-                  url: '/inv',
-                  search: { section: 'procesos', view: 'impresion-documentos' },
-                },
-              ],
-            },
-            {
-              title: 'Consultas',
-              items: [
-                {
-                  title: 'Consulta de Documentos',
-                  url: '/inv',
-                  search: { section: 'consultas', view: 'consulta-documentos' },
-                },
-                {
-                  title: 'Existencia de Producto',
-                  url: '/inv',
-                  search: { section: 'consultas', view: 'existencia-producto' },
-                },
-                {
-                  title: 'Existencia en Grupo',
-                  url: '/inv',
-                  search: { section: 'consultas', view: 'existencia-grupo' },
-                },
-              ],
-            },
-            {
-              title: 'Reportes',
-              items: [
-                {
-                  title: 'Existencia',
-                  url: '/inv',
-                  search: { section: 'reportes', view: 'reporte-existencia' },
-                },
-                {
-                  title: 'Movimientos',
-                  url: '/inv',
-                  search: { section: 'reportes', view: 'reporte-movimientos' },
-                },
-                {
-                  title: 'Líneas y Sublíneas',
-                  url: '/inv',
-                  search: { section: 'reportes', view: 'lineas-sublineas' },
-                },
-              ],
-            },
-            {
-              title: 'Conteo Físico',
-              items: [
-                {
-                  title: 'Reportes CF',
-                  url: '/inv',
-                  search: { section: 'conteo-fisico', view: 'reportes-cf' },
-                },
-                {
-                  title: 'Cargar CF desde Excel',
-                  url: '/inv',
-                  search: { section: 'conteo-fisico', view: 'cargar-cf-excel' },
-                },
-                {
-                  title: 'Entrada CF Manual',
-                  url: '/inv',
-                  search: {
-                    section: 'conteo-fisico',
-                    view: 'entrada-cf-manual',
-                  },
-                },
-                {
-                  title: 'Comparativo Físico vs Teórico',
-                  url: '/inv',
-                  search: {
-                    section: 'conteo-fisico',
-                    view: 'comparativo-fisico',
-                  },
-                },
-                {
-                  title: 'Ajuste de Inventario por CF',
-                  url: '/inv',
-                  search: {
-                    section: 'conteo-fisico',
-                    view: 'ajuste-inventario-cf',
-                  },
-                },
-              ],
-            },
-            {
-              title: 'Cierre',
-              items: [
-                {
-                  title: 'Entrada de Diario',
-                  url: '/inv',
-                  search: { section: 'cierre', view: 'entrada-diario' },
-                },
-                {
-                  title: 'Generar Asiento a Contabilidad',
-                  url: '/inv',
-                  search: { section: 'cierre', view: 'generar-asiento' },
-                },
-                {
-                  title: 'Cierre Mensual',
-                  url: '/inv',
-                  search: { section: 'cierre', view: 'cierre-mensual' },
-                },
-              ],
+              title: 'Catálogo de Productos',
+              url: '/inv',
+              search: { section: 'configuracion', view: 'productos' },
             },
           ],
         },
         {
-          title: 'Bancos / Cheques',
-          icon: Banknote,
+          title: 'Procesos',
           items: [
             {
-              title: 'Procesos',
-              items: [
-                { title: 'Solicitar Cheque', url: '/chc/solicitar' },
-                { title: 'Imprimir Cheques', url: '/chc/imprimir' },
-                { title: 'Entregar Cheques', url: '/chc/entregar' },
-                { title: 'Conciliacion Bancaria', url: '/chc/conciliar' },
-                { title: 'Anular Cheque', url: '/chc/anular' },
-              ],
+              title: 'Entrada de Compras',
+              url: '/inv',
+              search: { section: 'procesos', view: 'entrada-compras' },
             },
             {
-              title: 'Consultas',
-              items: [
-                { title: 'Cheques / Movimientos', url: '/chc/cheques' },
-                { title: 'Saldos y Disponibilidad', url: '/chc/saldos' },
-              ],
+              title: 'Entrada Mercancía Almacén',
+              url: '/inv',
+              search: { section: 'procesos', view: 'entrada-mercancia' },
             },
             {
-              title: 'Reportes',
-              items: [
-                { title: 'Movimiento de Cuenta', url: '/chc/rep-movimientos' },
-                { title: 'Balance de Cuentas', url: '/chc/rep-balance' },
-                { title: 'Libro Diario Cheques', url: '/chc/rep-diario' },
-                {
-                  title: 'Disponibilidad Bancaria',
-                  url: '/chc/rep-disponibilidad',
-                },
-              ],
+              title: 'Salida de Mercancía',
+              url: '/inv',
+              search: { section: 'procesos', view: 'salida-mercancia' },
             },
             {
-              title: 'Cierre',
-              items: [{ title: 'Cierre Conciliacion', url: '/chc/cierres' }],
+              title: 'Transferencia de Mercancía',
+              url: '/inv',
+              search: {
+                section: 'procesos',
+                view: 'transferencia-mercancia',
+              },
+            },
+            {
+              title: 'Devolución a Suplidores',
+              url: '/inv',
+              search: {
+                section: 'procesos',
+                view: 'devolucion-suplidores',
+              },
+            },
+            {
+              title: 'Devolución de Ventas',
+              url: '/inv',
+              search: { section: 'procesos', view: 'devolucion-ventas' },
+            },
+            {
+              title: 'Reversar Documento',
+              url: '/inv',
+              search: { section: 'procesos', view: 'reversar-documento' },
+            },
+            {
+              title: 'Impresión de Documentos',
+              url: '/inv',
+              search: { section: 'procesos', view: 'impresion-documentos' },
+            },
+          ],
+        },
+        {
+          title: 'Consultas',
+          items: [
+            {
+              title: 'Consulta de Documentos',
+              url: '/inv',
+              search: { section: 'consultas', view: 'consulta-documentos' },
+            },
+            {
+              title: 'Existencia de Producto',
+              url: '/inv',
+              search: { section: 'consultas', view: 'existencia-producto' },
+            },
+            {
+              title: 'Existencia en Grupo',
+              url: '/inv',
+              search: { section: 'consultas', view: 'existencia-grupo' },
+            },
+          ],
+        },
+        {
+          title: 'Reportes',
+          items: [
+            {
+              title: 'Existencia',
+              url: '/inv',
+              search: { section: 'reportes', view: 'reporte-existencia' },
+            },
+            {
+              title: 'Movimientos',
+              url: '/inv',
+              search: { section: 'reportes', view: 'reporte-movimientos' },
+            },
+            {
+              title: 'Líneas y Sublíneas',
+              url: '/inv',
+              search: { section: 'reportes', view: 'lineas-sublineas' },
+            },
+          ],
+        },
+        {
+          title: 'Conteo Físico',
+          items: [
+            {
+              title: 'Reportes CF',
+              url: '/inv',
+              search: { section: 'conteo-fisico', view: 'reportes-cf' },
+            },
+            {
+              title: 'Cargar CF desde Excel',
+              url: '/inv',
+              search: { section: 'conteo-fisico', view: 'cargar-cf-excel' },
+            },
+            {
+              title: 'Entrada CF Manual',
+              url: '/inv',
+              search: {
+                section: 'conteo-fisico',
+                view: 'entrada-cf-manual',
+              },
+            },
+            {
+              title: 'Comparativo Físico vs Teórico',
+              url: '/inv',
+              search: {
+                section: 'conteo-fisico',
+                view: 'comparativo-fisico',
+              },
+            },
+            {
+              title: 'Ajuste de Inventario por CF',
+              url: '/inv',
+              search: {
+                section: 'conteo-fisico',
+                view: 'ajuste-inventario-cf',
+              },
+            },
+          ],
+        },
+        {
+          title: 'Cierre',
+          items: [
+            {
+              title: 'Entrada de Diario',
+              url: '/inv',
+              search: { section: 'cierre', view: 'entrada-diario' },
+            },
+            {
+              title: 'Generar Asiento a Contabilidad',
+              url: '/inv',
+              search: { section: 'cierre', view: 'generar-asiento' },
+            },
+            {
+              title: 'Cierre Mensual',
+              url: '/inv',
+              search: { section: 'cierre', view: 'cierre-mensual' },
             },
           ],
         },
       ],
     },
     {
-      title: 'Administracion',
-      items: [
+      code: 'chc',
+      title: 'Bancos / Cheques',
+      icon: Banknote,
+      navGroups: [
         {
-          title: 'Caja Chica',
-          icon: Coins,
+          title: 'Procesos',
           items: [
+            { title: 'Solicitar Cheque', url: '/chc/solicitar' },
+            { title: 'Imprimir Cheques', url: '/chc/imprimir' },
+            { title: 'Entregar Cheques', url: '/chc/entregar' },
+            { title: 'Conciliacion Bancaria', url: '/chc/conciliar' },
+            { title: 'Anular Cheque', url: '/chc/anular' },
+          ],
+        },
+        {
+          title: 'Consultas',
+          items: [
+            { title: 'Cheques / Movimientos', url: '/chc/cheques' },
+            { title: 'Saldos y Disponibilidad', url: '/chc/saldos' },
+          ],
+        },
+        {
+          title: 'Reportes',
+          items: [
+            { title: 'Movimiento de Cuenta', url: '/chc/rep-movimientos' },
+            { title: 'Balance de Cuentas', url: '/chc/rep-balance' },
+            { title: 'Libro Diario Cheques', url: '/chc/rep-diario' },
             {
-              title: 'Procesos',
-              items: [
-                { title: 'Entrada de Egreso', url: '/acc/nuevo-egreso' },
-                { title: 'Reposicion de Caja', url: '/acc/reposicion' },
-                { title: 'Anular Documento', url: '/acc/anular' },
-              ],
-            },
-            {
-              title: 'Consultas',
-              items: [
-                { title: 'Documentos / Egresos', url: '/acc/documentos' },
-                { title: 'Reposiciones', url: '/acc/reposiciones' },
-              ],
-            },
-            {
-              title: 'Reportes',
-              items: [
-                { title: 'Resumen / Gastos por Tipo', url: '/acc/reportes' },
-              ],
-            },
-            {
-              title: 'Cierre',
-              items: [
-                { title: 'Asiento Contable', url: '/acc/asiento' },
-                { title: 'Cierre Mensual', url: '/acc/cierre' },
-              ],
+              title: 'Disponibilidad Bancaria',
+              url: '/chc/rep-disponibilidad',
             },
           ],
         },
         {
-          title: 'Nomina',
-          icon: UsersIcon,
+          title: 'Cierre',
+          items: [{ title: 'Cierre Conciliacion', url: '/chc/cierres' }],
+        },
+      ],
+    },
+    {
+      code: 'acc',
+      title: 'Caja Chica',
+      icon: Coins,
+      navGroups: [
+        {
+          title: 'Procesos',
           items: [
-            {
-              title: 'Mantenimiento',
-              items: [{ title: 'Empleados', url: '/sdn/empleados' }],
-            },
-            {
-              title: 'Procesos',
-              items: [
-                { title: 'Movimientos Manuales', url: '/sdn/movimientos' },
-                { title: 'Deduccion Masiva (AFP/ARS/ISR)', url: '/sdn/deduccion-masiva' },
-                { title: 'Calcular Nomina', url: '/sdn/calcular' },
-                { title: 'Generar Vacaciones', url: '/sdn/gen-vacaciones' },
-                { title: 'Generar Solicitud Cheques', url: '/sdn/gen-cheques' },
-              ],
-            },
-            {
-              title: 'Consultas',
-              items: [
-                { title: 'Volante / Pre-Nomina', url: '/sdn/volante' },
-                { title: 'Nominas Procesadas', url: '/sdn/nominas' },
-                { title: 'Vacaciones', url: '/sdn/vacaciones' },
-              ],
-            },
-            {
-              title: 'Reportes',
-              items: [
-                { title: 'Informe de Nomina', url: '/sdn/rep-informe' },
-                { title: 'RNC Empleados', url: '/sdn/rep-rnc' },
-                { title: 'Catalogo de Conceptos', url: '/sdn/catalogos' },
-              ],
-            },
+            { title: 'Entrada de Egreso', url: '/acc/nuevo-egreso' },
+            { title: 'Reposicion de Caja', url: '/acc/reposicion' },
+            { title: 'Anular Documento', url: '/acc/anular' },
           ],
         },
         {
-          title: 'Activos Fijos',
-          icon: Package,
+          title: 'Consultas',
           items: [
-            {
-              title: 'Mantenimiento',
-              items: [{ title: 'Activos Fijos', url: '/acf/activos' }],
-            },
-            {
-              title: 'Procesos',
-              items: [
-                { title: 'Compra de Activo', url: '/acf/compra' },
-                { title: 'Retiro de Activo', url: '/acf/retiro' },
-                { title: 'Depreciacion', url: '/acf/depreciacion' },
-              ],
-            },
-            {
-              title: 'Reportes',
-              items: [{ title: 'Resumen / Por grupo', url: '/acf/reportes' }],
-            },
-            {
-              title: 'Cierre',
-              items: [{ title: 'Cierre Mensual', url: '/acf/cierre' }],
-            },
+            { title: 'Documentos / Egresos', url: '/acc/documentos' },
+            { title: 'Reposiciones', url: '/acc/reposiciones' },
           ],
         },
         {
-          title: 'Contabilidad',
-          icon: Calculator,
+          title: 'Reportes',
           items: [
-            {
-              title: 'Procesos',
-              items: [
-                {
-                  title: 'Entrada de diario',
-                  url: '/cnt',
-                  search: { section: 'procesos', view: 'asientos' },
-                },
-                {
-                  title: 'Verificacion de asientos',
-                  url: '/cnt',
-                  search: { section: 'procesos', view: 'verificacion' },
-                },
-                {
-                  title: 'Autorizar asientos',
-                  url: '/cnt',
-                  search: { section: 'procesos', view: 'autorizar' },
-                },
-                {
-                  title: 'Procesos meses anteriores',
-                  url: '/cnt',
-                  search: { section: 'procesos', view: 'autorizar-anterior' },
-                },
-                {
-                  title: 'Presupuesto',
-                  url: '/cnt',
-                  search: { section: 'procesos', view: 'presupuesto' },
-                },
-              ],
-            },
-            {
-              title: 'Consultas',
-              items: [
-                {
-                  title: 'Consulta de asientos',
-                  url: '/cnt',
-                  search: { section: 'consultas', view: 'consulta-asientos' },
-                },
-                {
-                  title: 'Movimientos de cuentas',
-                  url: '/cnt',
-                  search: { section: 'consultas', view: 'movimientos' },
-                },
-              ],
-            },
-            {
-              title: 'Reportes',
-              items: [
-                {
-                  title: 'Balance de comprobacion',
-                  url: '/cnt',
-                  search: { section: 'reportes', view: 'balance' },
-                },
-                {
-                  title: 'Mayor general',
-                  url: '/cnt',
-                  search: { section: 'reportes', view: 'mayor' },
-                },
-                {
-                  title: 'Estados financieros',
-                  url: '/cnt',
-                  search: { section: 'reportes', view: 'estados' },
-                },
-              ],
-            },
-            {
-              title: 'Cierres',
-              items: [
-                {
-                  title: 'Cierres contables',
-                  url: '/cnt',
-                  search: { section: 'cierres', view: 'cierres' },
-                },
-                {
-                  title: 'Cierre mensual',
-                  url: '/cnt',
-                  search: { section: 'cierres', view: 'cierre-mensual' },
-                },
-              ],
-            },
+            { title: 'Resumen / Gastos por Tipo', url: '/acc/reportes' },
+          ],
+        },
+        {
+          title: 'Cierre',
+          items: [
+            { title: 'Asiento Contable', url: '/acc/asiento' },
+            { title: 'Cierre Mensual', url: '/acc/cierre' },
           ],
         },
       ],
     },
     {
-      title: 'Sistema',
-      items: [
+      code: 'sdn',
+      title: 'Nomina',
+      icon: UsersIcon,
+      navGroups: [
         {
-          title: 'Permisos',
-          icon: ShieldCheck,
-          url: '/sistema/usuarios',
+          title: 'Mantenimiento',
+          items: [{ title: 'Empleados', url: '/sdn/empleados' }],
         },
         {
-          title: 'Historial',
-          icon: History,
-          url: '/sistema/historial',
+          title: 'Procesos',
+          items: [
+            { title: 'Movimientos Manuales', url: '/sdn/movimientos' },
+            { title: 'Deduccion Masiva (AFP/ARS/ISR)', url: '/sdn/deduccion-masiva' },
+            { title: 'Calcular Nomina', url: '/sdn/calcular' },
+            { title: 'Generar Vacaciones', url: '/sdn/gen-vacaciones' },
+            { title: 'Generar Solicitud Cheques', url: '/sdn/gen-cheques' },
+          ],
         },
         {
-          title: 'Manuales',
-          url: '/man',
-          icon: BookOpen,
+          title: 'Consultas',
+          items: [
+            { title: 'Volante / Pre-Nomina', url: '/sdn/volante' },
+            { title: 'Nominas Procesadas', url: '/sdn/nominas' },
+            { title: 'Vacaciones', url: '/sdn/vacaciones' },
+          ],
         },
         {
-          title: 'Configuracion',
-          url: '/settings',
-          icon: Settings,
+          title: 'Reportes',
+          items: [
+            { title: 'Informe de Nomina', url: '/sdn/rep-informe' },
+            { title: 'RNC Empleados', url: '/sdn/rep-rnc' },
+            { title: 'Catalogo de Conceptos', url: '/sdn/catalogos' },
+          ],
+        },
+      ],
+    },
+    {
+      code: 'acf',
+      title: 'Activos Fijos',
+      icon: Archive,
+      navGroups: [
+        {
+          title: 'Mantenimiento',
+          items: [{ title: 'Activos Fijos', url: '/acf/activos' }],
+        },
+        {
+          title: 'Procesos',
+          items: [
+            { title: 'Compra de Activo', url: '/acf/compra' },
+            { title: 'Retiro de Activo', url: '/acf/retiro' },
+            { title: 'Depreciacion', url: '/acf/depreciacion' },
+          ],
+        },
+        {
+          title: 'Reportes',
+          items: [{ title: 'Resumen / Por grupo', url: '/acf/reportes' }],
+        },
+        {
+          title: 'Cierre',
+          items: [{ title: 'Cierre Mensual', url: '/acf/cierre' }],
+        },
+      ],
+    },
+    {
+      code: 'cnt',
+      title: 'Contabilidad',
+      icon: Calculator,
+      navGroups: [
+        {
+          title: 'Procesos',
+          items: [
+            {
+              title: 'Entrada de diario',
+              url: '/cnt',
+              search: { section: 'procesos', view: 'asientos' },
+            },
+            {
+              title: 'Verificacion de asientos',
+              url: '/cnt',
+              search: { section: 'procesos', view: 'verificacion' },
+            },
+            {
+              title: 'Autorizar asientos',
+              url: '/cnt',
+              search: { section: 'procesos', view: 'autorizar' },
+            },
+            {
+              title: 'Procesos meses anteriores',
+              url: '/cnt',
+              search: { section: 'procesos', view: 'autorizar-anterior' },
+            },
+            {
+              title: 'Presupuesto',
+              url: '/cnt',
+              search: { section: 'procesos', view: 'presupuesto' },
+            },
+          ],
+        },
+        {
+          title: 'Consultas',
+          items: [
+            {
+              title: 'Consulta de asientos',
+              url: '/cnt',
+              search: { section: 'consultas', view: 'consulta-asientos' },
+            },
+            {
+              title: 'Movimientos de cuentas',
+              url: '/cnt',
+              search: { section: 'consultas', view: 'movimientos' },
+            },
+          ],
+        },
+        {
+          title: 'Reportes',
+          items: [
+            {
+              title: 'Balance de comprobacion',
+              url: '/cnt',
+              search: { section: 'reportes', view: 'balance' },
+            },
+            {
+              title: 'Mayor general',
+              url: '/cnt',
+              search: { section: 'reportes', view: 'mayor' },
+            },
+            {
+              title: 'Estados financieros',
+              url: '/cnt',
+              search: { section: 'reportes', view: 'estados' },
+            },
+          ],
+        },
+        {
+          title: 'Cierres',
+          items: [
+            {
+              title: 'Cierres contables',
+              url: '/cnt',
+              search: { section: 'cierres', view: 'cierres' },
+            },
+            {
+              title: 'Cierre mensual',
+              url: '/cnt',
+              search: { section: 'cierres', view: 'cierre-mensual' },
+            },
+          ],
         },
       ],
     },
