@@ -32,6 +32,7 @@ interface DocDetalle extends Documento {
 
 const TIPO_DOC: Record<string, string> = {
   FP: 'Factura Proveedor',
+  FT: 'Factura',
   NC: 'Nota de Crédito',
   ND: 'Nota de Débito',
   SO: 'Solicitud de Cheque',
@@ -158,6 +159,7 @@ export function CxpDocumentos() {
           <select className="border rounded px-3 py-2 text-sm" value={tipo} onChange={e => { setTipo(e.target.value); setPage(1) }}>
             <option value="">Todos los tipos</option>
             <option value="FP">Factura Proveedor</option>
+            <option value="FT">Factura</option>
             <option value="NC">Nota de Crédito</option>
             <option value="ND">Nota de Débito</option>
             <option value="SO">Solicitud de Cheque</option>
@@ -325,6 +327,7 @@ export function CxpDocumentos() {
                     const tipo = (detalle.tipo_docu || '').toUpperCase()
                     const codigoMap: Record<string, string> = {
                       FP: 'cxp-factura-proveedor',
+                      FT: 'cxp-factura-proveedor',
                       AC: 'cxp-ajuste-credito',
                       AD: 'cxp-ajuste-debito',
                       BD: 'cxp-balance-debito',
