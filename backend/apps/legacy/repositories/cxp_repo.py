@@ -1318,13 +1318,20 @@ def reversar_documento(no_cia, punto, tipo_docu, no_docu, usuario="API", motivo=
 
     ajuste = None
     if monto > 0:
+        # El ajuste de reverso se emite como Nota de Debito (ND) o Nota de
+        # Credito (NC) — es lo que el usuario espera ver contra el proveedor
+        # y lo que el reporte 606/mayor consume. Filtrar por
+        # tipo_transaccion='A' devolvia AD/AC (AJUSTE DEBITO/CREDITO) que son
+        # tipos internos de ajuste y no lo que el usuario reversa.
+        tipo_docu_ajuste = "ND" if tipo_movi_ajuste == "D" else "NC"
         tdoc_rows = client.fetch_dicts(
             "SELECT tipo_docu, NVL(cuenta,'') AS cuenta, "
             "NVL(centro_costo,'0000000000') AS centro_costo "
-            "FROM CXP.TCXP_TDOCU WHERE tipo_transaccion='A' AND tipo_movi=:1",
-            [tipo_movi_ajuste])
+            "FROM CXP.TCXP_TDOCU WHERE tipo_docu=:1 AND tipo_movi=:2",
+            [tipo_docu_ajuste, tipo_movi_ajuste])
         if not tdoc_rows:
-            raise ValueError("Falta tipo de ajuste AC/AD configurado en TCXP_TDOCU")
+            raise ValueError(
+                f"Falta tipo de documento {tipo_docu_ajuste} configurado en TCXP_TDOCU")
         td = tdoc_rows[0]
         motivo_ajuste = (
             f"{'ND' if tipo_movi_ajuste == 'D' else 'NC'} POR REVERSO "
