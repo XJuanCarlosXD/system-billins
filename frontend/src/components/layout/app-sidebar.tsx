@@ -1,4 +1,6 @@
 import { useMemo } from 'react'
+import { Link, useLocation } from '@tanstack/react-router'
+import { Command } from 'lucide-react'
 import { useLayout } from '@/context/layout-provider'
 import { useMe } from '@/hooks/use-me'
 import { useAccess } from '@/hooks/use-access'
@@ -7,29 +9,22 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
   SidebarRail,
   useSidebar,
 } from '@/components/ui/sidebar'
 import { Search } from '@/components/search'
-// import { AppTitle } from './app-title'
 import { sidebarData } from './data/sidebar-data'
 import { NavGroup } from './nav-group'
 import { NavUser } from './nav-user'
 import { TeamSwitcher } from './team-switcher'
-import type { NavItem } from './types'
+import type { NavItem, NavGroup as NavGroupType } from './types'
 
-const MODULE_PREFIXES = ['fat', 'cxc', 'cxp', 'inv', 'cnt', 'chc', 'acc', 'acf', 'odc', 'sdn']
-
-function inferModule(item: NavItem): string | null {
-  const url =
-    'url' in item && item.url
-      ? String(item.url)
-      : 'items' in item && item.items?.[0] && 'url' in item.items[0] && item.items[0].url
-        ? String(item.items[0].url)
-        : null
-  if (!url || !url.startsWith('/')) return null
-  const first = url.split('/')[1]?.split('?')[0]
-  return first && MODULE_PREFIXES.includes(first) ? first : null
+function currentModuleCode(pathname: string): string | null {
+  const seg = pathname.split('/')[1]
+  return seg && sidebarData.modules.some((m) => m.code === seg) ? seg : null
 }
 
 function filterNavItems(
@@ -40,8 +35,6 @@ function filterNavItems(
   const out: NavItem[] = []
   for (const item of items) {
     if (item.requires === 'is_dba' && !isAdmin) continue
-    const mod = inferModule(item)
-    if (mod && !hasModule(mod)) continue
     if ('items' in item && item.items) {
       const children = filterNavItems(item.items, isAdmin, hasModule)
       if (children.length === 0) continue
@@ -63,6 +56,24 @@ function SidebarSearch() {
   )
 }
 
+// Fila fija "volver a Inicio" — reemplaza el rol de navegacion del logo,
+// visible solo cuando el usuario esta dentro de un modulo.
+function ModuleHomeLink() {
+  const { setOpenMobile } = useSidebar()
+  return (
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <SidebarMenuButton asChild tooltip='Volver a Inicio'>
+          <Link to='/' onClick={() => setOpenMobile(false)}>
+            <Command />
+            <span className='font-semibold'>ZentoryERP</span>
+          </Link>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    </SidebarMenu>
+  )
+}
+
 export function AppSidebar() {
   const { collapsible, variant } = useLayout()
   const { data: me } = useMe()
@@ -71,20 +82,29 @@ export function AppSidebar() {
   // While /api/me/access/ is loading, do not filter by module (would hide
   // everything for non-admins). Fall back to the previous isAdmin-only rule.
   const modGate = accessLoading ? () => true : hasModule
-  const navGroups = useMemo(
-    () =>
-      sidebarData.navGroups
-        .map((g) => ({ ...g, items: filterNavItems(g.items, isAdmin, modGate) }))
-        .filter((g) => g.items.length > 0),
-    [isAdmin, modGate]
-  )
+  const pathname = useLocation({ select: (l) => l.pathname })
+  const moduleCode = currentModuleCode(pathname)
+  const activeModule = moduleCode
+    ? sidebarData.modules.find((m) => m.code === moduleCode)
+    : undefined
+
+  const navGroups: NavGroupType[] = useMemo(() => {
+    if (!activeModule) return []
+    return activeModule.navGroups
+      .map((g) => ({ ...g, items: filterNavItems(g.items, isAdmin, modGate) }))
+      .filter((g) => g.items.length > 0)
+  }, [activeModule, isAdmin, modGate])
+
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
       <SidebarHeader>
+        {activeModule && <ModuleHomeLink />}
         <TeamSwitcher teams={sidebarData.teams} />
-        <div>
-          <SidebarSearch />
-        </div>
+        {activeModule && (
+          <div>
+            <SidebarSearch />
+          </div>
+        )}
       </SidebarHeader>
       <SidebarContent>
         {navGroups.map((props) => (
