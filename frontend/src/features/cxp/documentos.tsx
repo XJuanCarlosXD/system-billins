@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { downloadCsv } from '@/lib/csv-utils'
-import { esDocumentoDelMesEnCurso } from './corregir-documento-dialog'
+import { esDocumentoEditable, usePeriodoActualCxP } from './corregir-documento-dialog'
 
 interface Documento {
   no_cia: string; punto: string; tipo_docu: string; no_docu: string
@@ -28,6 +28,7 @@ interface DocDetalle extends Documento {
   rnc: string; posiciones_fijas_ncf: string; ncf_dgi?: string; forma_pago: number
   debito: number; credito: number
   tipo_gasto?: string | null; tipo_retencion?: number | null
+  tipo_docu_r?: string | null; no_docu_r?: string | null
 }
 
 const TIPO_DOC: Record<string, string> = {
@@ -87,6 +88,7 @@ export function CxpDocumentos() {
   const [selected, setSelected] = useState<string | null>(null)
 
   const enabled = !!noCia
+  const periodoQ = usePeriodoActualCxP(noCia, punto)
 
   const { data = [], isLoading, isError } = useQuery<Documento[]>({
     queryKey: ['cxp-documentos', noCia, punto, noProveedor, tipo, noDoc, desde, hasta, status],
@@ -290,10 +292,28 @@ export function CxpDocumentos() {
                     <Badge className="bg-red-100 text-red-700">Pago Bloqueado</Badge>
                   </div>
                 )}
+                {detalle.status === 'R' && detalle.tipo_docu_r && detalle.no_docu_r && (
+                  <div className="col-span-2 flex items-center gap-2">
+                    <Badge className="bg-purple-100 text-purple-700">Reversado</Badge>
+                    <span className="text-muted-foreground">Generó:</span>
+                    <button
+                      type="button"
+                      className="font-mono text-primary underline underline-offset-2"
+                      onClick={() => {
+                        setTipo(detalle.tipo_docu_r!)
+                        setNoDoc(detalle.no_docu_r!)
+                        setPage(1)
+                        setSelected(null)
+                      }}
+                    >
+                      {TIPO_DOC[detalle.tipo_docu_r] ?? detalle.tipo_docu_r}-{detalle.no_docu_r}
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="flex justify-end gap-2">
                 {(() => {
-                  const editable = esDocumentoDelMesEnCurso(detalle.fecha) && detalle.status !== 'R'
+                  const editable = esDocumentoEditable(detalle.fecha, periodoQ.periodo) && detalle.status !== 'R'
                   const editBtn = (
                     <Button
                       size="sm"
@@ -315,7 +335,7 @@ export function CxpDocumentos() {
                       <TooltipContent>
                         {detalle.status === 'R'
                           ? 'Documento reversado, no se puede editar.'
-                          : 'Solo se pueden editar documentos del mes en curso.'}
+                          : 'Este documento pertenece a un periodo contable ya cerrado.'}
                       </TooltipContent>
                     </Tooltip>
                   )

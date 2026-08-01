@@ -1,9 +1,9 @@
 // CxP — Corregir NCF / datos DGII de un documento (equivale a Fcxp212).
 // Busca los documentos de un proveedor y permite corregir NCF, RNC,
-// ITBIS y clasificaciones DGII sin tocar valores ni saldos. Solo se puede
-// corregir el documento si es del periodo contable en curso (el backend
+// ITBIS y clasificaciones DGII sin tocar valores ni saldos. Se bloquea
+// corregir un documento de un periodo contable YA CERRADO (el backend
 // tambien lo exige, ver corregir_datos_dgii) -- el boton "Corregir" se
-// deshabilita para documentos de meses anteriores.
+// deshabilita para esos documentos.
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Pencil, Search, X } from 'lucide-react'
@@ -25,7 +25,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { ProveedorPicker } from './cxp-procesos'
 import {
   CxpCorregirDocumentoDialog,
-  esDocumentoDelMesEnCurso,
+  esDocumentoEditable,
+  usePeriodoActualCxP,
   type CxpDocumentoParaCorregir,
 } from './corregir-documento-dialog'
 
@@ -51,6 +52,7 @@ const ncfDgi = (doc: any): string => {
 }
 
 export function CxpCorregirNcf({ noCia, punto = '' }: P) {
+  const periodoQ = usePeriodoActualCxP(noCia, punto)
   const [proveedor, setProveedor] = useState<any | null>(null)
   const [fpInput, setFpInput] = useState('')
   const [fpBusqueda, setFpBusqueda] = useState('')
@@ -85,7 +87,7 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
           Corrige el NCF, RNC, ITBIS y clasificaciones DGII de un documento ya
           registrado, sin alterar valores ni saldos. Equivale a la forma legacy{' '}
           <i>Fcxp212</i> sobre <span className='font-mono'>TCXP_DOCUMENTO</span>.
-          Solo se pueden corregir documentos del mes en curso.
+          No se pueden corregir documentos de un periodo contable ya cerrado.
         </p>
       </div>
 
@@ -153,7 +155,7 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
             </TableHeader>
             <TableBody>
               {rows.map((d: any) => {
-                const editable = esDocumentoDelMesEnCurso(d.fecha) && d.status !== 'R'
+                const editable = esDocumentoEditable(d.fecha, periodoQ.periodo) && d.status !== 'R'
                 return (
                   <TableRow key={`${d.tipo_docu}-${d.no_docu}`}>
                     <TableCell className='font-mono'>
@@ -207,7 +209,7 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
                           <TooltipContent>
                             {d.status === 'R'
                               ? 'Documento reversado, no se puede corregir.'
-                              : 'Solo se pueden corregir documentos del mes en curso.'}
+                              : 'Este documento pertenece a un periodo contable ya cerrado.'}
                           </TooltipContent>
                         </Tooltip>
                       )}

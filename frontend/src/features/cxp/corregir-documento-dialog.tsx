@@ -1,9 +1,9 @@
 // CxP — dialogo compartido para corregir NCF/datos DGII de un documento
 // (equivale a Fcxp212). Usado tanto por la pantalla "Corregir NCF" como por
-// el boton "Editar" en "Consulta / Impresion de Documentos". Solo permite
-// corregir documentos del periodo contable en curso -- el backend
-// (corregir_datos_dgii) tambien lo exige, esto es solo para no dejar
-// intentar en la UI.
+// el boton "Editar" en "Consulta / Impresion de Documentos". Bloquea editar
+// documentos de un periodo contable YA CERRADO -- el backend
+// (corregir_datos_dgii / entrada_documento) tambien lo exige, esto es solo
+// para no dejar intentar en la UI.
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Save } from 'lucide-react'
@@ -68,14 +68,33 @@ export interface CxpDocumentoParaCorregir {
   forma_pago?: number | null
 }
 
-// Solo se puede corregir un documento del mes/año calendario en curso --
-// coincide con el periodo contable en la practica (TCXP_PUNTO avanza junto
-// con el mes real) y evita una llamada extra solo para deshabilitar un boton.
-export function esDocumentoDelMesEnCurso(fecha: string): boolean {
-  if (!fecha) return false
-  const hoy = new Date()
-  const periodoActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`
-  return fecha.slice(0, 7) === periodoActual
+// Periodo contable real en curso (TCXP_PUNTO.ano_proceso/mes_proceso), NO el
+// mes calendario: el punto solo avanza cuando se ejecuta el cierre mensual,
+// asi que puede quedarse "atras" del mes real varios dias/semanas sin que el
+// periodo este cerrado.
+export function usePeriodoActualCxP(noCia: string, punto: string) {
+  const q = useQuery({
+    queryKey: ['cxp-punto', noCia, punto],
+    queryFn: async () => {
+      const all = await api.cxpListPuntos(noCia)
+      return (all as any[]).find((p) => String(p.punto) === String(punto)) || null
+    },
+    enabled: !!noCia && !!punto,
+  })
+  const periodo = q.data
+    ? `${q.data.ano_proceso}-${String(q.data.mes_proceso).padStart(2, '0')}`
+    : null
+  return { periodo, isLoading: q.isLoading }
+}
+
+// Un documento es editable si NO pertenece a un periodo YA CERRADO (anterior
+// al periodo de proceso). Antes se comparaba la fecha del documento contra
+// el mes calendario actual, lo que bloqueaba documentos del periodo en curso
+// mientras el punto no habia avanzado su mes_proceso (cierre pendiente de
+// ejecutar) aunque nada estuviera realmente cerrado.
+export function esDocumentoEditable(fecha: string, periodoActual: string | null | undefined): boolean {
+  if (!fecha || !periodoActual) return false
+  return fecha.slice(0, 7) >= periodoActual
 }
 
 interface Props {
