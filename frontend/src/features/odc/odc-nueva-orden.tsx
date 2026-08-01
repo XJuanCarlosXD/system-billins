@@ -19,6 +19,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { Search, Plus, Trash2, Save } from 'lucide-react'
+import { CrearProductoModal } from '@/features/fat/components/crear-producto-modal'
 
 // Fodc201 — Entrada de Orden de Compra (legacy).
 // Cabecera (TODC_ORDEN) + Detalle (TODC_ORDENL).
@@ -200,10 +201,11 @@ function ProductoPickerDialog({
   const [search, setSearch] = useState('')
   const [results, setResults] = useState<Producto[]>([])
   const [loading, setLoading] = useState(false)
+  const [crearOpen, setCrearOpen] = useState(false)
   const ref = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (open) { setSearch(''); setResults([]); setTimeout(() => ref.current?.focus(), 50) }
+    if (open) { setSearch(''); setResults([]); setCrearOpen(false); setTimeout(() => ref.current?.focus(), 50) }
   }, [open])
 
   const buscar = async (q: string) => {
@@ -237,7 +239,12 @@ function ProductoPickerDialog({
               {results.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={4} className="py-12 text-center text-gray-400">
-                    {loading ? 'Buscando…' : search ? 'Sin resultados' : 'Escriba código o descripción'}
+                    <p>{loading ? 'Buscando…' : search ? 'Sin resultados' : 'Escriba código o descripción'}</p>
+                    {!loading && search && (
+                      <Button variant="link" className="mt-2" onClick={() => setCrearOpen(true)}>
+                        Crear producto "{search}" →
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               )}
@@ -254,6 +261,24 @@ function ProductoPickerDialog({
           </Table>
         </div>
       </DialogContent>
+
+      {crearOpen && (
+        <CrearProductoModal
+          open={crearOpen}
+          onClose={() => setCrearOpen(false)}
+          noCia={noCia}
+          descripcionInicial={search}
+          onCreated={(p) => {
+            setCrearOpen(false)
+            onPick({
+              no_produ: p.no_produ,
+              descri: p.descri,
+              precio: p.costo,
+              porciento_impuesto: p.porciento_impuesto,
+            })
+          }}
+        />
+      )}
     </Dialog>
   )
 }
