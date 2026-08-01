@@ -36,6 +36,7 @@ import {
 import { apiClient, type Me, type NCFAlert } from '@/lib/api-client'
 import { historialMio, type EventoHistorial } from '@/lib/api-client-historial'
 import { HistorialTimeline } from '@/features/historial/historial-timeline'
+import { ModuleLauncher } from './components/module-launcher'
 
 type VentaDia = { dia: string; total: number }
 
@@ -103,6 +104,10 @@ export function Dashboard() {
       </Header>
 
       <Main>
+        <div className='mb-4'>
+          <ModuleLauncher />
+        </div>
+
         <div className='mb-4 flex items-center justify-between'>
           <div>
             <h1 className='flex items-center gap-2 text-2xl font-bold tracking-tight'>
