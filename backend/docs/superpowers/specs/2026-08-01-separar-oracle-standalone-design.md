@@ -2,8 +2,8 @@
 
 - Fecha: 2026-08-01
 - Autor: JCABREU + Claude
-- Estado: aprobado para implementación — **requiere confirmación explícita
-  antes de ejecutar cualquier paso contra el Oracle de producción (10.0.0.51)**
+- Estado: **EN EJECUCIÓN — bloqueado en el paso 5 (levantar el contenedor)
+  por RAM insuficiente en la VM. Ver "Progreso 2026-08-01" al final.**
 - Alcance: infraestructura — nueva instancia Oracle en Docker, migración de
   datos, corte de conexión del backend, backup recurrente.
 - Motivación del usuario: urgente/crítico, protección legal — que ZentoryERP
@@ -301,3 +301,72 @@ copia offsite; no se automatiza sin que él elija el destino.
   usuarios Oracle tal cual (incluye `JCABREU` y los 12 schema owners) — no
   hace falta resetear nada, las credenciales actuales siguen funcionando
   contra el contenedor nuevo.
+
+## Progreso 2026-08-01 (ejecución real)
+
+**Hecho y verificado:**
+
+1. Pre-flight: tamaño real de los 12 schemas = **0.45GB** (no 12GB —
+   Oracle XE nunca hubiera sido un problema de espacio). Charset origen
+   `WE8MSWIN1252` → destino `AL32UTF8` (conversión estándar, sin riesgo).
+   Esta misma máquina de trabajo resultó ser el propio servidor Oracle
+   (10.0.0.51) — el export fue 100% local, sin necesidad de red.
+2. `expdp` (Data Pump) falló repetidamente con `ORA-39006`/`ORA-39213`
+   incluso tras reiniciar el servicio Oracle y el listener (el fix que
+   funcionó en el backup de 2026-07-02 esta vez no alcanzó) y tras
+   `ALTER SYSTEM FLUSH SHARED_POOL`. Causa probable: `memory_target=800M`
+   en la instancia origen, insuficiente para los procesos DM00 de Data
+   Pump — el host solo tiene 8GB RAM totales con 1.3GB libres.
+3. **Se cambió a la herramienta clásica `exp`** (más liviana, sin los
+   procesos worker de Data Pump) — funcionó al primer intento limpio:
+   **486 tablas exportadas, 218MB, "Export terminated successfully without
+   warnings"**, 0 errores ORA-/EXP- en el log. Dump:
+   `zentoryerp_fork_20260801.dmp` (guardado en la máquina origen en
+   `D:\app\Administrador\admin\ab\dpdump\fork\` y copiado a la VM en
+   `/home/jcabreu/facturation-system/oracle_dump/`).
+   **Importante:** al ser formato `exp` clásico (no Data Pump), la
+   importación debe hacerse con `imp`, NO con `impdp` — son formatos
+   incompatibles.
+4. Limpieza de espacio en la VM (20GB→32GB libres): `docker builder prune`,
+   eliminado un contenedor Oracle XE 21 "zombie" de un intento abandonado
+   hace 7 semanas (nunca llegó a usarse, quedó "Exited (10)") — su entrada
+   en `/var/lib/docker/containers/` estaba corrupta y requirió
+   `systemctl restart docker`+`containerd` y borrado manual del directorio
+   para limpiarse. Su volumen (`oracle_data`) también se recreó desde cero
+   porque tenía datos parciales de ese intento (versión distinta de
+   Oracle, incompatible con Oracle Free).
+5. `docker-compose.yml` actualizado: `gvenzl/oracle-xe:21` →
+   `gvenzl/oracle-free:23-slim-faststart` (ya estaba pre-descargada en la
+   VM). Commits `f7a8e0e`, `56c2a7f` en `main`.
+6. **Bloqueador actual — RAM real de la VM:** `docker info` reporta
+   **1.3GB de RAM TOTAL** en la VM (no solo libre — total). El contenedor
+   Oracle Free entra en loop de crash con
+   `ORA-27104: system-defined limits for shared memory was misconfigured`
+   incluso después de bajar `shm_size` de 1g a 512m y fijar
+   `ORACLE_INIT_SGA_SIZE=384`/`ORACLE_INIT_PGA_SIZE=256` (commit
+   `56c2a7f`). El propio contenedor lo advierte en cada arranque: *"There
+   have been known cases of Oracle Database Free not starting because of
+   insufficient memory."* — 1.3GB total es, en la práctica, insuficiente
+   para Oracle Database (cualquier edición) de forma confiable. Contenedor
+   detenido (`docker update --restart=no` + `docker stop`) para no dejarlo
+   en loop consumiendo recursos de la VM compartida — no afectó a
+   `facturation_backend`/`facturation_caddy`, que siguieron arriba todo el
+   tiempo.
+
+**Qué falta (retomar cuando llegue el upgrade de RAM ya ordenado por el
+usuario):**
+
+- Levantar `facturation_oracle` limpio (el volumen y la config ya están
+  listos, solo hace falta más RAM disponible en el host).
+- `docker cp` o montar el dump y correr `imp` (no `impdp`) dentro del
+  contenedor.
+- Validar conteo de tablas/filas contra el origen (sección 6 del spec).
+- Recién ahí: cambiar `ORACLE_DSN` en `backend/.env` de `10.0.0.51:1521/AB`
+  a `oracle-xe:1521/FREEPDB1`, `docker compose restart backend` — **esto
+  todavía NO se hizo**, el backend de producción sigue apuntando al Oracle
+  original intacto, tal como estaba.
+- Configurar el backup recurrente (sección 8).
+- Cuando llegue el upgrade de RAM: subir `ORACLE_INIT_SGA_SIZE`/
+  `ORACLE_INIT_PGA_SIZE` y `shm_size` a valores más cómodos (ej. 1GB/512MB
+  SGA, `shm_size: 1g`) — los valores actuales (384M/256M) son un mínimo
+  de supervivencia para 1.3GB de RAM, no lo ideal para producción.
