@@ -33,6 +33,7 @@ import {
   BuscarProductoModal,
   type BuscarProductoModalAlmacen,
 } from '@/features/fat/components/buscar-producto-modal'
+import { CrearProductoModal } from '@/features/fat/components/crear-producto-modal'
 import { empaqueLabel } from '@/features/fat/utils/empaque-label'
 
 const API_BASE =
@@ -180,6 +181,20 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState<ProductoResult[]>([])
   const [searching, setSearching] = useState(false)
+
+  // Modal "Crear Producto" — disparado desde el dropdown de búsqueda inline
+  // cuando no hay resultados para el texto tecleado.
+  const [crearProductoOpen, setCrearProductoOpen] = useState(false)
+  const [crearProductoIdx, setCrearProductoIdx] = useState<number | null>(null)
+  const [crearProductoTerm, setCrearProductoTerm] = useState('')
+
+  const abrirCrearProducto = (idx: number, term: string) => {
+    setCrearProductoIdx(idx)
+    setCrearProductoTerm(term)
+    setCrearProductoOpen(true)
+    setSearchIdx(null)
+    setSearchResults([])
+  }
 
   // Modal de buscar producto (preferido, mismo estilo que FAT)
   const [productModalOpen, setProductModalOpen] = useState(false)
@@ -629,14 +644,14 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
                             >
                               <Search className='h-3.5 w-3.5' />
                             </button>
-                            {isSearching && searchResults.length > 0 && (
+                            {isSearching && (searching || searchResults.length > 0 || searchTerm.trim()) && (
                               <div className='absolute top-full left-0 z-50 mt-1 w-[280px] rounded-md border bg-popover text-xs shadow-md'>
                                 {searching && (
                                   <div className='px-3 py-2 text-muted-foreground'>
                                     Buscando...
                                   </div>
                                 )}
-                                {searchResults.map((p) => {
+                                {!searching && searchResults.map((p) => {
                                   const code = p.no_produ ?? p.codigo ?? ''
                                   return (
                                     <div
@@ -657,6 +672,17 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
                                     </div>
                                   )
                                 })}
+                                {!searching && searchResults.length === 0 && searchTerm.trim() && (
+                                  <div
+                                    className='cursor-pointer px-3 py-2 text-blue-600 hover:bg-accent hover:underline'
+                                    onMouseDown={(e) => {
+                                      e.preventDefault()
+                                      abrirCrearProducto(idx, searchTerm)
+                                    }}
+                                  >
+                                    + Crear producto "{searchTerm}" →
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
@@ -859,6 +885,21 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
             .catch(() => cargarEmpaques(idx, p.no_produ, 0))
           setProductModalOpen(false)
           setProductModalForIdx(null)
+        }}
+      />
+
+      <CrearProductoModal
+        open={crearProductoOpen}
+        onClose={() => { setCrearProductoOpen(false); setCrearProductoIdx(null) }}
+        noCia={noCia}
+        descripcionInicial={crearProductoTerm}
+        onCreated={(p) => {
+          if (crearProductoIdx == null) return
+          const idx = crearProductoIdx
+          updateRow(idx, { noProdu: p.no_produ, nombre: p.descri, costo: String(p.costo) })
+          cargarEmpaques(idx, p.no_produ, p.costo)
+          setCrearProductoOpen(false)
+          setCrearProductoIdx(null)
         }}
       />
     </TooltipProvider>
