@@ -11,8 +11,8 @@
 ## 0. Motivación
 
 Auditoría (agente Explore, 2026-08-01) encontró 71 pantallas construidas y
-enrutadas en 9 de los 11 módulos, sin ningún item de `navGroups` que
-apunte a ellas — invisibles tanto en el sidebar como en el buscador
+enrutadas en 10 de los 11 módulos (todos menos `lic`), sin ningún item de
+`navGroups` que apunte a ellas — invisibles tanto en el sidebar como en el buscador
 Ctrl+K (que se alimenta de `sidebarData`). Son mayormente catálogos de
 Compañías/Puntos/Tipos de Documento y catálogos propios de cada módulo
 (Vendedores, Rutas, Ciudades en CxC; AFP/ARS/Departamentos en Nómina;
