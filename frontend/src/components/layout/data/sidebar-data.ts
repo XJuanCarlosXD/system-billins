@@ -50,6 +50,19 @@ export const sidebarData: SidebarData = {
       icon: Receipt,
       navGroups: [
         {
+          title: 'Configuración',
+          items: [
+            { title: 'Compañías', url: '/fat/companias' },
+            { title: 'Puntos de Trabajo', url: '/fat/puntos' },
+            { title: 'Tipos de Documento', url: '/fat/tdocu' },
+            { title: 'Condiciones de Pago', url: '/fat/condiciones' },
+            { title: 'Tipos de Pago', url: '/fat/tipos-pago' },
+            { title: 'Listas de Precio', url: '/fat/listas-precio' },
+            { title: 'Transportistas', url: '/fat/transportistas' },
+            { title: 'Notas', url: '/fat/notas' },
+          ],
+        },
+        {
           title: 'Proceso',
           items: [
             { title: 'Facturacion', url: '/fat/nueva-factura' },
@@ -100,6 +113,23 @@ export const sidebarData: SidebarData = {
       title: 'Cuentas por Cobrar',
       icon: CreditCard,
       navGroups: [
+        {
+          title: 'Configuración',
+          items: [
+            { title: 'Compañías', url: '/cxc/cias' },
+            { title: 'Puntos', url: '/cxc/puntos' },
+            { title: 'Tipos de Documento', url: '/cxc/tdocu' },
+            { title: 'Tipos de Cliente', url: '/cxc/tcli' },
+            { title: 'Supervisores', url: '/cxc/supervisores' },
+            { title: 'Vendedores', url: '/cxc/vendedores' },
+            { title: 'Rutas', url: '/cxc/rutas' },
+            { title: 'Tipo Contable', url: '/cxc/tcontable' },
+            { title: 'Ciudades', url: '/cxc/ciudades' },
+            { title: 'Barrios', url: '/cxc/barrios' },
+            { title: 'Zonas', url: '/cxc/zonas' },
+            { title: 'Cadenas', url: '/cxc/cadenas' },
+          ],
+        },
         {
           title: 'Clientes',
           items: [
@@ -184,6 +214,18 @@ export const sidebarData: SidebarData = {
       title: 'Cuentas por Pagar',
       icon: Wallet,
       navGroups: [
+        {
+          title: 'Configuración',
+          items: [
+            { title: 'Compañías', url: '/cxp/cias' },
+            { title: 'Puntos', url: '/cxp/puntos' },
+            { title: 'Ciudades', url: '/cxp/ciudades' },
+            { title: 'Barrios', url: '/cxp/barrios' },
+            { title: 'Tipos de Documento', url: '/cxp/tdocu' },
+            { title: 'Tipos de Proveedor', url: '/cxp/tproveedores' },
+            { title: 'Usuarios', url: '/cxp/usuarios' },
+          ],
+        },
         {
           title: 'Proveedores',
           items: [{ title: 'Proveedores', url: '/cxp/proveedores' }],
@@ -272,6 +314,14 @@ export const sidebarData: SidebarData = {
       icon: ShoppingCart,
       navGroups: [
         {
+          title: 'Configuración',
+          items: [
+            { title: 'Compañías', url: '/odc/cias' },
+            { title: 'Puntos', url: '/odc/puntos' },
+            { title: 'Usuarios', url: '/odc/usuarios' },
+          ],
+        },
+        {
           title: 'Procesos',
           items: [
             { title: 'Entrada de Orden', url: '/odc/nueva-orden' },
@@ -336,6 +386,20 @@ export const sidebarData: SidebarData = {
               url: '/inv',
               search: { section: 'configuracion', view: 'productos' },
             },
+            { title: 'Compañías', url: '/inv', search: { section: 'configuracion', view: 'companias' } },
+            { title: 'Puntos de Trabajo', url: '/inv', search: { section: 'configuracion', view: 'puntos-trabajo' } },
+            { title: 'Almacenes', url: '/inv', search: { section: 'configuracion', view: 'almacenes' } },
+            { title: 'Tipos de Documento', url: '/inv', search: { section: 'configuracion', view: 'tipos-documentos' } },
+            { title: 'Grupo de Productos', url: '/inv', search: { section: 'configuracion', view: 'grupo-productos' } },
+            { title: 'Línea de Productos', url: '/inv', search: { section: 'configuracion', view: 'linea-productos' } },
+            { title: 'Sub Línea de Productos', url: '/inv', search: { section: 'configuracion', view: 'sublinea-productos' } },
+            { title: 'Grupo Contable', url: '/inv', search: { section: 'configuracion', view: 'grupo-contable' } },
+            { title: 'Unidades de Empaque', url: '/inv', search: { section: 'configuracion', view: 'unidades-empaque' } },
+            { title: 'Referencia de Empaque', url: '/inv', search: { section: 'configuracion', view: 'referencia-empaque' } },
+            { title: 'Asignar Prod. a Cía/Almacén', url: '/inv', search: { section: 'configuracion', view: 'asignar-prod-cia' } },
+            { title: 'Modificar Costo', url: '/inv', search: { section: 'configuracion', view: 'modificar-costo' } },
+            { title: 'Mínimo y Máximo', url: '/inv', search: { section: 'configuracion', view: 'minimo-maximo' } },
+            { title: 'Estantes y Tramos', url: '/inv', search: { section: 'configuracion', view: 'estantes-tramos' } },
           ],
         },
         {
@@ -496,6 +560,16 @@ export const sidebarData: SidebarData = {
       icon: Banknote,
       navGroups: [
         {
+          title: 'Configuración',
+          items: [
+            { title: 'Bancos', url: '/chc/bancos' },
+            { title: 'Compañías', url: '/chc/cias' },
+            { title: 'Cuentas Bancarias', url: '/chc/cuentas' },
+            { title: 'Puntos', url: '/chc/puntos' },
+            { title: 'Tipos de Documento', url: '/chc/tipos-docu' },
+          ],
+        },
+        {
           title: 'Procesos',
           items: [
             { title: 'Solicitar Cheque', url: '/chc/solicitar' },
@@ -536,6 +610,17 @@ export const sidebarData: SidebarData = {
       icon: Coins,
       navGroups: [
         {
+          title: 'Configuración',
+          items: [
+            { title: 'Beneficiarios', url: '/acc/beneficiarios' },
+            { title: 'Cajas', url: '/acc/cajas' },
+            { title: 'Compañías', url: '/acc/cias' },
+            { title: 'Puntos', url: '/acc/puntos' },
+            { title: 'Tipos de Beneficiario', url: '/acc/tipos-bene' },
+            { title: 'Tipos de Gasto', url: '/acc/tipos-gasto' },
+          ],
+        },
+        {
           title: 'Procesos',
           items: [
             { title: 'Entrada de Egreso', url: '/acc/nuevo-egreso' },
@@ -570,6 +655,20 @@ export const sidebarData: SidebarData = {
       title: 'Nomina',
       icon: UsersIcon,
       navGroups: [
+        {
+          title: 'Configuración',
+          items: [
+            { title: 'AFP', url: '/sdn/afp' },
+            { title: 'Áreas', url: '/sdn/areas' },
+            { title: 'ARS', url: '/sdn/ars' },
+            { title: 'Compañías', url: '/sdn/cias' },
+            { title: 'Deducciones', url: '/sdn/deducciones' },
+            { title: 'Definición de Nóminas', url: '/sdn/def-nominas' },
+            { title: 'Departamentos', url: '/sdn/deptos' },
+            { title: 'Gerencias', url: '/sdn/gerencias' },
+            { title: 'Ingresos', url: '/sdn/ingresos' },
+          ],
+        },
         {
           title: 'Mantenimiento',
           items: [{ title: 'Empleados', url: '/sdn/empleados' }],
@@ -608,6 +707,19 @@ export const sidebarData: SidebarData = {
       icon: Archive,
       navGroups: [
         {
+          title: 'Configuración',
+          items: [
+            { title: 'Categorías', url: '/acf/categorias' },
+            { title: 'Compañías', url: '/acf/cias' },
+            { title: 'Departamentos', url: '/acf/departamentos' },
+            { title: 'Grupos', url: '/acf/grupos' },
+            { title: 'Marcas', url: '/acf/marcas' },
+            { title: 'Puntos', url: '/acf/puntos' },
+            { title: 'Responsables', url: '/acf/responsables' },
+            { title: 'Subgrupos', url: '/acf/subgrupos' },
+          ],
+        },
+        {
           title: 'Mantenimiento',
           items: [{ title: 'Activos Fijos', url: '/acf/activos' }],
         },
@@ -634,6 +746,20 @@ export const sidebarData: SidebarData = {
       title: 'Contabilidad',
       icon: Calculator,
       navGroups: [
+        {
+          title: 'Configuración',
+          items: [
+            { title: 'Catálogo de Cuentas', url: '/cnt', search: { section: 'configuracion', view: 'catalogo' } },
+            { title: 'Centros de Costo', url: '/cnt', search: { section: 'configuracion', view: 'centros' } },
+            { title: 'Mantenimiento NCF', url: '/cnt', search: { section: 'configuracion', view: 'ncf' } },
+            { title: 'Períodos y Cierres', url: '/cnt', search: { section: 'configuracion', view: 'periodos' } },
+            { title: 'Compañías', url: '/cnt', search: { section: 'configuracion', view: 'companias' } },
+            { title: 'Sucursales', url: '/cnt', search: { section: 'configuracion', view: 'sucursales' } },
+            { title: 'Tipos de Cuenta', url: '/cnt', search: { section: 'configuracion', view: 'tipos-cuenta' } },
+            { title: 'Asignar Cuenta a Sucursal', url: '/cnt', search: { section: 'configuracion', view: 'catalogo-sucursal' } },
+            { title: 'Grupo Contable Sucursal', url: '/cnt', search: { section: 'configuracion', view: 'grupos-sucursal' } },
+          ],
+        },
         {
           title: 'Procesos',
           items: [
