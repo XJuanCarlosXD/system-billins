@@ -35,7 +35,15 @@ function currentModuleCode(pathname: string): string | null {
 }
 
 function moduleAsNavItem(m: SidebarModule): NavItem {
-  return { title: m.title, icon: m.icon, items: m.navGroups }
+  // En el sidebar de Inicio (menu completo apilado, todos los modulos a
+  // la vez) no se repite el grupo Configuracion de cada modulo dentro de
+  // su dropdown -- ese grupo vive solo en el sidebar angosto de cuando el
+  // usuario ya entro a ese modulo especifico (ver activeModule mas abajo).
+  return {
+    title: m.title,
+    icon: m.icon,
+    items: m.navGroups.filter((g) => g.title !== 'Configuración'),
+  }
 }
 
 function shortcut(url: string): NavItem {
