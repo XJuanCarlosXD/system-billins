@@ -14,16 +14,17 @@ _SCHEMA_USERS = (
     'SDN', 'FAT', 'CNT', 'INV', 'CXC', 'CHC', 'SMT', 'CXP', 'ACF',
     'MPR', 'ACC', 'ODC', 'ABREGONZA', 'GUIA', 'MAN', 'REGAL_GENERAL',
 )
-_SYSTEM_USERS = (
-    'SYS', 'SYSTEM', 'OUTLN', 'XDB', 'MDSYS', 'CTXSYS', 'EXFSYS',
-    'DBSNMP', 'APPQOSSYS', 'ORDDATA', 'ORDSYS', 'OLAPSYS', 'WMSYS',
-    'LBACSYS', 'OWBSYS', 'OWBSYS_AUDIT', 'SYSMAN', 'APEX_030200',
-    'APEX_PUBLIC_USER', 'FLOWS_FILES', 'SCOTT', 'HR', 'OE', 'SH',
-    'PM', 'IX', 'BI', 'ORACLE_OCM', 'ANONYMOUS', 'XS$NULL',
-    'MGMT_VIEW', 'MDDATA', 'SI_INFORMTN_SCHEMA', 'PUBLIC',
-    'SPATIAL_CSW_ADMIN_USR', 'SPATIAL_WFS_ADMIN_USR', 'ORDPLUGINS',
-)
-EXCLUDED = set(_SCHEMA_USERS + _SYSTEM_USERS)
+# Cuentas de infraestructura Oracle que Oracle NO marca como
+# oracle_maintained='Y' (son propias de esta instancia/PDB) pero tampoco
+# son un login humano de la aplicacion.
+_INFRA_USERS = ('PDBADMIN', 'SYSRAC')
+_NON_HUMAN = set(_SCHEMA_USERS + _INFRA_USERS)
+# NOTA: las cuentas propias de Oracle (DVSYS, GGSYS, AUDSYS, SYSBACKUP,
+# etc.) NO se listan aqui a mano — se excluyen dinamicamente via
+# oracle_maintained='Y' en list_humans(). Una lista fija como esta se
+# desactualiza en cuanto cambia la version/edicion de Oracle (paso
+# exactamente eso al migrar de 11g al fork standalone de 23ai: la lista
+# vieja no cubria las cuentas nuevas de 23ai y se colaban en el listado).
 
 
 def exists(username: str) -> bool:
@@ -69,16 +70,22 @@ def list_humans(
 
     Filtros server-side: search (username LIKE) e include_locked.
     Orden server-side: username | created | status, asc/desc.
-    Excluye schemas dueños y usuarios sistema Oracle.
+    Excluye schemas dueños de la app, cuentas de infraestructura conocidas
+    (PDBADMIN, SYSRAC) y — dinamicamente, sin lista fija — cualquier cuenta
+    que Oracle marque como oracle_maintained='Y' (motor/features internos:
+    DVSYS, GGSYS, AUDSYS, SYSBACKUP, SYSKM, SYSDG, GSM*, etc).
     """
     page = max(1, int(page))
     page_size = max(1, min(200, int(page_size)))
     order_col = _ORDER_FIELDS.get(order_by, 'created')
     order_dir = 'DESC' if str(direction).lower() != 'asc' else 'ASC'
 
-    placeholders = ', '.join(f':{i}' for i in range(1, len(EXCLUDED) + 1))
-    where = f'username NOT IN ({placeholders}) '
-    params: list = list(EXCLUDED)
+    placeholders = ', '.join(f':{i}' for i in range(1, len(_NON_HUMAN) + 1))
+    where = (
+        f'username NOT IN ({placeholders}) '
+        "AND NVL(oracle_maintained, 'N') != 'Y' "
+    )
+    params: list = list(_NON_HUMAN)
     if not include_locked:
         where += "AND account_status = 'OPEN' "
     if search:
