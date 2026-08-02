@@ -5,10 +5,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { sidebarData } from '@/components/layout/data/sidebar-data'
 import type { NavGroup, NavItem } from '@/components/layout/types'
 
-// Encuentra la primera URL hoja del arbol de un modulo, recorriendo
-// navGroups en orden (mismo patron que antes usaba inferModule).
+// Encuentra la primera URL hoja del arbol operativo de un modulo (Proceso/
+// Procesos/Mantenimiento/etc), recorriendo navGroups en orden. El grupo
+// Configuracion (title vacio, ver sidebar-data.ts) se salta a proposito:
+// entrar a un modulo desde el grid debe llevar a la pantalla de trabajo
+// del dia a dia, no a un catalogo de configuracion.
 function firstUrlOf(navGroups: NavGroup[]): string | null {
   for (const group of navGroups) {
+    if (group.title === '') continue
     const url = firstUrlOfItems(group.items)
     if (url) return url
   }
