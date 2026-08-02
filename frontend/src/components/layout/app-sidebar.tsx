@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
-import { Command } from 'lucide-react'
+import { Command, LayoutDashboard } from 'lucide-react'
 import { useLayout } from '@/context/layout-provider'
 import { useMe } from '@/hooks/use-me'
 import { useAccess } from '@/hooks/use-access'
@@ -20,11 +20,65 @@ import { sidebarData } from './data/sidebar-data'
 import { NavGroup } from './nav-group'
 import { NavUser } from './nav-user'
 import { TeamSwitcher } from './team-switcher'
-import type { NavItem, NavGroup as NavGroupType } from './types'
+import type {
+  NavItem,
+  NavGroup as NavGroupType,
+  SidebarModule,
+} from './types'
+
+const OPERACION_CODES = ['fat', 'cxc', 'cxp', 'odc', 'lic', 'inv', 'chc']
+const ADMINISTRACION_CODES = ['acc', 'sdn', 'acf', 'cnt']
 
 function currentModuleCode(pathname: string): string | null {
   const seg = pathname.split('/')[1]
   return seg && sidebarData.modules.some((m) => m.code === seg) ? seg : null
+}
+
+function moduleAsNavItem(m: SidebarModule): NavItem {
+  return { title: m.title, icon: m.icon, items: m.navGroups }
+}
+
+function shortcut(url: string): NavItem {
+  const s = sidebarData.homeShortcuts.find((h) => h.url === url)!
+  return { title: s.title, url: s.url, icon: s.icon }
+}
+
+// El sidebar de Inicio (fuera de cualquier modulo) reconstruye el menu
+// completo de los 11 modulos apilados, con la misma agrupacion
+// General/Operacion/Administracion/Sistema que tenia el sidebar viejo —
+// el usuario prefiere verlo asi (con el grid de ModuleLauncher en el
+// contenido, no en el sidebar) en vez de un sidebar vacio.
+function buildHomeNavGroups(
+  isAdmin: boolean,
+  hasModule: (m: string) => boolean
+): NavGroupType[] {
+  const byCode = (codes: string[]) =>
+    sidebarData.modules
+      .filter((m) => codes.includes(m.code) && (isAdmin || hasModule(m.code)))
+      .map(moduleAsNavItem)
+
+  return [
+    {
+      title: 'General',
+      items: [
+        { title: 'Dashboard', url: '/', icon: LayoutDashboard },
+        shortcut('/reportes'),
+        shortcut('/ncf-alerts'),
+        shortcut('/empresas'),
+      ],
+    },
+    { title: 'Operacion', items: byCode(OPERACION_CODES) },
+    { title: 'Administracion', items: byCode(ADMINISTRACION_CODES) },
+    {
+      title: 'Sistema',
+      items: [
+        shortcut('/sistema/usuarios'),
+        shortcut('/sistema/historial'),
+        shortcut('/man'),
+        shortcut('/settings'),
+      ],
+    },
+  ].filter((g) => g.items.length > 0)
 }
 
 function filterNavItems(
@@ -89,10 +143,12 @@ export function AppSidebar() {
     : undefined
 
   const navGroups: NavGroupType[] = useMemo(() => {
-    if (!activeModule) return []
-    return activeModule.navGroups
-      .map((g) => ({ ...g, items: filterNavItems(g.items, isAdmin, modGate) }))
-      .filter((g) => g.items.length > 0)
+    if (activeModule) {
+      return activeModule.navGroups
+        .map((g) => ({ ...g, items: filterNavItems(g.items, isAdmin, modGate) }))
+        .filter((g) => g.items.length > 0)
+    }
+    return buildHomeNavGroups(isAdmin, modGate)
   }, [activeModule, isAdmin, modGate])
 
   return (
@@ -100,11 +156,9 @@ export function AppSidebar() {
       <SidebarHeader>
         {activeModule && <ModuleHomeLink />}
         <TeamSwitcher teams={sidebarData.teams} />
-        {activeModule && (
-          <div>
-            <SidebarSearch />
-          </div>
-        )}
+        <div>
+          <SidebarSearch />
+        </div>
       </SidebarHeader>
       <SidebarContent>
         {navGroups.map((props) => (
