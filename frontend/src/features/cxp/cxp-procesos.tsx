@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { regalGeneralApi as api } from '@/lib/regal-general-api'
+import { useAccess } from '@/hooks/use-access'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -556,6 +557,7 @@ export function CxpEntradaDocumentos({
   noCia, punto = '', editTipo, editNoDocu,
 }: P & { editTipo?: string; editNoDocu?: string }) {
   const navigate = useNavigate()
+  const { hasDocType } = useAccess()
   const [tiposDocu, setTiposDocu] = useState<any[]>([])
   const [tipoDocu, setTipoDocu] = useState('')
   const [siguiente, setSiguiente] = useState('')
@@ -599,7 +601,9 @@ export function CxpEntradaDocumentos({
   const [formasPago, setFormasPago] = useState<{ forma_pago: number; descripcion: string; por_defecto: string }[]>([])
 
   useEffect(() => {
-    api.cxpListTiposDocu(noCia).then(setTiposDocu).catch(() => {})
+    api.cxpListTiposDocu(noCia)
+      .then((rows: any[]) => setTiposDocu(rows.filter((t) => hasDocType('cxp', noCia, punto, t.codigo ?? t.tipo_docu))))
+      .catch(() => {})
     api.cxpListTiposGasto().then(setTiposGasto).catch(() => {})
     // El tipo de retencion NO se preselecciona: la mayoria de los documentos
     // no llevan retencion, y auto-elegir "Honorarios" (el que trae
@@ -1448,6 +1452,7 @@ const STATUS_DOC: Record<string, { label: string; variant: any }> = {
 }
 
 export function CxpReversar({ noCia, punto = '' }: P) {
+  const { hasDocType } = useAccess()
   const [tipoDocu, setTipoDocu] = useState('')
   const [noDocu, setNoDocu] = useState('')
   const [tiposDocu, setTiposDocu] = useState<any[]>([])
@@ -1459,9 +1464,9 @@ export function CxpReversar({ noCia, punto = '' }: P) {
   useEffect(() => {
     api
       .cxpListTiposDocu(noCia)
-      .then(setTiposDocu)
+      .then((rows: any[]) => setTiposDocu(rows.filter((t) => hasDocType('cxp', noCia, punto, t.codigo ?? t.tipo_docu))))
       .catch(() => {})
-  }, [noCia])
+  }, [noCia, punto])
 
   // NO_DOCU en TCXP_DOCUMENTO es CHAR(7): "8347" → "0008347"
   const normNoDocu = (v: string) => {
@@ -1872,6 +1877,7 @@ export function CxpLiberarDebito({ noCia, punto = '' }: P) {
 
 // ─── FCXP206 — Bloquear/Desbloquear Pago ─────────────────────────────────────
 export function CxpBloquearPago({ noCia, punto = '' }: P) {
+  const { hasDocType } = useAccess()
   const [tipoDocu, setTipoDocu] = useState('')
   const [noDocu, setNoDocu] = useState('')
   const [tiposDocu, setTiposDocu] = useState<any[]>([])
@@ -1881,9 +1887,9 @@ export function CxpBloquearPago({ noCia, punto = '' }: P) {
   useEffect(() => {
     api
       .cxpListTiposDocu(noCia)
-      .then(setTiposDocu)
+      .then((rows: any[]) => setTiposDocu(rows.filter((t) => hasDocType('cxp', noCia, punto, t.codigo ?? t.tipo_docu))))
       .catch(() => {})
-  }, [noCia])
+  }, [noCia, punto])
 
   const buscar = async () => {
     if (!tipoDocu || !noDocu) return toast.error('Tipo y No. son requeridos')

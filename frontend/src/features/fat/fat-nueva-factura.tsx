@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { ApiError, regalGeneralApi } from '@/lib/regal-general-api'
 import { useToast } from '@/hooks/use-toast'
+import { useAccess } from '@/hooks/use-access'
 import { useEnterAdvancesFocus } from '@/hooks/use-enter-advances-focus'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -157,6 +158,7 @@ let lineaIdCounter = 1
 export function NuevaFactura({ noCia, punto }: Props) {
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { hasDocType } = useAccess()
 
   // Catalog
   const [tiposDoc, setTiposDoc] = useState<TipoDoc[]>([])
@@ -309,7 +311,8 @@ export function NuevaFactura({ noCia, punto }: Props) {
         const filtrados = (docsRes.items || []).filter(
           (d: TipoDoc) =>
             (d.tipo_transaccion === 'F' || d.tipo_transaccion === 'O') &&
-            !/anular/i.test(d.descripcion)
+            !/anular/i.test(d.descripcion) &&
+            hasDocType('fat', noCia, punto, d.tipo_docu)
         )
         setTiposDoc(filtrados)
         setVendedores(vendsRes.items || [])

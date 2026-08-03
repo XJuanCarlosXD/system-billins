@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import {
-  Loader2, Plus, Trash2, ChevronDown, ChevronRight, FileText, ToggleLeft, ArrowLeft,
+  Loader2, Check, Plus, Star, ToggleLeft, FileText, ArrowLeft, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Switch } from '@/components/ui/switch'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
@@ -14,9 +13,6 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table'
 import { apiClient, ApiError, type AdminUser, type Company, type ModuleAccess } from '@/lib/api-client'
 
 const MODULE_LABELS: Record<string, string> = {
@@ -31,6 +27,9 @@ const MODULE_LABELS: Record<string, string> = {
   sdn: 'Nómina',
   acf: 'Activos Fijos',
 }
+
+// Orden fijo de las cards -- el mismo orden en que aparecen en el sidebar operativo.
+const MODULE_ORDER = ['fat', 'cxc', 'cxp', 'inv', 'odc', 'chc', 'acc', 'cnt', 'acf', 'sdn']
 
 const FLAG_LABELS: Record<string, string> = {
   PERMITE_FACTURAR: 'Facturar', GENERAR_ESTADISTICAS: 'Estadísticas',
@@ -171,7 +170,7 @@ function DocPermsPanel({ username, modulo, no_cia, punto }: { username: string; 
   }
 
   if (loading) return <div className='py-2 text-xs text-muted-foreground flex items-center gap-1'><Loader2 className='h-3 w-3 animate-spin' /> Cargando documentos...</div>
-  if (docs.length === 0) return <div className='py-2 text-xs text-muted-foreground'>Sin tipos de documentos configurados.</div>
+  if (docs.length === 0) return <div className='py-2 text-xs text-muted-foreground'>Este módulo no maneja permisos por tipo de documento.</div>
 
   return (
     <div className='rounded border bg-muted/20 p-3'>
@@ -198,6 +197,184 @@ function DocPermsPanel({ username, modulo, no_cia, punto }: { username: string; 
   )
 }
 
+/**
+ * Una card por módulo: empresas como chips clicables (grant/revoke inmediato,
+ * sin formulario aparte) + flags/documentos de la empresa enfocada, todo en
+ * el mismo lugar. Reemplaza el flujo anterior de "otorgar acceso" -> expandir
+ * fila -> abrir panel de flags -> abrir panel de documentos (4 pasos
+ * separados) por un solo lugar por módulo.
+ */
+function ModuleCard({
+  username, modulo, companies, access, ciaFilter, onChanged,
+}: {
+  username: string
+  modulo: string
+  companies: Company[]
+  access: ModuleAccess[]
+  ciaFilter: string
+  onChanged: () => void
+}) {
+  const [punto, setPunto] = useState('01')
+  const [busyCia, setBusyCia] = useState<string | null>(null)
+  const [focusCia, setFocusCia] = useState<string | null>(null)
+
+  const grantedCias = Array.from(
+    new Set(access.filter((a) => a.activo && a.punto === punto).map((a) => a.no_cia)),
+  ).sort()
+
+  useEffect(() => {
+    if (focusCia && grantedCias.includes(focusCia)) return
+    setFocusCia(grantedCias[0] ?? null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grantedCias.join(',')])
+
+  const visibleCompanies = ciaFilter === 'todas' ? companies : companies.filter((c) => c.no_cia === ciaFilter)
+  const focusEntry = access.find((a) => a.no_cia === focusCia && a.punto === punto)
+
+  async function grantCia(cia: Company) {
+    setBusyCia(cia.no_cia)
+    try {
+      await apiClient.adminGrantAccess(username, { modulo, no_cia: cia.no_cia, punto, activo: true })
+      toast.success(`Acceso otorgado en empresa ${cia.no_cia}`)
+      setFocusCia(cia.no_cia)
+      onChanged()
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.detail?.detail || 'Error' : 'Error de red')
+    } finally { setBusyCia(null) }
+  }
+
+  async function revokeCia(cia: Company) {
+    if (!confirm(`Quitar acceso a ${MODULE_LABELS[modulo] || modulo.toUpperCase()} en empresa ${cia.no_cia}?`)) return
+    setBusyCia(cia.no_cia)
+    try {
+      await apiClient.adminRevokeAccess(username, modulo, cia.no_cia, punto)
+      toast.success(`Acceso a ${cia.no_cia} removido`)
+      onChanged()
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.detail?.detail || 'Error' : 'Error de red')
+    } finally { setBusyCia(null) }
+  }
+
+  async function toggleDefault() {
+    if (!focusCia) return
+    try {
+      await apiClient.adminGrantAccess(username, {
+        modulo, no_cia: focusCia, punto, activo: true, por_defecto: !focusEntry?.por_defecto,
+      })
+      onChanged()
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.detail?.detail || 'Error' : 'Error de red')
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className='pb-3'>
+        <div className='flex items-center justify-between gap-2'>
+          <div>
+            <CardTitle className='text-base'>{MODULE_LABELS[modulo] || modulo.toUpperCase()}</CardTitle>
+            <CardDescription className='font-mono text-xs'>{modulo.toUpperCase()}</CardDescription>
+          </div>
+          <Badge variant={grantedCias.length ? 'default' : 'outline'}>
+            {grantedCias.length ? `${grantedCias.length} empresa${grantedCias.length === 1 ? '' : 's'}` : 'sin acceso'}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className='space-y-3'>
+        <div className='flex flex-wrap items-center gap-2'>
+          <Select value={punto} onValueChange={setPunto}>
+            <SelectTrigger className='h-8 w-24'><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {PUNTOS.map((p) => <SelectItem key={p} value={p}>Punto {p}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <div className='flex flex-wrap gap-1.5'>
+            {visibleCompanies.map((c) => {
+              const granted = grantedCias.includes(c.no_cia)
+              const focused = focusCia === c.no_cia
+              const busy = busyCia === c.no_cia
+              return (
+                <span
+                  key={c.no_cia}
+                  className={`inline-flex items-center gap-1 rounded-full border pl-2.5 pr-1 py-1 text-xs font-medium transition
+                    ${granted ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background text-muted-foreground hover:bg-muted/50'}
+                    ${focused ? 'ring-2 ring-primary/40' : ''}
+                    ${busy ? 'opacity-50 pointer-events-none' : ''}`}
+                >
+                  <button
+                    type='button'
+                    title={granted ? `Ver/editar permisos de empresa ${c.no_cia}` : `Dar acceso a empresa ${c.no_cia}`}
+                    onClick={() => (granted ? setFocusCia(c.no_cia) : grantCia(c))}
+                    disabled={busy}
+                    className='inline-flex items-center gap-1'
+                  >
+                    {busy ? <Loader2 className='h-3 w-3 animate-spin' /> : granted ? <Check className='h-3 w-3' /> : <Plus className='h-3 w-3' />}
+                    {c.no_cia}
+                  </button>
+                  {granted && (
+                    <button
+                      type='button'
+                      title={`Quitar acceso a empresa ${c.no_cia}`}
+                      onClick={() => revokeCia(c)}
+                      disabled={busy}
+                      className='rounded-full p-0.5 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/40'
+                    >
+                      <X className='h-3 w-3' />
+                    </button>
+                  )}
+                </span>
+              )
+            })}
+          </div>
+        </div>
+
+        {grantedCias.length > 0 && (
+          <div className='space-y-3 border-t pt-3'>
+            <div className='flex flex-wrap items-center justify-between gap-2'>
+              {grantedCias.length > 1 ? (
+                <div className='flex flex-wrap gap-1'>
+                  {grantedCias.map((cia) => (
+                    <Button
+                      key={cia}
+                      type='button'
+                      size='sm'
+                      variant={focusCia === cia ? 'secondary' : 'ghost'}
+                      className='h-7 px-2 text-xs'
+                      onClick={() => setFocusCia(cia)}
+                    >
+                      {cia} · {companies.find((c) => c.no_cia === cia)?.descripcion?.slice(0, 16) || cia}
+                    </Button>
+                  ))}
+                </div>
+              ) : (
+                <span className='text-xs text-muted-foreground'>
+                  Configurando {focusCia} · {companies.find((c) => c.no_cia === focusCia)?.descripcion?.slice(0, 30)}
+                </span>
+              )}
+              <button
+                type='button'
+                onClick={toggleDefault}
+                title='Marcar como módulo predeterminado de esta empresa'
+                className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs transition
+                  ${focusEntry?.por_defecto ? 'text-amber-600' : 'text-muted-foreground hover:text-amber-600'}`}
+              >
+                <Star className={`h-3.5 w-3.5 ${focusEntry?.por_defecto ? 'fill-amber-500' : ''}`} />
+                {focusEntry?.por_defecto ? 'Predeterminado' : 'Marcar predeterminado'}
+              </button>
+            </div>
+            {focusCia && (
+              <>
+                <ModuleFlagsPanel username={username} modulo={modulo} no_cia={focusCia} punto={punto} />
+                <DocPermsPanel username={username} modulo={modulo} no_cia={focusCia} punto={punto} />
+              </>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 export function UserAccessPage({
   user,
   companies,
@@ -211,16 +388,7 @@ export function UserAccessPage({
 }) {
   const [access, setAccess] = useState<ModuleAccess[]>([])
   const [loading, setLoading] = useState(false)
-  const [working, setWorking] = useState(false)
-  const [expandedRow, setExpandedRow] = useState<string | null>(null)
   const [ciaFilter, setCiaFilter] = useState<string>('todas')
-
-  const [newCia, setNewCia] = useState(companies[0]?.no_cia ?? '01')
-  const [newModulo, setNewModulo] = useState('')
-  const [newPunto, setNewPunto] = useState('01')
-  const [newPorDefecto, setNewPorDefecto] = useState(false)
-  const [availableModules, setAvailableModules] = useState<string[]>([])
-  const [loadingModules, setLoadingModules] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -232,54 +400,15 @@ export function UserAccessPage({
     } finally { setLoading(false) }
   }
 
-  async function loadModules(cia: string) {
-    setLoadingModules(true)
-    try {
-      const res = await apiClient.adminListModulesForCompany(cia)
-      setAvailableModules(res.modules)
-      if (res.modules.length > 0) setNewModulo(res.modules[0])
-    } catch { setAvailableModules([]) } finally { setLoadingModules(false) }
-  }
-
   useEffect(() => { load() }, [])
-  useEffect(() => { if (newCia) loadModules(newCia) }, [newCia])
 
-  async function grant() {
-    const yaExiste = access.some(
-      (a) => a.modulo === newModulo && a.no_cia === newCia && a.punto === newPunto && a.activo,
-    )
-    if (yaExiste) {
-      toast.info(`${user.username} ya tiene acceso activo a ${MODULE_LABELS[newModulo] || newModulo.toUpperCase()} en empresa ${newCia} punto ${newPunto}. No se duplica.`)
-      return
-    }
-    setWorking(true)
-    try {
-      await apiClient.adminGrantAccess(user.username, {
-        modulo: newModulo, no_cia: newCia, punto: newPunto,
-        activo: true, por_defecto: newPorDefecto,
-      })
-      toast.success(`Acceso a ${MODULE_LABELS[newModulo] || newModulo.toUpperCase()} otorgado`)
-      load(); onChanged?.()
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.detail?.detail || 'Error' : 'Error de red')
-    } finally { setWorking(false) }
+  function handleChanged() {
+    load()
+    onChanged?.()
   }
 
-  async function revoke(a: ModuleAccess) {
-    if (!confirm(`Quitar acceso a ${MODULE_LABELS[a.modulo] || a.modulo.toUpperCase()} en empresa ${a.no_cia}?`)) return
-    try {
-      await apiClient.adminRevokeAccess(user.username, a.modulo, a.no_cia, a.punto)
-      toast.success('Acceso removido')
-      load(); onChanged?.()
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.detail?.detail || 'Error' : 'Error de red')
-    }
-  }
-
-  const rowKey = (a: ModuleAccess) => `${a.modulo}-${a.no_cia}-${a.punto}`
-
-  const filteredAccess = ciaFilter === 'todas' ? access : access.filter((a) => a.no_cia === ciaFilter)
   const ciasWithAccess = Array.from(new Set(access.map((a) => a.no_cia))).sort()
+  const totalActivos = access.filter((a) => a.activo).length
 
   return (
     <div className='space-y-4'>
@@ -296,164 +425,49 @@ export function UserAccessPage({
         </div>
       </div>
 
-      {/* Módulos asignados */}
-      <Card>
-        <CardHeader className='flex flex-row flex-wrap items-center justify-between gap-2 pb-3'>
-          <CardTitle className='text-base'>Módulos asignados</CardTitle>
-          <div className='flex items-center gap-2'>
-            <Label className='text-xs text-muted-foreground'>Empresa</Label>
-            <Select value={ciaFilter} onValueChange={setCiaFilter}>
-              <SelectTrigger className='h-8 w-40'><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value='todas'>Todas las empresas</SelectItem>
-                {ciasWithAccess.map((cia) => (
-                  <SelectItem key={cia} value={cia}>
-                    {cia} · {companies.find((c) => c.no_cia === cia)?.descripcion?.slice(0, 20) || cia}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Badge variant='outline'>{filteredAccess.length} {filteredAccess.length === 1 ? 'módulo' : 'módulos'}</Badge>
-          </div>
-        </CardHeader>
-        <CardContent className='p-0'>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className='w-8' />
-                <TableHead>Módulo</TableHead>
-                <TableHead>Empresa</TableHead>
-                <TableHead>Punto</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className='text-right'>Acción</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading && (
-                <TableRow><TableCell colSpan={6} className='text-center py-8'>
-                  <Loader2 className='inline h-4 w-4 animate-spin' />
-                </TableCell></TableRow>
-              )}
-              {!loading && filteredAccess.length === 0 && (
-                <TableRow><TableCell colSpan={6} className='text-center py-8 text-muted-foreground'>
-                  {access.length === 0 ? 'Sin módulos asignados' : 'Ningún módulo asignado en esta empresa'}
-                </TableCell></TableRow>
-              )}
-              {filteredAccess.map((a) => {
-                const key = rowKey(a)
-                const expanded = expandedRow === key
-                return (
-                  <>
-                    <TableRow key={key} className='hover:bg-muted/50'>
-                      <TableCell className='pr-0'>
-                        <Button variant='ghost' size='sm' className='h-6 w-6 p-0'
-                          onClick={() => setExpandedRow(expanded ? null : key)}>
-                          {expanded ? <ChevronDown className='h-3.5 w-3.5' /> : <ChevronRight className='h-3.5 w-3.5' />}
-                        </Button>
-                      </TableCell>
-                      <TableCell>
-                        <div className='font-semibold'>{MODULE_LABELS[a.modulo] || a.modulo.toUpperCase()}</div>
-                        <div className='text-xs text-muted-foreground font-mono'>{a.modulo.toUpperCase()}</div>
-                      </TableCell>
-                      <TableCell className='font-mono'>{a.no_cia}</TableCell>
-                      <TableCell className='font-mono'>{a.punto}</TableCell>
-                      <TableCell>
-                        <div className='flex gap-1'>
-                          {a.activo ? <Badge className='text-xs'>activo</Badge> : <Badge className='text-xs' variant='secondary'>inactivo</Badge>}
-                          {a.por_defecto && <Badge className='text-xs' variant='outline'>default</Badge>}
-                        </div>
-                      </TableCell>
-                      <TableCell className='text-right'>
-                        <Button size='sm' variant='ghost' onClick={() => revoke(a)}
-                          className='hover:bg-red-50 hover:text-red-600'>
-                          <Trash2 className='h-4 w-4' />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                    {expanded && (
-                      <TableRow key={`${key}-detail`}>
-                        <TableCell colSpan={6} className='bg-muted/10 px-6 pb-4 pt-2'>
-                          <div className='space-y-3'>
-                            <ModuleFlagsPanel username={user.username} modulo={a.modulo} no_cia={a.no_cia} punto={a.punto} />
-                            <DocPermsPanel username={user.username} modulo={a.modulo} no_cia={a.no_cia} punto={a.punto} />
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <div className='flex flex-wrap items-center justify-between gap-2'>
+        <p className='text-sm text-muted-foreground'>
+          Haz clic en una empresa dentro de cada módulo para dar o quitar acceso. Los permisos y tipos de
+          documento de la empresa seleccionada aparecen debajo, sin pasos extra.
+        </p>
+        <div className='flex items-center gap-2'>
+          <Label className='text-xs text-muted-foreground'>Ver empresa</Label>
+          <Select value={ciaFilter} onValueChange={setCiaFilter}>
+            <SelectTrigger className='h-8 w-44'><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value='todas'>Todas las empresas</SelectItem>
+              {companies.map((c) => (
+                <SelectItem key={c.no_cia} value={c.no_cia}>
+                  {c.no_cia} · {c.descripcion.slice(0, 20)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Badge variant='outline'>
+            {totalActivos} activo{totalActivos === 1 ? '' : 's'} en {ciasWithAccess.length} empresa{ciasWithAccess.length === 1 ? '' : 's'}
+          </Badge>
+        </div>
+      </div>
 
-      {/* Otorgar acceso a módulo */}
-      <Card className='border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20'>
-        <CardHeader className='pb-3'>
-          <div className='flex items-center justify-between'>
-            <div>
-              <CardTitle className='text-base'>Otorgar acceso a módulo</CardTitle>
-              <CardDescription>Selecciona empresa, módulo y punto de entrada</CardDescription>
-            </div>
-            {loadingModules && <Loader2 className='h-4 w-4 animate-spin text-muted-foreground' />}
-          </div>
-        </CardHeader>
-        <CardContent className='space-y-4'>
-          <div className='grid grid-cols-2 gap-3'>
-            <div>
-              <Label className='text-xs font-medium mb-1 block'>Empresa</Label>
-              <Select value={newCia} onValueChange={setNewCia}>
-                <SelectTrigger className='h-9'><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {companies.map((c) => (
-                    <SelectItem key={c.no_cia} value={c.no_cia}>
-                      {c.no_cia} · {c.descripcion.slice(0, 25)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className='text-xs font-medium mb-1 block'>Módulo</Label>
-              <Select value={newModulo} onValueChange={setNewModulo}
-                disabled={loadingModules || availableModules.length === 0}>
-                <SelectTrigger className='h-9'>
-                  <SelectValue placeholder={loadingModules ? 'Cargando...' : 'Selecciona módulo'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableModules.map((mod) => (
-                    <SelectItem key={mod} value={mod}>{MODULE_LABELS[mod] || mod.toUpperCase()}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className='text-xs font-medium mb-1 block'>Punto de entrada</Label>
-              <Select value={newPunto} onValueChange={setNewPunto}>
-                <SelectTrigger className='h-9'><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {PUNTOS.map((p) => <SelectItem key={p} value={p}>Punto {p}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className='text-xs font-medium mb-1 block'>Por defecto</Label>
-              <div className='flex items-center gap-2 h-9 px-3 border rounded bg-background'>
-                <Switch checked={newPorDefecto} onCheckedChange={setNewPorDefecto} id='dft' />
-                <Label htmlFor='dft' className='text-xs cursor-pointer'>
-                  {newPorDefecto ? 'Sí — módulo predeterminado' : 'No'}
-                </Label>
-              </div>
-            </div>
-          </div>
-          <Button className='w-full' onClick={grant}
-            disabled={working || !newModulo || !newCia || !newPunto}>
-            {working ? <Loader2 className='h-4 w-4 animate-spin mr-2' /> : <Plus className='h-4 w-4 mr-2' />}
-            Otorgar acceso al módulo
-          </Button>
-        </CardContent>
-      </Card>
+      {loading ? (
+        <div className='flex items-center justify-center py-16 text-muted-foreground'>
+          <Loader2 className='h-5 w-5 animate-spin' />
+        </div>
+      ) : (
+        <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-3'>
+          {MODULE_ORDER.map((modulo) => (
+            <ModuleCard
+              key={modulo}
+              username={user.username}
+              modulo={modulo}
+              companies={companies}
+              access={access.filter((a) => a.modulo === modulo)}
+              ciaFilter={ciaFilter}
+              onChanged={handleChanged}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
