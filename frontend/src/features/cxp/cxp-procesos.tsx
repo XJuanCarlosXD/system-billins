@@ -3,7 +3,7 @@
 //
 // Cada componente conecta a un endpoint ya existente en apps/legacy/cxp_views.py.
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
   Save,
@@ -1371,6 +1371,22 @@ export function CxpEntradaDocumentos({
         </Card>
       )}
 
+      {/* Misma logica al EDITAR un documento de debito ya existente (no solo
+          al crearlo): usa el tipo_docu/no_docu reales para excluir lo ya
+          aplicado (TCXP_REFEDOCU) y dejar aplicar contra pendientes sin
+          salir de esta pantalla, igual que el legado FCXP201. */}
+      {esDocDebito && modoEdicion && proveedor?.no_proveedor && siguiente && (
+        <AplicarDocRecienCreado
+          noCia={noCia}
+          punto={punto}
+          docInfo={{
+            tipoDocu, noDocu: siguiente,
+            proveedorNo: proveedor.no_proveedor, proveedorNombre: proveedor.nombre || proveedor.no_proveedor,
+          }}
+          onDone={() => {}}
+        />
+      )}
+
       <div className='flex justify-end gap-2'>
         {modoEdicion && (
           <Button variant='outline' onClick={() => navigate({ to: '/cxp/documentos' })} disabled={saving}>
@@ -1411,6 +1427,7 @@ function AplicarDocRecienCreado({
   onDone: () => void
 }) {
   const [montos, setMontos] = useState<Record<string, string>>(() => initialMontos || {})
+  const qc = useQueryClient()
 
   const q = useQuery({
     queryKey: ['cxp-aplicar-movimientos', noCia, punto, docInfo.proveedorNo, docInfo.tipoDocu, docInfo.noDocu],
@@ -1448,6 +1465,8 @@ function AplicarDocRecienCreado({
     }),
     onSuccess: (r: any) => {
       toast.success(`${docInfo.tipoDocu}-${docInfo.noDocu} aplicado contra ${r.aplicaciones.length} factura(s).`)
+      setMontos({})
+      qc.invalidateQueries({ queryKey: ['cxp-aplicar-movimientos'] })
       onDone()
     },
     onError: (e: any) => toast.error(e?.detail?.error || e?.message || 'No se pudo aplicar'),
