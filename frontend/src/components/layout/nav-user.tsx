@@ -42,8 +42,11 @@ export function NavUser({ user }: NavUserProps) {
   }, [])
 
   const username = me?.username ?? user.name
-  const role = me?.is_admin ? 'Administrador' : 'Usuario'
-  const initials = username.slice(0, 2).toUpperCase()
+  const displayName = me?.full_name || username
+  const role = me?.role || (me?.is_admin ? 'Administrador' : 'Usuario')
+  const initials = me?.full_name
+    ? me.full_name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase()
+    : username.slice(0, 2).toUpperCase()
 
   return (
     <>
@@ -83,7 +86,7 @@ export function NavUser({ user }: NavUserProps) {
                     </AvatarFallback>
                   </Avatar>
                   <div className='grid flex-1 text-start text-sm leading-tight'>
-                    <span className='truncate font-semibold'>{username}</span>
+                    <span className='truncate font-semibold'>{displayName}</span>
                     <span className='truncate text-xs'>{role}</span>
                   </div>
                 </div>

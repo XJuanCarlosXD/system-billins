@@ -60,12 +60,14 @@ export function Dashboard() {
         <div className='mb-4 flex items-center justify-between'>
           <div>
             <h1 className='flex items-center gap-2 text-2xl font-bold tracking-tight'>
-              Bienvenido{me ? `, ${me.username}` : ''}
+              Bienvenido{me ? `, ${me.full_name || me.username}` : ''}
               {me?.is_admin ? (
                 <Badge className='gap-1 align-middle'>
                   <ShieldCheck className='h-3 w-3' />
                   Administrador
                 </Badge>
+              ) : me?.role ? (
+                <Badge variant='secondary' className='align-middle'>{me.role}</Badge>
               ) : me ? (
                 <Badge variant='secondary' className='align-middle'>Usuario</Badge>
               ) : null}
