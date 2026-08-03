@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-const TIPOS_NCF = ['B01', 'B02', 'B03', 'B04', 'B11', 'B13', 'B14', 'B15', 'E31', 'E32']
+const TIPOS_NCF = ['B01', 'B02', 'B03', 'B04', 'B11', 'B13', 'B14', 'B15', 'E31', 'E32', 'E34']
 
 const ncfWidth = (pos: string): number => (pos.startsWith('E') ? 10 : 8)
 

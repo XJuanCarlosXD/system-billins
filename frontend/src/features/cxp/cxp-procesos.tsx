@@ -3,7 +3,7 @@
 //
 // Cada componente conecta a un endpoint ya existente en apps/legacy/cxp_views.py.
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
   Save,
@@ -64,8 +64,8 @@ const today = new Date().toISOString().slice(0, 10)
 const curYear = new Date().getFullYear()
 const curMonth = new Date().getMonth() + 1
 
-// NCF DGI real: posiciones_fijas_ncf (B01-B15 o E31/E32) || LPAD(ncf).
-// B01..B15 usan 8 dígitos (total 11); e-CF (E31/E32) usan 10 (total 13).
+// NCF DGI real: posiciones_fijas_ncf (B01-B15 o E31/E32/E34) || LPAD(ncf).
+// B01..B15 usan 8 dígitos (total 11); e-CF (E3X) usan 10 (total 13).
 // CODIGO_NCF/TIPO_NCF_FISCAL son legacy y suelen venir vacíos.
 const ncfWidth = (pos: string): number => (pos.startsWith('E') ? 10 : 8)
 const ncfDgi = (doc: any): string => {
@@ -868,14 +868,39 @@ export function CxpEntradaDocumentos({
   // como valor_original en TCXP_DOCUMENTO (mismo semántico que el legado).
   const totalDocumento = Number(form.valor_bienes || 0) + Number(form.valor_servicio || 0) + Number(impuesto || 0)
 
-  // Tras registrar una Nota de Débito/Ajuste Débito (saldo a favor del
-  // proveedor), MPILAR reportó dos veces que "no trae las facturas
-  // pendientes" -- el backend si las trae (endpoint aplicar-movimientos
-  // probado con datos reales), pero ella esperaba elegir la factura
-  // afectada en el mismo momento de registrar, no en una pantalla aparte
-  // (Aplicación de Movimientos). Se integra aqui: al guardar un ND/AD se
-  // muestran de una vez las facturas pendientes del mismo proveedor para
-  // aplicar sin salir de esta pantalla.
+  // Un documento es "de débito" (ND/AD/BD -- saldo a favor que se puede
+  // aplicar contra facturas) segun TCXP_TDOCU.TIPO_MOVI, no una lista fija
+  // de codigos: asi cubre BD (Balance Debito) igual que ND/AD.
+  const tipoMoviActual = (tiposDocu.find((t: any) => (t.codigo ?? t.tipo_docu) === tipoDocu)?.tipo_movi || '')
+    .toString().toUpperCase()
+  const esDocDebito = tipoMoviActual === 'D'
+
+  // El legado (FCXP201/FCXP501) muestra en la MISMA pantalla, apenas se
+  // elige el proveedor, que facturas/FP tiene pendientes -- para que el
+  // operador sepa de una vez que va a poder afectar antes de guardar. Sin
+  // esto el usuario no ve nada hasta despues de grabar el documento.
+  const pendientesPreview = useQuery({
+    queryKey: ['cxp-pendientes-preview', noCia, punto, proveedor?.no_proveedor],
+    queryFn: () => api.cxpAplicarMovimientosGet({
+      no_cia: noCia, punto, no_proveedor: proveedor.no_proveedor,
+    }),
+    enabled: esDocDebito && !modoEdicion && !!proveedor?.no_proveedor && !!punto,
+  })
+  // Montos que el operador ya va escribiendo en la vista previa, igual que
+  // en el grid del legado (No.Documento / Val.Pendiente / Monto). Se pasan
+  // como valor inicial a AplicarDocRecienCreado tras guardar, para no
+  // obligar a re-escribirlos.
+  const [montosPreview, setMontosPreview] = useState<Record<string, string>>({})
+  useEffect(() => { setMontosPreview({}) }, [proveedor?.no_proveedor])
+
+  // Tras registrar una Nota de Débito/Ajuste Débito/Balance Débito (saldo a
+  // favor del proveedor), MPILAR reportó dos veces que "no trae las
+  // facturas pendientes" -- el backend si las trae (endpoint
+  // aplicar-movimientos probado con datos reales), pero ella esperaba
+  // elegir la factura afectada en el mismo momento de registrar, no en una
+  // pantalla aparte (Aplicación de Movimientos). Se integra aqui: al
+  // guardar un documento de débito se muestran de una vez las facturas
+  // pendientes del mismo proveedor para aplicar sin salir de esta pantalla.
   const [docRecienCreado, setDocRecienCreado] = useState<{
     tipoDocu: string; noDocu: string; proveedorNo: string; proveedorNombre: string
   } | null>(null)
@@ -933,7 +958,7 @@ export function CxpEntradaDocumentos({
         ? ` — Retenido ITBIS RD$ ${Number(form.itbis_retenido || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })} / ISR RD$ ${Number(form.isr_retenido || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })}`
         : ''
       toast.success(`Documento ${res.no_docu} creado (ITBIS RD$ ${Number(impuesto || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })})${retTxt}`)
-      if (tipoDocu === 'ND' || tipoDocu === 'AD') {
+      if (esDocDebito) {
         setDocRecienCreado({
           tipoDocu, noDocu: res.no_docu,
           proveedorNo: proveedor.no_proveedor, proveedorNombre: proveedor.nombre,
@@ -1062,7 +1087,7 @@ export function CxpEntradaDocumentos({
                   <SelectValue placeholder='B0X' />
                 </SelectTrigger>
                 <SelectContent>
-                  {['B01','B02','B03','B04','B11','B13','B14','B15','E31','E32'].map((t) => (
+                  {['B01','B02','B03','B04','B11','B13','B14','B15','E31','E32','E34'].map((t) => (
                     <SelectItem key={t} value={t}>{t}</SelectItem>
                   ))}
                 </SelectContent>
@@ -1290,6 +1315,78 @@ export function CxpEntradaDocumentos({
           </div>
         </CardContent>
       </Card>
+
+      {esDocDebito && !modoEdicion && proveedor?.no_proveedor && (
+        <Card className='border-emerald-300'>
+          <CardHeader className='pb-2'>
+            <CardTitle className='text-sm'>
+              Facturas pendientes de {proveedor.nombre || proveedor.no_proveedor} a las que se podrá afectar este documento
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {pendientesPreview.isLoading ? (
+              <p className='text-sm text-muted-foreground'>Cargando facturas pendientes…</p>
+            ) : (pendientesPreview.data?.pendientes || []).length === 0 ? (
+              <p className='text-sm text-muted-foreground'>
+                {proveedor.nombre || proveedor.no_proveedor} no tiene facturas pendientes (créditos con saldo, sin pago bloqueado) por ahora.
+              </p>
+            ) : (
+              <div className='max-h-64 overflow-y-auto overflow-x-auto rounded border'>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>No. Documento</TableHead>
+                      <TableHead>Fecha</TableHead>
+                      <TableHead className='text-right'>Valor Pendiente</TableHead>
+                      <TableHead className='w-36 text-right'>Monto</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(pendientesPreview.data?.pendientes || []).map((d: any) => {
+                      const key = `${d.tipo_docu}|${d.no_docu}`
+                      return (
+                        <TableRow key={key}>
+                          <TableCell className='font-mono'>{d.tipo_docu}-{d.no_docu}</TableCell>
+                          <TableCell>{d.fecha}</TableCell>
+                          <TableCell className='text-right font-mono tabular-nums'>RD$ {fmt(d.saldo)}</TableCell>
+                          <TableCell>
+                            <Input
+                              type='number' step='0.01' min='0' className='h-9 text-right font-mono'
+                              placeholder='0.00'
+                              value={montosPreview[key] || ''}
+                              onChange={(e) => setMontosPreview((m) => ({ ...m, [key]: e.target.value }))}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+            <p className='mt-2 text-xs text-muted-foreground'>
+              Escribe aquí el monto a aplicar; al guardar el documento aparece el mismo listado con estos montos ya puestos, listo para confirmar la aplicación sin volver a escribirlos.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Misma logica al EDITAR un documento de debito ya existente (no solo
+          al crearlo): usa el tipo_docu/no_docu reales para excluir lo ya
+          aplicado (TCXP_REFEDOCU) y dejar aplicar contra pendientes sin
+          salir de esta pantalla, igual que el legado FCXP201. */}
+      {esDocDebito && modoEdicion && proveedor?.no_proveedor && siguiente && (
+        <AplicarDocRecienCreado
+          noCia={noCia}
+          punto={punto}
+          docInfo={{
+            tipoDocu, noDocu: siguiente,
+            proveedorNo: proveedor.no_proveedor, proveedorNombre: proveedor.nombre || proveedor.no_proveedor,
+          }}
+          onDone={() => {}}
+        />
+      )}
+
       <div className='flex justify-end gap-2'>
         {modoEdicion && (
           <Button variant='outline' onClick={() => navigate({ to: '/cxp/documentos' })} disabled={saving}>
@@ -1307,7 +1404,8 @@ export function CxpEntradaDocumentos({
           noCia={noCia}
           punto={punto}
           docInfo={docRecienCreado}
-          onDone={() => setDocRecienCreado(null)}
+          initialMontos={montosPreview}
+          onDone={() => { setDocRecienCreado(null); setMontosPreview({}) }}
         />
       )}
     </div>
@@ -1321,13 +1419,15 @@ export function CxpEntradaDocumentos({
 // reales; aquí el "saldo a favor" ya se conoce (el doc recién creado), asi
 // que se salta el paso de elegirlo.
 function AplicarDocRecienCreado({
-  noCia, punto, docInfo, onDone,
+  noCia, punto, docInfo, initialMontos, onDone,
 }: {
   noCia: string; punto: string
   docInfo: { tipoDocu: string; noDocu: string; proveedorNo: string; proveedorNombre: string }
+  initialMontos?: Record<string, string>
   onDone: () => void
 }) {
-  const [montos, setMontos] = useState<Record<string, string>>({})
+  const [montos, setMontos] = useState<Record<string, string>>(() => initialMontos || {})
+  const qc = useQueryClient()
 
   const q = useQuery({
     queryKey: ['cxp-aplicar-movimientos', noCia, punto, docInfo.proveedorNo, docInfo.tipoDocu, docInfo.noDocu],
@@ -1365,6 +1465,8 @@ function AplicarDocRecienCreado({
     }),
     onSuccess: (r: any) => {
       toast.success(`${docInfo.tipoDocu}-${docInfo.noDocu} aplicado contra ${r.aplicaciones.length} factura(s).`)
+      setMontos({})
+      qc.invalidateQueries({ queryKey: ['cxp-aplicar-movimientos'] })
       onDone()
     },
     onError: (e: any) => toast.error(e?.detail?.error || e?.message || 'No se pudo aplicar'),
