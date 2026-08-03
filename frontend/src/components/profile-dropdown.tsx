@@ -23,7 +23,9 @@ export function ProfileDropdown() {
     apiClient.me().then(setMe).catch(() => setMe(null))
   }, [])
 
-  const initials = (me?.username ?? '??').slice(0, 2).toUpperCase()
+  const initials = me?.full_name
+    ? me.full_name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase()
+    : (me?.username ?? '??').slice(0, 2).toUpperCase()
 
   return (
     <>
@@ -40,11 +42,14 @@ export function ProfileDropdown() {
           <DropdownMenuLabel className='font-normal'>
             <div className='flex flex-col gap-1.5'>
               <p className='text-sm leading-none font-medium'>
-                {me?.username ?? 'Cargando…'}
+                {me?.full_name || me?.username || 'Cargando…'}
               </p>
               <p className='text-xs leading-none text-muted-foreground'>
-                {me?.is_admin ? 'Administrador' : 'Usuario'}
+                {me?.role || (me?.is_admin ? 'Administrador' : 'Usuario')}
               </p>
+              {me?.full_name && (
+                <p className='text-[10px] leading-none text-muted-foreground font-mono'>{me.username}</p>
+              )}
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />

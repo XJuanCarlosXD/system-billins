@@ -324,7 +324,7 @@ export function CntPage() {
   const [periodMeta, setPeriodMeta] = useState<PeriodMeta | null>(null)
   const [ano, setAno] = useState(new Date().getFullYear())
   const [mes, setMes] = useState(new Date().getMonth() + 1)
-  const activeSection = search.section as SectionKey
+  const activeSection: SectionKey = (search.section as SectionKey) || 'reportes'
 
   useEffect(() => {
     if (!selectedCompany) return

@@ -29,6 +29,7 @@ const MODULE_LABELS: Record<string, string> = {
   acc: 'Caja Chica',
   cnt: 'Contabilidad',
   sdn: 'Nómina',
+  acf: 'Activos Fijos',
 }
 
 const FLAG_LABELS: Record<string, string> = {
@@ -212,6 +213,7 @@ export function UserAccessPage({
   const [loading, setLoading] = useState(false)
   const [working, setWorking] = useState(false)
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
+  const [ciaFilter, setCiaFilter] = useState<string>('todas')
 
   const [newCia, setNewCia] = useState(companies[0]?.no_cia ?? '01')
   const [newModulo, setNewModulo] = useState('')
@@ -269,6 +271,9 @@ export function UserAccessPage({
 
   const rowKey = (a: ModuleAccess) => `${a.modulo}-${a.no_cia}-${a.punto}`
 
+  const filteredAccess = ciaFilter === 'todas' ? access : access.filter((a) => a.no_cia === ciaFilter)
+  const ciasWithAccess = Array.from(new Set(access.map((a) => a.no_cia))).sort()
+
   return (
     <div className='space-y-4'>
       {/* Header con back */}
@@ -278,15 +283,31 @@ export function UserAccessPage({
         </Button>
         <div>
           <h2 className='text-xl font-semibold'>Permisos — {user.username}</h2>
-          <p className='text-sm text-muted-foreground'>Módulos, acciones y documentos asignados</p>
+          <p className='text-sm text-muted-foreground'>
+            {user.full_name || 'Sin nombre registrado'}{user.role ? ` · ${user.role}` : ''}
+          </p>
         </div>
       </div>
 
       {/* Módulos asignados */}
       <Card>
-        <CardHeader className='flex flex-row items-center justify-between pb-3'>
+        <CardHeader className='flex flex-row flex-wrap items-center justify-between gap-2 pb-3'>
           <CardTitle className='text-base'>Módulos asignados</CardTitle>
-          <Badge variant='outline'>{access.length} {access.length === 1 ? 'módulo' : 'módulos'}</Badge>
+          <div className='flex items-center gap-2'>
+            <Label className='text-xs text-muted-foreground'>Empresa</Label>
+            <Select value={ciaFilter} onValueChange={setCiaFilter}>
+              <SelectTrigger className='h-8 w-40'><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value='todas'>Todas las empresas</SelectItem>
+                {ciasWithAccess.map((cia) => (
+                  <SelectItem key={cia} value={cia}>
+                    {cia} · {companies.find((c) => c.no_cia === cia)?.descripcion?.slice(0, 20) || cia}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Badge variant='outline'>{filteredAccess.length} {filteredAccess.length === 1 ? 'módulo' : 'módulos'}</Badge>
+          </div>
         </CardHeader>
         <CardContent className='p-0'>
           <Table>
@@ -306,12 +327,12 @@ export function UserAccessPage({
                   <Loader2 className='inline h-4 w-4 animate-spin' />
                 </TableCell></TableRow>
               )}
-              {!loading && access.length === 0 && (
+              {!loading && filteredAccess.length === 0 && (
                 <TableRow><TableCell colSpan={6} className='text-center py-8 text-muted-foreground'>
-                  Sin módulos asignados
+                  {access.length === 0 ? 'Sin módulos asignados' : 'Ningún módulo asignado en esta empresa'}
                 </TableCell></TableRow>
               )}
-              {access.map((a) => {
+              {filteredAccess.map((a) => {
                 const key = rowKey(a)
                 const expanded = expandedRow === key
                 return (

@@ -10,18 +10,22 @@ import type { NavGroup, NavItem } from '@/components/layout/types'
 // Configuracion (title vacio, ver sidebar-data.ts) se salta a proposito:
 // entrar a un modulo desde el grid debe llevar a la pantalla de trabajo
 // del dia a dia, no a un catalogo de configuracion.
-function firstUrlOf(navGroups: NavGroup[]): string | null {
+type LaunchTarget = { url: string; search?: Record<string, unknown> }
+
+function firstUrlOf(navGroups: NavGroup[]): LaunchTarget | null {
   for (const group of navGroups) {
     if (group.title === '') continue
-    const url = firstUrlOfItems(group.items)
-    if (url) return url
+    const target = firstUrlOfItems(group.items)
+    if (target) return target
   }
   return null
 }
 
-function firstUrlOfItems(items: NavItem[]): string | null {
+function firstUrlOfItems(items: NavItem[]): LaunchTarget | null {
   for (const item of items) {
-    if ('url' in item && item.url) return String(item.url)
+    if ('url' in item && item.url) {
+      return { url: String(item.url), search: 'search' in item ? item.search : undefined }
+    }
     if ('items' in item && item.items) {
       const nested = firstUrlOfItems(item.items)
       if (nested) return nested
@@ -53,12 +57,13 @@ export function ModuleLauncher() {
     <div className='space-y-4'>
       <div className='grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4'>
         {visibleModules.map((m) => {
-          const url = firstUrlOf(m.navGroups)
-          if (!url) return null
+          const target = firstUrlOf(m.navGroups)
+          if (!target) return null
           return (
             <Link
               key={m.code}
-              to={url}
+              to={target.url}
+              search={target.search as never}
               className='flex flex-col items-center justify-center gap-2 rounded-lg border bg-card p-4 text-center transition-colors hover:bg-accent hover:text-accent-foreground'
             >
               <m.icon className='h-8 w-8' />

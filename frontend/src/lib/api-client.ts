@@ -45,6 +45,8 @@ export type Me = {
   username: string
   is_authenticated: boolean
   is_admin: boolean
+  full_name?: string | null
+  role?: string | null
   companies: Company[]
   modules: ModuleAccess[]
 }
@@ -56,6 +58,8 @@ export type AdminUser = {
   expiry_date: string | null
   created: string
   profile?: string
+  full_name?: string | null
+  role?: string | null
 }
 
 export type ModulePermissions = {
@@ -244,10 +248,10 @@ export const apiClient = {
     }>(`/admin/users/?${qs.toString()}`)
   },
 
-  adminCreateUser: (username: string, password: string) =>
+  adminCreateUser: (username: string, password: string, full_name?: string, role?: string) =>
     request<{ username: string; created: boolean }>('/admin/users/', {
       method: 'POST',
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, full_name, role }),
     }),
 
   adminGetUser: (username: string) =>
@@ -255,7 +259,7 @@ export const apiClient = {
 
   adminUpdateUser: (
     username: string,
-    payload: { new_password?: string; locked?: boolean },
+    payload: { new_password?: string; locked?: boolean; full_name?: string; role?: string },
   ) =>
     request<AdminUser>(`/admin/users/${encodeURIComponent(username)}/`, {
       method: 'PATCH',

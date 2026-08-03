@@ -56,6 +56,10 @@ class MeView(APIView):
             is_admin = users_repo.is_dba(username)
         except Exception:
             is_admin = False
+        try:
+            profile = users_repo.get_profile(username) or {}
+        except Exception:
+            profile = {}
         modules = permissions_repo.list_user_modules(username)
         all_companies = companies_repo.list_active()
         if is_admin:
@@ -68,6 +72,8 @@ class MeView(APIView):
             'username': username,
             'is_authenticated': True,
             'is_admin': is_admin,
+            'full_name': profile.get('full_name'),
+            'role': profile.get('role'),
             'companies': [c.to_dict() for c in companies],
             'modules': modules,
         })
@@ -223,12 +229,19 @@ class AdminUserListView(APIView):
     def post(self, request):
         username = request.data.get('username') or ''
         password = request.data.get('password') or ''
+        full_name = (request.data.get('full_name') or '').strip()
+        role = (request.data.get('role') or '').strip()
         try:
             res = services.create_user(username, password)
         except (services.InvalidPassword, services.InvalidUsername) as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({'detail': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        if full_name:
+            try:
+                users_repo.upsert_profile(res['username'], full_name, role, request.user.username)
+            except Exception:
+                pass  # el usuario Oracle ya se creó; el nombre/rol se puede completar luego
         return Response(res, status=status.HTTP_201_CREATED)
 
 
@@ -244,6 +257,8 @@ class AdminUserDetailView(APIView):
     def patch(self, request, username):
         new_password = request.data.get('new_password')
         locked = request.data.get('locked')
+        full_name = request.data.get('full_name')
+        role = request.data.get('role')
         # Salvaguarda: nadie puede bloquearse a sí mismo (te dejaría sin acceso al loguear de nuevo).
         if locked is True and username.upper() == request.user.username.upper():
             return Response(
@@ -255,6 +270,11 @@ class AdminUserDetailView(APIView):
                 services.change_password(username, new_password)
             if locked is not None:
                 services.set_account_status(username, bool(locked))
+            if full_name is not None or role is not None:
+                current = users_repo.get_profile(username) or {}
+                fname = full_name if full_name is not None else current.get('full_name')
+                frole = role if role is not None else current.get('role')
+                users_repo.upsert_profile(username, fname, frole, request.user.username)
         except (services.InvalidPassword, services.InvalidUsername) as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:

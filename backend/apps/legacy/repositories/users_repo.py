@@ -42,13 +42,48 @@ def get(username: str) -> LegacyUser | None:
 
 
 def get_detail(username: str) -> dict | None:
-    """Detalle desde dba_users (incluye status, fecha creación, lock)."""
+    """Detalle desde dba_users (incluye status, fecha creación, lock, nombre y rol)."""
     rows = client.fetch_dicts(
-        "SELECT username, account_status, lock_date, expiry_date, created, profile "
-        "FROM dba_users WHERE UPPER(username) = UPPER(:1)",
+        "SELECT d.username, d.account_status, d.lock_date, d.expiry_date, d.created, d.profile, "
+        "t.nombre AS full_name, t.descripcion AS role "
+        "FROM dba_users d LEFT JOIN MAN.TCSC t ON UPPER(t.usuario) = d.username "
+        "WHERE UPPER(d.username) = UPPER(:1)",
         [username],
     )
     return rows[0] if rows else None
+
+
+def get_profile(username: str) -> dict | None:
+    """Nombre completo y rol/puesto desde MAN.TCSC, si el usuario tiene registro ahí.
+
+    MAN.TCSC es la tabla legada de control de sistema: USUARIO + NOMBRE +
+    DESCRIPCION (puesto). No todo usuario Oracle tiene fila ahí (p.ej.
+    cuentas técnicas como RMMCONSULTING creadas sin ficha de empleado).
+    """
+    rows = client.fetch_dicts(
+        "SELECT nombre AS full_name, descripcion AS role "
+        "FROM MAN.TCSC WHERE UPPER(usuario) = UPPER(:1)",
+        [username],
+    )
+    return rows[0] if rows else None
+
+
+def upsert_profile(username: str, full_name: str, role: str | None, actor: str) -> dict:
+    """Crea o actualiza el nombre completo / rol del usuario en MAN.TCSC."""
+    u = username.upper()
+    full_name = (full_name or u).strip()[:40]
+    role = (role or '').strip()[:80] or None
+    updated = client.execute(
+        "UPDATE MAN.TCSC SET nombre = :1, descripcion = :2 WHERE UPPER(usuario) = UPPER(:3)",
+        [full_name, role, u],
+    )
+    if not updated:
+        client.execute(
+            "INSERT INTO MAN.TCSC (usuario, nombre, descripcion, creado_por, fecha, activo) "
+            "VALUES (:1, :2, :3, :4, SYSDATE, 'S')",
+            [u, full_name, role, (actor or u).upper()],
+        )
+    return {'username': u, 'full_name': full_name, 'role': role}
 
 
 _ORDER_FIELDS = {
@@ -103,15 +138,21 @@ def list_humans(
     offset = (page - 1) * page_size
     end = offset + page_size
     sql = f"""
-        SELECT username, account_status, lock_date, expiry_date, created
+        SELECT d.username, d.account_status, d.lock_date, d.expiry_date, d.created,
+               t.nombre AS full_name, t.descripcion AS role
           FROM (
-            SELECT u.*, ROWNUM rn FROM (
-              SELECT username, account_status, lock_date, expiry_date, created
-                FROM dba_users
-               WHERE {where}
-               ORDER BY {order_col} {order_dir}
-            ) u WHERE ROWNUM <= :{len(params) + 1}
-          ) WHERE rn > :{len(params) + 2}
+            SELECT username, account_status, lock_date, expiry_date, created
+              FROM (
+                SELECT u.*, ROWNUM rn FROM (
+                  SELECT username, account_status, lock_date, expiry_date, created
+                    FROM dba_users
+                   WHERE {where}
+                   ORDER BY {order_col} {order_dir}
+                ) u WHERE ROWNUM <= :{len(params) + 1}
+              ) WHERE rn > :{len(params) + 2}
+          ) d
+          LEFT JOIN MAN.TCSC t ON UPPER(t.usuario) = d.username
+         ORDER BY {order_col} {order_dir}
     """
     items = client.fetch_dicts(sql, params + [end, offset])
     total_pages = (total + page_size - 1) // page_size if page_size else 1

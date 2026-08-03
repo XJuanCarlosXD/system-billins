@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import {
   Loader2, Plus, Lock, Unlock, KeyRound, RefreshCw, ShieldAlert, ShieldCheck,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown,
+  Pencil,
 } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -41,17 +42,18 @@ function CreateUserDialog({ onCreated }: { onCreated: () => void }) {
   const [open, setOpen] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [role, setRole] = useState('')
   const [loading, setLoading] = useState(false)
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     try {
-      await regalGeneralApi.adminCreateUser(username.toUpperCase(), password)
+      await regalGeneralApi.adminCreateUser(username.toUpperCase(), password, fullName.trim(), role.trim())
       toast.success(`Usuario ${username.toUpperCase()} creado`)
       setOpen(false)
-      setUsername('')
-      setPassword('')
+      setUsername(''); setPassword(''); setFullName(''); setRole('')
       onCreated()
     } catch (e) {
       const msg = e instanceof ApiError ? e.detail?.detail || 'Error al crear' : 'Error de red'
@@ -84,9 +86,69 @@ function CreateUserDialog({ onCreated }: { onCreated: () => void }) {
             <Label htmlFor='p'>Contraseña inicial</Label>
             <Input id='p' type='text' value={password} onChange={(e) => setPassword(e.target.value)} required />
           </div>
+          <div className='grid gap-1.5'>
+            <Label htmlFor='fn'>Nombre completo</Label>
+            <Input id='fn' value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder='Ej. Juan Pérez' required />
+          </div>
+          <div className='grid gap-1.5'>
+            <Label htmlFor='rl'>Rol / puesto</Label>
+            <Input id='rl' value={role} onChange={(e) => setRole(e.target.value)} placeholder='Ej. Encargada de Contabilidad' />
+          </div>
           <DialogFooter>
             <Button type='submit' disabled={loading}>
               {loading ? <Loader2 className='animate-spin' /> : <Plus />} Crear
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function EditProfileDialog({ user, onDone }: { user: AdminUser; onDone: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [fullName, setFullName] = useState(user.full_name || '')
+  const [role, setRole] = useState(user.role || '')
+  const [loading, setLoading] = useState(false)
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      await regalGeneralApi.adminUpdateUser(user.username, { full_name: fullName.trim(), role: role.trim() })
+      toast.success(`Datos de ${user.username} actualizados`)
+      setOpen(false)
+      onDone()
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.detail?.detail || 'Error' : 'Error de red'
+      toast.error(msg)
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size='sm' variant='outline' title='Editar nombre y rol'>
+          <Pencil className='h-3.5 w-3.5' />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
+        <DialogHeader>
+          <DialogTitle>Nombre y rol — {user.username}</DialogTitle>
+          <DialogDescription>Se guarda en la ficha de empleado (MAN.TCSC) del sistema.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className='grid gap-3'>
+          <div className='grid gap-1.5'>
+            <Label htmlFor='efn'>Nombre completo</Label>
+            <Input id='efn' value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder='Ej. Juan Pérez' required />
+          </div>
+          <div className='grid gap-1.5'>
+            <Label htmlFor='erl'>Rol / puesto</Label>
+            <Input id='erl' value={role} onChange={(e) => setRole(e.target.value)} placeholder='Ej. Encargada de Contabilidad' />
+          </div>
+          <DialogFooter>
+            <Button type='submit' disabled={loading}>
+              {loading ? <Loader2 className='animate-spin' /> : <Pencil />} Guardar
             </Button>
           </DialogFooter>
         </form>
@@ -318,6 +380,8 @@ export function UsersAdminPage() {
                   <TableHead>
                     <SortHeader label='Usuario' field='username' current={orderBy} dir={direction} onChange={changeOrder} />
                   </TableHead>
+                  <TableHead>Nombre completo</TableHead>
+                  <TableHead>Rol / puesto</TableHead>
                   <TableHead>
                     <SortHeader label='Estado' field='status' current={orderBy} dir={direction} onChange={changeOrder} />
                   </TableHead>
@@ -329,18 +393,20 @@ export function UsersAdminPage() {
               </TableHeader>
               <TableBody>
                 {loading && users.length === 0 && (
-                  <TableRow><TableCell colSpan={4} className='text-center py-6'>
+                  <TableRow><TableCell colSpan={6} className='text-center py-6'>
                     <Loader2 className='inline h-4 w-4 animate-spin' />
                   </TableCell></TableRow>
                 )}
                 {!loading && users.length === 0 && (
-                  <TableRow><TableCell colSpan={4} className='text-center py-6 text-muted-foreground'>
+                  <TableRow><TableCell colSpan={6} className='text-center py-6 text-muted-foreground'>
                     Sin resultados
                   </TableCell></TableRow>
                 )}
                 {users.map((u) => (
                   <TableRow key={u.username}>
                     <TableCell className='font-mono'>{u.username}</TableCell>
+                    <TableCell>{u.full_name || <span className='text-muted-foreground italic'>sin nombre</span>}</TableCell>
+                    <TableCell className='text-sm text-muted-foreground'>{u.role || '—'}</TableCell>
                     <TableCell>{statusBadge(u.account_status)}</TableCell>
                     <TableCell className='text-xs text-muted-foreground'>
                       {u.created ? new Date(u.created).toLocaleDateString('es-DO') : '—'}
@@ -350,6 +416,7 @@ export function UsersAdminPage() {
                         onClick={() => setSelectedUser(u)}>
                         <ShieldCheck className='h-3.5 w-3.5' />
                       </Button>
+                      <EditProfileDialog user={u} onDone={load} />
                       <ResetPasswordDialog user={u} onDone={load} />
                       <Button
                         size='sm'
