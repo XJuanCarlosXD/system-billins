@@ -570,6 +570,10 @@ export function CxpEntradaDocumentos({
   // UPDATE en vez de INSERT cuando se manda no_docu.
   const [modoEdicion, setModoEdicion] = useState(false)
   const [cargandoEdicion, setCargandoEdicion] = useState(false)
+  // Solo se llena si el documento cargado es un credito (FP/FT/NC/AC): los
+  // debitos (ND/AD/BD) ya aplicados contra el, igual al grid "Doc(s) de
+  // Debito Afectado" que el legado (FCXP501) muestra al consultar/editar.
+  const [debitosAplicados, setDebitosAplicados] = useState<any[]>([])
   const [form, setForm] = useState({
     fecha: today,
     fecha_vence: '',
@@ -685,6 +689,7 @@ export function CxpEntradaDocumentos({
         }))
         setLineasContables(lineasCargadas.length > 0 ? lineasCargadas : [filaVacia()])
         setLineasTocadas(true)
+        setDebitosAplicados(doc.debitos_aplicados || [])
       })
       .catch((e: any) => toast.error(e?.detail?.error || e?.message || 'No se pudo cargar el documento'))
       .finally(() => setCargandoEdicion(false))
@@ -1385,6 +1390,40 @@ export function CxpEntradaDocumentos({
           }}
           onDone={() => {}}
         />
+      )}
+
+      {/* Direccion inversa: al editar/consultar un CREDITO (FP/FT/NC/AC),
+          mostrar que debitos (ND/AD/BD) ya se le aplicaron -- el grid
+          "Doc(s) de Debito Afectado" del legado FCXP501. Solo lectura: la
+          aplicacion se hace desde el lado del debito, no desde aqui. */}
+      {modoEdicion && !esDocDebito && debitosAplicados.length > 0 && (
+        <Card className='border-amber-300'>
+          <CardHeader className='pb-2'>
+            <CardTitle className='text-sm'>Documentos de Débito que afectaron esta factura</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className='max-h-64 overflow-y-auto overflow-x-auto rounded border'>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>No. Documento</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead className='text-right'>Monto Aplicado</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {debitosAplicados.map((d: any, i: number) => (
+                    <TableRow key={`${d.tipo_doc}|${d.no_doc}|${i}`}>
+                      <TableCell className='font-mono'>{d.tipo_doc}-{d.no_doc}</TableCell>
+                      <TableCell>{d.fecha}</TableCell>
+                      <TableCell className='text-right font-mono tabular-nums'>RD$ {fmt(d.monto)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <div className='flex justify-end gap-2'>

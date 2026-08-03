@@ -228,6 +228,11 @@ def get_documento(no_cia, punto, tipo_docu, no_docu):
     from .fat_repo import _compose_ncf_dgi
     doc['ncf_dgi'] = _compose_ncf_dgi(doc.get('posiciones_fijas_ncf'), doc.get('ncf'))
     doc['lineas'] = client.fetch_dicts(sql_lineas, [no_cia, punto, tipo_docu, no_docu])
+    # Si es un credito (FP/FT/NC/AC), traer que debitos (ND/AD/BD) ya se le
+    # aplicaron -- el grid "Doc(s) de Debito Afectado" que el legado
+    # (FCXP501) muestra al consultar/editar una factura.
+    if (doc.get('tipo_movi') or '').strip().upper() == 'C':
+        doc['debitos_aplicados'] = get_debitos_aplicados(no_cia, punto, tipo_docu, no_docu)
     return doc
 
 
@@ -313,7 +318,8 @@ def estado_cuenta(no_cia: str, no_proveedor: str, punto: str = ''):
 
 
 def get_documentos_afectados(no_cia, punto, tipo_docu, no_docu):
-    """TCXP_REFEDOCU + datos del documento referenciado (saldo actual)."""
+    """TCXP_REFEDOCU + datos del documento referenciado (saldo actual).
+    Direccion: dado un debito (ND/AD/BD), que creditos (facturas/FP) afecto."""
     sql = """
         SELECT r.tipo_refe AS tipo_doc, r.no_refe AS no_doc,
                r.no_cuota, r.monto,
@@ -326,6 +332,26 @@ def get_documentos_afectados(no_cia, punto, tipo_docu, no_docu):
          AND rd.tipo_docu=r.tipo_refe AND rd.no_docu=r.no_refe
         WHERE r.no_cia=:1 AND r.punto=:2 AND r.tipo_docu=:3 AND r.no_docu=:4
         ORDER BY r.no_cuota, r.tipo_refe, r.no_refe
+    """
+    return client.fetch_dicts(sql, [no_cia, punto, tipo_docu, no_docu])
+
+
+def get_debitos_aplicados(no_cia, punto, tipo_docu, no_docu):
+    """TCXP_REFEDOCU en sentido inverso: dado un credito (FP/FT/NC/AC), que
+    debitos (ND/AD/BD) se le aplicaron -- equivale al grid "Doc(s) de Debito
+    Afectado" que el legado (FCXP501) muestra al consultar una factura."""
+    sql = """
+        SELECT r.tipo_docu AS tipo_doc, r.no_docu AS no_doc,
+               r.no_cuota, r.monto,
+               TO_CHAR(rd.fecha,'YYYY-MM-DD') AS fecha,
+               NVL(rd.valor_original,0) AS valor_original,
+               NVL(rd.saldo,0) AS saldo
+        FROM CXP.TCXP_REFEDOCU r
+        LEFT JOIN CXP.TCXP_DOCUMENTO rd
+          ON rd.no_cia=r.no_cia AND rd.punto=r.punto
+         AND rd.tipo_docu=r.tipo_docu AND rd.no_docu=r.no_docu
+        WHERE r.no_cia=:1 AND r.punto=:2 AND r.tipo_refe=:3 AND r.no_refe=:4
+        ORDER BY r.no_cuota, r.tipo_docu, r.no_docu
     """
     return client.fetch_dicts(sql, [no_cia, punto, tipo_docu, no_docu])
 
