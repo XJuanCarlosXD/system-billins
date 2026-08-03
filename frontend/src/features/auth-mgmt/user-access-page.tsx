@@ -79,6 +79,7 @@ const FLAG_LABELS: Record<string, string> = {
   IMPRIMIR_MAYOR: 'Mayor', CONSULTAR_BALANCE: 'Consultar balance',
   ADMINISTRAR_NCF: 'Administrar NCF',
   CREAR_BENEFICIARIO: 'Crear beneficiario', CREAR_CAJA_CHICA: 'Crear caja chica',
+  ANULAR_EGRESO: 'Anular egreso', ANULAR_CHEQUE: 'Anular cheque',
 }
 
 const PUNTOS = ['01', '02', '03']

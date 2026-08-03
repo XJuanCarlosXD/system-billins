@@ -17,6 +17,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { XCircle, Search, AlertTriangle } from 'lucide-react'
+import { GuardedButton } from '@/components/access'
 
 const fmt = (n: any) =>
   Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -124,9 +125,9 @@ export function ChcAnular() {
                 <TableCell>{c.entregado === 'S' ? <Badge variant="outline">Sí</Badge> : '—'}</TableCell>
                 <TableCell>{c.conciliado === 'S' ? <Badge variant="outline">Sí</Badge> : '—'}</TableCell>
                 <TableCell className="text-right">
-                  <Button size="sm" variant="destructive" onClick={() => { setSelected(c); setMotivo('') }}>
+                  <GuardedButton modulo="chc" flag="ANULAR_CHEQUE" size="sm" variant="destructive" onClick={() => { setSelected(c); setMotivo('') }}>
                     <XCircle className="h-4 w-4 mr-1" /> Anular
-                  </Button>
+                  </GuardedButton>
                 </TableCell>
               </TableRow>
             ))}

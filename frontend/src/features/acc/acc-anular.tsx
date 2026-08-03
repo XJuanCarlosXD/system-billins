@@ -16,6 +16,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { AlertTriangle, Search, XCircle } from 'lucide-react'
+import { GuardedButton } from '@/components/access'
 
 const fmt = (n: any) =>
   Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -126,9 +127,9 @@ export function AccAnular() {
                 <TableCell className="text-xs">{d.desc_gasto || d.tipo_gasto}</TableCell>
                 <TableCell className="text-right tabular-nums">{fmt(d.valor)}</TableCell>
                 <TableCell className="text-right">
-                  <Button size="sm" variant="destructive" onClick={() => { setSelected(d); setMotivo('') }}>
+                  <GuardedButton modulo="acc" flag="ANULAR_EGRESO" size="sm" variant="destructive" onClick={() => { setSelected(d); setMotivo('') }}>
                     <XCircle className="h-4 w-4 mr-1" /> Anular
-                  </Button>
+                  </GuardedButton>
                 </TableCell>
               </TableRow>
             ))}
