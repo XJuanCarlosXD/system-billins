@@ -868,14 +868,33 @@ export function CxpEntradaDocumentos({
   // como valor_original en TCXP_DOCUMENTO (mismo semántico que el legado).
   const totalDocumento = Number(form.valor_bienes || 0) + Number(form.valor_servicio || 0) + Number(impuesto || 0)
 
-  // Tras registrar una Nota de Débito/Ajuste Débito (saldo a favor del
-  // proveedor), MPILAR reportó dos veces que "no trae las facturas
-  // pendientes" -- el backend si las trae (endpoint aplicar-movimientos
-  // probado con datos reales), pero ella esperaba elegir la factura
-  // afectada en el mismo momento de registrar, no en una pantalla aparte
-  // (Aplicación de Movimientos). Se integra aqui: al guardar un ND/AD se
-  // muestran de una vez las facturas pendientes del mismo proveedor para
-  // aplicar sin salir de esta pantalla.
+  // Un documento es "de débito" (ND/AD/BD -- saldo a favor que se puede
+  // aplicar contra facturas) segun TCXP_TDOCU.TIPO_MOVI, no una lista fija
+  // de codigos: asi cubre BD (Balance Debito) igual que ND/AD.
+  const tipoMoviActual = (tiposDocu.find((t: any) => (t.codigo ?? t.tipo_docu) === tipoDocu)?.tipo_movi || '')
+    .toString().toUpperCase()
+  const esDocDebito = tipoMoviActual === 'D'
+
+  // El legado (FCXP201/FCXP501) muestra en la MISMA pantalla, apenas se
+  // elige el proveedor, que facturas/FP tiene pendientes -- para que el
+  // operador sepa de una vez que va a poder afectar antes de guardar. Sin
+  // esto el usuario no ve nada hasta despues de grabar el documento.
+  const pendientesPreview = useQuery({
+    queryKey: ['cxp-pendientes-preview', noCia, punto, proveedor?.no_proveedor],
+    queryFn: () => api.cxpAplicarMovimientosGet({
+      no_cia: noCia, punto, no_proveedor: proveedor.no_proveedor,
+    }),
+    enabled: esDocDebito && !modoEdicion && !!proveedor?.no_proveedor && !!punto,
+  })
+
+  // Tras registrar una Nota de Débito/Ajuste Débito/Balance Débito (saldo a
+  // favor del proveedor), MPILAR reportó dos veces que "no trae las
+  // facturas pendientes" -- el backend si las trae (endpoint
+  // aplicar-movimientos probado con datos reales), pero ella esperaba
+  // elegir la factura afectada en el mismo momento de registrar, no en una
+  // pantalla aparte (Aplicación de Movimientos). Se integra aqui: al
+  // guardar un documento de débito se muestran de una vez las facturas
+  // pendientes del mismo proveedor para aplicar sin salir de esta pantalla.
   const [docRecienCreado, setDocRecienCreado] = useState<{
     tipoDocu: string; noDocu: string; proveedorNo: string; proveedorNombre: string
   } | null>(null)
@@ -933,7 +952,7 @@ export function CxpEntradaDocumentos({
         ? ` — Retenido ITBIS RD$ ${Number(form.itbis_retenido || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })} / ISR RD$ ${Number(form.isr_retenido || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })}`
         : ''
       toast.success(`Documento ${res.no_docu} creado (ITBIS RD$ ${Number(impuesto || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })})${retTxt}`)
-      if (tipoDocu === 'ND' || tipoDocu === 'AD') {
+      if (esDocDebito) {
         setDocRecienCreado({
           tipoDocu, noDocu: res.no_docu,
           proveedorNo: proveedor.no_proveedor, proveedorNombre: proveedor.nombre,
@@ -1290,6 +1309,50 @@ export function CxpEntradaDocumentos({
           </div>
         </CardContent>
       </Card>
+
+      {esDocDebito && !modoEdicion && proveedor?.no_proveedor && (
+        <Card className='border-emerald-300'>
+          <CardHeader className='pb-2'>
+            <CardTitle className='text-sm'>
+              Facturas pendientes de {proveedor.nombre || proveedor.no_proveedor} a las que se podrá afectar este documento
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {pendientesPreview.isLoading ? (
+              <p className='text-sm text-muted-foreground'>Cargando facturas pendientes…</p>
+            ) : (pendientesPreview.data?.pendientes || []).length === 0 ? (
+              <p className='text-sm text-muted-foreground'>
+                {proveedor.nombre || proveedor.no_proveedor} no tiene facturas pendientes (créditos con saldo, sin pago bloqueado) por ahora.
+              </p>
+            ) : (
+              <div className='max-h-64 overflow-y-auto overflow-x-auto rounded border'>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Factura</TableHead>
+                      <TableHead>Fecha</TableHead>
+                      <TableHead className='text-right'>Saldo</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(pendientesPreview.data?.pendientes || []).map((d: any) => (
+                      <TableRow key={`${d.tipo_docu}|${d.no_docu}`}>
+                        <TableCell className='font-mono'>{d.tipo_docu}-{d.no_docu}</TableCell>
+                        <TableCell>{d.fecha}</TableCell>
+                        <TableCell className='text-right font-mono tabular-nums'>RD$ {fmt(d.saldo)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+            <p className='mt-2 text-xs text-muted-foreground'>
+              Al guardar este documento podrás elegir montos y aplicarlo contra las facturas de arriba, sin salir de esta pantalla.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       <div className='flex justify-end gap-2'>
         {modoEdicion && (
           <Button variant='outline' onClick={() => navigate({ to: '/cxp/documentos' })} disabled={saving}>
