@@ -25,8 +25,12 @@ class LegacyOracleAuthBackend(BaseBackend):
             return None
         username_norm = username.strip().upper()
 
-        if not users_repo.exists(username_norm):
-            logger.info('legacy auth: user %s does not exist in Oracle', username_norm)
+        if not users_repo.is_human(username_norm):
+            # exists() no alcanza: tambien es cierto para los schemas dueños
+            # de las tablas del ERP (FAT, CXP, CNT, ...) y cuentas internas
+            # de Oracle. Solo puede loguear quien aparece en Administracion
+            # de Usuarios (misma poblacion que list_humans()).
+            logger.info('legacy auth: %s no es una cuenta humana administrable', username_norm)
             return None
 
         try:

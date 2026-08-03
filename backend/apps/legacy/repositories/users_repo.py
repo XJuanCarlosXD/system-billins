@@ -35,6 +35,27 @@ def exists(username: str) -> bool:
     return row is not None
 
 
+def is_human(username: str) -> bool:
+    """True si `username` es una cuenta humana administrable desde el panel
+    (la misma población que devuelve list_humans()).
+
+    Es el gate real de login: existir en Oracle (exists()) NO basta —
+    eso también es cierto para FAT, CXP, CNT y el resto de los schemas
+    dueños de las tablas del ERP, y para cuentas internas de Oracle
+    (oracle_maintained='Y'). Si alguien conociera la clave de uno de esos
+    schemas, antes de este chequeo igual conseguía una sesión Django válida
+    aunque el usuario nunca apareciera en Administración de Usuarios.
+    """
+    placeholders = ', '.join(f':{i}' for i in range(2, len(_NON_HUMAN) + 2))
+    row = client.fetch_one(
+        f"SELECT 1 FROM dba_users WHERE UPPER(username) = UPPER(:1) "
+        f"AND username NOT IN ({placeholders}) "
+        "AND NVL(oracle_maintained, 'N') != 'Y'",
+        [username] + list(_NON_HUMAN),
+    )
+    return row is not None
+
+
 def get(username: str) -> LegacyUser | None:
     if not exists(username):
         return None
