@@ -1742,6 +1742,16 @@ export const regalGeneralApi = {
   },
   sdnGetEmpleado: (noCia: string, noEmpleado: number) =>
     request<any>(`/sdn/empleados/${noCia}/${noEmpleado}/`),
+  sdnCatalogosEmpleado: (noCia: string) =>
+    request<any>(`/sdn/empleados/catalogos/?no_cia=${noCia}`),
+  sdnCrearEmpleado: (data: Record<string, unknown>) =>
+    request<any>('/sdn/empleados/', { method: 'POST', body: JSON.stringify(data) }),
+  sdnDarBajaEmpleado: (noCia: string, noEmpleado: number, fechaEgreso: string) =>
+    request<any>(`/sdn/empleados/${noCia}/${noEmpleado}/baja/`, {
+      method: 'POST', body: JSON.stringify({ fecha_egreso: fechaEgreso }),
+    }),
+  sdnReactivarEmpleado: (noCia: string, noEmpleado: number) =>
+    request<any>(`/sdn/empleados/${noCia}/${noEmpleado}/reactivar/`, { method: 'POST' }),
   sdnListNominas: (params: { no_cia: string; punto?: string; estado?: string; ano?: number; mes?: number; limit?: number }) => {
     const qs = new URLSearchParams(
       Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])

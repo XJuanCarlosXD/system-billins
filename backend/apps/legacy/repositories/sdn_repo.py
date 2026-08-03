@@ -291,6 +291,137 @@ def get_empleado(no_cia: str, no_empleado: int) -> dict | None:
     return rows[0] if rows else None
 
 
+# ---- Catálogos de apoyo para Mantenimiento de Empleados (Fsdn117) ----
+def list_puestos() -> list[dict]:
+    return client.fetch_dicts("SELECT no_puesto, descripcion FROM SDN.TSDN_PUESTO ORDER BY no_puesto")
+
+
+def list_tipos_empleado() -> list[dict]:
+    return client.fetch_dicts("SELECT no_tipo, descripcion FROM SDN.TSDN_TIPO_EMPLEADO ORDER BY no_tipo")
+
+
+def list_paises() -> list[dict]:
+    return client.fetch_dicts("SELECT no_pais, descripcion FROM SDN.TSDN_PAIS ORDER BY no_pais")
+
+
+def list_profesiones() -> list[dict]:
+    return client.fetch_dicts("SELECT no_profesion, descripcion FROM SDN.TSDN_PROFESION ORDER BY no_profesion")
+
+
+def list_centros_trabajo() -> list[dict]:
+    return client.fetch_dicts("SELECT no_centro, descripcion FROM SDN.TSDN_CENTRO_TRABAJO ORDER BY no_centro")
+
+
+def empleado_catalogos(no_cia: str) -> dict:
+    return {
+        'nominas': client.fetch_dicts(
+            "SELECT no_cia, punto, nomina, descripcion FROM SDN.TSDN_NOMINA "
+            "WHERE no_cia=:1 ORDER BY punto, nomina",
+            [no_cia],
+        ) if no_cia else [],
+        'gerencias': list_gerencias(),
+        'areas': list_areas(),
+        'deptos': list_deptos(),
+        'centros_trabajo': list_centros_trabajo(),
+        'profesiones': list_profesiones(),
+        'puestos': list_puestos(),
+        'tipos_empleado': list_tipos_empleado(),
+        'paises': list_paises(),
+    }
+
+
+_REQUIRED_EMPLEADO = [
+    'no_cia', 'punto', 'nomina', 'centro_trabajo', 'nombre', 'apellido', 'cedula',
+    'pais', 'ciudad', 'barrio', 'direccion', 'fecha_ingreso', 'fecha_nacimiento',
+    'no_gerencia', 'no_area', 'no_depto', 'no_profesion', 'no_puesto', 'no_tipo',
+]
+
+
+def crear_empleado(data: dict, usuario: str) -> dict:
+    faltantes = [f for f in _REQUIRED_EMPLEADO if not data.get(f)]
+    if faltantes:
+        raise ValueError(f'faltan campos requeridos: {", ".join(faltantes)}')
+
+    no_cia = str(data['no_cia']).zfill(2)
+    punto = str(data['punto']).zfill(2)
+    if not _exists(
+        "SELECT 1 FROM SDN.TSDN_NOMINA WHERE no_cia=:1 AND punto=:2 AND nomina=:3",
+        [no_cia, punto, data['nomina']],
+    ):
+        raise ValueError('la nómina indicada no existe para esa compañía/sucursal')
+
+    row = client.fetch_one("SELECT NVL(prox_empleado,0) FROM SDN.TSDN_CIAS WHERE no_cia=:1", [no_cia])
+    if not row:
+        raise ValueError(f'compañía {no_cia} no está configurada en Nómina (TSDN_CIAS)')
+    no_empleado = int(row[0])
+    client.execute(
+        "UPDATE SDN.TSDN_CIAS SET prox_empleado=NVL(prox_empleado,0)+1 WHERE no_cia=:1",
+        [no_cia],
+    )
+
+    client.execute(
+        "INSERT INTO SDN.TSDN_EMPLEADO ("
+        "  no_cia, no_empleado, punto, nomina, centro_trabajo,"
+        "  nombre, apellido, apodo, cedula, pais, ciudad, barrio, direccion,"
+        "  email1, telefono1, celular,"
+        "  fecha_solicitud, fecha_digitacion, fecha_ingreso, fecha_nacimiento,"
+        "  empleado_fijo, estado_civil, sexo,"
+        "  no_profesion, no_puesto, no_gerencia, no_area, no_depto,"
+        "  no_tipo, tipo_cuenta_banco, cuenta_banco, salario_mensual, usuario"
+        ") VALUES ("
+        "  :1, :2, :3, :4, :5,"
+        "  :6, :7, :8, :9, :10, :11, :12, :13,"
+        "  :14, :15, :16,"
+        "  SYSDATE, SYSDATE, TO_DATE(:17,'YYYY-MM-DD'), TO_DATE(:18,'YYYY-MM-DD'),"
+        "  :19, :20, :21,"
+        "  :22, :23, :24, :25, :26,"
+        "  :27, :28, :29, :30, :31"
+        ")",
+        [
+            no_cia, no_empleado, punto, data['nomina'], data['centro_trabajo'],
+            data['nombre'][:25], data['apellido'][:25], (data.get('apodo') or None),
+            data['cedula'][:13], data['pais'], data['ciudad'], data['barrio'], data['direccion'][:60],
+            (data.get('email1') or None), (data.get('telefono1') or None), (data.get('celular') or None),
+            data['fecha_ingreso'], data['fecha_nacimiento'],
+            data.get('empleado_fijo') or 'S', data.get('estado_civil') or 'C', data.get('sexo') or 'M',
+            data['no_profesion'], data['no_puesto'], data['no_gerencia'], data['no_area'], data['no_depto'],
+            data['no_tipo'], data.get('tipo_cuenta_banco') or '3', (data.get('cuenta_banco') or None),
+            float(data.get('salario_mensual') or 0), usuario,
+        ],
+    )
+    return get_empleado(no_cia, no_empleado)
+
+
+def dar_baja_empleado(no_cia: str, no_empleado: int, fecha_egreso: str | None) -> dict:
+    if not fecha_egreso:
+        raise ValueError('fecha_egreso es requerida')
+    if not _exists(
+        "SELECT 1 FROM SDN.TSDN_EMPLEADO WHERE no_cia=:1 AND no_empleado=:2 AND fecha_egreso IS NULL",
+        [no_cia, int(no_empleado)],
+    ):
+        raise ValueError('el empleado no existe o ya está dado de baja')
+    client.execute(
+        "UPDATE SDN.TSDN_EMPLEADO SET fecha_egreso=TO_DATE(:1,'YYYY-MM-DD') "
+        "WHERE no_cia=:2 AND no_empleado=:3 AND fecha_egreso IS NULL",
+        [fecha_egreso, no_cia, int(no_empleado)],
+    )
+    return get_empleado(no_cia, no_empleado)
+
+
+def reactivar_empleado(no_cia: str, no_empleado: int) -> dict:
+    if not _exists(
+        "SELECT 1 FROM SDN.TSDN_EMPLEADO WHERE no_cia=:1 AND no_empleado=:2 AND fecha_egreso IS NOT NULL",
+        [no_cia, int(no_empleado)],
+    ):
+        raise ValueError('el empleado no existe o ya está activo')
+    client.execute(
+        "UPDATE SDN.TSDN_EMPLEADO SET fecha_egreso=NULL "
+        "WHERE no_cia=:1 AND no_empleado=:2",
+        [no_cia, int(no_empleado)],
+    )
+    return get_empleado(no_cia, no_empleado)
+
+
 # ---- Nóminas ----
 def list_nominas(no_cia: str, punto: str | None = None,
                  estado: str | None = None,

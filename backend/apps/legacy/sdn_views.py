@@ -137,8 +137,17 @@ def sdn_deducciones(request):
 
 @login_required
 @csrf_exempt
-@require_http_methods(['GET'])
+@require_http_methods(['GET', 'POST'])
 def sdn_empleados(request):
+    if request.method == 'POST':
+        data = json.loads(request.body or '{}')
+        try:
+            row = sdn_repo.crear_empleado(data, request.user.username)
+            return JsonResponse(row, status=201)
+        except ValueError as e:
+            return JsonResponse({'error': str(e)}, status=400)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
     activos = request.GET.get('activos', '1') in ('1', 'true', 'S', 'y')
     rows = sdn_repo.list_empleados(
         no_cia=request.GET.get('no_cia', ''),
@@ -149,6 +158,40 @@ def sdn_empleados(request):
         limit=int(request.GET.get('limit', 200)),
     )
     return JsonResponse(rows, safe=False)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
+def sdn_empleado_catalogos(request):
+    return JsonResponse(sdn_repo.empleado_catalogos(request.GET.get('no_cia', '')))
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def sdn_empleado_baja(request, no_cia, no_empleado):
+    data = json.loads(request.body or '{}')
+    try:
+        row = sdn_repo.dar_baja_empleado(no_cia, no_empleado, data.get('fecha_egreso'))
+        return JsonResponse(row)
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def sdn_empleado_reactivar(request, no_cia, no_empleado):
+    try:
+        row = sdn_repo.reactivar_empleado(no_cia, no_empleado)
+        return JsonResponse(row)
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 @login_required
