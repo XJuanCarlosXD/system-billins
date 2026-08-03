@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { Banknote, CreditCard, HandCoins, RefreshCw, Wallet } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { Badge } from '@/components/ui/badge'
@@ -34,9 +36,11 @@ function categoriaPago(forma: string): 'Efectivo' | 'Cheque' | 'Otros' {
 }
 
 export function CajeroFat({ noCia, punto }: Props) {
+  const navigate = useNavigate()
   const [fecha, setFecha] = useState(TODAY)
   const [selected, setSelected] = useState<FacturaDetalleData | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const [pagoLoadingKey, setPagoLoadingKey] = useState<string | null>(null)
 
   // Registrar/corregir cobro
   const [cobrarTarget, setCobrarTarget] = useState<FacturaPendiente | null>(null)
@@ -93,6 +97,31 @@ export function CajeroFat({ noCia, punto }: Props) {
     setCobrarTarget(row)
     setCobrarRecibido(row.valor_recibido > 0 ? String(row.valor_recibido) : '')
     setCobrarError('')
+  }
+
+  // Factura a credito (FC): en vez de "Cobrar" (que solo corrige recibido/
+  // vuelto en TFAT_FACTURA), lleva al cajero a Entrada de Transacciones CxC
+  // (Fcxc201) con el cliente y la factura ya precargados para grabar el RI
+  // que cierra la cuenta -- ahi el cajero solo confirma forma de pago y graba.
+  const irARegistrarPago = async (e: React.MouseEvent, row: FacturaPendiente) => {
+    e.stopPropagation()
+    const key = `${row.tipo_factura}-${row.no_factura}`
+    setPagoLoadingKey(key)
+    try {
+      const d: any = await regalGeneralApi.fatGetFactura(noCia, punto, row.tipo_factura, row.no_factura)
+      navigate({
+        to: '/cxc/transacciones' as never,
+        search: {
+          pref_cliente: String(d?.no_cliente ?? ''),
+          pref_tipo: row.tipo_factura,
+          pref_no: row.no_factura,
+        } as never,
+      })
+    } catch (err: any) {
+      toast.error(err?.message ?? 'No se pudo abrir la factura para registrar el pago.')
+    } finally {
+      setPagoLoadingKey(null)
+    }
   }
 
   const cobrarRecibidoNum = Number((cobrarRecibido || '0').replace(',', '.')) || 0
@@ -233,12 +262,22 @@ export function CajeroFat({ noCia, punto }: Props) {
                 </TableCell>
                 <TableCell>
                   {!anulada && (
-                    <Button
-                      variant='ghost' size='sm' className='h-7 px-2 text-xs'
-                      onClick={(e) => openCobrar(e, f)}
-                    >
-                      Cobrar
-                    </Button>
+                    f.tipo_factura === 'FC' ? (
+                      <Button
+                        variant='ghost' size='sm' className='h-7 px-2 text-xs'
+                        disabled={pagoLoadingKey === `${f.tipo_factura}-${f.no_factura}`}
+                        onClick={(e) => irARegistrarPago(e, f)}
+                      >
+                        {pagoLoadingKey === `${f.tipo_factura}-${f.no_factura}` ? 'Abriendo…' : 'Registrar Pago'}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant='ghost' size='sm' className='h-7 px-2 text-xs'
+                        onClick={(e) => openCobrar(e, f)}
+                      >
+                        Cobrar
+                      </Button>
+                    )
                   )}
                 </TableCell>
               </TableRow>

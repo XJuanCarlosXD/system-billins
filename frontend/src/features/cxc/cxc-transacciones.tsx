@@ -10,7 +10,7 @@
 //             — auto-generada del tipo_docu + cuenta del cliente
 //
 // El usuario NO selecciona cuenta: viene de TCXC_TDOCU (FCXC104) por tipo_docu.
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Save, Printer, AlertCircle, CheckCircle2 } from 'lucide-react'
@@ -29,7 +29,12 @@ import {
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { ClientePicker } from '@/components/cxc/cliente-picker'
 
-interface P { noCia: string; punto?: string }
+interface P {
+  noCia: string
+  punto?: string
+  /** Precarga desde Vista de Cajero (FAT) para cerrar el pago de una factura a credito. */
+  prefill?: { noCliente: string; tipoRef: string; noRef: string }
+}
 
 type FacturaPendiente = {
   punto: string
@@ -62,7 +67,7 @@ const TIPO_TRANS_LABEL: Record<string, string> = {
 }
 const TIPO_MOVI_LABEL = (v: string) => (v || '').toUpperCase() === 'C' ? 'Crédito' : 'Débito'
 
-export function CxcTransacciones({ noCia, punto = '01' }: P) {
+export function CxcTransacciones({ noCia, punto = '01', prefill }: P) {
   const qc = useQueryClient()
   const today = new Date().toISOString().slice(0, 10)
 
@@ -151,6 +156,45 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
     enabled: !!cliente,
   })
   const pendientes: FacturaPendiente[] = (pendientesQ.data as any[]) ?? []
+
+  // ── Precarga desde Vista de Cajero ────────────────────────────────
+  // Paso 1: en cuanto cargan los tipos de documento, elige el Recibo de
+  // Ingreso (tipo_transaccion='I', prefiere codigo 'RI'), llena el detalle
+  // y busca el cliente exacto por codigo (mismo lookup que ClientePicker).
+  const prefillSetupRef = useRef(false)
+  useEffect(() => {
+    if (!prefill || prefillSetupRef.current || tdocusQ.isLoading) return
+    prefillSetupRef.current = true
+    const ri = tdocusActivos.find((t: any) => t.tipo_doc === 'RI' && (t.tipo_transaccion || '').toUpperCase() === 'I')
+      || tdocusActivos.find((t: any) => (t.tipo_transaccion || '').toUpperCase() === 'I')
+    if (ri) setTipoDoc(ri.tipo_doc)
+    else toast.error('No hay un tipo de documento de Recibo de Ingreso activo configurado.')
+    setDetalle(`Pago factura ${prefill.tipoRef}-${prefill.noRef}`)
+    regalGeneralApi.cxcListClientes(noCia, prefill.noCliente, 1)
+      .then((res: any) => {
+        const items = (res?.items as any[]) || []
+        const exact = items.find((c) => String(c.no_cliente).trim() === String(prefill.noCliente).trim())
+        if (exact) setCliente(exact)
+        else toast.error(`Cliente ${prefill.noCliente} no encontrado para precargar el pago.`)
+      })
+      .catch(() => toast.error('No se pudo cargar el cliente para precargar el pago.'))
+  }, [prefill, tdocusActivos, tdocusQ.isLoading, noCia])
+
+  // Paso 2: una vez cargan las facturas pendientes del cliente precargado,
+  // marca la factura de origen aplicada por su saldo total (editable).
+  const prefillApplyRef = useRef(false)
+  useEffect(() => {
+    if (!prefill || prefillApplyRef.current) return
+    if (!cliente || String(cliente.no_cliente).trim() !== String(prefill.noCliente).trim()) return
+    if (pendientesQ.isLoading) return
+    prefillApplyRef.current = true
+    const match = pendientes.find(p => p.tipo_doc === prefill.tipoRef && p.no_doc === prefill.noRef)
+    if (match) {
+      setAplicaciones(prev => ({ ...prev, [`${match.tipo_doc}-${match.no_doc}`]: match.saldo }))
+    } else {
+      toast.info('La factura ya no tiene saldo pendiente en CxC (puede que ya este pagada).')
+    }
+  }, [prefill, cliente, pendientesQ.isLoading, pendientes])
 
   // ── Cálculos ──────────────────────────────────────────────────────
   const totalAplicado = useMemo(
@@ -359,6 +403,11 @@ export function CxcTransacciones({ noCia, punto = '01' }: P) {
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              {prefill && (
+                <Badge className="bg-blue-600 text-xs">
+                  Prellenado desde Vista de Cajero: {prefill.tipoRef}-{prefill.noRef}
+                </Badge>
+              )}
               {puntoQ.data && (
                 <Badge variant="outline" className="text-xs">
                   Período: <span className="font-semibold ml-1">{periodoMesAno}</span>
