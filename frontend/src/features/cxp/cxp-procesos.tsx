@@ -64,8 +64,8 @@ const today = new Date().toISOString().slice(0, 10)
 const curYear = new Date().getFullYear()
 const curMonth = new Date().getMonth() + 1
 
-// NCF DGI real: posiciones_fijas_ncf (B01-B15 o E31/E32) || LPAD(ncf).
-// B01..B15 usan 8 dígitos (total 11); e-CF (E31/E32) usan 10 (total 13).
+// NCF DGI real: posiciones_fijas_ncf (B01-B15 o E31/E32/E34) || LPAD(ncf).
+// B01..B15 usan 8 dígitos (total 11); e-CF (E3X) usan 10 (total 13).
 // CODIGO_NCF/TIPO_NCF_FISCAL son legacy y suelen venir vacíos.
 const ncfWidth = (pos: string): number => (pos.startsWith('E') ? 10 : 8)
 const ncfDgi = (doc: any): string => {
@@ -886,6 +886,12 @@ export function CxpEntradaDocumentos({
     }),
     enabled: esDocDebito && !modoEdicion && !!proveedor?.no_proveedor && !!punto,
   })
+  // Montos que el operador ya va escribiendo en la vista previa, igual que
+  // en el grid del legado (No.Documento / Val.Pendiente / Monto). Se pasan
+  // como valor inicial a AplicarDocRecienCreado tras guardar, para no
+  // obligar a re-escribirlos.
+  const [montosPreview, setMontosPreview] = useState<Record<string, string>>({})
+  useEffect(() => { setMontosPreview({}) }, [proveedor?.no_proveedor])
 
   // Tras registrar una Nota de Débito/Ajuste Débito/Balance Débito (saldo a
   // favor del proveedor), MPILAR reportó dos veces que "no trae las
@@ -1081,7 +1087,7 @@ export function CxpEntradaDocumentos({
                   <SelectValue placeholder='B0X' />
                 </SelectTrigger>
                 <SelectContent>
-                  {['B01','B02','B03','B04','B11','B13','B14','B15','E31','E32'].map((t) => (
+                  {['B01','B02','B03','B04','B11','B13','B14','B15','E31','E32','E34'].map((t) => (
                     <SelectItem key={t} value={t}>{t}</SelectItem>
                   ))}
                 </SelectContent>
@@ -1329,25 +1335,37 @@ export function CxpEntradaDocumentos({
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Factura</TableHead>
+                      <TableHead>No. Documento</TableHead>
                       <TableHead>Fecha</TableHead>
-                      <TableHead className='text-right'>Saldo</TableHead>
+                      <TableHead className='text-right'>Valor Pendiente</TableHead>
+                      <TableHead className='w-36 text-right'>Monto</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(pendientesPreview.data?.pendientes || []).map((d: any) => (
-                      <TableRow key={`${d.tipo_docu}|${d.no_docu}`}>
-                        <TableCell className='font-mono'>{d.tipo_docu}-{d.no_docu}</TableCell>
-                        <TableCell>{d.fecha}</TableCell>
-                        <TableCell className='text-right font-mono tabular-nums'>RD$ {fmt(d.saldo)}</TableCell>
-                      </TableRow>
-                    ))}
+                    {(pendientesPreview.data?.pendientes || []).map((d: any) => {
+                      const key = `${d.tipo_docu}|${d.no_docu}`
+                      return (
+                        <TableRow key={key}>
+                          <TableCell className='font-mono'>{d.tipo_docu}-{d.no_docu}</TableCell>
+                          <TableCell>{d.fecha}</TableCell>
+                          <TableCell className='text-right font-mono tabular-nums'>RD$ {fmt(d.saldo)}</TableCell>
+                          <TableCell>
+                            <Input
+                              type='number' step='0.01' min='0' className='h-9 text-right font-mono'
+                              placeholder='0.00'
+                              value={montosPreview[key] || ''}
+                              onChange={(e) => setMontosPreview((m) => ({ ...m, [key]: e.target.value }))}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </div>
             )}
             <p className='mt-2 text-xs text-muted-foreground'>
-              Al guardar este documento podrás elegir montos y aplicarlo contra las facturas de arriba, sin salir de esta pantalla.
+              Escribe aquí el monto a aplicar; al guardar el documento aparece el mismo listado con estos montos ya puestos, listo para confirmar la aplicación sin volver a escribirlos.
             </p>
           </CardContent>
         </Card>
@@ -1370,7 +1388,8 @@ export function CxpEntradaDocumentos({
           noCia={noCia}
           punto={punto}
           docInfo={docRecienCreado}
-          onDone={() => setDocRecienCreado(null)}
+          initialMontos={montosPreview}
+          onDone={() => { setDocRecienCreado(null); setMontosPreview({}) }}
         />
       )}
     </div>
@@ -1384,13 +1403,14 @@ export function CxpEntradaDocumentos({
 // reales; aquí el "saldo a favor" ya se conoce (el doc recién creado), asi
 // que se salta el paso de elegirlo.
 function AplicarDocRecienCreado({
-  noCia, punto, docInfo, onDone,
+  noCia, punto, docInfo, initialMontos, onDone,
 }: {
   noCia: string; punto: string
   docInfo: { tipoDocu: string; noDocu: string; proveedorNo: string; proveedorNombre: string }
+  initialMontos?: Record<string, string>
   onDone: () => void
 }) {
-  const [montos, setMontos] = useState<Record<string, string>>({})
+  const [montos, setMontos] = useState<Record<string, string>>(() => initialMontos || {})
 
   const q = useQuery({
     queryKey: ['cxp-aplicar-movimientos', noCia, punto, docInfo.proveedorNo, docInfo.tipoDocu, docInfo.noDocu],
