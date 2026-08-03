@@ -1521,6 +1521,11 @@ export function CxpReversar({ noCia, punto = '' }: P) {
   }
 
   const st = doc ? STATUS_DOC[doc.status] || { label: doc.status, variant: 'secondary' } : null
+  // El reverso genera automaticamente una Nota de Debito (si el doc original
+  // es de tipo_movi='C') o Nota de Credito (si es 'D') -- ver reversar_documento()
+  // en cxp_repo.py. El permiso real a validar es el del tipo resultante, no el
+  // del documento original.
+  const resultingAjusteTipo = doc ? (String(doc.tipo_movi).toUpperCase() === 'C' ? 'ND' : 'NC') : undefined
 
   return (
     <div className='space-y-4 p-4 md:p-6'>
@@ -1598,14 +1603,18 @@ export function CxpReversar({ noCia, punto = '' }: P) {
               </div>
             </div>
             <div className='flex justify-end'>
-              <Button
+              <GuardedButton
+                modulo='cxp'
+                docType={resultingAjusteTipo}
+                noCia={noCia}
+                punto={punto}
                 variant='destructive'
                 onClick={() => setConfirming(true)}
                 disabled={busy || doc.status === 'R' || doc.status === 'C'}
               >
                 <RotateCcw className='mr-2 h-4 w-4' />
                 Reversar
-              </Button>
+              </GuardedButton>
             </div>
             {doc.status === 'C' && (
               <p className='text-right text-xs text-muted-foreground'>

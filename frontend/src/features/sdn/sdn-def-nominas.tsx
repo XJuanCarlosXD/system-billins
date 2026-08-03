@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { api } from '@/lib/regal-general-api'
 import { useCompany } from '@/hooks/use-company'
 import { Button } from '@/components/ui/button'
+import { GuardedButton } from '@/components/access'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
@@ -271,10 +272,11 @@ export function SdnDefNominas() {
                             disabled={n.calculo_nomina === 'S' || n.estado !== 'A'}>
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button size="sm" variant="destructive" onClick={() => setParaAnular(n)}
+                    <GuardedButton modulo="sdn" flag="CREAR_NOMINA" noCia={n.no_cia} punto={n.punto}
+                            size="sm" variant="destructive" onClick={() => setParaAnular(n)}
                             disabled={n.calculo_nomina === 'S' || n.estado !== 'A'}>
                       <XCircle className="h-4 w-4" />
-                    </Button>
+                    </GuardedButton>
                   </TableCell>
                 </TableRow>
               ))
