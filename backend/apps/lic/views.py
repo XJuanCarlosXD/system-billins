@@ -3,6 +3,7 @@ import json
 import logging
 import threading
 from datetime import timedelta
+from functools import wraps
 from pathlib import Path
 
 from django.conf import settings
@@ -14,7 +15,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from apps.fe import crypto
-from apps.legacy.repositories import lic_repo
+from apps.legacy.repositories import lic_repo, permissions_repo, users_repo
 from apps.lic.models import OfertaJob, ScrapeJob
 from apps.lic.services import pdf_rubros
 from apps.lic.services.analisis_licitacion import AnalisisError, ejecutar_analisis_oportunidad
@@ -24,6 +25,27 @@ from apps.lic.services.resumen_documento import resumir_documento
 from apps.lic.services.scraper import LicitacionesScraper, LoginError
 
 logger = logging.getLogger(__name__)
+
+
+def require_lic_access(view_func):
+    """@login_required valida sesion, no modulo -- sin esto cualquier usuario
+    logueado podia pegarle a la API de LIC aunque el panel de permisos le
+    dijera que no tiene el modulo (RequireModule en el frontend es solo
+    cosmetico si el backend no lo valida tambien)."""
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        username = getattr(request.user, 'username', '') or ''
+        try:
+            if users_repo.is_dba(username):
+                return view_func(request, *args, **kwargs)
+            modules = permissions_repo.list_user_modules(username)
+        except Exception:
+            logger.exception('require_lic_access: fallo validando acceso de %s', username)
+            return JsonResponse({'error': 'No se pudo validar el acceso'}, status=500)
+        if not any(m.get('modulo') == 'lic' and m.get('activo') for m in modules):
+            return JsonResponse({'error': 'Sin acceso al módulo de licitaciones'}, status=403)
+        return view_func(request, *args, **kwargs)
+    return wrapper
 
 # Umbral de antigüedad para la guardia de concurrencia de scrape_view: un ScrapeJob
 # "corriendo" más viejo que esto se trata como abandonado/huérfano en vez de bloquear
@@ -71,6 +93,7 @@ def _ejecutar_scrape_seguro(job: ScrapeJob, empresas: list[str]) -> None:
 
 
 @login_required
+@require_lic_access
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def credenciales_view(request):
@@ -90,6 +113,7 @@ def credenciales_view(request):
 
 
 @login_required
+@require_lic_access
 @csrf_exempt
 @require_http_methods(["POST"])
 def probar_conexion_view(request):
@@ -113,6 +137,7 @@ def probar_conexion_view(request):
 
 
 @login_required
+@require_lic_access
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def rubros_pdf_view(request):
@@ -155,6 +180,7 @@ def rubros_pdf_view(request):
 
 
 @login_required
+@require_lic_access
 @require_http_methods(["GET"])
 def oportunidades_view(request):
     no_cia = request.GET.get("no_cia")
@@ -189,6 +215,7 @@ def oportunidades_view(request):
 
 
 @login_required
+@require_lic_access
 @require_http_methods(["GET"])
 def oportunidad_detail_view(request, oportunidad_id: int):
     """Trae UNA oportunidad por id, sin el filtro de Santo Domingo/Distrito
@@ -201,12 +228,14 @@ def oportunidad_detail_view(request, oportunidad_id: int):
 
 
 @login_required
+@require_lic_access
 @require_http_methods(["GET"])
 def documentos_view(request, oportunidad_id: int):
     return JsonResponse({"documentos": lic_repo.list_documentos(oportunidad_id)})
 
 
 @login_required
+@require_lic_access
 @csrf_exempt
 @require_http_methods(["POST"])
 def resumen_documento_view(request, documento_id: int):
@@ -231,6 +260,7 @@ def resumen_documento_view(request, documento_id: int):
 
 
 @login_required
+@require_lic_access
 @csrf_exempt
 @require_http_methods(["POST"])
 def scrape_view(request):
@@ -279,6 +309,7 @@ def scrape_view(request):
 
 
 @login_required
+@require_lic_access
 @require_http_methods(["GET"])
 def scrape_job_view(request, job_id: int):
     try:
@@ -316,6 +347,7 @@ def scrape_job_view(request, job_id: int):
 
 
 @login_required
+@require_lic_access
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def documentos_empresa_view(request):
@@ -357,6 +389,7 @@ def documentos_empresa_view(request):
 
 
 @login_required
+@require_lic_access
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def tipos_documento_view(request):
@@ -378,6 +411,7 @@ def tipos_documento_view(request):
 
 
 @login_required
+@require_lic_access
 @csrf_exempt
 @require_http_methods(["PATCH"])
 def tipo_documento_detail_view(request, tipo_id: int):
@@ -391,6 +425,7 @@ def tipo_documento_detail_view(request, tipo_id: int):
 
 
 @login_required
+@require_lic_access
 @require_http_methods(["GET"])
 def documento_empresa_descargar_view(request, documento_empresa_id: int):
     documento = lic_repo.get_documento_empresa(documento_empresa_id)
@@ -404,6 +439,7 @@ def documento_empresa_descargar_view(request, documento_empresa_id: int):
 
 
 @login_required
+@require_lic_access
 @csrf_exempt
 @require_http_methods(["POST"])
 def analizar_oportunidad_view(request, oportunidad_id: int):
@@ -421,18 +457,21 @@ def analizar_oportunidad_view(request, oportunidad_id: int):
 
 
 @login_required
+@require_lic_access
 @require_http_methods(["GET"])
 def requisitos_view(request, oportunidad_id: int):
     return JsonResponse({"requisitos": lic_repo.list_requisitos(oportunidad_id)})
 
 
 @login_required
+@require_lic_access
 @require_http_methods(["GET"])
 def productos_view(request, oportunidad_id: int):
     return JsonResponse({"productos": lic_repo.list_productos(oportunidad_id)})
 
 
 @login_required
+@require_lic_access
 @require_http_methods(["GET"])
 def documento_descargar_view(request, documento_id: int):
     documento = lic_repo.get_documento(documento_id)
@@ -446,6 +485,7 @@ def documento_descargar_view(request, documento_id: int):
 
 
 @login_required
+@require_lic_access
 @csrf_exempt
 @require_http_methods(["POST"])
 def recomendar_precios_oportunidad_view(request, oportunidad_id: int):
@@ -495,6 +535,7 @@ def _ejecutar_preparar_oferta_seguro(job: OfertaJob, no_cia: str, referencia: st
 
 
 @login_required
+@require_lic_access
 @csrf_exempt
 @require_http_methods(["POST"])
 def preparar_oferta_view(request, oportunidad_id: int):
@@ -512,6 +553,7 @@ def preparar_oferta_view(request, oportunidad_id: int):
 
 
 @login_required
+@require_lic_access
 @require_http_methods(["GET"])
 def oferta_job_view(request, job_id: int):
     try:
@@ -526,6 +568,7 @@ def oferta_job_view(request, job_id: int):
 
 
 @login_required
+@require_lic_access
 @csrf_exempt
 @require_http_methods(["POST"])
 def confirmar_envio_oferta_view(request, oportunidad_id: int):

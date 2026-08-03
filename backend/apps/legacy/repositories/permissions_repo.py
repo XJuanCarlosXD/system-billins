@@ -24,6 +24,9 @@ _MODULES = {
     'cnt': ('CNT', 'TCNT_USUARIO', None, None),
     'acc': ('ACC', 'TACC_USUARIO', None, None),
     'acf': ('ACF', 'TACF_USUARIO', 'TACF_USUARIOD', 'TACF_TDOCU'),
+    # LIC es un modulo nuevo (sin equivalente en el legado, apps.lic propio) --
+    # sus tablas viven en el schema FAT porque asi se creo TLIC_* originalmente.
+    'lic': ('FAT', 'TLIC_USUARIO', None, None),
 }
 
 # Cache de columnas por tabla — los TDOCU legados NO son homogéneos:

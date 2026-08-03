@@ -26,10 +26,11 @@ const MODULE_LABELS: Record<string, string> = {
   cnt: 'Contabilidad',
   sdn: 'Nómina',
   acf: 'Activos Fijos',
+  lic: 'Licitaciones',
 }
 
 // Orden fijo de las cards -- el mismo orden en que aparecen en el sidebar operativo.
-const MODULE_ORDER = ['fat', 'cxc', 'cxp', 'inv', 'odc', 'chc', 'acc', 'cnt', 'acf', 'sdn']
+const MODULE_ORDER = ['fat', 'cxc', 'cxp', 'inv', 'odc', 'chc', 'acc', 'cnt', 'acf', 'sdn', 'lic']
 
 const FLAG_LABELS: Record<string, string> = {
   PERMITE_FACTURAR: 'Facturar', GENERAR_ESTADISTICAS: 'Estadísticas',
@@ -80,9 +81,22 @@ const FLAG_LABELS: Record<string, string> = {
   ADMINISTRAR_NCF: 'Administrar NCF',
   CREAR_BENEFICIARIO: 'Crear beneficiario', CREAR_CAJA_CHICA: 'Crear caja chica',
   ANULAR_EGRESO: 'Anular egreso', ANULAR_CHEQUE: 'Anular cheque',
+  PREPARAR_OFERTA: 'Preparar oferta', CONFIRMAR_ENVIO: 'Confirmar envío de oferta',
+  ADMINISTRAR_CREDENCIALES: 'Administrar credenciales del portal',
 }
 
 const PUNTOS = ['01', '02', '03']
+
+// Flags legados sin ningun efecto real en el sistema actual -- ningun
+// backend los consulta (verificado con grep sobre backend/apps), a
+// diferencia de flags con nombre parecido que si se validan (p.ej.
+// IMPRIMIR_MAYOR en CNT si esta gateado server-side en cnt/views.py).
+// Se ocultan del panel para no mostrar un toggle que no hace nada.
+const HIDDEN_FLAGS = new Set([
+  'IMPRIMIR_DOCU', 'REIMPRIMIR_DOCU', // FAT
+  'IMPRIMIR_FINANCIAMIENTO', // CXC
+  'IMPRIMIR_ODC', 'REIMPRIMIR_ODC', // ODC
+])
 
 type DocPerm = { tipo_docu: string; descripcion: string; assigned: boolean; por_defecto: boolean }
 
@@ -110,7 +124,7 @@ function ModuleFlagsPanel({ username, modulo, no_cia, punto }: { username: strin
   }
 
   if (loading) return <div className='py-2 text-xs text-muted-foreground flex items-center gap-1'><Loader2 className='h-3 w-3 animate-spin' /> Cargando permisos...</div>
-  const entries = Object.entries(flags)
+  const entries = Object.entries(flags).filter(([flag]) => !HIDDEN_FLAGS.has(flag))
   if (entries.length === 0) return null
 
   return (
