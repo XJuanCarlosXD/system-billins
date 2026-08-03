@@ -2833,11 +2833,25 @@ def anular_factura(no_cia, punto, tipo_factura, no_factura, usuario, motivo="", 
                     "INSERT INTO FAT.TFAT_SECUENCIA(no_cia,punto,tipo_docu,prox_documento) "
                     "VALUES(:1,:2,'AF',1)",
                     [no_cia, punto])
-                no_af = "0000001"
-                next_af = 2
+                prox_af = 1
             else:
-                no_af = str(int(seq_af[0] or 1)).zfill(7)
-                next_af = int(seq_af[0] or 1) + 1
+                prox_af = int(seq_af[0] or 1)
+            # Defensivo: INV.reversar_documento_inv tambien genera 'AF' pero
+            # usando INV.TINV_SECUENCIA, un contador independiente sobre la
+            # misma tabla INV.TINV_MOVIMIENTO (mismo patron que _next_inv_seq
+            # en inv_repo.py). Si ese otro contador ya avanzo mas alla de
+            # esta secuencia, saltamos al maximo real + 1 para no repetir un
+            # no_docu ya usado (causaba ORA-00001 en PK_TINV_MOVIMIENTO).
+            cur.execute(
+                "SELECT NVL(MAX(TO_NUMBER(no_docu)), 0) FROM INV.TINV_MOVIMIENTO "
+                "WHERE no_cia=:1 AND punto=:2 AND tipo_docu='AF' "
+                "  AND REGEXP_LIKE(no_docu, '^[0-9]+$')",
+                [no_cia, punto])
+            real_max_af = int((cur.fetchone() or [0])[0] or 0)
+            if real_max_af >= prox_af:
+                prox_af = real_max_af + 1
+            no_af = str(prox_af).zfill(7)
+            next_af = prox_af + 1
             for m in movs_orig:
                 no_linea, almacen_m, no_produ_m, cant_m, precio_m, costo_m, empaque_m, cpe_m, tr_m = m
                 cur.execute(
