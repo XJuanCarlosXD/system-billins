@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { GuardedButton } from '@/components/access'
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
 
@@ -378,9 +379,9 @@ export function ReverarDocumento({ noCia, punto }: Props) {
             <Button variant='outline' onClick={() => setConfirmOpen(false)}>
               Cancelar
             </Button>
-            <Button variant='destructive' onClick={handleReversar} disabled={reversing}>
+            <GuardedButton modulo='inv' flag='HACER_AJUSTES' noCia={noCia} punto={puntoTrabajo} variant='destructive' onClick={handleReversar} disabled={reversing}>
               {reversing ? 'Reversando...' : 'Confirmar Reversión'}
-            </Button>
+            </GuardedButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>

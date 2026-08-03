@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { GuardedButton } from '@/components/access'
 import { AsientoForm } from './asiento-form'
 
 interface Props {
@@ -176,13 +177,13 @@ export function AsientosList({ noCia, punto, ano, mes, mode = 'process' }: Props
               <TableCell className='text-right' onClick={(event) => event.stopPropagation()}>
                 <div className='flex items-center justify-end gap-1'>
                   {mode === 'process' && item.st_anulado !== 'S' && item.autorizado !== 'S' && (
-                    <Button variant='ghost' size='sm' className='h-7 text-xs' onClick={() => aprobar(item.no_asiento)}>Aprobar</Button>
+                    <GuardedButton modulo='cnt' flag='APROBAR_ASIENTO' noCia={noCia} punto={punto} variant='ghost' size='sm' className='h-7 text-xs' onClick={() => aprobar(item.no_asiento)}>Aprobar</GuardedButton>
                   )}
                   {mode === 'process' && item.autorizado === 'S' && item.actualizado !== 'S' && item.st_anulado !== 'S' && (
-                    <Button variant='ghost' size='sm' className='h-7 text-xs text-blue-600' onClick={() => actualizar(item.no_asiento)}>Actualizar</Button>
+                    <GuardedButton modulo='cnt' flag='ACTUALIZAR_ASIENTO' noCia={noCia} punto={punto} variant='ghost' size='sm' className='h-7 text-xs text-blue-600' onClick={() => actualizar(item.no_asiento)}>Actualizar</GuardedButton>
                   )}
                   {mode === 'process' && item.actualizado !== 'S' && item.st_anulado !== 'S' && (
-                    <Button variant='ghost' size='sm' className='h-7 text-xs text-red-500' onClick={() => anular(item.no_asiento)}>Anular</Button>
+                    <GuardedButton modulo='cnt' flag='ACTUALIZAR_ASIENTO' noCia={noCia} punto={punto} variant='ghost' size='sm' className='h-7 text-xs text-red-500' onClick={() => anular(item.no_asiento)}>Anular</GuardedButton>
                   )}
                   <Button variant='ghost' size='sm' className='h-7 text-xs' onClick={() => openDetail(item)}>Ver</Button>
                 </div>

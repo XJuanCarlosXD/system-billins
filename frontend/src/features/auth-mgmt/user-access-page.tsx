@@ -245,6 +245,13 @@ export function UserAccessPage({
   useEffect(() => { if (newCia) loadModules(newCia) }, [newCia])
 
   async function grant() {
+    const yaExiste = access.some(
+      (a) => a.modulo === newModulo && a.no_cia === newCia && a.punto === newPunto && a.activo,
+    )
+    if (yaExiste) {
+      toast.info(`${user.username} ya tiene acceso activo a ${MODULE_LABELS[newModulo] || newModulo.toUpperCase()} en empresa ${newCia} punto ${newPunto}. No se duplica.`)
+      return
+    }
     setWorking(true)
     try {
       await apiClient.adminGrantAccess(user.username, {

@@ -23,6 +23,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { GuardedButton } from '@/components/access'
 
 interface Props {
   noCia: string
@@ -477,7 +478,11 @@ export function AnularFactura({ noCia, punto }: Props) {
 
           <div className='flex items-center gap-3'>
             {!anulado ? (
-              <Button
+              <GuardedButton
+                modulo='fat'
+                docType='AF'
+                noCia={noCia}
+                punto={punto}
                 variant='destructive'
                 size='lg'
                 onClick={anularDocumento}
@@ -485,7 +490,7 @@ export function AnularFactura({ noCia, punto }: Props) {
                 className='px-8'
               >
                 {anulando ? 'Anulando...' : 'ANULAR DOCUMENTO'}
-              </Button>
+              </GuardedButton>
             ) : (
               <>
                 <Badge variant='destructive' className='px-4 py-2 text-sm'>

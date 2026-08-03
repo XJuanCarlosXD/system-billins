@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { api } from '@/lib/regal-general-api'
 import { useCompany } from '@/hooks/use-company'
 import { Button } from '@/components/ui/button'
+import { GuardedButton } from '@/components/access'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -74,9 +75,9 @@ export function OdcAnular() {
                         <Input value={motivos[`O-${o.no_orden}`] || ''} onChange={(e) => setMotivos({ ...motivos, [`O-${o.no_orden}`]: e.target.value })} placeholder="Motivo…" />
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button size="sm" variant="destructive" disabled={!motivos[`O-${o.no_orden}`] || anularOrden.isPending} onClick={() => anularOrden.mutate(o)}>
+                        <GuardedButton modulo="odc" flag="ANULAR_ODC" size="sm" variant="destructive" disabled={!motivos[`O-${o.no_orden}`] || anularOrden.isPending} onClick={() => anularOrden.mutate(o)}>
                           <XCircle className="h-4 w-4 mr-1" /> Anular
-                        </Button>
+                        </GuardedButton>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -109,9 +110,9 @@ export function OdcAnular() {
                         <Input value={motivos[`R-${r.no_requisicion}`] || ''} onChange={(e) => setMotivos({ ...motivos, [`R-${r.no_requisicion}`]: e.target.value })} placeholder="Motivo…" />
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button size="sm" variant="destructive" disabled={!motivos[`R-${r.no_requisicion}`] || anularReq.isPending} onClick={() => anularReq.mutate(r)}>
+                        <GuardedButton modulo="odc" flag="ANULAR_REQUISICION" size="sm" variant="destructive" disabled={!motivos[`R-${r.no_requisicion}`] || anularReq.isPending} onClick={() => anularReq.mutate(r)}>
                           <XCircle className="h-4 w-4 mr-1" /> Anular
-                        </Button>
+                        </GuardedButton>
                       </TableCell>
                     </TableRow>
                   ))}
