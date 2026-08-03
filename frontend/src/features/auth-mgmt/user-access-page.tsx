@@ -469,7 +469,7 @@ export function UserAccessPage({
           <Loader2 className='h-5 w-5 animate-spin' />
         </div>
       ) : (
-        <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-3'>
+        <div className='grid gap-4 grid-cols-1'>
           {MODULE_ORDER.map((modulo) => (
             <ModuleCard
               key={modulo}

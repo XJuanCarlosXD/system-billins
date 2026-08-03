@@ -222,14 +222,20 @@ def grant_access(usuario: str, modulo: str, no_cia: str, punto: str,
             )
             action = 'updated'
         else:
-            # INSERT mínimo: solo las columnas de la clave + ACTIVO + POR_DEFECTO.
-            # Las demás columnas quedan NULL (que el ERP interpreta como 'N').
+            # Varias tablas legadas (TACC_USUARIO, TACF_USUARIO, TCNT_USUARIO,
+            # TODC_USUARIO, parte de TSDN_USUARIO) tienen columnas de flag
+            # NOT NULL SIN default -- insertar solo la clave + ACTIVO/POR_DEFECTO
+            # y dejar el resto fuera del INSERT (asumiendo que Oracle las
+            # dejaria NULL) revienta con ORA-01400 en esas. Se insertan TODAS
+            # las columnas de flag explicitamente en 'N' para que funcione
+            # sin importar si la tabla tiene default o no.
+            flag_cols = sorted(_table_columns(schema, tab) - _NON_FLAG_COLS - {'ACTIVO', 'POR_DEFECTO'})
+            cols = ['NO_CIA', 'PUNTO', 'USUARIO', 'ACTIVO', 'POR_DEFECTO'] + flag_cols
+            vals = [no_cia, punto, u, 'S' if activo else 'N', 'S' if por_defecto else 'N'] + ['N'] * len(flag_cols)
+            placeholders = ', '.join(f':{i}' for i in range(1, len(cols) + 1))
             cur.execute(
-                f"INSERT INTO {schema}.{tab} (no_cia, punto, usuario, activo, por_defecto) "
-                "VALUES (:1, :2, :3, :4, :5)",
-                [no_cia, punto, u,
-                 'S' if activo else 'N',
-                 'S' if por_defecto else 'N'],
+                f"INSERT INTO {schema}.{tab} ({', '.join(cols)}) VALUES ({placeholders})",
+                vals,
             )
             action = 'created'
         cur.connection.commit()
