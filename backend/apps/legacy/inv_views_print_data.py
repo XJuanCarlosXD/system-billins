@@ -108,20 +108,20 @@ def inv_documento_print_data(request, tipo_docu: str, no_docu: str):
     payload_key = 'proveedor' if tipo_s in ('EC', 'DC') else 'cliente'
     if payload_key == 'proveedor':
         party = {
-            'no': (h.get('no_proveedor') or '').strip(),
-            'nombre': (h.get('proveedor_nombre') or '').strip(),
-            'rnc': (h.get('proveedor_rnc') or '').strip(),
-            'direccion': (h.get('proveedor_direccion') or '').strip(),
-            'telefono': (h.get('proveedor_telefono') or '').strip(),
-            'email': (h.get('proveedor_email') or '').strip(),
+            'no': str(h.get('no_proveedor') or '').strip(),
+            'nombre': str(h.get('proveedor_nombre') or '').strip(),
+            'rnc': str(h.get('proveedor_rnc') or '').strip(),
+            'direccion': str(h.get('proveedor_direccion') or '').strip(),
+            'telefono': str(h.get('proveedor_telefono') or '').strip(),
+            'email': str(h.get('proveedor_email') or '').strip(),
             'tipo_ncf': '',
         }
     else:
         party = {
-            'no': (h.get('no_cliente') or '').strip(),
-            'nombre': (h.get('cliente_nombre') or '').strip(),
-            'rnc': (h.get('cliente_rnc') or '').strip(),
-            'direccion': (h.get('cliente_direccion') or '').strip(),
+            'no': str(h.get('no_cliente') or '').strip(),
+            'nombre': str(h.get('cliente_nombre') or '').strip(),
+            'rnc': str(h.get('cliente_rnc') or '').strip(),
+            'direccion': str(h.get('cliente_direccion') or '').strip(),
             'telefono': '',
             'email': '',
             'tipo_ncf': '',
