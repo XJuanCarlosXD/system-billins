@@ -795,6 +795,54 @@ Detener el dev server al terminar.
 
 ---
 
+## Addendum — bloqueo de entorno descubierto durante Task 1
+
+Node local es `v20.14.0`. `vite@8.0.10` (pineado en `package.json` desde
+el commit `dddeb6a`, 2026-07-31) exige `^20.19.0 || >=22.12.0` — ninguna
+instalación de Node presente en esta máquina lo cumple (se encontró una
+segunda instalación en
+`C:\Users\JCABREU\AppData\Local\tools\node-v22.11.0-win-x64`, pero
+`22.11.0 < 22.12.0`). Esto bloquea `npx vite build`, `npm run dev`,
+`npm test` (vitest corre sobre vite) — **cualquier comando de este plan
+que dependa de la CLI de Vite falla en esta máquina**, sin relación con
+los cambios de este feature.
+
+Decisión del usuario: no actualizar Node ahora. Se ejecuta el resto del
+plan con verificación estática (`tsc -b`, `eslint`, lectura de código
+línea por línea) en vez de `vitest`/`vite build`/`vite dev` local; el
+build real se confirma cuando Netlify despliegue el push a `main`.
+
+**Workaround para regenerar `routeTree.gen.ts` sin la CLI de Vite:**
+`@tanstack/router-generator` es una librería plana (no pasa por el
+config-loader de Vite), así que se puede invocar directo con
+`require()` bajo Node 20.14 sin problema — solo el *binario* `vite`
+hace el chequeo de versión. Script usado (confirmado idempotente contra
+el árbol de rutas ya commiteado, sin cambios de contenido, solo
+reordena imports por orden de escaneo del filesystem — inofensivo):
+
+```js
+// gen-route-tree.cjs (ejecutar con: node gen-route-tree.cjs)
+const ROOT = 'C:\\Users\\JCABREU\\AppData\\Local\\memorias_sigaft\\facturation-system\\frontend'
+process.chdir(ROOT)
+
+const { getConfig } = require(ROOT + '\\node_modules\\@tanstack\\router-plugin\\dist\\cjs\\core\\config.cjs')
+const { Generator } = require(ROOT + '\\node_modules\\@tanstack\\router-generator')
+
+async function main() {
+  const userConfig = getConfig({ target: 'react', autoCodeSplitting: true }, ROOT)
+  const generator = new Generator({ config: userConfig, root: ROOT })
+  await generator.run()
+  console.log('Route tree generation complete.')
+}
+
+main().catch((e) => {
+  console.error('FAILED:', e)
+  process.exit(1)
+})
+```
+
+Task 2 usa este script en vez de `npx vite build` para el Step 4.
+
 ## Self-Review
 
 **Cobertura de la spec:**
