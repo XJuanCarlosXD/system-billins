@@ -19,7 +19,7 @@ export const Route = createFileRoute('/(auth)/sign-in')({
       authed = false
     }
     if (authed) {
-      throw redirect({ to: (search.redirect as string) || '/' })
+      throw redirect({ to: (search.redirect as string) || '/dashboard' })
     }
   },
   component: SignIn,

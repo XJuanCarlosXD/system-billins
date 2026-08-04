@@ -127,7 +127,7 @@ function ModuleHomeLink() {
     <SidebarMenu>
       <SidebarMenuItem>
         <SidebarMenuButton asChild tooltip='Volver a Inicio'>
-          <Link to='/' onClick={() => setOpenMobile(false)}>
+          <Link to='/dashboard' onClick={() => setOpenMobile(false)}>
             <Command />
             <span className='font-semibold'>ZentoryERP</span>
           </Link>

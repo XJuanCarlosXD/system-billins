@@ -21,7 +21,7 @@ function ForbiddenPage() {
             No tienes permisos para ver este modulo. Contacta al administrador
             para solicitar acceso.
           </p>
-          <Button onClick={() => nav({ to: '/' })}>Ir al inicio</Button>
+          <Button onClick={() => nav({ to: '/dashboard' })}>Ir al inicio</Button>
         </CardContent>
       </Card>
     </div>

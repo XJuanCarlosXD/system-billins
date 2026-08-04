@@ -50,6 +50,6 @@ describe('OtpForm', () => {
     expect(showSubmittedData).toHaveBeenCalledWith({ otp: '123456' })
 
     await vi.advanceTimersByTimeAsync(1000)
-    expect(navigate).toHaveBeenCalledWith({ to: '/' })
+    expect(navigate).toHaveBeenCalledWith({ to: '/dashboard' })
   })
 })

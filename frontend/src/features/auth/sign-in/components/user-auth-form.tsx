@@ -61,7 +61,7 @@ export function UserAuthForm({
       })
       auth.setAccessToken('session')
       toast.success(`Bienvenido, ${res.username}`)
-      navigate({ to: redirectTo || '/', replace: true })
+      navigate({ to: redirectTo || '/dashboard', replace: true })
     } catch (e) {
       const msg =
         e instanceof ApiError

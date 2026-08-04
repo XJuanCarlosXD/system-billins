@@ -103,7 +103,7 @@ describe('UserAuthForm', () => {
       expect(setAccessTokenMock).toHaveBeenCalledWith('mock-access-token')
 
       await vi.waitFor(() =>
-        expect(navigate).toHaveBeenCalledWith({ to: '/', replace: true })
+        expect(navigate).toHaveBeenCalledWith({ to: '/dashboard', replace: true })
       )
     })
   })
