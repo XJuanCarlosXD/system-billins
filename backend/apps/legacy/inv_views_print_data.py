@@ -21,11 +21,11 @@ def _check_inv_access(request, no_cia: str):
 
 
 _INV_TIPO_DOCU_LABEL = {
-    'EC': 'Entrada por Compra', 'DC': 'Devolución de Compra',
-    'EI': 'Entrada por Inventario', 'SI': 'Salida por Inventario',
-    'AI': 'Ajuste de Inventario', 'TI': 'Traspaso entre Almacenes',
+    'EC': 'Entrada de Compra', 'DC': 'Devolución de Compra',
+    'EA': 'Entrada Almacén', 'SA': 'Salida Almacén',
+    'AE': 'Ajuste Entrada', 'AS': 'Ajuste Salida',
+    'TA': 'Transferencia Almacén', 'DV': 'Devolución',
     'EP': 'Entrada de Producción', 'SP': 'Salida de Producción',
-    'TA': 'Transferencia de Almacén',
 }
 
 
@@ -103,17 +103,29 @@ def inv_documento_print_data(request, tipo_docu: str, no_docu: str):
                 }
         except Exception:
             factura_afectada = None
-    # cliente o proveedor según tipo_docu
-    party = {
-        'no': h.get('no_cliente') or h.get('no_suplidor'),
-        'nombre': (h.get('nombre_cliente') or h.get('nombre_proveedor') or h.get('nombre') or '').strip(),
-        'rnc': (h.get('rnc') or '').strip(),
-        'direccion': (h.get('direccion') or '').strip(),
-        'telefono': (h.get('telefono') or '').strip(),
-        'email': (h.get('email') or '').strip(),
-        'tipo_ncf': '',
-    }
+    # cliente o proveedor según tipo_docu — el header (get_documento_detalle)
+    # expone claves separadas proveedor_*/cliente_*, no 'nombre'/'rnc' genéricos.
     payload_key = 'proveedor' if tipo_s in ('EC', 'DC') else 'cliente'
+    if payload_key == 'proveedor':
+        party = {
+            'no': (h.get('no_proveedor') or '').strip(),
+            'nombre': (h.get('proveedor_nombre') or '').strip(),
+            'rnc': (h.get('proveedor_rnc') or '').strip(),
+            'direccion': (h.get('proveedor_direccion') or '').strip(),
+            'telefono': (h.get('proveedor_telefono') or '').strip(),
+            'email': (h.get('proveedor_email') or '').strip(),
+            'tipo_ncf': '',
+        }
+    else:
+        party = {
+            'no': (h.get('no_cliente') or '').strip(),
+            'nombre': (h.get('cliente_nombre') or '').strip(),
+            'rnc': (h.get('cliente_rnc') or '').strip(),
+            'direccion': (h.get('cliente_direccion') or '').strip(),
+            'telefono': '',
+            'email': '',
+            'tipo_ncf': '',
+        }
     lineas = [{
         'no_linea': l.get('no_linea'),
         'codigo': (l.get('no_produ') or '').strip(),

@@ -1293,6 +1293,7 @@ def get_documento_detalle(no_cia: str, tipo_docu: str, no_docu: str) -> dict | N
         "       td.descri td_descri, td.tipo_movi td_tipo_movi, "
         "       td.tipo_transaccion td_tipo_transaccion, "
         "       p.nombre prov_nombre, p.rnc prov_rnc, "
+        "       p.direccion prov_direccion, p.telefono prov_telefono, p.e_mail prov_email, "
         "       c.nombre cli_nombre, c.rnc cli_rnc, c.direccion cli_direccion, "
         "       v.nombre vend_nombre, "
         "       loc.descripcion loc_descripcion, "
@@ -1360,6 +1361,9 @@ def get_documento_detalle(no_cia: str, tipo_docu: str, no_docu: str) -> dict | N
             'no_proveedor': g('no_proveedor', ''),
             'proveedor_nombre': g('prov_nombre', ''),
             'proveedor_rnc': g('prov_rnc', ''),
+            'proveedor_direccion': g('prov_direccion', ''),
+            'proveedor_telefono': g('prov_telefono', ''),
+            'proveedor_email': g('prov_email', ''),
             # Cliente
             'no_cliente': g('no_cliente', ''),
             'cliente_nombre': g('cli_nombre', ''),
