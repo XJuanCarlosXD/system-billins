@@ -270,9 +270,40 @@ export const invDocumentoDefault: any = {
       columnas: ['codigo', 'descripcion', 'cantidad', 'precio', 'total'],
       zebra: true, headerBg: '#0F172A', headerColor: '#ffffff', fontSize: 9,
     } },
-    { type: 'BloqueTotales', props: {
-      id: 'tot', showSubtotal: true, showDescuento: true, showItbis: true,
-      showPropina: false, showOtros: false, showMontoLetras: false, align: 'right', colorTotal: '#0F172A',
+    // Tabla de totales compacta estilo CxP (no el bloque BloqueTotales, que
+    // renderiza cada monto como tarjeta grande apilada y no combina con el
+    // resto del documento).
+    { type: 'TextoLibre', props: {
+      id: 'totales',
+      html: `
+<table style="width:100%;border-collapse:collapse;margin-top:4px">
+  <tr>
+    <td style="width:65%"></td>
+    <td style="width:35%">
+      <table style="width:100%;border-collapse:collapse;font-size:9px">
+        <tr>
+          <td style="padding:2px 6px">Subtotal</td>
+          <td style="padding:2px 6px;text-align:right">{{formatMoney totales.subtotal}}</td>
+        </tr>
+        {{#if totales.descuento}}
+        <tr>
+          <td style="padding:2px 6px">Descuento</td>
+          <td style="padding:2px 6px;text-align:right">{{formatMoney totales.descuento}}</td>
+        </tr>
+        {{/if}}
+        <tr>
+          <td style="padding:2px 6px">ITBIS</td>
+          <td style="padding:2px 6px;text-align:right">{{formatMoney totales.itbis}}</td>
+        </tr>
+        <tr style="border-top:1px solid #333">
+          <td style="padding:3px 6px;font-weight:bold;font-size:10px">TOTAL RD$</td>
+          <td style="padding:3px 6px;text-align:right;font-weight:bold;font-size:10px">{{formatMoney totales.total}}</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>`,
+      fontSize: 9, textAlign: 'left',
     } },
     { type: 'NotaDetalle', props: { id: 'nota', titulo: 'Observación:', mostrarSiVacio: false } },
     { type: 'Firmas', props: { id: 'fi', cantidad: 2, labels: 'Recibido por|Entregado por', lineWidth: 80 } },
