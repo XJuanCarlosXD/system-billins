@@ -209,7 +209,7 @@ export const invDocumentoDefault: any = {
       id: 'proveedor-tabla',
       html: `
 {{#if proveedor.nombre}}
-<table style="width:100%;border-collapse:collapse;border-bottom:1px solid #333;font-size:9px;margin-bottom:6px">
+<table style="width:100%;border-collapse:collapse;border-top:1px solid #333;border-bottom:1px solid #333;font-size:9px;margin-bottom:6px">
   <tr style="border-bottom:1px solid #ccc">
     <td style="padding:3px 6px;width:90px;font-weight:bold;border-right:1px solid #ccc">PROVEEDOR NO.</td>
     <td style="padding:3px 6px">{{proveedor.no}}</td>
@@ -219,9 +219,13 @@ export const invDocumentoDefault: any = {
     <td style="padding:3px 6px;font-weight:bold;border-right:1px solid #ccc">NOMBRE</td>
     <td style="padding:3px 6px" colspan="2">{{proveedor.nombre}}</td>
   </tr>
-  <tr>
+  <tr style="border-bottom:1px solid #ccc">
     <td style="padding:3px 6px;font-weight:bold;border-right:1px solid #ccc">DIRECCION</td>
-    <td style="padding:3px 6px" colspan="2">{{default proveedor.direccion "—"}} {{#if proveedor.telefono}}&nbsp;|&nbsp;TEL. {{proveedor.telefono}}{{/if}}</td>
+    <td style="padding:3px 6px" colspan="2">{{default proveedor.direccion "—"}}</td>
+  </tr>
+  <tr>
+    <td style="padding:3px 6px;font-weight:bold;border-right:1px solid #ccc">TELEFONO</td>
+    <td style="padding:3px 6px" colspan="2">{{default proveedor.telefono "—"}}</td>
   </tr>
 </table>
 {{/if}}`,
@@ -233,7 +237,7 @@ export const invDocumentoDefault: any = {
       id: 'cliente-tabla',
       html: `
 {{#if cliente.nombre}}
-<table style="width:100%;border-collapse:collapse;border-bottom:1px solid #333;font-size:9px;margin-bottom:6px">
+<table style="width:100%;border-collapse:collapse;border-top:1px solid #333;border-bottom:1px solid #333;font-size:9px;margin-bottom:6px">
   <tr style="border-bottom:1px solid #ccc">
     <td style="padding:3px 6px;width:90px;font-weight:bold;border-right:1px solid #ccc">CLIENTE NO.</td>
     <td style="padding:3px 6px">{{cliente.no}}</td>
@@ -282,22 +286,22 @@ export const invDocumentoDefault: any = {
     <td style="width:35%">
       <table style="width:100%;border-collapse:collapse;font-size:9px">
         <tr>
-          <td style="padding:2px 6px">Subtotal</td>
-          <td style="padding:2px 6px;text-align:right">{{formatMoney totales.subtotal}}</td>
+          <td style="padding:3px 6px">Subtotal</td>
+          <td style="padding:3px 6px;text-align:right">{{formatMoney totales.subtotal}}</td>
         </tr>
         {{#if totales.descuento}}
         <tr>
-          <td style="padding:2px 6px">Descuento</td>
-          <td style="padding:2px 6px;text-align:right">{{formatMoney totales.descuento}}</td>
+          <td style="padding:3px 6px">Descuento</td>
+          <td style="padding:3px 6px;text-align:right">{{formatMoney totales.descuento}}</td>
         </tr>
         {{/if}}
         <tr>
-          <td style="padding:2px 6px">ITBIS</td>
-          <td style="padding:2px 6px;text-align:right">{{formatMoney totales.itbis}}</td>
+          <td style="padding:3px 6px">ITBIS</td>
+          <td style="padding:3px 6px;text-align:right">{{formatMoney totales.itbis}}</td>
         </tr>
         <tr style="border-top:1px solid #333">
-          <td style="padding:3px 6px;font-weight:bold;font-size:10px">TOTAL RD$</td>
-          <td style="padding:3px 6px;text-align:right;font-weight:bold;font-size:10px">{{formatMoney totales.total}}</td>
+          <td style="padding:3px 6px;font-weight:bold">TOTAL RD$</td>
+          <td style="padding:3px 6px;text-align:right;font-weight:bold">{{formatMoney totales.total}}</td>
         </tr>
       </table>
     </td>
