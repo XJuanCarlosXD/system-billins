@@ -34,6 +34,23 @@ login, y una sección que explique los módulos del sistema.
   la lista decorativa de `sign-in/index.tsx` (que tiene nombres
   ligeramente distintos porque es solo flavor visual, no la fuente de
   verdad).
+- Asistente IA + MCP — **ya implementado**, no es aspiracional. Confirmado
+  en el repo:
+  - `backend/apps/mcp/` — servidor MCP HTTP con tools reales por módulo
+    (`tools/fat.py`, `cxc.py`, `cxp.py`, `inv.py`, `cnt.py`, `chc.py`,
+    `sdn.py`, `acf.py`, `acc.py`, `odc.py`, `man.py`, `print_.py`), que
+    ejecutan acciones de verdad contra Oracle (crear factura, aplicar
+    nota de crédito, consultar estado de cuenta, etc.), no solo texto.
+  - `backend/apps/asistente/skills/` — 7 skills reales con `SKILL.md`:
+    `facturar`, `cotizar`, `devolucion-ventas`, `nota-credito-cxc`,
+    `nota-debito-cxc`, `consultar-cuenta-cliente`,
+    `nueva-empresa-onboarding`. Cada una define `when_to_use` (frases que
+    la disparan), `modules_required` y `tools_used`.
+  - En la app, el asistente es el botón flotante
+    (`frontend/src/features/asistente/floating-button.tsx`) disponible
+    dentro de `_authenticated`. La landing solo lo **describe** — no lo
+    embebe (es una feature autenticada, no tiene sentido exponerla en
+    una página pública sin sesión).
 
 ## 2. Cambio de routing (la parte estructural)
 
@@ -105,6 +122,8 @@ derecha.
 3-4 tiles con dato verificable (no cifras de marketing inventadas, es un
 sistema interno):
 - "11 módulos integrados"
+- "Asistente IA vía MCP en cada módulo" (enlaza con scroll a la sección
+  3.5)
 - "Cumplimiento NCF / e-CF DGII"
 - "Multi-empresa y multi-punto"
 - "Modo claro y oscuro"
@@ -136,7 +155,44 @@ no existe hoy — se escribe en este componente):
 Grid responsive (1 columna en móvil, 2-3 en desktop), animación stagger
 con `whileInView` igual que la sección de beneficios.
 
-### 3.5 Footer
+Línea de cierre debajo del grid, en texto pequeño: "Los 11 módulos son
+operables también desde el Asistente IA integrado ↓" (ancla a 3.5).
+
+### 3.5 Asistente IA + MCP
+
+Sección con `id='asistente'` para el anchor del punto anterior. Explica,
+sin tecnicismos de arquitectura (esto es para el usuario final, no un
+doc técnico), que cada módulo tiene un asistente conversacional que
+ejecuta acciones reales, no solo responde texto:
+
+- Encabezado: "Un asistente que también trabaja por ti".
+- Subtítulo: "Cada módulo se conecta a un asistente de IA vía MCP que
+  puede facturar, cotizar, aplicar notas y consultar cuentas — con tu
+  confirmación antes de cada acción."
+- 4 tarjetas de ejemplo (subset representativo de las 7 skills reales en
+  `backend/apps/asistente/skills/`, se eligen las más ilustrativas para
+  no saturar la landing), cada una con: nombre de la skill, frase de
+  ejemplo tomada de su `when_to_use`, y su `description` real:
+
+  | Skill | Ejemplo de uso (`when_to_use`) | Qué hace (`description`) |
+  |---|---|---|
+  | Facturar | "Factura a {cliente}" | Crear una factura de venta nueva en FAT (NCF B01-B15). |
+  | Cotizar | "Cotizar para {cliente}" | Crear una cotización en FAT (sin NCF — no genera transacción contable). |
+  | Consultar cuenta cliente | "¿Cuánto debe {cliente}?" | Estado de cuenta de un cliente CXC con saldo, aging y movimientos. |
+  | Devolución de ventas | "El cliente devolvió mercancía" | Preparar una devolución de ventas (factura FT, FC o AF). |
+
+  Debajo del grid de 4, línea pequeña: "+ notas de crédito/débito CxC y
+  onboarding de nueva empresa" (menciona sin tarjeta aparte las 2 skills
+  restantes, para dejar claro que son 7 sin ocupar más espacio).
+- Sin botón de acción propio — el asistente vive dentro de la app
+  (`_authenticated`), así que el único CTA de esta sección sigue siendo
+  "Iniciar sesión" (reutiliza el mismo botón del header/hero, no se
+  duplica un tercero).
+- Animación: mismo patrón `whileInView` + stagger que 3.3/3.4, tarjetas
+  con `whileHover` sutil (scale 1.02) para señalar interactividad sin
+  necesitar código funcional real (la landing no ejecuta ninguna skill).
+
+### 3.6 Footer
 Simple: "© 2026 ZentoryERP".
 
 ## 4. Fuera de alcance
@@ -151,3 +207,9 @@ Simple: "© 2026 ZentoryERP".
   UI (sidebar, formularios).
 - Cambiar el guard de `_authenticated` más allá de que ya no cubre `/`
   (sigue protegiendo `/dashboard` y todo lo demás igual que hoy).
+- Embeber un chat funcional o cualquier llamada real al asistente/MCP en
+  la landing — la sección 3.5 es descriptiva (texto + tarjetas
+  estáticas), el asistente real solo vive dentro de `_authenticated`.
+- Tocar `backend/apps/mcp/` o `backend/apps/asistente/` — la landing solo
+  lee sus `SKILL.md` como referencia de copy al momento de escribir el
+  componente, no los importa ni los consulta en runtime.
