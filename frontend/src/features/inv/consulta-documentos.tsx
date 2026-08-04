@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { getRouteApi } from '@tanstack/react-router'
 import {
   X, FileText, ExternalLink, ArrowDownToLine, ArrowUpFromLine,
   ArrowLeftRight, Minus, Package, TrendingUp, TrendingDown, Wallet, Search,
@@ -17,6 +18,8 @@ import {
 } from '@/components/ui/sheet'
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
+
+const invRoute = getRouteApi('/_authenticated/inv')
 
 interface Documento {
   tipo_docu: string
@@ -397,12 +400,15 @@ function LineasTable({ lineas }: { lineas: Array<Record<string, any>> }) {
 export function ConsultaDocumentos() {
   const { selectedCompany } = useCompany()
   const noCia = selectedCompany || '01'
+  // Deep-link desde otras pantallas (ej. "Ver entradas anteriores" en Entrada
+  // de Compras) que llegan con ?tipo_docu=EC para abrir ya filtrado.
+  const search = invRoute.useSearch()
 
   const today = new Date()
   const thirtyAgo = new Date(today)
   thirtyAgo.setDate(today.getDate() - 30)
 
-  const [tipoDocu, setTipoDocu] = useState('__all__')
+  const [tipoDocu, setTipoDocu] = useState(search.tipo_docu || '__all__')
   const [tipoDocuSearch, setTipoDocuSearch] = useState('')
   const [almacen, setAlmacen] = useState('__all__')
   const [tipoMovi, setTipoMovi] = useState('__all__')

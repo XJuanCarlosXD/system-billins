@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, Trash2, Search, FileDown, CheckCircle2 } from 'lucide-react'
+import { getRouteApi } from '@tanstack/react-router'
+import { Plus, Trash2, Search, FileDown, CheckCircle2, History } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,6 +30,7 @@ interface EmpaqueOpt {
 }
 
 const ENDPOINT_READY = true
+const invRoute = getRouteApi('/_authenticated/inv')
 
 interface Props {
   noCia: string
@@ -95,6 +97,7 @@ async function apiFetch<T>(path: string): Promise<T> {
 }
 
 export function EntradaCompras({ noCia, punto }: Props) {
+  const navigate = invRoute.useNavigate()
   // Header
   const [tipoDocu, setTipoDocu] = useState('')
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
@@ -447,9 +450,24 @@ export function EntradaCompras({ noCia, punto }: Props) {
   return (
     <TooltipProvider>
       <section className='space-y-6'>
-        <div>
-          <h2 className='text-lg font-semibold'>Entrada de Compras</h2>
-          <p className='text-sm text-muted-foreground'>FINV202 — Registro de entradas de mercancía por compras</p>
+        <div className='flex items-start justify-between gap-3'>
+          <div>
+            <h2 className='text-lg font-semibold'>Entrada de Compras</h2>
+            <p className='text-sm text-muted-foreground'>FINV202 — Registro de entradas de mercancía por compras</p>
+          </div>
+          <Button
+            type='button'
+            variant='outline'
+            size='sm'
+            onClick={() =>
+              navigate({
+                search: (prev) => ({ ...prev, section: 'consultas', view: 'consulta-documentos', tipo_docu: 'EC' }),
+                replace: true,
+              })
+            }
+          >
+            <History className='mr-2 h-4 w-4' /> Ver entradas anteriores
+          </Button>
         </div>
 
         {/* Cabecera */}

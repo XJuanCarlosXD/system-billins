@@ -10,6 +10,7 @@ export const Route = createFileRoute('/_authenticated/inv')({
       .optional()
       .catch('configuracion'),
     view: z.string().optional().catch(undefined),
+    tipo_docu: z.string().optional().catch(undefined),
   }),
   component: GuardedInvPage,
 })
