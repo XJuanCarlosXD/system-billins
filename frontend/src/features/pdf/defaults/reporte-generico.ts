@@ -1,7 +1,11 @@
 // Plantilla default genérica para reportes (TablaReporte con columnas configurables).
 // Las columnas se ajustan después editando el bloque TablaReporte en el editor.
 
-export function reporteGenericoDefault(titulo: string, columnas: Array<{ campo: string; label: string; align?: 'left' | 'right' | 'center'; format?: 'money' | 'date' | 'text' }>): any {
+export function reporteGenericoDefault(
+  titulo: string,
+  columnas: Array<{ campo: string; label: string; align?: 'left' | 'right' | 'center'; format?: 'money' | 'date' | 'text' }>,
+  agrupado?: { groupBy: string; subtotalCampos: string }
+): any {
   return {
     content: [
       { type: 'HeaderEmpresa', props: {
@@ -15,6 +19,8 @@ export function reporteGenericoDefault(titulo: string, columnas: Array<{ campo: 
         id: 'tr',
         columnasJson: JSON.stringify(columnas, null, 2),
         zebra: true, headerBg: '#0F172A', headerColor: '#ffffff', fontSize: 9,
+        groupBy: agrupado?.groupBy || '',
+        subtotalCampos: agrupado?.subtotalCampos || '',
       } },
       { type: 'FooterReporte', props: {
         id: 'fr', showCantidad: true, showTotal: true, colorPrimario: '#0F172A',

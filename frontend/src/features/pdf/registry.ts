@@ -86,17 +86,18 @@ const accResumenGastosDefault = reporteGenericoDefault('Resumen de Gastos por Ti
   { campo: 'total', label: 'Total', align: 'right', format: 'money' },
 ])
 
+// Agrupado por almacen con subtotal (almacen_label = "01 ALMACEN PRINCIPAL",
+// compuesto por el backend) — mismo comportamiento que tenia el renderer
+// ReportLab retirado (group_by: 'almacen_label' + totals_row por almacen).
 const invExistenciaDefault = reporteGenericoDefault('Existencia de Inventario', [
-  { campo: 'almacen', label: 'Almacén', align: 'left' },
-  { campo: 'almacen_desc', label: 'Descripción Almacén', align: 'left' },
   { campo: 'no_produ', label: 'Producto', align: 'left' },
   { campo: 'descripcion', label: 'Descripción', align: 'left' },
   { campo: 'existencia', label: 'Existencia', align: 'right' },
   { campo: 'costo_prom', label: 'Costo Prom.', align: 'right', format: 'money' },
   { campo: 'valor', label: 'Valor', align: 'right', format: 'money' },
-])
+], { groupBy: 'almacen_label', subtotalCampos: 'valor' })
 
-const invMovimientosDefault = reporteGenericoDefault('Movimientos de Inventario (Rinv305)', [
+const invMovimientosDefault = reporteGenericoDefault('Movimientos de Inventario', [
   { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
   { campo: 'tipo_docu', label: 'Tipo', align: 'left' },
   { campo: 'no_docu', label: 'No. Doc.', align: 'left' },
@@ -107,9 +108,9 @@ const invMovimientosDefault = reporteGenericoDefault('Movimientos de Inventario 
   { campo: 'cantidad', label: 'Cantidad', align: 'right' },
   { campo: 'costo', label: 'Costo', align: 'right', format: 'money' },
   { campo: 'monto_neto', label: 'Monto Neto', align: 'right', format: 'money' },
-])
+], { groupBy: 'tipo_docu', subtotalCampos: 'cantidad,monto_neto' })
 
-const invKardexDefault = reporteGenericoDefault('Kardex de Producto (Rinv304)', [
+const invKardexDefault = reporteGenericoDefault('Kardex de Producto', [
   { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
   { campo: 'tipo_docu', label: 'Tipo', align: 'left' },
   { campo: 'no_docu', label: 'No. Doc.', align: 'left' },
@@ -120,15 +121,13 @@ const invKardexDefault = reporteGenericoDefault('Kardex de Producto (Rinv304)', 
   { campo: 'saldo', label: 'Saldo', align: 'right' },
 ])
 
-const invValorizacionDefault = reporteGenericoDefault('Valorización de Inventario (Rinv315)', [
-  { campo: 'almacen', label: 'Almacén', align: 'left' },
-  { campo: 'almacen_desc', label: 'Descripción Almacén', align: 'left' },
+const invValorizacionDefault = reporteGenericoDefault('Valorización de Inventario', [
   { campo: 'no_produ', label: 'Producto', align: 'left' },
   { campo: 'descripcion', label: 'Descripción', align: 'left' },
   { campo: 'existencia', label: 'Existencia', align: 'right' },
   { campo: 'costo_prom', label: 'Costo Actual', align: 'right', format: 'money' },
   { campo: 'valor', label: 'Valor', align: 'right', format: 'money' },
-])
+], { groupBy: 'almacen_label', subtotalCampos: 'valor' })
 
 const invCierreEntradaDefault = reporteGenericoDefault('Entrada de Diario · Cierre de Inventario', [
   { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
@@ -454,7 +453,8 @@ export const registry: Record<string, RegistryEntry> = {
     defaultPageOrientation: 'L',
     variables: [
       'reporte.titulo', 'reporte.filtros',
-      'filas[].almacen', 'filas[].almacen_desc', 'filas[].no_produ', 'filas[].descripcion',
+      'filas[].almacen', 'filas[].almacen_desc', 'filas[].almacen_label',
+      'filas[].no_produ', 'filas[].descripcion',
       'filas[].existencia', 'filas[].costo_prom', 'filas[].valor',
       'totales.cantidad', 'totales.total',
     ],
@@ -462,7 +462,7 @@ export const registry: Record<string, RegistryEntry> = {
   'inv-movimientos': {
     codigo: 'inv-movimientos',
     modulo: 'INV',
-    nombre: 'Movimientos de Inventario (Rinv305)',
+    nombre: 'Movimientos de Inventario',
     familia: 'reporte',
     printDataPath: (_id, qs) => `/inv/reportes/movimientos/print-data/?${qs.toString()}`,
     defaultTemplate: invMovimientosDefault,
@@ -479,7 +479,7 @@ export const registry: Record<string, RegistryEntry> = {
   'inv-kardex': {
     codigo: 'inv-kardex',
     modulo: 'INV',
-    nombre: 'Kardex de Producto (Rinv304)',
+    nombre: 'Kardex de Producto',
     familia: 'reporte',
     printDataPath: (_id, qs) => `/inv/reportes/kardex/print-data/?${qs.toString()}`,
     defaultTemplate: invKardexDefault,
@@ -495,7 +495,7 @@ export const registry: Record<string, RegistryEntry> = {
   'inv-valorizacion': {
     codigo: 'inv-valorizacion',
     modulo: 'INV',
-    nombre: 'Valorización de Inventario (Rinv315)',
+    nombre: 'Valorización de Inventario',
     familia: 'reporte',
     printDataPath: (_id, qs) => `/inv/reportes/valorizacion/print-data/?${qs.toString()}`,
     defaultTemplate: invValorizacionDefault,
@@ -503,7 +503,8 @@ export const registry: Record<string, RegistryEntry> = {
     defaultPageOrientation: 'L',
     variables: [
       'reporte.titulo', 'reporte.filtros',
-      'filas[].almacen', 'filas[].almacen_desc', 'filas[].no_produ', 'filas[].descripcion',
+      'filas[].almacen', 'filas[].almacen_desc', 'filas[].almacen_label',
+      'filas[].no_produ', 'filas[].descripcion',
       'filas[].existencia', 'filas[].costo_prom', 'filas[].valor',
       'totales.cantidad', 'totales.total',
     ],

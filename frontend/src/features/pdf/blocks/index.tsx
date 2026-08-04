@@ -1084,6 +1084,10 @@ type TablaReporteProps = {
   headerBg: string
   headerColor: string
   fontSize: number
+  /** Campo por el que agrupar filas (ej. 'almacen_label'). Vacío = sin agrupar. */
+  groupBy?: string
+  /** Campos (separados por coma) a sumar en la fila de subtotal de cada grupo. */
+  subtotalCampos?: string
 }
 function TablaReporte({
   columnasJson,
@@ -1091,6 +1095,8 @@ function TablaReporte({
   headerBg,
   headerColor,
   fontSize,
+  groupBy,
+  subtotalCampos,
 }: TablaReporteProps) {
   const data = usePdfData()
   if (!data || !isReportePayload(data)) return null
@@ -1106,47 +1112,124 @@ function TablaReporte({
     if (format === 'date') return fmtDate(v)
     return String(v ?? '')
   }
-  return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize }}>
-      <thead>
-        <tr style={{ background: headerBg, color: headerColor }}>
-          {cols.map((c, i) => (
-            <th
-              key={i}
-              style={{
-                textAlign: c.align || 'left',
-                padding: '6px 4px',
-                borderBottom: '1px solid #999',
-              }}
-            >
-              {c.label}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {filas.map((f, i) => (
-          <tr
+  const subtotalFields = (subtotalCampos || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  const renderRow = (f: Record<string, unknown>, key: string | number) => (
+    <tr
+      key={key}
+      style={{
+        background: zebra && Number(key) % 2 ? '#f5f5f5' : 'transparent',
+        pageBreakInside: 'avoid',
+      }}
+    >
+      {cols.map((c, j) => (
+        <td
+          key={j}
+          style={{
+            textAlign: c.align || 'left',
+            padding: '4px',
+            borderBottom: '1px solid #eee',
+          }}
+        >
+          {fmt(f[c.campo], c.format)}
+        </td>
+      ))}
+    </tr>
+  )
+
+  const thead = (
+    <thead>
+      <tr style={{ background: headerBg, color: headerColor }}>
+        {cols.map((c, i) => (
+          <th
             key={i}
             style={{
-              background: zebra && i % 2 ? '#f5f5f5' : 'transparent',
-              pageBreakInside: 'avoid',
+              textAlign: c.align || 'left',
+              padding: '6px 4px',
+              borderBottom: '1px solid #999',
             }}
           >
-            {cols.map((c, j) => (
-              <td
-                key={j}
-                style={{
-                  textAlign: c.align || 'left',
-                  padding: '4px',
-                  borderBottom: '1px solid #eee',
-                }}
-              >
-                {fmt((f as Record<string, unknown>)[c.campo], c.format)}
-              </td>
-            ))}
-          </tr>
+            {c.label}
+          </th>
         ))}
+      </tr>
+    </thead>
+  )
+
+  if (!groupBy) {
+    return (
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize }}>
+        {thead}
+        <tbody>
+          {filas.map((f, i) => renderRow(f as Record<string, unknown>, i))}
+        </tbody>
+      </table>
+    )
+  }
+
+  // Agrupado: misma logica que el renderer ReportLab retirado (group_by +
+  // totals_row por grupo) — preserva el orden de primera aparicion del grupo.
+  const groups: { key: string; rows: Record<string, unknown>[] }[] = []
+  const groupIndex = new Map<string, number>()
+  for (const f of filas as Record<string, unknown>[]) {
+    const key = String(f[groupBy] ?? '')
+    if (!groupIndex.has(key)) {
+      groupIndex.set(key, groups.length)
+      groups.push({ key, rows: [] })
+    }
+    groups[groupIndex.get(key)!].rows.push(f)
+  }
+
+  let rowCounter = 0
+  return (
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize }}>
+      {thead}
+      <tbody>
+        {groups.map((g) => {
+          const subtotales: Record<string, number> = {}
+          for (const campo of subtotalFields) {
+            subtotales[campo] = g.rows.reduce(
+              (acc, r) => acc + (Number(r[campo]) || 0),
+              0
+            )
+          }
+          return (
+            <>
+              <tr key={`grp-${g.key}`} style={{ background: '#eef2f7' }}>
+                <td
+                  colSpan={cols.length}
+                  style={{ padding: '5px 4px', fontWeight: 700, borderBottom: '1px solid #ccc' }}
+                >
+                  {g.key || '(sin almacén)'}
+                </td>
+              </tr>
+              {g.rows.map((f) => renderRow(f, rowCounter++))}
+              {subtotalFields.length > 0 && (
+                <tr key={`sub-${g.key}`} style={{ fontWeight: 700, background: '#f8fafc' }}>
+                  {cols.map((c, j) => (
+                    <td
+                      key={j}
+                      style={{
+                        textAlign: c.align || 'left',
+                        padding: '4px',
+                        borderTop: '1px solid #999',
+                      }}
+                    >
+                      {c.campo in subtotales
+                        ? fmt(subtotales[c.campo], c.format)
+                        : j === 0
+                          ? `Subtotal (${g.rows.length})`
+                          : ''}
+                    </td>
+                  ))}
+                </tr>
+              )}
+            </>
+          )
+        })}
       </tbody>
     </table>
   )
@@ -2624,6 +2707,8 @@ export const puckConfig = {
         headerBg: { type: 'text' },
         headerColor: { type: 'text' },
         fontSize: { type: 'number', min: 7, max: 14 },
+        groupBy: { type: 'text' },
+        subtotalCampos: { type: 'text' },
       },
       defaultProps: {
         columnasJson: JSON.stringify(
@@ -2641,6 +2726,8 @@ export const puckConfig = {
         headerBg: '#0F172A',
         headerColor: '#ffffff',
         fontSize: 9,
+        groupBy: '',
+        subtotalCampos: '',
       },
       render: TablaReporte,
     },

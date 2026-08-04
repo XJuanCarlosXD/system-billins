@@ -163,12 +163,14 @@ def inv_existencia_print_data(request):
     filas = [{
         'almacen': (r.get('almacen') or '').strip(),
         'almacen_desc': (r.get('almacen_desc') or '').strip(),
+        'almacen_label': f"{(r.get('almacen') or '').strip()} {(r.get('almacen_desc') or '').strip()}".strip(),
         'no_produ': r.get('no_produ', ''),
         'descripcion': (r.get('descripcion') or '')[:80],
         'existencia': _money(r.get('existencia')),
         'costo_prom': _money(r.get('costo_prom') or r.get('costo_actual')),
         'valor': _money(r.get('valor')),
     } for r in rows]
+    filas.sort(key=lambda f: (f['almacen'], f['no_produ']))
     total = sum(f['valor'] for f in filas)
     return JsonResponse({
         'cia': cia,
@@ -210,6 +212,8 @@ def inv_movimientos_print_data(request):
         'tipo_movi': r.get('tipo_movi', ''),
         'monto_neto': _money(r.get('monto_neto')),
     } for r in rows]
+    # Mismo orden que usaba el renderer ReportLab retirado (agrupado por tipo_docu).
+    filas.sort(key=lambda f: (f['tipo_docu'], f['fecha'], f['no_docu']))
     return JsonResponse({
         'cia': cia,
         'reporte': {
@@ -277,12 +281,14 @@ def inv_valorizacion_print_data(request):
     filas = [{
         'almacen': (r.get('almacen') or '').strip(),
         'almacen_desc': (r.get('almacen_desc') or '').strip(),
+        'almacen_label': f"{(r.get('almacen') or '').strip()} {(r.get('almacen_desc') or '').strip()}".strip(),
         'no_produ': r.get('no_produ', ''),
         'descripcion': (r.get('descripcion') or '')[:60],
         'existencia': _money(r.get('existencia')),
         'costo_prom': _money(r.get('costo_actual')),
         'valor': _money(r.get('valor')),
     } for r in rows]
+    filas.sort(key=lambda f: (f['almacen'], f['no_produ']))
     total = sum(f['valor'] for f in filas)
     return JsonResponse({
         'cia': cia,
