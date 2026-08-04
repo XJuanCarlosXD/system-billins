@@ -122,7 +122,7 @@ function ReporteExistencia({ noCia }: { noCia: string }) {
     if (tipoProd) qs.set('tipo_prod', tipoProd)
     qs.set('con_existencia', conExistencia ? '1' : '0')
     qs.set('modo', modo)
-    window.open(`${API_BASE}/inv/reportes/existencia/pdf/?${qs}`, '_blank')
+    window.open(`/print/inv-existencia/current?${qs}`, '_blank')
   }
 
   return (
@@ -277,7 +277,7 @@ function ReporteMovimientos({ noCia }: { noCia: string }) {
     if (hasta) qs.set('hasta', hasta)
     if (tipoMov) qs.set('tipo_movimiento', tipoMov)
     qs.set('modo', modo)
-    window.open(`${API_BASE}/inv/reportes/movimientos/pdf/?${qs}`, '_blank')
+    window.open(`/print/inv-movimientos/current?${qs}`, '_blank')
   }
 
   return (
@@ -400,7 +400,7 @@ function ReporteKardex({ noCia }: { noCia: string }) {
     if (almacen) qs.set('almacen', almacen)
     if (desde) qs.set('desde', desde)
     if (hasta) qs.set('hasta', hasta)
-    window.open(`${API_BASE}/inv/reportes/kardex/pdf/?${qs}`, '_blank')
+    window.open(`/print/inv-kardex/current?${qs}`, '_blank')
   }
 
   return (
@@ -452,7 +452,7 @@ function ReporteValorizacion({ noCia }: { noCia: string }) {
     const qs = new URLSearchParams({ no_cia: noCia })
     if (almacen) qs.set('almacen', almacen)
     if (tipoProd) qs.set('tipo_prod', tipoProd)
-    window.open(`${API_BASE}/inv/reportes/valorizacion/pdf/?${qs}`, '_blank')
+    window.open(`/print/inv-valorizacion/current?${qs}`, '_blank')
   }
 
   return (

@@ -51,28 +51,18 @@ urlpatterns = [
     # Documentos
     path('documentos/', inv_views.inv_consulta_documentos),
     path('documentos/<str:tipo_docu>/<str:no_docu>/', inv_views.inv_documento_detalle),
-    path('documentos/<str:tipo_docu>/<str:no_docu>/pdf/', inv_views.inv_documento_pdf),
     path('documentos/<str:tipo_docu>/<str:no_docu>/print-data/', inv_documento_print_data),
 
     # Kardex & Valorización
     path('kardex/', inv_views.inv_kardex),
     path('valorizacion/', inv_views.inv_valorizacion),
 
-    # PDF Reports (legacy ReportLab)
-    path('reportes/existencia/pdf/', inv_views.inv_reporte_existencia_pdf),
-    path('reportes/movimientos/pdf/', inv_views.inv_reporte_movimientos_pdf),
-    path('reportes/kardex/pdf/', inv_views.inv_reporte_kardex_pdf),
-    path('reportes/valorizacion/pdf/', inv_views.inv_reporte_valorizacion_pdf),
-
-    # print-data (frontend Puck templates)
+    # print-data (frontend Puck templates) — reemplazan los renderers ReportLab
     path('reportes/existencia/print-data/', inv_existencia_print_data),
     path('reportes/movimientos/print-data/', inv_movimientos_print_data),
     path('reportes/kardex/print-data/', inv_kardex_print_data),
     path('reportes/valorizacion/print-data/', inv_valorizacion_print_data),
     path('cierre/entrada-diario/print-data/', inv_cierre_entrada_print_data),
-
-    # Cierre - Entrada de Diario
-    path('cierre/entrada-diario/pdf/', inv_views.inv_cierre_entrada_diario_pdf),
 
     # Cierre Mensual (Finv402 + Finv403)
     path('cierres/', inv_views.inv_cierres),

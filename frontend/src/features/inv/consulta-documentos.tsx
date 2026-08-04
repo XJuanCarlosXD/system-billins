@@ -527,7 +527,8 @@ export function ConsultaDocumentos() {
 
   function openPdf(doc: Documento, e: React.MouseEvent) {
     e.stopPropagation()
-    const url = `${API_BASE}/inv/documentos/${doc.tipo_docu}/${doc.no_docu}/pdf/?no_cia=${noCia}`
+    const id = `${doc.tipo_docu}-${doc.no_docu}`
+    const url = `/print/inv-documento/${encodeURIComponent(id)}?no_cia=${noCia}`
     window.open(url, '_blank')
   }
 

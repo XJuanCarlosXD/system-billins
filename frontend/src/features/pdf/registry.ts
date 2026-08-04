@@ -86,6 +86,62 @@ const accResumenGastosDefault = reporteGenericoDefault('Resumen de Gastos por Ti
   { campo: 'total', label: 'Total', align: 'right', format: 'money' },
 ])
 
+const invExistenciaDefault = reporteGenericoDefault('Existencia de Inventario', [
+  { campo: 'almacen', label: 'Almacén', align: 'left' },
+  { campo: 'almacen_desc', label: 'Descripción Almacén', align: 'left' },
+  { campo: 'no_produ', label: 'Producto', align: 'left' },
+  { campo: 'descripcion', label: 'Descripción', align: 'left' },
+  { campo: 'existencia', label: 'Existencia', align: 'right' },
+  { campo: 'costo_prom', label: 'Costo Prom.', align: 'right', format: 'money' },
+  { campo: 'valor', label: 'Valor', align: 'right', format: 'money' },
+])
+
+const invMovimientosDefault = reporteGenericoDefault('Movimientos de Inventario (Rinv305)', [
+  { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
+  { campo: 'tipo_docu', label: 'Tipo', align: 'left' },
+  { campo: 'no_docu', label: 'No. Doc.', align: 'left' },
+  { campo: 'almacen', label: 'Almacén', align: 'left' },
+  { campo: 'no_produ', label: 'Producto', align: 'left' },
+  { campo: 'descripcion', label: 'Descripción', align: 'left' },
+  { campo: 'tipo_movi', label: 'E/S', align: 'left' },
+  { campo: 'cantidad', label: 'Cantidad', align: 'right' },
+  { campo: 'costo', label: 'Costo', align: 'right', format: 'money' },
+  { campo: 'monto_neto', label: 'Monto Neto', align: 'right', format: 'money' },
+])
+
+const invKardexDefault = reporteGenericoDefault('Kardex de Producto (Rinv304)', [
+  { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
+  { campo: 'tipo_docu', label: 'Tipo', align: 'left' },
+  { campo: 'no_docu', label: 'No. Doc.', align: 'left' },
+  { campo: 'almacen', label: 'Almacén', align: 'left' },
+  { campo: 'tipo_movi', label: 'E/S', align: 'left' },
+  { campo: 'cantidad', label: 'Cantidad', align: 'right' },
+  { campo: 'costo', label: 'Costo', align: 'right', format: 'money' },
+  { campo: 'saldo', label: 'Saldo', align: 'right' },
+])
+
+const invValorizacionDefault = reporteGenericoDefault('Valorización de Inventario (Rinv315)', [
+  { campo: 'almacen', label: 'Almacén', align: 'left' },
+  { campo: 'almacen_desc', label: 'Descripción Almacén', align: 'left' },
+  { campo: 'no_produ', label: 'Producto', align: 'left' },
+  { campo: 'descripcion', label: 'Descripción', align: 'left' },
+  { campo: 'existencia', label: 'Existencia', align: 'right' },
+  { campo: 'costo_prom', label: 'Costo Actual', align: 'right', format: 'money' },
+  { campo: 'valor', label: 'Valor', align: 'right', format: 'money' },
+])
+
+const invCierreEntradaDefault = reporteGenericoDefault('Entrada de Diario · Cierre de Inventario', [
+  { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
+  { campo: 'tipo_docu', label: 'Tipo', align: 'left' },
+  { campo: 'no_docu', label: 'No. Doc.', align: 'left' },
+  { campo: 'cuenta', label: 'Cuenta', align: 'left' },
+  { campo: 'centro_costo', label: 'Centro Costo', align: 'left' },
+  { campo: 'almacen', label: 'Almacén', align: 'left' },
+  { campo: 'no_produ', label: 'Producto', align: 'left' },
+  { campo: 'tipo_movi', label: 'D/C', align: 'left' },
+  { campo: 'monto', label: 'Monto', align: 'right', format: 'money' },
+])
+
 const sdnInformeNominaDefault = reporteGenericoDefault('Informe de Nómina (Fsdn207)', [
   { campo: 'no_empleado', label: 'No.', align: 'left' },
   { campo: 'nombre_empleado', label: 'Empleado', align: 'left' },
@@ -386,6 +442,88 @@ export const registry: Record<string, RegistryEntry> = {
       'proveedor.nombre',
       'proveedor.rnc',
     ]),
+  },
+  'inv-existencia': {
+    codigo: 'inv-existencia',
+    modulo: 'INV',
+    nombre: 'Existencia de Inventario',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/inv/reportes/existencia/print-data/?${qs.toString()}`,
+    defaultTemplate: invExistenciaDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].almacen', 'filas[].almacen_desc', 'filas[].no_produ', 'filas[].descripcion',
+      'filas[].existencia', 'filas[].costo_prom', 'filas[].valor',
+      'totales.cantidad', 'totales.total',
+    ],
+  },
+  'inv-movimientos': {
+    codigo: 'inv-movimientos',
+    modulo: 'INV',
+    nombre: 'Movimientos de Inventario (Rinv305)',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/inv/reportes/movimientos/print-data/?${qs.toString()}`,
+    defaultTemplate: invMovimientosDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].fecha', 'filas[].tipo_docu', 'filas[].no_docu', 'filas[].almacen',
+      'filas[].no_produ', 'filas[].descripcion', 'filas[].tipo_movi',
+      'filas[].cantidad', 'filas[].costo', 'filas[].monto_neto',
+      'totales.cantidad', 'totales.total',
+    ],
+  },
+  'inv-kardex': {
+    codigo: 'inv-kardex',
+    modulo: 'INV',
+    nombre: 'Kardex de Producto (Rinv304)',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/inv/reportes/kardex/print-data/?${qs.toString()}`,
+    defaultTemplate: invKardexDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].fecha', 'filas[].tipo_docu', 'filas[].no_docu', 'filas[].almacen',
+      'filas[].tipo_movi', 'filas[].cantidad', 'filas[].costo', 'filas[].saldo',
+      'totales.cantidad',
+    ],
+  },
+  'inv-valorizacion': {
+    codigo: 'inv-valorizacion',
+    modulo: 'INV',
+    nombre: 'Valorización de Inventario (Rinv315)',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/inv/reportes/valorizacion/print-data/?${qs.toString()}`,
+    defaultTemplate: invValorizacionDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].almacen', 'filas[].almacen_desc', 'filas[].no_produ', 'filas[].descripcion',
+      'filas[].existencia', 'filas[].costo_prom', 'filas[].valor',
+      'totales.cantidad', 'totales.total',
+    ],
+  },
+  'inv-cierre-entrada': {
+    codigo: 'inv-cierre-entrada',
+    modulo: 'INV',
+    nombre: 'Entrada de Diario · Cierre de Inventario',
+    familia: 'reporte',
+    printDataPath: (_id, qs) => `/inv/cierre/entrada-diario/print-data/?${qs.toString()}`,
+    defaultTemplate: invCierreEntradaDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'L',
+    variables: [
+      'reporte.titulo', 'reporte.filtros',
+      'filas[].fecha', 'filas[].tipo_docu', 'filas[].no_docu', 'filas[].cuenta',
+      'filas[].centro_costo', 'filas[].almacen', 'filas[].no_produ',
+      'filas[].tipo_movi', 'filas[].monto',
+      'totales.cantidad', 'totales.total',
+    ],
   },
   // ── CXC — todos los tipos comparten plantilla y endpoint (FCXC201 legacy) ─
   // El backend devuelve el título correcto (RECIBO DE INGRESO/NOTA DE CREDITO/etc.)

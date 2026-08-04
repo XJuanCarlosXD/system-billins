@@ -85,7 +85,7 @@ export function CierreEntradaDiario({ noCia, punto }: Props) {
       tipo,
       fecha,
     })
-    const url = `${API_BASE}/inv/cierre/entrada-diario/pdf/?${qs.toString()}`
+    const url = `/print/inv-cierre-entrada/current?${qs.toString()}`
     const win = window.open(url, '_blank')
     if (!win) {
       toast.error('El navegador bloqueó la ventana emergente. Permita las ventanas emergentes e intente de nuevo.')

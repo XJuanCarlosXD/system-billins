@@ -190,23 +190,25 @@ def inv_movimientos_print_data(request):
     if err is not None:
         return err
     cia = _cia_payload(no_cia, request=request)
+    almacen = request.GET.get('almacen', '')
+    tipo = request.GET.get('tipo', '')
+    desde = request.GET.get('desde', '')
+    hasta = request.GET.get('hasta', '')
+    # list_movimientos toma 'tipo' (no 'tipo_docu') y el campo monetario real
+    # es monto_neto (mismo que usaba el renderer ReportLab retirado).
     rows = inv_repo.list_movimientos(
-        no_cia=no_cia,
-        almacen=request.GET.get('almacen', ''),
-        tipo_docu=request.GET.get('tipo', ''),
-        desde=request.GET.get('desde', ''),
-        hasta=request.GET.get('hasta', ''),
-    ) if hasattr(inv_repo, 'list_movimientos') else []
+        no_cia=no_cia, almacen=almacen, tipo=tipo, desde=desde, hasta=hasta,
+    )
     filas = [{
         'fecha': str(r.get('fecha') or '')[:10],
-        'tipo_docu': r.get('tipo_docu', ''),
+        'tipo_docu': (r.get('tipo_docu') or '').strip(),
         'no_docu': r.get('no_docu', ''),
         'almacen': (r.get('almacen') or '').strip(),
         'no_produ': r.get('no_produ', ''),
         'descripcion': (r.get('descripcion') or '')[:60],
         'cantidad': _money(r.get('cantidad')),
         'tipo_movi': r.get('tipo_movi', ''),
-        'valor': _money(r.get('valor') or r.get('total')),
+        'monto_neto': _money(r.get('monto_neto')),
     } for r in rows]
     return JsonResponse({
         'cia': cia,
@@ -216,7 +218,7 @@ def inv_movimientos_print_data(request):
             'filtros': _filtros_basicos(request),
         },
         'filas': filas,
-        'totales': {'cantidad': len(filas)},
+        'totales': {'cantidad': len(filas), 'total': sum(f['monto_neto'] for f in filas)},
     })
 
 
@@ -230,10 +232,23 @@ def inv_kardex_print_data(request):
     cia = _cia_payload(no_cia, request=request)
     no_produ = request.GET.get('no_produ', '')
     almacen = request.GET.get('almacen', '')
-    rows = inv_repo.kardex_producto(
-        no_cia=no_cia, no_produ=no_produ, almacen=almacen,
-        desde=request.GET.get('desde', ''), hasta=request.GET.get('hasta', ''),
-    ) if hasattr(inv_repo, 'kardex_producto') else []
+    desde = request.GET.get('desde', '')
+    hasta = request.GET.get('hasta', '')
+    # inv_repo.kardex_producto no existe: la funcion real es list_kardex
+    # (misma que usaba el renderer ReportLab retirado).
+    rows = inv_repo.list_kardex(
+        no_cia=no_cia, no_produ=no_produ, almacen=almacen, desde=desde, hasta=hasta,
+    )
+    filas = [{
+        'fecha': str(r.get('fecha') or '')[:10],
+        'tipo_docu': (r.get('tipo_docu') or '').strip(),
+        'no_docu': r.get('no_docu') or '',
+        'almacen': (r.get('almacen') or '').strip(),
+        'tipo_movi': r.get('tipo_movi') or '',
+        'cantidad': _money(r.get('cantidad')),
+        'costo': _money(r.get('costo')),
+        'saldo': _money(r.get('saldo')),
+    } for r in rows]
     return JsonResponse({
         'cia': cia,
         'reporte': {
@@ -241,8 +256,8 @@ def inv_kardex_print_data(request):
             'fecha_generacion': None,
             'filtros': _filtros_basicos(request, {'Producto': no_produ, 'Almacén': almacen}),
         },
-        'filas': rows,
-        'totales': {'cantidad': len(rows)},
+        'filas': filas,
+        'totales': {'cantidad': len(filas)},
     })
 
 
@@ -254,13 +269,18 @@ def inv_valorizacion_print_data(request):
     if err is not None:
         return err
     cia = _cia_payload(no_cia, request=request)
-    rows = inv_repo.list_existencias(no_cia=no_cia, almacen=request.GET.get('almacen', ''))
+    almacen = request.GET.get('almacen', '')
+    # list_existencias no aplica el filtro de existencia<>0 ni junta almacen_desc
+    # de la misma forma que el renderer ReportLab retirado; usar la misma fuente
+    # real (get_valoracion_inventario) para no cambiar los totales del reporte.
+    rows = inv_repo.get_valoracion_inventario(no_cia=no_cia, almacen=almacen)
     filas = [{
         'almacen': (r.get('almacen') or '').strip(),
+        'almacen_desc': (r.get('almacen_desc') or '').strip(),
         'no_produ': r.get('no_produ', ''),
         'descripcion': (r.get('descripcion') or '')[:60],
         'existencia': _money(r.get('existencia')),
-        'costo_prom': _money(r.get('costo_prom') or r.get('costo_actual')),
+        'costo_prom': _money(r.get('costo_actual')),
         'valor': _money(r.get('valor')),
     } for r in rows]
     total = sum(f['valor'] for f in filas)
@@ -283,18 +303,42 @@ def inv_cierre_entrada_print_data(request):
     err = _check_inv_access(request, no_cia)
     if err is not None:
         return err
+    punto = request.GET.get('punto', '')
+    mes = request.GET.get('mes', '')
+    ano = request.GET.get('ano', '')
+    tipo = request.GET.get('tipo', 'detallado')
+    fecha = request.GET.get('fecha', '')
+    if not mes or not ano:
+        return JsonResponse({'error': 'Parametros mes y ano requeridos'}, status=400)
     cia = _cia_payload(no_cia, request=request)
-    # Reusar logic del inv_views si existe; si no, devolver lista vacía.
-    rows = inv_repo.list_cierre_entrada_diario(
-        no_cia=no_cia, fecha=request.GET.get('fecha', ''),
-    ) if hasattr(inv_repo, 'list_cierre_entrada_diario') else []
+    # inv_repo.list_cierre_entrada_diario no existe: la funcion real es
+    # list_entrada_diario (misma que usaba el renderer ReportLab retirado).
+    # Trae dos formas de fila segun la fuente (TINV_ED con cuenta contable, o
+    # TINV_MOVIMIENTO de respaldo con almacen/producto) — se normalizan a un
+    # unico set de columnas para la plantilla, dejando vacio lo que no aplique.
+    rows = inv_repo.list_entrada_diario(
+        no_cia=no_cia, punto=punto, ano=ano, mes=mes, fecha=fecha, tipo=tipo,
+    )
+    filas = [{
+        'fecha': str(r.get('fecha') or '')[:10],
+        'tipo_docu': (r.get('tipo_docu') or '').strip(),
+        'no_docu': r.get('no_docu') or '',
+        'cuenta': (r.get('cuenta') or '').strip(),
+        'centro_costo': (r.get('centro_costo') or '').strip(),
+        'almacen': (r.get('almacen') or '').strip(),
+        'no_produ': r.get('no_produ') or '',
+        'tipo_movi': r.get('tipo_movi') or '',
+        'monto': _money(r.get('monto')),
+    } for r in rows]
+    total = sum(f['monto'] for f in filas)
     return JsonResponse({
         'cia': cia,
         'reporte': {
-            'codigo': 'inv-cierre-entrada', 'titulo': 'Cierre Entrada Diario',
+            'codigo': 'inv-cierre-entrada',
+            'titulo': f"Entrada de Diario {'Detallado' if tipo == 'detallado' else 'Resumido'} — {mes}/{ano}",
             'fecha_generacion': None,
-            'filtros': _filtros_basicos(request),
+            'filtros': _filtros_basicos(request, {'Punto': punto, 'Período': f'{mes}/{ano}', 'Tipo': tipo}),
         },
-        'filas': rows,
-        'totales': {'cantidad': len(rows)},
+        'filas': filas,
+        'totales': {'cantidad': len(filas), 'total': total},
     })
