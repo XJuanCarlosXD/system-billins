@@ -70,7 +70,7 @@ function buildHomeNavGroups(
     {
       title: 'General',
       items: [
-        { title: 'Dashboard', url: '/', icon: LayoutDashboard },
+        { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
         shortcut('/reportes'),
         shortcut('/ncf-alerts'),
         shortcut('/empresas'),
