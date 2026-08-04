@@ -940,7 +940,7 @@ export function DevolucionSuplidores({ noCia, punto }: Props) {
           }
         }}
       >
-        <DialogContent className='flex max-h-[80vh] w-[80vw] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none'>
+        <DialogContent size='picker-lg'>
           <DialogHeader className='shrink-0 border-b px-6 py-4'>
             <DialogTitle>
               Líneas del documento {tipoDocOrigen}-

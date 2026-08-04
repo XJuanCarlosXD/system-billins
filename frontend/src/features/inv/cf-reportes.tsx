@@ -233,7 +233,7 @@ export function ConteoFisicoReportes({ noCia, punto }: Props) {
 
       {/* Dialog confirmación cancelar */}
       <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
-        <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
+        <DialogContent size='lg'>
           <DialogHeader>
             <DialogTitle>Confirmar cancelación de conteo físico</DialogTitle>
             <DialogDescription>

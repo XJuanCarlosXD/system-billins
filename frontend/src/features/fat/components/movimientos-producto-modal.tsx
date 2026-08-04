@@ -215,7 +215,7 @@ export function MovimientosProductoModal({
         if (!o) onClose()
       }}
     >
-      <DialogContent className='flex h-[88vh] w-[92vw] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none'>
+      <DialogContent size='picker-lg'>
         {/* Header */}
         <DialogHeader className='shrink-0 border-b bg-background px-6 py-3'>
           <DialogTitle className='text-base font-semibold'>

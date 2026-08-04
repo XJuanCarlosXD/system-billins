@@ -70,7 +70,7 @@ function CreateUserDialog({ onCreated }: { onCreated: () => void }) {
           <Plus className='me-2 h-4 w-4' /> Nuevo usuario
         </Button>
       </DialogTrigger>
-      <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
+      <DialogContent size='lg'>
         <DialogHeader>
           <DialogTitle>Crear usuario Oracle</DialogTitle>
           <DialogDescription>
@@ -132,7 +132,7 @@ function EditProfileDialog({ user, onDone }: { user: AdminUser; onDone: () => vo
           <Pencil className='h-3.5 w-3.5' />
         </Button>
       </DialogTrigger>
-      <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
+      <DialogContent size='lg'>
         <DialogHeader>
           <DialogTitle>Nombre y rol — {user.username}</DialogTitle>
           <DialogDescription>Se guarda en la ficha de empleado (MAN.TCSC) del sistema.</DialogDescription>
@@ -180,7 +180,7 @@ function ResetPasswordDialog({ user, onDone }: { user: AdminUser; onDone: () => 
           <KeyRound className='h-3.5 w-3.5' />
         </Button>
       </DialogTrigger>
-      <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
+      <DialogContent size='xl'>
         <DialogHeader>
           <DialogTitle>Resetear contraseña — {user.username}</DialogTitle>
           <DialogDescription>El usuario tendrá que cambiarla luego desde su perfil.</DialogDescription>

@@ -45,7 +45,7 @@ interface Props {
 export function FacturaDetalleDialog({ factura, loading, onClose, onPrint, noCia, punto }: Props) {
   return (
     <Dialog open={!!factura || loading} onOpenChange={onClose}>
-      <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
+      <DialogContent size='xl'>
         <DialogHeader>
           <div className='flex items-center justify-between'>
             <DialogTitle>

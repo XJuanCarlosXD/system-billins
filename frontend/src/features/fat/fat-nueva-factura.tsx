@@ -1776,7 +1776,7 @@ export function NuevaFactura({ noCia, punto }: Props) {
 
       {/* ── Client Search Modal ── */}
       <Dialog open={clienteModalOpen} onOpenChange={setClienteModalOpen}>
-        <DialogContent className='flex h-[85vh] w-[95vw] max-w-none flex-col gap-0 overflow-hidden p-0 sm:h-[70vh] sm:w-[60vw] sm:max-w-none'>
+        <DialogContent size='picker-lg'>
           <DialogHeader className='shrink-0 border-b px-6 py-4'>
             <DialogTitle>Buscar Cliente</DialogTitle>
           </DialogHeader>

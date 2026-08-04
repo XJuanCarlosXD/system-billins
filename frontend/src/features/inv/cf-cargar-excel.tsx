@@ -132,7 +132,7 @@ export function CargarConteoExcel({ noCia, punto }: Props) {
                 Ver Formato Hoja Excel
               </Button>
             </DialogTrigger>
-            <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
+            <DialogContent size='xl'>
               <DialogHeader>
                 <DialogTitle>Formato de Hoja Excel — Conteo Físico</DialogTitle>
               </DialogHeader>

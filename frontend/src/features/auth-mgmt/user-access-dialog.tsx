@@ -368,7 +368,7 @@ export function UserAccessDialog({
           <ShieldCheck className='h-3.5 w-3.5' />
         </Button>
       </DialogTrigger>
-      <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
+      <DialogContent size='xl'>
         <DialogHeader>
           <DialogTitle className='text-xl'>Permisos — {user.username}</DialogTitle>
           <DialogDescription>

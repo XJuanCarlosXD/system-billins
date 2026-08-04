@@ -254,7 +254,7 @@ function TipoDocFormDialog({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
+      <DialogContent size='lg'>
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Editar tipo de documento' : 'Nuevo tipo de documento'}</DialogTitle>
         </DialogHeader>

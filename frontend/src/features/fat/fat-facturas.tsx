@@ -349,7 +349,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
 
       {/* Anulación modal */}
       <Dialog open={!!anularTarget} onOpenChange={() => { if (!anularLoading) setAnularTarget(null) }}>
-        <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
+        <DialogContent size='lg'>
           <DialogHeader>
             <DialogTitle>Anular Factura</DialogTitle>
           </DialogHeader>

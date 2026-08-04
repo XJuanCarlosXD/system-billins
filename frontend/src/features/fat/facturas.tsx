@@ -544,7 +544,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
         open={!!selected || loadingDetail}
         onOpenChange={() => setSelected(null)}
       >
-        <DialogContent className='flex h-[85vh] w-[95vw] max-w-none flex-col gap-0 overflow-hidden p-0 sm:h-[70vh] sm:w-[80vw] sm:max-w-none'>
+        <DialogContent size='picker-lg'>
           <DialogHeader className='shrink-0 border-b bg-background px-6 py-4 pr-12'>
             <div className='flex flex-wrap items-center gap-4'>
               <DialogTitle className='mr-2 text-lg'>

@@ -70,7 +70,7 @@ function ProveedorPicker({
         )}
       </div>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="flex h-[70vh] w-[60vw] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none">
+        <DialogContent size="picker">
           <DialogHeader className="shrink-0 border-b px-6 py-4"><DialogTitle>Buscar Proveedor</DialogTitle></DialogHeader>
           <div className="shrink-0 border-b bg-background px-6 py-3">
             <Input ref={inputRef} value={search} onChange={(e) => setSearch(e.target.value)}

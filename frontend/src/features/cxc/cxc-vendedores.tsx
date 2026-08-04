@@ -110,7 +110,7 @@ export function CxcVendedores({ noCia }: P) {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-[70vw] max-h-[70vh] overflow-y-auto">
+        <DialogContent size="lg">
           <DialogHeader><DialogTitle>{isNew ? 'Nuevo' : 'Editar'} Vendedor</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
             <div className="space-y-1">

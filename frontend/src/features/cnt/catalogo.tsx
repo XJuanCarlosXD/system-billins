@@ -165,7 +165,7 @@ function CuentaForm({ initial, tcuenta, noCia, punto, onClose, onSaved }: any) {
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
+      <DialogContent size='lg'>
         <DialogHeader>
           <DialogTitle>{initial ? 'Editar cuenta' : 'Nueva cuenta'}</DialogTitle>
         </DialogHeader>

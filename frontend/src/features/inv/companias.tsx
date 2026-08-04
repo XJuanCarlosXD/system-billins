@@ -242,7 +242,7 @@ function CompaniaFormDialog({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
+      <DialogContent size='lg'>
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Editar compañía' : 'Nueva compañía'}</DialogTitle>
         </DialogHeader>

@@ -361,7 +361,7 @@ export function ReverarDocumento({ noCia, punto }: Props) {
 
       {/* Confirmation dialog */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
+        <DialogContent size='lg'>
           <DialogHeader>
             <DialogTitle>Confirmar Reversión</DialogTitle>
             <DialogDescription>

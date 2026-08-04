@@ -255,7 +255,7 @@ export function CierreAsiento({ noCia, punto }: Props) {
 
       {/* Confirmación */}
       <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
-        <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
+        <DialogContent size='lg'>
           <DialogHeader>
             <DialogTitle>Confirmar Generación de Asiento</DialogTitle>
             <DialogDescription>

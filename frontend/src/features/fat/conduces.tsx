@@ -573,7 +573,7 @@ export function ConducesFat({ noCia, punto, ano: anoProp, mes: mesProp }: Props)
         open={!!selected || loadingDetail}
         onOpenChange={() => setSelected(null)}
       >
-        <DialogContent className='flex max-h-[85vh] w-[80vw] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none'>
+        <DialogContent size='picker-lg'>
           <DialogHeader className='shrink-0 border-b bg-background px-6 py-4'>
             <div className='flex flex-wrap items-center justify-between gap-4'>
               <div className='flex flex-wrap items-center gap-3'>

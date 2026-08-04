@@ -2,8 +2,38 @@
 
 import * as React from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
+import { cva, type VariantProps } from 'class-variance-authority'
 import { XIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
+
+/**
+ * Dialogs size to their content by default (grid auto-height, no forced
+ * min/max width) and only cap out at a viewport-relative ceiling so they
+ * never overflow small screens. `size` picks the width ceiling; `picker`
+ * is the one shape that legitimately wants a fixed viewport-relative box
+ * (search + scrollable table).
+ */
+const dialogContentVariants = cva(
+  'fixed top-[50%] left-[50%] z-50 grid translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-6 shadow-lg duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
+  {
+    variants: {
+      size: {
+        sm: 'w-[calc(100%-2rem)] max-w-md max-h-[85vh] overflow-y-auto',
+        md: 'w-[calc(100%-2rem)] max-w-lg max-h-[85vh] overflow-y-auto',
+        lg: 'w-[calc(100%-2rem)] max-w-2xl max-h-[85vh] overflow-y-auto',
+        xl: 'w-[calc(100%-2rem)] max-w-4xl max-h-[85vh] overflow-y-auto',
+        '2xl': 'w-[calc(100%-2rem)] max-w-6xl max-h-[85vh] overflow-y-auto',
+        picker:
+          'flex h-[85vh] max-h-[85vh] w-[92vw] flex-col gap-0 overflow-hidden p-0 sm:w-[70vw]',
+        'picker-lg':
+          'flex h-[85vh] max-h-[85vh] w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:w-[85vw]',
+      },
+    },
+    defaultVariants: {
+      size: 'md',
+    },
+  }
+)
 
 function Dialog({
   ...props
@@ -49,19 +79,18 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  size,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content> & {
-  showCloseButton?: boolean
-}) {
+}: React.ComponentProps<typeof DialogPrimitive.Content> &
+  VariantProps<typeof dialogContentVariants> & {
+    showCloseButton?: boolean
+  }) {
   return (
     <DialogPortal data-slot='dialog-portal'>
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot='dialog-content'
-        className={cn(
-          'fixed top-[50%] left-[50%] z-50 grid h-full w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-6 shadow-lg duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-h-7/12 sm:max-w-7xl',
-          className
-        )}
+        className={cn(dialogContentVariants({ size, className }))}
         {...props}
       >
         {children}
@@ -132,6 +161,7 @@ export {
   Dialog,
   DialogClose,
   DialogContent,
+  dialogContentVariants,
   DialogDescription,
   DialogFooter,
   DialogHeader,

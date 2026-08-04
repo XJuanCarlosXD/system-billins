@@ -190,7 +190,7 @@ export function ClientePicker({ noCia, cliente, onChange, disabled, showRnc = tr
 
       {/* Modal de búsqueda */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="flex h-[70vh] w-[60vw] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none">
+        <DialogContent size="picker">
           <DialogHeader className="shrink-0 border-b px-6 py-4">
             <DialogTitle>Buscar Cliente</DialogTitle>
           </DialogHeader>

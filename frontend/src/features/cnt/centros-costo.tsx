@@ -180,7 +180,7 @@ function CentroCostoCreateDialog({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className='max-w-[70vw] max-h-[70vh] overflow-y-auto'>
+      <DialogContent size='lg'>
         <DialogHeader>
           <DialogTitle>Nuevo centro de costo</DialogTitle>
         </DialogHeader>

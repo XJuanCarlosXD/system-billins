@@ -129,7 +129,7 @@ export function CatalogoCrud({ title, fields, fetchFn, saveFn, deleteFn, idField
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-[70vw] max-h-[70vh] overflow-y-auto">
+        <DialogContent size="lg">
           <DialogHeader><DialogTitle>{isNew ? 'Nuevo' : 'Editar'} — {title}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
             {fields.map(f => (
