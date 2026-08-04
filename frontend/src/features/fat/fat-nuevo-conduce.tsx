@@ -411,11 +411,15 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
   // ── Lines ────────────────────────────────────────────────
   const agregarLinea = () => {
     const td = tiposDoc.find((d) => d.tipo_docu === tipoDoc)
+    // El tipo de documento (ej. CT-cotizacion) puede no traer un almacen por
+    // defecto configurado; sin fallback al primer almacen activo, la linea
+    // se guarda con almacen vacio y Oracle rechaza el insert (ALMACEN NOT NULL).
+    const almacenDefault = td?.almacen || almacenes[0]?.almacen || ''
     const lin = lineas.length + 1
     const nuevaLinea: Linea = {
       id: lineaIdCounter++,
       lin,
-      almacen: td?.almacen || '',
+      almacen: almacenDefault,
       cod_barra: '',
       no_produ: '',
       emp: '',
@@ -441,7 +445,7 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
         setProductSearch('')
         setProductResults([])
         setModalCantidades({})
-        setModalAlmacen(td?.almacen || '')
+        setModalAlmacen(almacenDefault)
         setProductDialogOpen(true)
       }, 0)
       return next
@@ -714,6 +718,15 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
       toast({
         title: 'Validacion',
         description: 'Debe agregar al menos una linea valida',
+        variant: 'destructive',
+      })
+      return
+    }
+    const lineaSinAlmacen = lineasValidas.findIndex((l) => !l.almacen)
+    if (lineaSinAlmacen !== -1) {
+      toast({
+        title: 'Validacion',
+        description: `Falta seleccionar almacen en la linea ${lineaSinAlmacen + 1}`,
         variant: 'destructive',
       })
       return
@@ -1481,7 +1494,7 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
             l.emp = p.unidad_empaque
             l.cantidad = qty
             l.monto = qty * l.precio * (1 - (l.porc_descuento ?? 0) / 100)
-            if (alm) l.almacen = alm
+            l.almacen = alm || l.almacen || almacenes[0]?.almacen || ''
             arr[idx] = l
             return arr
           })
