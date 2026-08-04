@@ -6,8 +6,8 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { Loader2, LogIn } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
-import { cn } from '@/lib/utils'
 import { apiClient, ApiError } from '@/lib/api-client'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -52,7 +52,10 @@ export function UserAuthForm({
   async function onSubmit(data: z.infer<typeof formSchema>) {
     setIsLoading(true)
     try {
-      const res = await apiClient.login(data.username.toUpperCase(), data.password)
+      const res = await apiClient.login(
+        data.username.toUpperCase(),
+        data.password
+      )
       auth.setUser({
         accountNo: res.username,
         email: res.username,

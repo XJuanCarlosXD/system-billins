@@ -2,8 +2,8 @@ import { useMemo } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
 import { Command, LayoutDashboard } from 'lucide-react'
 import { useLayout } from '@/context/layout-provider'
-import { useMe } from '@/hooks/use-me'
 import { useAccess } from '@/hooks/use-access'
+import { useMe } from '@/hooks/use-me'
 import {
   Sidebar,
   SidebarContent,
@@ -20,11 +20,7 @@ import { sidebarData } from './data/sidebar-data'
 import { NavGroup } from './nav-group'
 import { NavUser } from './nav-user'
 import { TeamSwitcher } from './team-switcher'
-import type {
-  NavItem,
-  NavGroup as NavGroupType,
-  SidebarModule,
-} from './types'
+import type { NavItem, NavGroup as NavGroupType, SidebarModule } from './types'
 
 const OPERACION_CODES = ['fat', 'cxc', 'cxp', 'odc', 'lic', 'inv', 'chc']
 const ADMINISTRACION_CODES = ['acc', 'sdn', 'acf', 'cnt']
@@ -140,7 +136,11 @@ function ModuleHomeLink() {
 export function AppSidebar() {
   const { collapsible, variant } = useLayout()
   const { data: me } = useMe()
-  const { hasModule, isAdmin: accessIsAdmin, isLoading: accessLoading } = useAccess()
+  const {
+    hasModule,
+    isAdmin: accessIsAdmin,
+    isLoading: accessLoading,
+  } = useAccess()
   const isAdmin = accessIsAdmin || (me?.is_admin ?? false)
   // While /api/me/access/ is loading, do not filter by module (would hide
   // everything for non-admins). Fall back to the previous isAdmin-only rule.
@@ -154,7 +154,10 @@ export function AppSidebar() {
   const navGroups: NavGroupType[] = useMemo(() => {
     if (activeModule) {
       return activeModule.navGroups
-        .map((g) => ({ ...g, items: filterNavItems(g.items, isAdmin, modGate) }))
+        .map((g) => ({
+          ...g,
+          items: filterNavItems(g.items, isAdmin, modGate),
+        }))
         .filter((g) => g.items.length > 0)
     }
     return buildHomeNavGroups(isAdmin, modGate)
