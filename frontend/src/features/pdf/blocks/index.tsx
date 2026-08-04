@@ -2033,9 +2033,295 @@ function stripLeadingZeros(s: string | null | undefined): string {
 }
 
 // ────────────────────────────────────────────────────────────────────
+// DocumentoSimple — documento completo en el estilo "sencillo" de
+// cxp-factura-proveedor: TODO líneas finas, encabezado de tabla en negrita
+// con raya (SIN barra oscura, SIN zebra), sin paneles de colores. Un solo
+// bloque reutilizable que arma header + tercero + líneas + totales + firmas
+// leyendo el payload y ramificando por tipo (proveedor vs cliente, almacén,
+// NCF). Es el patrón a usar en plantillas nuevas en lugar del combo
+// EncabezadoFactura + PanelInfoFactura + TablaLineas(barra) + BloqueTotales.
+// ────────────────────────────────────────────────────────────────────
+type DocumentoSimpleProps = {
+  firmaIzq: string
+  firmaDer: string
+  mostrarAlmacen: boolean
+}
+function DocumentoSimple({
+  firmaIzq,
+  firmaDer,
+  mostrarAlmacen,
+}: DocumentoSimpleProps) {
+  const data = usePdfData()
+  if (!data || isReportePayload(data)) return null
+  const d = data as DocumentoPrintPayload
+  const doc = d.doc as DocPayload & {
+    almacen_origen?: string
+    almacen_destino?: string
+  }
+  const cia = d.cia
+  const prov = d.proveedor
+  const cli = d.cliente
+  const tercero = prov?.nombre
+    ? { label: 'PROVEEDOR', p: prov }
+    : cli?.nombre
+      ? { label: 'CLIENTE', p: cli }
+      : null
+  const lineas = d.lineas || []
+  const t = d.totales || { total: 0 }
+
+  const thin = '1px solid #333'
+  const hair = '1px solid #ccc'
+  type C = 'codigo' | 'descripcion' | 'cantidad' | 'precio' | 'total'
+  const cols: { key: C; label: string; align: 'left' | 'right' | 'center' }[] = [
+    { key: 'codigo', label: 'Código', align: 'left' },
+    { key: 'descripcion', label: 'Descripción', align: 'left' },
+    { key: 'cantidad', label: 'Cant.', align: 'center' },
+    { key: 'precio', label: 'Precio', align: 'right' },
+    { key: 'total', label: 'Total', align: 'right' },
+  ]
+  const cellVal = (l: LineaPayload, k: C): string => {
+    switch (k) {
+      case 'codigo':
+        return l.codigo || ''
+      case 'descripcion':
+        return l.descripcion || ''
+      case 'cantidad':
+        return money(l.cantidad, l.cantidad % 1 === 0 ? 0 : 2)
+      case 'precio':
+        return money(l.precio)
+      case 'total':
+        return money(l.total)
+    }
+  }
+
+  return (
+    <div style={{ fontSize: 9, color: '#0F172A' }}>
+      {/* Header: empresa (logo + datos) | tipo + número + fecha + NCF */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 8 }}>
+        <tbody>
+          <tr>
+            <td style={{ verticalAlign: 'top', width: '55%' }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                {cia.logo_url && (
+                  <img
+                    src={cia.logo_url}
+                    alt=''
+                    style={{ maxHeight: 60, maxWidth: 80, objectFit: 'contain' }}
+                    onError={(e) => {
+                      ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                    }}
+                  />
+                )}
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 12 }}>
+                    {cia.razon_social}
+                  </div>
+                  {cia.direccion && <div>{cia.direccion}</div>}
+                  {cia.telefono && <div>TEL. {cia.telefono}</div>}
+                  {cia.rnc && <div>RNC {cia.rnc}</div>}
+                </div>
+              </div>
+            </td>
+            <td style={{ verticalAlign: 'top', textAlign: 'right' }}>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>
+                {(doc.tipo_label || doc.tipo || '').toUpperCase()}
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>
+                {doc.numero_display || `${doc.tipo}-${doc.no}`}
+              </div>
+              {doc.fecha && (
+                <div style={{ marginTop: 6 }}>Fecha {fmtDate(doc.fecha)}</div>
+              )}
+              {doc.ncf_dgi && (
+                <div style={{ marginTop: 4 }}>
+                  <b>NCF:</b> {doc.ncf_dgi}
+                </div>
+              )}
+              {doc.anulada && (
+                <div style={{ marginTop: 2, color: '#dc2626', fontWeight: 700 }}>
+                  ANULADA
+                </div>
+              )}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* Tercero (proveedor o cliente) — solo si el documento tiene uno */}
+      {tercero && (
+        <table
+          style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            borderTop: thin,
+            borderBottom: thin,
+            marginBottom: 6,
+          }}
+        >
+          <tbody>
+            <tr style={{ borderBottom: hair }}>
+              <td style={{ padding: '3px 6px', width: 90, fontWeight: 700, borderRight: hair }}>
+                {tercero.label} NO.
+              </td>
+              <td style={{ padding: '3px 6px' }}>{tercero.p.no}</td>
+              <td style={{ padding: '3px 6px', textAlign: 'right' }}>
+                {tercero.p.rnc ? `RNC: ${tercero.p.rnc}` : ''}
+              </td>
+            </tr>
+            <tr style={{ borderBottom: hair }}>
+              <td style={{ padding: '3px 6px', fontWeight: 700, borderRight: hair }}>
+                NOMBRE
+              </td>
+              <td style={{ padding: '3px 6px' }} colSpan={2}>
+                {tercero.p.nombre}
+              </td>
+            </tr>
+            <tr style={{ borderBottom: hair }}>
+              <td style={{ padding: '3px 6px', fontWeight: 700, borderRight: hair }}>
+                DIRECCION
+              </td>
+              <td style={{ padding: '3px 6px' }} colSpan={2}>
+                {tercero.p.direccion || '—'}
+              </td>
+            </tr>
+            <tr>
+              <td style={{ padding: '3px 6px', fontWeight: 700, borderRight: hair }}>
+                TELEFONO
+              </td>
+              <td style={{ padding: '3px 6px' }} colSpan={2}>
+                {tercero.p.telefono || '—'}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      )}
+
+      {/* Línea de contexto INV: almacén origen→destino, vendedor, condición */}
+      {mostrarAlmacen &&
+        (doc.almacen_origen || doc.vendedor || doc.condicion_pago) && (
+          <div style={{ margin: '2px 0 8px', display: 'flex', gap: 18, flexWrap: 'wrap' }}>
+            {doc.almacen_origen && (
+              <span>
+                <b>Almacén:</b> {doc.almacen_origen}
+                {doc.almacen_destino ? ` → ${doc.almacen_destino}` : ''}
+              </span>
+            )}
+            {doc.vendedor && (
+              <span>
+                <b>Vendedor:</b> {doc.vendedor}
+              </span>
+            )}
+            {doc.condicion_pago && (
+              <span>
+                <b>Condición:</b> {doc.condicion_pago}
+              </span>
+            )}
+          </div>
+        )}
+
+      {/* Líneas: encabezado en negrita con raya fina (sin barra ni zebra) */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9 }}>
+        <thead>
+          <tr style={{ borderTop: thin, borderBottom: thin }}>
+            {cols.map((c) => (
+              <th
+                key={c.key}
+                style={{ textAlign: c.align, padding: '4px 6px', fontWeight: 700 }}
+              >
+                {c.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {lineas.map((l, i) => (
+            <tr key={i} style={{ borderBottom: hair, pageBreakInside: 'avoid' }}>
+              {cols.map((c) => (
+                <td
+                  key={c.key}
+                  style={{ textAlign: c.align, padding: '4px 6px' }}
+                >
+                  {cellVal(l, c.key)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Totales compactos, alineados a la derecha */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 4 }}>
+        <tbody>
+          <tr>
+            <td style={{ width: '62%' }} />
+            <td style={{ width: '38%' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9 }}>
+                <tbody>
+                  <tr>
+                    <td style={{ padding: '3px 6px' }}>Subtotal</td>
+                    <td style={{ padding: '3px 6px', textAlign: 'right' }}>
+                      {money(t.subtotal)}
+                    </td>
+                  </tr>
+                  {!!t.descuento && (
+                    <tr>
+                      <td style={{ padding: '3px 6px' }}>Descuento</td>
+                      <td style={{ padding: '3px 6px', textAlign: 'right' }}>
+                        {money(t.descuento)}
+                      </td>
+                    </tr>
+                  )}
+                  <tr>
+                    <td style={{ padding: '3px 6px' }}>ITBIS</td>
+                    <td style={{ padding: '3px 6px', textAlign: 'right' }}>
+                      {money(t.itbis)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderTop: thin }}>
+                    <td style={{ padding: '3px 6px', fontWeight: 700 }}>
+                      TOTAL RD$
+                    </td>
+                    <td style={{ padding: '3px 6px', textAlign: 'right', fontWeight: 700 }}>
+                      {money(t.total)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* Observación */}
+      {doc.nota && (
+        <div style={{ marginTop: 8 }}>
+          <b>Observación:</b> {doc.nota}
+        </div>
+      )}
+
+      {/* Firmas: dos líneas finas */}
+      <table style={{ width: '100%', marginTop: 40 }}>
+        <tbody>
+          <tr>
+            <td style={{ borderTop: '1px solid #000', width: '45%', paddingTop: 4, fontSize: 9 }}>
+              {firmaIzq}
+            </td>
+            <td style={{ width: '10%' }} />
+            <td style={{ borderTop: '1px solid #000', width: '45%', paddingTop: 4, fontSize: 9, textAlign: 'center' }}>
+              {firmaDer}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// ────────────────────────────────────────────────────────────────────
 // Puck Config
 // ────────────────────────────────────────────────────────────────────
 export type PuckBlockProps = {
+  DocumentoSimple: DocumentoSimpleProps
   Fila: FilaProps
   HeaderEmpresa: HeaderEmpresaProps
   EncabezadoFactura: EncabezadoFacturaProps
@@ -2061,6 +2347,26 @@ export type PuckBlockProps = {
 
 export const puckConfig = {
   components: {
+    DocumentoSimple: {
+      label: 'Documento — sencillo (estilo CxP)',
+      fields: {
+        firmaIzq: { type: 'text' },
+        firmaDer: { type: 'text' },
+        mostrarAlmacen: {
+          type: 'radio',
+          options: [
+            { label: 'Sí', value: true },
+            { label: 'No', value: false },
+          ],
+        },
+      },
+      defaultProps: {
+        firmaIzq: 'Recibido por',
+        firmaDer: 'Entregado por',
+        mostrarAlmacen: true,
+      },
+      render: DocumentoSimple,
+    },
     HeaderEmpresa: {
       label: 'Header — Empresa',
       fields: {

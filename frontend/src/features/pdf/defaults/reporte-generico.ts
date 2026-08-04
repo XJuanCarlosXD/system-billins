@@ -149,168 +149,17 @@ export const invCierreEntradaDefault = reporteGenericoDefault('Cierre Entrada Di
   { campo: 'total', label: 'Total', align: 'right', format: 'money' },
 ])
 
-// Plantilla INV — estilo "sencillo" (mismo lenguaje visual que cxp-documento):
-// tablas HTML vía TextoLibre en vez de paneles boxy con casillas "N/A".
-// Cubre EC/DC (con proveedor), EA/SA/TA/AE/AS/EP/SP (sin tercero — la tabla
-// de proveedor/cliente simplemente no se renderiza si no hay datos).
+// Plantilla INV — usa el bloque reutilizable DocumentoSimple (estilo CxP:
+// líneas finas, sin barra oscura ni zebra). Un solo componente arma header +
+// tercero (proveedor/cliente auto) + almacén + líneas + totales + firmas para
+// TODOS los tipos de documento INV (EC/DC con proveedor, EA/SA/TA/AE/AS/EP/SP
+// sin tercero). Sin HTML suelto: la lógica vive en el componente.
 export const invDocumentoDefault: any = {
   content: [
     { type: 'WatermarkAnulada', props: { id: 'wm', texto: 'ANULADA', opacity: 0.18, angle: -30, color: '#dc2626' } },
-
-    // ── 1. Encabezado: empresa izq + título doc / NCF der (igual a CxP)
-    { type: 'TextoLibre', props: {
-      id: 'header',
-      html: `
-<table style="width:100%;border-collapse:collapse;margin-bottom:8px">
-  <tr>
-    <td style="vertical-align:top;width:50%">
-      <table>
-        <tr>
-          <td style="vertical-align:top">
-            {{#if cia.logo_url}}<img src="{{cia.logo_url}}" style="max-height:60px;max-width:80px;margin-right:8px" />{{/if}}
-          </td>
-          <td style="vertical-align:top">
-            <div style="font-weight:bold;font-size:11px">{{cia.razon_social}}</div>
-            <div style="font-size:9px">{{cia.direccion}}</div>
-            <div style="font-size:9px">TEL. {{cia.telefono}}</div>
-            <div style="font-size:9px">RNC {{cia.rnc}}</div>
-          </td>
-        </tr>
-      </table>
-    </td>
-    <td style="vertical-align:top;text-align:right">
-      <div style="font-size:14px;font-weight:bold">{{upper doc.tipo_label}}</div>
-      <div style="font-size:14px;font-weight:bold">{{doc.numero_display}}</div>
-      <div style="font-size:9px;margin-top:6px">Fecha {{formatDate doc.fecha}}</div>
-      {{#if doc.ncf_dgi}}<div style="font-size:10px;margin-top:4px"><b>NCF:</b> {{doc.ncf_dgi}}</div>{{/if}}
-      {{#if doc.anulada}}<div style="font-size:10px;color:#dc2626;font-weight:bold;margin-top:2px">ANULADA</div>{{/if}}
-    </td>
-  </tr>
-</table>`,
-      fontSize: 10, textAlign: 'left',
+    { type: 'DocumentoSimple', props: {
+      id: 'doc', firmaIzq: 'Recibido por', firmaDer: 'Entregado por', mostrarAlmacen: true,
     } },
-
-    // ── 2. Línea Almacén / Movimiento (propia de INV, no existe en CxP)
-    { type: 'TextoLibre', props: {
-      id: 'almacen-linea',
-      html: `
-<table style="width:100%;border-collapse:collapse;border-top:1px solid #333;border-bottom:1px solid #333;font-size:9px;margin-bottom:6px">
-  <tr>
-    <td style="padding:3px 6px;width:110px;font-weight:bold;border-right:1px solid #ccc">ALMACÉN</td>
-    <td style="padding:3px 6px">{{doc.almacen_origen}}{{#if doc.almacen_destino}} &rarr; {{doc.almacen_destino}}{{/if}}</td>
-    <td style="padding:3px 6px;text-align:right">{{#if doc.vendedor}}Vendedor: {{doc.vendedor}}{{/if}}</td>
-  </tr>
-</table>`,
-      fontSize: 9, textAlign: 'left',
-    } },
-
-    // ── 3. Tabla Proveedor (solo EC/DC — mismo estilo que la tabla Proveedor de CxP)
-    { type: 'TextoLibre', props: {
-      id: 'proveedor-tabla',
-      html: `
-{{#if proveedor.nombre}}
-<table style="width:100%;border-collapse:collapse;border-top:1px solid #333;border-bottom:1px solid #333;font-size:9px;margin-bottom:6px">
-  <tr style="border-bottom:1px solid #ccc">
-    <td style="padding:3px 6px;width:90px;font-weight:bold;border-right:1px solid #ccc">PROVEEDOR NO.</td>
-    <td style="padding:3px 6px">{{proveedor.no}}</td>
-    <td style="padding:3px 6px;text-align:right">{{#if proveedor.rnc}}RNC: {{proveedor.rnc}}{{/if}}</td>
-  </tr>
-  <tr style="border-bottom:1px solid #ccc">
-    <td style="padding:3px 6px;font-weight:bold;border-right:1px solid #ccc">NOMBRE</td>
-    <td style="padding:3px 6px" colspan="2">{{proveedor.nombre}}</td>
-  </tr>
-  <tr style="border-bottom:1px solid #ccc">
-    <td style="padding:3px 6px;font-weight:bold;border-right:1px solid #ccc">DIRECCION</td>
-    <td style="padding:3px 6px" colspan="2">{{default proveedor.direccion "—"}}</td>
-  </tr>
-  <tr>
-    <td style="padding:3px 6px;font-weight:bold;border-right:1px solid #ccc">TELEFONO</td>
-    <td style="padding:3px 6px" colspan="2">{{default proveedor.telefono "—"}}</td>
-  </tr>
-</table>
-{{/if}}`,
-      fontSize: 9, textAlign: 'left',
-    } },
-
-    // ── 3b. Tabla Cliente (solo cuando el documento sí referencia un cliente)
-    { type: 'TextoLibre', props: {
-      id: 'cliente-tabla',
-      html: `
-{{#if cliente.nombre}}
-<table style="width:100%;border-collapse:collapse;border-top:1px solid #333;border-bottom:1px solid #333;font-size:9px;margin-bottom:6px">
-  <tr style="border-bottom:1px solid #ccc">
-    <td style="padding:3px 6px;width:90px;font-weight:bold;border-right:1px solid #ccc">CLIENTE NO.</td>
-    <td style="padding:3px 6px">{{cliente.no}}</td>
-    <td style="padding:3px 6px;text-align:right">{{#if cliente.rnc}}RNC: {{cliente.rnc}}{{/if}}</td>
-  </tr>
-  <tr style="border-bottom:1px solid #ccc">
-    <td style="padding:3px 6px;font-weight:bold;border-right:1px solid #ccc">NOMBRE</td>
-    <td style="padding:3px 6px" colspan="2">{{cliente.nombre}}</td>
-  </tr>
-  <tr>
-    <td style="padding:3px 6px;font-weight:bold;border-right:1px solid #ccc">DIRECCION</td>
-    <td style="padding:3px 6px" colspan="2">{{default cliente.direccion "—"}}</td>
-  </tr>
-</table>
-{{/if}}`,
-      fontSize: 9, textAlign: 'left',
-    } },
-
-    { type: 'TextoLibre', props: {
-      id: 'factura-afectada',
-      html: `
-{{#if extra.factura_afectada}}
-<div style="margin:4px 0 6px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:3px;font-size:9px">
-  <b>Factura afectada:</b> {{extra.factura_afectada.numero_display}}
-  &nbsp;|&nbsp; Cliente: {{extra.factura_afectada.cliente}}
-  &nbsp;|&nbsp; NCF: {{extra.factura_afectada.ncf_dgi}}
-  &nbsp;|&nbsp; Total original: {{formatMoney extra.factura_afectada.total_neto}}
-</div>
-{{/if}}`,
-      fontSize: 9, textAlign: 'left',
-    } },
-    { type: 'TablaLineas', props: {
-      id: 'tabla',
-      columnas: ['codigo', 'descripcion', 'cantidad', 'precio', 'total'],
-      zebra: true, headerBg: '#0F172A', headerColor: '#ffffff', fontSize: 9,
-    } },
-    // Tabla de totales compacta estilo CxP (no el bloque BloqueTotales, que
-    // renderiza cada monto como tarjeta grande apilada y no combina con el
-    // resto del documento).
-    { type: 'TextoLibre', props: {
-      id: 'totales',
-      html: `
-<table style="width:100%;border-collapse:collapse;margin-top:4px">
-  <tr>
-    <td style="width:65%"></td>
-    <td style="width:35%">
-      <table style="width:100%;border-collapse:collapse;font-size:9px">
-        <tr>
-          <td style="padding:3px 6px">Subtotal</td>
-          <td style="padding:3px 6px;text-align:right">{{formatMoney totales.subtotal}}</td>
-        </tr>
-        {{#if totales.descuento}}
-        <tr>
-          <td style="padding:3px 6px">Descuento</td>
-          <td style="padding:3px 6px;text-align:right">{{formatMoney totales.descuento}}</td>
-        </tr>
-        {{/if}}
-        <tr>
-          <td style="padding:3px 6px">ITBIS</td>
-          <td style="padding:3px 6px;text-align:right">{{formatMoney totales.itbis}}</td>
-        </tr>
-        <tr style="border-top:1px solid #333">
-          <td style="padding:3px 6px;font-weight:bold">TOTAL RD$</td>
-          <td style="padding:3px 6px;text-align:right;font-weight:bold">{{formatMoney totales.total}}</td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-</table>`,
-      fontSize: 9, textAlign: 'left',
-    } },
-    { type: 'NotaDetalle', props: { id: 'nota', titulo: 'Observación:', mostrarSiVacio: false } },
-    { type: 'Firmas', props: { id: 'fi', cantidad: 2, labels: 'Recibido por|Entregado por', lineWidth: 80 } },
     { type: 'FooterEmpresa', props: {
       id: 'fo', texto: '{{ cia.razon_social }}',
       showPaginacion: true, showFechaGeneracion: true, color: '#777777',
