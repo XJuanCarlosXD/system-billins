@@ -17,6 +17,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -27,6 +34,11 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { ProveedorPicker } from './cxp-procesos'
+
+// El usuario busca "8653" y espera encontrar el documento "0008653"
+// (NO_DOCU es CHAR(7) con ceros a la izquierda) sin tener que escribir el
+// padding completo — comparar ambos lados sin ceros a la izquierda.
+const sinCerosIzq = (v: string) => v.replace(/^0+(?=\d)/, '')
 
 interface P {
   noCia: string
@@ -45,6 +57,8 @@ export function CxpAplicarMovimientos({ noCia, punto = '' }: P) {
   const [favor, setFavor] = useState<any | null>(null)
   const [montos, setMontos] = useState<Record<string, string>>({})
   const [confirmando, setConfirmando] = useState(false)
+  const [buscarNoDocu, setBuscarNoDocu] = useState('')
+  const [filtroTipoDocu, setFiltroTipoDocu] = useState('__all__')
 
   const q = useQuery({
     queryKey: [
@@ -69,6 +83,20 @@ export function CxpAplicarMovimientos({ noCia, punto = '' }: P) {
   const aFavor = q.data?.a_favor || []
   const pendientes = q.data?.pendientes || []
 
+  const tiposDocuDisponibles = useMemo(
+    () => Array.from(new Set(pendientes.map((d: any) => d.tipo_docu))).sort(),
+    [pendientes]
+  )
+
+  const pendientesFiltradas = useMemo(() => {
+    const busq = sinCerosIzq(buscarNoDocu.trim())
+    return pendientes.filter((d: any) => {
+      if (filtroTipoDocu !== '__all__' && d.tipo_docu !== filtroTipoDocu) return false
+      if (busq && !sinCerosIzq(String(d.no_docu || '')).includes(busq)) return false
+      return true
+    })
+  }, [pendientes, buscarNoDocu, filtroTipoDocu])
+
   const disponible = favor ? Math.abs(Number(favor.saldo || 0)) : 0
   const totalAplicar = useMemo(
     () =>
@@ -85,6 +113,8 @@ export function CxpAplicarMovimientos({ noCia, punto = '' }: P) {
   const elegirFavor = (d: any) => {
     setFavor(d)
     setMontos({})
+    setBuscarNoDocu('')
+    setFiltroTipoDocu('__all__')
   }
 
   // Rellena el monto de una factura con lo menor entre su saldo y lo que
@@ -266,6 +296,39 @@ export function CxpAplicarMovimientos({ noCia, punto = '' }: P) {
                       <b className='font-mono tabular-nums'>RD$ {fmt(restante)}</b>
                     </span>
                   </div>
+                  {pendientes.length > 0 && (
+                    <div className='flex flex-wrap items-end gap-2'>
+                      <div className='min-w-0 flex-1 space-y-1'>
+                        <label className='text-xs text-muted-foreground'>
+                          Buscar por número
+                        </label>
+                        <Input
+                          placeholder='Ej. 8653'
+                          className='h-9'
+                          value={buscarNoDocu}
+                          onChange={(e) => setBuscarNoDocu(e.target.value)}
+                        />
+                      </div>
+                      <div className='w-40 space-y-1'>
+                        <label className='text-xs text-muted-foreground'>
+                          Tipo de documento
+                        </label>
+                        <Select value={filtroTipoDocu} onValueChange={setFiltroTipoDocu}>
+                          <SelectTrigger className='h-9 w-full'>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value='__all__'>Todos</SelectItem>
+                            {tiposDocuDisponibles.map((t) => (
+                              <SelectItem key={t} value={t}>
+                                {t}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
                   <div className='overflow-x-auto rounded border'>
                     <Table>
                       <TableHeader>
@@ -274,20 +337,17 @@ export function CxpAplicarMovimientos({ noCia, punto = '' }: P) {
                           <TableHead>Fecha</TableHead>
                           <TableHead className='text-right'>Saldo</TableHead>
                           <TableHead className='w-36 text-right'>Monto a aplicar</TableHead>
+                          <TableHead className='w-28' />
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {pendientes.map((d: any) => (
+                        {pendientesFiltradas.map((d: any) => (
                           <TableRow key={keyOf(d)}>
                             <TableCell className='font-mono'>
                               {d.tipo_docu}-{d.no_docu}
                             </TableCell>
                             <TableCell>{d.fecha}</TableCell>
-                            <TableCell
-                              className='cursor-pointer text-right font-mono tabular-nums underline-offset-2 hover:underline'
-                              title='Click para aplicar el máximo posible a esta factura'
-                              onClick={() => autoLlenar(d)}
-                            >
+                            <TableCell className='text-right font-mono tabular-nums'>
                               RD$ {fmt(d.saldo)}
                             </TableCell>
                             <TableCell>
@@ -301,13 +361,31 @@ export function CxpAplicarMovimientos({ noCia, punto = '' }: P) {
                                 onChange={(e) => setMonto(d, e.target.value)}
                               />
                             </TableCell>
+                            <TableCell>
+                              <Button
+                                size='sm'
+                                variant='outline'
+                                className='h-9 w-full'
+                                title='Selecciona esta factura y pone su saldo pendiente en el monto a aplicar'
+                                onClick={() => autoLlenar(d)}
+                              >
+                                Seleccionar
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         ))}
                         {pendientes.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={4} className='py-6 text-center text-muted-foreground'>
+                            <TableCell colSpan={5} className='py-6 text-center text-muted-foreground'>
                               No hay facturas pendientes (créditos con saldo, sin
                               bloqueo de pago) para este proveedor.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {pendientes.length > 0 && pendientesFiltradas.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={5} className='py-6 text-center text-muted-foreground'>
+                              Ninguna factura pendiente coincide con el filtro.
                             </TableCell>
                           </TableRow>
                         )}
