@@ -849,7 +849,11 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
         <div className='grid grid-cols-5 items-end gap-3'>
           <div className='space-y-1'>
             <Label>Tipo Documento</Label>
-            <Select value={tipoDoc} onValueChange={setTipoDoc}>
+            <Select
+              value={tipoDoc}
+              onValueChange={setTipoDoc}
+              disabled={modoEdicion}
+            >
               <SelectTrigger>
                 <SelectValue placeholder='Seleccionar...' />
               </SelectTrigger>
@@ -861,6 +865,13 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
                 ))}
               </SelectContent>
             </Select>
+            {modoEdicion && (
+              <p className='text-xs text-muted-foreground'>
+                El tipo (Conduce/Cotización) no se puede cambiar después de
+                creado — es parte del número del documento. Para convertir, cree
+                una nueva Cotización.
+              </p>
+            )}
           </div>
           <div className='space-y-1'>
             <Label>Cant. Bultos</Label>
