@@ -811,8 +811,8 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
         <div>
           <h1 className='text-xl font-bold'>
             {modoEdicion
-              ? `Editar Conduce ${editTipo}-${noConduceEdit}`
-              : 'Nuevo Conduce'}
+              ? `Editar ${editTipo === 'CT' ? 'Cotización' : 'Conduce'} ${editTipo}-${noConduceEdit}`
+              : 'Nueva Cotización / Conduce'}
           </h1>
           {modoEdicion && ncfDgi && (
             <p className='mt-0.5 font-mono text-sm text-blue-700'>
