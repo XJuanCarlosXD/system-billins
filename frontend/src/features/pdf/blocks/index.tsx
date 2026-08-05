@@ -905,7 +905,13 @@ function FooterEmpresa({
   color,
 }: FooterProps) {
   const data = usePdfData()
-  const now = new Date().toLocaleString('es-DO')
+  // Para documentos usamos la fecha del documento (no la hora del navegador),
+  // así un documento con fecha retroactiva muestra "Generado" coherente.
+  let generado = new Date().toLocaleString('es-DO')
+  if (data && !isReportePayload(data)) {
+    const f = (data as DocumentoPrintPayload).doc?.fecha
+    if (f) generado = fmtDate(f)
+  }
   return (
     <div
       className='pdf-footer'
@@ -921,7 +927,7 @@ function FooterEmpresa({
     >
       <div>{renderTemplate(texto, data || {})}</div>
       <div>
-        {showFechaGeneracion && <span>Generado: {now}</span>}
+        {showFechaGeneracion && <span>Generado: {generado}</span>}
         {showPaginacion && (
           <span className='pdf-pageno' style={{ marginLeft: 12 }} />
         )}
