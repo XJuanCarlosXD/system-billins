@@ -3096,7 +3096,8 @@ def create_conduce(no_cia, punto, tipo_conduce, no_cliente, fecha, vendedor,
 
 def update_conduce(no_cia, punto, tipo_conduce, no_conduce, no_cliente, fecha,
                    vendedor, clase, lineas, usuario, detalle=None,
-                   forma_pago=None, no_condicion_pago=None, tipo_moneda=None):
+                   forma_pago=None, no_condicion_pago=None, tipo_moneda=None,
+                   nuevo_tipo_conduce=None):
     """Actualiza un conduce existente (encabezado + líneas) en una transacción.
 
     Regla de editabilidad (Gap G2): el conduce NO debe estar autorizado
@@ -3116,6 +3117,8 @@ def update_conduce(no_cia, punto, tipo_conduce, no_conduce, no_cliente, fecha,
     tc = tipo_conduce.strip().upper()
     nc = no_conduce.strip()
     cl = clase.strip().upper() if clase else "C"
+    new_tc = (nuevo_tipo_conduce or tc).strip().upper()
+    convertir = bool(new_tc) and new_tc != tc
     if not lineas:
         raise ValueError("Se requiere al menos una linea")
     with client.cursor() as cur:
@@ -3168,7 +3171,51 @@ def update_conduce(no_cia, punto, tipo_conduce, no_conduce, no_cliente, fecha,
                 })
             total_neto = total_linea - total_descuento + total_impuesto
 
-            # Construir UPDATE dinámicamente con campos opcionales
+            # ¿Conversión de tipo (Conduce CO <-> Cotización CT)? El tipo es parte
+            # del PK y hay FK TFAT_CONDUCEL->TFAT_CONDUCE (no diferible). Se resuelve:
+            # (1) número nuevo de la secuencia del tipo destino, (2) copiar el
+            # encabezado bajo el tipo destino, (3) borrar líneas viejas, (4) borrar
+            # encabezado viejo, (5) avanzar secuencia. Luego el UPDATE de campos
+            # editados y el reemplazo de líneas se hacen sobre las claves destino.
+            target_tc, target_nc = tc, nc
+            if convertir:
+                cur.execute(
+                    "SELECT prox_documento FROM FAT.TFAT_SECUENCIA "
+                    "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 FOR UPDATE",
+                    [no_cia, punto, new_tc])
+                seq_row = cur.fetchone()
+                if not seq_row:
+                    raise ValueError(
+                        "No hay secuencia configurada para {} en {}/{}".format(new_tc, no_cia, punto))
+                target_tc = new_tc
+                target_nc = str(seq_row[0]).strip() if seq_row[0] else "1"
+                cur.execute(
+                    "SELECT column_name FROM all_tab_columns "
+                    "WHERE owner='FAT' AND table_name='TFAT_CONDUCE' ORDER BY column_id")
+                cols = [r[0] for r in cur.fetchall()]
+                collist = ",".join(cols)
+                sel = ",".join(
+                    ("'{}'".format(target_tc) if c == 'TIPO_CONDUCE' else
+                     ("'{}'".format(target_nc) if c == 'NO_CONDUCE' else c))
+                    for c in cols)
+                cur.execute(
+                    "INSERT INTO FAT.TFAT_CONDUCE ({}) SELECT {} FROM FAT.TFAT_CONDUCE "
+                    "WHERE no_cia=:1 AND punto=:2 AND tipo_conduce=:3 AND no_conduce=:4".format(collist, sel),
+                    [no_cia, punto, tc, nc])
+                cur.execute(
+                    "DELETE FROM FAT.TFAT_CONDUCEL "
+                    "WHERE no_cia=:1 AND punto=:2 AND tipo_conduce=:3 AND no_conduce=:4",
+                    [no_cia, punto, tc, nc])
+                cur.execute(
+                    "DELETE FROM FAT.TFAT_CONDUCE "
+                    "WHERE no_cia=:1 AND punto=:2 AND tipo_conduce=:3 AND no_conduce=:4",
+                    [no_cia, punto, tc, nc])
+                cur.execute(
+                    "UPDATE FAT.TFAT_SECUENCIA SET prox_documento=prox_documento+1, ult_docu_impreso=:1 "
+                    "WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4",
+                    [target_nc, no_cia, punto, target_tc])
+
+            # Construir UPDATE dinámicamente con campos opcionales (sobre claves destino)
             set_clauses = [
                 "no_cliente=:1", "fecha=TO_DATE(:2,'YYYY-MM-DD')",
                 "vendedor=:3", "clase=:4",
@@ -3191,7 +3238,7 @@ def update_conduce(no_cia, punto, tipo_conduce, no_conduce, no_cliente, fecha,
             if tipo_moneda is not None:
                 set_clauses.append("tipo_moneda=:{}".format(next_bind))
                 params.append((tipo_moneda or 'RD').strip()); next_bind += 1
-            params.extend([no_cia, punto, tc, nc])
+            params.extend([no_cia, punto, target_tc, target_nc])
             where_start = next_bind
             sql_update = (
                 "UPDATE FAT.TFAT_CONDUCE SET " + ", ".join(set_clauses) +
@@ -3202,7 +3249,7 @@ def update_conduce(no_cia, punto, tipo_conduce, no_conduce, no_cliente, fecha,
             cur.execute(
                 "DELETE FROM FAT.TFAT_CONDUCEL "
                 "WHERE no_cia=:1 AND punto=:2 AND tipo_conduce=:3 AND no_conduce=:4",
-                [no_cia, punto, tc, nc])
+                [no_cia, punto, target_tc, target_nc])
 
             for lin in lineas_calc:
                 # TFAT_CONDUCEL tiene varias columnas NOT NULL sin default:
@@ -3224,7 +3271,7 @@ def update_conduce(no_cia, punto, tipo_conduce, no_conduce, no_cliente, fecha,
                     "1,1,'N','N',"
                     "0,0,0,'N'"
                     ")",
-                    [no_cia, punto, tc, nc, lin["no_linea"],
+                    [no_cia, punto, target_tc, target_nc, lin["no_linea"],
                      lin["almacen"], lin["no_produ"], lin["cantidad"], lin["precio"],
                      lin["porc_descuento"], lin["descuento"],
                      lin["impuesto"], lin["descripcion"]])
@@ -3235,7 +3282,8 @@ def update_conduce(no_cia, punto, tipo_conduce, no_conduce, no_cliente, fecha,
             except Exception:
                 pass
             raise
-    return {"no_conduce": nc, "tipo_conduce": tc, "clase": cl,
+    return {"no_conduce": target_nc, "tipo_conduce": target_tc, "clase": cl,
+            "convertido": convertir,
             "total_neto": total_neto, "total_linea": total_linea,
             "descuento": total_descuento, "impuesto": total_impuesto}
 

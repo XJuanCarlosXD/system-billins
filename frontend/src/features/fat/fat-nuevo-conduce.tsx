@@ -762,11 +762,32 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
       // Etiqueta según el tipo real del documento (CT = Cotización, CO = Conduce).
       const labelDoc = (t: string) => (t === 'CT' ? 'Cotización' : 'Conduce')
       if (modoEdicion && editTipo && editId) {
-        await regalGeneralApi.fatActualizarConduce(editTipo, editId, payload)
+        const res = await regalGeneralApi.fatActualizarConduce(
+          editTipo,
+          editId,
+          payload
+        )
+        const tipoFinal = String(res?.tipo_conduce || editTipo)
+        const noFinal = String(res?.no_conduce || editId)
+        const convertido = !!res?.convertido || tipoFinal !== editTipo
         toast({
-          title: `${labelDoc(editTipo)} actualizada`,
-          description: `${labelDoc(editTipo)} ${editTipo}-${editId} actualizada`,
+          title: convertido
+            ? `Convertido a ${labelDoc(tipoFinal)}`
+            : `${labelDoc(tipoFinal)} actualizada`,
+          description: convertido
+            ? `${labelDoc(editTipo)} ${editTipo}-${editId} → ${labelDoc(tipoFinal)} ${tipoFinal}-${noFinal}`
+            : `${labelDoc(tipoFinal)} ${tipoFinal}-${noFinal} actualizada`,
         })
+        // Si se convirtió el tipo, abrir el print del documento resultante.
+        if (convertido) {
+          const codigoPrint = tipoFinal === 'CT' ? 'cotizacion' : 'conduce'
+          const qs = new URLSearchParams({ no_cia: noCia, punto }).toString()
+          window.open(
+            `/print/${codigoPrint}/${encodeURIComponent(`${tipoFinal}-${noFinal}`)}?${qs}`,
+            '_blank',
+            'noopener,width=900,height=1100'
+          )
+        }
       } else {
         const res = await regalGeneralApi.fatCrearConduce(payload)
         const tipoCreado = String(res.tipo_conduce || payload.tipo_conduce)

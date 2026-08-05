@@ -822,8 +822,12 @@ class FatConduceDetailView(APIView):
             return Response({'detail': 'no_cliente y fecha son requeridos'}, status=400)
         if not lineas:
             return Response({'detail': 'Se requiere al menos una linea'}, status=400)
+        # Permite convertir el tipo (Conduce CO <-> Cotización CT): el body trae
+        # tipo_conduce con el tipo destino; si difiere del de la URL se reasigna
+        # un número nuevo de la secuencia destino (ver update_conduce).
+        nuevo_tipo = request.data.get('tipo_conduce')
         try:
-            fat_repo.update_conduce(
+            res = fat_repo.update_conduce(
                 no_cia=str(no_cia).strip(), punto=str(punto).strip(),
                 tipo_conduce=str(tipo).strip(),
                 no_conduce=str(no_conduce).strip(),
@@ -836,15 +840,20 @@ class FatConduceDetailView(APIView):
                 detalle=request.data.get('detalle'),
                 forma_pago=request.data.get('forma_pago'),
                 no_condicion_pago=request.data.get('no_condicion_pago'),
-                tipo_moneda=request.data.get('tipo_moneda'))
+                tipo_moneda=request.data.get('tipo_moneda'),
+                nuevo_tipo_conduce=(str(nuevo_tipo).strip() if nuevo_tipo else None))
         except ValueError as e:
             # Regla de editabilidad o validación de input → 422
             return Response({'detail': str(e)}, status=422)
         except Exception as e:
             return Response({'detail': str(e)}, status=500)
+        # Re-leer con las claves finales (pueden haber cambiado si se convirtió).
+        final_tc = str((res or {}).get('tipo_conduce') or tipo).strip()
+        final_nc = str((res or {}).get('no_conduce') or no_conduce).strip()
         conduce = fat_repo.get_conduce(
-            str(no_cia).strip(), str(punto).strip(),
-            str(tipo).strip(), str(no_conduce).strip())
+            str(no_cia).strip(), str(punto).strip(), final_tc, final_nc)
+        if isinstance(conduce, dict):
+            conduce['convertido'] = bool((res or {}).get('convertido'))
         return Response(conduce, status=200)
 
 
