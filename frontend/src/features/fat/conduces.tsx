@@ -581,7 +581,7 @@ export function ConducesFat({ noCia, punto, ano: anoProp, mes: mesProp }: Props)
                   {loadingDetail
                     ? 'Cargando...'
                     : selected
-                      ? `Conduce ${selected.tipo_conduce}-${selected.no_conduce}`
+                      ? `${selected.tipo_conduce === 'CT' ? 'Cotización' : 'Conduce'} ${selected.tipo_conduce}-${selected.no_conduce}`
                       : ''}
                 </DialogTitle>
                 {selected && (

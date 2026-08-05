@@ -759,20 +759,22 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
       })),
     }
     try {
+      // Etiqueta según el tipo real del documento (CT = Cotización, CO = Conduce).
+      const labelDoc = (t: string) => (t === 'CT' ? 'Cotización' : 'Conduce')
       if (modoEdicion && editTipo && editId) {
         await regalGeneralApi.fatActualizarConduce(editTipo, editId, payload)
         toast({
-          title: 'Conduce actualizado',
-          description: `Conduce ${editTipo}-${editId} actualizado`,
+          title: `${labelDoc(editTipo)} actualizada`,
+          description: `${labelDoc(editTipo)} ${editTipo}-${editId} actualizada`,
         })
       } else {
         const res = await regalGeneralApi.fatCrearConduce(payload)
-        toast({
-          title: 'Conduce creado',
-          description: `Conduce ${res.no_conduce} creado exitosamente`,
-        })
         const tipoCreado = String(res.tipo_conduce || payload.tipo_conduce)
         const noCreado = String(res.no_conduce || '')
+        toast({
+          title: `${labelDoc(tipoCreado)} creada`,
+          description: `${labelDoc(tipoCreado)} ${tipoCreado}-${noCreado} creada exitosamente`,
+        })
         const codigoPrint = tipoCreado === 'CT' ? 'cotizacion' : 'conduce'
         const qs = new URLSearchParams({ no_cia: noCia, punto }).toString()
         const printUrl = `/print/${codigoPrint}/${encodeURIComponent(`${tipoCreado}-${noCreado}`)}?${qs}`
