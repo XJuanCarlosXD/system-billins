@@ -1472,16 +1472,19 @@ function BloqueCuadreCaja({
     borderCollapse: 'collapse',
     fontSize,
   }
+  // Estilo fino CxP: encabezado en negrita con raya #333 (sin barra oscura).
   const thBase: CSSProperties = {
-    background: colorTitulo,
-    color: '#fff',
+    background: '#fff',
+    color: '#0F172A',
     padding: '4px 6px',
     textAlign: 'left',
     fontWeight: 700,
+    borderTop: '1px solid #333',
+    borderBottom: '1px solid #333',
   }
   const td: CSSProperties = {
     padding: '3px 6px',
-    borderBottom: '1px solid #e5e7eb',
+    borderBottom: '1px solid #ccc',
   }
   const tdR: CSSProperties = {
     ...td,
