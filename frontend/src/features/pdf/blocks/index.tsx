@@ -2052,11 +2052,24 @@ type DocumentoSimpleProps = {
   firmaIzq: string
   firmaDer: string
   mostrarAlmacen: boolean
+  /** Columnas de la tabla de líneas, separadas por coma. Ej:
+   *  "codigo,descripcion,cantidad,precio,descuento,itbis,total". */
+  columnas: string
+  /** Mostrar "Son: <monto en letras>" debajo de los totales. */
+  montoLetras: boolean
+  /** HTML Handlebars opcional arriba (después del header). Ej. saludo cotización. */
+  introHtml: string
+  /** HTML Handlebars opcional abajo (después de totales, antes de firmas). */
+  pieHtml: string
 }
 function DocumentoSimple({
   firmaIzq,
   firmaDer,
   mostrarAlmacen,
+  columnas,
+  montoLetras,
+  introHtml,
+  pieHtml,
 }: DocumentoSimpleProps) {
   const data = usePdfData()
   if (!data || isReportePayload(data)) return null
@@ -2078,14 +2091,36 @@ function DocumentoSimple({
 
   const thin = '1px solid #333'
   const hair = '1px solid #ccc'
-  type C = 'codigo' | 'descripcion' | 'cantidad' | 'precio' | 'total'
-  const cols: { key: C; label: string; align: 'left' | 'right' | 'center' }[] = [
-    { key: 'codigo', label: 'Código', align: 'left' },
-    { key: 'descripcion', label: 'Descripción', align: 'left' },
-    { key: 'cantidad', label: 'Cant.', align: 'center' },
-    { key: 'precio', label: 'Precio', align: 'right' },
-    { key: 'total', label: 'Total', align: 'right' },
-  ]
+  type C =
+    | 'codigo'
+    | 'descripcion'
+    | 'cantidad'
+    | 'unidad'
+    | 'precio'
+    | 'descuento'
+    | 'itbis'
+    | 'total'
+  const colMeta: Record<C, { label: string; align: 'left' | 'right' | 'center' }> = {
+    codigo: { label: 'Código', align: 'left' },
+    descripcion: { label: 'Descripción', align: 'left' },
+    cantidad: { label: 'Cant.', align: 'center' },
+    unidad: { label: 'U/M', align: 'left' },
+    precio: { label: 'Precio', align: 'right' },
+    descuento: { label: 'Desc.', align: 'right' },
+    itbis: { label: 'ITBIS', align: 'right' },
+    total: { label: 'Total', align: 'right' },
+  }
+  const defaultCols: C[] = ['codigo', 'descripcion', 'cantidad', 'precio', 'total']
+  const cols: { key: C; label: string; align: 'left' | 'right' | 'center' }[] = (
+    (columnas || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s): s is C => s in colMeta)
+  )
+    .concat([])
+    .reduce<C[]>((acc, k) => (acc.includes(k) ? acc : [...acc, k]), [])
+    .map((k) => ({ key: k, ...colMeta[k] }))
+  const finalCols = cols.length ? cols : defaultCols.map((k) => ({ key: k, ...colMeta[k] }))
   const cellVal = (l: LineaPayload, k: C): string => {
     switch (k) {
       case 'codigo':
@@ -2094,8 +2129,14 @@ function DocumentoSimple({
         return l.descripcion || ''
       case 'cantidad':
         return money(l.cantidad, l.cantidad % 1 === 0 ? 0 : 2)
+      case 'unidad':
+        return l.unidad || ''
       case 'precio':
         return money(l.precio)
+      case 'descuento':
+        return money(l.descuento)
+      case 'itbis':
+        return money(l.itbis)
       case 'total':
         return money(l.total)
     }
@@ -2153,6 +2194,14 @@ function DocumentoSimple({
           </tr>
         </tbody>
       </table>
+
+      {/* Intro opcional (Handlebars) — ej. saludo de cotización */}
+      {introHtml && (
+        <div
+          style={{ margin: '2px 0 8px', fontSize: 10 }}
+          dangerouslySetInnerHTML={{ __html: renderTemplate(introHtml, d) }}
+        />
+      )}
 
       {/* Tercero (proveedor o cliente) — solo si el documento tiene uno */}
       {tercero && (
@@ -2230,7 +2279,7 @@ function DocumentoSimple({
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9 }}>
         <thead>
           <tr style={{ borderTop: thin, borderBottom: thin }}>
-            {cols.map((c) => (
+            {finalCols.map((c) => (
               <th
                 key={c.key}
                 style={{ textAlign: c.align, padding: '4px 6px', fontWeight: 700 }}
@@ -2243,7 +2292,7 @@ function DocumentoSimple({
         <tbody>
           {lineas.map((l, i) => (
             <tr key={i} style={{ borderBottom: hair, pageBreakInside: 'avoid' }}>
-              {cols.map((c) => (
+              {finalCols.map((c) => (
                 <td
                   key={c.key}
                   style={{ textAlign: c.align, padding: '4px 6px' }}
@@ -2284,6 +2333,14 @@ function DocumentoSimple({
                       {money(t.itbis)}
                     </td>
                   </tr>
+                  {!!t.propina && (
+                    <tr>
+                      <td style={{ padding: '3px 6px' }}>Propina</td>
+                      <td style={{ padding: '3px 6px', textAlign: 'right' }}>
+                        {money(t.propina)}
+                      </td>
+                    </tr>
+                  )}
                   <tr style={{ borderTop: thin }}>
                     <td style={{ padding: '3px 6px', fontWeight: 700 }}>
                       TOTAL RD$
@@ -2299,6 +2356,13 @@ function DocumentoSimple({
         </tbody>
       </table>
 
+      {/* Monto en letras (opcional) */}
+      {montoLetras && t.monto_letras && (
+        <div style={{ marginTop: 4, fontSize: 9 }}>
+          <b>Son:</b> {t.monto_letras}
+        </div>
+      )}
+
       {/* Observación */}
       {doc.nota && (
         <div style={{ marginTop: 8 }}>
@@ -2306,17 +2370,31 @@ function DocumentoSimple({
         </div>
       )}
 
-      {/* Firmas: dos líneas finas */}
+      {/* Pie opcional (Handlebars) — ej. validez/condiciones de cotización */}
+      {pieHtml && (
+        <div
+          style={{ marginTop: 10, fontSize: 9 }}
+          dangerouslySetInnerHTML={{ __html: renderTemplate(pieHtml, d) }}
+        />
+      )}
+
+      {/* Firmas: una o dos líneas finas (firmaDer vacío = una sola) */}
       <table style={{ width: '100%', marginTop: 40 }}>
         <tbody>
           <tr>
-            <td style={{ borderTop: '1px solid #000', width: '45%', paddingTop: 4, fontSize: 9 }}>
+            <td style={{ borderTop: '1px solid #000', width: firmaDer ? '45%' : '55%', paddingTop: 4, fontSize: 9 }}>
               {firmaIzq}
             </td>
-            <td style={{ width: '10%' }} />
-            <td style={{ borderTop: '1px solid #000', width: '45%', paddingTop: 4, fontSize: 9, textAlign: 'center' }}>
-              {firmaDer}
-            </td>
+            {firmaDer ? (
+              <>
+                <td style={{ width: '10%' }} />
+                <td style={{ borderTop: '1px solid #000', width: '45%', paddingTop: 4, fontSize: 9, textAlign: 'center' }}>
+                  {firmaDer}
+                </td>
+              </>
+            ) : (
+              <td style={{ width: '45%' }} />
+            )}
           </tr>
         </tbody>
       </table>
@@ -2357,6 +2435,7 @@ export const puckConfig = {
     DocumentoSimple: {
       label: 'Documento — sencillo (estilo CxP)',
       fields: {
+        columnas: { type: 'text' },
         firmaIzq: { type: 'text' },
         firmaDer: { type: 'text' },
         mostrarAlmacen: {
@@ -2366,11 +2445,24 @@ export const puckConfig = {
             { label: 'No', value: false },
           ],
         },
+        montoLetras: {
+          type: 'radio',
+          options: [
+            { label: 'Sí', value: true },
+            { label: 'No', value: false },
+          ],
+        },
+        introHtml: { type: 'textarea' },
+        pieHtml: { type: 'textarea' },
       },
       defaultProps: {
+        columnas: 'codigo,descripcion,cantidad,precio,total',
         firmaIzq: 'Recibido por',
         firmaDer: 'Entregado por',
         mostrarAlmacen: true,
+        montoLetras: false,
+        introHtml: '',
+        pieHtml: '',
       },
       render: DocumentoSimple,
     },
