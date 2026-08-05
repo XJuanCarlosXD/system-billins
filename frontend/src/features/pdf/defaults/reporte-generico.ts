@@ -18,7 +18,9 @@ export function reporteGenericoDefault(
       { type: 'TablaReporte', props: {
         id: 'tr',
         columnasJson: JSON.stringify(columnas, null, 2),
-        zebra: true, headerBg: '#0F172A', headerColor: '#ffffff', fontSize: 9,
+        // Estilo "sencillo" CxP: encabezado en negrita con raya fina (sin barra
+        // oscura ni zebra) — el bloque TablaReporte dibuja la raya #333.
+        zebra: false, headerBg: '#ffffff', headerColor: '#0F172A', fontSize: 9,
         groupBy: agrupado?.groupBy || '',
         subtotalCampos: agrupado?.subtotalCampos || '',
       } },

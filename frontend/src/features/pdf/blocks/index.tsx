@@ -1130,8 +1130,8 @@ function TablaReporte({
           key={j}
           style={{
             textAlign: c.align || 'left',
-            padding: '4px',
-            borderBottom: '1px solid #eee',
+            padding: '4px 6px',
+            borderBottom: '1px solid #ccc',
           }}
         >
           {fmt(f[c.campo], c.format)}
@@ -1142,14 +1142,21 @@ function TablaReporte({
 
   const thead = (
     <thead>
-      <tr style={{ background: headerBg, color: headerColor }}>
+      <tr
+        style={{
+          background: headerBg,
+          color: headerColor,
+          borderTop: '1px solid #333',
+        }}
+      >
         {cols.map((c, i) => (
           <th
             key={i}
             style={{
               textAlign: c.align || 'left',
-              padding: '6px 4px',
-              borderBottom: '1px solid #999',
+              padding: '5px 6px',
+              fontWeight: 700,
+              borderBottom: '1px solid #333',
             }}
           >
             {c.label}
@@ -3028,9 +3035,9 @@ export const puckConfig = {
           null,
           2
         ),
-        zebra: true,
-        headerBg: '#0F172A',
-        headerColor: '#ffffff',
+        zebra: false,
+        headerBg: '#ffffff',
+        headerColor: '#0F172A',
         fontSize: 9,
         groupBy: '',
         subtotalCampos: '',
