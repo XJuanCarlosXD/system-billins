@@ -1,38 +1,44 @@
 import { createFileRoute, useSearch } from '@tanstack/react-router'
 import { PrintPage } from '@/features/pdf/PrintPage'
 
-type Search = {
-  no_cia?: string; punto?: string; tipo_doc?: string;
-  incluir_detalle?: string; hoja_por_ncf?: string; templateDraft?: string;
-}
+// Todos los parámetros de búsqueda llegan como strings (o undefined). Antes se
+// hacía whitelist de unas pocas keys (no_cia/punto/tipo_doc/incluir_detalle/
+// hoja_por_ncf/templateDraft) y se botaba el resto -> los reportes con filtros
+// (mes/ano/tipo/desde/hasta/almacen/no_produ/fecha...) nunca llegaban al backend
+// (ej. inv-cierre-entrada daba "Parametros mes y ano requeridos"). Ahora se
+// conservan TODOS y se reenvían a `extra`, salvo los que maneja PrintPage aparte.
+type Search = Record<string, string | undefined>
 
-// El parser de search de TanStack Router hace JSON.parse de cada valor
-// (para soportar numeros/booleanos), asi que "?incluir_detalle=1" llega
-// aqui como el NUMERO 1, no el string "1". Antes este validateSearch solo
-// aceptaba typeof === 'string' y lo botaba a undefined -- por eso nunca
-// llegaba al backend aunque el switch de la pantalla lo mandara bien.
+// El parser de search de TanStack Router hace JSON.parse de cada valor (para
+// soportar numeros/booleanos), asi que "?mes=03" puede llegar como numero 3.
+// Normalizamos todo a string.
 const toStr = (v: unknown): string | undefined =>
   v === undefined || v === null || v === '' ? undefined : String(v)
 
+const RESERVED = new Set(['no_cia', 'punto', 'templateDraft'])
+
 export const Route = createFileRoute('/print/$codigo/$id')({
-  validateSearch: (s: Record<string, unknown>): Search => ({
-    no_cia: toStr(s.no_cia),
-    punto: toStr(s.punto),
-    tipo_doc: toStr(s.tipo_doc),
-    incluir_detalle: toStr(s.incluir_detalle),
-    hoja_por_ncf: toStr(s.hoja_por_ncf),
-    templateDraft: toStr(s.templateDraft),
-  }),
+  validateSearch: (s: Record<string, unknown>): Search => {
+    const out: Search = {}
+    for (const [k, v] of Object.entries(s)) {
+      const sv = toStr(v)
+      if (sv !== undefined) out[k] = sv
+    }
+    return out
+  },
   component: _Page,
 })
 
 function _Page() {
   const { codigo, id } = Route.useParams()
   const search = useSearch({ from: '/print/$codigo/$id' }) as Search
+  // Reenvía cualquier filtro (mes/ano/tipo/tipo_doc/incluir_detalle/desde/hasta/
+  // almacen/no_produ/fecha...) al backend vía `extra`.
   const extra: Record<string, string> = {}
-  if (search.tipo_doc) extra.tipo_doc = search.tipo_doc
-  if (search.incluir_detalle) extra.incluir_detalle = search.incluir_detalle
-  if (search.hoja_por_ncf) extra.hoja_por_ncf = search.hoja_por_ncf
+  for (const [k, v] of Object.entries(search)) {
+    if (v === undefined || RESERVED.has(k)) continue
+    extra[k] = v
+  }
   return (
     <PrintPage
       codigo={codigo}
