@@ -312,10 +312,7 @@ export function ConducesFat({ noCia, punto, ano: anoProp, mes: mesProp }: Props)
     }
     if (tipo && tipo !== 'ALL') params.set('tipo', tipo)
     if (search) params.set('search', search)
-    window.open(
-      `${API_BASE}/fat/reportes/listado-conduces/pdf/?${params.toString()}`,
-      '_blank'
-    )
+    window.open(`/print/fat-listado-conduces/x?${params.toString()}`, '_blank')
   }
 
   const openConducePdf = (c: { no_cia?: string; punto?: string; tipo_conduce: string; no_conduce: string }) => {

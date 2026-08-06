@@ -639,19 +639,35 @@ def fat_607_print_data(request):
     cia = _cia_payload(no_cia, request=request)
     ano = request.GET.get('ano', '')
     mes = request.GET.get('mes', '')
+    desde = request.GET.get('desde', '')
+    hasta = request.GET.get('hasta', '')
+    # rep_ncf_607(no_cia, desde, hasta) es la función real; el año/mes se
+    # convierte al rango del mes. (Antes se llamaba a fat_repo.rep_607, que no
+    # existe, y el except lo silenciaba -> siempre vacío.)
+    if ano and mes and not (desde and hasta):
+        import calendar
+        try:
+            a, m = int(ano), int(mes)
+            desde = '%04d-%02d-01' % (a, m)
+            hasta = '%04d-%02d-%02d' % (a, m, calendar.monthrange(a, m)[1])
+        except Exception:
+            desde = hasta = ''
     try:
-        rows = fat_repo.rep_607(no_cia=no_cia, ano=int(ano), mes=int(mes)) if ano and mes else []
+        rows = fat_repo.rep_ncf_607(no_cia=no_cia, desde=desde, hasta=hasta) if (desde and hasta) else []
     except Exception:
         rows = []
+    total = sum(_money(r.get('total_neto')) for r in rows)
+    total_itbis = sum(_money(r.get('impuesto')) for r in rows)
     return JsonResponse({
         'cia': cia,
         'reporte': {
-            'codigo': 'ncf-607', 'titulo': f'Reporte 607 NCF — {mes}/{ano}',
+            'codigo': 'ncf-607',
+            'titulo': ('Reporte 607 NCF — %s/%s' % (mes, ano)) if ano and mes else 'Reporte 607 NCF',
             'fecha_generacion': None,
-            'filtros': {'Año': ano, 'Mes': mes},
+            'filtros': ({'Año': ano, 'Mes': mes} if ano and mes else _filtros_basicos(request)),
         },
         'filas': rows,
-        'totales': {'cantidad': len(rows)},
+        'totales': {'cantidad': len(rows), 'total': total, 'total_itbis': total_itbis},
     })
 
 

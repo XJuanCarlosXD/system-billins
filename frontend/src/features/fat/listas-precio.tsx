@@ -209,9 +209,8 @@ export function ListasPrecioFat({ noCia, punto }: Props) {
 
   const openListadoPdf = () => {
     if (!selectedLista) return
-    const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
     const qs = new URLSearchParams({ no_cia: noCia, punto, no_lista: selectedLista }).toString()
-    window.open(`${API_BASE}/fat/reportes/lista-precio/pdf/?${qs}`, '_blank')
+    window.open(`/print/fat-lista-precios/x?${qs}`, '_blank')
   }
 
   const exportPdf = async () => {

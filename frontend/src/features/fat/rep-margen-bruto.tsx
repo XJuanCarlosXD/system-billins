@@ -72,13 +72,12 @@ export function RepMargenBruto({ noCia, punto }: Props) {
 
   const openPdf = () => {
     if (!desde || !hasta) return
-    const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
     const qs = new URLSearchParams({ no_cia: noCia, punto, desde, hasta, agrupar, tipo_docu: tipoDocu })
     if (vendedor) qs.set('vendedor', vendedor)
     if (almacen) qs.set('almacen', almacen)
     if (noCliente) qs.set('no_cliente', noCliente)
     if (noProdu) qs.set('no_produ', noProdu)
-    window.open(`${API_BASE}/fat/reportes/margen-bruto/pdf/?${qs.toString()}`, '_blank')
+    window.open(`/print/fat-margen-bruto/x?${qs.toString()}`, '_blank')
   }
 
   return (

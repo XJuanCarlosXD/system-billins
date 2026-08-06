@@ -297,6 +297,61 @@ const cxpRepEnvejecimientoDefault = reporteGenericoDefault('Antigüedad de Saldo
   { campo: 'total', label: 'Total', align: 'right', format: 'money' },
 ])
 
+// ── FAT — reportes (migrados de ReportLab al print fino) ───────────────
+const fatNcfNulosDefault = reporteGenericoDefault('NCF Nulos', [
+  { campo: 'fecha_anulacion', label: 'Fecha Anul.', align: 'left', format: 'date' },
+  { campo: 'tipo_factura', label: 'Tipo', align: 'left' },
+  { campo: 'no_factura', label: 'No.', align: 'left' },
+  { campo: 'ncf', label: 'NCF', align: 'left' },
+  { campo: 'motivo_anulacion', label: 'Motivo', align: 'left' },
+])
+
+const fatFacturasRncDefault = reporteGenericoDefault('Facturas con RNC', [
+  { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
+  { campo: 'tipo_factura', label: 'Tipo', align: 'left' },
+  { campo: 'no_factura', label: 'No.', align: 'left' },
+  { campo: 'ncf', label: 'NCF', align: 'left' },
+  { campo: 'rnc', label: 'RNC', align: 'left' },
+  { campo: 'nombre', label: 'Cliente', align: 'left' },
+  { campo: 'total_neto', label: 'Total', align: 'right', format: 'money' },
+])
+
+const fatMargenBrutoDefault = reporteGenericoDefault('Margen Bruto', [
+  { campo: 'no_produ', label: 'Producto', align: 'left' },
+  { campo: 'descripcion', label: 'Descripción', align: 'left' },
+  { campo: 'venta', label: 'Venta', align: 'right', format: 'money' },
+  { campo: 'costo', label: 'Costo', align: 'right', format: 'money' },
+  { campo: 'beneficio', label: 'Beneficio', align: 'right', format: 'money' },
+  { campo: 'margen_pct', label: 'Margen %', align: 'right' },
+])
+
+const fat607Default = reporteGenericoDefault('Reporte 607 NCF', [
+  { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
+  { campo: 'ncf_dgi', label: 'NCF', align: 'left' },
+  { campo: 'tipo_factura', label: 'Tipo', align: 'left' },
+  { campo: 'no_factura', label: 'No.', align: 'left' },
+  { campo: 'rnc', label: 'RNC', align: 'left' },
+  { campo: 'nombre_cliente', label: 'Cliente', align: 'left' },
+  { campo: 'total_neto', label: 'Monto', align: 'right', format: 'money' },
+  { campo: 'impuesto', label: 'ITBIS', align: 'right', format: 'money' },
+])
+
+const fatListaPreciosDefault = reporteGenericoDefault('Lista de Precios', [
+  { campo: 'no_produ', label: 'Código', align: 'left' },
+  { campo: 'descripcion', label: 'Descripción', align: 'left' },
+  { campo: 'precio', label: 'Precio', align: 'right', format: 'money' },
+  { campo: 'nota', label: 'Nota', align: 'left' },
+])
+
+const fatListadoConducesDefault = reporteGenericoDefault('Listado de Conduces / Cotizaciones', [
+  { campo: 'no_conduce', label: 'No.', align: 'left' },
+  { campo: 'tipo', label: 'Tipo', align: 'left' },
+  { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
+  { campo: 'cliente', label: 'Cliente', align: 'left' },
+  { campo: 'factura', label: 'Factura', align: 'left' },
+  { campo: 'total', label: 'Total', align: 'right', format: 'money' },
+])
+
 export type DocFamily = 'documento' | 'reporte'
 
 export type PdfTemplateDefault = {
@@ -1416,6 +1471,60 @@ export const registry: Record<string, RegistryEntry> = {
       'extra.facturas[].ncf_dgi',
       'extra.facturas[].total_neto',
     ],
+  },
+  // ── FAT — reportes migrados al print fino ──────────────────────────
+  'fat-ncf-nulos': {
+    codigo: 'fat-ncf-nulos', modulo: 'FAT', nombre: 'NCF Nulos', familia: 'reporte',
+    printDataPath: (_id, qs) => `/fat/reportes/ncf-nulos/print-data/?${qs.toString()}`,
+    defaultTemplate: fatNcfNulosDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'L',
+    variables: ['reporte.titulo', 'reporte.filtros', 'filas[].fecha_anulacion',
+      'filas[].tipo_factura', 'filas[].no_factura', 'filas[].ncf',
+      'filas[].motivo_anulacion', 'totales.cantidad'],
+  },
+  'fat-facturas-rnc': {
+    codigo: 'fat-facturas-rnc', modulo: 'FAT', nombre: 'Facturas con RNC', familia: 'reporte',
+    printDataPath: (_id, qs) => `/fat/reportes/facturas-rnc/print-data/?${qs.toString()}`,
+    defaultTemplate: fatFacturasRncDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'L',
+    variables: ['reporte.titulo', 'reporte.filtros', 'filas[].fecha',
+      'filas[].tipo_factura', 'filas[].no_factura', 'filas[].ncf', 'filas[].rnc',
+      'filas[].nombre', 'filas[].total_neto', 'totales.total', 'totales.cantidad'],
+  },
+  'fat-margen-bruto': {
+    codigo: 'fat-margen-bruto', modulo: 'FAT', nombre: 'Margen Bruto', familia: 'reporte',
+    printDataPath: (_id, qs) => `/fat/reportes/margen-bruto/print-data/?${qs.toString()}`,
+    defaultTemplate: fatMargenBrutoDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'L',
+    variables: ['reporte.titulo', 'reporte.filtros', 'filas[].no_produ',
+      'filas[].descripcion', 'filas[].venta', 'filas[].costo', 'filas[].beneficio',
+      'filas[].margen_pct', 'totales.venta', 'totales.costo', 'totales.beneficio'],
+  },
+  'fat-607': {
+    codigo: 'fat-607', modulo: 'FAT', nombre: 'Reporte 607 (NCF emitidos)', familia: 'reporte',
+    printDataPath: (_id, qs) => `/fat/reportes/607/print-data/?${qs.toString()}`,
+    defaultTemplate: fat607Default,
+    defaultPageSize: 'A4', defaultPageOrientation: 'L',
+    variables: ['reporte.titulo', 'reporte.filtros', 'filas[].fecha', 'filas[].ncf_dgi',
+      'filas[].tipo_factura', 'filas[].no_factura', 'filas[].rnc', 'filas[].nombre_cliente',
+      'filas[].total_neto', 'filas[].impuesto', 'totales.total', 'totales.total_itbis'],
+  },
+  'fat-lista-precios': {
+    codigo: 'fat-lista-precios', modulo: 'FAT', nombre: 'Lista de Precios', familia: 'reporte',
+    printDataPath: (_id, qs) => `/fat/reportes/lista-precios/print-data/?${qs.toString()}`,
+    defaultTemplate: fatListaPreciosDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: ['reporte.titulo', 'reporte.filtros', 'filas[].no_produ',
+      'filas[].descripcion', 'filas[].precio', 'filas[].nota', 'totales.cantidad'],
+  },
+  'fat-listado-conduces': {
+    codigo: 'fat-listado-conduces', modulo: 'FAT', nombre: 'Listado de Conduces / Cotizaciones', familia: 'reporte',
+    printDataPath: (_id, qs) => `/fat/reportes/listado-conduces/print-data/?${qs.toString()}`,
+    defaultTemplate: fatListadoConducesDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'L',
+    variables: ['reporte.titulo', 'reporte.filtros', 'filas[].no_conduce', 'filas[].tipo',
+      'filas[].fecha', 'filas[].cliente', 'filas[].factura', 'filas[].total',
+      'totales.total', 'totales.cantidad'],
   },
   // ── SDN ────────────────────────────────────────────────────────────
   'sdn-nomina': {

@@ -77,9 +77,8 @@ export function RepNcfNulos({ noCia, punto }: Props) {
 
   const openListadoPdf = () => {
     if (!desde || !hasta) return
-    const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
     const qs = new URLSearchParams({ no_cia: noCia, punto, desde, hasta }).toString()
-    window.open(`${API_BASE}/fat/reportes/ncf-nulos/pdf/?${qs}`, '_blank')
+    window.open(`/print/fat-ncf-nulos/x?${qs}`, '_blank')
   }
 
   return (
