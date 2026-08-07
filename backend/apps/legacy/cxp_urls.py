@@ -5,7 +5,7 @@ from apps.legacy.docs_print_data import (
     cxp_rep_alfabetico_print_data, cxp_rep_mayor_print_data,
     cxp_rep_606_print_data, cxp_rep_607_print_data,
     cxp_rep_cuadre_print_data, cxp_rep_retenciones_print_data,
-    cxp_rep_envejecimiento_print_data,
+    cxp_rep_envejecimiento_print_data, cxp_asiento_print_data,
 )
 
 urlpatterns = [
@@ -42,6 +42,7 @@ urlpatterns = [
     path('rep-cuadre/print-data/', cxp_rep_cuadre_print_data),
     path('rep-retenciones/print-data/', cxp_rep_retenciones_print_data),
     path('rep-envejecimiento/print-data/', cxp_rep_envejecimiento_print_data),
+    path('asiento-contable/print-data/', cxp_asiento_print_data),
     path('rep-alfabetico/', cxp_views.cxp_rep_alfabetico),
     path('rep-mayor/', cxp_views.cxp_rep_mayor),
     path('rep-606/', cxp_views.cxp_rep_606),

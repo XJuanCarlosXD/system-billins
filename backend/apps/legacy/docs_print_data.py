@@ -714,6 +714,68 @@ def cnt_asiento_print_data(request, ano: int, mes: int, no_asiento: int):
     })
 
 
+# ─── Asiento Contable CxC / CxP (resumen por cuenta del período) ─────────
+# Familia "reporte": migra las vistas previas client-side (document.write) al
+# print fino. Reutiliza los mismos repos que la pantalla.
+
+def _asiento_reporte(cia, rows, titulo, mes, ano, tipo):
+    filas = [{
+        'cuenta': (r.get('cuenta') or '').strip(),
+        'centro_costo': (r.get('centro_costo') or '').strip(),
+        'total_debito': _money_or_zero(r.get('total_debito')),
+        'total_credito': _money_or_zero(r.get('total_credito')),
+    } for r in rows]
+    td = sum(f['total_debito'] for f in filas)
+    tc = sum(f['total_credito'] for f in filas)
+    return {
+        'cia': cia,
+        'reporte': {
+            'codigo': 'asiento-contable', 'titulo': titulo,
+            'fecha_generacion': None,
+            'filtros': {'Mes': mes, 'Año': ano, 'Tipo': tipo},
+        },
+        'filas': filas,
+        'totales': {
+            'cantidad': len(filas), 'total_debito': td, 'total_credito': tc,
+            'diferencia': round(td - tc, 2), 'total': td,
+        },
+    }
+
+
+@login_required
+@require_http_methods(["GET"])
+def cxc_asiento_print_data(request):
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    cia = _cia_payload(no_cia, request=request)
+    mes = request.GET.get('mes', '')
+    ano = request.GET.get('ano', '')
+    tipo = request.GET.get('tipo', 'detallado')
+    try:
+        rows = cxc_repo.get_asiento_contable(no_cia, punto, int(mes), int(ano)) if mes and ano else []
+    except Exception:
+        rows = []
+    return JsonResponse(_asiento_reporte(
+        cia, rows, 'Asiento Contable CxC — %s/%s' % (mes, ano), mes, ano, tipo))
+
+
+@login_required
+@require_http_methods(["GET"])
+def cxp_asiento_print_data(request):
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto', '01')
+    cia = _cia_payload(no_cia, request=request)
+    mes = request.GET.get('mes', '')
+    ano = request.GET.get('ano', '')
+    tipo = request.GET.get('tipo', 'detallado')
+    try:
+        rows = cxp_repo.get_asiento_contable_cxp(no_cia, punto, int(mes), int(ano)) if mes and ano else []
+    except Exception:
+        rows = []
+    return JsonResponse(_asiento_reporte(
+        cia, rows, 'Asiento Contable CxP — %s/%s' % (mes, ano), mes, ano, tipo))
+
+
 # ─── ACF — Acta de Activo Fijo ───────────────────────────────────────────
 
 @login_required

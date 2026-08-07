@@ -18,7 +18,7 @@ import { facturaDefault } from './defaults/factura'
 import { facturaPosDefault } from './defaults/factura-pos'
 import { ordenCompraDefault } from './defaults/orden-compra'
 import { requisicionCompraDefault } from './defaults/requisicion-compra'
-import { invDocumentoDefault, reporteGenericoDefault } from './defaults/reporte-generico'
+import { invDocumentoDefault, reporteGenericoDefault, asientoContableDefault } from './defaults/reporte-generico'
 import { sdnNominaDefault } from './defaults/sdn-nomina'
 import { volantePagoDefault } from './defaults/volante-pago'
 import { accReposicionDefault } from './defaults/acc-reposicion'
@@ -1012,6 +1012,24 @@ export const registry: Record<string, RegistryEntry> = {
       'filas[].d30', 'filas[].d60', 'filas[].d90', 'filas[].mas90', 'filas[].total',
       'totales.cantidad', 'totales.total',
     ],
+  },
+  'cxc-asiento': {
+    codigo: 'cxc-asiento', modulo: 'CXC', nombre: 'Asiento Contable CxC', familia: 'reporte',
+    printDataPath: (_id, qs) => `/cxc/asiento-contable/print-data/?${qs.toString()}`,
+    defaultTemplate: asientoContableDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: ['reporte.titulo', 'reporte.filtros', 'filas[].cuenta', 'filas[].centro_costo',
+      'filas[].total_debito', 'filas[].total_credito', 'totales.total_debito',
+      'totales.total_credito', 'totales.cantidad'],
+  },
+  'cxp-asiento': {
+    codigo: 'cxp-asiento', modulo: 'CXP', nombre: 'Asiento Contable CxP', familia: 'reporte',
+    printDataPath: (_id, qs) => `/cxp/asiento-contable/print-data/?${qs.toString()}`,
+    defaultTemplate: asientoContableDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: ['reporte.titulo', 'reporte.filtros', 'filas[].cuenta', 'filas[].centro_costo',
+      'filas[].total_debito', 'filas[].total_credito', 'totales.total_debito',
+      'totales.total_credito', 'totales.cantidad'],
   },
   'cxc-rep-envejecimiento': {
     codigo: 'cxc-rep-envejecimiento',

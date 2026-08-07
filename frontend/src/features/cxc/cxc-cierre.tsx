@@ -72,25 +72,13 @@ export function CxcAsientoContable({ noCia, punto = '01', mes, ano }: P) {
   const totalCredito = rows.reduce((s, r) => s + (r.total_credito || 0), 0)
   const balanceado = Math.abs(totalDebito - totalCredito) < 0.001
 
-  const printPdf = async () => {
+  const printPdf = () => {
     if (!rows.length) return
-    const meta = await buildReportMeta(noCia, punto, `${String(mesVal).padStart(2, '0')}-${anoVal}`)
-    const win = window.open('', '_blank')
-    if (!win) return
-    win.document.write(`<html><head><title>Asiento Contable CxC</title>
-      <style>body{font-family:Arial,sans-serif;font-size:9pt}table{border-collapse:collapse;width:100%}
-      th,td{border:1px solid #333;padding:4px 7px}th{background:#0F172A;color:#fff}
-      .r{text-align:right}.tot{font-weight:700;background:#f1f5f9}</style></head>
-      <body><h3>${meta.company}</h3>
-      <p><b>Asiento Contable CxC</b> — ${MESES[mesVal - 1]} ${anoVal} · Tipo: ${tipoImpresion}</p>
-      <table><thead><tr><th>Cuenta</th><th>Centro Costo</th><th class=r>Débito</th><th class=r>Crédito</th></tr></thead>
-      <tbody>${rows.map(r => `<tr><td>${r.cuenta}</td><td>${r.centro_costo || ''}</td>
-        <td class=r>${r.total_debito > 0 ? fmt(r.total_debito) : ''}</td>
-        <td class=r>${r.total_credito > 0 ? fmt(r.total_credito) : ''}</td></tr>`).join('')}
-        <tr class=tot><td colspan=2>TOTALES</td><td class=r>${fmt(totalDebito)}</td>
-        <td class=r>${fmt(totalCredito)}</td></tr></tbody></table></body></html>`)
-    win.document.close()
-    setTimeout(() => win.print(), 300)
+    // Print fino vía el sistema de plantillas Puck (código cxc-asiento).
+    const qs = new URLSearchParams({
+      no_cia: noCia, punto, mes: String(mesVal), ano: String(anoVal), tipo: tipoImpresion,
+    }).toString()
+    window.open(`/print/cxc-asiento/current?${qs}`, '_blank')
   }
 
   return (

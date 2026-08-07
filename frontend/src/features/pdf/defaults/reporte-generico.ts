@@ -38,6 +38,49 @@ export function reporteGenericoDefault(
   }
 }
 
+// Asiento Contable (CxC/CxP) — resumen por cuenta, estilo fino con fila TOTALES
+// de débito/crédito. Reemplaza las vistas previas client-side (document.write).
+export const asientoContableDefault: any = {
+  content: [
+    { type: 'HeaderEmpresa', props: {
+      id: 'he', showLogo: true, logoAlign: 'left', colorPrimario: '#0F172A',
+      showRnc: true, showTelefono: true, showEmail: false, showDireccion: true, razonSize: 14,
+    } },
+    { type: 'HeaderReporte', props: {
+      id: 'hr', showFiltros: true, showFechaGeneracion: true, colorPrimario: '#0F172A',
+    } },
+    { type: 'TablaReporte', props: {
+      id: 'tr',
+      columnasJson: JSON.stringify([
+        { campo: 'cuenta', label: 'Cuenta', align: 'left' },
+        { campo: 'centro_costo', label: 'Centro Costo', align: 'left' },
+        { campo: 'total_debito', label: 'Débito', align: 'right', format: 'money' },
+        { campo: 'total_credito', label: 'Crédito', align: 'right', format: 'money' },
+      ], null, 2),
+      zebra: false, headerBg: '#ffffff', headerColor: '#0F172A', fontSize: 9,
+      groupBy: '', subtotalCampos: '',
+    } },
+    { type: 'TextoLibre', props: {
+      id: 'tot',
+      html: `
+<table style="width:100%;border-collapse:collapse;font-size:9px">
+  <tr style="border-top:1px solid #333;font-weight:bold">
+    <td style="padding:4px 6px" colspan="2">TOTALES</td>
+    <td style="padding:4px 6px;text-align:right">{{formatMoney totales.total_debito}}</td>
+    <td style="padding:4px 6px;text-align:right">{{formatMoney totales.total_credito}}</td>
+  </tr>
+</table>`,
+      fontSize: 9, textAlign: 'left',
+    } },
+    { type: 'FooterEmpresa', props: {
+      id: 'fo', texto: '{{ cia.razon_social }}',
+      showPaginacion: true, showFechaGeneracion: false, color: '#777777',
+    } },
+  ],
+  root: { props: {} },
+  zones: {},
+}
+
 // Predefinidos por reporte:
 export const ncfNulosDefault = reporteGenericoDefault('NCF Nulos', [
   { campo: 'ncf_dgi', label: 'NCF', align: 'left' },
