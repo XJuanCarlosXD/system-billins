@@ -30,27 +30,10 @@ export function GruposSucursal({ noCia, punto }: Props) {
     )
   }, [rows, search])
 
-  const exportPdf = async () => {
-    const now = new Date()
-    const mesAno = `${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`
-    const meta = await buildReportMeta(noCia, punto, mesAno)
-    const win = window.open('', '_blank')
-    if (!win) return
-    win.document.write([
-      '<html><head><title>Grupos Contables</title>',
-      '<style>body{font-family:sans-serif;padding:20px}table{width:100%;border-collapse:collapse}',
-      'th,td{border:1px solid #ddd;padding:6px 10px;text-align:left}th{background:#f5f5f5}',
-      'h2{margin-bottom:4px}p{margin:0 0 16px;color:#666;font-size:13px}</style></head><body>',
-      '<h2>Grupos Contables Sucursal</h2>',
-      '<p>' + ((meta as any).empresa ?? '') + ' | ' + punto + ' | ' + mesAno + '</p>',
-      '<table><thead><tr><th>Grupo</th><th>Descripcion</th><th>Cuenta Inicio</th><th>Cuenta Fin</th></tr></thead>',
-      '<tbody>',
-      ...filteredRows.map(r =>
-        '<tr><td>' + (r.grupo ?? '') + '</td><td>' + (r.descripcion ?? '') + '</td><td>' + (r.cuenta_inicio ?? '') + '</td><td>' + (r.cuenta_fin ?? '') + '</td></tr>'
-      ),
-      '</tbody></table></body></html>',
-    ].join(''))
-    win.print()
+  const exportPdf = () => {
+    // Print fino vía plantillas Puck (código cnt-grupos-contables).
+    const qs = new URLSearchParams({ no_cia: noCia, punto }).toString()
+    window.open(`/print/cnt-grupos-contables/current?${qs}`, '_blank')
   }
 
   return (

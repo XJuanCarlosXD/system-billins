@@ -1563,6 +1563,20 @@ export const registry: Record<string, RegistryEntry> = {
       'filas[].fecha', 'filas[].cliente', 'filas[].factura', 'filas[].total',
       'totales.total', 'totales.cantidad'],
   },
+  // ── CNT ────────────────────────────────────────────────────────────
+  'cnt-grupos-contables': {
+    codigo: 'cnt-grupos-contables', modulo: 'CNT', nombre: 'Grupos Contables por Sucursal', familia: 'reporte',
+    printDataPath: (_id, qs) => `/cnt/grupos-contables/print-data/?${qs.toString()}`,
+    defaultTemplate: reporteGenericoDefault('Grupos Contables por Sucursal', [
+      { campo: 'grupo', label: 'Grupo', align: 'left' },
+      { campo: 'descripcion', label: 'Descripción', align: 'left' },
+      { campo: 'cuenta_inicio', label: 'Cuenta Inicio', align: 'left' },
+      { campo: 'cuenta_fin', label: 'Cuenta Fin', align: 'left' },
+    ]),
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: ['reporte.titulo', 'filas[].grupo', 'filas[].descripcion',
+      'filas[].cuenta_inicio', 'filas[].cuenta_fin', 'totales.cantidad'],
+  },
   // ── SDN ────────────────────────────────────────────────────────────
   'sdn-nomina': {
     codigo: 'sdn-nomina',

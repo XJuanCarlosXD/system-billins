@@ -744,6 +744,33 @@ def _asiento_reporte(cia, rows, titulo, mes, ano, tipo):
 
 @login_required
 @require_http_methods(["GET"])
+def cnt_grupos_contables_print_data(request):
+    """Catálogo de Grupos Contables por sucursal (familia reporte)."""
+    no_cia = request.GET.get('no_cia', '01')
+    cia = _cia_payload(no_cia, request=request)
+    try:
+        rows = cnt_repo.list_grupos_contables() or []
+    except Exception:
+        rows = []
+    filas = [{
+        'grupo': str(r.get('grupo') or '').strip(),
+        'descripcion': (r.get('descripcion') or '').strip(),
+        'cuenta_inicio': str(r.get('cuenta_inicio') or '').strip(),
+        'cuenta_fin': str(r.get('cuenta_fin') or '').strip(),
+    } for r in rows]
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'cnt-grupos-contables', 'titulo': 'Grupos Contables por Sucursal',
+            'fecha_generacion': None, 'filtros': {},
+        },
+        'filas': filas,
+        'totales': {'cantidad': len(filas)},
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
 def cxc_asiento_print_data(request):
     no_cia = request.GET.get('no_cia', '01')
     punto = request.GET.get('punto', '01')
