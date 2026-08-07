@@ -26,7 +26,7 @@ export const cotizacionDefault: PdfTemplateDefault = {
         introHtml:
           '<p>Estimado(a) <b>{{ cliente.nombre }}</b>,</p><p>Por la presente cotización le presentamos nuestra mejor oferta para los siguientes productos y/o servicios:</p>',
         pieHtml:
-          '<p><b>Validez:</b> 15 días a partir de la fecha de emisión.<br/><b>Condiciones de pago:</b> {{ doc.condicion_pago }}</p>',
+          '<p><b>Validez:</b> 15 días a partir de la fecha de emisión.</p>',
       },
     },
     {

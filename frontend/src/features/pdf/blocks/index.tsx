@@ -2261,28 +2261,35 @@ function DocumentoSimple({
         </table>
       )}
 
-      {/* Línea de contexto INV: almacén origen→destino, vendedor, condición */}
-      {mostrarAlmacen &&
-        (doc.almacen_origen || doc.vendedor || doc.condicion_pago) && (
-          <div style={{ margin: '2px 0 8px', display: 'flex', gap: 18, flexWrap: 'wrap' }}>
-            {doc.almacen_origen && (
-              <span>
-                <b>Almacén:</b> {doc.almacen_origen}
-                {doc.almacen_destino ? ` → ${doc.almacen_destino}` : ''}
-              </span>
-            )}
-            {doc.vendedor && (
-              <span>
-                <b>Vendedor:</b> {doc.vendedor}
-              </span>
-            )}
-            {doc.condicion_pago && (
-              <span>
-                <b>Condición:</b> {doc.condicion_pago}
-              </span>
-            )}
-          </div>
-        )}
+      {/* Línea de contexto: almacén (solo INV), vendedor, forma y condición de
+          pago. La condición/forma se muestran siempre que existan (factura,
+          conduce, cotización) — antes estaban ocultas tras mostrarAlmacen. */}
+      {((mostrarAlmacen && doc.almacen_origen) || doc.vendedor || doc.forma_pago || doc.condicion_pago) && (
+        <div style={{ margin: '2px 0 8px', display: 'flex', gap: 18, flexWrap: 'wrap' }}>
+          {mostrarAlmacen && doc.almacen_origen && (
+            <span>
+              <b>Almacén:</b> {doc.almacen_origen}
+              {doc.almacen_destino ? ` → ${doc.almacen_destino}` : ''}
+            </span>
+          )}
+          {doc.vendedor && (
+            <span>
+              <b>Vendedor:</b> {doc.vendedor}
+            </span>
+          )}
+          {doc.forma_pago && (
+            <span>
+              <b>Forma de pago:</b> {doc.forma_pago}
+            </span>
+          )}
+          {doc.condicion_pago && (
+            <span>
+              <b>Condición de pago:</b> {doc.condicion_pago}
+              {doc.plazo_pago ? ` (${doc.plazo_pago} días)` : ''}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Líneas: encabezado en negrita con raya fina (sin barra ni zebra) */}
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9 }}>
