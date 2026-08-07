@@ -161,6 +161,19 @@ export function CxcTransacciones({ noCia, punto = '01', prefill }: P) {
   // Paso 1: en cuanto cargan los tipos de documento, elige el Recibo de
   // Ingreso (tipo_transaccion='I', prefiere codigo 'RI'), llena el detalle
   // y busca el cliente exacto por codigo (mismo lookup que ClientePicker).
+  // Default rápido: al entrar, preseleccionar el Recibo de Ingreso (el tipo
+  // más usado) para no tener que elegirlo cada vez. Solo si NO viene de la
+  // vista de cajero (prefill lo maneja aparte) y el usuario aún no eligió.
+  useEffect(() => {
+    if (prefill || tipoDoc || tdocusQ.isLoading || tdocusActivos.length === 0) return
+    const def =
+      tdocusActivos.find((t: any) => t.tipo_doc === 'RI' && (t.tipo_transaccion || '').toUpperCase() === 'I') ||
+      tdocusActivos.find((t: any) => (t.tipo_transaccion || '').toUpperCase() === 'I') ||
+      tdocusActivos[0]
+    if (def) setTipoDoc(def.tipo_doc)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill, tdocusActivos, tdocusQ.isLoading])
+
   const prefillSetupRef = useRef(false)
   useEffect(() => {
     if (!prefill || prefillSetupRef.current || tdocusQ.isLoading) return

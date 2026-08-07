@@ -315,6 +315,12 @@ export function NuevaFactura({ noCia, punto }: Props) {
             hasDocType('fat', noCia, punto, d.tipo_docu)
         )
         setTiposDoc(filtrados)
+        // Preseleccionar el tipo por defecto (FT = Contado, el más usado) para
+        // captura más rápida; el usuario puede cambiarlo si necesita FC/otro.
+        if (filtrados.length > 0) {
+          const def = filtrados.find((d) => d.tipo_docu === 'FT') ?? filtrados[0]
+          setTipoDoc((prev) => prev || def.tipo_docu)
+        }
         setVendedores(vendsRes.items || [])
 
         const pagos: TipoPago[] = pagosRes.items || []

@@ -606,7 +606,16 @@ export function CxpEntradaDocumentos({
 
   useEffect(() => {
     api.cxpListTiposDocu(noCia)
-      .then((rows: any[]) => setTiposDocu(rows.filter((t) => hasDocType('cxp', noCia, punto, t.codigo ?? t.tipo_docu))))
+      .then((rows: any[]) => {
+        const allowed = rows.filter((t) => hasDocType('cxp', noCia, punto, t.codigo ?? t.tipo_docu))
+        setTiposDocu(allowed)
+        // Preseleccionar el tipo por defecto (o el primero) para captura más
+        // rápida. En edición no se pisa: el tipo real del doc se carga aparte.
+        if (!editTipo && !editNoDocu) {
+          const def = allowed.find((t: any) => t.por_defecto === 'S') ?? allowed[0]
+          if (def) setTipoDocu((prev) => prev || String(def.codigo ?? def.tipo_docu ?? ''))
+        }
+      })
       .catch(() => {})
     api.cxpListTiposGasto().then(setTiposGasto).catch(() => {})
     // El tipo de retencion NO se preselecciona: la mayoria de los documentos
