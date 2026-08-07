@@ -532,9 +532,9 @@ function ReporteLineasSublineas({ noCia }: { noCia: string }) {
         </div>
       </div>
 
-      <Button className='gap-2' onClick={generate}>
+      <Button className='gap-2' disabled title='Reporte pendiente de implementación'>
         <FileDown className='h-4 w-4' />
-        Generar Reporte PDF (Rinv311)
+        Próximamente
       </Button>
     </div>
   )
@@ -660,13 +660,9 @@ function ReporteAuxiliar({ noCia }: { noCia: string }) {
       </div>
 
       <div className='flex gap-3'>
-        <Button className='gap-2' onClick={() => generate('pdf')}>
+        <Button className='gap-2' disabled title='Reporte pendiente de implementación'>
           <FileDown className='h-4 w-4' />
-          Generar PDF
-        </Button>
-        <Button variant='outline' className='gap-2' onClick={() => generate('excel')}>
-          <FileDown className='h-4 w-4' />
-          Exportar Excel
+          Próximamente
         </Button>
       </div>
     </div>
@@ -1224,9 +1220,9 @@ function ReporteConsumoProyecto({ noCia }: { noCia: string }) {
         </RadioGroup>
       </div>
 
-      <Button className='gap-2' onClick={generate}>
+      <Button className='gap-2' disabled title='Reporte pendiente de implementación'>
         <FileDown className='h-4 w-4' />
-        Generar Reporte PDF
+        Próximamente
       </Button>
     </div>
   )

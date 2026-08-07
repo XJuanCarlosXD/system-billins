@@ -249,21 +249,12 @@ export function ComparativoFisico({ noCia, punto }: Props) {
           </RadioGroup>
         </div>
 
-        {/* Botones */}
+        {/* Botones — reporte pendiente de implementación (backend no disponible) */}
         <div className='flex flex-wrap gap-3 pt-2 border-t'>
-          <Button className='gap-2' onClick={handleReporte}>
-            {tipoReporte === 'resumido-excel' ? (
-              <><FileDown className='h-4 w-4' />Generar Excel</>
-            ) : (
-              <><Printer className='h-4 w-4' />Generar Reporte PDF</>
-            )}
+          <Button className='gap-2' disabled title='Reporte pendiente de implementación'>
+            <Printer className='h-4 w-4' />
+            Próximamente
           </Button>
-          {tipoReporte !== 'resumido-excel' && (
-            <Button variant='outline' className='gap-2' onClick={handleExcel}>
-              <FileDown className='h-4 w-4' />
-              Excel
-            </Button>
-          )}
         </div>
       </div>
     </div>
