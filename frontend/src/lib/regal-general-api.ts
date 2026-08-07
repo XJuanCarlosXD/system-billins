@@ -840,7 +840,7 @@ export const regalGeneralApi = {
     ),
 
   fatListVendedores: (noCia: string) =>
-    request<{ items: Array<{ vendedor: string; nombre: string }> }>(`/fat/vendedores/?no_cia=${encodeURIComponent(noCia)}`),
+    request<{ items: Array<{ vendedor: string; nombre: string; usuario?: string }>; mi_vendedor?: string }>(`/fat/vendedores/?no_cia=${encodeURIComponent(noCia)}`),
 
   fatListClientes: (no_cia: string, search = '', page = 1, page_size = 30, punto = '01') =>
     request<{

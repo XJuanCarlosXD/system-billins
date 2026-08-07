@@ -1885,7 +1885,7 @@ def list_vendedores(no_cia: str) -> list[dict]:
     # de dropdown y se incluye 'activo' para que el frontend pueda filtrar/
     # marcar visualmente si lo desea.
     rows = client.fetch_dicts(
-        "SELECT VENDEDOR, NOMBRE, NVL(ACTIVO,'S') ACTIVO "
+        "SELECT VENDEDOR, NOMBRE, NVL(ACTIVO,'S') ACTIVO, USUARIO "
         "FROM CXC.TCXC_VENDEDOR "
         "WHERE NO_CIA = :1 "
         "ORDER BY NVL(ACTIVO,'S') DESC, NOMBRE",
@@ -1894,7 +1894,25 @@ def list_vendedores(no_cia: str) -> list[dict]:
         'vendedor': r['vendedor'] or '',
         'nombre': (r['nombre'] or '').strip(),
         'activo': r['activo'] or 'S',
+        'usuario': (r['usuario'] or '').strip().upper(),
     } for r in rows]
+
+
+def vendedor_de_usuario(no_cia: str, usuario: str) -> str:
+    """Vendedor por defecto del usuario logueado (TCXC_VENDEDOR.USUARIO).
+    Se usa para autoseleccionar el vendedor en Facturación cuando el documento
+    es a crédito. Un usuario puede tener varios vendedores asignados; se prefiere
+    el activo de menor código para dar un resultado estable. Devuelve '' si el
+    usuario no tiene ningún vendedor asignado en la compañía."""
+    u = (usuario or '').strip().upper()
+    if not u:
+        return ''
+    rows = client.fetch_dicts(
+        "SELECT VENDEDOR FROM CXC.TCXC_VENDEDOR "
+        "WHERE NO_CIA = :1 AND UPPER(USUARIO) = :2 "
+        "ORDER BY NVL(ACTIVO,'S') DESC, VENDEDOR",
+        [no_cia, u])
+    return (rows[0]['vendedor'] or '').strip() if rows else ''
 
 
 def list_clientes(no_cia: str, punto: str = '01', search: str = '', page: int = 1, page_size: int = 30) -> dict:

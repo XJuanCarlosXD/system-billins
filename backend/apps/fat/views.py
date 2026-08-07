@@ -339,7 +339,11 @@ class FatVendedoresView(APIView):
     def get(self, request):
         no_cia = request.query_params.get('no_cia', '01')
         items = fat_repo.list_vendedores(no_cia)
-        return Response({'items': items})
+        # Vendedor por defecto del usuario logueado (para autoseleccionar en
+        # facturación a crédito). '' si el usuario no tiene vendedor asignado.
+        mi_vendedor = fat_repo.vendedor_de_usuario(
+            no_cia, (request.user.username or ''))
+        return Response({'items': items, 'mi_vendedor': mi_vendedor})
 
 
 # -- Clientes -----------------------------------------------------------------

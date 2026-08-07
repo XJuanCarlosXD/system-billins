@@ -152,6 +152,12 @@ const formatNcf = (info: NcfInfo) =>
 
 const esContadoLabel = (desc: string) => /contado|cash|efectivo/i.test(desc)
 const esEfectivoLabel = (desc: string) => /efectivo|cash/i.test(desc)
+// Un tipo de documento es "a crédito" (FC) por código o por descripción.
+const esTipoCredito = (td?: { tipo_docu?: string; descripcion?: string }) =>
+  !!td && (td.tipo_docu === 'FC' || /cr[eé]dito/i.test(td.descripcion || ''))
+// Forma de pago "A CREDITO" (excluye "TARJETA CREDITO/DEBITO").
+const esFormaCredito = (desc: string) =>
+  /cr[eé]dito/i.test(desc) && !/tarjeta|d[eé]bito/i.test(desc)
 
 let lineaIdCounter = 1
 
@@ -163,6 +169,9 @@ export function NuevaFactura({ noCia, punto }: Props) {
   // Catalog
   const [tiposDoc, setTiposDoc] = useState<TipoDoc[]>([])
   const [vendedores, setVendedores] = useState<Vendedor[]>([])
+  // Vendedor por defecto del usuario logueado (TCXC_VENDEDOR.USUARIO); el
+  // backend lo resuelve. Se autoselecciona al elegir un documento a crédito.
+  const [miVendedor, setMiVendedor] = useState('')
   const [tiposPago, setTiposPago] = useState<TipoPago[]>([])
   const [condicionesPago, setCondicionesPago] = useState<CondicionPago[]>([])
   const [ncfRanges, setNcfRanges] = useState<NcfInfo[]>([])
@@ -324,8 +333,12 @@ export function NuevaFactura({ noCia, punto }: Props) {
         {
           const vends: Vendedor[] = vendsRes.items || []
           setVendedores(vends)
-          // Auto-seleccionar el vendedor si hay uno solo (con varios lo elige el usuario).
-          if (vends.length === 1) setVendedor((prev) => prev || vends[0].vendedor)
+          const mio = (vendsRes.mi_vendedor || '').trim()
+          setMiVendedor(mio)
+          // Preseleccionar el vendedor del usuario logueado si lo tiene; si no,
+          // y hay uno solo, ese (con varios lo elige el usuario).
+          if (mio) setVendedor((prev) => prev || mio)
+          else if (vends.length === 1) setVendedor((prev) => prev || vends[0].vendedor)
         }
 
         const pagos: TipoPago[] = pagosRes.items || []
@@ -391,6 +404,20 @@ export function NuevaFactura({ noCia, punto }: Props) {
       if (td.almacen) setDefaultAlmacen(td.almacen)
     } else {
       setNcfInfo(null)
+    }
+    // Documento a crédito (FC): la forma de pago pasa automáticamente a
+    // "A CREDITO" y se autoselecciona el vendedor del usuario logueado.
+    // Al volver a un documento de contado, si la forma quedó en crédito se
+    // regresa al default (normalmente EFECTIVO) para no facturar contado con
+    // forma de pago a crédito.
+    const fpCredito = tiposPago.find((p) => esFormaCredito(p.descripcion))
+    if (esTipoCredito(td)) {
+      if (fpCredito) setFormaPago(fpCredito.tipo_pago)
+      if (miVendedor) setVendedor(miVendedor)
+    } else if (fpCredito) {
+      setFormaPago((prev) =>
+        prev === fpCredito.tipo_pago ? (tiposPago[0]?.tipo_pago ?? prev) : prev
+      )
     }
   }
 
