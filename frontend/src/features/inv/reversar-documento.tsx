@@ -1,17 +1,15 @@
-import { useState } from 'react'
-import { RotateCcw } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { RotateCcw, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -21,370 +19,261 @@ const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.9
 
 interface Props { noCia: string; punto: string }
 
-interface DocumentoInfo {
-  tipo_movi?: string
-  tipo_transaccion?: string
-  entrada_almacen?: string
-  fecha_doc?: string
+interface TipoDocu {
+  tipo_docu?: string
+  tipo_doc?: string
+  descripcion?: string
   [key: string]: any
 }
 
-const MESES = [
-  { value: '01', label: 'Enero' },
-  { value: '02', label: 'Febrero' },
-  { value: '03', label: 'Marzo' },
-  { value: '04', label: 'Abril' },
-  { value: '05', label: 'Mayo' },
-  { value: '06', label: 'Junio' },
-  { value: '07', label: 'Julio' },
-  { value: '08', label: 'Agosto' },
-  { value: '09', label: 'Septiembre' },
-  { value: '10', label: 'Octubre' },
-  { value: '11', label: 'Noviembre' },
-  { value: '12', label: 'Diciembre' },
-]
+interface DocumentoInfo {
+  tipo_movi?: string
+  tipo_transaccion?: string
+  almacen?: string
+  entrada_almacen?: string
+  fecha_doc?: string
+  fecha?: string
+  estado?: string
+  st_anulado?: string
+  tipo_docu_rev?: string
+  no_docu_rev?: string
+  total_neto?: number
+  [key: string]: any
+}
 
-const now = new Date()
-const padZ = (n: number) => String(n).padStart(2, '0')
+const csrfToken = () =>
+  (document.cookie.split('; ').find((c) => c.startsWith('csrftoken=')) || '').split('=')[1] || ''
+
+const fmt = (v: unknown) =>
+  Number(v ?? 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+// NO_DOCU en INV es CHAR(7): "137" → "0000137"
+const normNoDocu = (v: string) => {
+  const n = v.trim()
+  return /^\d+$/.test(n) ? n.padStart(7, '0') : n
+}
 
 export function ReverarDocumento({ noCia, punto }: Props) {
-  // Search parameters
-  const [mes, setMes] = useState(padZ(now.getMonth() + 1))
-  const [anio, setAnio] = useState(String(now.getFullYear()))
-  const [puntoTrabajo, setPuntoTrabajo] = useState(punto || '')
-  const [tipoDocuOrig, setTipoDocuOrig] = useState('')
-  const [noDocumento, setNoDocumento] = useState('')
-
-  // Found document info
-  const [docInfo, setDocInfo] = useState<DocumentoInfo | null>(null)
-  const [loadingDoc, setLoadingDoc] = useState(false)
-
-  // Reversal fields
-  const [tipoDocRev, setTipoDocRev] = useState('')
-  const [tipoMoviRev, setTipoMoviRev] = useState('')
-  const [fechaNueva, setFechaNueva] = useState(new Date().toISOString().slice(0, 10))
-  const [nuevoDocumento, setNuevoDocumento] = useState('')
+  const [tipoDocu, setTipoDocu] = useState('')
+  const [noDocu, setNoDocu] = useState('')
+  const [tiposDocu, setTiposDocu] = useState<TipoDocu[]>([])
+  const [doc, setDoc] = useState<DocumentoInfo | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [confirming, setConfirming] = useState(false)
   const [motivo, setMotivo] = useState('')
 
-  // UI state
-  const [confirmOpen, setConfirmOpen] = useState(false)
-  const [reversing, setReversing] = useState(false)
+  const tipoKey = (t: TipoDocu) => String(t.tipo_docu ?? t.tipo_doc ?? '')
 
-  const buscarDocumento = async () => {
-    if (!tipoDocuOrig || !noDocumento) {
-      toast.error('Ingrese el Tipo de Documento y el Número de Documento a buscar')
+  useEffect(() => {
+    if (!noCia) return
+    // Reversar puede aplicar a cualquier tipo de documento -> se listan todos.
+    fetch(`${API_BASE}/inv/tipos-docu/?no_cia=${encodeURIComponent(noCia)}`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        const items: TipoDocu[] = Array.isArray(data) ? data : (data.results ?? data.items ?? [])
+        setTiposDocu(items)
+      })
+      .catch(() => setTiposDocu([]))
+  }, [noCia])
+
+  const buscar = async () => {
+    if (!tipoDocu || !noDocu.trim()) {
+      toast.error('Tipo y No. de documento son requeridos')
       return
     }
-    setLoadingDoc(true)
-    setDocInfo(null)
+    if (!punto) {
+      toast.error('Seleccione un punto de trabajo')
+      return
+    }
+    const nd = normNoDocu(noDocu)
+    setNoDocu(nd)
+    setBusy(true)
+    setDoc(null)
     try {
-      const noDocuPad = String(noDocumento).padStart(7, '0')
       const res = await fetch(
-        `${API_BASE}/inv/documentos/${encodeURIComponent(tipoDocuOrig)}/${noDocuPad}/?no_cia=${noCia}&punto=${puntoTrabajo}`,
+        `${API_BASE}/inv/documentos/${encodeURIComponent(tipoDocu)}/${nd}/?no_cia=${noCia}&punto=${punto}`,
         { credentials: 'include' },
       )
       if (!res.ok) {
-        if (res.status === 404) {
-          toast.error('Documento no encontrado')
-        } else {
-          throw new Error(`HTTP ${res.status}`)
-        }
+        toast.error(res.status === 404
+          ? `No existe el documento ${tipoDocu}-${nd} en este punto.`
+          : `Error ${res.status}`)
         return
       }
-      const data = await res.json()
-      setDocInfo(data)
+      setDoc(await res.json())
     } catch (err: any) {
-      toast.error(`Error al buscar documento: ${err.message ?? 'Error desconocido'}`)
+      toast.error(err?.message ?? 'Error al buscar documento')
     } finally {
-      setLoadingDoc(false)
+      setBusy(false)
     }
   }
 
-  const handleReversar = async () => {
+  const reversar = async () => {
+    if (!doc) return
     if (!motivo.trim()) {
-      toast.error('El motivo de reversión es requerido')
+      toast.error('El motivo de la reversión es requerido')
       return
     }
-    setReversing(true)
-    setConfirmOpen(false)
+    setBusy(true)
     try {
-      const payload = {
-        no_cia: noCia,
-        punto: puntoTrabajo,
-        tipo_docu: tipoDocuOrig,
-        no_docu: noDocumento,
-        motivo,
-      }
-      const csrf = (document.cookie.split('; ').find(c => c.startsWith('csrftoken=')) || '').split('=')[1] || ''
       const res = await fetch(`${API_BASE}/inv/movimientos/reversar/`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-        body: JSON.stringify(payload),
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+        body: JSON.stringify({
+          no_cia: noCia,
+          punto,
+          tipo_docu: tipoDocu,
+          no_docu: normNoDocu(noDocu),
+          motivo: motivo.trim(),
+        }),
       })
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}))
-        throw new Error(errData.detail ?? errData.error ?? `HTTP ${res.status}`)
+        const e = await res.json().catch(() => ({}))
+        throw new Error(e.detail ?? e.error ?? `HTTP ${res.status}`)
       }
-      const result = await res.json()
-      toast.success(`Reversión aplicada correctamente. Nuevo doc: ${result.nuevo_documento ?? nuevoDocumento}`)
-      // Reset
-      setDocInfo(null)
-      setNoDocumento('')
-      setTipoDocuOrig('')
-      setTipoDocRev('')
-      setTipoMoviRev('')
-      setNuevoDocumento('')
+      const result = await res.json().catch(() => ({}))
+      const nuevo = result.nuevo_documento || result.no_docu_rev
+      toast.success(`Documento ${tipoDocu}-${normNoDocu(noDocu)} reversado${nuevo ? ` — generó ${nuevo}` : ''}`)
+      setDoc(null)
+      setNoDocu('')
       setMotivo('')
+      setConfirming(false)
     } catch (err: any) {
-      toast.error(`Error al reversar: ${err.message ?? 'Error desconocido'}`)
+      toast.error(err?.message ?? 'No se pudo reversar el documento')
     } finally {
-      setReversing(false)
+      setBusy(false)
     }
   }
 
-  const isEndpointReady = true // POST /api/inv/movimientos/reversar/
+  const yaReversado = !!doc && (String(doc.st_anulado ?? '').toUpperCase() === 'S' || !!(doc.no_docu_rev && String(doc.no_docu_rev).trim()))
 
   return (
-    <>
-      <section className='space-y-6'>
-        <div>
-          <h2 className='text-lg font-semibold flex items-center gap-2'>
-            <RotateCcw className='h-5 w-5 text-primary' />
-            Reversar Documento de Movimiento Interno
-          </h2>
-          <p className='text-sm text-muted-foreground'>FINV214 — Revertir un movimiento de inventario aplicado</p>
-        </div>
+    <div className='space-y-4 p-4 md:p-6'>
+      <div>
+        <h1 className='text-2xl font-semibold flex items-center gap-2'>
+          <RotateCcw className='h-5 w-5 text-primary' />
+          Reversar Documento
+        </h1>
+        <p className='text-sm text-muted-foreground'>
+          Busca un documento de inventario aplicado y reviértelo. El sistema
+          genera automáticamente el movimiento inverso que lo contrarresta.
+        </p>
+      </div>
 
-        {/* Document search */}
+      {/* Búsqueda */}
+      <Card>
+        <CardContent className='flex flex-wrap items-end gap-3 pt-6'>
+          <div className='min-w-0 space-y-1'>
+            <Label className='text-xs'>Tipo</Label>
+            <Select value={tipoDocu} onValueChange={setTipoDocu}>
+              <SelectTrigger className='h-9 w-64'>
+                <SelectValue placeholder='Tipo…' />
+              </SelectTrigger>
+              <SelectContent>
+                {tiposDocu.map((t) => (
+                  <SelectItem key={tipoKey(t)} value={tipoKey(t)}>
+                    {tipoKey(t)} — {t.descripcion}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className='min-w-0 space-y-1'>
+            <Label className='text-xs'>No. Documento</Label>
+            <Input
+              value={noDocu}
+              onChange={(e) => setNoDocu(e.target.value.replace(/[^0-9]/g, '').slice(0, 7))}
+              onKeyDown={(e) => e.key === 'Enter' && buscar()}
+              className='h-9 w-40 font-mono'
+              inputMode='numeric'
+              maxLength={7}
+              placeholder='ej. 137'
+            />
+          </div>
+          <Button onClick={buscar} size='sm' variant='outline' disabled={busy}>
+            <Search className='mr-2 h-4 w-4' />
+            {busy ? 'Buscando…' : 'Buscar'}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Info del documento */}
+      {doc && (
         <Card>
-          <CardHeader>
-            <CardTitle className='text-base'>Documento a Reversar</CardTitle>
-          </CardHeader>
-          <CardContent className='space-y-4'>
-            <div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
-              <div className='space-y-1'>
-                <Label>Mes en Proceso</Label>
-                <Select value={mes} onValueChange={setMes}>
-                  <SelectTrigger className='h-9'>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MESES.map((m) => (
-                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className='space-y-1'>
-                <Label htmlFor='anio-rev'>Año en Proceso</Label>
-                <Input
-                  id='anio-rev'
-                  className='h-9'
-                  type='number'
-                  min={2000}
-                  max={2099}
-                  value={anio}
-                  onChange={(e) => setAnio(e.target.value)}
-                />
-              </div>
-
-              <div className='space-y-1'>
-                <Label htmlFor='punto-rev'>Punto de Trabajo</Label>
-                <Input
-                  id='punto-rev'
-                  className='h-9'
-                  placeholder='Punto'
-                  value={puntoTrabajo}
-                  onChange={(e) => setPuntoTrabajo(e.target.value)}
-                />
-              </div>
-
-              <div className='space-y-1'>
-                <Label htmlFor='tipo-docu-rev'>Tipo Documento</Label>
-                <Input
-                  id='tipo-docu-rev'
-                  className='h-9 font-mono uppercase'
-                  placeholder='AE, SA, EC...'
-                  maxLength={4}
-                  value={tipoDocuOrig}
-                  onChange={(e) => setTipoDocuOrig(e.target.value.toUpperCase())}
-                />
-              </div>
-
-              <div className='space-y-1'>
-                <Label htmlFor='no-documento'>No. Documento</Label>
-                <Input
-                  id='no-documento'
-                  className='h-9 font-mono'
-                  type='number'
-                  min={1}
-                  placeholder='Número'
-                  value={noDocumento}
-                  onChange={(e) => setNoDocumento(e.target.value)}
-                />
+          <CardContent className='space-y-3 pt-6'>
+            <div className='grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 md:grid-cols-3'>
+              <div><b>Tipo Movimiento:</b> <span className='font-mono'>{doc.tipo_movi || '—'}</span></div>
+              <div><b>Tipo Transacción:</b> {doc.tipo_transaccion || '—'}</div>
+              <div><b>Almacén:</b> <span className='font-mono'>{doc.almacen || doc.entrada_almacen || '—'}</span></div>
+              <div><b>Fecha:</b> <span className='tabular-nums'>{(doc.fecha ?? doc.fecha_doc ?? '').slice(0, 10) || '—'}</span></div>
+              <div><b>Total:</b> <span className='font-mono tabular-nums'>RD$ {fmt(doc.total_neto)}</span></div>
+              <div>
+                <b>Estado:</b>{' '}
+                {yaReversado
+                  ? <Badge variant='destructive'>Reversado / Anulado</Badge>
+                  : <Badge>Activo</Badge>}
               </div>
             </div>
-
-            <Button
-              variant='outline'
-              size='sm'
-              onClick={buscarDocumento}
-              disabled={loadingDoc}
-              className='gap-2'
-            >
-              {loadingDoc ? 'Buscando...' : 'Buscar Documento'}
-            </Button>
-
-            {/* Document info display */}
-            {docInfo && (
-              <div className='mt-3 grid grid-cols-2 md:grid-cols-4 gap-3 rounded-md border bg-muted/50 p-4'>
-                <div>
-                  <p className='text-xs text-muted-foreground'>Tipo Movimiento</p>
-                  <p className='text-sm font-medium font-mono'>{docInfo.tipo_movi ?? '—'}</p>
-                </div>
-                <div>
-                  <p className='text-xs text-muted-foreground'>Tipo Transacción</p>
-                  <p className='text-sm font-medium'>{docInfo.tipo_transaccion ?? '—'}</p>
-                </div>
-                <div>
-                  <p className='text-xs text-muted-foreground'>Entrada Almacén</p>
-                  <p className='text-sm font-medium font-mono'>{docInfo.entrada_almacen ?? '—'}</p>
-                </div>
-                <div>
-                  <p className='text-xs text-muted-foreground'>Fecha Documento</p>
-                  <p className='text-sm font-medium tabular-nums'>{docInfo.fecha_doc?.slice(0, 10) ?? '—'}</p>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Reversal parameters */}
-        <Card>
-          <CardHeader>
-            <CardTitle className='text-base'>Parámetros de Reversión</CardTitle>
-          </CardHeader>
-          <CardContent className='space-y-4'>
-            <div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
-              <div className='space-y-1'>
-                <Label htmlFor='tipo-doc-rev-new'>Tipo Doc. Reversión</Label>
-                <Input
-                  id='tipo-doc-rev-new'
-                  className='h-9 font-mono uppercase'
-                  placeholder='Tipo doc.'
-                  maxLength={4}
-                  value={tipoDocRev}
-                  onChange={(e) => setTipoDocRev(e.target.value.toUpperCase())}
-                />
-              </div>
-
-              <div className='space-y-1'>
-                <Label htmlFor='tipo-movi-rev'>Tipo Movimiento</Label>
-                <Input
-                  id='tipo-movi-rev'
-                  className='h-9 font-mono uppercase'
-                  placeholder='E / S'
-                  maxLength={2}
-                  value={tipoMoviRev}
-                  onChange={(e) => setTipoMoviRev(e.target.value.toUpperCase())}
-                />
-              </div>
-
-              <div className='space-y-1'>
-                <Label htmlFor='fecha-nueva-rev'>Fecha Nueva</Label>
-                <Input
-                  id='fecha-nueva-rev'
-                  type='date'
-                  className='h-9'
-                  value={fechaNueva}
-                  onChange={(e) => setFechaNueva(e.target.value)}
-                />
-              </div>
-
-              <div className='space-y-1'>
-                <Label htmlFor='nuevo-documento'>Nuevo Documento No.</Label>
-                <Input
-                  id='nuevo-documento'
-                  className='h-9 font-mono'
-                  placeholder='Auto'
-                  value={nuevoDocumento}
-                  onChange={(e) => setNuevoDocumento(e.target.value)}
-                />
-              </div>
+            <div className='flex justify-end'>
+              <GuardedButton
+                modulo='inv'
+                flag='HACER_AJUSTES'
+                noCia={noCia}
+                punto={punto}
+                variant='destructive'
+                onClick={() => setConfirming(true)}
+                disabled={busy || yaReversado}
+              >
+                <RotateCcw className='mr-2 h-4 w-4' />
+                Reversar
+              </GuardedButton>
             </div>
-
-            <div className='space-y-1'>
-              <Label htmlFor='motivo-rev'>Motivo de la Reversión <span className='text-destructive'>*</span></Label>
-              <Textarea
-                id='motivo-rev'
-                placeholder='Describa el motivo por el cual se está reversando este documento...'
-                className='resize-none h-24'
-                value={motivo}
-                onChange={(e) => setMotivo(e.target.value)}
-              />
-            </div>
-
-            <div className='flex justify-end pt-2'>
-              {isEndpointReady ? (
-                <Button
-                  variant='destructive'
-                  className='gap-2'
-                  disabled={reversing || !docInfo}
-                  onClick={() => setConfirmOpen(true)}
-                >
-                  <RotateCcw className='h-4 w-4' />
-                  {reversing ? 'Reversando...' : 'Reversar Documento'}
-                </Button>
-              ) : (
-                <Button
-                  variant='destructive'
-                  className='gap-2'
-                  disabled
-                  title='Endpoint en construcción'
-                >
-                  <RotateCcw className='h-4 w-4' />
-                  Reversar Documento
-                </Button>
-              )}
-            </div>
-
-            {!isEndpointReady && (
-              <p className='text-xs text-muted-foreground text-right'>
-                Endpoint <code className='rounded bg-muted px-1 py-0.5'>/api/inv/reversar/</code> en construcción — el formulario está listo.
+            {yaReversado && (
+              <p className='text-right text-xs text-muted-foreground'>
+                Este documento ya fue reversado/anulado y no puede reversarse de nuevo.
               </p>
             )}
           </CardContent>
         </Card>
-      </section>
+      )}
 
-      {/* Confirmation dialog */}
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent size='lg'>
+      {/* Confirmación con motivo */}
+      <Dialog open={confirming} onOpenChange={(o) => !busy && setConfirming(o)}>
+        <DialogContent className='h-auto max-h-[80vh] max-w-md overflow-y-auto'>
           <DialogHeader>
-            <DialogTitle>Confirmar Reversión</DialogTitle>
-            <DialogDescription>
-              Esta acción reversará el documento <strong className='font-mono'>{tipoDocuOrig} #{noDocumento}</strong>.
-              Esta operación no puede deshacerse automáticamente. ¿Desea continuar?
-            </DialogDescription>
+            <DialogTitle>Reversar {tipoDocu}-{normNoDocu(noDocu)}</DialogTitle>
           </DialogHeader>
-          {motivo && (
-            <div className='rounded-md border bg-muted/50 px-4 py-3 text-sm'>
-              <p className='text-xs font-medium text-muted-foreground mb-1'>Motivo:</p>
-              <p>{motivo}</p>
+          <div className='space-y-3'>
+            <p className='text-sm text-muted-foreground'>
+              El documento quedará reversado y se generará automáticamente el
+              movimiento inverso que contrarresta su efecto en el inventario.
+              Esta operación no puede deshacerse.
+            </p>
+            <div className='min-w-0 space-y-1'>
+              <Label className='text-xs'>
+                Motivo de la reversión <span className='text-destructive'>*</span>
+              </Label>
+              <Input
+                value={motivo}
+                onChange={(e) => setMotivo(e.target.value.slice(0, 60))}
+                placeholder='ej. digitado con almacén equivocado'
+                maxLength={60}
+                autoFocus
+              />
             </div>
-          )}
-          <DialogFooter className='gap-2'>
-            <Button variant='outline' onClick={() => setConfirmOpen(false)}>
-              Cancelar
-            </Button>
-            <GuardedButton modulo='inv' flag='HACER_AJUSTES' noCia={noCia} punto={puntoTrabajo} variant='destructive' onClick={handleReversar} disabled={reversing}>
-              {reversing ? 'Reversando...' : 'Confirmar Reversión'}
-            </GuardedButton>
-          </DialogFooter>
+            <div className='flex justify-end gap-2 pt-2'>
+              <Button variant='outline' onClick={() => setConfirming(false)} disabled={busy}>
+                Cancelar
+              </Button>
+              <Button variant='destructive' onClick={reversar} disabled={busy || !motivo.trim()}>
+                <RotateCcw className='mr-2 h-4 w-4' />
+                {busy ? 'Reversando…' : 'Confirmar Reverso'}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   )
 }

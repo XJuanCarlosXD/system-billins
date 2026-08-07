@@ -476,11 +476,6 @@ export const sidebarData: SidebarData = {
               url: '/inv',
               search: { section: 'procesos', view: 'reversar-documento' },
             },
-            {
-              title: 'Impresión de Documentos',
-              url: '/inv',
-              search: { section: 'procesos', view: 'impresion-documentos' },
-            },
           ],
         },
         {
