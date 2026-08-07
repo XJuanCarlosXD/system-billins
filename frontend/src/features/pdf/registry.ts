@@ -343,6 +343,16 @@ const fatListaPreciosDefault = reporteGenericoDefault('Lista de Precios', [
   { campo: 'nota', label: 'Nota', align: 'left' },
 ])
 
+const fatListadoFacturasDefault = reporteGenericoDefault('Listado de Facturas', [
+  { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
+  { campo: 'tipo', label: 'Tipo', align: 'left' },
+  { campo: 'no_factura', label: 'No.', align: 'left' },
+  { campo: 'ncf_dgi', label: 'NCF', align: 'left' },
+  { campo: 'cliente', label: 'Cliente', align: 'left' },
+  { campo: 'estado', label: 'Estado', align: 'left' },
+  { campo: 'total', label: 'Total', align: 'right', format: 'money' },
+])
+
 const fatListadoConducesDefault = reporteGenericoDefault('Listado de Conduces / Cotizaciones', [
   { campo: 'no_conduce', label: 'No.', align: 'left' },
   { campo: 'tipo', label: 'Tipo', align: 'left' },
@@ -1473,6 +1483,15 @@ export const registry: Record<string, RegistryEntry> = {
     ],
   },
   // ── FAT — reportes migrados al print fino ──────────────────────────
+  'listado-facturas': {
+    codigo: 'listado-facturas', modulo: 'FAT', nombre: 'Listado de Facturas', familia: 'reporte',
+    printDataPath: (_id, qs) => `/fat/reportes/listado/print-data/?${qs.toString()}`,
+    defaultTemplate: fatListadoFacturasDefault,
+    defaultPageSize: 'A4', defaultPageOrientation: 'L',
+    variables: ['reporte.titulo', 'reporte.filtros', 'filas[].fecha', 'filas[].tipo',
+      'filas[].no_factura', 'filas[].ncf_dgi', 'filas[].cliente', 'filas[].estado',
+      'filas[].total', 'totales.total', 'totales.cantidad'],
+  },
   'fat-ncf-nulos': {
     codigo: 'fat-ncf-nulos', modulo: 'FAT', nombre: 'NCF Nulos', familia: 'reporte',
     printDataPath: (_id, qs) => `/fat/reportes/ncf-nulos/print-data/?${qs.toString()}`,
