@@ -215,13 +215,15 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
         const items: TipoDocu[] = Array.isArray(data)
           ? data
           : (data.results ?? data.items ?? [])
-        // Filter by movement direction
-        const movFilter = isEntrada ? 'E' : 'S'
-        const filtered = items.filter((t) => {
-          const mov = String(t.tipo_mov ?? '').toUpperCase()
-          return mov === movFilter || mov === ''
-        })
-        setTiposDocu(filtered.length > 0 ? filtered : items)
+        // Cada modo queda fijo a su tipo: Entrada Almacén = EA, Salida Almacén = SA.
+        // No debe permitir otros tipos (compras/ajustes/transferencias tienen su vista).
+        const code = isEntrada ? 'EA' : 'SA'
+        const filtered = items.filter(
+          (t) => String(t.tipo_docu ?? t.tipo_doc ?? '').toUpperCase() === code
+        )
+        setTiposDocu(filtered)
+        if (filtered.length === 1)
+          setTipoDocu(String(filtered[0].tipo_docu ?? filtered[0].tipo_doc ?? ''))
       })
       .catch(() => setTiposDocu([]))
 

@@ -170,11 +170,10 @@ export function EntradaCompras({ noCia, punto }: Props) {
     apiFetch<any>(`/inv/tipos-docu/?no_cia=${encodeURIComponent(noCia)}`)
       .then((data) => {
         const items: TipoDocu[] = Array.isArray(data) ? data : (data.results ?? data.items ?? [])
-        const filtered = items.filter((t) => {
-          const mov = String(t.tipo_mov ?? '').toUpperCase()
-          return mov === 'E' || mov === ''
-        })
-        setTiposDocu(filtered.length > 0 ? filtered : items)
+        // Esta vista es SOLO Entrada de Compra (EC): no debe permitir otros tipos.
+        const filtered = items.filter((t) => String(t.tipo_docu ?? t.tipo_doc ?? '').toUpperCase() === 'EC')
+        setTiposDocu(filtered)
+        if (filtered.length === 1) setTipoDocu(String(filtered[0].tipo_docu ?? filtered[0].tipo_doc ?? ''))
       })
       .catch(() => setTiposDocu([]))
 
