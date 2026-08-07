@@ -249,11 +249,14 @@ export function ComparativoFisico({ noCia, punto }: Props) {
           </RadioGroup>
         </div>
 
-        {/* Botones — reporte pendiente de implementación (backend no disponible) */}
+        {/* Botones */}
         <div className='flex flex-wrap gap-3 pt-2 border-t'>
-          <Button className='gap-2' disabled title='Reporte pendiente de implementación'>
+          <Button
+            className='gap-2'
+            onClick={() => window.open(`/print/inv-conteo-comparativo/current?${buildQs()}`, '_blank')}
+          >
             <Printer className='h-4 w-4' />
-            Próximamente
+            Generar Reporte PDF
           </Button>
         </div>
       </div>

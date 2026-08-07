@@ -4,6 +4,8 @@ from apps.legacy.inv_views_print_data import (
     inv_documento_print_data, inv_existencia_print_data,
     inv_movimientos_print_data, inv_kardex_print_data,
     inv_valorizacion_print_data, inv_cierre_entrada_print_data,
+    inv_lineas_sublineas_print_data, inv_auxiliar_print_data,
+    inv_conteo_comparativo_print_data,
 )
 
 urlpatterns = [
@@ -62,6 +64,9 @@ urlpatterns = [
     path('reportes/movimientos/print-data/', inv_movimientos_print_data),
     path('reportes/kardex/print-data/', inv_kardex_print_data),
     path('reportes/valorizacion/print-data/', inv_valorizacion_print_data),
+    path('reportes/lineas-sublineas/print-data/', inv_lineas_sublineas_print_data),
+    path('reportes/auxiliar/print-data/', inv_auxiliar_print_data),
+    path('reportes/conteo-comparativo/print-data/', inv_conteo_comparativo_print_data),
     path('cierre/entrada-diario/print-data/', inv_cierre_entrada_print_data),
 
     # Cierre Mensual (Finv402 + Finv403)

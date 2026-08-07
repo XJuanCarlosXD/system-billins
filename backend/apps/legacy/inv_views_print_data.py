@@ -360,3 +360,150 @@ def inv_cierre_entrada_print_data(request):
         'filas': filas,
         'totales': {'cantidad': len(filas), 'total': total},
     })
+
+
+# ─── /api/inv/reportes/lineas-sublineas/print-data/ ──────────────────────
+
+@login_required
+@require_http_methods(["GET"])
+def inv_lineas_sublineas_print_data(request):
+    """Catálogo de Líneas (y sus Sublíneas si detalle_sublinea=1) por rango."""
+    no_cia = request.GET.get('no_cia', '01')
+    err = _check_inv_access(request, no_cia)
+    if err is not None:
+        return err
+    cia = _cia_payload(no_cia, request=request)
+    linea_ini = (request.GET.get('linea_ini') or '').strip()
+    linea_fin = (request.GET.get('linea_fin') or '').strip()
+    detalle = (request.GET.get('detalle_sublinea', '1') or '1') != '0'
+    lineas = inv_repo.list_lineas(no_cia=no_cia) or []
+    filas = []
+    for l in lineas:
+        code = str(l.get('linea') or '').strip()
+        if linea_ini and code < linea_ini:
+            continue
+        if linea_fin and code > linea_fin:
+            continue
+        filas.append({
+            'linea': code, 'sub_linea': '',
+            'descripcion': (l.get('descripcion') or '').strip(),
+        })
+        if detalle:
+            try:
+                subs = inv_repo.list_sublineas(no_cia=no_cia, linea=code) or []
+            except Exception:
+                subs = []
+            for s in subs:
+                filas.append({
+                    'linea': code,
+                    'sub_linea': str(s.get('sub_linea') or '').strip(),
+                    'descripcion': '   ' + (s.get('descripcion') or '').strip(),
+                })
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'inv-lineas-sublineas', 'titulo': 'Líneas y Sublíneas',
+            'fecha_generacion': None,
+            'filtros': _filtros_basicos(request, {'Desde línea': linea_ini, 'Hasta línea': linea_fin}),
+        },
+        'filas': filas,
+        'totales': {'cantidad': len(filas)},
+    })
+
+
+# ─── /api/inv/reportes/auxiliar/print-data/ (FINV303 — Auxiliar) ──────────
+
+@login_required
+@require_http_methods(["GET"])
+def inv_auxiliar_print_data(request):
+    """Auxiliar de Inventario: movimientos detallados del período/almacén.
+    Reusa list_movimientos (mismo dato que el reporte de Movimientos) con el
+    rango del mes cuando se pasa mes/anio, filtrando por producto si se indica."""
+    no_cia = request.GET.get('no_cia', '01')
+    err = _check_inv_access(request, no_cia)
+    if err is not None:
+        return err
+    cia = _cia_payload(no_cia, request=request)
+    almacen = request.GET.get('almacen', '')
+    no_produ = (request.GET.get('no_produ') or '').strip().upper()
+    desde = request.GET.get('desde', '')
+    hasta = request.GET.get('hasta', '')
+    mes = request.GET.get('mes', '')
+    anio = request.GET.get('anio', '') or request.GET.get('ano', '')
+    if mes and anio and not (desde and hasta):
+        import calendar
+        try:
+            a, m = int(anio), int(mes)
+            desde = '%04d-%02d-01' % (a, m)
+            hasta = '%04d-%02d-%02d' % (a, m, calendar.monthrange(a, m)[1])
+        except Exception:
+            desde = hasta = ''
+    rows = inv_repo.list_movimientos(
+        no_cia=no_cia, almacen=almacen, tipo='', desde=desde, hasta=hasta) or []
+    filas = []
+    for r in rows:
+        if no_produ and str(r.get('no_produ') or '').strip().upper() != no_produ:
+            continue
+        filas.append({
+            'fecha': str(r.get('fecha') or '')[:10],
+            'tipo_docu': (r.get('tipo_docu') or '').strip(),
+            'no_docu': r.get('no_docu') or '',
+            'almacen': (r.get('almacen') or '').strip(),
+            'no_produ': r.get('no_produ') or '',
+            'descripcion': (r.get('descripcion') or '')[:50],
+            'tipo_movi': r.get('tipo_movi') or '',
+            'cantidad': _money(r.get('cantidad')),
+            'costo': _money(r.get('costo')),
+            'monto_neto': _money(r.get('monto_neto')),
+        })
+    filas.sort(key=lambda f: (f['no_produ'], f['fecha'], f['no_docu']))
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'inv-auxiliar', 'titulo': 'Auxiliar de Inventario',
+            'fecha_generacion': None,
+            'filtros': _filtros_basicos(request, {'Período': ('%s/%s' % (mes, anio)) if mes and anio else '', 'Almacén': almacen, 'Producto': no_produ}),
+        },
+        'filas': filas,
+        'totales': {'cantidad': len(filas), 'total': sum(f['monto_neto'] for f in filas)},
+    })
+
+
+# ─── /api/inv/reportes/conteo-comparativo/print-data/ ────────────────────
+
+@login_required
+@require_http_methods(["GET"])
+def inv_conteo_comparativo_print_data(request):
+    """Comparativo de Conteo Físico vs existencia en libro (filas pendientes)."""
+    no_cia = request.GET.get('no_cia', '01')
+    err = _check_inv_access(request, no_cia)
+    if err is not None:
+        return err
+    cia = _cia_payload(no_cia, request=request)
+    punto = request.GET.get('punto', '')
+    almacen = request.GET.get('almacen', '')
+    no_produ = (request.GET.get('no_produ') or '').strip()
+    try:
+        rows = inv_repo.comparativo_conteo_fisico(no_cia, punto, almacen, no_produ) or []
+    except Exception:
+        rows = []
+    filas = [{
+        'almacen': (r.get('almacen') or '').strip(),
+        'no_produ': r.get('no_produ') or '',
+        'descripcion': (r.get('descripcion') or '')[:50],
+        'conteo_fisico': _money(r.get('conteo_total') if r.get('conteo_total') is not None else r.get('conteo_fisico')),
+        'exist_libro': _money(r.get('exist_libro')),
+        'diferencia': _money(r.get('diferencia')),
+        'costo_actual': _money(r.get('costo_actual')),
+        'valor_diferencia': _money(r.get('valor_diferencia')),
+    } for r in rows]
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'inv-conteo-comparativo', 'titulo': 'Comparativo de Conteo Físico',
+            'fecha_generacion': None,
+            'filtros': _filtros_basicos(request, {'Punto': punto, 'Almacén': almacen, 'Producto': no_produ}),
+        },
+        'filas': filas,
+        'totales': {'cantidad': len(filas), 'total': sum(f['valor_diferencia'] for f in filas)},
+    })

@@ -496,7 +496,7 @@ function ReporteLineasSublineas({ noCia }: { noCia: string }) {
     if (lineaIni) qs.set('linea_ini', lineaIni)
     if (lineaFin) qs.set('linea_fin', lineaFin)
     qs.set('detalle_sublinea', detalleSublinea ? '1' : '0')
-    window.open(`${API_BASE}/inv/reportes/lineas-sublineas/pdf/?${qs}`, '_blank')
+    window.open(`/print/inv-lineas-sublineas/current?${qs}`, '_blank')
   }
 
   return (
@@ -532,9 +532,9 @@ function ReporteLineasSublineas({ noCia }: { noCia: string }) {
         </div>
       </div>
 
-      <Button className='gap-2' disabled title='Reporte pendiente de implementación'>
+      <Button className='gap-2' onClick={generate}>
         <FileDown className='h-4 w-4' />
-        Próximamente
+        Generar Reporte PDF
       </Button>
     </div>
   )
@@ -566,7 +566,7 @@ function ReporteAuxiliar({ noCia }: { noCia: string }) {
       .catch(() => {})
   }, [noCia])
 
-  function generate(formato: 'pdf' | 'excel') {
+  function generate() {
     const qs = new URLSearchParams({ no_cia: noCia })
     if (mes) qs.set('mes', mes)
     if (anio) qs.set('anio', anio)
@@ -577,10 +577,7 @@ function ReporteAuxiliar({ noCia }: { noCia: string }) {
     if (noProdu) qs.set('no_produ', noProdu)
     if (desde) qs.set('desde', desde)
     if (hasta) qs.set('hasta', hasta)
-    const endpoint = formato === 'excel'
-      ? `${API_BASE}/inv/reportes/auxiliar/excel/?${qs}`
-      : `${API_BASE}/inv/reportes/auxiliar/pdf/?${qs}`
-    window.open(endpoint, '_blank')
+    window.open(`/print/inv-auxiliar/current?${qs}`, '_blank')
   }
 
   return (
@@ -660,9 +657,9 @@ function ReporteAuxiliar({ noCia }: { noCia: string }) {
       </div>
 
       <div className='flex gap-3'>
-        <Button className='gap-2' disabled title='Reporte pendiente de implementación'>
+        <Button className='gap-2' onClick={generate}>
           <FileDown className='h-4 w-4' />
-          Próximamente
+          Generar Reporte PDF
         </Button>
       </div>
     </div>
