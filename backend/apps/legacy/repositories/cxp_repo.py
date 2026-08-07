@@ -1,7 +1,35 @@
 from __future__ import annotations
-from datetime import date
+from datetime import date, datetime
 from .. import client
 from apps.historial import repo as historial_repo
+
+
+def _norm_fecha(valor, *, campo: str, requerido: bool = False):
+    """Valida/normaliza una fecha 'YYYY-MM-DD' antes de pasarla a
+    TO_DATE(:x,'YYYY-MM-DD'). El <input type="date"> de HTML permite girar el
+    año a 5 dígitos (ej. 26810), lo que hace que TO_DATE reviente con
+    ORA-01861 ('literal does not match format string') y el usuario solo ve
+    ese error críptico (ver reporte de soporte de ACLASE, 2026-08-07:
+    'ERROR AL ENTRAR UN DOCUMENTO EN CUENTA POR PAGAR'). Aquí lo convertimos
+    en un mensaje claro y rechazamos años fuera de rango antes de tocar Oracle.
+    """
+    s = (str(valor or '')).strip()
+    if not s:
+        if requerido:
+            raise ValueError(f'La {campo} es obligatoria.')
+        return None
+    # Solo aceptamos el formato ISO que emite <input type="date">.
+    try:
+        d = datetime.strptime(s[:10], '%Y-%m-%d').date()
+    except ValueError:
+        raise ValueError(
+            f'La {campo} "{s}" no es válida. Use el formato de fecha del '
+            f'calendario (día/mes/año).')
+    if not (1900 <= d.year <= 2999):
+        raise ValueError(
+            f'El año de la {campo} ({d.year}) está fuera de rango. '
+            f'Revise que la fecha esté bien escrita.')
+    return d.strftime('%Y-%m-%d')
 
 
 def list_proveedores(search='', activo=''):
@@ -1097,8 +1125,10 @@ def entrada_documento(d):
     punto         = d.get("punto", "01")
     tipo_docu     = d["tipo_docu"]
     no_proveedor  = str(d["no_proveedor"])
-    fecha         = d.get("fecha", "")
-    fecha_vence   = d.get("fecha_vence", fecha)
+    # Normalizar fechas ANTES de armar el SQL: un año de 5 dígitos (26810)
+    # provenía del <input type="date"> y reventaba TO_DATE con ORA-01861.
+    fecha         = _norm_fecha(d.get("fecha", ""), campo="fecha", requerido=True)
+    fecha_vence   = _norm_fecha(d.get("fecha_vence") or fecha, campo="fecha de vencimiento") or fecha
     valor         = float(d.get("valor_original") or d.get("valor") or 0)
     # TIPO_MOVI ('D'=debito / 'C'=credito) es una propiedad fija del tipo de
     # documento (TCXP_TDOCU.TIPO_MOVI, ej. ND/AD/BD='D', FP/NC/AC='C'), NO

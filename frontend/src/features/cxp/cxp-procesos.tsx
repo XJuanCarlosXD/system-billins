@@ -1064,6 +1064,8 @@ export function CxpEntradaDocumentos({
             <Label className='text-xs'>Fecha *</Label>
             <Input
               type='date'
+              min='2000-01-01'
+              max='2100-12-31'
               value={form.fecha}
               onChange={(e) =>
                 setForm((f) => ({ ...f, fecha: e.target.value }))
@@ -1188,6 +1190,8 @@ export function CxpEntradaDocumentos({
             <Label className='text-xs'>Fecha Vence</Label>
             <Input
               type='date'
+              min='2000-01-01'
+              max='2100-12-31'
               value={form.fecha_vence}
               onChange={(e) =>
                 setForm((f) => ({ ...f, fecha_vence: e.target.value }))
