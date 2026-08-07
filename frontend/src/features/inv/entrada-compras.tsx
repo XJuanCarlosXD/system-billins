@@ -181,6 +181,9 @@ export function EntradaCompras({ noCia, punto }: Props) {
       .then((data) => {
         const items: Almacen[] = Array.isArray(data) ? data : (data.results ?? data.items ?? [])
         setAlmacenes(items)
+        // Si hay un solo almacén, preseleccionarlo (seguro). Con varios NO se
+        // auto-elige para no registrar en el almacén equivocado por error.
+        if (items.length === 1) setAlmacenHeader((prev) => prev || String(items[0].almacen))
       })
       .catch(() => setAlmacenes([]))
   }, [noCia])

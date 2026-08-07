@@ -321,7 +321,12 @@ export function NuevaFactura({ noCia, punto }: Props) {
           const def = filtrados.find((d) => d.tipo_docu === 'FT') ?? filtrados[0]
           setTipoDoc((prev) => prev || def.tipo_docu)
         }
-        setVendedores(vendsRes.items || [])
+        {
+          const vends: Vendedor[] = vendsRes.items || []
+          setVendedores(vends)
+          // Auto-seleccionar el vendedor si hay uno solo (con varios lo elige el usuario).
+          if (vends.length === 1) setVendedor((prev) => prev || vends[0].vendedor)
+        }
 
         const pagos: TipoPago[] = pagosRes.items || []
         setTiposPago(pagos)

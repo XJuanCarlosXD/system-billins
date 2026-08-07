@@ -235,6 +235,8 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
           ? data
           : (data.results ?? data.items ?? [])
         setAlmacenes(items)
+        // Con un solo almacén, preseleccionarlo (seguro); con varios NO.
+        if (items.length === 1) setAlmacenHeader((prev) => prev || String(items[0].almacen))
       })
       .catch(() => setAlmacenes([]))
   }, [noCia, isEntrada])
