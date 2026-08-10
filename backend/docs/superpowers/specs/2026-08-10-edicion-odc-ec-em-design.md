@@ -67,6 +67,12 @@ el backend re-valida siempre (fuente de verdad) y responde 409/400 con `{error}`
   - Repo: `inv_repo.actualizar_documento_inv(...)`:
     1. Validar guardarraíles 1,3,4 (documento existe, no anulado; EC sin pago aplicado en CxP; mes abierto).
     2. Dentro de **una** conexión/transacción: `reversar_documento_inv(..., no_docu, interno=True)` (sin commit intermedio) → luego alta con la misma lógica de `inv_movimientos` **reusando el mismo `no_docu`** (no consumir secuencia nueva).
+
+  **Enlace estructurado EC ↔ FP (2026-08-10):** al crear una EC, `create_movimiento_documento`
+  guarda la referencia al FP espejo en el header de la entrada: `TINV_RME.tipo_refe='FP'`,
+  `no_refe=<no_docu del FP>` (columnas libres para EC). En la edición, `_resolve_cxp_mirror_fp`
+  lee ese enlace exacto desde el header ya cargado; solo cae al heurístico `detalle LIKE
+  '%INV <no_docu>%'` (`_find_cxp_mirror_fp`) para entradas creadas antes de esta fecha.
     3. `commit` al final; en cualquier excepción `rollback` + release (patrón legacy pool).
   - Nota: refactor mínimo de `reversar_documento_inv` y de la lógica de alta de `inv_movimientos` para
     aceptar una conexión externa (`conn=None`) y un `no_docu` forzado, de modo que ambos corran en la

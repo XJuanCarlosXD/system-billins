@@ -3197,6 +3197,18 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                 'lineas': _lineas_cnt,
             })
             cxp_mirror = {'no_docu': cxp_no_docu, 'tipo_docu': 'FP'}
+            # Enlace estructurado EC -> FP en el header de la entrada (TINV_RME).
+            # Así la edición localiza el FP espejo por referencia exacta y no por
+            # el texto del detalle (heurístico). tipo_refe/no_refe están libres
+            # para EC (_upsert_rme_header no los usa). Best-effort: si falla, la
+            # entrada ya está confirmada y queda el fallback heurístico.
+            try:
+                client.execute(
+                    "UPDATE INV.TINV_RME SET tipo_refe='FP', no_refe=:1 "
+                    "WHERE no_cia=:2 AND punto=:3 AND tipo_docu='EC' AND no_docu=:4",
+                    [str(cxp_no_docu), no_cia, punto, no_docu])
+            except Exception:
+                pass
         except Exception as exc:
             cxp_mirror = {'error': str(exc)}
 
@@ -3343,6 +3355,29 @@ def _find_cxp_mirror_fp(no_cia: str, punto: str, no_proveedor: str,
     return rows[0] if rows else None
 
 
+def _resolve_cxp_mirror_fp(no_cia: str, punto: str, header: dict,
+                           no_proveedor: str, inv_no_docu: str) -> dict | None:
+    """Localiza el FP espejo de una EC.
+
+    Preferir el enlace estructurado guardado en el header de la entrada
+    (TINV_RME.tipo_refe='FP' / no_refe=<no_docu del FP>), que es exacto. Si no
+    existe (entradas creadas antes del enlace estructurado), cae al heurístico
+    por el texto del detalle del FP.
+    """
+    ref_tipo = str((header or {}).get('tipo_refe') or '').strip().upper()
+    ref_no = str((header or {}).get('no_refe') or '').strip()
+    if ref_tipo == 'FP' and ref_no:
+        rows = client.fetch_dicts(
+            "SELECT no_docu, status, NVL(valor_original,0) valor_original, "
+            "       NVL(saldo,0) saldo "
+            "FROM CXP.TCXP_DOCUMENTO "
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu='FP' AND no_docu=:3",
+            [no_cia, punto, ref_no])
+        if rows:
+            return rows[0]
+    return _find_cxp_mirror_fp(no_cia, punto, no_proveedor, inv_no_docu)
+
+
 def actualizar_documento_inv(*, no_cia: str, punto: str, tipo_docu: str,
                              no_docu: str, payload: dict,
                              usuario: str = 'API') -> dict:
@@ -3391,7 +3426,7 @@ def actualizar_documento_inv(*, no_cia: str, punto: str, tipo_docu: str,
     # 2. EC + CxP: validar reversibilidad del espejo FP ANTES de tocar nada ---
     fp = None
     if tipo_docu == 'EC':
-        fp = _find_cxp_mirror_fp(no_cia, punto, old_no_proveedor, no_docu)
+        fp = _resolve_cxp_mirror_fp(no_cia, punto, header, old_no_proveedor, no_docu)
         if fp:
             if str(fp.get('status') or 'A').upper() != 'A':
                 raise ValueError(
