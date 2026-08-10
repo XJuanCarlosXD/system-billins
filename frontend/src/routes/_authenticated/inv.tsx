@@ -11,6 +11,8 @@ export const Route = createFileRoute('/_authenticated/inv')({
       .catch('configuracion'),
     view: z.string().optional().catch(undefined),
     tipo_docu: z.string().optional().catch(undefined),
+    // Edición de un documento existente: "<tipo_docu>-<no_docu>" (ej. "EC-0001234").
+    edit: z.string().optional().catch(undefined),
   }),
   component: GuardedInvPage,
 })

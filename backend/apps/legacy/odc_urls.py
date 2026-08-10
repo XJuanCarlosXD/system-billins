@@ -16,6 +16,7 @@ urlpatterns = [
     path('ordenes/', odc_views.odc_ordenes),
     path('ordenes/<str:no_cia>/<str:punto>/<str:no_orden>/', odc_views.odc_orden),
     path('ordenes/crear/', odc_views.odc_orden_crear),
+    path('ordenes/actualizar/', odc_views.odc_orden_actualizar),
     path('ordenes/autorizar/', odc_views.odc_orden_autorizar),
     path('ordenes/anular/', odc_views.odc_orden_anular),
     path('ordenes/cerrar/', odc_views.odc_orden_cerrar),

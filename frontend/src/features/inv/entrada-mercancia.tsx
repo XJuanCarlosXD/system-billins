@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { getRouteApi } from '@tanstack/react-router'
 import { Plus, Trash2, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { regalGeneralApi } from '@/lib/regal-general-api'
@@ -38,6 +39,8 @@ import { empaqueLabel } from '@/features/fat/utils/empaque-label'
 
 const API_BASE =
   import.meta.env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
+
+const invRoute = getRouteApi('/_authenticated/inv')
 
 interface EmpaqueOpt {
   empaque: number
@@ -162,6 +165,12 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
   const legacy = isEntrada ? 'FINV210' : 'FINV211'
   const totalLabel = isEntrada ? 'Total Entrada' : 'Total Salida'
 
+  const navigate = invRoute.useNavigate()
+  const { edit: editParam } = invRoute.useSearch()
+  // Documento en edición (solo entradas EA): no_docu original.
+  const [editNoDocu, setEditNoDocu] = useState('')
+  const editLoadedRef = useRef('')
+
   // Header — la cuenta contable y centro de costo vienen del TINV_TDOCU
   // (no son input del usuario en el legado Finv210/Finv211).
   const [tipoDocu, setTipoDocu] = useState('')
@@ -240,6 +249,48 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
       })
       .catch(() => setAlmacenes([]))
   }, [noCia, isEntrada])
+
+  // ── Modo edición: cargar el documento (EA) y precargar el formulario ─────
+  // Llega por ?edit=EA-<no_docu> desde Consulta de Documentos. Al guardar se
+  // reversa el original y se crea una versión nueva (nuevo número).
+  useEffect(() => {
+    if (!editParam || !noCia || !isEntrada) return
+    const dash = editParam.indexOf('-')
+    const tipo = (dash >= 0 ? editParam.slice(0, dash) : editParam).toUpperCase()
+    const noDocu = dash >= 0 ? editParam.slice(dash + 1) : ''
+    if (tipo !== 'EA' || !noDocu) return
+    if (editLoadedRef.current === editParam) return
+    editLoadedRef.current = editParam
+    ;(async () => {
+      try {
+        const resp = await apiFetch<any>(
+          `/inv/documentos/EA/${encodeURIComponent(noDocu)}/?no_cia=${encodeURIComponent(noCia)}`)
+        const data = resp?.data ?? resp
+        const h = data?.header || {}
+        const lines = data?.lines || []
+        setEditNoDocu(String(h.no_docu || noDocu))
+        setTipoDocu('EA')
+        if (h.fecha) setFecha(String(h.fecha).slice(0, 10))
+        if (h.almacen) setAlmacenHeader(String(h.almacen))
+        setNota(String(h.nota || h.detalle || ''))
+        const nuevasRows: ProductoRow[] = lines.map((l: any) => ({
+          id: rowIdCounter++,
+          noProdu: l.no_produ || '',
+          nombre: l.descripcion || '',
+          cantidad: String(Number(l.cantidad) || 0),
+          costo: Number(l.costo || 0).toFixed(4),
+          almacen: l.almacen || h.almacen || '',
+          empaque: String(l.unidad || 'UND').trim() || 'UND',
+          empaques: [],
+          costoBase: Number(l.costo || 0),
+        }))
+        setRows(nuevasRows.length ? nuevasRows : [newRow()])
+        toast.success(`Editando entrada EA-${String(h.no_docu || noDocu)}`)
+      } catch (e: unknown) {
+        toast.error(`No se pudo cargar el documento a editar: ${getErrorMessage(e)}`)
+      }
+    })()
+  }, [editParam, noCia, isEntrada])
 
   const searchProducto = useCallback(
     async (term: string) => {
@@ -429,11 +480,15 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
           document.cookie.split('; ').find((c) => c.startsWith('csrftoken=')) ||
           ''
         ).split('=')[1] || ''
-      const res = await fetch(`${API_BASE}/inv/movimientos/`, {
+      const endpoint = editNoDocu
+        ? `${API_BASE}/inv/movimientos/actualizar/`
+        : `${API_BASE}/inv/movimientos/`
+      const bodyObj = editNoDocu ? { ...payload, no_docu_orig: editNoDocu } : payload
+      const res = await fetch(endpoint, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(bodyObj),
       })
       if (!res.ok) {
         const errData = (await res.json().catch(() => ({}))) as {
@@ -451,6 +506,19 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
         created.data?.no_docu ??
         created.data?.no_doc ??
         ''
+      if (editNoDocu) {
+        toast.success(
+          `Entrada EA-${editNoDocu} editada. Nueva versión: ${docNo} (la original quedó reversada).`,
+          { duration: 8000 })
+        navigate({
+          search: (prev: Record<string, unknown>) => ({
+            ...prev, section: 'consultas', view: 'consulta-documentos',
+            tipo_docu: 'EA', edit: undefined,
+          }),
+          replace: true,
+        })
+        return
+      }
       toast.success(`Documento ${docNo} guardado correctamente`)
       // Reset de lineas/nota. Tipo Documento y Almacen se conservan: el
       // operador suele registrar varios documentos seguidos del mismo tipo,
@@ -481,9 +549,13 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
     <TooltipProvider>
       <section className='space-y-6'>
         <div>
-          <h2 className='text-lg font-semibold'>{title}</h2>
+          <h2 className='text-lg font-semibold'>
+            {editNoDocu ? `Editar Entrada EA-${editNoDocu}` : title}
+          </h2>
           <p className='text-sm text-muted-foreground'>
-            {legacy} — Movimiento de inventario
+            {editNoDocu
+              ? 'Al guardar se reversa la entrada original y se crea una versión nueva (nuevo número).'
+              : `${legacy} — Movimiento de inventario`}
           </p>
         </div>
 
@@ -837,7 +909,9 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
                 disabled={saving}
                 className='min-w-[120px]'
               >
-                {saving ? 'Guardando...' : 'Guardar Documento'}
+                {saving
+                  ? (editNoDocu ? 'Actualizando...' : 'Guardando...')
+                  : (editNoDocu ? 'Actualizar entrada' : 'Guardar Documento')}
               </Button>
             </TooltipTrigger>
             <TooltipContent side='left'>

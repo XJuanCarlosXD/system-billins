@@ -358,33 +358,8 @@ def inv_movimientos(request):
         except Exception:
             return JsonResponse({"error": "JSON invalido"}, status=400)
         try:
-            res = inv_repo.create_movimiento_documento(
-                no_cia=str(payload.get('no_cia', '01')).strip(),
-                punto=str(payload.get('punto', '01')).strip(),
-                tipo_docu=str(payload.get('tipo_docu', '')).strip().upper(),
-                fecha=str(payload.get('fecha', '')).strip()[:10],
-                almacen=str(payload.get('almacen', '')).strip(),
-                almacen_destino=str(payload.get('almacen_destino', '')).strip(),
-                lineas=payload.get('detalle') or payload.get('lineas') or [],
-                usuario=getattr(request.user, 'username', '') or 'API',
-                cuenta_contable=str(payload.get('cuenta', '')).strip(),
-                departamento=str(payload.get('departamento', '')).strip(),
-                nota=str(payload.get('nota', '')).strip(),
-                no_proveedor=str(payload.get('proveedor', '')).strip(),
-                rnc=str(payload.get('rnc', '')).strip(),
-                no_cliente=str(payload.get('no_cliente', '')).strip(),
-                vendedor=str(payload.get('vendedor', '')).strip(),
-                tipo_docu_devuelto=str(payload.get('tipo_docu_devuelto', '')).strip(),
-                no_docu_devuelto=str(payload.get('no_docu_devuelto', '')).strip(),
-                ncf=str(payload.get('ncf', '')).strip(),
-                pct_itbis=float(payload.get('pct_itbis') or 0),
-                # El selector de Entrada de Compras manda 'contado'/'credito'
-                # (texto), no el codigo DGII de TCXP_FORMA_PAGO_DGII (1-7) que
-                # espera el espejo en CxP.
-                forma_pago={'contado': 1, 'credito': 4}.get(
-                    str(payload.get('forma_pago', '')).strip().lower()),
-                fecha_vcto=str(payload.get('fecha_vcto', '')).strip()[:10],
-            )
+            res = inv_repo.create_movimiento_from_payload(
+                payload, getattr(request.user, 'username', '') or 'API')
         except ValueError as e:
             return JsonResponse({"error": str(e)}, status=400)
         except Exception as e:
@@ -1056,6 +1031,39 @@ def inv_reversar_documento(request):
             tipo_docu=str(payload.get('tipo_docu', '')).strip().upper(),
             no_docu=str(payload.get('no_docu', '')).strip(),
             motivo=str(payload.get('motivo', '')).strip(),
+            usuario=getattr(request.user, 'username', '') or 'API',
+        )
+    except ValueError as e:
+        return JsonResponse({"error": str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+    return JsonResponse({"data": res})
+
+
+@login_required
+@require_http_methods(["POST"])
+def inv_actualizar_documento(request):
+    """POST /api/inv/movimientos/actualizar/
+
+    Body JSON: mismo payload que POST /inv/movimientos/ + `no_docu_orig`
+    (el documento a editar; el tipo se toma de `tipo_docu`).
+
+    Edita una entrada de inventario (EC/EM/EA...) reversando la versión
+    original y creando una versión nueva (con nuevo no_docu) a partir del
+    payload editado, en un flujo que deja kardex, existencia, costo y —para
+    EC— el espejo 606 consistentes. La Orden de Compra (ODC) NO pasa por aquí.
+    """
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except Exception:
+        return JsonResponse({"error": "JSON invalido"}, status=400)
+    try:
+        res = inv_repo.actualizar_documento_inv(
+            no_cia=str(payload.get('no_cia', '01')).strip(),
+            punto=str(payload.get('punto', '01')).strip(),
+            tipo_docu=str(payload.get('tipo_docu', '')).strip().upper(),
+            no_docu=str(payload.get('no_docu_orig', '')).strip(),
+            payload=payload,
             usuario=getattr(request.user, 'username', '') or 'API',
         )
     except ValueError as e:

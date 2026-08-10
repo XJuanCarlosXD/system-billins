@@ -126,6 +126,30 @@ def odc_orden_crear(request):
 
 @login_required
 @csrf_exempt
+@require_http_methods(['POST', 'PUT'])
+def odc_orden_actualizar(request):
+    """Edita una orden existente (UPDATE cabecera + reemplazo de líneas).
+
+    Body JSON: {no_cia, punto, no_orden, cabecera:{...}, lineas:[...]} — mismo
+    shape que crear. Conserva el no_orden y la cantidad_recibida por producto.
+    """
+    data = json.loads(request.body)
+    try:
+        no_orden = odc_repo.actualizar_orden(
+            no_cia=data['no_cia'],
+            punto=_norm_punto(data['punto']),
+            no_orden=str(data['no_orden']),
+            cabecera=data.get('cabecera', {}),
+            lineas=data.get('lineas', []),
+            usuario=request.user.username,
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse({'no_orden': no_orden})
+
+
+@login_required
+@csrf_exempt
 @require_http_methods(['POST'])
 def odc_orden_autorizar(request):
     data = json.loads(request.body)

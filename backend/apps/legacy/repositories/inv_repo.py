@@ -3288,3 +3288,148 @@ def reversar_documento_inv(*, no_cia: str, punto: str, tipo_docu: str,
         'lineas_reversadas': len(rows),
     }
 
+
+def create_movimiento_from_payload(payload: dict, usuario: str = 'API') -> dict:
+    """Traduce el payload HTTP a create_movimiento_documento.
+
+    Fuente única usada tanto por el POST de /inv/movimientos/ como por la
+    edición (actualizar_documento_inv), para que ambas rutas construyan el
+    documento exactamente igual.
+    """
+    return create_movimiento_documento(
+        no_cia=str(payload.get('no_cia', '01')).strip(),
+        punto=str(payload.get('punto', '01')).strip(),
+        tipo_docu=str(payload.get('tipo_docu', '')).strip().upper(),
+        fecha=str(payload.get('fecha', '')).strip()[:10],
+        almacen=str(payload.get('almacen', '')).strip(),
+        almacen_destino=str(payload.get('almacen_destino', '')).strip(),
+        lineas=payload.get('detalle') or payload.get('lineas') or [],
+        usuario=usuario or 'API',
+        cuenta_contable=str(payload.get('cuenta', '')).strip(),
+        departamento=str(payload.get('departamento', '')).strip(),
+        nota=str(payload.get('nota', '')).strip(),
+        no_proveedor=str(payload.get('proveedor', '')).strip(),
+        rnc=str(payload.get('rnc', '')).strip(),
+        no_cliente=str(payload.get('no_cliente', '')).strip(),
+        vendedor=str(payload.get('vendedor', '')).strip(),
+        tipo_docu_devuelto=str(payload.get('tipo_docu_devuelto', '')).strip(),
+        no_docu_devuelto=str(payload.get('no_docu_devuelto', '')).strip(),
+        ncf=str(payload.get('ncf', '')).strip(),
+        pct_itbis=float(payload.get('pct_itbis') or 0),
+        # El selector de Entrada de Compras manda 'contado'/'credito' (texto),
+        # no el codigo DGII de TCXP_FORMA_PAGO_DGII (1-7) que espera CxP.
+        forma_pago={'contado': 1, 'credito': 4}.get(
+            str(payload.get('forma_pago', '')).strip().lower()),
+        fecha_vcto=str(payload.get('fecha_vcto', '')).strip()[:10],
+    )
+
+
+def _find_cxp_mirror_fp(no_cia: str, punto: str, no_proveedor: str,
+                        inv_no_docu: str) -> dict | None:
+    """Localiza el documento FP espejo generado en CxP por una Entrada de
+    Compras (EC). El espejo guarda en DETALLE 'Entrada de Compras INV <no_docu>'
+    (ver create_movimiento_documento). Solo activos (status='A')."""
+    if not no_proveedor:
+        return None
+    rows = client.fetch_dicts(
+        "SELECT no_docu, status, NVL(valor_original,0) valor_original, "
+        "       NVL(saldo,0) saldo "
+        "FROM CXP.TCXP_DOCUMENTO "
+        "WHERE no_cia=:1 AND punto=:2 AND tipo_docu='FP' AND no_proveedor=:3 "
+        "  AND detalle LIKE :4 AND NVL(status,'A')='A' "
+        "ORDER BY no_docu DESC",
+        [no_cia, punto, str(no_proveedor), f"%INV {inv_no_docu}%"],
+    )
+    return rows[0] if rows else None
+
+
+def actualizar_documento_inv(*, no_cia: str, punto: str, tipo_docu: str,
+                             no_docu: str, payload: dict,
+                             usuario: str = 'API') -> dict:
+    """Edita una entrada de inventario reversando la versión original y
+    re-creándola con el payload editado (nuevo no_docu).
+
+    Guardarraíles (fuente de verdad):
+      1. No editar documentos ya anulados/reversados.
+      2. No editar documentos de un período ya cerrado/contabilizado
+         (TINV_RME.st_generado_cnt='S').
+      3. EC: si el espejo FP en CxP ya tiene pago/aplicación o está
+         cerrado/reversado, se bloquea (editar rompería CxP/606).
+      (El guardarraíl ODC "pedida<recibida" vive en odc_repo.actualizar_orden.)
+
+    Nota: la reversa de INV es no destructiva (marca el original st_anulado='S'
+    e inserta AF compensatorio), por lo que la nueva versión recibe un no_docu
+    nuevo; el original queda como rastro. Las transferencias (TA) no se editan.
+    """
+    tipo_docu = (tipo_docu or '').strip().upper()
+    no_docu = (no_docu or '').strip()
+    if no_docu.isdigit():
+        no_docu = no_docu.zfill(7)
+    if not tipo_docu or not no_docu:
+        raise ValueError("tipo_docu y no_docu_orig son requeridos")
+    if tipo_docu == 'TA':
+        raise ValueError(
+            "Las transferencias (TA) no se editan aquí; reverse y cree una nueva.")
+
+    # 1. Cargar documento actual y validar estado -----------------------------
+    detalle = get_documento_detalle(no_cia, tipo_docu, no_docu)
+    if not detalle:
+        raise ValueError(f"Documento {tipo_docu}-{no_docu} no encontrado")
+    header = detalle.get('header') or {}
+    if str(header.get('st_anulado') or 'N').upper() == 'S':
+        raise ValueError(
+            f"Documento {tipo_docu}-{no_docu} ya está anulado/reversado; "
+            "cree uno nuevo en vez de editarlo.")
+    if str(header.get('st_generado_cnt') or 'N').upper() == 'S':
+        raise ValueError(
+            "El documento pertenece a un período ya cerrado/contabilizado; "
+            "no se puede editar.")
+
+    old_no_proveedor = (str(header.get('no_proveedor') or '').strip()
+                        or str(payload.get('proveedor') or '').strip())
+
+    # 2. EC + CxP: validar reversibilidad del espejo FP ANTES de tocar nada ---
+    fp = None
+    if tipo_docu == 'EC':
+        fp = _find_cxp_mirror_fp(no_cia, punto, old_no_proveedor, no_docu)
+        if fp:
+            if str(fp.get('status') or 'A').upper() != 'A':
+                raise ValueError(
+                    "La compra en Cuentas por Pagar ya está cerrada/reversada; "
+                    "corríjala en CxP antes de editar la entrada.")
+            if round(float(fp.get('saldo') or 0), 2) != round(
+                    float(fp.get('valor_original') or 0), 2):
+                raise ValueError(
+                    "La compra ya tiene pagos/aplicaciones en Cuentas por "
+                    "Pagar; reverse el pago antes de editar la entrada.")
+
+    # 3. Reversar la entrada de inventario original ---------------------------
+    reversa = reversar_documento_inv(
+        no_cia=no_cia, punto=punto, tipo_docu=tipo_docu, no_docu=no_docu,
+        motivo=f"Edición por {usuario}", usuario=usuario)
+
+    # 4. Reversar el espejo FP en CxP (genera ND que neutraliza el 606) -------
+    cxp_reversa = None
+    if tipo_docu == 'EC' and fp:
+        from .cxp_repo import reversar_documento as _cxp_reversar
+        try:
+            cxp_reversa = _cxp_reversar(
+                no_cia, punto, 'FP', fp['no_docu'],
+                usuario=usuario, motivo=f"Edición entrada INV {no_docu}")
+        except Exception as exc:
+            cxp_reversa = {'error': str(exc)}
+
+    # 5. Crear la versión nueva con el payload editado ------------------------
+    #    (create_movimiento_from_payload re-arma el espejo FP nuevo para EC).
+    nuevo = create_movimiento_from_payload(payload, usuario)
+
+    return {
+        'ok': True,
+        'original': {'tipo_docu': tipo_docu, 'no_docu': no_docu},
+        'reversa': reversa,
+        'cxp_reversa': cxp_reversa,
+        'nuevo': nuevo,
+        'no_docu': nuevo.get('no_docu'),
+        'tipo_docu': nuevo.get('tipo_docu'),
+    }
+

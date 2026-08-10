@@ -1432,6 +1432,8 @@ export const regalGeneralApi = {
     request<{ cabecera: any; lineas: any[] }>(`/odc/ordenes/${noCia}/${punto}/${noOrden}/`),
   odcCrearOrden: (data: Record<string, unknown>) =>
     request<{ no_orden: string }>('/odc/ordenes/crear/', { method: 'POST', body: JSON.stringify(data) }),
+  odcActualizarOrden: (data: Record<string, unknown>) =>
+    request<{ no_orden: string }>('/odc/ordenes/actualizar/', { method: 'POST', body: JSON.stringify(data) }),
   odcAutorizarOrden: (data: { no_cia: string; punto: string; no_orden: string }) =>
     request<any>('/odc/ordenes/autorizar/', { method: 'POST', body: JSON.stringify(data) }),
   odcAnularOrden: (data: { no_cia: string; punto: string; no_orden: string; motivo?: string }) =>

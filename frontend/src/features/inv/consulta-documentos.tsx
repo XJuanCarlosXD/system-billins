@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent } from 'react'
 import { getRouteApi } from '@tanstack/react-router'
 import {
   X, FileText, ExternalLink, ArrowDownToLine, ArrowUpFromLine,
-  ArrowLeftRight, Minus, Package, TrendingUp, TrendingDown, Wallet, Search,
+  ArrowLeftRight, Minus, Package, TrendingUp, TrendingDown, Wallet, Search, Pencil,
 } from 'lucide-react'
 import { useCompany } from '@/context/company-context'
 import { Badge } from '@/components/ui/badge'
@@ -403,6 +403,23 @@ export function ConsultaDocumentos() {
   // Deep-link desde otras pantallas (ej. "Ver entradas anteriores" en Entrada
   // de Compras) que llegan con ?tipo_docu=EC para abrir ya filtrado.
   const search = invRoute.useSearch()
+  const nav = invRoute.useNavigate()
+
+  // Tipos de entrada editables desde aquí (reusan la vista de entrada en modo
+  // edición). EC va a Entrada de Compras; el resto a Entrada de Mercancía.
+  const editableTipo = (t: string) =>
+    ['EC', 'EA', 'EM', 'EP', 'AE'].includes((t || '').toUpperCase())
+  const irAEditar = (r: Documento, e: MouseEvent) => {
+    e.stopPropagation()
+    const tipo = (r.tipo_docu || '').toUpperCase()
+    const view = tipo === 'EC' ? 'entrada-compras' : 'entrada-mercancia'
+    nav({
+      search: (prev) => ({
+        ...prev, section: 'procesos', view,
+        edit: `${tipo}-${String(r.no_docu)}`,
+      }),
+    })
+  }
 
   const today = new Date()
   const thirtyAgo = new Date(today)
@@ -744,6 +761,18 @@ export function ConsultaDocumentos() {
                 </TableCell>
                 <TableCell className='text-center'>
                   <div className='flex items-center justify-center gap-1'>
+                    {editableTipo(r.tipo_docu) &&
+                     String(r.st_anulado || 'N').toUpperCase() !== 'S' && (
+                      <Button
+                        variant='ghost'
+                        size='icon'
+                        className='h-7 w-7'
+                        title='Editar documento'
+                        onClick={(e) => irAEditar(r, e)}
+                      >
+                        <Pencil className='h-3.5 w-3.5' />
+                      </Button>
+                    )}
                     <Button
                       variant='ghost'
                       size='icon'

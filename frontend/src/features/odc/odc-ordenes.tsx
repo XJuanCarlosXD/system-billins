@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { api } from '@/lib/regal-general-api'
 import { useCompany } from '@/hooks/use-company'
@@ -16,7 +17,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { Loader2, Search, Eye, CheckCircle2, XCircle, Lock, Printer } from 'lucide-react'
+import { Loader2, Search, Eye, CheckCircle2, XCircle, Lock, Printer, Pencil } from 'lucide-react'
 
 interface Orden {
   no_cia: string; punto: string; no_orden: string
@@ -49,6 +50,7 @@ function formatDate(s: string | null | undefined) {
 
 export function OdcOrdenes() {
   const qc = useQueryClient()
+  const nav = useNavigate()
   const { selectedCompany, selectedPoint } = useCompany()
   const [filtros, setFiltros] = useState({
     estado: '',
@@ -290,6 +292,15 @@ export function OdcOrdenes() {
                 window.open(`/print/orden-compra/${encodeURIComponent(selected.no_orden)}?${qs}`, '_blank')
               }}>
                 <Printer className="h-4 w-4 mr-1" /> Imprimir
+              </Button>
+            )}
+            {/* Editar: solo órdenes activas y no recibidas/cerradas. Reusa la
+                vista de Entrada de Orden en modo edición (?edit=no_orden). */}
+            {selected && selected.st_anulado === 'A' && selected.estado !== 'R' && (
+              <Button size="sm" variant="outline" onClick={() => {
+                nav({ to: '/odc/nueva-orden', search: { edit: selected.no_orden } })
+              }}>
+                <Pencil className="h-4 w-4 mr-1" /> Editar
               </Button>
             )}
             {/* Autorizar: orden Pendiente todavía sin autorizar */}

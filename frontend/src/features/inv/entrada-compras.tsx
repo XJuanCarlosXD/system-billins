@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { getRouteApi } from '@tanstack/react-router'
 import { Plus, Trash2, Search, FileDown, CheckCircle2, History } from 'lucide-react'
 import { toast } from 'sonner'
@@ -98,6 +98,10 @@ async function apiFetch<T>(path: string): Promise<T> {
 
 export function EntradaCompras({ noCia, punto }: Props) {
   const navigate = invRoute.useNavigate()
+  const { edit: editParam } = invRoute.useSearch()
+  // Documento en edición: no_docu original (se reversa y re-crea al guardar).
+  const [editNoDocu, setEditNoDocu] = useState('')
+  const editLoadedRef = useRef('')
   // Header
   const [tipoDocu, setTipoDocu] = useState('')
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
@@ -187,6 +191,70 @@ export function EntradaCompras({ noCia, punto }: Props) {
       })
       .catch(() => setAlmacenes([]))
   }, [noCia])
+
+  // ── Modo edición: cargar el documento EC y precargar el formulario ───────
+  // Llega por ?edit=EC-<no_docu> desde Consulta de Documentos. Al guardar se
+  // reversa el original y se crea una versión nueva (ver backend).
+  useEffect(() => {
+    if (!editParam || !noCia) return
+    const dash = editParam.indexOf('-')
+    const tipo = (dash >= 0 ? editParam.slice(0, dash) : editParam).toUpperCase()
+    const noDocu = dash >= 0 ? editParam.slice(dash + 1) : ''
+    if (tipo !== 'EC' || !noDocu) return          // otro tipo => otra vista
+    if (editLoadedRef.current === editParam) return
+    editLoadedRef.current = editParam
+    ;(async () => {
+      try {
+        const resp = await apiFetch<any>(
+          `/inv/documentos/EC/${encodeURIComponent(noDocu)}/?no_cia=${encodeURIComponent(noCia)}`)
+        const data = resp?.data ?? resp
+        const h = data?.header || {}
+        const lines = data?.lines || []
+        setEditNoDocu(String(h.no_docu || noDocu))
+        setTipoDocu('EC')
+        if (h.fecha) setFecha(String(h.fecha).slice(0, 10))
+        if (h.almacen) setAlmacenHeader(String(h.almacen))
+        const cod = String(h.no_proveedor || '').trim()
+        if (cod) {
+          try {
+            const p = await api.cxpGetProveedor(cod)
+            setProveedorSel(p?.no_proveedor ? p : {
+              no_proveedor: cod, nombre: h.proveedor_nombre || cod,
+              rnc: h.proveedor_rnc || '', direccion: h.proveedor_direccion || '',
+            })
+          } catch {
+            setProveedorSel({
+              no_proveedor: cod, nombre: h.proveedor_nombre || cod,
+              rnc: h.proveedor_rnc || '', direccion: h.proveedor_direccion || '',
+            })
+          }
+        }
+        setRnc(String(h.proveedor_rnc || ''))
+        setNcf(String(h.ncf_dgi || ''))
+        if (Number(h.porc_impuesto)) setPctItbis(String(h.porc_impuesto))
+        const tl = Number(h.total_linea || 0)
+        if (tl > 0 && Number(h.descuento || 0) > 0) {
+          setPctDescuento(String(Math.round((Number(h.descuento) / tl) * 10000) / 100))
+        }
+        setNota(String(h.nota || h.detalle || ''))
+        const nuevasRows: ProductoRow[] = lines.map((l: any) => ({
+          id: rowIdCounter++,
+          noProdu: l.no_produ || '',
+          nombre: l.descripcion || '',
+          cantidad: String(Number(l.cantidad) || 0),
+          costo: Number(l.costo || 0).toFixed(4),
+          almacen: l.almacen || h.almacen || '',
+          empaque: String(l.unidad || 'UND').trim() || 'UND',
+          empaques: [],
+          costoBase: Number(l.costo || 0),
+        }))
+        setRows(nuevasRows.length ? nuevasRows : [newRow()])
+        toast.success(`Editando entrada EC-${String(h.no_docu || noDocu)}`)
+      } catch (e: any) {
+        toast.error(`No se pudo cargar el documento a editar: ${e?.message || 'error'}`)
+      }
+    })()
+  }, [editParam, noCia])
 
   const searchProducto = useCallback(async (term: string) => {
     if (!term.trim()) { setSearchResults([]); return }
@@ -400,11 +468,15 @@ export function EntradaCompras({ noCia, punto }: Props) {
           document.cookie.split('; ').find((c) => c.startsWith('csrftoken=')) ||
           ''
         ).split('=')[1] || ''
-      const res = await fetch(`${API_BASE}/inv/movimientos/`, {
+      const endpoint = editNoDocu
+        ? `${API_BASE}/inv/movimientos/actualizar/`
+        : `${API_BASE}/inv/movimientos/`
+      const bodyObj = editNoDocu ? { ...payload, no_docu_orig: editNoDocu } : payload
+      const res = await fetch(endpoint, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(bodyObj),
       })
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}))
@@ -417,8 +489,22 @@ export function EntradaCompras({ noCia, punto }: Props) {
         created.data?.no_doc ??
         created.data?.no_docu ??
         ''
+      if (editNoDocu) {
+        toast.success(
+          `Entrada EC-${editNoDocu} editada. Nueva versión: ${docNo} (la original quedó reversada).`,
+          { duration: 8000 })
+        // Volver a la consulta y salir del modo edición.
+        navigate({
+          search: (prev: any) => ({
+            ...prev, section: 'consultas', view: 'consulta-documentos',
+            tipo_docu: 'EC', edit: undefined,
+          }),
+          replace: true,
+        })
+        return
+      }
       toast.success(`Documento ${docNo} guardado correctamente`)
-      const cxpMirror = created.cxp_mirror ?? created.data?.cxp_mirror
+      const cxpMirror = created.cxp_mirror ?? created.data?.cxp_mirror ?? created.data?.nuevo?.cxp_mirror
       if (tipoDocu === 'EC' && cxpMirror?.error) {
         // El espejo en Cuentas por Pagar (que alimenta el 606) puede fallar
         // sin revertir la entrada de inventario -- si eso pasa el operador
@@ -454,8 +540,14 @@ export function EntradaCompras({ noCia, punto }: Props) {
       <section className='space-y-6'>
         <div className='flex items-start justify-between gap-3'>
           <div>
-            <h2 className='text-lg font-semibold'>Entrada de Compras</h2>
-            <p className='text-sm text-muted-foreground'>FINV202 — Registro de entradas de mercancía por compras</p>
+            <h2 className='text-lg font-semibold'>
+              {editNoDocu ? `Editar Entrada de Compra EC-${editNoDocu}` : 'Entrada de Compras'}
+            </h2>
+            <p className='text-sm text-muted-foreground'>
+              {editNoDocu
+                ? 'Al guardar se reversa la entrada original y se crea una versión nueva (nuevo número). Si la compra ya tiene pago en Cuentas por Pagar, no se podrá editar.'
+                : 'FINV202 — Registro de entradas de mercancía por compras'}
+            </p>
           </div>
           <Button
             type='button'
@@ -830,7 +922,9 @@ export function EntradaCompras({ noCia, punto }: Props) {
                   className='min-w-[140px]'
                   title={!ENDPOINT_READY ? 'Endpoint en construcción' : undefined}
                 >
-                  {saving ? 'Guardando...' : 'Guardar'}
+                  {saving
+                    ? (editNoDocu ? 'Actualizando...' : 'Guardando...')
+                    : (editNoDocu ? 'Actualizar entrada' : 'Guardar')}
                 </Button>
               </span>
             </TooltipTrigger>

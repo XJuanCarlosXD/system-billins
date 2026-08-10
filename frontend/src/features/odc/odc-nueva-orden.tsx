@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import { api, regalGeneralApi } from '@/lib/regal-general-api'
 import { useCompany } from '@/hooks/use-company'
 import { useEnterAdvancesFocus } from '@/hooks/use-enter-advances-focus'
@@ -47,7 +47,10 @@ interface Linea {
   costo: number
   porc_descuento: number
   porciento_impuesto: number
+  recibida?: number  // cantidad ya recibida (solo en edición); no bajar de aquí
 }
+
+const routeApi = getRouteApi('/_authenticated/odc/nueva-orden')
 
 const fmtMoney = (n: number) =>
   Number(n || 0).toLocaleString('es-DO', {
@@ -286,7 +289,10 @@ function ProductoPickerDialog({
 // ─── Vista principal ──────────────────────────────────────────────────────────
 export function OdcNuevaOrden() {
   const nav = useNavigate()
+  const qc = useQueryClient()
   const { selectedCompany, selectedPoint } = useCompany()
+  const { edit: editId } = routeApi.useSearch()
+  const isEdit = !!editId
 
   const [proveedor, setProveedor] = useState<Proveedor | null>(null)
   const [fecha, setFecha] = useState(today())
@@ -299,6 +305,52 @@ export function OdcNuevaOrden() {
 
   const [lineas, setLineas] = useState<Linea[]>([])
   const [pickerOpen, setPickerOpen] = useState(false)
+
+  // ── Modo edición: cargar la orden y precargar el formulario ─────────────
+  const editQ = useQuery({
+    enabled: isEdit,
+    queryKey: ['odc-orden-edit', selectedCompany, selectedPoint, editId],
+    queryFn: () => api.odcGetOrden(selectedCompany, selectedPoint, editId!),
+  })
+  const loadedRef = useRef(false)
+  useEffect(() => {
+    const d: any = editQ.data
+    if (!isEdit || !d?.cabecera || loadedRef.current) return
+    loadedRef.current = true
+    const c = d.cabecera
+    const cod = String(c.no_proveedor || '').trim()
+    ;(async () => {
+      try {
+        const p = await api.cxpGetProveedor(cod)
+        setProveedor(p?.no_proveedor ? p : {
+          no_proveedor: cod, nombre: c.nombre_proveedor || cod,
+          rnc: c.rnc_proveedor || '', direccion: '',
+        })
+      } catch {
+        setProveedor({
+          no_proveedor: cod, nombre: c.nombre_proveedor || cod,
+          rnc: c.rnc_proveedor || '', direccion: '',
+        })
+      }
+    })()
+    setFecha(String(c.fecha || today()).slice(0, 10))
+    setFechaEntrega(String(c.fecha_entrega || c.fecha || today()).slice(0, 10))
+    setTipoOrden(c.tipo_orden === 'S' ? 'S' : 'I')
+    setPlazoPago(Number(c.plazo_pago) || 0)
+    setCondicionPago(c.condicion_pago || 'CONTADO')
+    setNoLocalidad(c.no_localidad || '')
+    setDetalle(c.detalle || '')
+    setLineas((d.lineas || []).map((l: any) => ({
+      uid: `${l.no_produ}-${l.no_linea}-${Math.random().toString(36).slice(2, 6)}`,
+      no_produ: l.no_produ,
+      descripcion: l.descripcion_producto || '',
+      cantidad_pedida: Number(l.cantidad_pedida) || 0,
+      costo: Number(l.costo) || 0,
+      porc_descuento: Number(l.porc_descuento) || 0,
+      porciento_impuesto: Number(l.porciento_impuesto) || 0,
+      recibida: Number(l.cantidad_recibida) || 0,
+    })))
+  }, [editQ.data, isEdit])
 
   const totales = lineas.reduce((acc, l) => {
     const c = calcLinea(l)
@@ -326,60 +378,83 @@ export function OdcNuevaOrden() {
     setLineas((prev) => prev.filter((l) => l.uid !== uid))
 
   const guardar = useMutation({
-    mutationFn: () => api.odcCrearOrden({
-      no_cia: selectedCompany,
-      punto: selectedPoint,
-      cabecera: {
-        no_proveedor: proveedor!.no_proveedor,
-        fecha, fecha_entrega: fechaEntrega,
-        tipo_orden: tipoOrden,
-        plazo_pago: Number(plazoPago) || 0,
-        condicion_pago: condicionPago || undefined,
-        no_localidad: noLocalidad || undefined,
-        detalle: detalle || undefined,
-        porc_impuesto: 18,
-      },
-      lineas: lineas.map((l) => {
-        const c = calcLinea(l)
-        return {
-          no_produ: l.no_produ,
-          cantidad_pedida: l.cantidad_pedida,
-          costo: l.costo,
-          porc_descuento: l.porc_descuento,
-          descuento: c.desc,
-          impuesto: c.imp,
-          monto_neto: c.total,
-          porciento_impuesto: l.porciento_impuesto,
-        }
-      }),
-    }),
-    onSuccess: (res) => {
-      toast.success(`Orden ODC-${res.no_orden} creada`)
-      const qs = new URLSearchParams({ no_cia: selectedCompany, punto: selectedPoint }).toString()
-      window.open(
-        `/print/orden-compra/${encodeURIComponent(res.no_orden)}?${qs}`,
-        '_blank',
-        'noopener',
-      )
+    mutationFn: () => {
+      const payload = {
+        no_cia: selectedCompany,
+        punto: selectedPoint,
+        cabecera: {
+          no_proveedor: proveedor!.no_proveedor,
+          fecha, fecha_entrega: fechaEntrega,
+          tipo_orden: tipoOrden,
+          plazo_pago: Number(plazoPago) || 0,
+          condicion_pago: condicionPago || undefined,
+          no_localidad: noLocalidad || undefined,
+          detalle: detalle || undefined,
+          porc_impuesto: 18,
+        },
+        lineas: lineas.map((l) => {
+          const c = calcLinea(l)
+          return {
+            no_produ: l.no_produ,
+            cantidad_pedida: l.cantidad_pedida,
+            costo: l.costo,
+            porc_descuento: l.porc_descuento,
+            descuento: c.desc,
+            impuesto: c.imp,
+            monto_neto: c.total,
+            porciento_impuesto: l.porciento_impuesto,
+          }
+        }),
+      }
+      return isEdit
+        ? api.odcActualizarOrden({ ...payload, no_orden: editId })
+        : api.odcCrearOrden(payload)
+    },
+    onSuccess: (res: any) => {
+      const noOrden = res?.no_orden || editId
+      if (isEdit) {
+        toast.success(`Orden ODC-${noOrden} actualizada`)
+      } else {
+        toast.success(`Orden ODC-${noOrden} creada`)
+        const qs = new URLSearchParams({ no_cia: selectedCompany, punto: selectedPoint }).toString()
+        window.open(
+          `/print/orden-compra/${encodeURIComponent(noOrden)}?${qs}`,
+          '_blank',
+          'noopener',
+        )
+      }
+      qc.invalidateQueries({ queryKey: ['odc-ordenes'] })
       nav({ to: '/odc/ordenes' })
     },
     onError: (e: any) => toast.error(e?.detail?.error || 'No se pudo guardar la orden'),
   })
 
   const puedeGuardar = !!proveedor && lineas.length > 0 &&
-    lineas.every((l) => l.cantidad_pedida > 0 && l.costo >= 0) && !guardar.isPending
+    lineas.every((l) => l.cantidad_pedida > 0 && l.costo >= 0 &&
+      l.cantidad_pedida >= (l.recibida || 0)) &&
+    !guardar.isPending && !(isEdit && editQ.isLoading)
 
   const formRef = useEnterAdvancesFocus<HTMLDivElement>()
 
   return (
     <div className="space-y-4" ref={formRef}>
       <div>
-        <h3 className="text-base font-semibold">Entrada de Orden de Compra</h3>
-        <p className="text-sm text-muted-foreground">
-          Equivale a <i>Fodc201 — Entrada Órdenes de Compras</i>. Inserta cabecera en
-          {' '}<code>TODC_ORDEN</code> y líneas en <code>TODC_ORDENL</code>. La orden queda
-          {' '}<b>Pendiente</b> hasta que sea autorizada en Procesos → Autorizar.
-        </p>
+        <h3 className="text-base font-semibold">
+          {isEdit ? `Editar Orden ODC-${editId}` : 'Entrada de Orden de Compra'}
+        </h3>
+        {isEdit ? (
+          <p className="text-sm text-muted-foreground">
+            Editando la orden <b>ODC-{editId}</b>. Se conserva el número y la
+            cantidad ya recibida por producto; no puedes pedir menos de lo
+            recibido ni quitar un producto con recepción.
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Equivale a <i>Fodc201 — Entrada Órdenes de Compras</i>. Inserta cabecera en
+            {' '}<code>TODC_ORDEN</code> y líneas en <code>TODC_ORDENL</code>. La orden queda
+            {' '}<b>Pendiente</b> hasta que sea autorizada en Procesos → Autorizar.
+          </p>
+        )}
       </div>
 
       {/* Cabecera */}
@@ -457,9 +532,14 @@ export function OdcNuevaOrden() {
                     <TableCell className="font-mono text-xs">{l.no_produ}</TableCell>
                     <TableCell className="truncate max-w-[20rem]">{l.descripcion}</TableCell>
                     <TableCell className="text-right">
-                      <Input type="number" min={0} step="0.01" className="h-8 text-right tabular-nums"
+                      <Input type="number" min={l.recibida || 0} step="0.01"
+                        className="h-8 text-right tabular-nums"
+                        title={l.recibida ? `Ya recibido: ${l.recibida}` : undefined}
                         value={l.cantidad_pedida}
                         onChange={(e) => upLinea(l.uid, { cantidad_pedida: Number(e.target.value) || 0 })} />
+                      {!!l.recibida && (
+                        <span className="block text-[10px] text-muted-foreground">recibido: {l.recibida}</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <Input type="number" min={0} step="0.01" className="h-8 text-right tabular-nums"
@@ -518,7 +598,9 @@ export function OdcNuevaOrden() {
         </div>
         <Button onClick={() => guardar.mutate()} disabled={!puedeGuardar}>
           <Save className="h-4 w-4 mr-1" />
-          {guardar.isPending ? 'Guardando…' : 'Guardar orden'}
+          {guardar.isPending
+            ? (isEdit ? 'Actualizando…' : 'Guardando…')
+            : (isEdit ? 'Actualizar orden' : 'Guardar orden')}
         </Button>
       </div>
 

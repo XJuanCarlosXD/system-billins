@@ -303,6 +303,105 @@ def create_orden(no_cia: str, punto: str, cabecera: dict, lineas: list[dict],
     return no_orden
 
 
+def actualizar_orden(no_cia: str, punto: str, no_orden: str, cabecera: dict,
+                     lineas: list[dict], usuario: str) -> str:
+    """Edita una orden en sitio (UPDATE cabecera + reemplazo de líneas).
+
+    La ODC no toca inventario, así que se conserva el mismo no_orden. Se
+    preserva la cantidad_recibida ya registrada por producto y se aplican los
+    guardarraíles: no editar anuladas ni recibidas, y no pedir menos de lo ya
+    recibido ni quitar un producto con recepción. Transaccional (una conexión).
+    """
+    orden = get_orden(no_cia, punto, no_orden)
+    if not orden:
+        raise ValueError(f"Orden {no_orden} no encontrada")
+    if str(orden.get('st_anulado') or 'A').upper() == 'N':
+        raise ValueError("La orden está anulada; no se puede editar.")
+    if str(orden.get('estado') or '').upper() == 'R':
+        raise ValueError("La orden ya está recibida/cerrada; no se puede editar.")
+
+    # Preservar cantidad_recibida por producto y aplicar guardarraíl pedida>=recibida.
+    existentes = list_lineas_orden(no_cia, punto, no_orden)
+    recibida_por_prod: dict[str, float] = {}
+    for l in existentes:
+        rp = float(l.get('cantidad_recibida') or 0)
+        if rp:
+            k = str(l.get('no_produ'))
+            recibida_por_prod[k] = recibida_por_prod.get(k, 0.0) + rp
+
+    pedida_por_prod: dict[str, float] = {}
+    for ln in lineas:
+        k = str(ln.get('no_produ'))
+        pedida_por_prod[k] = pedida_por_prod.get(k, 0.0) + float(ln.get('cantidad_pedida') or 0)
+    for prod, rec in recibida_por_prod.items():
+        if prod not in pedida_por_prod:
+            raise ValueError(
+                f"No se puede quitar el producto {prod}: ya tiene {rec:g} recibido.")
+        if pedida_por_prod[prod] < rec - 1e-6:
+            raise ValueError(
+                f"El producto {prod} no puede pedir menos ({pedida_por_prod[prod]:g}) "
+                f"de lo ya recibido ({rec:g}).")
+
+    fecha = cabecera.get('fecha') or date.today().isoformat()
+    fecha_entrega = cabecera.get('fecha_entrega') or fecha
+    total_linea = sum(float(l.get('cantidad_pedida', 0)) * float(l.get('costo', 0))
+                      for l in lineas)
+    descuento = sum(float(l.get('descuento', 0)) for l in lineas)
+    impuesto = sum(float(l.get('impuesto', 0)) for l in lineas)
+    total_neto = total_linea - descuento + impuesto
+
+    # cantidad_recibida se asigna completa a la primera línea de cada producto.
+    pendiente_recibida = dict(recibida_por_prod)
+
+    with client.cursor() as cur:
+        cur.execute(
+            "UPDATE ODC.TODC_ORDEN SET "
+            " no_proveedor=:1, fecha=TO_DATE(:2,'YYYY-MM-DD'), "
+            " fecha_entrega=TO_DATE(:3,'YYYY-MM-DD'), tasa_us=:4, porc_impuesto=:5, "
+            " impuesto=:6, descuento=:7, total_neto=:8, total_linea=:9, "
+            " tipo_orden=:10, plazo_pago=:11, condicion_pago=:12, detalle=:13, "
+            " no_localidad=:14 "
+            " WHERE no_cia=:15 AND punto=:16 AND no_orden=:17",
+            [
+                cabecera['no_proveedor'], fecha, fecha_entrega,
+                cabecera.get('tasa_us', 1), cabecera.get('porc_impuesto', 18),
+                impuesto, descuento, total_neto, total_linea,
+                cabecera.get('tipo_orden', 'I'), cabecera.get('plazo_pago', 0),
+                cabecera.get('condicion_pago'), cabecera.get('detalle'),
+                cabecera.get('no_localidad'),
+                no_cia, punto, no_orden,
+            ],
+        )
+        cur.execute(
+            "DELETE FROM ODC.TODC_ORDENL "
+            " WHERE no_cia=:1 AND punto=:2 AND no_orden=:3",
+            [no_cia, punto, no_orden],
+        )
+        for i, ln in enumerate(lineas, start=1):
+            k = str(ln.get('no_produ'))
+            rec = pendiente_recibida.pop(k, 0.0)
+            cur.execute(
+                "INSERT INTO ODC.TODC_ORDENL ("
+                " no_cia, punto, no_orden, no_linea, no_produ, "
+                " cantidad_pedida, cantidad_recibida, costo, "
+                " porc_descuento, descuento, impuesto, monto_neto, "
+                " empaque, cpe, linea_requisicion, nota, porciento_impuesto"
+                ") VALUES ("
+                " :1, :2, :3, :4, :5, :6, :7, :8, :9, :10, :11, :12, :13, :14, :15, :16, :17)",
+                [
+                    no_cia, punto, no_orden, i, ln['no_produ'],
+                    ln['cantidad_pedida'], rec, ln['costo'],
+                    ln.get('porc_descuento', 0), ln.get('descuento', 0),
+                    ln.get('impuesto', 0), ln.get('monto_neto', 0),
+                    ln.get('empaque', 1), ln.get('cpe', 1),
+                    ln.get('linea_requisicion'), ln.get('nota'),
+                    ln.get('porciento_impuesto', 0),
+                ],
+            )
+        cur.connection.commit()
+    return no_orden
+
+
 def anular_orden(no_cia: str, punto: str, no_orden: str, motivo: str = '') -> None:
     # Dominio real legado: st_anulado 'A'=Activa / 'N'=Anulada.
     # El estado conserva su valor; el rastro de anulación queda en st_anulado y detalle.

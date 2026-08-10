@@ -25,6 +25,7 @@ urlpatterns = [
     # Compatibilidad con la primera UI de Entrada de Compras.
     path('entradas/', inv_views.inv_movimientos),
     path('movimientos/reversar/', inv_views.inv_reversar_documento),
+    path('movimientos/actualizar/', inv_views.inv_actualizar_documento),
     path('almacenes/', inv_views.inv_almacenes),
     path('almacenes/<str:almacen>/', inv_views.inv_almacen_detail),
     path('tipos-docu/', inv_views.inv_tipos_docu),
