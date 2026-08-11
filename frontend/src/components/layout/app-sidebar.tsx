@@ -67,6 +67,7 @@ function buildHomeNavGroups(
       title: 'General',
       items: [
         { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
+        shortcut('/novedades'),
         shortcut('/reportes'),
         shortcut('/ncf-alerts'),
         shortcut('/empresas'),
