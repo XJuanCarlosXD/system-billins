@@ -59,6 +59,14 @@ export type Novedad = {
 export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-08-11',
+    tipo: 'mejora',
+    modulo: 'Cuentas por Pagar',
+    titulo: 'Reporte 606 corregido y exportable a Excel',
+    descripcion:
+      'El Reporte 606 (compras con NCF) ahora calcula el Monto Facturado sin ITBIS de forma exacta, descontando también ISC, otros impuestos y propina y devolviendo las retenciones — antes subvaluaba montos con retención (p. ej. una factura de honorarios que aparecía en 12,298 ahora sale correctamente en 13,000). Se agregaron las columnas Tipo de Gasto, Monto de Servicios, Monto de Bienes, ISC, Otros Impuestos y Propina, tanto en pantalla como en el PDF, con la clasificación Servicios/Bienes igual a la del sistema anterior. El PDF se ajustó para que no se corten las columnas al imprimir, y ahora hay un botón "Exportar Excel" que descarga el 606 con las mismas columnas del reporte oficial. Se eliminó también un gasto duplicado (mismo NCF capturado dos veces).',
+  },
+  {
+    fecha: '2026-08-11',
     tipo: 'nuevo',
     modulo: 'General',
     titulo: 'Contadores (badges) y resaltado de lo nuevo',

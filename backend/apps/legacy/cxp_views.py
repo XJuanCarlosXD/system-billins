@@ -192,6 +192,32 @@ def cxp_rep_606_archivo_dgii(request):
 @login_required
 @csrf_exempt
 @require_http_methods(['GET'])
+def cxp_rep_606_excel(request):
+    """GET /api/cxp/rep-606/excel/?no_cia=&anio=&mes=&punto=
+
+    Descarga el 606 como Excel (.xlsx) con las mismas columnas que el reporte
+    del legado, para guardar/trabajar fuera del sistema.
+    """
+    no_cia = request.GET.get('no_cia', '01')
+    punto = request.GET.get('punto') or ''
+    try:
+        anio = int(request.GET.get('anio') or 0)
+        mes = int(request.GET.get('mes') or 0)
+    except ValueError:
+        return JsonResponse({'detail': 'anio y mes deben ser numericos'}, status=400)
+    if not anio or not mes:
+        return JsonResponse({'detail': 'anio y mes son requeridos'}, status=400)
+    contenido = cxp_repo.rep_606_excel(no_cia, anio, mes, punto)
+    resp = HttpResponse(
+        contenido,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    resp['Content-Disposition'] = f'attachment; filename="REPORTE_606_{anio}{mes:02d}.xlsx"'
+    return resp
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
 def cxp_tipos_gasto(request):
     return JsonResponse(cxp_repo.list_tipos_gasto(), safe=False)
 

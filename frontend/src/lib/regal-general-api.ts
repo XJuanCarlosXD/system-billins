@@ -1302,6 +1302,11 @@ export const regalGeneralApi = {
     const qs = new URLSearchParams({ no_cia: noCia, anio: String(anio), mes: String(mes), ...(punto && { punto }) }).toString()
     return `${API_BASE}/cxp/rep-606/archivo-dgii/?${qs}`
   },
+  // URL del Excel (.xlsx) del 606 con las mismas columnas del reporte legado.
+  cxpRep606ExcelUrl: (noCia: string, anio: number, mes: number, punto?: string) => {
+    const qs = new URLSearchParams({ no_cia: noCia, anio: String(anio), mes: String(mes), ...(punto && { punto }) }).toString()
+    return `${API_BASE}/cxp/rep-606/excel/?${qs}`
+  },
   cxpRep607: (noCia: string, anio: number, mes: number, punto?: string) => {
     const qs = new URLSearchParams({ no_cia: noCia, anio: String(anio), mes: String(mes), ...(punto && { punto }) }).toString()
     return request<any>(`/cxp/rep-607/?${qs}`)

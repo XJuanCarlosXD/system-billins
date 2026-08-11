@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Search, Printer, FileDown } from 'lucide-react'
+import { Search, Printer, FileDown, FileSpreadsheet } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 
 interface P { noCia: string; punto?: string; mes?: number; ano?: number }
@@ -208,6 +208,13 @@ export function CxpRep606({ noCia, punto = '', mes = curMonth, ano = curYear }: 
             <Printer className="h-4 w-4" />Imprimir PDF
           </Button>
           <Button
+            onClick={() => window.open(regalGeneralApi.cxpRep606ExcelUrl(noCia, parseInt(selAnio), parseInt(selMes), punto), '_blank')}
+            size="sm" variant="outline" className="h-8 gap-1" disabled={!data}
+            title="Descargar el 606 en Excel (mismas columnas del reporte legado)"
+          >
+            <FileSpreadsheet className="h-4 w-4" />Exportar Excel
+          </Button>
+          <Button
             onClick={() => window.open(regalGeneralApi.cxpArchivoDgii606Url(noCia, parseInt(selAnio), parseInt(selMes), punto), '_blank')}
             size="sm" variant="outline" className="h-8 gap-1" disabled={!data}
             title="Archivo de texto para subir al portal de la DGII"
@@ -217,8 +224,10 @@ export function CxpRep606({ noCia, punto = '', mes = curMonth, ano = curYear }: 
         </div>
       </div>
       {data && (
-        <div className="flex gap-6 text-sm text-muted-foreground border rounded-lg p-3 bg-muted/20">
+        <div className="flex flex-wrap gap-6 text-sm text-muted-foreground border rounded-lg p-3 bg-muted/20">
           <span><b>{data.count}</b> registros</span>
+          <span>Servicios: <b className="text-foreground">{fmt(data.total_servicios)}</b></span>
+          <span>Bienes: <b className="text-foreground">{fmt(data.total_bienes)}</b></span>
           <span>Monto Facturado (sin ITBIS): <b className="text-foreground">{fmt(data.total_monto)}</b></span>
           <span>ITBIS Total: <b className="text-foreground">{fmt(data.total_itbis)}</b></span>
         </div>
@@ -229,27 +238,37 @@ export function CxpRep606({ noCia, punto = '', mes = curMonth, ano = curYear }: 
             <TableRow>
               <TableHead className="w-28">RNC Prov.</TableHead>
               <TableHead>Nombre</TableHead>
-              <TableHead className="w-20">NCF</TableHead>
-              <TableHead className="w-24">Tipo NCF</TableHead>
+              <TableHead className="w-20">Tipo Gto.</TableHead>
+              <TableHead className="w-24">NCF</TableHead>
               <TableHead className="w-28">Fecha</TableHead>
-              <TableHead className="w-32 text-right">Monto (sin ITBIS)</TableHead>
-              <TableHead className="w-28 text-right">ITBIS</TableHead>
+              <TableHead className="w-28 text-right">Servicios</TableHead>
+              <TableHead className="w-28 text-right">Bienes</TableHead>
+              <TableHead className="w-28 text-right">Monto Fact.</TableHead>
+              <TableHead className="w-24 text-right">ITBIS</TableHead>
+              <TableHead className="w-24 text-right">ISC</TableHead>
+              <TableHead className="w-24 text-right">Otros Imp.</TableHead>
+              <TableHead className="w-24 text-right">Propina</TableHead>
               <TableHead className="w-28 text-right">ITBIS Ret.</TableHead>
               <TableHead className="w-28 text-right">ISR Ret.</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading && <TableRow><TableCell colSpan={9} className="text-center py-8">Generando...</TableCell></TableRow>}
-            {!loading && items.length === 0 && <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Sin datos — presione Generar</TableCell></TableRow>}
+            {loading && <TableRow><TableCell colSpan={14} className="text-center py-8">Generando...</TableCell></TableRow>}
+            {!loading && items.length === 0 && <TableRow><TableCell colSpan={14} className="text-center py-8 text-muted-foreground">Sin datos — presione Generar</TableCell></TableRow>}
             {items.map((r: any, i: number) => (
               <TableRow key={i}>
                 <TableCell className="font-mono text-sm">{r.rnc_proveedor || '—'}</TableCell>
                 <TableCell className="text-sm">{r.nombre_proveedor}</TableCell>
+                <TableCell className="font-mono text-sm" title={r.tipo_gasto_label || ''}>{(r.tipo_gasto_label || '').slice(0, 2) || '—'}</TableCell>
                 <TableCell className="font-mono text-sm">{r.ncf}</TableCell>
-                <TableCell className="text-sm">{r.tipo_ncf}</TableCell>
                 <TableCell className="text-sm">{r.fecha}</TableCell>
+                <TableCell className="text-right">{r.monto_servicios > 0 ? fmt(r.monto_servicios) : '—'}</TableCell>
+                <TableCell className="text-right">{r.monto_bienes > 0 ? fmt(r.monto_bienes) : '—'}</TableCell>
                 <TableCell className="text-right font-medium">{fmt(r.monto_facturado)}</TableCell>
                 <TableCell className="text-right">{fmt(r.itbis_facturado)}</TableCell>
+                <TableCell className="text-right">{r.isc > 0 ? fmt(r.isc) : '—'}</TableCell>
+                <TableCell className="text-right">{r.otros_impuestos > 0 ? fmt(r.otros_impuestos) : '—'}</TableCell>
+                <TableCell className="text-right">{r.propina > 0 ? fmt(r.propina) : '—'}</TableCell>
                 <TableCell className="text-right text-orange-700">{r.itbis_retenido > 0 ? fmt(r.itbis_retenido) : '—'}</TableCell>
                 <TableCell className="text-right text-red-700">{r.isr_retenido > 0 ? fmt(r.isr_retenido) : '—'}</TableCell>
               </TableRow>
@@ -257,9 +276,11 @@ export function CxpRep606({ noCia, punto = '', mes = curMonth, ano = curYear }: 
             {items.length > 0 && (
               <TableRow className="font-bold bg-muted/50 border-t-2">
                 <TableCell colSpan={5}>TOTALES</TableCell>
+                <TableCell className="text-right">{fmt(data?.total_servicios)}</TableCell>
+                <TableCell className="text-right">{fmt(data?.total_bienes)}</TableCell>
                 <TableCell className="text-right">{fmt(data?.total_monto)}</TableCell>
                 <TableCell className="text-right">{fmt(data?.total_itbis)}</TableCell>
-                <TableCell colSpan={2}></TableCell>
+                <TableCell colSpan={4}></TableCell>
               </TableRow>
             )}
           </TableBody>

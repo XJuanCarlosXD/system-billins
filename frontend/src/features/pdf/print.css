@@ -19,6 +19,11 @@
 .pdf-page--landscape.pdf-page--A4 { width: 297mm; min-height: 210mm; max-width: 297mm; }
 .pdf-page--landscape.pdf-page--LETTER { width: 279mm; min-height: 216mm; max-width: 279mm; }
 
+/* En horizontal los reportes suelen tener muchas columnas (ej. 606): reducir
+   el padding lateral de 15mm a 8mm gana ~14mm de ancho útil y evita que las
+   columnas de la derecha se corten al imprimir. */
+.pdf-page--landscape { padding: 10mm 8mm; }
+
 .pdf-canvas { display: flex; flex-direction: column; gap: 6px; }
 .pdf-text-sm { font-size: 10px; color: #334155; line-height: 1.3; }
 
@@ -93,6 +98,11 @@
     max-width: none !important;
     padding: 15mm 15mm 5mm 15mm; /* padding-bottom 5mm da respiro para
                                      que un overflow minimo no cree hoja 2 */
+  }
+  /* Horizontal: menos padding lateral para que las tablas anchas (606) no se
+     corten por la derecha al imprimir. */
+  .pdf-page--landscape {
+    padding: 8mm 8mm 5mm 8mm !important;
     min-height: 0 !important;
     height: auto !important;
     border: 0 !important;      /* Tailwind base * { border-color: --border }

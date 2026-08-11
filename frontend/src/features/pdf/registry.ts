@@ -249,16 +249,29 @@ const cxpRepMayorDefault = reporteGenericoDefault('Mayor Auxiliar CxP', [
   { campo: 'saldo', label: 'Saldo', align: 'right', format: 'money' },
 ])
 
-const cxpRep606Default = reporteGenericoDefault('606 — Compras de Bienes y Servicios', [
-  { campo: 'rnc', label: 'RNC', align: 'left' },
-  { campo: 'nombre', label: 'Proveedor', align: 'left' },
-  { campo: 'ncf', label: 'NCF', align: 'left' },
-  { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
-  { campo: 'monto_facturado', label: 'Monto', align: 'right', format: 'money' },
-  { campo: 'itbis_facturado', label: 'ITBIS', align: 'right', format: 'money' },
-  { campo: 'itbis_retenido', label: 'ITBIS Ret.', align: 'right', format: 'money' },
-  { campo: 'isr_retenido', label: 'ISR Ret.', align: 'right', format: 'money' },
-])
+// 606: muchas columnas (bienes/servicios + impuestos DGII). Fuente 8 y páginas
+// en horizontal para que quepan sin cortar registros (ticket MPILAR).
+const cxpRep606Default = (() => {
+  const t = reporteGenericoDefault('606 — Compras de Bienes y Servicios', [
+    { campo: 'rnc', label: 'RNC', align: 'left' },
+    { campo: 'nombre', label: 'Proveedor', align: 'left' },
+    { campo: 'tipo_gasto_cod', label: 'Gto', align: 'center' },
+    { campo: 'ncf', label: 'NCF', align: 'left' },
+    { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
+    { campo: 'monto_servicios', label: 'Servicios', align: 'right', format: 'money' },
+    { campo: 'monto_bienes', label: 'Bienes', align: 'right', format: 'money' },
+    { campo: 'monto_facturado', label: 'Monto Fact.', align: 'right', format: 'money' },
+    { campo: 'itbis_facturado', label: 'ITBIS', align: 'right', format: 'money' },
+    { campo: 'isc', label: 'ISC', align: 'right', format: 'money' },
+    { campo: 'otros_impuestos', label: 'Otros Imp.', align: 'right', format: 'money' },
+    { campo: 'propina', label: 'Propina', align: 'right', format: 'money' },
+    { campo: 'itbis_retenido', label: 'ITBIS Ret.', align: 'right', format: 'money' },
+    { campo: 'isr_retenido', label: 'ISR Ret.', align: 'right', format: 'money' },
+  ])
+  const tr = (t.content as any[]).find((b) => b.type === 'TablaReporte')
+  if (tr) tr.props.fontSize = 8
+  return t
+})()
 
 const cxpRep607Default = reporteGenericoDefault('607 — Retenciones del ISR', [
   { campo: 'rnc', label: 'RNC', align: 'left' },
@@ -994,10 +1007,14 @@ export const registry: Record<string, RegistryEntry> = {
     defaultPageOrientation: 'L',
     variables: [
       'reporte.titulo', 'reporte.filtros',
-      'filas[].rnc', 'filas[].nombre', 'filas[].ncf', 'filas[].fecha',
+      'filas[].rnc', 'filas[].nombre', 'filas[].tipo_gasto', 'filas[].tipo_gasto_cod',
+      'filas[].ncf', 'filas[].fecha',
+      'filas[].monto_servicios', 'filas[].monto_bienes',
       'filas[].monto_facturado', 'filas[].itbis_facturado',
+      'filas[].isc', 'filas[].otros_impuestos', 'filas[].propina',
       'filas[].itbis_retenido', 'filas[].isr_retenido',
-      'totales.cantidad', 'totales.total_monto', 'totales.total_itbis',
+      'totales.cantidad', 'totales.total_servicios', 'totales.total_bienes',
+      'totales.total_monto', 'totales.total_itbis',
     ],
   },
   'cxp-rep-607': {

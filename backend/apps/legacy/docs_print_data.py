@@ -2128,13 +2128,20 @@ def cxp_rep_606_print_data(request):
     filas = [{
         'rnc': i.get('rnc_proveedor') or '',
         'nombre': i.get('nombre_proveedor') or '',
+        'tipo_gasto': (i.get('tipo_gasto_label') or ''),
+        'tipo_gasto_cod': (i.get('tipo_gasto_label') or '')[:2],
         'ncf': (_compose_ncf_dgi(i.get('tipo_ncf'), i.get('ncf'))
                 or (str(i['ncf']) if i.get('ncf') else '')),
         'fecha': _fd(i.get('fecha')),
+        'monto_servicios': _money_or_zero(i.get('monto_servicios')),
+        'monto_bienes': _money_or_zero(i.get('monto_bienes')),
         'monto_facturado': _money_or_zero(i.get('monto_facturado')),
         'itbis_facturado': _money_or_zero(i.get('itbis_facturado')),
         'itbis_retenido': _money_or_zero(i.get('itbis_retenido')),
         'isr_retenido': _money_or_zero(i.get('isr_retenido')),
+        'isc': _money_or_zero(i.get('isc')),
+        'otros_impuestos': _money_or_zero(i.get('otros_impuestos')),
+        'propina': _money_or_zero(i.get('propina')),
     } for i in data['items']]
     return JsonResponse({
         'cia': _cia_payload(no_cia, request=request),
@@ -2143,6 +2150,8 @@ def cxp_rep_606_print_data(request):
                     'filtros': {'Empresa': no_cia, 'Ano': anio, 'Mes': mes}},
         'filas': filas,
         'totales': {'cantidad': data['count'],
+                    'total_servicios': _money_or_zero(data.get('total_servicios')),
+                    'total_bienes': _money_or_zero(data.get('total_bienes')),
                     'total_monto': _money_or_zero(data.get('total_monto')),
                     'total_itbis': _money_or_zero(data.get('total_itbis'))},
     })

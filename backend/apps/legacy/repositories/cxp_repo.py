@@ -933,6 +933,56 @@ def rep_mayor_auxiliar(no_cia: str, punto: str, desde: str, hasta: str,
     return {'items': rows, 'total_credito': total_credito, 'total_debito': total_debito}
 
 
+# Catalogo DGII "Tipo de Bienes y Servicios Comprados" (formato 606). El
+# reporte del legado imprime "NN-DESCRIPCION" (ej. "02-GASTOS POR TRABAJO,
+# SUMINISTROS Y SERVICIOS"). Se replica textual para casar el Excel del 606.
+_TIPO_GASTO_606 = {
+    '01': 'GASTOS DE PERSONAL',
+    '02': 'GASTOS POR TRABAJO, SUMINISTROS Y SERVICIOS',
+    '03': 'ARRENDAMIENTOS',
+    '04': 'GASTOS DE ACTIVOS FIJOS',
+    '05': 'GASTOS DE REPRESENTACION',
+    '06': 'OTRAS DEDUCCIONES ADMITIDAS',
+    '07': 'GASTOS FINANCIEROS',
+    '08': 'GASTOS EXTRAORDINARIOS',
+    '09': 'COMPRAS Y GASTOS QUE FORMARAN PARTE DEL COSTO DE VENTA',
+    '10': 'ADQUISICIONES DE ACTIVOS',
+    '11': 'GASTOS DE SEGUROS',
+}
+
+
+def _tg2(v) -> str:
+    """Normaliza tipo_gasto a string de 2 digitos ('02'); '' si no aplica."""
+    s = str(v or '').strip()
+    return f"{int(s):02d}" if s.isdigit() else ''
+
+
+def _tipo_gasto_label(v) -> str:
+    """'02-GASTOS POR TRABAJO, SUMINISTROS Y SERVICIOS' o '' — igual que el 606."""
+    tg = _tg2(v)
+    return f"{tg}-{_TIPO_GASTO_606[tg]}" if tg in _TIPO_GASTO_606 else ''
+
+
+def _base_606(r) -> float:
+    """Monto Facturado del 606 = base de bienes/servicios SIN impuestos.
+
+    valor_original NO es el bruto: es el NETO A PAGAR al proveedor =
+      base + ITBIS + ISC + otros_impuestos + propina - itbis_retenido - isr_retenido
+    (las retenciones se le descuentan al proveedor y las paga la empresa a la
+    DGII; ISC/otros/propina se le pagan pero no son parte del monto facturado).
+    Despejando la base:
+      base = valor_original - impuesto - isc - otros_impuestos - propina
+             + itbis_retenido + isr_retenido
+    Verificado contra el 606 real de julio/2026 (legado): RMM FP-0008546
+    14638-2340+702 = 13000; TC BANCO POPULAR FP-0008548 840-116.31-64.62-12.92
+    = 646.15 (exacto). Para docs sin retencion/isc/otros/propina el resultado
+    es identico a valor_original - impuesto (no cambia lo que ya estaba bien).
+    """
+    g = lambda k: float(r.get(k) or 0)
+    return (g('valor_original') - g('impuesto') - g('isc') - g('otros_impuestos')
+            - g('propina') + g('itbis_retenido') + g('isr_retenido'))
+
+
 def rep_606(no_cia: str, anio: int, mes: int, punto: str = ''):
     """Reporte 606 - ITBIS en compras locales (Formato DGII).
 
@@ -968,31 +1018,41 @@ def rep_606(no_cia: str, anio: int, mes: int, punto: str = ''):
         "d.ncf, d.posiciones_fijas_ncf AS tipo_ncf, "
         "TO_CHAR(d.fecha,'YYYY-MM-DD') AS fecha, "
         "TO_CHAR(d.fecha_vence,'YYYY-MM-DD') AS fecha_vence, "
-        # Monto Facturado (DGII 606) = valor de bienes/servicios SIN ITBIS.
-        # valor_original guarda el bruto (base + ITBIS); si se reportara el
-        # bruto, la DGII vuelve a sumarle el ITBIS de la columna aparte y la
-        # factura sube por el monto del impuesto. La base es valor_original -
-        # impuesto (valor_bienes/valor_servicio no es confiable: hay docs con
-        # esas columnas en 0 o inconsistentes). Nunca da 0 para una factura
-        # real porque el impuesto siempre es menor que el bruto.
-        "NVL(d.valor_original,0) - NVL(d.impuesto,0) monto_facturado, "
+        "d.no_cia, d.punto, d.detalle, d.tipo_docu, d.no_docu, d.no_proveedor, d.tipo_gasto, "
+        # Campos crudos para _base_606 (Monto Facturado = base sin impuestos).
+        "NVL(d.valor_original,0) valor_original, NVL(d.impuesto,0) impuesto, "
+        "NVL(d.isc,0) isc, NVL(d.otros_impuestos,0) otros_impuestos, "
+        "NVL(d.propina,0) propina, "
+        # Alias de presentacion (compatibilidad con frontend/print-data).
         "NVL(d.valor_original,0) valor_total, "
         "NVL(d.impuesto,0) itbis_facturado, "
         "NVL(d.itbis_retenido,0) itbis_retenido, "
         "NVL(d.isr_retenido,0) isr_retenido, "
+        "d.tipo_retencion, "
         "NVL(d.valor_bienes,0) valor_bienes, "
-        "NVL(d.valor_servicio,0) valor_servicios, "
-        "NVL(d.forma_pago,1) forma_pago, "
-        "d.no_proveedor, d.tipo_docu, d.no_docu "
+        "NVL(d.valor_servicio,0) valor_servicio, "
+        "NVL(d.forma_pago,1) forma_pago "
         "FROM CXP.TCXP_DOCUMENTO d "
         "LEFT JOIN CXP.TCXP_DPROVEEDOR p ON p.no_proveedor=d.no_proveedor "
         "WHERE " + where + " ORDER BY d.fecha, d.ncf"
     )
     rows = client.fetch_dicts(sql, params)
+    for r in rows:
+        base = _base_606(r)
+        r['monto_facturado'] = base
+        # Servicios vs Bienes por valor_servicio (>0 => servicio); regla del
+        # legado verificada contra el 606 real (no depende de tipo_gasto).
+        es_serv = float(r.get('valor_servicio') or 0) > 0
+        r['monto_servicios'] = base if es_serv else 0.0
+        r['monto_bienes'] = 0.0 if es_serv else base
+        r['tipo_gasto_label'] = _tipo_gasto_label(r.get('tipo_gasto'))
     total_monto = sum((r.get('monto_facturado') or 0) for r in rows)
     total_itbis = sum((r.get('itbis_facturado') or 0) for r in rows)
+    total_servicios = sum((r.get('monto_servicios') or 0) for r in rows)
+    total_bienes = sum((r.get('monto_bienes') or 0) for r in rows)
     return {'items': rows, 'count': len(rows),
-            'total_monto': total_monto, 'total_itbis': total_itbis}
+            'total_monto': total_monto, 'total_itbis': total_itbis,
+            'total_servicios': total_servicios, 'total_bienes': total_bienes}
 
 
 def archivo_dgii_606(no_cia: str, anio: int, mes: int, punto: str = '') -> tuple[str, int]:
@@ -1029,7 +1089,8 @@ def archivo_dgii_606(no_cia: str, anio: int, mes: int, punto: str = '') -> tuple
         "NVL(d.valor_original,0) valor_original, NVL(d.impuesto,0) impuesto, "
         "NVL(d.itbis_retenido,0) itbis_retenido, NVL(d.isr_retenido,0) isr_retenido, "
         "d.tipo_retencion, NVL(d.isc,0) isc, NVL(d.otros_impuestos,0) otros_impuestos, "
-        "NVL(d.propina,0) propina, NVL(d.forma_pago,4) forma_pago "
+        "NVL(d.propina,0) propina, NVL(d.forma_pago,4) forma_pago, "
+        "NVL(d.valor_servicio,0) valor_servicio "
         "FROM CXP.TCXP_DOCUMENTO d WHERE " + where + " ORDER BY d.fecha, d.ncf",
         params)
 
@@ -1040,13 +1101,13 @@ def archivo_dgii_606(no_cia: str, anio: int, mes: int, punto: str = '') -> tuple
     for r in rows:
         ncf_dgi = _compose_ncf_dgi(r['posiciones_fijas_ncf'], r['ncf'])
         tipo_gasto = f"{int(r['tipo_gasto']):02d}" if str(r['tipo_gasto'] or '').isdigit() else '02'
-        es_servicio = (r['tipo_gasto'] or '').strip() == '03'
-        # Monto Facturado (campos 8/9/10) = base SIN ITBIS. valor_original es
-        # el bruto (base + ITBIS); reportar el bruto hace que la DGII sume el
-        # ITBIS dos veces (una en la base, otra en la columna de ITBIS
-        # facturado) e infla la factura. base = valor_original - impuesto.
+        # Servicios vs Bienes: el legado clasifica por valor_servicio (>0 =>
+        # servicio), NO por tipo_gasto. Verificado contra el 606 real de julio
+        # (RMM honorarios y arrendamientos salen en Servicios aunque su
+        # tipo_gasto sea 02/03; el resto en Bienes). Ver _base_606().
+        es_servicio = float(r['valor_servicio'] or 0) > 0
         impuesto = float(r['impuesto'])
-        base = float(r['valor_original']) - impuesto
+        base = _base_606(r)
         monto_servicios = base if es_servicio else 0.0
         monto_bienes = 0.0 if es_servicio else base
         campos = [
@@ -1064,6 +1125,104 @@ def archivo_dgii_606(no_cia: str, anio: int, mes: int, punto: str = '') -> tuple
 
     contenido = f"606|{rnc_empresa}|{anio}{mes:02d}|{len(lineas)}\n" + '\n'.join(lineas) + ('\n' if lineas else '')
     return contenido, len(lineas)
+
+
+# Encabezados del Excel 606 — orden y textos identicos al reporte del legado
+# (REPORTE_606_MMYYYY.ods) para que "meta los mismos campos".
+_EXCEL_606_HEADERS = [
+    'RNC/CED', 'TIPO ID', 'TIPO GTO', 'NCF', 'NCF MODIFICADO',
+    'FECHA_COMPROBANTE', 'DIA (FECHA COMPROBANTE)', 'MODULO', 'DOCUMENTO',
+    'NO. REPOS.', 'NOMBRE', 'DETALLE', 'FECHA PAGO', 'DIA (FECHA PAGO)',
+    'MONTO SERVICIOS', 'MONTO BIENES', 'MONTO FACTURADO', 'ITBIS FACTURADO',
+    'ITBIS RETENIDO', 'ITBIS PROPORCIONALIDAD', 'ITBIS LLEVADO COSTO',
+    'ITBIS POR ADELANTAR', 'ITBIS PERCIB. COMPRAS', 'TIPO RETENCION',
+    'ISR RETENIDO', 'ISR PERCIB. COMPRAS', 'ISC', 'OTROS IMPUESTOS/TASAS',
+    'PROPINA', 'FORMA PAGO', 'FECHA PROVEEDOR',
+]
+
+
+def rep_606_excel(no_cia: str, anio: int, mes: int, punto: str = '') -> bytes:
+    """Genera el Excel (.xlsx) del 606 con las mismas columnas del reporte del
+    legado. Reusa rep_606() (mismos montos/servicios/bienes) para no duplicar
+    la logica de la base ni de la clasificacion servicio/bien."""
+    import io
+    from datetime import datetime as _dt
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment
+    from .fat_repo import _compose_ncf_dgi, _tipo_id_de_rnc
+
+    data = rep_606(no_cia, anio, mes, punto)
+    cia = client.fetch_one("SELECT descripcion FROM FAT.TFAT_CIAS WHERE no_cia=:1", [no_cia])
+    razon = (cia[0] if cia else '') or ''
+
+    def _ymd(s):  # 'YYYY-MM-DD' -> ('YYYYMMDD', dia, 'D/M/YYYY')
+        try:
+            d = _dt.strptime(str(s)[:10], '%Y-%m-%d')
+            return d.strftime('%Y%m%d'), d.day, f"{d.day}/{d.month}/{d.year}"
+        except Exception:
+            return str(s or ''), '', ''
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = '606'
+    ncols = len(_EXCEL_606_HEADERS)
+    ws.append([razon]); ws['A1'].font = Font(bold=True, size=12)
+    ws.append([f"Reporte de Documentos con NCF. Formato 606 Desde 01/{mes:02d}/{anio} "
+               f"Hasta 31/{mes:02d}/{anio}"])
+    ws.append([])
+    ws.append(list(_EXCEL_606_HEADERS))
+    for c in ws[4]:
+        c.font = Font(bold=True)
+        c.alignment = Alignment(wrap_text=True, vertical='center', horizontal='center')
+
+    money_cols = set(range(15, 30))  # 1-based columnas de montos → formato numerico
+    for r in data['items']:
+        ymd, dia, dprov = _ymd(r.get('fecha'))
+        ncf_dgi = (_compose_ncf_dgi(r.get('tipo_ncf'), r.get('ncf'))
+                   or (str(r.get('ncf')) if r.get('ncf') else ''))
+        documento = f"{r.get('no_cia')}-{r.get('punto')}-{r.get('tipo_docu')}-{r.get('no_docu')}"
+        itbis_fact = float(r.get('itbis_facturado') or 0)
+        tr = r.get('tipo_retencion')
+        tipo_ret = str(int(tr)) if tr not in (None, '', 0, '0') else ''
+        fila = [
+            r.get('rnc_proveedor') or '', _tipo_id_de_rnc(r.get('rnc_proveedor')),
+            r.get('tipo_gasto_label') or '', ncf_dgi, '',
+            ymd, dia, 'CXP', documento, '',
+            r.get('nombre_proveedor') or '', r.get('detalle') or '',
+            ymd, dia,
+            float(r.get('monto_servicios') or 0), float(r.get('monto_bienes') or 0),
+            float(r.get('monto_facturado') or 0), itbis_fact,
+            float(r.get('itbis_retenido') or 0), 0, 0, itbis_fact, 0, tipo_ret,
+            float(r.get('isr_retenido') or 0), 0,
+            float(r.get('isc') or 0), float(r.get('otros_impuestos') or 0),
+            float(r.get('propina') or 0),
+            f"{int(r.get('forma_pago') or 0):02d}", dprov,
+        ]
+        ws.append(fila)
+        for ci in money_cols:
+            ws.cell(row=ws.max_row, column=ci).number_format = '#,##0.00'
+
+    # Fila de totales
+    tot_row = ['' for _ in range(ncols)]
+    tot_row[10] = 'TOTALES'
+    tot_row[14] = float(data.get('total_servicios') or 0)
+    tot_row[15] = float(data.get('total_bienes') or 0)
+    tot_row[16] = float(data.get('total_monto') or 0)
+    tot_row[17] = float(data.get('total_itbis') or 0)
+    ws.append(tot_row)
+    for ci in (11, 15, 16, 17, 18):
+        c = ws.cell(row=ws.max_row, column=ci)
+        c.font = Font(bold=True)
+        if ci >= 15:
+            c.number_format = '#,##0.00'
+
+    widths = [13, 7, 42, 16, 14, 14, 10, 8, 20, 10, 30, 30, 12, 10] + [15] * 17
+    for i, w in enumerate(widths[:ncols], start=1):
+        ws.column_dimensions[chr(64 + i) if i <= 26 else 'A' + chr(64 + i - 26)].width = w
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
 
 
 def rep_607(no_cia: str, anio: int, mes: int, punto: str = ''):
