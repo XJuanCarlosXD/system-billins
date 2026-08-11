@@ -15,6 +15,7 @@ type Team = {
 type BaseNavItem = {
   title: string
   badge?: string
+  badgeVariant?: 'default' | 'warning' | 'success' | 'destructive'
   icon?: React.ElementType
   search?: Record<string, unknown>
   requires?: 'is_dba'

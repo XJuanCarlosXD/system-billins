@@ -18,6 +18,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { Badge } from '../ui/badge'
+import { cn } from '@/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,8 +62,31 @@ export function NavGroup({ title, items }: NavGroupProps) {
   )
 }
 
-function NavBadge({ children }: { children: ReactNode }) {
-  return <Badge className='rounded-full px-1 py-0 text-xs'>{children}</Badge>
+function NavBadge({
+  children,
+  variant = 'default',
+}: {
+  children: ReactNode
+  variant?: NavItem['badgeVariant']
+}) {
+  const color =
+    variant === 'warning'
+      ? 'bg-amber-500 text-white hover:bg-amber-500 border-transparent'
+      : variant === 'success'
+        ? 'bg-emerald-600 text-white hover:bg-emerald-600 border-transparent'
+        : variant === 'destructive'
+          ? 'bg-destructive text-white border-transparent'
+          : ''
+  return (
+    <Badge
+      className={cn(
+        'ms-auto min-w-5 justify-center rounded-full px-1 py-0 text-xs',
+        color
+      )}
+    >
+      {children}
+    </Badge>
+  )
 }
 
 function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
@@ -77,7 +101,7 @@ function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
         <Link to={item.url} search={item.search as never} onClick={() => setOpenMobile(false)}>
           {item.icon && <item.icon />}
           <span>{item.title}</span>
-          {item.badge && <NavBadge>{item.badge}</NavBadge>}
+          {item.badge && <NavBadge variant={item.badgeVariant}>{item.badge}</NavBadge>}
         </Link>
       </SidebarMenuButton>
     </SidebarMenuItem>
@@ -103,7 +127,7 @@ function SidebarMenuCollapsible({
           <SidebarMenuButton tooltip={item.title}>
             {item.icon && <item.icon />}
             <span>{item.title}</span>
-            {item.badge && <NavBadge>{item.badge}</NavBadge>}
+            {item.badge && <NavBadge variant={item.badgeVariant}>{item.badge}</NavBadge>}
             <ChevronRight className='ms-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 rtl:rotate-180' />
           </SidebarMenuButton>
         </CollapsibleTrigger>
@@ -125,7 +149,7 @@ function SidebarMenuCollapsible({
                     <Link to={subItem.url} search={subItem.search as never} onClick={() => setOpenMobile(false)}>
                       {subItem.icon && <subItem.icon />}
                       <span>{subItem.title}</span>
-                      {subItem.badge && <NavBadge>{subItem.badge}</NavBadge>}
+                      {subItem.badge && <NavBadge variant={subItem.badgeVariant}>{subItem.badge}</NavBadge>}
                     </Link>
                   </SidebarMenuSubButton>
                 </SidebarMenuSubItem>
@@ -158,7 +182,7 @@ function SidebarMenuSubCollapsible({
           <SidebarMenuSubButton className='cursor-pointer'>
             {item.icon && <item.icon />}
             <span>{item.title}</span>
-            {item.badge && <NavBadge>{item.badge}</NavBadge>}
+            {item.badge && <NavBadge variant={item.badgeVariant}>{item.badge}</NavBadge>}
             <ChevronRight className='ms-auto transition-transform duration-200 group-data-[state=open]/subcollapsible:rotate-90 rtl:rotate-180' />
           </SidebarMenuSubButton>
         </CollapsibleTrigger>
@@ -177,7 +201,7 @@ function SidebarMenuSubCollapsible({
                   >
                     {leaf.icon && <leaf.icon />}
                     <span>{leaf.title}</span>
-                    {leaf.badge && <NavBadge>{leaf.badge}</NavBadge>}
+                    {leaf.badge && <NavBadge variant={leaf.badgeVariant}>{leaf.badge}</NavBadge>}
                   </Link>
                 </SidebarMenuSubButton>
               </SidebarMenuSubItem>
@@ -206,7 +230,7 @@ function SidebarMenuCollapsedDropdown({
           >
             {item.icon && <item.icon />}
             <span>{item.title}</span>
-            {item.badge && <NavBadge>{item.badge}</NavBadge>}
+            {item.badge && <NavBadge variant={item.badgeVariant}>{item.badge}</NavBadge>}
             <ChevronRight className='ms-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90' />
           </SidebarMenuButton>
         </DropdownMenuTrigger>

@@ -1,9 +1,20 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
 import { Command, LayoutDashboard } from 'lucide-react'
 import { useLayout } from '@/context/layout-provider'
 import { useAccess } from '@/hooks/use-access'
 import { useMe } from '@/hooks/use-me'
+import {
+  useSidebarBadges,
+  type SidebarBadge,
+  type BadgeKey,
+} from '@/hooks/use-sidebar-badges'
+import {
+  CONSULTA_PATHS,
+  DOC_MODULES,
+  INV_CONSULTA_VIEW,
+  type DocModule,
+} from '@/lib/sidebar-badges'
 import {
   Sidebar,
   SidebarContent,
@@ -43,9 +54,38 @@ function moduleAsNavItem(m: SidebarModule): NavItem {
   }
 }
 
-function shortcut(url: string): NavItem {
+function shortcut(url: string, badge?: SidebarBadge): NavItem {
   const s = sidebarData.homeShortcuts.find((h) => h.url === url)!
-  return { title: s.title, url: s.url, icon: s.icon }
+  return { title: s.title, url: s.url, icon: s.icon, ...badgeProps(badge) }
+}
+
+type Badges = Partial<Record<BadgeKey, SidebarBadge>>
+
+function badgeProps(b?: SidebarBadge): Pick<NavItem, 'badge' | 'badgeVariant'> {
+  return b ? { badge: String(b.count), badgeVariant: b.variant } : {}
+}
+
+// Pone el badge del módulo en la hoja de su Consulta de Documentos (o
+// Consulta de Facturas para FAT). Se usa cuando el usuario ya está dentro
+// del módulo y el sidebar muestra el árbol propio del módulo.
+function withConsultaBadge(
+  items: NavItem[],
+  code: DocModule,
+  badge?: SidebarBadge
+): NavItem[] {
+  if (!badge) return items
+  const target = CONSULTA_PATHS[code]
+  const walk = (list: NavItem[]): NavItem[] =>
+    list.map((it) => {
+      if (it.items) return { ...it, items: walk(it.items) }
+      const isConsulta =
+        it.url === target &&
+        (code !== 'inv' ||
+          (it.search as { view?: string } | undefined)?.view ===
+            INV_CONSULTA_VIEW)
+      return isConsulta ? { ...it, ...badgeProps(badge) } : it
+    })
+  return walk(items)
 }
 
 // El sidebar de Inicio (fuera de cualquier modulo) reconstruye el menu
@@ -55,20 +95,27 @@ function shortcut(url: string): NavItem {
 // contenido, no en el sidebar) en vez de un sidebar vacio.
 function buildHomeNavGroups(
   isAdmin: boolean,
-  hasModule: (m: string) => boolean
+  hasModule: (m: string) => boolean,
+  badges: Badges
 ): NavGroupType[] {
   const byCode = (codes: string[]) =>
     sidebarData.modules
       .filter((m) => codes.includes(m.code) && (isAdmin || hasModule(m.code)))
-      .map(moduleAsNavItem)
+      .map((m) => {
+        const item = moduleAsNavItem(m)
+        const b = DOC_MODULES.includes(m.code as DocModule)
+          ? badges[m.code as DocModule]
+          : undefined
+        return b ? { ...item, ...badgeProps(b) } : item
+      })
 
   return [
     {
       title: 'General',
       items: [
         { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
-        shortcut('/novedades'),
-        shortcut('/reportes'),
+        shortcut('/novedades', badges.novedades),
+        shortcut('/reportes', badges.reportes),
         shortcut('/ncf-alerts'),
         shortcut('/empresas'),
       ],
@@ -147,22 +194,46 @@ export function AppSidebar() {
   // everything for non-admins). Fall back to the previous isAdmin-only rule.
   const modGate = accessLoading ? () => true : hasModule
   const pathname = useLocation({ select: (l) => l.pathname })
+  const searchView = useLocation({
+    select: (l) => (l.search as { view?: string } | undefined)?.view,
+  })
   const moduleCode = currentModuleCode(pathname)
   const activeModule = moduleCode
     ? sidebarData.modules.find((m) => m.code === moduleCode)
     : undefined
 
+  const { badges, markSeen } = useSidebarBadges()
+
+  // Al entrar a una vista con contador, limpiar su badge.
+  useEffect(() => {
+    if (pathname === '/novedades') markSeen('novedades')
+    else if (pathname === '/reportes') markSeen('reportes')
+    else if (pathname === CONSULTA_PATHS.fat) markSeen('fat')
+    else if (pathname === CONSULTA_PATHS.cxc) markSeen('cxc')
+    else if (pathname === CONSULTA_PATHS.cxp) markSeen('cxp')
+    else if (pathname === CONSULTA_PATHS.inv && searchView === INV_CONSULTA_VIEW)
+      markSeen('inv')
+  }, [pathname, searchView, markSeen])
+
   const navGroups: NavGroupType[] = useMemo(() => {
     if (activeModule) {
+      const code = activeModule.code as DocModule
+      const consultaBadge = DOC_MODULES.includes(code)
+        ? badges[code]
+        : undefined
       return activeModule.navGroups
         .map((g) => ({
           ...g,
-          items: filterNavItems(g.items, isAdmin, modGate),
+          items: withConsultaBadge(
+            filterNavItems(g.items, isAdmin, modGate),
+            code,
+            consultaBadge
+          ),
         }))
         .filter((g) => g.items.length > 0)
     }
-    return buildHomeNavGroups(isAdmin, modGate)
-  }, [activeModule, isAdmin, modGate])
+    return buildHomeNavGroups(isAdmin, modGate, badges)
+  }, [activeModule, isAdmin, modGate, badges])
 
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
