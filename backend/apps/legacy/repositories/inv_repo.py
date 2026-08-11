@@ -3185,7 +3185,11 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
             else:
                 _lineas_cnt.append({'cuenta': _cta_prov, 'tipo_movi': 'C', 'monto': total_neto})
             _cxp_payload = {
-                'no_cia': no_cia, 'punto': punto, 'tipo_docu': 'FP',
+                # El legado registra la Entrada de Compras en CxP como FT
+                # ("FACTURA"), no FP ("FACTURA PROVEEDORES"). FP queda para
+                # payables manuales (gastos/servicios sin INV). Ambos son
+                # tipo_movi='C' asi que el 606 no cambia; es clasificacion.
+                'no_cia': no_cia, 'punto': punto, 'tipo_docu': 'FT',
                 'no_proveedor': no_proveedor,
                 'fecha': fecha, 'fecha_vence': fecha_vcto or fecha,
                 'valor_original': total_neto,
@@ -3211,15 +3215,15 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                               'periodo_objetivo': _enc.periodo_objetivo,
                               'periodo_proceso': _enc.periodo_proceso}
             else:
-                cxp_mirror = {'no_docu': cxp_no_docu, 'tipo_docu': 'FP'}
-                # Enlace estructurado EC -> FP en el header de la entrada (TINV_RME).
-                # Así la edición localiza el FP espejo por referencia exacta y no por
+                cxp_mirror = {'no_docu': cxp_no_docu, 'tipo_docu': 'FT'}
+                # Enlace estructurado EC -> FT en el header de la entrada (TINV_RME).
+                # Así la edición localiza el espejo por referencia exacta y no por
                 # el texto del detalle (heurístico). tipo_refe/no_refe están libres
                 # para EC (_upsert_rme_header no los usa). Best-effort: si falla, la
                 # entrada ya está confirmada y queda el fallback heurístico.
                 try:
                     client.execute(
-                        "UPDATE INV.TINV_RME SET tipo_refe='FP', no_refe=:1 "
+                        "UPDATE INV.TINV_RME SET tipo_refe='FT', no_refe=:1 "
                         "WHERE no_cia=:2 AND punto=:3 AND tipo_docu='EC' AND no_docu=:4",
                         [str(cxp_no_docu), no_cia, punto, no_docu])
                 except Exception:
@@ -3358,11 +3362,13 @@ def _find_cxp_mirror_fp(no_cia: str, punto: str, no_proveedor: str,
     (ver create_movimiento_documento). Solo activos (status='A')."""
     if not no_proveedor:
         return None
+    # El espejo de una EC se registra como FT (nuevo) o FP (entradas viejas,
+    # antes del cambio 2026-08-10). Aceptar ambos para no perder el enlace.
     rows = client.fetch_dicts(
-        "SELECT no_docu, status, NVL(valor_original,0) valor_original, "
+        "SELECT tipo_docu, no_docu, status, NVL(valor_original,0) valor_original, "
         "       NVL(saldo,0) saldo "
         "FROM CXP.TCXP_DOCUMENTO "
-        "WHERE no_cia=:1 AND punto=:2 AND tipo_docu='FP' AND no_proveedor=:3 "
+        "WHERE no_cia=:1 AND punto=:2 AND tipo_docu IN ('FT','FP') AND no_proveedor=:3 "
         "  AND detalle LIKE :4 AND NVL(status,'A')='A' "
         "ORDER BY no_docu DESC",
         [no_cia, punto, str(no_proveedor), f"%INV {inv_no_docu}%"],
@@ -3381,13 +3387,13 @@ def _resolve_cxp_mirror_fp(no_cia: str, punto: str, header: dict,
     """
     ref_tipo = str((header or {}).get('tipo_refe') or '').strip().upper()
     ref_no = str((header or {}).get('no_refe') or '').strip()
-    if ref_tipo == 'FP' and ref_no:
+    if ref_tipo in ('FT', 'FP') and ref_no:
         rows = client.fetch_dicts(
-            "SELECT no_docu, status, NVL(valor_original,0) valor_original, "
+            "SELECT tipo_docu, no_docu, status, NVL(valor_original,0) valor_original, "
             "       NVL(saldo,0) saldo "
             "FROM CXP.TCXP_DOCUMENTO "
-            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu='FP' AND no_docu=:3",
-            [no_cia, punto, ref_no])
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+            [no_cia, punto, ref_tipo, ref_no])
         if rows:
             return rows[0]
     return _find_cxp_mirror_fp(no_cia, punto, no_proveedor, inv_no_docu)
@@ -3464,7 +3470,7 @@ def actualizar_documento_inv(*, no_cia: str, punto: str, tipo_docu: str,
         from .cxp_repo import reversar_documento as _cxp_reversar
         try:
             cxp_reversa = _cxp_reversar(
-                no_cia, punto, 'FP', fp['no_docu'],
+                no_cia, punto, (fp.get('tipo_docu') or 'FT'), fp['no_docu'],
                 usuario=usuario, motivo=f"Edición entrada INV {no_docu}")
         except Exception as exc:
             cxp_reversa = {'error': str(exc)}

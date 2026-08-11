@@ -2201,13 +2201,15 @@ def _materializar_cola(no_cia: str, punto: str, ano: int, mes: int) -> list[dict
             payload.pop('_cola_origen', None)
             no_docu = entrada_documento(payload, _skip_periodo_gate=True)
             if link and no_docu:
-                # Enlace diferido EC(INV) -> FP(CxP): completa TINV_RME.no_refe
-                # que quedo vacio cuando el espejo se encolo.
+                # Enlace diferido EC(INV) -> FT(CxP): completa TINV_RME.no_refe
+                # que quedo vacio cuando el espejo se encolo. tipo_refe apunta al
+                # tipo del documento espejo creado (FT), no al EC de origen.
                 try:
                     client.execute(
-                        "UPDATE INV.TINV_RME SET tipo_refe='FP', no_refe=:1 "
-                        "WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4 AND no_docu=:5",
-                        [str(no_docu), link['no_cia'], link['punto'],
+                        "UPDATE INV.TINV_RME SET tipo_refe=:1, no_refe=:2 "
+                        "WHERE no_cia=:3 AND punto=:4 AND tipo_docu=:5 AND no_docu=:6",
+                        [payload.get('tipo_docu', 'FT'), str(no_docu),
+                         link['no_cia'], link['punto'],
                          link.get('tipo_docu', 'EC'), link['no_docu']])
                 except Exception:
                     pass
