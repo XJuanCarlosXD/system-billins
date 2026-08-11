@@ -16,6 +16,7 @@ import {
   Settings,
   ShieldCheck,
   ShoppingCart,
+  Sparkles,
   Users as UsersIcon,
   Wallet,
 } from 'lucide-react'
@@ -35,6 +36,7 @@ export const sidebarData: SidebarData = {
     },
   ],
   homeShortcuts: [
+    { title: 'Novedades', url: '/novedades', icon: Sparkles },
     { title: 'Reportes de Problemas', url: '/reportes', icon: LifeBuoy },
     { title: 'Alertas NCF', url: '/ncf-alerts', icon: AlertTriangle },
     { title: 'Empresas', url: '/empresas', icon: Building2 },

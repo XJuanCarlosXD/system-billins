@@ -1,61 +1,71 @@
-import { useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table'
-import { AlertTriangle, Loader2, Filter } from 'lucide-react'
-import { useCompany } from '@/context/company-context'
+import { AlertTriangle, Loader2, RefreshCw, ShieldCheck } from 'lucide-react'
+import { apiClient, type NCFAlert } from '@/lib/api-client'
+
+type SeverityFilter = 'all' | 'critical' | 'warning'
+
+const SEV_META: Record<
+  NCFAlert['severity'],
+  { label: string; variant: 'destructive' | 'default' | 'secondary' }
+> = {
+  critical: { label: 'Crítico', variant: 'destructive' },
+  warning: { label: 'Por agotarse', variant: 'default' },
+  ok: { label: 'OK', variant: 'secondary' },
+}
 
 export function NcfAlertsPage() {
-  const { selectedCompany } = useCompany()
-  const [alerts, setAlerts] = useState<any[]>([])
-  const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
+  const [sev, setSev] = useState<SeverityFilter>('all')
 
-  useEffect(() => {
-    async function loadAlerts() {
-      setLoading(true)
-      try {
-        // TODO: Implementar endpoint GET /api/ncf-alerts/?company={selectedCompany}
-        // Por ahora, simulamos datos
-        setAlerts([
-          {
-            id: 1,
-            codigo: 'NCF-001',
-            descripcion: 'Factura duplicada detectada',
-            empresa: selectedCompany,
-            severidad: 'high',
-            fecha: '2026-05-07',
-          },
-          {
-            id: 2,
-            codigo: 'NCF-002',
-            descripcion: 'Rango NCF agotado',
-            empresa: selectedCompany,
-            severidad: 'critical',
-            fecha: '2026-05-07',
-          },
-        ])
-      } catch (e) {
-        console.error('Error loading alerts', e)
-      } finally {
-        setLoading(false)
-      }
+  const query = useQuery({
+    queryKey: ['ncf-alerts', 'all'],
+    // Traemos todos los rangos y filtramos por severidad en el cliente.
+    queryFn: () => apiClient.fatNcfAlerts('all'),
+    staleTime: 60_000,
+  })
+
+  const alerts = useMemo(() => query.data?.alerts ?? [], [query.data])
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return alerts.filter((a) => {
+      if (sev !== 'all' && a.severity !== sev) return false
+      if (!q) return true
+      return (
+        (a.empresa ?? '').toLowerCase().includes(q) ||
+        (a.descripcion ?? '').toLowerCase().includes(q) ||
+        a.codigo_ncf.toLowerCase().includes(q) ||
+        a.no_cia.toLowerCase().includes(q)
+      )
+    })
+  }, [alerts, search, sev])
+
+  const counts = useMemo(() => {
+    let critical = 0
+    let warning = 0
+    for (const a of alerts) {
+      if (a.severity === 'critical') critical++
+      else if (a.severity === 'warning') warning++
     }
-    loadAlerts()
-  }, [selectedCompany])
-
-  const filtered = alerts.filter((a) =>
-    a.codigo.toLowerCase().includes(search.toLowerCase()) ||
-    a.descripcion.toLowerCase().includes(search.toLowerCase())
-  )
+    return { critical, warning, total: alerts.length }
+  }, [alerts])
 
   return (
     <>
@@ -67,68 +77,187 @@ export function NcfAlertsPage() {
         <ProfileDropdown />
       </Header>
       <Main fluid>
-        <div className='mb-4 flex items-center gap-2'>
+        <p className='mb-4 max-w-2xl text-sm text-muted-foreground'>
+          Alertas reales de comprobantes fiscales (NCF): rangos de numeración
+          por agotarse o ya en nivel crítico, en todas las compañías. La
+          numeración disponible se compara contra la cantidad mínima
+          configurada en cada rango.
+        </p>
+
+        {/* Resumen */}
+        <div className='mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3'>
+          <Card>
+            <CardContent className='flex items-center gap-3 py-4'>
+              <span className='rounded-full bg-destructive/10 p-2 text-destructive'>
+                <AlertTriangle className='h-5 w-5' />
+              </span>
+              <div>
+                <div className='text-2xl font-bold'>{counts.critical}</div>
+                <div className='text-xs text-muted-foreground'>Críticos</div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className='flex items-center gap-3 py-4'>
+              <span className='rounded-full bg-amber-500/10 p-2 text-amber-600 dark:text-amber-400'>
+                <AlertTriangle className='h-5 w-5' />
+              </span>
+              <div>
+                <div className='text-2xl font-bold'>{counts.warning}</div>
+                <div className='text-xs text-muted-foreground'>
+                  Por agotarse
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className='flex items-center gap-3 py-4'>
+              <span className='rounded-full bg-muted p-2 text-muted-foreground'>
+                <ShieldCheck className='h-5 w-5' />
+              </span>
+              <div>
+                <div className='text-2xl font-bold'>{counts.total}</div>
+                <div className='text-xs text-muted-foreground'>
+                  Rangos monitoreados
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filtros */}
+        <div className='mb-4 flex flex-wrap items-center gap-2'>
           <Input
-            placeholder='Buscar por código o descripción...'
+            placeholder='Buscar por empresa, código o descripción...'
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className='max-w-sm'
           />
-          <Button variant='outline' size='sm' className='gap-2'>
-            <Filter className='h-4 w-4' />
-            Filtros
+          <div className='flex gap-1'>
+            {(
+              [
+                ['all', 'Todos'],
+                ['critical', 'Críticos'],
+                ['warning', 'Por agotarse'],
+              ] as [SeverityFilter, string][]
+            ).map(([key, label]) => (
+              <Button
+                key={key}
+                size='sm'
+                variant={sev === key ? 'default' : 'outline'}
+                onClick={() => setSev(key)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+          <Button
+            variant='outline'
+            size='sm'
+            className='ms-auto gap-2'
+            onClick={() => query.refetch()}
+            disabled={query.isFetching}
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${query.isFetching ? 'animate-spin' : ''}`}
+            />
+            Actualizar
           </Button>
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle className='flex items-center justify-between'>
-              <span>Alertas — Empresa {selectedCompany}</span>
-              <Badge variant='outline'>{filtered.length}</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className='rounded border overflow-hidden'>
+          <CardContent className='p-0'>
+            <div className='overflow-x-auto rounded-md'>
               <Table>
                 <TableHeader className='bg-muted/50'>
                   <TableRow>
-                    <TableHead>Código</TableHead>
+                    <TableHead>Empresa</TableHead>
+                    <TableHead>Código NCF</TableHead>
                     <TableHead>Descripción</TableHead>
+                    <TableHead className='text-right'>Próximo</TableHead>
+                    <TableHead className='text-right'>Disponibles</TableHead>
+                    <TableHead className='text-right'>Mínimo</TableHead>
                     <TableHead>Severidad</TableHead>
-                    <TableHead>Fecha</TableHead>
-                    <TableHead className='text-right'>Acción</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading && (
+                  {query.isLoading && (
                     <TableRow>
-                      <TableCell colSpan={5} className='text-center py-4'>
+                      <TableCell colSpan={7} className='py-6 text-center'>
                         <Loader2 className='inline h-4 w-4 animate-spin' />
                       </TableCell>
                     </TableRow>
                   )}
-                  {!loading && filtered.length === 0 && (
+                  {query.isError && (
                     <TableRow>
-                      <TableCell colSpan={5} className='text-center py-4 text-muted-foreground'>
-                        Sin alertas en esta empresa
+                      <TableCell
+                        colSpan={7}
+                        className='py-6 text-center text-destructive'
+                      >
+                        No se pudieron cargar las alertas. Verifica tu sesión e
+                        intenta actualizar.
                       </TableCell>
                     </TableRow>
                   )}
-                  {filtered.map((a) => (
-                    <TableRow key={a.id} className='hover:bg-muted/50'>
-                      <TableCell className='font-mono font-semibold'>{a.codigo}</TableCell>
-                      <TableCell>{a.descripcion}</TableCell>
-                      <TableCell>
-                        <Badge variant={a.severidad === 'critical' ? 'destructive' : a.severidad === 'high' ? 'default' : 'secondary'}>
-                          {a.severidad}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className='text-sm text-muted-foreground'>{a.fecha}</TableCell>
-                      <TableCell className='text-right'>
-                        <Button size='sm' variant='outline'>Ver detalles</Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {!query.isLoading &&
+                    !query.isError &&
+                    filtered.length === 0 && (
+                      <TableRow>
+                        <TableCell
+                          colSpan={7}
+                          className='py-6 text-center text-muted-foreground'
+                        >
+                          No hay alertas para este filtro. Todos los rangos de
+                          NCF tienen numeración suficiente.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  {filtered.map((a) => {
+                    const meta = SEV_META[a.severity]
+                    return (
+                      <TableRow
+                        key={`${a.no_cia}-${a.codigo_ncf}`}
+                        className='hover:bg-muted/50'
+                      >
+                        <TableCell>
+                          <div className='font-medium'>
+                            {a.empresa ?? `Compañía ${a.no_cia}`}
+                          </div>
+                          {a.rnc && (
+                            <div className='text-xs text-muted-foreground'>
+                              RNC {a.rnc}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className='font-mono font-semibold'>
+                          {a.codigo_ncf}
+                        </TableCell>
+                        <TableCell className='text-sm'>
+                          {a.descripcion ?? '—'}
+                        </TableCell>
+                        <TableCell className='text-right font-mono'>
+                          {a.prox_ncf}
+                        </TableCell>
+                        <TableCell
+                          className={`text-right font-mono font-semibold ${
+                            a.severity === 'critical'
+                              ? 'text-destructive'
+                              : a.severity === 'warning'
+                                ? 'text-amber-600 dark:text-amber-400'
+                                : ''
+                          }`}
+                        >
+                          {a.disponibles}
+                        </TableCell>
+                        <TableCell className='text-right font-mono text-muted-foreground'>
+                          {a.cant_min_ncf}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={meta.variant}>{meta.label}</Badge>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>

@@ -15,6 +15,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedSdnRouteImport } from './routes/_authenticated/sdn'
 import { Route as AuthenticatedReportesRouteImport } from './routes/_authenticated/reportes'
 import { Route as AuthenticatedOdcRouteImport } from './routes/_authenticated/odc'
+import { Route as AuthenticatedNovedadesRouteImport } from './routes/_authenticated/novedades'
 import { Route as AuthenticatedNcfAlertsRouteImport } from './routes/_authenticated/ncf-alerts'
 import { Route as AuthenticatedManRouteImport } from './routes/_authenticated/man'
 import { Route as AuthenticatedLicRouteImport } from './routes/_authenticated/lic'
@@ -157,6 +158,7 @@ import { Route as AuthenticatedCxpEntradaDocumentosRouteImport } from './routes/
 import { Route as AuthenticatedCxpDocumentosRouteImport } from './routes/_authenticated/cxp/documentos'
 import { Route as AuthenticatedCxpCuentasRouteImport } from './routes/_authenticated/cxp/cuentas'
 import { Route as AuthenticatedCxpCorregirNcfRouteImport } from './routes/_authenticated/cxp/corregir-ncf'
+import { Route as AuthenticatedCxpColaRouteImport } from './routes/_authenticated/cxp/cola'
 import { Route as AuthenticatedCxpCiudadesRouteImport } from './routes/_authenticated/cxp/ciudades'
 import { Route as AuthenticatedCxpCierreRouteImport } from './routes/_authenticated/cxp/cierre'
 import { Route as AuthenticatedCxpCiasRouteImport } from './routes/_authenticated/cxp/cias'
@@ -282,6 +284,11 @@ const AuthenticatedReportesRoute = AuthenticatedReportesRouteImport.update({
 const AuthenticatedOdcRoute = AuthenticatedOdcRouteImport.update({
   id: '/odc',
   path: '/odc',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedNovedadesRoute = AuthenticatedNovedadesRouteImport.update({
+  id: '/novedades',
+  path: '/novedades',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedNcfAlertsRoute = AuthenticatedNcfAlertsRouteImport.update({
@@ -1068,6 +1075,11 @@ const AuthenticatedCxpCorregirNcfRoute =
     path: '/corregir-ncf',
     getParentRoute: () => AuthenticatedCxpRoute,
   } as any)
+const AuthenticatedCxpColaRoute = AuthenticatedCxpColaRouteImport.update({
+  id: '/cola',
+  path: '/cola',
+  getParentRoute: () => AuthenticatedCxpRoute,
+} as any)
 const AuthenticatedCxpCiudadesRoute =
   AuthenticatedCxpCiudadesRouteImport.update({
     id: '/ciudades',
@@ -1645,6 +1657,7 @@ export interface FileRoutesByFullPath {
   '/lic': typeof AuthenticatedLicRouteWithChildren
   '/man': typeof AuthenticatedManRoute
   '/ncf-alerts': typeof AuthenticatedNcfAlertsRoute
+  '/novedades': typeof AuthenticatedNovedadesRoute
   '/odc': typeof AuthenticatedOdcRouteWithChildren
   '/reportes': typeof AuthenticatedReportesRoute
   '/sdn': typeof AuthenticatedSdnRouteWithChildren
@@ -1733,6 +1746,7 @@ export interface FileRoutesByFullPath {
   '/cxp/cias': typeof AuthenticatedCxpCiasRoute
   '/cxp/cierre': typeof AuthenticatedCxpCierreRoute
   '/cxp/ciudades': typeof AuthenticatedCxpCiudadesRoute
+  '/cxp/cola': typeof AuthenticatedCxpColaRoute
   '/cxp/corregir-ncf': typeof AuthenticatedCxpCorregirNcfRoute
   '/cxp/cuentas': typeof AuthenticatedCxpCuentasRoute
   '/cxp/documentos': typeof AuthenticatedCxpDocumentosRoute
@@ -1880,6 +1894,7 @@ export interface FileRoutesByTo {
   '/lic': typeof AuthenticatedLicRouteWithChildren
   '/man': typeof AuthenticatedManRoute
   '/ncf-alerts': typeof AuthenticatedNcfAlertsRoute
+  '/novedades': typeof AuthenticatedNovedadesRoute
   '/reportes': typeof AuthenticatedReportesRoute
   '/acc/anular': typeof AuthenticatedAccAnularRoute
   '/acc/asiento': typeof AuthenticatedAccAsientoRoute
@@ -1965,6 +1980,7 @@ export interface FileRoutesByTo {
   '/cxp/cias': typeof AuthenticatedCxpCiasRoute
   '/cxp/cierre': typeof AuthenticatedCxpCierreRoute
   '/cxp/ciudades': typeof AuthenticatedCxpCiudadesRoute
+  '/cxp/cola': typeof AuthenticatedCxpColaRoute
   '/cxp/corregir-ncf': typeof AuthenticatedCxpCorregirNcfRoute
   '/cxp/cuentas': typeof AuthenticatedCxpCuentasRoute
   '/cxp/documentos': typeof AuthenticatedCxpDocumentosRoute
@@ -2125,6 +2141,7 @@ export interface FileRoutesById {
   '/_authenticated/lic': typeof AuthenticatedLicRouteWithChildren
   '/_authenticated/man': typeof AuthenticatedManRoute
   '/_authenticated/ncf-alerts': typeof AuthenticatedNcfAlertsRoute
+  '/_authenticated/novedades': typeof AuthenticatedNovedadesRoute
   '/_authenticated/odc': typeof AuthenticatedOdcRouteWithChildren
   '/_authenticated/reportes': typeof AuthenticatedReportesRoute
   '/_authenticated/sdn': typeof AuthenticatedSdnRouteWithChildren
@@ -2213,6 +2230,7 @@ export interface FileRoutesById {
   '/_authenticated/cxp/cias': typeof AuthenticatedCxpCiasRoute
   '/_authenticated/cxp/cierre': typeof AuthenticatedCxpCierreRoute
   '/_authenticated/cxp/ciudades': typeof AuthenticatedCxpCiudadesRoute
+  '/_authenticated/cxp/cola': typeof AuthenticatedCxpColaRoute
   '/_authenticated/cxp/corregir-ncf': typeof AuthenticatedCxpCorregirNcfRoute
   '/_authenticated/cxp/cuentas': typeof AuthenticatedCxpCuentasRoute
   '/_authenticated/cxp/documentos': typeof AuthenticatedCxpDocumentosRoute
@@ -2371,6 +2389,7 @@ export interface FileRouteTypes {
     | '/lic'
     | '/man'
     | '/ncf-alerts'
+    | '/novedades'
     | '/odc'
     | '/reportes'
     | '/sdn'
@@ -2459,6 +2478,7 @@ export interface FileRouteTypes {
     | '/cxp/cias'
     | '/cxp/cierre'
     | '/cxp/ciudades'
+    | '/cxp/cola'
     | '/cxp/corregir-ncf'
     | '/cxp/cuentas'
     | '/cxp/documentos'
@@ -2606,6 +2626,7 @@ export interface FileRouteTypes {
     | '/lic'
     | '/man'
     | '/ncf-alerts'
+    | '/novedades'
     | '/reportes'
     | '/acc/anular'
     | '/acc/asiento'
@@ -2691,6 +2712,7 @@ export interface FileRouteTypes {
     | '/cxp/cias'
     | '/cxp/cierre'
     | '/cxp/ciudades'
+    | '/cxp/cola'
     | '/cxp/corregir-ncf'
     | '/cxp/cuentas'
     | '/cxp/documentos'
@@ -2850,6 +2872,7 @@ export interface FileRouteTypes {
     | '/_authenticated/lic'
     | '/_authenticated/man'
     | '/_authenticated/ncf-alerts'
+    | '/_authenticated/novedades'
     | '/_authenticated/odc'
     | '/_authenticated/reportes'
     | '/_authenticated/sdn'
@@ -2938,6 +2961,7 @@ export interface FileRouteTypes {
     | '/_authenticated/cxp/cias'
     | '/_authenticated/cxp/cierre'
     | '/_authenticated/cxp/ciudades'
+    | '/_authenticated/cxp/cola'
     | '/_authenticated/cxp/corregir-ncf'
     | '/_authenticated/cxp/cuentas'
     | '/_authenticated/cxp/documentos'
@@ -3123,6 +3147,13 @@ declare module '@tanstack/react-router' {
       path: '/odc'
       fullPath: '/odc'
       preLoaderRoute: typeof AuthenticatedOdcRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/novedades': {
+      id: '/_authenticated/novedades'
+      path: '/novedades'
+      fullPath: '/novedades'
+      preLoaderRoute: typeof AuthenticatedNovedadesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/ncf-alerts': {
@@ -4119,6 +4150,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCxpCorregirNcfRouteImport
       parentRoute: typeof AuthenticatedCxpRoute
     }
+    '/_authenticated/cxp/cola': {
+      id: '/_authenticated/cxp/cola'
+      path: '/cola'
+      fullPath: '/cxp/cola'
+      preLoaderRoute: typeof AuthenticatedCxpColaRouteImport
+      parentRoute: typeof AuthenticatedCxpRoute
+    }
     '/_authenticated/cxp/ciudades': {
       id: '/_authenticated/cxp/ciudades'
       path: '/ciudades'
@@ -5070,6 +5108,7 @@ interface AuthenticatedCxpRouteChildren {
   AuthenticatedCxpCiasRoute: typeof AuthenticatedCxpCiasRoute
   AuthenticatedCxpCierreRoute: typeof AuthenticatedCxpCierreRoute
   AuthenticatedCxpCiudadesRoute: typeof AuthenticatedCxpCiudadesRoute
+  AuthenticatedCxpColaRoute: typeof AuthenticatedCxpColaRoute
   AuthenticatedCxpCorregirNcfRoute: typeof AuthenticatedCxpCorregirNcfRoute
   AuthenticatedCxpCuentasRoute: typeof AuthenticatedCxpCuentasRoute
   AuthenticatedCxpDocumentosRoute: typeof AuthenticatedCxpDocumentosRoute
@@ -5107,6 +5146,7 @@ const AuthenticatedCxpRouteChildren: AuthenticatedCxpRouteChildren = {
   AuthenticatedCxpCiasRoute: AuthenticatedCxpCiasRoute,
   AuthenticatedCxpCierreRoute: AuthenticatedCxpCierreRoute,
   AuthenticatedCxpCiudadesRoute: AuthenticatedCxpCiudadesRoute,
+  AuthenticatedCxpColaRoute: AuthenticatedCxpColaRoute,
   AuthenticatedCxpCorregirNcfRoute: AuthenticatedCxpCorregirNcfRoute,
   AuthenticatedCxpCuentasRoute: AuthenticatedCxpCuentasRoute,
   AuthenticatedCxpDocumentosRoute: AuthenticatedCxpDocumentosRoute,
@@ -5345,6 +5385,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedLicRoute: typeof AuthenticatedLicRouteWithChildren
   AuthenticatedManRoute: typeof AuthenticatedManRoute
   AuthenticatedNcfAlertsRoute: typeof AuthenticatedNcfAlertsRoute
+  AuthenticatedNovedadesRoute: typeof AuthenticatedNovedadesRoute
   AuthenticatedOdcRoute: typeof AuthenticatedOdcRouteWithChildren
   AuthenticatedReportesRoute: typeof AuthenticatedReportesRoute
   AuthenticatedSdnRoute: typeof AuthenticatedSdnRouteWithChildren
@@ -5382,6 +5423,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedLicRoute: AuthenticatedLicRouteWithChildren,
   AuthenticatedManRoute: AuthenticatedManRoute,
   AuthenticatedNcfAlertsRoute: AuthenticatedNcfAlertsRoute,
+  AuthenticatedNovedadesRoute: AuthenticatedNovedadesRoute,
   AuthenticatedOdcRoute: AuthenticatedOdcRouteWithChildren,
   AuthenticatedReportesRoute: AuthenticatedReportesRoute,
   AuthenticatedSdnRoute: AuthenticatedSdnRouteWithChildren,
