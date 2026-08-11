@@ -1,7 +1,11 @@
 import { Link } from '@tanstack/react-router'
 import { useAccess } from '@/hooks/use-access'
 import { useMe } from '@/hooks/use-me'
+import { useSidebarBadges, type SidebarBadge } from '@/hooks/use-sidebar-badges'
+import { DOC_MODULES, type DocModule } from '@/lib/sidebar-badges'
+import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 import { sidebarData } from '@/components/layout/data/sidebar-data'
 import type { NavGroup, NavItem } from '@/components/layout/types'
 
@@ -34,10 +38,19 @@ function firstUrlOfItems(items: NavItem[]): LaunchTarget | null {
   return null
 }
 
+function badgeColor(variant?: SidebarBadge['variant']) {
+  return variant === 'warning'
+    ? 'bg-amber-500 text-white'
+    : variant === 'success'
+      ? 'bg-emerald-600 text-white'
+      : 'bg-primary text-primary-foreground'
+}
+
 export function ModuleLauncher() {
   const { data: me } = useMe()
   const { hasModule, isAdmin: accessIsAdmin, isLoading } = useAccess()
   const isAdmin = accessIsAdmin || (me?.is_admin ?? false)
+  const { badges } = useSidebarBadges()
 
   if (isLoading) {
     return (
@@ -59,13 +72,26 @@ export function ModuleLauncher() {
         {visibleModules.map((m) => {
           const target = firstUrlOf(m.navGroups)
           if (!target) return null
+          const b = DOC_MODULES.includes(m.code as DocModule)
+            ? badges[m.code as DocModule]
+            : undefined
           return (
             <Link
               key={m.code}
               to={target.url}
               search={target.search as never}
-              className='flex flex-col items-center justify-center gap-2 rounded-lg border bg-card p-4 text-center transition-colors hover:bg-accent hover:text-accent-foreground'
+              className='relative flex flex-col items-center justify-center gap-2 rounded-lg border bg-card p-4 text-center transition-colors hover:bg-accent hover:text-accent-foreground'
             >
+              {b && (
+                <Badge
+                  className={cn(
+                    'absolute end-2 top-2 min-w-5 justify-center rounded-full px-1 py-0 text-xs border-transparent',
+                    badgeColor(b.variant)
+                  )}
+                >
+                  {b.count}
+                </Badge>
+              )}
               <m.icon className='h-8 w-8' />
               <span className='text-sm font-medium'>{m.title}</span>
             </Link>
@@ -73,16 +99,34 @@ export function ModuleLauncher() {
         })}
       </div>
       <div className='flex flex-wrap gap-2'>
-        {sidebarData.homeShortcuts.map((s) => (
-          <Link
-            key={s.url}
-            to={s.url}
-            className='inline-flex items-center gap-1.5 rounded-md border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground'
-          >
-            <s.icon className='h-3.5 w-3.5' />
-            {s.title}
-          </Link>
-        ))}
+        {sidebarData.homeShortcuts.map((s) => {
+          const sb =
+            s.url === '/novedades'
+              ? badges.novedades
+              : s.url === '/reportes'
+                ? badges.reportes
+                : undefined
+          return (
+            <Link
+              key={s.url}
+              to={s.url}
+              className='inline-flex items-center gap-1.5 rounded-md border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground'
+            >
+              <s.icon className='h-3.5 w-3.5' />
+              {s.title}
+              {sb && (
+                <Badge
+                  className={cn(
+                    'ms-1 min-w-4 justify-center rounded-full px-1 py-0 text-[10px] border-transparent',
+                    badgeColor(sb.variant)
+                  )}
+                >
+                  {sb.count}
+                </Badge>
+              )}
+            </Link>
+          )
+        })}
       </div>
     </div>
   )
