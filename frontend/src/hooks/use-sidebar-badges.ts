@@ -99,9 +99,6 @@ export function useSidebarBadges() {
   const markSeen = useCallback(
     (key: BadgeKey) => {
       if (key === 'novedades') {
-        // Cuántas novedades nuevas había al entrar (para resaltarlas).
-        const old = seenStore.novedadesSeen() ?? NOVEDADES_TOTAL
-        seenStore.setNovedadesHighlight(Math.max(0, NOVEDADES_TOTAL - old))
         seenStore.setNovedadesSeen(NOVEDADES_TOTAL)
       } else if (key === 'reportes') {
         const done = (reportesQ.data?.items ?? []).filter(
@@ -110,23 +107,14 @@ export function useSidebarBadges() {
         seenStore.setReportesDoneSeen(done)
       } else if (selectedCompany && docsQ.data) {
         const total = docsQ.data[key as DocModule]
-        if (total != null) {
-          // Documentos nuevos al entrar (para resaltar las primeras N filas).
-          const old = seenStore.docSeenTotal(selectedCompany, key)
-          seenStore.setDocHighlight(
-            selectedCompany,
-            key,
-            old == null ? 0 : Math.max(0, total - old)
-          )
-          seenStore.setDocSeenTotal(selectedCompany, key, total)
-        }
+        if (total != null) seenStore.setDocSeenTotal(selectedCompany, key, total)
       }
       setSeenVersion((v) => v + 1)
     },
     [reportesQ.data, docsQ.data, selectedCompany]
   )
 
-  return { badges, markSeen }
+  return { badges, markSeen, ready: docsQ.isSuccess }
 }
 
 /**
@@ -135,25 +123,28 @@ export function useSidebarBadges() {
  * las primeras N filas (orden más reciente primero) se pueden resaltar.
  */
 export function useDocHighlightCount(code: DocModule): number {
-  const { selectedCompany } = useCompany()
+  // El badge NO se limpia al entrar (se limpia al salir), así que su conteo
+  // sigue siendo el "delta desde la última visita" mientras estás en la vista.
+  // Se captura una vez (cuando los conteos ya cargaron) para resaltar las
+  // primeras N filas sin depender del orden de effects.
+  const { badges, ready } = useSidebarBadges()
   const [n, setN] = useState<number | null>(null)
-  // Se lee en un effect (no en el render) a propósito: el valor lo escribe el
-  // sidebar (markSeen) al entrar a la vista, cuyo effect corre antes que este.
   useEffect(() => {
-    if (n === null && selectedCompany) {
+    if (n === null && ready) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setN(seenStore.docHighlight(selectedCompany, code))
+      setN(badges[code]?.count ?? 0)
     }
-  }, [n, selectedCompany, code])
+  }, [n, ready, badges, code])
   return n ?? 0
 }
 
 /** Cantidad de novedades nuevas a resaltar (capturada una vez al montar). */
 export function useNovedadesHighlightCount(): number {
+  const { badges } = useSidebarBadges()
   const [n, setN] = useState<number | null>(null)
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (n === null) setN(seenStore.novedadesHighlight())
-  }, [n])
+    if (n === null) setN(badges.novedades?.count ?? 0)
+  }, [n, badges])
   return n ?? 0
 }

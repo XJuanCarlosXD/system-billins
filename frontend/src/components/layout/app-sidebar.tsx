@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
 import { Command, LayoutDashboard } from 'lucide-react'
 import { useLayout } from '@/context/layout-provider'
@@ -220,16 +220,31 @@ export function AppSidebar() {
 
   const { badges, markSeen } = useSidebarBadges()
 
-  // Al entrar a una vista con contador, limpiar su badge.
+  // Vista con contador en la que estamos ahora (o null).
+  const trackedKey: BadgeKey | null =
+    pathname === '/novedades'
+      ? 'novedades'
+      : pathname === '/reportes'
+        ? 'reportes'
+        : pathname === CONSULTA_PATHS.fat
+          ? 'fat'
+          : pathname === CONSULTA_PATHS.cxc
+            ? 'cxc'
+            : pathname === CONSULTA_PATHS.cxp
+              ? 'cxp'
+              : pathname === CONSULTA_PATHS.inv &&
+                  searchView === INV_CONSULTA_VIEW
+                ? 'inv'
+                : null
+
+  // Limpiar el badge al SALIR de la vista (no al entrar): así, mientras estás
+  // en la consulta, el conteo sigue disponible para resaltar las filas nuevas.
+  const prevKeyRef = useRef<BadgeKey | null>(null)
   useEffect(() => {
-    if (pathname === '/novedades') markSeen('novedades')
-    else if (pathname === '/reportes') markSeen('reportes')
-    else if (pathname === CONSULTA_PATHS.fat) markSeen('fat')
-    else if (pathname === CONSULTA_PATHS.cxc) markSeen('cxc')
-    else if (pathname === CONSULTA_PATHS.cxp) markSeen('cxp')
-    else if (pathname === CONSULTA_PATHS.inv && searchView === INV_CONSULTA_VIEW)
-      markSeen('inv')
-  }, [pathname, searchView, markSeen])
+    const prev = prevKeyRef.current
+    if (prev && prev !== trackedKey) markSeen(prev)
+    prevKeyRef.current = trackedKey
+  }, [trackedKey, markSeen])
 
   const navGroups: NavGroupType[] = useMemo(() => {
     if (activeModule) {
