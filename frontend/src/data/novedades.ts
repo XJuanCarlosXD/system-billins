@@ -61,9 +61,9 @@ export const NOVEDADES: Novedad[] = [
     fecha: '2026-08-11',
     tipo: 'nuevo',
     modulo: 'General',
-    titulo: 'Contadores (badges) en el menú y el inicio',
+    titulo: 'Contadores (badges) y resaltado de lo nuevo',
     descripcion:
-      'El menú lateral y las tarjetas de módulos del inicio ahora muestran contadores circulares: Novedades sin leer, Reportes de Problemas abiertos (en ámbar) o recién completados (en verde), y documentos nuevos por módulo en Facturación, Cuentas por Cobrar, Cuentas por Pagar e Inventario. Al abrir un módulo, el contador también aparece en su "Consulta de Documentos" para indicar de dónde es la novedad; al entrar a la vista el contador se limpia.',
+      'El menú lateral y las tarjetas de módulos del inicio ahora muestran contadores circulares: Novedades sin leer, Reportes de Problemas abiertos (en ámbar) o recién completados (en verde), y documentos nuevos por módulo en Facturación, Cuentas por Cobrar, Cuentas por Pagar e Inventario. Al abrir un módulo, el contador también aparece en su "Consulta de Documentos" para indicar de dónde es la novedad. Además, en las consultas de documentos las filas nuevas se resaltan con un color brillante (light y dark) y aquí mismo las novedades sin leer aparecen destacadas; al entrar a la vista el contador se limpia.',
     commit: '33cfe64',
   },
   {

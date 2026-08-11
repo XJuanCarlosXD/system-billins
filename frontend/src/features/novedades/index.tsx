@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Sparkles, Bug, Rocket, Calendar } from 'lucide-react'
 import { NOVEDADES, type Novedad, type TipoNovedad } from '@/data/novedades'
+import { useNovedadesHighlightCount } from '@/hooks/use-sidebar-badges'
+import { HIGHLIGHT_CARD_CLASS } from '@/lib/sidebar-badges'
 import { cn } from '@/lib/utils'
 
 const TIPO_META: Record<
@@ -71,6 +73,11 @@ export function NovedadesPage() {
   }, [filtro])
 
   const total = NOVEDADES.length
+  const newCount = useNovedadesHighlightCount()
+  const newSet = useMemo(
+    () => new Set(NOVEDADES.slice(0, newCount)),
+    [newCount]
+  )
 
   return (
     <>
@@ -125,6 +132,7 @@ export function NovedadesPage() {
                 {items.map((n, i) => {
                   const meta = TIPO_META[n.tipo]
                   const Icon = meta.icon
+                  const isNew = newSet.has(n)
                   return (
                     <div key={`${fecha}-${i}`} className='relative mb-4 last:mb-0'>
                       <span
@@ -133,9 +141,14 @@ export function NovedadesPage() {
                           meta.dot
                         )}
                       />
-                      <Card>
+                      <Card className={cn(isNew && HIGHLIGHT_CARD_CLASS)}>
                         <CardContent className='py-4'>
                           <div className='mb-1 flex flex-wrap items-center gap-2'>
+                            {isNew && (
+                              <span className='inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white'>
+                                Sin leer
+                              </span>
+                            )}
                             <span
                               className={cn(
                                 'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium',

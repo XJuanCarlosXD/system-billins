@@ -11,6 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { downloadCsv } from '@/lib/csv-utils'
+import { cn } from '@/lib/utils'
+import { HIGHLIGHT_ROW_CLASS } from '@/lib/sidebar-badges'
+import { useDocHighlightCount } from '@/hooks/use-sidebar-badges'
 import { esDocumentoEditable, usePeriodoActualCxP } from './corregir-documento-dialog'
 
 interface Documento {
@@ -85,6 +88,7 @@ export function CxpDocumentos() {
   const [hasta, setHasta] = useState('')
   const [status, setStatus] = useState('A')
   const [page, setPage] = useState(1)
+  const newHl = useDocHighlightCount('cxp')
   const [selected, setSelected] = useState<string | null>(null)
 
   const enabled = !!noCia
@@ -217,12 +221,13 @@ export function CxpDocumentos() {
                     ? 'No hay documentos abiertos. Pruebe seleccionando "Todos" en el filtro de estado.'
                     : 'Sin documentos.'}
               </TableCell></TableRow>
-            ) : slice.map(d => {
+            ) : slice.map((d, idx) => {
               const key = `${d.no_cia}|${d.punto}|${d.tipo_docu}|${d.no_docu}`
               const si = statusInfo(d.status)
               const dias = diasVencidos(d.fecha_vence)
+              const isNew = (page - 1) * PAGE + idx < newHl
               return (
-                <TableRow key={key} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelected(key)}>
+                <TableRow key={key} className={cn("cursor-pointer hover:bg-muted/50", isNew && HIGHLIGHT_ROW_CLASS)} onClick={() => setSelected(key)}>
                   <TableCell>
                     <Badge variant="outline" title={TIPO_DOC[d.tipo_docu] ?? d.tipo_docu}>
                       {d.tipo_docu}

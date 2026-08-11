@@ -15,7 +15,10 @@ import {
   FileText,
 } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
+import { cn } from '@/lib/utils'
+import { HIGHLIGHT_ROW_CLASS } from '@/lib/sidebar-badges'
 import { useCurrentUsername } from '@/hooks/use-me'
+import { useDocHighlightCount } from '@/hooks/use-sidebar-badges'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -124,6 +127,7 @@ const ESTADO_ICON: Record<string, typeof CheckCircle2> = {
 export function Facturas({ noCia, punto, mes, ano }: Props) {
   const currentUser = useCurrentUsername()
   const [rows, setRows] = useState<Factura[]>([])
+  const newHl = useDocHighlightCount('fat')
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const [page, setPage] = useState(1)
@@ -448,8 +452,9 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
               </TableCell>
             </TableRow>
           )}
-          {rows.map((row) => {
+          {rows.map((row, idx) => {
             const anulada = row.st_anulado === 'S'
+            const isNew = idx < newHl
             const badge = anulada
               ? { label: 'Anulada', variant: 'destructive' as const }
               : (ESTADO_BADGE[row.estado] ?? {
@@ -462,7 +467,10 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
             return (
               <TableRow
                 key={`${row.tipo_factura}-${row.no_factura}`}
-                className='cursor-pointer hover:bg-muted/50'
+                className={cn(
+                  'cursor-pointer hover:bg-muted/50',
+                  isNew && HIGHLIGHT_ROW_CLASS
+                )}
                 onClick={() => openDetail(row)}
               >
                 <TableCell className='font-mono font-semibold'>

@@ -53,12 +53,25 @@ export async function fetchDocCounts(
   }
 }
 
+/**
+ * Clase para resaltar filas/tarjetas NUEVAS (no vistas) sin opacarlas, con
+ * buen contraste en light y dark mode. Fondo brillante + borde de acento.
+ */
+export const HIGHLIGHT_ROW_CLASS =
+  'bg-emerald-100/70 dark:bg-emerald-400/10 [&>td:first-child]:border-s-2 [&>td:first-child]:border-emerald-500'
+
+/** Clase para resaltar una tarjeta nueva (Novedades). */
+export const HIGHLIGHT_CARD_CLASS =
+  'ring-2 ring-emerald-500/60 bg-emerald-50/60 dark:bg-emerald-400/5'
+
 // ---- almacenamiento local "visto" -----------------------------------------
 const KEYS = {
   novedades: 'zerp.badges.novedades.seen',
+  novedadesHl: 'zerp.badges.novedades.hl',
   reportesDone: 'zerp.badges.reportes.doneSeen',
   docTotal: (cia: string, code: string) =>
     `zerp.badges.doc.${cia}.${code}.seenTotal`,
+  docHl: (cia: string, code: string) => `zerp.badges.doc.${cia}.${code}.hl`,
 }
 
 function readNum(key: string): number | null {
@@ -80,9 +93,15 @@ function writeNum(key: string, v: number) {
 export const seenStore = {
   novedadesSeen: () => readNum(KEYS.novedades),
   setNovedadesSeen: (n: number) => writeNum(KEYS.novedades, n),
+  novedadesHighlight: () => readNum(KEYS.novedadesHl) ?? 0,
+  setNovedadesHighlight: (n: number) => writeNum(KEYS.novedadesHl, n),
   reportesDoneSeen: () => readNum(KEYS.reportesDone),
   setReportesDoneSeen: (n: number) => writeNum(KEYS.reportesDone, n),
   docSeenTotal: (cia: string, code: string) => readNum(KEYS.docTotal(cia, code)),
   setDocSeenTotal: (cia: string, code: string, n: number) =>
     writeNum(KEYS.docTotal(cia, code), n),
+  docHighlight: (cia: string, code: string) =>
+    readNum(KEYS.docHl(cia, code)) ?? 0,
+  setDocHighlight: (cia: string, code: string, n: number) =>
+    writeNum(KEYS.docHl(cia, code), n),
 }

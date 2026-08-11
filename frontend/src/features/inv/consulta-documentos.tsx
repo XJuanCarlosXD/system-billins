@@ -5,6 +5,9 @@ import {
   ArrowLeftRight, Minus, Package, TrendingUp, TrendingDown, Wallet, Search, Pencil,
 } from 'lucide-react'
 import { useCompany } from '@/context/company-context'
+import { useDocHighlightCount } from '@/hooks/use-sidebar-badges'
+import { HIGHLIGHT_ROW_CLASS } from '@/lib/sidebar-badges'
+import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -400,6 +403,7 @@ function LineasTable({ lineas }: { lineas: Array<Record<string, any>> }) {
 export function ConsultaDocumentos() {
   const { selectedCompany } = useCompany()
   const noCia = selectedCompany || '01'
+  const newHl = useDocHighlightCount('inv')
   // Deep-link desde otras pantallas (ej. "Ver entradas anteriores" en Entrada
   // de Compras) que llegan con ?tipo_docu=EC para abrir ya filtrado.
   const search = invRoute.useSearch()
@@ -726,7 +730,10 @@ export function ConsultaDocumentos() {
             {!loading && filteredRows.map((r, idx) => (
               <TableRow
                 key={`${r.tipo_docu}-${r.no_docu}-${idx}`}
-                className='cursor-pointer hover:bg-muted/40'
+                className={cn(
+                  'cursor-pointer hover:bg-muted/40',
+                  idx < newHl && HIGHLIGHT_ROW_CLASS
+                )}
                 onClick={() => openDetalle(r)}
               >
                 <TableCell className='text-center'>

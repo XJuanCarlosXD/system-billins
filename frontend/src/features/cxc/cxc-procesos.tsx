@@ -8,6 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Search, RotateCcw, CreditCard, FileText } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
+import { cn } from '@/lib/utils'
+import { HIGHLIGHT_ROW_CLASS } from '@/lib/sidebar-badges'
+import { useDocHighlightCount } from '@/hooks/use-sidebar-badges'
 
 interface P { noCia: string; punto?: string; mes?: number; ano?: number }
 
@@ -30,6 +33,7 @@ export function CxcDocumentos({ noCia, punto }: P) {
   const [rows, setRows] = useState<any[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
+  const newHl = useDocHighlightCount('cxc')
   const [filters, setFilters] = useState({
     desde: firstOfMonth, hasta: today,
     tipo_doc: '', estado: '',
@@ -182,8 +186,8 @@ export function CxcDocumentos({ noCia, punto }: P) {
           <TableBody>
             {loading && <TableRow><TableCell colSpan={9} className="text-center py-8">Cargando...</TableCell></TableRow>}
             {!loading && rows.length === 0 && <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Sin documentos</TableCell></TableRow>}
-            {rows.map(r => (
-              <TableRow key={r.no_doc} className="cursor-pointer hover:bg-muted/50" onClick={() => openDetail(r)}>
+            {rows.map((r, idx) => (
+              <TableRow key={r.no_doc} className={cn("cursor-pointer hover:bg-muted/50", page === 1 && idx < newHl && HIGHLIGHT_ROW_CLASS)} onClick={() => openDetail(r)}>
                 <TableCell className="font-mono text-sm">{docCode(r.tipo_doc, r.no_doc)}</TableCell>
                 <TableCell><Badge variant="outline">{r.tipo_doc}</Badge></TableCell>
                 <TableCell className="tabular-nums">{fmtDate(r.fecha)}</TableCell>

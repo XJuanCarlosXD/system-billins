@@ -99,6 +99,9 @@ export function useSidebarBadges() {
   const markSeen = useCallback(
     (key: BadgeKey) => {
       if (key === 'novedades') {
+        // Cuántas novedades nuevas había al entrar (para resaltarlas).
+        const old = seenStore.novedadesSeen() ?? NOVEDADES_TOTAL
+        seenStore.setNovedadesHighlight(Math.max(0, NOVEDADES_TOTAL - old))
         seenStore.setNovedadesSeen(NOVEDADES_TOTAL)
       } else if (key === 'reportes') {
         const done = (reportesQ.data?.items ?? []).filter(
@@ -107,7 +110,16 @@ export function useSidebarBadges() {
         seenStore.setReportesDoneSeen(done)
       } else if (selectedCompany && docsQ.data) {
         const total = docsQ.data[key as DocModule]
-        if (total != null) seenStore.setDocSeenTotal(selectedCompany, key, total)
+        if (total != null) {
+          // Documentos nuevos al entrar (para resaltar las primeras N filas).
+          const old = seenStore.docSeenTotal(selectedCompany, key)
+          seenStore.setDocHighlight(
+            selectedCompany,
+            key,
+            old == null ? 0 : Math.max(0, total - old)
+          )
+          seenStore.setDocSeenTotal(selectedCompany, key, total)
+        }
       }
       setSeenVersion((v) => v + 1)
     },
@@ -115,4 +127,33 @@ export function useSidebarBadges() {
   )
 
   return { badges, markSeen }
+}
+
+/**
+ * Cantidad de documentos nuevos a resaltar en una consulta. Se captura una
+ * sola vez al montar (después de que el sidebar marca "visto" al entrar), así
+ * las primeras N filas (orden más reciente primero) se pueden resaltar.
+ */
+export function useDocHighlightCount(code: DocModule): number {
+  const { selectedCompany } = useCompany()
+  const [n, setN] = useState<number | null>(null)
+  // Se lee en un effect (no en el render) a propósito: el valor lo escribe el
+  // sidebar (markSeen) al entrar a la vista, cuyo effect corre antes que este.
+  useEffect(() => {
+    if (n === null && selectedCompany) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setN(seenStore.docHighlight(selectedCompany, code))
+    }
+  }, [n, selectedCompany, code])
+  return n ?? 0
+}
+
+/** Cantidad de novedades nuevas a resaltar (capturada una vez al montar). */
+export function useNovedadesHighlightCount(): number {
+  const [n, setN] = useState<number | null>(null)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (n === null) setN(seenStore.novedadesHighlight())
+  }, [n])
+  return n ?? 0
 }
