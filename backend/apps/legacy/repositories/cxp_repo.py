@@ -271,7 +271,7 @@ def list_documentos(no_cia, punto, no_proveedor='', tipo='', no_doc='',
         FROM CXP.TCXP_DOCUMENTO d
         JOIN CXP.TCXP_DPROVEEDOR p ON p.no_proveedor = d.no_proveedor
         WHERE {where}
-        ORDER BY d.fecha DESC, d.no_docu DESC
+        ORDER BY NVL(d.fecha_sysdate, d.fecha) DESC, d.no_docu DESC
     """
     return client.fetch_dicts(sql, params)
 

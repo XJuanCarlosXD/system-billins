@@ -971,7 +971,22 @@ export function CxpEntradaDocumentos({
       const retTxt = (Number(form.itbis_retenido || 0) > 0 || Number(form.isr_retenido || 0) > 0)
         ? ` — Retenido ITBIS RD$ ${Number(form.itbis_retenido || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })} / ISR RD$ ${Number(form.isr_retenido || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })}`
         : ''
-      toast.success(`Documento ${res.no_docu} creado (ITBIS RD$ ${Number(impuesto || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })})${retTxt}`)
+      toast.success(`Se ha generado el documento ${tipoDocu}-${res.no_docu} (ITBIS RD$ ${Number(impuesto || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })})${retTxt}`)
+      // Abrir el documento recién creado listo para imprimir.
+      const codigoPrintMap: Record<string, string> = {
+        FP: 'cxp-factura-proveedor', FT: 'cxp-factura-proveedor',
+        AC: 'cxp-ajuste-credito', AD: 'cxp-ajuste-debito',
+        BD: 'cxp-balance-debito', NC: 'cxp-nota-credito',
+        ND: 'cxp-nota-debito', SO: 'cxp-solicitud-cheque',
+      }
+      const codigoPrint = codigoPrintMap[(tipoDocu || '').toUpperCase()]
+      if (codigoPrint) {
+        const qsPrint = new URLSearchParams({ no_cia: noCia, punto }).toString()
+        window.open(
+          `/print/${codigoPrint}/${encodeURIComponent(tipoDocu)}-${encodeURIComponent(res.no_docu)}?${qsPrint}`,
+          '_blank', 'noopener',
+        )
+      }
       if (esDocDebito) {
         setDocRecienCreado({
           tipoDocu, noDocu: res.no_docu,

@@ -187,7 +187,7 @@ def list_documentos(no_cia: str, punto: str | None = None,
         sql += f" AND TRUNC(d.fecha) >= TO_DATE(:{len(params)+1},'YYYY-MM-DD')"; params.append(fecha_desde)
     if fecha_hasta:
         sql += f" AND TRUNC(d.fecha) <= TO_DATE(:{len(params)+1},'YYYY-MM-DD')"; params.append(fecha_hasta)
-    sql += " ORDER BY d.fecha DESC, d.no_docu DESC"
+    sql += " ORDER BY NVL(d.fecha_sysdate, d.fecha) DESC, d.no_docu DESC"
     if limit:
         sql = f"SELECT * FROM ({sql}) WHERE ROWNUM <= {int(limit)}"
     return client.fetch_dicts(sql, params)

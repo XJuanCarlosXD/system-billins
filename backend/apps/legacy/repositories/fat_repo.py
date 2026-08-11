@@ -583,7 +583,7 @@ def list_conduces(no_cia: str, punto: str, page: int = 1, page_size: int = 30,
                   FROM CXC.TCXC_CLIENTE GROUP BY no_cia, punto, no_cliente
                 ) cl ON cl.no_cia = c.no_cia AND cl.punto = c.punto AND cl.no_cliente = c.no_cliente
                 WHERE {where}
-                ORDER BY c.fecha DESC, c.no_conduce DESC
+                ORDER BY NVL(c.fecha_sysdate, c.fecha) DESC, c.fecha DESC, c.no_conduce DESC
             ) a WHERE ROWNUM <= :end_row
         ) WHERE rn > :start_row
     """
@@ -1781,7 +1781,7 @@ def list_facturas(no_cia: str, punto: str, page: int = 1, page_size: int = 30,
                 LEFT JOIN FAT.TFAT_TIPO_PAGO tp
                   ON tp.no_cia = f.no_cia AND tp.tipo_pago = f.forma_pago_fat
                 WHERE {where}
-                ORDER BY f.fecha DESC, f.no_factura DESC
+                ORDER BY NVL(f.fecha_sysdate, f.fecha) DESC, f.no_factura DESC
             ) a WHERE ROWNUM <= :end_row
         ) WHERE rn > :start_row
     """

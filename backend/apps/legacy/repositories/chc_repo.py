@@ -132,7 +132,7 @@ def list_cheques(no_cia: str, punto: str | None = None,
         sql += f" AND TRUNC(c.fecha_cheque) >= TO_DATE(:{len(params)+1},'YYYY-MM-DD')"; params.append(fecha_desde)
     if fecha_hasta:
         sql += f" AND TRUNC(c.fecha_cheque) <= TO_DATE(:{len(params)+1},'YYYY-MM-DD')"; params.append(fecha_hasta)
-    sql += " ORDER BY c.fecha_cheque DESC, c.no_docu DESC"
+    sql += " ORDER BY NVL(c.fecha_sysdate, c.fecha_cheque) DESC, c.no_docu DESC"
     if limit:
         sql = f"SELECT * FROM ({sql}) WHERE ROWNUM <= {int(limit)}"
     return client.fetch_dicts(sql, params)

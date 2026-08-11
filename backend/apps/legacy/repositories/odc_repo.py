@@ -198,7 +198,7 @@ def list_ordenes(no_cia: str, punto: str | None = None,
         params.append(fecha_desde); sql += f" AND TRUNC(o.fecha) >= TO_DATE(:{len(params)}, 'YYYY-MM-DD')"
     if fecha_hasta:
         params.append(fecha_hasta); sql += f" AND TRUNC(o.fecha) <= TO_DATE(:{len(params)}, 'YYYY-MM-DD')"
-    sql += " ORDER BY o.fecha DESC, o.no_orden DESC"
+    sql += " ORDER BY NVL(o.fecha_sysdate, o.fecha) DESC, o.no_orden DESC"
     if limit:
         sql = (
             f"SELECT * FROM ({sql}) WHERE ROWNUM <= {int(limit)}"

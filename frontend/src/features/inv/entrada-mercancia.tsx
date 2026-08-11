@@ -519,7 +519,14 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
         })
         return
       }
-      toast.success(`Documento ${docNo} guardado correctamente`)
+      toast.success(`Se ha generado el documento ${tipoDocu}-${docNo}`)
+      // Abrir el documento recién creado listo para imprimir.
+      if (docNo) {
+        window.open(
+          `/print/inv-documento/${encodeURIComponent(`${tipoDocu}-${docNo}`)}?no_cia=${encodeURIComponent(noCia)}`,
+          '_blank', 'noopener',
+        )
+      }
       // Reset de lineas/nota. Tipo Documento y Almacen se conservan: el
       // operador suele registrar varios documentos seguidos del mismo tipo,
       // y resetearlos hacia que el siguiente Guardar fallara en la

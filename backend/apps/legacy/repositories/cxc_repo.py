@@ -691,7 +691,7 @@ def list_documentos(no_cia: str, punto: str = '', tipo_doc: str = '',
         "    FROM CXC.TCXC_DOCUMENTO d"
         "    LEFT JOIN CXC.TCXC_CLIENTE c"
         "      ON c.no_cia=d.no_cia AND c.no_cliente=d.no_cliente"
-        f"    {where} ORDER BY d.fecha DESC, d.no_docu DESC"
+        f"    {where} ORDER BY NVL(d.fecha_sysdate, d.fecha) DESC, d.no_docu DESC"
         f"  ) d WHERE ROWNUM <= :{n}"
         f") WHERE rn > :{n+1}"
     )

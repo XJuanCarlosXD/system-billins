@@ -1008,12 +1008,12 @@ export function NuevaFactura({ noCia, punto }: Props) {
           porciento_impuesto: l.porciento_impuesto,
         })),
       })
-      toast({
-        title: 'Factura creada',
-        description: `No. ${res.no_factura}  |  NCF: ${res.ncf || '—'}`,
-      })
       const tipoCreado = String((res as any).tipo_factura || tipoDoc)
       const noCreado = String(res.no_factura || '')
+      toast({
+        title: 'Factura creada',
+        description: `Se ha generado el documento ${tipoCreado}-${noCreado}  |  NCF: ${res.ncf || '—'}`,
+      })
       const qs = new URLSearchParams({ no_cia: noCia, punto }).toString()
       const printUrl = `/print/factura/${encodeURIComponent(`${tipoCreado}-${noCreado}`)}?${qs}`
       const popup = window.open(printUrl, '_blank', 'noopener,width=900,height=1100')

@@ -503,7 +503,14 @@ export function EntradaCompras({ noCia, punto }: Props) {
         })
         return
       }
-      toast.success(`Documento ${docNo} guardado correctamente`)
+      toast.success(`Se ha generado el documento ${tipoDocu}-${docNo}`)
+      // Abrir el documento recién creado listo para imprimir.
+      if (docNo) {
+        window.open(
+          `/print/inv-documento/${encodeURIComponent(`${tipoDocu}-${docNo}`)}?no_cia=${encodeURIComponent(noCia)}`,
+          '_blank', 'noopener',
+        )
+      }
       const cxpMirror = created.cxp_mirror ?? created.data?.cxp_mirror ?? created.data?.nuevo?.cxp_mirror
       if (tipoDocu === 'EC' && cxpMirror?.error) {
         // El espejo en Cuentas por Pagar (que alimenta el 606) puede fallar

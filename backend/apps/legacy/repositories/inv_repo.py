@@ -1252,7 +1252,7 @@ def list_consulta_documentos(
         f"    FROM INV.TINV_MOVIMIENTO m "
         f"    WHERE {' AND '.join(where)} "
         f"    GROUP BY m.no_cia, m.tipo_docu, m.no_docu, m.punto, m.almacen "
-        f"    ORDER BY MIN(m.fecha) DESC, m.tipo_docu, m.no_docu"
+        f"    ORDER BY MIN(m.fecha_sysdate) DESC, MIN(m.fecha) DESC, m.tipo_docu, m.no_docu"
         f"  ) t2 WHERE ROWNUM <= :{len(params)}"
         f") q "
         f"LEFT JOIN INV.TINV_TDOCU   td ON td.tipo_docu = q.tipo_docu "

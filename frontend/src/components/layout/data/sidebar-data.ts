@@ -160,7 +160,7 @@ export const sidebarData: SidebarData = {
               url: '/cxc/transacciones',
             },
             {
-              title: 'Consulta / Impresion de Documentos',
+              title: 'Consulta de Documentos',
               url: '/cxc/documentos',
             },
           ],
@@ -256,7 +256,7 @@ export const sidebarData: SidebarData = {
               url: '/cxp/entrada-documentos',
             },
             {
-              title: 'Consulta / Impresion de Documentos',
+              title: 'Consulta de Documentos',
               url: '/cxp/documentos',
             },
             { title: 'Cuentas por Pagar', url: '/cxp/cuentas' },
@@ -669,7 +669,7 @@ export const sidebarData: SidebarData = {
         {
           title: 'Consultas',
           items: [
-            { title: 'Documentos / Egresos', url: '/acc/documentos' },
+            { title: 'Consulta de Documentos', url: '/acc/documentos' },
             { title: 'Reposiciones', url: '/acc/reposiciones' },
           ],
         },
