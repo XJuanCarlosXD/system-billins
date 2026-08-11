@@ -8,10 +8,9 @@
 // valor visto y el badge desaparece.
 import { NOVEDADES } from '@/data/novedades'
 
-const META = import.meta as unknown as {
-  env?: { VITE_API_BASE_URL?: string }
-}
-const API_BASE = META.env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
+const API_BASE =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
 
 export type BadgeVariant = 'default' | 'warning' | 'success'
 
