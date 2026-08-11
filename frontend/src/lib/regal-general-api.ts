@@ -1307,6 +1307,14 @@ export const regalGeneralApi = {
     return request<any>(`/cxp/rep-607/?${qs}`)
   },
 
+  // Cola de documentos CxP de periodo futuro (no abierto aun)
+  cxpCola: (noCia: string, punto?: string, estado?: string) => {
+    const qs = new URLSearchParams({ no_cia: noCia, ...(punto && { punto }), ...(estado && { estado }) }).toString()
+    return request<{ items: any[]; count: number; pendientes: number }>(`/cxp/cola/?${qs}`)
+  },
+  cxpColaMaterializar: (id: number) =>
+    request<any>(`/cxp/cola/materializar/`, { method: 'POST', body: JSON.stringify({ id }) }),
+
   // Procesos CxP (escritura)
   cxpGetSiguienteNoDocu: (noCia: string, punto: string, tipoDocu: string) =>
     request<{ siguiente: string }>(`/cxp/entrada-documentos/?no_cia=${noCia}&punto=${punto}&tipo_docu=${encodeURIComponent(tipoDocu)}`),

@@ -1,7 +1,68 @@
 from __future__ import annotations
+import json
 from datetime import date, datetime
 from .. import client
 from apps.historial import repo as historial_repo
+
+
+class PeriodoFuturoEncolado(Exception):
+    """entrada_documento levanta esto cuando el documento pertenece a un
+    periodo POSTERIOR al periodo de proceso abierto de CxP: en vez de
+    insertarlo (lo cual lo "adelantaria" a un mes que aun no se abre) se
+    guarda en TCXP_DOCUMENTO_COLA y se materializa solo cuando el cierre
+    avance mes_proceso hasta ese mes. Los callers (vista manual, espejo INV)
+    lo tratan como exito-diferido, NO como error."""
+    def __init__(self, cola_id: int, periodo_objetivo: str, periodo_proceso: str):
+        self.cola_id = cola_id
+        self.periodo_objetivo = periodo_objetivo
+        self.periodo_proceso = periodo_proceso
+        super().__init__(
+            f"Documento del periodo {periodo_objetivo} encolado; el periodo "
+            f"de proceso CxP en curso es {periodo_proceso}. Se materializara "
+            f"automaticamente al abrir {periodo_objetivo}.")
+
+
+def _periodo_estado(no_cia: str, punto: str, fecha_yyyy_mm_dd: str):
+    """Devuelve (estado, periodo_proceso_str) donde estado es
+    'ABIERTO' | 'FUTURO' | 'CERRADO' comparando el periodo de la fecha del
+    documento contra TCXP_PUNTO.ano_proceso/mes_proceso. Si el punto no
+    tiene fila de proceso, devuelve ('ABIERTO', None) para no bloquear."""
+    periodo_docu = (fecha_yyyy_mm_dd or '')[:7]  # 'YYYY-MM'
+    row = client.fetch_one(
+        "SELECT NVL(ano_proceso,0), NVL(mes_proceso,0) FROM CXP.TCXP_PUNTO "
+        "WHERE no_cia=:1 AND punto=:2", [no_cia, punto])
+    if not row or not row[0] or not row[1] or len(periodo_docu) != 7:
+        return 'ABIERTO', None
+    periodo_proceso = '{:04d}-{:02d}'.format(int(row[0]), int(row[1]))
+    if periodo_docu == periodo_proceso:
+        return 'ABIERTO', periodo_proceso
+    if periodo_docu > periodo_proceso:
+        return 'FUTURO', periodo_proceso
+    return 'CERRADO', periodo_proceso
+
+
+def _encolar_documento(d: dict, origen: str = 'MANUAL') -> int:
+    """Guarda el payload del documento en TCXP_DOCUMENTO_COLA (estado
+    PENDIENTE) y devuelve el ID de cola. Commit propio para que la cola
+    persista aunque el caller luego levante PeriodoFuturoEncolado."""
+    fecha = (d.get('fecha') or '')[:10]
+    ano_obj = int(fecha[:4]); mes_obj = int(fecha[5:7])
+    _ncf = str(d.get('ncf') or '')
+    with client.cursor() as cur:
+        idvar = cur.var(int)
+        cur.execute(
+            "INSERT INTO CXP.TCXP_DOCUMENTO_COLA("
+            " no_cia,punto,ano_objetivo,mes_objetivo,origen,tipo_docu,"
+            " no_proveedor,ncf,fecha_doc,valor,payload,estado,usuario,fecha_encolado"
+            ") VALUES(:1,:2,:3,:4,:5,:6,:7,:8,TO_DATE(:9,'YYYY-MM-DD'),:10,:11,"
+            " 'PENDIENTE',:12,SYSDATE) RETURNING id INTO :13",
+            [d['no_cia'], d.get('punto', '01'), ano_obj, mes_obj, origen,
+             d.get('tipo_docu'), str(d.get('no_proveedor') or ''), _ncf[:30],
+             fecha, float(d.get('valor_original') or d.get('valor') or 0),
+             json.dumps(d, default=str), d.get('usuario', 'API'), idvar])
+        cur.connection.commit()
+        rid = idvar.getvalue()
+        return int(rid[0] if isinstance(rid, list) else rid)
 
 
 def _norm_fecha(valor, *, campo: str, requerido: bool = False):
@@ -907,7 +968,15 @@ def rep_606(no_cia: str, anio: int, mes: int, punto: str = ''):
         "d.ncf, d.posiciones_fijas_ncf AS tipo_ncf, "
         "TO_CHAR(d.fecha,'YYYY-MM-DD') AS fecha, "
         "TO_CHAR(d.fecha_vence,'YYYY-MM-DD') AS fecha_vence, "
-        "NVL(d.valor_original,0) monto_facturado, "
+        # Monto Facturado (DGII 606) = valor de bienes/servicios SIN ITBIS.
+        # valor_original guarda el bruto (base + ITBIS); si se reportara el
+        # bruto, la DGII vuelve a sumarle el ITBIS de la columna aparte y la
+        # factura sube por el monto del impuesto. La base es valor_original -
+        # impuesto (valor_bienes/valor_servicio no es confiable: hay docs con
+        # esas columnas en 0 o inconsistentes). Nunca da 0 para una factura
+        # real porque el impuesto siempre es menor que el bruto.
+        "NVL(d.valor_original,0) - NVL(d.impuesto,0) monto_facturado, "
+        "NVL(d.valor_original,0) valor_total, "
         "NVL(d.impuesto,0) itbis_facturado, "
         "NVL(d.itbis_retenido,0) itbis_retenido, "
         "NVL(d.isr_retenido,0) isr_retenido, "
@@ -972,14 +1041,19 @@ def archivo_dgii_606(no_cia: str, anio: int, mes: int, punto: str = '') -> tuple
         ncf_dgi = _compose_ncf_dgi(r['posiciones_fijas_ncf'], r['ncf'])
         tipo_gasto = f"{int(r['tipo_gasto']):02d}" if str(r['tipo_gasto'] or '').isdigit() else '02'
         es_servicio = (r['tipo_gasto'] or '').strip() == '03'
-        total = float(r['valor_original'])
-        monto_servicios = total if es_servicio else 0.0
-        monto_bienes = 0.0 if es_servicio else total
+        # Monto Facturado (campos 8/9/10) = base SIN ITBIS. valor_original es
+        # el bruto (base + ITBIS); reportar el bruto hace que la DGII sume el
+        # ITBIS dos veces (una en la base, otra en la columna de ITBIS
+        # facturado) e infla la factura. base = valor_original - impuesto.
+        impuesto = float(r['impuesto'])
+        base = float(r['valor_original']) - impuesto
+        monto_servicios = base if es_servicio else 0.0
+        monto_bienes = 0.0 if es_servicio else base
         campos = [
             r['rnc'] or '', _tipo_id_de_rnc(r['rnc']), tipo_gasto, ncf_dgi, '',
             r['fecha'] or '', r['fecha'] or '',
-            f"{monto_servicios:.2f}", f"{monto_bienes:.2f}", f"{total:.2f}",
-            f"{float(r['impuesto']):.2f}", f"{float(r['itbis_retenido']):.2f}",
+            f"{monto_servicios:.2f}", f"{monto_bienes:.2f}", f"{base:.2f}",
+            f"{impuesto:.2f}", f"{float(r['itbis_retenido']):.2f}",
             '0', '0.00', f"{float(r['impuesto']):.2f}", '0',
             str(int(r['tipo_retencion'])) if r['tipo_retencion'] else '',
             f"{float(r['isr_retenido']):.2f}", '0',
@@ -1116,10 +1190,20 @@ def _check_ncf_duplicate(cur, no_cia, no_proveedor, ncf_num, pos_ncf,
         )
 
 
-def entrada_documento(d):
+def entrada_documento(d, _skip_periodo_gate: bool = False):
     """
     Crea/actualiza un documento CxP (cabecera TCXP_DOCUMENTO + lineas TCXP_DCDOCU).
     Tipos habituales: AC, AD, BD, FP. REVERSIBLE via reversar_documento.
+
+    Candado de periodo (solo al CREAR, no al editar; se salta con
+    _skip_periodo_gate=True durante la materializacion de la cola):
+      - CERRADO (fecha de un periodo anterior al de proceso): se BLOQUEA con
+        ValueError -- back-datear a un mes ya cerrado desalinearia el 606 ya
+        presentado a la DGII.
+      - FUTURO (fecha de un periodo posterior al de proceso): se ENCOLA en
+        TCXP_DOCUMENTO_COLA y se levanta PeriodoFuturoEncolado. La entrada
+        de INV/FAT no se rompe; el FP se materializa al abrir ese mes.
+      - ABIERTO (mismo periodo): flujo normal de insercion.
     """
     no_cia        = d["no_cia"]
     punto         = d.get("punto", "01")
@@ -1151,6 +1235,20 @@ def entrada_documento(d):
     tipo_transacc = _tt[0] if len(_tt) == 1 else ("C" if _tt in ("02", "C", "c") else "K")
     detalle       = d.get("detalle", "")
     no_docu       = (d.get("no_docu") or "").strip()
+
+    # Candado de periodo: solo al CREAR (no_docu vacio) y salvo materializacion.
+    if not no_docu and not _skip_periodo_gate:
+        _estado_per, _per_proc = _periodo_estado(no_cia, punto, fecha)
+        if _estado_per == 'CERRADO':
+            raise ValueError(
+                'La fecha del documento ({0}) pertenece a un periodo contable '
+                'ya CERRADO en CxP; el periodo en curso es {1}. No se puede '
+                'registrar con esa fecha.'.format(fecha[:7], _per_proc))
+        if _estado_per == 'FUTURO':
+            _origen = 'INV' if d.get('_cola_link') else d.get('_cola_origen', 'MANUAL')
+            _cid = _encolar_documento({**d, 'fecha': fecha, 'fecha_vence': fecha_vence,
+                                       'no_cia': no_cia, 'punto': punto}, origen=_origen)
+            raise PeriodoFuturoEncolado(_cid, fecha[:7], _per_proc)
 
     with client.cursor() as cur:
         # Oracle constraint: debito=credito always; saldo<=0 for D, >=0 for C
@@ -2069,7 +2167,109 @@ def cierre_cxp(no_cia, punto):
             "WHERE no_cia=:3 AND punto=:4",
             [nuevo_mes, nuevo_ano, no_cia, punto])
         cur.connection.commit()
-    return {"mes": nuevo_mes, "ano": nuevo_ano}
+    # Al abrir el nuevo mes, materializar los documentos que estaban en cola
+    # esperando exactamente ese periodo (compras/facturas de INV/FAT o manuales
+    # capturadas por adelantado). No rompe el cierre si alguno falla.
+    materializados = _materializar_cola(no_cia, punto, nuevo_ano, nuevo_mes)
+    return {"mes": nuevo_mes, "ano": nuevo_ano, "materializados": materializados}
+
+
+def _materializar_cola(no_cia: str, punto: str, ano: int, mes: int) -> list[dict]:
+    """Inserta en TCXP_DOCUMENTO los documentos en cola cuyo periodo objetivo
+    es (ano, mes) y estan PENDIENTE. Reusa entrada_documento (con el candado
+    de periodo desactivado) para replicar exactamente la logica de creacion
+    (NCF, secuencia, partida doble). Cada doc se procesa aislado: un error
+    marca esa fila como ERROR y sigue con las demas."""
+    # payload es CLOB: leerlo como str DENTRO del cursor abierto (fetch_dicts
+    # lo devolveria como LOB atado a un cursor ya cerrado).
+    rows = []
+    with client.cursor() as cur:
+        cur.execute(
+            "SELECT id, payload FROM CXP.TCXP_DOCUMENTO_COLA "
+            "WHERE no_cia=:1 AND punto=:2 AND ano_objetivo=:3 AND mes_objetivo=:4 "
+            "AND estado='PENDIENTE' ORDER BY id",
+            [no_cia, punto, ano, mes])
+        for cid, payload_lob in cur.fetchall():
+            payload_str = payload_lob.read() if hasattr(payload_lob, 'read') else payload_lob
+            rows.append({'id': cid, 'payload': payload_str})
+    res = []
+    for r in rows:
+        cid = r['id']
+        try:
+            payload = json.loads(r['payload'])
+            link = payload.pop('_cola_link', None)
+            payload.pop('_cola_origen', None)
+            no_docu = entrada_documento(payload, _skip_periodo_gate=True)
+            if link and no_docu:
+                # Enlace diferido EC(INV) -> FP(CxP): completa TINV_RME.no_refe
+                # que quedo vacio cuando el espejo se encolo.
+                try:
+                    client.execute(
+                        "UPDATE INV.TINV_RME SET tipo_refe='FP', no_refe=:1 "
+                        "WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4 AND no_docu=:5",
+                        [str(no_docu), link['no_cia'], link['punto'],
+                         link.get('tipo_docu', 'EC'), link['no_docu']])
+                except Exception:
+                    pass
+            client.execute(
+                "UPDATE CXP.TCXP_DOCUMENTO_COLA SET estado='MATERIALIZADO', "
+                "no_docu_generado=:1, fecha_materializado=SYSDATE, mensaje_error=NULL "
+                "WHERE id=:2", [str(no_docu), cid])
+            res.append({'id': cid, 'no_docu': no_docu, 'ok': True})
+        except Exception as exc:
+            try:
+                client.execute(
+                    "UPDATE CXP.TCXP_DOCUMENTO_COLA SET estado='ERROR', "
+                    "mensaje_error=:1 WHERE id=:2", [str(exc)[:500], cid])
+            except Exception:
+                pass
+            res.append({'id': cid, 'error': str(exc)})
+    return res
+
+
+def listar_cola(no_cia: str, punto: str = '', estado: str = '') -> dict:
+    """Lista los documentos en cola para la pantalla de revision."""
+    conds = ["no_cia=:1"]; params: list = [no_cia]
+    if punto:
+        params.append(punto); conds.append('punto=:' + str(len(params)))
+    if estado:
+        params.append(estado.upper()); conds.append('estado=:' + str(len(params)))
+    where = ' AND '.join(conds)
+    rows = client.fetch_dicts(
+        "SELECT id, no_cia, punto, ano_objetivo, mes_objetivo, origen, "
+        "tipo_docu, no_proveedor, ncf, TO_CHAR(fecha_doc,'YYYY-MM-DD') fecha_doc, "
+        "valor, estado, usuario, TO_CHAR(fecha_encolado,'YYYY-MM-DD HH24:MI') fecha_encolado, "
+        "TO_CHAR(fecha_materializado,'YYYY-MM-DD HH24:MI') fecha_materializado, "
+        "no_docu_generado, mensaje_error "
+        "FROM CXP.TCXP_DOCUMENTO_COLA WHERE " + where +
+        " ORDER BY estado, ano_objetivo, mes_objetivo, id", params)
+    pend = sum(1 for r in rows if r['estado'] == 'PENDIENTE')
+    return {'items': rows, 'count': len(rows), 'pendientes': pend}
+
+
+def materializar_cola_manual(cid: int) -> dict:
+    """Materializa una fila de cola bajo demanda -- solo si su periodo objetivo
+    ya es <= el periodo de proceso abierto (es decir, ese mes ya se abrio)."""
+    r = client.fetch_one(
+        "SELECT no_cia, punto, ano_objetivo, mes_objetivo, estado "
+        "FROM CXP.TCXP_DOCUMENTO_COLA WHERE id=:1", [cid])
+    if not r:
+        raise ValueError("Fila de cola no encontrada")
+    no_cia, punto, ano_obj, mes_obj, estado = r
+    if estado != 'PENDIENTE':
+        raise ValueError(f"La fila ya esta {estado}, no PENDIENTE")
+    prow = client.fetch_one(
+        "SELECT NVL(ano_proceso,0), NVL(mes_proceso,0) FROM CXP.TCXP_PUNTO "
+        "WHERE no_cia=:1 AND punto=:2", [no_cia, punto])
+    per_obj = ano_obj * 100 + mes_obj
+    per_proc = int(prow[0]) * 100 + int(prow[1]) if prow else 0
+    if per_obj > per_proc:
+        raise ValueError(
+            'El periodo {0:04d}-{1:02d} aun no esta abierto en CxP (proceso en '
+            '{2:04d}-{3:02d}). Cierre/avance el periodo primero.'.format(
+                ano_obj, mes_obj, int(prow[0]), int(prow[1])))
+    out = _materializar_cola(no_cia, punto, ano_obj, mes_obj)
+    return {'ok': True, 'resultado': [x for x in out]}
 
 
 # ─── SALDOS MENORES POR AJUSTAR (Fcxp204) ──────────────────────────────────

@@ -52,6 +52,9 @@ urlpatterns = [
     path('rep-retenciones/', cxp_views.cxp_rep_retenciones),
     # Procesos escritura
     path('entrada-documentos/', cxp_views.cxp_entrada_documentos),
+    # Cola de documentos de periodo futuro (no abierto aun en CxP)
+    path('cola/', cxp_views.cxp_cola_listar),
+    path('cola/materializar/', cxp_views.cxp_cola_materializar),
     path('reversar/', cxp_views.cxp_reversar),
     path('liberar-debito/', cxp_views.cxp_liberar_debito),
     path('saldos-menores/', cxp_views.cxp_saldos_menores),

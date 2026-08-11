@@ -266,6 +266,7 @@ export const sidebarData: SidebarData = {
         {
           title: 'Procesos',
           items: [
+            { title: 'Cola de Documentos (período no abierto)', url: '/cxp/cola' },
             { title: 'Reversar Documento', url: '/cxp/reversar' },
             { title: 'Liberar Debito', url: '/cxp/liberar-debito' },
             { title: 'Aplicación de Movimientos', url: '/cxp/aplicar-movimientos' },

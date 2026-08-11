@@ -3149,6 +3149,7 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
             get_proveedor_cuenta as _cxp_get_prov_cuenta,
             get_cuenta_itbis_default as _cxp_get_cta_itbis,
             get_cuenta_compra_default as _cxp_get_cta_compra,
+            PeriodoFuturoEncolado as _CxpPeriodoFuturoEncolado,
         )
         try:
             # entrada_documento exige partida doble balanceada (fix b75ef51).
@@ -3183,7 +3184,7 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                 _lineas_cnt = []
             else:
                 _lineas_cnt.append({'cuenta': _cta_prov, 'tipo_movi': 'C', 'monto': total_neto})
-            cxp_no_docu = _cxp_entrada_documento({
+            _cxp_payload = {
                 'no_cia': no_cia, 'punto': punto, 'tipo_docu': 'FP',
                 'no_proveedor': no_proveedor,
                 'fecha': fecha, 'fecha_vence': fecha_vcto or fecha,
@@ -3195,20 +3196,34 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                 'detalle': (nota or f'Entrada de Compras INV {no_docu}')[:100],
                 'usuario': usuario,
                 'lineas': _lineas_cnt,
-            })
-            cxp_mirror = {'no_docu': cxp_no_docu, 'tipo_docu': 'FP'}
-            # Enlace estructurado EC -> FP en el header de la entrada (TINV_RME).
-            # Así la edición localiza el FP espejo por referencia exacta y no por
-            # el texto del detalle (heurístico). tipo_refe/no_refe están libres
-            # para EC (_upsert_rme_header no los usa). Best-effort: si falla, la
-            # entrada ya está confirmada y queda el fallback heurístico.
+                # Enlace diferido: si el FP se encola (periodo futuro), al
+                # materializarlo se completara TINV_RME.no_refe con este EC.
+                '_cola_link': {'no_cia': no_cia, 'punto': punto,
+                               'tipo_docu': 'EC', 'no_docu': no_docu},
+            }
             try:
-                client.execute(
-                    "UPDATE INV.TINV_RME SET tipo_refe='FP', no_refe=:1 "
-                    "WHERE no_cia=:2 AND punto=:3 AND tipo_docu='EC' AND no_docu=:4",
-                    [str(cxp_no_docu), no_cia, punto, no_docu])
-            except Exception:
-                pass
+                cxp_no_docu = _cxp_entrada_documento(_cxp_payload)
+            except _CxpPeriodoFuturoEncolado as _enc:
+                # No es error: el FP quedo en cola y se materializara al abrir
+                # su periodo. La entrada de INV ya esta confirmada; el enlace
+                # TINV_RME se completa en la materializacion.
+                cxp_mirror = {'encolado': True, 'cola_id': _enc.cola_id,
+                              'periodo_objetivo': _enc.periodo_objetivo,
+                              'periodo_proceso': _enc.periodo_proceso}
+            else:
+                cxp_mirror = {'no_docu': cxp_no_docu, 'tipo_docu': 'FP'}
+                # Enlace estructurado EC -> FP en el header de la entrada (TINV_RME).
+                # Así la edición localiza el FP espejo por referencia exacta y no por
+                # el texto del detalle (heurístico). tipo_refe/no_refe están libres
+                # para EC (_upsert_rme_header no los usa). Best-effort: si falla, la
+                # entrada ya está confirmada y queda el fallback heurístico.
+                try:
+                    client.execute(
+                        "UPDATE INV.TINV_RME SET tipo_refe='FP', no_refe=:1 "
+                        "WHERE no_cia=:2 AND punto=:3 AND tipo_docu='EC' AND no_docu=:4",
+                        [str(cxp_no_docu), no_cia, punto, no_docu])
+                except Exception:
+                    pass
         except Exception as exc:
             cxp_mirror = {'error': str(exc)}
 

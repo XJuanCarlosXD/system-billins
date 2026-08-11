@@ -219,7 +219,7 @@ export function CxpRep606({ noCia, punto = '', mes = curMonth, ano = curYear }: 
       {data && (
         <div className="flex gap-6 text-sm text-muted-foreground border rounded-lg p-3 bg-muted/20">
           <span><b>{data.count}</b> registros</span>
-          <span>Monto Total: <b className="text-foreground">{fmt(data.total_monto)}</b></span>
+          <span>Monto Facturado (sin ITBIS): <b className="text-foreground">{fmt(data.total_monto)}</b></span>
           <span>ITBIS Total: <b className="text-foreground">{fmt(data.total_itbis)}</b></span>
         </div>
       )}
@@ -232,7 +232,7 @@ export function CxpRep606({ noCia, punto = '', mes = curMonth, ano = curYear }: 
               <TableHead className="w-20">NCF</TableHead>
               <TableHead className="w-24">Tipo NCF</TableHead>
               <TableHead className="w-28">Fecha</TableHead>
-              <TableHead className="w-32 text-right">Monto</TableHead>
+              <TableHead className="w-32 text-right">Monto (sin ITBIS)</TableHead>
               <TableHead className="w-28 text-right">ITBIS</TableHead>
               <TableHead className="w-28 text-right">ITBIS Ret.</TableHead>
               <TableHead className="w-28 text-right">ISR Ret.</TableHead>

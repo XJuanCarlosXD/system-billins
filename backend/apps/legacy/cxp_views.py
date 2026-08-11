@@ -457,6 +457,40 @@ def cxp_entrada_documentos(request):
     try:
         no_docu = cxp_repo.entrada_documento(data)
         return JsonResponse({'ok': True, 'no_docu': no_docu}, status=201)
+    except cxp_repo.PeriodoFuturoEncolado as enc:
+        # No es error: el documento pertenece a un mes aun no abierto en CxP.
+        # Queda en cola y se materializa al abrir ese periodo.
+        return JsonResponse({
+            'ok': True, 'encolado': True, 'cola_id': enc.cola_id,
+            'periodo_objetivo': enc.periodo_objetivo,
+            'periodo_proceso': enc.periodo_proceso,
+            'mensaje': str(enc),
+        }, status=202)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+
+@login_required
+@require_http_methods(['GET'])
+def cxp_cola_listar(request):
+    """GET ?no_cia=&punto=&estado= → documentos en cola (pendientes/materializados/error)."""
+    no_cia = request.GET.get('no_cia', '')
+    punto  = _norm_punto(request.GET.get('punto', '')) if request.GET.get('punto') else ''
+    estado = request.GET.get('estado', '')
+    if not no_cia:
+        return JsonResponse({'error': 'no_cia requerido'}, status=400)
+    return JsonResponse(cxp_repo.listar_cola(no_cia, punto, estado))
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def cxp_cola_materializar(request):
+    """POST {id} → materializa una fila de cola (si su periodo ya esta abierto)."""
+    data = json.loads(request.body)
+    try:
+        cid = int(data['id'])
+        return JsonResponse(cxp_repo.materializar_cola_manual(cid))
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
 
