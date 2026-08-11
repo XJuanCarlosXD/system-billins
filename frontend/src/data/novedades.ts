@@ -58,6 +58,15 @@ export type Novedad = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-08-11',
+    tipo: 'nuevo',
+    modulo: 'General',
+    titulo: 'Contadores (badges) en el menú lateral',
+    descripcion:
+      'El menú lateral ahora muestra contadores circulares: Novedades sin leer, Reportes de Problemas abiertos (en ámbar) o recién completados (en verde), y documentos nuevos por módulo en Facturación, Cuentas por Cobrar, Cuentas por Pagar e Inventario. Al abrir un módulo, el contador también aparece en su "Consulta de Documentos" para indicar de dónde es la novedad; al entrar a la vista el contador se limpia.',
+    commit: 'c4d78c7',
+  },
+  {
     fecha: '2026-08-10',
     tipo: 'nuevo',
     modulo: 'General',

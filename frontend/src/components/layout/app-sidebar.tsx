@@ -66,8 +66,8 @@ function badgeProps(b?: SidebarBadge): Pick<NavItem, 'badge' | 'badgeVariant'> {
 }
 
 // Pone el badge del módulo en la hoja de su Consulta de Documentos (o
-// Consulta de Facturas para FAT). Se usa cuando el usuario ya está dentro
-// del módulo y el sidebar muestra el árbol propio del módulo.
+// Consulta de Facturas para FAT) Y en cada sección ancestro que la contiene,
+// para que al abrir el dropdown del módulo se vea de dónde es la novedad.
 function withConsultaBadge(
   items: NavItem[],
   code: DocModule,
@@ -75,17 +75,27 @@ function withConsultaBadge(
 ): NavItem[] {
   if (!badge) return items
   const target = CONSULTA_PATHS[code]
-  const walk = (list: NavItem[]): NavItem[] =>
-    list.map((it) => {
-      if (it.items) return { ...it, items: walk(it.items) }
-      const isConsulta =
-        it.url === target &&
-        (code !== 'inv' ||
-          (it.search as { view?: string } | undefined)?.view ===
-            INV_CONSULTA_VIEW)
-      return isConsulta ? { ...it, ...badgeProps(badge) } : it
-    })
-  return walk(items)
+  const isTarget = (it: NavItem) =>
+    it.url === target &&
+    (code !== 'inv' ||
+      (it.search as { view?: string } | undefined)?.view === INV_CONSULTA_VIEW)
+
+  // Devuelve [item, contieneObjetivo]; propaga el badge hacia arriba.
+  const inject = (it: NavItem): [NavItem, boolean] => {
+    if (it.items) {
+      let hit = false
+      const kids = it.items.map((c) => {
+        const [ni, m] = inject(c)
+        hit = hit || m
+        return ni
+      })
+      return hit
+        ? [{ ...it, items: kids, ...badgeProps(badge) }, true]
+        : [{ ...it, items: kids }, false]
+    }
+    return isTarget(it) ? [{ ...it, ...badgeProps(badge) }, true] : [it, false]
+  }
+  return items.map((it) => inject(it)[0])
 }
 
 // El sidebar de Inicio (fuera de cualquier modulo) reconstruye el menu
@@ -103,10 +113,16 @@ function buildHomeNavGroups(
       .filter((m) => codes.includes(m.code) && (isAdmin || hasModule(m.code)))
       .map((m) => {
         const item = moduleAsNavItem(m)
-        const b = DOC_MODULES.includes(m.code as DocModule)
-          ? badges[m.code as DocModule]
-          : undefined
-        return b ? { ...item, ...badgeProps(b) } : item
+        const code = m.code as DocModule
+        const b = DOC_MODULES.includes(code) ? badges[code] : undefined
+        if (!b) return item
+        // Badge en el módulo (nivel superior) + en la sección/hoja de consulta
+        // para que el dropdown indique de dónde es la novedad.
+        return {
+          ...item,
+          ...badgeProps(b),
+          items: withConsultaBadge(item.items ?? [], code, b),
+        }
       })
 
   return [

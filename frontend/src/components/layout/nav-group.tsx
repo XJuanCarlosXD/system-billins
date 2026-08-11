@@ -247,6 +247,9 @@ function SidebarMenuCollapsedDropdown({
                 >
                   {sub.icon && <sub.icon />}
                   <span className='max-w-52 text-wrap'>{sub.title}</span>
+                  {sub.badge && (
+                    <NavBadge variant={sub.badgeVariant}>{sub.badge}</NavBadge>
+                  )}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
                   {sub.items.map((leaf) => (
@@ -259,7 +262,7 @@ function SidebarMenuCollapsedDropdown({
                         {leaf.icon && <leaf.icon />}
                         <span className='max-w-52 text-wrap'>{leaf.title}</span>
                         {leaf.badge && (
-                          <span className='ms-auto text-xs'>{leaf.badge}</span>
+                          <NavBadge variant={leaf.badgeVariant}>{leaf.badge}</NavBadge>
                         )}
                       </Link>
                     </DropdownMenuItem>
@@ -276,7 +279,7 @@ function SidebarMenuCollapsedDropdown({
                   {sub.icon && <sub.icon />}
                   <span className='max-w-52 text-wrap'>{sub.title}</span>
                   {sub.badge && (
-                    <span className='ms-auto text-xs'>{sub.badge}</span>
+                    <NavBadge variant={sub.badgeVariant}>{sub.badge}</NavBadge>
                   )}
                 </Link>
               </DropdownMenuItem>
