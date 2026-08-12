@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Pencil } from 'lucide-react'
+import { History, Pencil } from 'lucide-react'
 import { api } from '@/lib/regal-general-api'
+import { historialDocumento } from '@/lib/api-client-historial'
 import { useCompany } from '@/hooks/use-company'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,6 +16,7 @@ import { cn } from '@/lib/utils'
 import { HIGHLIGHT_ROW_CLASS } from '@/lib/sidebar-badges'
 import { useDocHighlightCount } from '@/hooks/use-sidebar-badges'
 import { esDocumentoEditable, usePeriodoActualCxP } from './corregir-documento-dialog'
+import { HistorialTimeline } from '@/features/historial/historial-timeline'
 
 interface Documento {
   no_cia: string; punto: string; tipo_docu: string; no_docu: string
@@ -84,19 +86,21 @@ export function CxpDocumentos() {
   const [noProveedor, setNoProveedor] = useState('')
   const [tipo, setTipo] = useState('')
   const [noDoc, setNoDoc] = useState('')
+  const [ncf, setNcf] = useState('')
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
   const [status, setStatus] = useState('A')
   const [page, setPage] = useState(1)
   const newHl = useDocHighlightCount('cxp')
   const [selected, setSelected] = useState<string | null>(null)
+  const [verHistorial, setVerHistorial] = useState(false)
 
   const enabled = !!noCia
   const periodoQ = usePeriodoActualCxP(noCia, punto)
 
   const { data = [], isLoading, isError } = useQuery<Documento[]>({
-    queryKey: ['cxp-documentos', noCia, punto, noProveedor, tipo, noDoc, desde, hasta, status],
-    queryFn: () => api.cxpListDocumentos({ no_cia: noCia, punto, no_proveedor: noProveedor, tipo, no_doc: noDoc, desde, hasta, status }),
+    queryKey: ['cxp-documentos', noCia, punto, noProveedor, tipo, noDoc, ncf, desde, hasta, status],
+    queryFn: () => api.cxpListDocumentos({ no_cia: noCia, punto, no_proveedor: noProveedor, tipo, no_doc: noDoc, ncf, desde, hasta, status }),
     staleTime: 60_000,
     enabled,
   })
@@ -179,6 +183,12 @@ export function CxpDocumentos() {
             value={noDoc}
             onChange={e => { setNoDoc(e.target.value); setPage(1) }}
             className="w-32 font-mono"
+          />
+          <Input
+            placeholder="NCF"
+            value={ncf}
+            onChange={e => { setNcf(e.target.value); setPage(1) }}
+            className="w-36 font-mono"
           />
           <div className="flex items-center gap-1 text-sm"><span className="text-muted-foreground whitespace-nowrap">Desde:</span><Input type="date" value={desde} onChange={e => setDesde(e.target.value)} className="w-36" /></div>
           <div className="flex items-center gap-1 text-sm"><span className="text-muted-foreground whitespace-nowrap">Hasta:</span><Input type="date" value={hasta} onChange={e => setHasta(e.target.value)} className="w-36" /></div>
@@ -269,7 +279,7 @@ export function CxpDocumentos() {
         </div>
       )}
 
-      <Sheet open={!!selected} onOpenChange={o => { if (!o) setSelected(null) }}>
+      <Sheet open={!!selected} onOpenChange={o => { if (!o) { setSelected(null); setVerHistorial(false) } }}>
         {/* SheetContent trae 'sm:max-w-sm' (384px) de base -- un max-w-[Xvw]
             sin el prefijo sm: nunca lo vence (mismo gotcha que otros modales
             del proyecto, ver memoria cxp-reversar-responsive): hay que pisarlo
@@ -377,7 +387,20 @@ export function CxpDocumentos() {
                 >
                   Imprimir / PDF
                 </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setVerHistorial(v => !v)}
+                >
+                  <History className="mr-1 h-3.5 w-3.5" /> {verHistorial ? 'Ocultar historial' : 'Ver historial'}
+                </Button>
               </div>
+              {verHistorial && (
+                <DocumentoHistorial
+                  noCia={detalle.no_cia} punto={detalle.punto}
+                  tipoDocumento={detalle.tipo_docu} noDocumento={detalle.no_docu}
+                />
+              )}
               {detalle.lineas?.length > 0 && (
                 <div>
                   <p className="font-semibold mb-2 text-sm">Distribución Contable</p>
@@ -413,6 +436,26 @@ export function CxpDocumentos() {
           )}
         </SheetContent>
       </Sheet>
+    </div>
+  )
+}
+
+// Quién creó/editó/anuló este documento. No requiere ser admin: el backend
+// (HistorialDocumentoView) usa el mismo permiso que ya protege ver el
+// documento (tipo_docu asignado al usuario en el módulo/empresa/punto) --
+// a diferencia de /sistema/historial (auditoría completa, solo admin).
+function DocumentoHistorial({
+  noCia, punto, tipoDocumento, noDocumento,
+}: { noCia: string; punto: string; tipoDocumento: string; noDocumento: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['historial-documento', 'CXP', noCia, punto, tipoDocumento, noDocumento],
+    queryFn: () =>
+      historialDocumento({ no_cia: noCia, punto, modulo: 'CXP', tipo_documento: tipoDocumento, no_documento: noDocumento }),
+  })
+  if (isLoading) return <p className="py-4 text-center text-sm text-muted-foreground">Cargando historial…</p>
+  return (
+    <div className="rounded-lg border p-3">
+      <HistorialTimeline eventos={data?.items ?? []} modo="completo" />
     </div>
   )
 }

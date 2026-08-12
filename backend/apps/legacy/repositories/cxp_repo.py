@@ -229,7 +229,7 @@ def save_proveedor(data: dict):
 
 
 def list_documentos(no_cia, punto, no_proveedor='', tipo='', no_doc='',
-                    desde='', hasta='', status='A'):
+                    desde='', hasta='', status='A', ncf=''):
     conditions = ['d.no_cia=:1', 'd.punto=:2']
     params = [no_cia, punto]
     if no_proveedor:
@@ -241,6 +241,17 @@ def list_documentos(no_cia, punto, no_proveedor='', tipo='', no_doc='',
     if no_doc:
         params.append(f"%{no_doc}%")
         conditions.append(f'd.no_docu LIKE :{len(params)}')
+    if ncf:
+        # Compara contra el NCF DGI compuesto (prefijo + numero con ceros a
+        # la izquierda, igual formula que composeNcfDgi en el frontend:
+        # E-series usa 10 digitos, el resto 8) para que buscar "B0100003788"
+        # o solo "3788" encuentre el documento igual que se ve en pantalla.
+        params.append(f"%{ncf.strip().upper()}%")
+        conditions.append(
+            "UPPER(NVL(d.posiciones_fijas_ncf,'') || LPAD(TO_CHAR(NVL(d.ncf,0)), "
+            "CASE WHEN UPPER(NVL(d.posiciones_fijas_ncf,'')) LIKE 'E%' THEN 10 ELSE 8 END, '0')) "
+            f"LIKE :{len(params)}"
+        )
     if desde:
         params.append(desde)
         conditions.append(f"d.fecha>=TO_DATE(:{len(params)},'YYYY-MM-DD')")

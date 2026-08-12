@@ -1246,7 +1246,7 @@ export const regalGeneralApi = {
 
   cxpListDocumentos: (params: {
     no_cia: string; punto: string;
-    no_proveedor?: string; tipo?: string; no_doc?: string;
+    no_proveedor?: string; tipo?: string; no_doc?: string; ncf?: string;
     desde?: string; hasta?: string; status?: string;
   }) => {
     // status='' significa "Todos" y debe viajar tal cual: si se descarta

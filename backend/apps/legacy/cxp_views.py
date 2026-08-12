@@ -60,6 +60,7 @@ def cxp_documentos(request):
         desde=request.GET.get('desde', ''),
         hasta=request.GET.get('hasta', ''),
         status=request.GET.get('status', 'A'),
+        ncf=request.GET.get('ncf', ''),
     )
     return JsonResponse(rows, safe=False)
 
