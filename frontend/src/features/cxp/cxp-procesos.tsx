@@ -636,16 +636,15 @@ export function CxpEntradaDocumentos({
 
   useEffect(() => {
     // En modo edicion "siguiente" es el numero del documento que se esta
-    // editando (fijado por el efecto de carga), no el proximo numero libre.
+    // editando (fijado por el efecto de carga de abajo) -- no tocar aqui.
     if (editTipo && editNoDocu) return
-    if (!tipoDocu || !punto) {
-      setSiguiente('')
-      return
-    }
-    api
-      .cxpGetSiguienteNoDocu(noCia, punto, tipoDocu)
-      .then((r) => setSiguiente(r.siguiente || ''))
-      .catch(() => setSiguiente(''))
+    // En modo creacion YA NO se pre-consulta el numero: mostrarlo antes de
+    // guardar genera falsa certeza cuando dos personas registran a la vez --
+    // la asignacion real ocurre atomicamente al guardar (backend usa FOR
+    // UPDATE) y el numero final se confirma en el toast "Documento XX-N
+    // creado" (ticket NUMERACION DE DOCUMENTO, caso FP-8631 mostrado en
+    // pantalla / FP-8633 asignado de verdad al guardar).
+    setSiguiente('')
   }, [tipoDocu, noCia, punto, editTipo, editNoDocu])
 
   // ── Carga del documento a editar (boton "Editar" desde Consulta de
@@ -1020,8 +1019,9 @@ export function CxpEntradaDocumentos({
       setLineasTocadas(false)
       setImpuesto('')
       setEditandoItbis(false)
-      const next = await api.cxpGetSiguienteNoDocu(noCia, punto, tipoDocu)
-      setSiguiente(next.siguiente || '')
+      // No se pre-consulta el proximo numero (ver efecto de arriba) -- el
+      // toast ya confirmo el numero real que se acaba de asignar.
+      setSiguiente('')
     } catch (e: any) {
       toast.error(e?.message || 'Error guardando documento')
     } finally {
@@ -1072,8 +1072,13 @@ export function CxpEntradaDocumentos({
             </Select>
           </div>
           <div className='min-w-0 space-y-1'>
-            <Label className='text-xs'>{modoEdicion ? 'Documento' : 'Siguiente No.'}</Label>
-            <Input value={siguiente} disabled className='h-10 font-mono' />
+            <Label className='text-xs'>{modoEdicion ? 'Documento' : 'No. Documento'}</Label>
+            <Input
+              value={siguiente}
+              disabled
+              placeholder={modoEdicion ? '' : 'Se asignará al guardar'}
+              className='h-10 font-mono placeholder:font-sans placeholder:text-xs placeholder:italic'
+            />
           </div>
           <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Fecha *</Label>
