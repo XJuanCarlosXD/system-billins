@@ -983,6 +983,159 @@ def _base_606(r) -> float:
             - g('propina') + g('itbis_retenido') + g('isr_retenido'))
 
 
+def _rows_acc_606(no_cia: str, anio: int, mes: int, punto: str = ''):
+    """Comprobantes de Caja Chica (ACC) con NCF real -- deben reportarse en
+    el 606 igual que las facturas de CXP. Antes de esto el 606 (pantalla,
+    Excel y archivo DGII) solo leia CXP.TCXP_DOCUMENTO: los comprobantes de
+    caja chica con NCF nunca aparecian en ningun lado (reportado 2026-08-12
+    por Pilar/JC via ticket de soporte -- ver 606 reporte / foto del error).
+    Mismas reglas de exclusion que rep_606/archivo_dgii_606: sin NCF no
+    cuenta, B02/E32 no es comprobante de compra, anulado no es compra real.
+    Devuelve dicts con ambos alias de clave ('rnc'/'rnc_proveedor', etc.)
+    para servir tanto a rep_606 (usa *_proveedor) como a archivo_dgii_606
+    (usa las claves crudas sin alias).
+    """
+    conditions = [
+        "a.no_cia=:1", "EXTRACT(YEAR FROM a.fecha)=:2", "EXTRACT(MONTH FROM a.fecha)=:3",
+        "TRIM(a.ncf) IS NOT NULL",
+        "NVL(UPPER(a.posiciones_fijas_ncf),'') NOT IN ('B02','E32')",
+        "NVL(a.anulado,'N') <> 'S'",
+    ]
+    params = [no_cia, anio, mes]
+    if punto:
+        params.append(punto)
+        conditions.append('a.punto=:' + str(len(params)))
+    where = ' AND '.join(conditions)
+    sql = (
+        "SELECT a.rnc, b.nombre AS nombre_proveedor, "
+        "a.ncf, a.posiciones_fijas_ncf, "
+        "TO_CHAR(a.fecha,'YYYY-MM-DD') AS fecha, "
+        "TO_CHAR(a.fecha_vence_ncf,'YYYY-MM-DD') AS fecha_vence, "
+        "a.no_cia, a.punto, a.detalle, a.no_docu, a.no_bene, a.no_reposicion, "
+        "a.tipo_gasto_dgii, "
+        "NVL(a.valor,0) valor_original, NVL(a.impuesto,0) impuesto, "
+        "NVL(a.isc,0) isc, NVL(a.otros_impuestos,0) otros_impuestos, "
+        "NVL(a.propina,0) propina, "
+        "NVL(a.valor_bienes,0) valor_bienes, NVL(a.valor_servicio,0) valor_servicio, "
+        "NVL(a.forma_pago,1) forma_pago "
+        "FROM ACC.TACC_DOCUMENTO a "
+        "LEFT JOIN ACC.TACC_BENEFICIARIO b ON b.no_bene=a.no_bene "
+        "WHERE " + where + " ORDER BY a.fecha, a.ncf"
+    )
+    raw = client.fetch_dicts(sql, params)
+    rows = []
+    for a in raw:
+        rows.append({
+            'rnc': a.get('rnc'), 'rnc_proveedor': a.get('rnc'),
+            'nombre_proveedor': a.get('nombre_proveedor'),
+            'tipo_transaccion': '',
+            'ncf': a.get('ncf'),
+            'tipo_ncf': a.get('posiciones_fijas_ncf'),
+            'posiciones_fijas_ncf': a.get('posiciones_fijas_ncf'),
+            'fecha': a.get('fecha'), 'fecha_vence': a.get('fecha_vence'),
+            'no_cia': a.get('no_cia'), 'punto': a.get('punto'),
+            'detalle': a.get('detalle'), 'tipo_docu': 'CH', 'no_docu': a.get('no_docu'),
+            'no_proveedor': a.get('no_bene'), 'no_reposicion': a.get('no_reposicion'),
+            'tipo_gasto': a.get('tipo_gasto_dgii'),
+            'valor_original': a.get('valor_original'), 'valor_total': a.get('valor_original'),
+            'impuesto': a.get('impuesto'), 'itbis_facturado': a.get('impuesto'),
+            'isc': a.get('isc'), 'otros_impuestos': a.get('otros_impuestos'),
+            'propina': a.get('propina'),
+            'itbis_retenido': 0, 'isr_retenido': 0, 'tipo_retencion': None,
+            'valor_bienes': a.get('valor_bienes'), 'valor_servicio': a.get('valor_servicio'),
+            'forma_pago': a.get('forma_pago'), 'modulo': 'ACC',
+        })
+    return rows
+
+
+def _rows_acc_reposicion_606(no_cia: str, anio: int, mes: int, punto: str = ''):
+    """Comprobante B13 (Gastos Menores) autoemitido por la empresa en cada
+    reposicion de Caja Chica, para poder deducir los gastos SIN NCF de
+    proveedor (compras informales) que componen esa reposicion. Vive en
+    ACC.TACC_REPOSICION (no en TACC_DOCUMENTO) y tambien deben reportarse en
+    el 606 (reportado 2026-08-12 por Pilar/JC: 'el numero de reposicion debe
+    aparecer ahi' -- ej. reposicion 73 = B13-1301 $34,249.99, verificado que
+    es la suma exacta de los 29 comprobantes sin NCF real de esa reposicion).
+    El RNC/nombre del comprobante es el de la propia empresa (FAT.TFAT_CIAS),
+    no un proveedor -- el B13 lo emite la empresa, no lo recibe.
+    """
+    conditions = [
+        "r.no_cia=:1", "EXTRACT(YEAR FROM r.fecha)=:2", "EXTRACT(MONTH FROM r.fecha)=:3",
+        "TRIM(r.ncf) IS NOT NULL", "r.anulada_por IS NULL",
+    ]
+    params = [no_cia, anio, mes]
+    if punto:
+        params.append(punto)
+        conditions.append('r.punto=:' + str(len(params)))
+    where = ' AND '.join(conditions)
+    sql = (
+        "SELECT r.no_cia, r.punto, r.no_reposicion, r.ncf, r.posiciones_fijas_ncf, "
+        "TO_CHAR(r.fecha,'YYYY-MM-DD') AS fecha, "
+        "TO_CHAR(r.fecha_vence_ncf,'YYYY-MM-DD') AS fecha_vence, "
+        "r.detalle, r.tipo_gasto_dgii, "
+        "NVL(r.valor_ncf,0) valor_ncf, NVL(r.isc,0) isc, "
+        "NVL(r.otros_impuestos,0) otros_impuestos, NVL(r.propina,0) propina, "
+        "NVL(r.valor_bienes,0) valor_bienes, NVL(r.valor_servicio,0) valor_servicio, "
+        "NVL(r.forma_pago,1) forma_pago "
+        "FROM ACC.TACC_REPOSICION r WHERE " + where + " ORDER BY r.fecha, r.ncf"
+    )
+    raw = client.fetch_dicts(sql, params)
+    if not raw:
+        return []
+    cia = client.fetch_one("SELECT rnc, descripcion FROM FAT.TFAT_CIAS WHERE no_cia=:1", [no_cia])
+    rnc_empresa = (cia[0] if cia else '') or ''
+    nombre_empresa = (cia[1] if cia else '') or ''
+    rows = []
+    for r in raw:
+        rows.append({
+            'rnc': rnc_empresa, 'rnc_proveedor': rnc_empresa,
+            'nombre_proveedor': nombre_empresa,
+            'tipo_transaccion': '',
+            'ncf': r.get('ncf'), 'tipo_ncf': r.get('posiciones_fijas_ncf'),
+            'posiciones_fijas_ncf': r.get('posiciones_fijas_ncf'),
+            'fecha': r.get('fecha'), 'fecha_vence': r.get('fecha_vence'),
+            'no_cia': r.get('no_cia'), 'punto': r.get('punto'),
+            'detalle': r.get('detalle') or 'GASTOS MENORES CAJA CHICA',
+            'tipo_docu': 'RC', 'no_docu': str(r.get('no_reposicion')),
+            'no_proveedor': None, 'no_reposicion': r.get('no_reposicion'),
+            'tipo_gasto': r.get('tipo_gasto_dgii'),
+            'valor_original': r.get('valor_ncf'), 'valor_total': r.get('valor_ncf'),
+            'impuesto': 0, 'itbis_facturado': 0,
+            'isc': r.get('isc'), 'otros_impuestos': r.get('otros_impuestos'),
+            'propina': r.get('propina'),
+            'itbis_retenido': 0, 'isr_retenido': 0, 'tipo_retencion': None,
+            'valor_bienes': r.get('valor_bienes'), 'valor_servicio': r.get('valor_servicio'),
+            'forma_pago': r.get('forma_pago'), 'modulo': 'ACC',
+        })
+    return rows
+
+
+def _ncf_modificado(no_cia: str, punto: str, tipo_docu: str, no_docu: str):
+    """Para ND/NC con NCF propio (nota de debito/credito FISCAL emitida por
+    el proveedor, no un ajuste interno), busca en TCXP_REFEDOCU el documento
+    original que afecta y devuelve su NCF compuesto -- columna 'NCF
+    Modificado' del 606 (reportado 2026-08-12 por Pilar/JC: 'donde tiene el
+    NCF modificado sale su NCF y sale el NCF modificado... eso no esta
+    apareciendo'). Toma la primera referencia si hay varias -- en los casos
+    reales revisados una ND/NC con NCF propio siempre afecta un unico
+    documento (a diferencia de las ND de aplicacion de pagos sin NCF propio,
+    que sí pueden referenciar decenas de facturas y por eso quedan fuera del
+    606 igualmente al no tener TRIM(ncf) IS NOT NULL).
+    """
+    from .fat_repo import _compose_ncf_dgi
+    row = client.fetch_one(
+        "SELECT d2.posiciones_fijas_ncf, d2.ncf FROM CXP.TCXP_REFEDOCU r "
+        "JOIN CXP.TCXP_DOCUMENTO d2 ON d2.no_cia=r.no_cia AND d2.punto=r.punto "
+        "AND d2.tipo_docu=r.tipo_refe AND d2.no_docu=r.no_refe "
+        "WHERE r.no_cia=:1 AND r.punto=:2 AND r.tipo_docu=:3 AND r.no_docu=:4 "
+        "AND d2.ncf IS NOT NULL "
+        "ORDER BY r.tipo_refe, r.no_refe FETCH FIRST 1 ROW ONLY",
+        [no_cia, punto, tipo_docu, no_docu])
+    if not row:
+        return ''
+    return _compose_ncf_dgi(row[0], row[1]) or ''
+
+
 def rep_606(no_cia: str, anio: int, mes: int, punto: str = ''):
     """Reporte 606 - ITBIS en compras locales (Formato DGII).
 
@@ -991,14 +1144,20 @@ def rep_606(no_cia: str, anio: int, mes: int, punto: str = ''):
     tienen comprobante fiscal. Se excluyen B02/E32 (Factura de Consumo): ese
     tipo de NCF lo EMITE la empresa al vender a un consumidor final, no algo
     que deba recibir como comprobante de compra -- si aparece uno es un
-    error de captura del proveedor/informal.
+    error de captura del proveedor/informal. Incluye tambien los
+    comprobantes de Caja Chica (ACC) con NCF via _rows_acc_606().
+
+    tipo_docu IN ('FP','FT','NC','ND') en vez del viejo filtro tipo_movi='C':
+    ese filtro excluia TODAS las Notas de Debito (tipo_movi='D') aunque
+    tuvieran NCF fiscal real del proveedor -- confirmado con datos reales de
+    julio/2026 (3 ND con NCF E34/B04 que nunca aparecian). AC/AD/BD/BI/SO
+    son ajustes/balances/solicitudes internas, no comprobantes de compra.
     """
     conditions = [
         "d.no_cia=:1",
         "EXTRACT(YEAR FROM d.fecha)=:2",
         "EXTRACT(MONTH FROM d.fecha)=:3",
-        # TCXP_DOCUMENTO.tipo_movi es 'D'/'C' (un caracter) — 'C' = factura/credito
-        "d.tipo_movi='C'",
+        "d.tipo_docu IN ('FP','FT','NC','ND')",
         "TRIM(d.ncf) IS NOT NULL",
         "NVL(UPPER(d.posiciones_fijas_ncf),'') NOT IN ('B02','E32')",
         # Un documento reversado (status='R') no representa una compra real
@@ -1038,6 +1197,11 @@ def rep_606(no_cia: str, anio: int, mes: int, punto: str = ''):
     )
     rows = client.fetch_dicts(sql, params)
     for r in rows:
+        r['modulo'] = 'CXP'
+    rows += _rows_acc_606(no_cia, anio, mes, punto)
+    rows += _rows_acc_reposicion_606(no_cia, anio, mes, punto)
+    rows.sort(key=lambda r: (r.get('fecha') or '', str(r.get('ncf') or '')))
+    for r in rows:
         base = _base_606(r)
         r['monto_facturado'] = base
         # Servicios vs Bienes por valor_servicio (>0 => servicio); regla del
@@ -1046,6 +1210,9 @@ def rep_606(no_cia: str, anio: int, mes: int, punto: str = ''):
         r['monto_servicios'] = base if es_serv else 0.0
         r['monto_bienes'] = 0.0 if es_serv else base
         r['tipo_gasto_label'] = _tipo_gasto_label(r.get('tipo_gasto'))
+        if r.get('tipo_docu') in ('ND', 'NC') and r.get('ncf'):
+            r['ncf_modificado'] = _ncf_modificado(
+                r.get('no_cia'), r.get('punto'), r.get('tipo_docu'), r.get('no_docu'))
     total_monto = sum((r.get('monto_facturado') or 0) for r in rows)
     total_itbis = sum((r.get('itbis_facturado') or 0) for r in rows)
     total_servicios = sum((r.get('monto_servicios') or 0) for r in rows)
@@ -1071,7 +1238,9 @@ def archivo_dgii_606(no_cia: str, anio: int, mes: int, punto: str = '') -> tuple
     from .fat_repo import _compose_ncf_dgi, _tipo_id_de_rnc
     conditions = [
         "d.no_cia=:1", "EXTRACT(YEAR FROM d.fecha)=:2", "EXTRACT(MONTH FROM d.fecha)=:3",
-        "d.tipo_movi='C'", "TRIM(d.ncf) IS NOT NULL",
+        # ver docstring de rep_606(): tipo_docu IN (...) en vez de tipo_movi='C',
+        # que excluia las Notas de Debito (D) aunque tuvieran NCF fiscal real.
+        "d.tipo_docu IN ('FP','FT','NC','ND')", "TRIM(d.ncf) IS NOT NULL",
         # B02/E32 (Factura de Consumo) no debe aparecer como comprobante de
         # compra -- la empresa lo emite al vender, no lo recibe al comprar.
         "NVL(UPPER(d.posiciones_fijas_ncf),'') NOT IN ('B02','E32')",
@@ -1085,6 +1254,7 @@ def archivo_dgii_606(no_cia: str, anio: int, mes: int, punto: str = '') -> tuple
     where = ' AND '.join(conditions)
     rows = client.fetch_dicts(
         "SELECT d.rnc, d.ncf, d.posiciones_fijas_ncf, d.tipo_gasto, "
+        "d.no_cia, d.punto, d.tipo_docu, d.no_docu, "
         "TO_CHAR(d.fecha,'YYYYMMDD') fecha, "
         "NVL(d.valor_original,0) valor_original, NVL(d.impuesto,0) impuesto, "
         "NVL(d.itbis_retenido,0) itbis_retenido, NVL(d.isr_retenido,0) isr_retenido, "
@@ -1093,6 +1263,9 @@ def archivo_dgii_606(no_cia: str, anio: int, mes: int, punto: str = '') -> tuple
         "NVL(d.valor_servicio,0) valor_servicio "
         "FROM CXP.TCXP_DOCUMENTO d WHERE " + where + " ORDER BY d.fecha, d.ncf",
         params)
+    rows += _rows_acc_606(no_cia, anio, mes, punto)
+    rows += _rows_acc_reposicion_606(no_cia, anio, mes, punto)
+    rows.sort(key=lambda r: (r.get('fecha') or '', str(r.get('ncf') or '')))
 
     cia = client.fetch_one("SELECT rnc FROM FAT.TFAT_CIAS WHERE no_cia=:1", [no_cia])
     rnc_empresa = (cia[0] if cia else '') or ''
@@ -1110,9 +1283,17 @@ def archivo_dgii_606(no_cia: str, anio: int, mes: int, punto: str = '') -> tuple
         base = _base_606(r)
         monto_servicios = base if es_servicio else 0.0
         monto_bienes = 0.0 if es_servicio else base
+        ncf_modificado = ''
+        if r.get('tipo_docu') in ('ND', 'NC') and r.get('ncf'):
+            ncf_modificado = _ncf_modificado(
+                r.get('no_cia'), r.get('punto'), r.get('tipo_docu'), r.get('no_docu'))
+        # Filas de CXP ya vienen en YYYYMMDD; las de ACC (_rows_acc_606/
+        # _rows_acc_reposicion_606) en YYYY-MM-DD -- quitar guiones normaliza
+        # ambas sin reformatear (evita fechas con guion coladas en el TXT).
+        fecha_ymd = (r.get('fecha') or '').replace('-', '')
         campos = [
-            r['rnc'] or '', _tipo_id_de_rnc(r['rnc']), tipo_gasto, ncf_dgi, '',
-            r['fecha'] or '', r['fecha'] or '',
+            r['rnc'] or '', _tipo_id_de_rnc(r['rnc']), tipo_gasto, ncf_dgi, ncf_modificado,
+            fecha_ymd, fecha_ymd,
             f"{monto_servicios:.2f}", f"{monto_bienes:.2f}", f"{base:.2f}",
             f"{impuesto:.2f}", f"{float(r['itbis_retenido']):.2f}",
             '0', '0.00', f"{float(r['impuesto']):.2f}", '0',
@@ -1186,8 +1367,8 @@ def rep_606_excel(no_cia: str, anio: int, mes: int, punto: str = '') -> bytes:
         tipo_ret = str(int(tr)) if tr not in (None, '', 0, '0') else ''
         fila = [
             r.get('rnc_proveedor') or '', _tipo_id_de_rnc(r.get('rnc_proveedor')),
-            r.get('tipo_gasto_label') or '', ncf_dgi, '',
-            ymd, dia, 'CXP', documento, '',
+            r.get('tipo_gasto_label') or '', ncf_dgi, r.get('ncf_modificado') or '',
+            ymd, dia, r.get('modulo') or 'CXP', documento, r.get('no_reposicion') or '',
             r.get('nombre_proveedor') or '', r.get('detalle') or '',
             ymd, dia,
             float(r.get('monto_servicios') or 0), float(r.get('monto_bienes') or 0),
