@@ -34,6 +34,7 @@ interface DocDetalle extends Documento {
   debito: number; credito: number
   tipo_gasto?: string | null; tipo_retencion?: number | null
   tipo_docu_r?: string | null; no_docu_r?: string | null
+  usuario?: string | null
 }
 
 const TIPO_DOC: Record<string, string> = {
@@ -399,6 +400,7 @@ export function CxpDocumentos() {
                 <DocumentoHistorial
                   noCia={detalle.no_cia} punto={detalle.punto}
                   tipoDocumento={detalle.tipo_docu} noDocumento={detalle.no_docu}
+                  usuarioDoc={detalle.usuario}
                 />
               )}
               {detalle.lineas?.length > 0 && (
@@ -445,17 +447,31 @@ export function CxpDocumentos() {
 // documento (tipo_docu asignado al usuario en el módulo/empresa/punto) --
 // a diferencia de /sistema/historial (auditoría completa, solo admin).
 function DocumentoHistorial({
-  noCia, punto, tipoDocumento, noDocumento,
-}: { noCia: string; punto: string; tipoDocumento: string; noDocumento: string }) {
+  noCia, punto, tipoDocumento, noDocumento, usuarioDoc,
+}: { noCia: string; punto: string; tipoDocumento: string; noDocumento: string; usuarioDoc?: string | null }) {
   const { data, isLoading } = useQuery({
     queryKey: ['historial-documento', 'CXP', noCia, punto, tipoDocumento, noDocumento],
     queryFn: () =>
       historialDocumento({ no_cia: noCia, punto, modulo: 'CXP', tipo_documento: tipoDocumento, no_documento: noDocumento }),
   })
   if (isLoading) return <p className="py-4 text-center text-sm text-muted-foreground">Cargando historial…</p>
+  const items = data?.items ?? []
+  // Los documentos migrados o creados antes de que existiera la bitácora
+  // de auditoría no tienen eventos -- pero TCXP_DOCUMENTO.usuario si guarda
+  // quien lo creo/toco por ultimo, y "sin actividad registrada" a secas
+  // no responde la pregunta que la pantalla existe para resolver.
+  if (items.length === 0) {
+    return (
+      <div className="rounded-lg border p-3 text-sm text-muted-foreground text-center">
+        {usuarioDoc
+          ? <>Creado por <span className="font-medium text-foreground">{usuarioDoc}</span> (sin bitácora detallada de ediciones posteriores).</>
+          : 'Sin actividad registrada.'}
+      </div>
+    )
+  }
   return (
     <div className="rounded-lg border p-3">
-      <HistorialTimeline eventos={data?.items ?? []} modo="completo" />
+      <HistorialTimeline eventos={items} modo="completo" />
     </div>
   )
 }
