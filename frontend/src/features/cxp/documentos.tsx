@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { History, Pencil } from 'lucide-react'
@@ -284,50 +284,63 @@ export function CxpDocumentos() {
         {/* SheetContent trae 'sm:max-w-sm' (384px) de base -- un max-w-[Xvw]
             sin el prefijo sm: nunca lo vence (mismo gotcha que otros modales
             del proyecto, ver memoria cxp-reversar-responsive): hay que pisarlo
-            con el mismo variant para que tailwind-merge lo reemplace. */}
-        <SheetContent className="sm:max-w-[40vw] max-h-[70vh] overflow-y-auto">
-          <SheetHeader>
+            con el mismo variant para que tailwind-merge lo reemplace.
+            h-full (no max-h-[Xvh]) para que ocupe el alto completo del
+            viewport igual que un panel lateral real, en vez de flotar con
+            un hueco abajo; header fijo + body con su propio scroll. */}
+        <SheetContent className="sm:max-w-[40vw] h-full flex flex-col gap-0 p-0">
+          <SheetHeader className="border-b px-6 py-4">
             <SheetTitle>
               {detalle ? `${TIPO_DOC[detalle.tipo_docu] ?? detalle.tipo_docu} ${detalle.no_docu} — ${detalle.nombre_proveedor}` : 'Cargando…'}
             </SheetTitle>
           </SheetHeader>
           {detalle && (
-            <div className="mt-4 space-y-4 text-sm">
-              <div className="grid grid-cols-2 gap-2">
-                <div><span className="text-muted-foreground">Fecha:</span> {fmtDate(detalle.fecha)}</div>
-                <div><span className="text-muted-foreground">Vence:</span> {fmtDate(detalle.fecha_vence)}</div>
-                <div><span className="text-muted-foreground">NCF:</span> <span className="font-mono">{detalle.ncf_dgi || composeNcfDgi(detalle.posiciones_fijas_ncf, detalle.ncf) || '—'}</span></div>
-                <div><span className="text-muted-foreground">RNC:</span> {detalle.rnc}</div>
-                <div><span className="text-muted-foreground">Valor Original:</span> {fmt(detalle.valor_original)}</div>
-                <div><span className="text-muted-foreground">Saldo:</span> {fmt(detalle.saldo)}</div>
-                <div><span className="text-muted-foreground">ITBIS:</span> {fmt(detalle.impuesto)}</div>
-                <div><span className="text-muted-foreground">ITBIS Retenido:</span> {fmt(detalle.itbis_retenido)}</div>
-                <div><span className="text-muted-foreground">ISR Retenido:</span> {fmt(detalle.isr_retenido)}</div>
-                {detalle.pago_bloqueado && detalle.pago_bloqueado !== 'N' && (
-                  <div className="col-span-2">
+            <div className="flex-1 overflow-y-auto px-6 py-5 text-sm space-y-6">
+              <section className="space-y-3">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Datos del documento</h4>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                  <Field label="Fecha" value={fmtDate(detalle.fecha)} />
+                  <Field label="Vence" value={fmtDate(detalle.fecha_vence)} />
+                  <Field label="NCF" value={detalle.ncf_dgi || composeNcfDgi(detalle.posiciones_fijas_ncf, detalle.ncf) || '—'} mono />
+                  <Field label="RNC" value={detalle.rnc} mono />
+                </div>
+              </section>
+              <section className="space-y-3">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Montos</h4>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                  <Field label="Valor Original" value={fmt(detalle.valor_original)} mono />
+                  <Field label="Saldo" value={fmt(detalle.saldo)} mono className={detalle.saldo < 0 ? 'text-red-600' : ''} />
+                  <Field label="ITBIS" value={fmt(detalle.impuesto)} mono />
+                  <Field label="ITBIS Retenido" value={fmt(detalle.itbis_retenido)} mono />
+                  <Field label="ISR Retenido" value={fmt(detalle.isr_retenido)} mono />
+                </div>
+              </section>
+              {(detalle.pago_bloqueado && detalle.pago_bloqueado !== 'N') || (detalle.status === 'R' && detalle.tipo_docu_r && detalle.no_docu_r) ? (
+                <section className="space-y-2 border-t pt-4">
+                  {detalle.pago_bloqueado && detalle.pago_bloqueado !== 'N' && (
                     <Badge className="bg-red-100 text-red-700">Pago Bloqueado</Badge>
-                  </div>
-                )}
-                {detalle.status === 'R' && detalle.tipo_docu_r && detalle.no_docu_r && (
-                  <div className="col-span-2 flex items-center gap-2">
-                    <Badge className="bg-purple-100 text-purple-700">Reversado</Badge>
-                    <span className="text-muted-foreground">Generó:</span>
-                    <button
-                      type="button"
-                      className="font-mono text-primary underline underline-offset-2"
-                      onClick={() => {
-                        setTipo(detalle.tipo_docu_r!)
-                        setNoDoc(detalle.no_docu_r!)
-                        setPage(1)
-                        setSelected(null)
-                      }}
-                    >
-                      {TIPO_DOC[detalle.tipo_docu_r] ?? detalle.tipo_docu_r}-{detalle.no_docu_r}
-                    </button>
-                  </div>
-                )}
-              </div>
-              <div className="flex justify-end gap-2">
+                  )}
+                  {detalle.status === 'R' && detalle.tipo_docu_r && detalle.no_docu_r && (
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-purple-100 text-purple-700">Reversado</Badge>
+                      <span className="text-muted-foreground">Generó:</span>
+                      <button
+                        type="button"
+                        className="font-mono text-primary underline underline-offset-2"
+                        onClick={() => {
+                          setTipo(detalle.tipo_docu_r!)
+                          setNoDoc(detalle.no_docu_r!)
+                          setPage(1)
+                          setSelected(null)
+                        }}
+                      >
+                        {TIPO_DOC[detalle.tipo_docu_r] ?? detalle.tipo_docu_r}-{detalle.no_docu_r}
+                      </button>
+                    </div>
+                  )}
+                </section>
+              ) : null}
+              <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
                 {(() => {
                   const editable = esDocumentoEditable(detalle.fecha, periodoQ.periodo) && detalle.status !== 'R'
                   const editBtn = (
@@ -404,8 +417,8 @@ export function CxpDocumentos() {
                 />
               )}
               {detalle.lineas?.length > 0 && (
-                <div>
-                  <p className="font-semibold mb-2 text-sm">Distribución Contable</p>
+                <section className="space-y-3 border-t pt-4">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Distribución Contable</h4>
                   <div className="rounded-lg border overflow-x-auto">
                     <Table>
                       <TableHeader className="bg-muted/40">
@@ -432,12 +445,23 @@ export function CxpDocumentos() {
                       </TableBody>
                     </Table>
                   </div>
-                </div>
+                </section>
               )}
             </div>
           )}
         </SheetContent>
       </Sheet>
+    </div>
+  )
+}
+
+// Par etiqueta/valor del detalle del documento -- etiqueta pequeña arriba,
+// valor debajo, mismo patrón visual para todos los campos del panel.
+function Field({ label, value, mono, className }: { label: string; value: ReactNode; mono?: boolean; className?: string }) {
+  return (
+    <div className="space-y-0.5">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className={`${mono ? 'font-mono' : ''} ${className ?? ''}`}>{value}</div>
     </div>
   )
 }
