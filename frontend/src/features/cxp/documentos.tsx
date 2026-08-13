@@ -35,6 +35,7 @@ interface DocDetalle extends Documento {
   tipo_gasto?: string | null; tipo_retencion?: number | null
   tipo_docu_r?: string | null; no_docu_r?: string | null
   usuario?: string | null
+  detalle?: string | null
 }
 
 const TIPO_DOC: Record<string, string> = {
@@ -304,6 +305,7 @@ export function CxpDocumentos() {
                   <Field label="NCF" value={detalle.ncf_dgi || composeNcfDgi(detalle.posiciones_fijas_ncf, detalle.ncf) || '—'} mono />
                   <Field label="RNC" value={detalle.rnc} mono />
                 </div>
+                <Field label="Concepto / Detalle" value={detalle.detalle || '—'} />
               </section>
               <section className="space-y-3">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Montos</h4>
@@ -351,7 +353,7 @@ export function CxpDocumentos() {
                       onClick={() =>
                         navigate({
                           to: '/cxp/entrada-documentos',
-                          search: { tipo: detalle.tipo_docu, no_docu: detalle.no_docu },
+                          search: { tipo: detalle.tipo_docu, no_docu: detalle.no_docu, cola_id: undefined },
                         })
                       }
                     >

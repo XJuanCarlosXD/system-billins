@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { RefreshCw, PlayCircle, Clock, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { useNavigate } from '@tanstack/react-router'
+import { RefreshCw, PlayCircle, Pencil, Clock, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -19,6 +20,7 @@ const ESTADO_STYLE: Record<string, string> = {
 // en espera y se materializa solo al abrir su mes (cierre de CxP), o a mano
 // desde el boton "Materializar" cuando ese mes ya este abierto.
 export function CxpCola({ noCia, punto = '' }: P) {
+  const navigate = useNavigate()
   const [data, setData] = useState<{ items: any[]; count: number; pendientes: number } | null>(null)
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
@@ -117,9 +119,17 @@ export function CxpCola({ noCia, punto = '' }: P) {
                 <TableCell className="text-xs text-muted-foreground">{r.usuario} · {r.fecha_encolado}</TableCell>
                 <TableCell>
                   {r.estado === 'PENDIENTE' && (
-                    <Button onClick={() => materializar(r.id)} size="sm" variant="outline" className="h-7 gap-1 text-xs">
-                      <PlayCircle className="h-3.5 w-3.5" />Materializar
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        onClick={() => navigate({ to: '/cxp/entrada-documentos', search: { cola_id: r.id, tipo: undefined, no_docu: undefined } })}
+                        size="sm" variant="outline" className="h-7 gap-1 text-xs"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />Editar
+                      </Button>
+                      <Button onClick={() => materializar(r.id)} size="sm" variant="outline" className="h-7 gap-1 text-xs">
+                        <PlayCircle className="h-3.5 w-3.5" />Materializar
+                      </Button>
+                    </div>
                   )}
                 </TableCell>
               </TableRow>

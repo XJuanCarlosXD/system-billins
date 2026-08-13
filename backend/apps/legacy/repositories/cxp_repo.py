@@ -1541,6 +1541,29 @@ def _check_ncf_duplicate(cur, no_cia, no_proveedor, ncf_num, pos_ncf,
         )
 
 
+def _ensure_bproveedor(cur, no_cia, punto, no_proveedor, usuario='API'):
+    """INSERT CXP.TCXP_BPROVEEDOR si falta — mismo patron que
+    inv_repo._insert_eproducto para TINV_EPRODUCTO. TCXP_DOCUMENTO tiene
+    FK_TCXP_DOCUMENTO_BPROVE contra (no_cia,punto,no_proveedor) de esta
+    tabla, pero save_proveedor() solo inserta en TCXP_DPROVEEDOR (que es
+    global, sin no_cia/punto) -- cualquier proveedor creado desde el clon
+    revienta con ORA-02291 al grabar su primer documento en una cia/punto
+    donde nunca tuvo balance. Ver reporte de soporte de ACLASE 2026-08-13.
+    Idempotente."""
+    exists = cur.execute(
+        "SELECT 1 FROM CXP.TCXP_BPROVEEDOR "
+        "WHERE no_cia=:1 AND punto=:2 AND no_proveedor=:3",
+        [no_cia, punto, no_proveedor]).fetchone()
+    if exists:
+        return
+    cur.execute(
+        "INSERT INTO CXP.TCXP_BPROVEEDOR("
+        "no_cia,punto,no_proveedor,tipo_proveedor,activo,"
+        "saldo_inicial,debitos,creditos,fecha,usuario"
+        ") VALUES(:1,:2,:3,'01','S',0,0,0,SYSDATE,:4)",
+        [no_cia, punto, no_proveedor, usuario])
+
+
 def entrada_documento(d, _skip_periodo_gate: bool = False):
     """
     Crea/actualiza un documento CxP (cabecera TCXP_DOCUMENTO + lineas TCXP_DCDOCU).
@@ -1604,6 +1627,7 @@ def entrada_documento(d, _skip_periodo_gate: bool = False):
     with client.cursor() as cur:
         # Oracle constraint: debito=credito always; saldo<=0 for D, >=0 for C
         saldo_inicial = -valor if tipo_movi == "D" else valor
+        _ensure_bproveedor(cur, no_cia, punto, no_proveedor, d.get("usuario", "API"))
 
         if no_docu:
             # Editar un documento ya existente (usado por el boton "Editar"
@@ -2623,6 +2647,84 @@ def materializar_cola_manual(cid: int) -> dict:
                 ano_obj, mes_obj, int(prow[0]), int(prow[1])))
     out = _materializar_cola(no_cia, punto, ano_obj, mes_obj)
     return {'ok': True, 'resultado': [x for x in out]}
+
+
+def get_cola_documento(cid: int) -> dict | None:
+    """Payload completo de una fila de cola PENDIENTE, en la misma forma que
+    espera el formulario de Entrada de Documentos (editTipo/editNoDocu) --
+    permite reabrir y corregir un documento antes de que se materialice,
+    igual que el boton Editar de Consulta de Documentos hace con uno ya
+    creado. No aplica a filas ya MATERIALIZADO/ERROR (esas se editan sobre
+    el documento real via entrada_documento)."""
+    with client.cursor() as cur:
+        cur.execute(
+            "SELECT estado, payload FROM CXP.TCXP_DOCUMENTO_COLA WHERE id=:1", [cid])
+        row = cur.fetchone()
+        if not row:
+            return None
+        estado, payload_lob = row
+        payload_str = payload_lob.read() if hasattr(payload_lob, 'read') else payload_lob
+    if estado != 'PENDIENTE':
+        raise ValueError(f"La fila ya esta {estado}, no se puede editar")
+    payload = json.loads(payload_str)
+    payload.pop('_cola_link', None)
+    payload.pop('_cola_origen', None)
+    prov = client.fetch_dicts(
+        "SELECT nombre, rnc AS rnc_ficha, direccion FROM CXP.TCXP_DPROVEEDOR "
+        "WHERE no_proveedor=:1", [str(payload.get('no_proveedor') or '')])
+    doc = dict(payload)
+    doc['cola_id'] = cid
+    doc['nombre_proveedor'] = prov[0]['nombre'] if prov else ''
+    doc['direccion_proveedor'] = prov[0]['direccion'] if prov else ''
+    doc['posiciones_fijas_ncf'] = payload.get('tipo_ncf') or payload.get('posiciones_fijas_ncf')
+    doc['valor_original'] = payload.get('valor_original') or payload.get('valor') or 0
+    doc['debitos_aplicados'] = []
+    return doc
+
+
+def editar_cola_documento(cid: int, d: dict) -> dict:
+    """Actualiza el payload guardado de una fila PENDIENTE de la cola --
+    mismas validaciones minimas que entrada_documento hace antes de encolar
+    (fecha valida, lineas balanceadas), pero sin tocar TCXP_DOCUMENTO: la
+    fila sigue PENDIENTE hasta que su periodo se materialice."""
+    with client.cursor() as cur:
+        cur.execute(
+            "SELECT estado, no_cia, punto FROM CXP.TCXP_DOCUMENTO_COLA WHERE id=:1", [cid])
+        row = cur.fetchone()
+        if not row:
+            raise ValueError("Fila de cola no encontrada")
+        estado, no_cia, punto = row
+        if estado != 'PENDIENTE':
+            raise ValueError(f"La fila ya esta {estado}, no se puede editar")
+
+        fecha = _norm_fecha(d.get('fecha', ''), campo='fecha', requerido=True)
+        lineas_in = d.get('lineas', [])
+        if not lineas_in:
+            raise ValueError(
+                "El documento debe incluir la distribucion contable "
+                "(lineas de Debito/Credito) -- no se puede grabar sin ella.")
+        tot_deb = sum(float(l.get('monto') or 0) for l in lineas_in
+                      if (l.get('tipo_movi') or 'D').upper() == 'D')
+        tot_cre = sum(float(l.get('monto') or 0) for l in lineas_in
+                      if (l.get('tipo_movi') or 'D').upper() == 'C')
+        if round(abs(tot_deb - tot_cre), 2) > 0.01:
+            raise ValueError(
+                "La distribucion contable no cuadra: Debito {:.2f} vs "
+                "Credito {:.2f}.".format(tot_deb, tot_cre))
+
+        ano_obj, mes_obj = int(fecha[:4]), int(fecha[5:7])
+        payload = {**d, 'no_cia': no_cia, 'punto': punto, 'fecha': fecha}
+        cur.execute(
+            "UPDATE CXP.TCXP_DOCUMENTO_COLA SET "
+            "ano_objetivo=:1, mes_objetivo=:2, tipo_docu=:3, no_proveedor=:4, "
+            "ncf=:5, fecha_doc=TO_DATE(:6,'YYYY-MM-DD'), valor=:7, payload=:8 "
+            "WHERE id=:9",
+            [ano_obj, mes_obj, d.get('tipo_docu'), str(d.get('no_proveedor') or ''),
+             str(d.get('ncf') or '')[:30], fecha,
+             float(d.get('valor_original') or d.get('valor') or 0),
+             json.dumps(payload, default=str), cid])
+        cur.connection.commit()
+    return {'ok': True, 'id': cid}
 
 
 # ─── SALDOS MENORES POR AJUSTAR (Fcxp204) ──────────────────────────────────

@@ -554,8 +554,8 @@ function MovimientoContableGrid({
 
 // ─── FCXP201 — Entrada de Documentos DR/CR ──────────────────────────────────
 export function CxpEntradaDocumentos({
-  noCia, punto = '', editTipo, editNoDocu,
-}: P & { editTipo?: string; editNoDocu?: string }) {
+  noCia, punto = '', editTipo, editNoDocu, editColaId,
+}: P & { editTipo?: string; editNoDocu?: string; editColaId?: number }) {
   const navigate = useNavigate()
   const { hasDocType } = useAccess()
   const [tiposDocu, setTiposDocu] = useState<any[]>([])
@@ -569,6 +569,12 @@ export function CxpEntradaDocumentos({
   // reabre el mismo formulario para editar). cxpEntradaDocumento() hace
   // UPDATE en vez de INSERT cuando se manda no_docu.
   const [modoEdicion, setModoEdicion] = useState(false)
+  // Editar una fila PENDIENTE de la Cola de Documentos (periodo aun no
+  // abierto): mismo formulario que modoEdicion, pero al guardar corrige el
+  // payload en TCXP_DOCUMENTO_COLA en vez de un documento ya creado -- la
+  // fila sigue PENDIENTE hasta que su mes se abra/materialice. Pedido por
+  // el usuario tras revisar la pantalla de Cola (2026-08-13).
+  const [modoEdicionCola, setModoEdicionCola] = useState(false)
   const [cargandoEdicion, setCargandoEdicion] = useState(false)
   // Solo se llena si el documento cargado es un credito (FP/FT/NC/AC): los
   // debitos (ND/AD/BD) ya aplicados contra el, igual al grid "Doc(s) de
@@ -611,7 +617,7 @@ export function CxpEntradaDocumentos({
         setTiposDocu(allowed)
         // Preseleccionar el tipo por defecto (o el primero) para captura más
         // rápida. En edición no se pisa: el tipo real del doc se carga aparte.
-        if (!editTipo && !editNoDocu) {
+        if (!editTipo && !editNoDocu && !editColaId) {
           const def = allowed.find((t: any) => t.por_defecto === 'S') ?? allowed[0]
           if (def) setTipoDocu((prev) => prev || String(def.codigo ?? def.tipo_docu ?? ''))
         }
@@ -628,16 +634,16 @@ export function CxpEntradaDocumentos({
       // En modo edicion la forma de pago real del documento ya se carga
       // aparte (ver efecto de carga de edicion abajo); no pisarla con el
       // default de un documento nuevo.
-      if (editTipo && editNoDocu) return
+      if ((editTipo && editNoDocu) || editColaId) return
       const def = rows.find((r) => r.por_defecto === 'S')
       if (def) setForm((f) => ({ ...f, forma_pago: String(def.forma_pago) }))
     }).catch(() => {})
-  }, [noCia, editTipo, editNoDocu])
+  }, [noCia, editTipo, editNoDocu, editColaId])
 
   useEffect(() => {
     // En modo edicion "siguiente" es el numero del documento que se esta
     // editando (fijado por el efecto de carga de abajo) -- no tocar aqui.
-    if (editTipo && editNoDocu) return
+    if ((editTipo && editNoDocu) || editColaId) return
     // En modo creacion YA NO se pre-consulta el numero: mostrarlo antes de
     // guardar genera falsa certeza cuando dos personas registran a la vez --
     // la asignacion real ocurre atomicamente al guardar (backend usa FOR
@@ -645,7 +651,7 @@ export function CxpEntradaDocumentos({
     // creado" (ticket NUMERACION DE DOCUMENTO, caso FP-8631 mostrado en
     // pantalla / FP-8633 asignado de verdad al guardar).
     setSiguiente('')
-  }, [tipoDocu, noCia, punto, editTipo, editNoDocu])
+  }, [tipoDocu, noCia, punto, editTipo, editNoDocu, editColaId])
 
   // ── Carga del documento a editar (boton "Editar" desde Consulta de
   // Documentos) ──────────────────────────────────────────────────────────
@@ -703,14 +709,71 @@ export function CxpEntradaDocumentos({
       .finally(() => setCargandoEdicion(false))
   }, [editTipo, editNoDocu, noCia, punto])
 
+  // ── Carga de una fila PENDIENTE de la Cola de Documentos (boton "Editar"
+  // desde /cxp/cola) -- mismo formulario, pero el payload viene de
+  // TCXP_DOCUMENTO_COLA en vez de un documento ya creado; no hay no_docu
+  // real todavia. ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!editColaId || !noCia || !punto) return
+    setCargandoEdicion(true)
+    api.cxpGetColaDocumento(editColaId)
+      .then((doc: any) => {
+        if (!doc) {
+          toast.error(`No se encontró la fila de cola #${editColaId}`)
+          return
+        }
+        setModoEdicion(true)
+        setModoEdicionCola(true)
+        setTipoDocu(doc.tipo_docu)
+        setProveedor({
+          no_proveedor: doc.no_proveedor,
+          nombre: doc.nombre_proveedor,
+          rnc: doc.rnc,
+          direccion: doc.direccion_proveedor,
+        })
+        const posNcf = (doc.posiciones_fijas_ncf || '').toString().trim().toUpperCase()
+        setForm({
+          fecha: doc.fecha || today,
+          fecha_vence: doc.fecha_vence || '',
+          valor_bienes: doc.valor_bienes != null ? String(doc.valor_bienes) : '',
+          valor_servicio: doc.valor_servicio != null ? String(doc.valor_servicio) : '',
+          descripcion: doc.detalle || '',
+          rnc: doc.rnc || '',
+          ncf: doc.ncf != null && doc.ncf !== '' ? String(doc.ncf).padStart(ncfWidth(posNcf), '0') : '',
+          tipo_ncf: posNcf,
+          isc: doc.isc != null ? String(doc.isc) : '',
+          otros_impuestos: doc.otros_impuestos != null ? String(doc.otros_impuestos) : '',
+          propina: doc.propina != null ? String(doc.propina) : '',
+          tipo_gasto: doc.tipo_gasto || '',
+          tipo_retencion: doc.tipo_retencion != null ? String(doc.tipo_retencion) : '',
+          itbis_retenido: doc.itbis_retenido ? String(doc.itbis_retenido) : '',
+          isr_retenido: doc.isr_retenido ? String(doc.isr_retenido) : '',
+          forma_pago: doc.forma_pago != null ? String(doc.forma_pago) : '',
+        })
+        setImpuesto(doc.impuesto ? String(doc.impuesto) : '')
+        setEditandoItbis(true)
+        setEditandoRetenciones(true)
+        const lineasCargadas: LineaContable[] = (doc.lineas || []).map((l: any) => ({
+          cuenta: l.cuenta || '',
+          centroCosto: l.centro_costo || '',
+          debito: l.tipo_movi === 'D' ? String(l.monto) : '',
+          credito: l.tipo_movi === 'C' ? String(l.monto) : '',
+        }))
+        setLineasContables(lineasCargadas.length > 0 ? lineasCargadas : [filaVacia()])
+        setLineasTocadas(true)
+      })
+      .catch((e: any) => toast.error(e?.detail?.error || e?.message || 'No se pudo cargar la fila de cola'))
+      .finally(() => setCargandoEdicion(false))
+  }, [editColaId, noCia, punto])
+
   // Cuando se carga un proveedor, traer su RNC por defecto -- salvo en modo
   // edicion, donde el RNC ya cargado es el que realmente se capturo en ese
   // documento (puede diferir del RNC ficticio en ficha del proveedor, ver
   // nota en entrada-compras.tsx sobre proveedores TC).
   useEffect(() => {
-    if (editTipo && editNoDocu) return
+    if ((editTipo && editNoDocu) || editColaId) return
     if (proveedor?.rnc) setForm((f) => ({ ...f, rnc: proveedor.rnc }))
-  }, [proveedor?.no_proveedor, editTipo, editNoDocu]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [proveedor?.no_proveedor, editTipo, editNoDocu, editColaId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Trae el porcentaje de ITBIS y las cuentas contables por defecto de la
   // empresa: TCNT_CIAS.CUENTA_ITBIS_RETENIDO / CUENTA_ISR (config real por
@@ -846,7 +909,7 @@ export function CxpEntradaDocumentos({
         setNcfInfo(r)
         // En modo edicion el NCF ya cargado es el real del documento -- no
         // pisarlo con el "proximo NCF a autoasignar" de un documento nuevo.
-        if (editTipo && editNoDocu) return
+        if ((editTipo && editNoDocu) || editColaId) return
         if (r?.codigo_ncf && r?.prox_ncf != null) {
           // Pre-fill NCF (numero) y tipo_ncf (posiciones_fijas, p.ej. B11)
           const _pos = (r.posiciones_fijas || '').toUpperCase()
@@ -858,7 +921,7 @@ export function CxpEntradaDocumentos({
         }
       })
       .catch(() => setNcfInfo(null))
-  }, [proveedor?.no_proveedor, noCia, punto, editTipo, editNoDocu])
+  }, [proveedor?.no_proveedor, noCia, punto, editTipo, editNoDocu, editColaId])
 
   // Auto-calcula el ITBIS desde el valor de bienes + valor del servicio
   // (sin ITBIS):
@@ -941,11 +1004,11 @@ export function CxpEntradaDocumentos({
           monto: Number(l.debito || 0) > 0 ? Number(l.debito) : Number(l.credito),
           tipo_movi: Number(l.debito || 0) > 0 ? 'D' : 'C',
         }))
-      const res = await api.cxpEntradaDocumento({
+      const payload = {
         no_cia: noCia,
         punto,
         tipo_docu: tipoDocu,
-        ...(modoEdicion ? { no_docu: siguiente } : {}),
+        ...(modoEdicion && !modoEdicionCola ? { no_docu: siguiente } : {}),
         no_proveedor: proveedor.no_proveedor,
         ...form,
         // valor_original = bienes + ITBIS (total del documento)
@@ -959,7 +1022,16 @@ export function CxpEntradaDocumentos({
         isr_retenido:    form.isr_retenido    ? Number(form.isr_retenido)    : 0,
         forma_pago:      form.forma_pago      ? Number(form.forma_pago)      : null,
         ...(lineas.length > 0 ? { lineas } : {}),
-      })
+      }
+
+      if (modoEdicionCola && editColaId) {
+        await api.cxpEditarColaDocumento(editColaId, payload)
+        toast.success(`Documento en cola #${editColaId} actualizado. Se generará al abrir su período.`)
+        navigate({ to: '/cxp/cola' })
+        return
+      }
+
+      const res = await api.cxpEntradaDocumento(payload)
 
       if (modoEdicion) {
         toast.success(`Documento ${tipoDocu}-${res.no_docu} actualizado`)
@@ -1032,7 +1104,9 @@ export function CxpEntradaDocumentos({
   if (cargandoEdicion) {
     return (
       <div className='space-y-4 p-6'>
-        <p className='text-sm text-muted-foreground'>Cargando documento {editTipo}-{editNoDocu}…</p>
+        <p className='text-sm text-muted-foreground'>
+          {modoEdicionCola ? `Cargando fila de cola #${editColaId}…` : `Cargando documento ${editTipo}-${editNoDocu}…`}
+        </p>
       </div>
     )
   }
@@ -1040,11 +1114,19 @@ export function CxpEntradaDocumentos({
   return (
     <div className='space-y-4 p-6'>
       <h1 className='text-2xl font-semibold'>
-        {modoEdicion
+        {modoEdicionCola
+          ? `Editando en cola — ${tipoDocu} #${editColaId}`
+          : modoEdicion
           ? `Editando ${tipoDocu}-${siguiente}`
           : 'FCXP201 — Entrada de Documentos DR/CR'}
       </h1>
-      {modoEdicion && (
+      {modoEdicionCola ? (
+        <p className='text-sm text-muted-foreground'>
+          Documento aún no generado: su período contable no está abierto en CxP y quedó en la
+          Cola de Documentos. Puede corregir cualquier campo; al guardar se actualiza la fila en
+          cola (sigue pendiente) hasta que su mes se abra y se materialice.
+        </p>
+      ) : modoEdicion && (
         <p className='text-sm text-muted-foreground'>
           Documento cargado desde Consulta de Documentos. Puede corregir cualquier
           campo, incluida la distribución contable de abajo. Al guardar se actualiza
@@ -1072,9 +1154,9 @@ export function CxpEntradaDocumentos({
             </Select>
           </div>
           <div className='min-w-0 space-y-1'>
-            <Label className='text-xs'>{modoEdicion ? 'Documento' : 'No. Documento'}</Label>
+            <Label className='text-xs'>{modoEdicionCola ? 'Cola' : modoEdicion ? 'Documento' : 'No. Documento'}</Label>
             <Input
-              value={siguiente}
+              value={modoEdicionCola ? `#${editColaId} (pendiente)` : siguiente}
               disabled
               placeholder={modoEdicion ? '' : 'Se asignará al guardar'}
               className='h-10 font-mono placeholder:font-sans placeholder:text-xs placeholder:italic'
@@ -1413,7 +1495,7 @@ export function CxpEntradaDocumentos({
           al crearlo): usa el tipo_docu/no_docu reales para excluir lo ya
           aplicado (TCXP_REFEDOCU) y dejar aplicar contra pendientes sin
           salir de esta pantalla, igual que el legado FCXP201. */}
-      {esDocDebito && modoEdicion && proveedor?.no_proveedor && siguiente && (
+      {esDocDebito && modoEdicion && !modoEdicionCola && proveedor?.no_proveedor && siguiente && (
         <AplicarDocRecienCreado
           noCia={noCia}
           punto={punto}
@@ -1429,7 +1511,7 @@ export function CxpEntradaDocumentos({
           mostrar que debitos (ND/AD/BD) ya se le aplicaron -- el grid
           "Doc(s) de Debito Afectado" del legado FCXP501. Solo lectura: la
           aplicacion se hace desde el lado del debito, no desde aqui. */}
-      {modoEdicion && !esDocDebito && debitosAplicados.length > 0 && (
+      {modoEdicion && !modoEdicionCola && !esDocDebito && debitosAplicados.length > 0 && (
         <Card className='border-amber-300'>
           <CardHeader className='pb-2'>
             <CardTitle className='text-sm'>Documentos de Débito que afectaron esta factura</CardTitle>
@@ -1461,7 +1543,11 @@ export function CxpEntradaDocumentos({
 
       <div className='flex justify-end gap-2'>
         {modoEdicion && (
-          <Button variant='outline' onClick={() => navigate({ to: '/cxp/documentos' })} disabled={saving}>
+          <Button
+            variant='outline'
+            onClick={() => navigate({ to: modoEdicionCola ? '/cxp/cola' : '/cxp/documentos' })}
+            disabled={saving}
+          >
             Cancelar
           </Button>
         )}

@@ -1319,6 +1319,10 @@ export const regalGeneralApi = {
   },
   cxpColaMaterializar: (id: number) =>
     request<any>(`/cxp/cola/materializar/`, { method: 'POST', body: JSON.stringify({ id }) }),
+  cxpGetColaDocumento: (id: number) =>
+    request<any>(`/cxp/cola/${id}/documento/`),
+  cxpEditarColaDocumento: (id: number, data: Record<string, unknown>) =>
+    request<{ ok: boolean; id: number }>(`/cxp/cola/${id}/documento/`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Procesos CxP (escritura)
   cxpGetSiguienteNoDocu: (noCia: string, punto: string, tipoDocu: string) =>

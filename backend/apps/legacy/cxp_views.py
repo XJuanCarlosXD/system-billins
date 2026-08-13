@@ -524,6 +524,26 @@ def cxp_cola_materializar(request):
 
 @login_required
 @csrf_exempt
+@require_http_methods(['GET', 'PUT'])
+def cxp_cola_documento(request, cid):
+    """GET → payload de una fila PENDIENTE de la cola (para el formulario de
+    Entrada de Documentos en modo edicion). PUT {..mismos campos que
+    entrada-documentos..} → corrige esa fila sin materializarla."""
+    cid = int(cid)
+    try:
+        if request.method == 'GET':
+            doc = cxp_repo.get_cola_documento(cid)
+            if not doc:
+                return JsonResponse({'error': 'Fila de cola no encontrada'}, status=404)
+            return JsonResponse(doc)
+        data = json.loads(request.body)
+        return JsonResponse(cxp_repo.editar_cola_documento(cid, data))
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+
+@login_required
+@csrf_exempt
 @require_http_methods(['POST'])
 def cxp_reversar(request):
     """
