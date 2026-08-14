@@ -63,8 +63,8 @@ export const NOVEDADES: Novedad[] = [
     modulo: 'General',
     titulo: 'Mismo panel lateral (sidebar) e historial en todos los módulos',
     descripcion:
-      'El panel lateral de detalle de documento que ya se veía bien en Cuentas por Pagar ahora es un solo componente reutilizado en Inventario, Cuentas por Cobrar, Órdenes de Compra y Facturación — antes Cuentas por Cobrar y Órdenes de Compra mostraban el detalle en una ventana centrada distinta. Dentro de ese panel, el botón "Ver historial" (quién creó, editó o anuló el documento, sin necesidad de ser administrador) también quedó disponible en los cinco módulos: es de solo lectura, muestra la línea de tiempo de eventos o, si el documento es viejo y no tiene bitácora detallada, al menos indica quién lo creó. Se corrigió además un caso en Facturación donde el historial de una factura no mostraba quién la había creado.',
-    commit: '0fe2356',
+      'El panel lateral de detalle de documento que ya se veía bien en Cuentas por Pagar ahora es un solo componente reutilizado en Inventario, Cuentas por Cobrar, Órdenes de Compra y Facturación (Consulta de Facturas, Vista de Cajero y Pedidos/Cotizaciones/Conduces) — antes Cuentas por Cobrar, Órdenes de Compra y Conduces mostraban el detalle en una ventana centrada distinta. Dentro de ese panel, el botón "Ver historial" (quién creó, editó o anuló el documento, sin necesidad de ser administrador) también quedó disponible en todas esas pantallas: es de solo lectura, muestra la línea de tiempo de eventos o, si el documento es viejo y no tiene bitácora detallada, al menos indica quién lo creó. Se corrigió además que en Facturación (facturas y conduces) el historial no mostraba quién había creado el documento.',
+    commit: '7c5e49f',
   },
   {
     fecha: '2026-08-11',
