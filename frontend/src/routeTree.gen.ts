@@ -106,6 +106,42 @@ import { Route as AuthenticatedOdcNuevaOrdenRouteImport } from './routes/_authen
 import { Route as AuthenticatedOdcCiasRouteImport } from './routes/_authenticated/odc/cias'
 import { Route as AuthenticatedOdcAutorizarRouteImport } from './routes/_authenticated/odc/autorizar'
 import { Route as AuthenticatedOdcAnularRouteImport } from './routes/_authenticated/odc/anular'
+import { Route as AuthenticatedInvUnidadesEmpaqueRouteImport } from './routes/_authenticated/inv/unidades-empaque'
+import { Route as AuthenticatedInvTransferenciaMercanciaRouteImport } from './routes/_authenticated/inv/transferencia-mercancia'
+import { Route as AuthenticatedInvTiposDocumentosRouteImport } from './routes/_authenticated/inv/tipos-documentos'
+import { Route as AuthenticatedInvSublineaProductosRouteImport } from './routes/_authenticated/inv/sublinea-productos'
+import { Route as AuthenticatedInvSalidaMercanciaRouteImport } from './routes/_authenticated/inv/salida-mercancia'
+import { Route as AuthenticatedInvReversarDocumentoRouteImport } from './routes/_authenticated/inv/reversar-documento'
+import { Route as AuthenticatedInvReportesCfRouteImport } from './routes/_authenticated/inv/reportes-cf'
+import { Route as AuthenticatedInvReporteMovimientosRouteImport } from './routes/_authenticated/inv/reporte-movimientos'
+import { Route as AuthenticatedInvReporteExistenciaRouteImport } from './routes/_authenticated/inv/reporte-existencia'
+import { Route as AuthenticatedInvReferenciaEmpaqueRouteImport } from './routes/_authenticated/inv/referencia-empaque'
+import { Route as AuthenticatedInvPuntosTrabajoRouteImport } from './routes/_authenticated/inv/puntos-trabajo'
+import { Route as AuthenticatedInvProductosRouteImport } from './routes/_authenticated/inv/productos'
+import { Route as AuthenticatedInvModificarCostoRouteImport } from './routes/_authenticated/inv/modificar-costo'
+import { Route as AuthenticatedInvMinimoMaximoRouteImport } from './routes/_authenticated/inv/minimo-maximo'
+import { Route as AuthenticatedInvLineasSublineasRouteImport } from './routes/_authenticated/inv/lineas-sublineas'
+import { Route as AuthenticatedInvLineaProductosRouteImport } from './routes/_authenticated/inv/linea-productos'
+import { Route as AuthenticatedInvGrupoProductosRouteImport } from './routes/_authenticated/inv/grupo-productos'
+import { Route as AuthenticatedInvGrupoContableRouteImport } from './routes/_authenticated/inv/grupo-contable'
+import { Route as AuthenticatedInvGenerarAsientoRouteImport } from './routes/_authenticated/inv/generar-asiento'
+import { Route as AuthenticatedInvExistenciaProductoRouteImport } from './routes/_authenticated/inv/existencia-producto'
+import { Route as AuthenticatedInvExistenciaGrupoRouteImport } from './routes/_authenticated/inv/existencia-grupo'
+import { Route as AuthenticatedInvEstantesTramosRouteImport } from './routes/_authenticated/inv/estantes-tramos'
+import { Route as AuthenticatedInvEntradaMercanciaRouteImport } from './routes/_authenticated/inv/entrada-mercancia'
+import { Route as AuthenticatedInvEntradaDiarioRouteImport } from './routes/_authenticated/inv/entrada-diario'
+import { Route as AuthenticatedInvEntradaComprasRouteImport } from './routes/_authenticated/inv/entrada-compras'
+import { Route as AuthenticatedInvEntradaCfManualRouteImport } from './routes/_authenticated/inv/entrada-cf-manual'
+import { Route as AuthenticatedInvDevolucionVentasRouteImport } from './routes/_authenticated/inv/devolucion-ventas'
+import { Route as AuthenticatedInvDevolucionSuplidoresRouteImport } from './routes/_authenticated/inv/devolucion-suplidores'
+import { Route as AuthenticatedInvConsultaDocumentosRouteImport } from './routes/_authenticated/inv/consulta-documentos'
+import { Route as AuthenticatedInvComparativoFisicoRouteImport } from './routes/_authenticated/inv/comparativo-fisico'
+import { Route as AuthenticatedInvCompaniasRouteImport } from './routes/_authenticated/inv/companias'
+import { Route as AuthenticatedInvCierreMensualRouteImport } from './routes/_authenticated/inv/cierre-mensual'
+import { Route as AuthenticatedInvCargarCfExcelRouteImport } from './routes/_authenticated/inv/cargar-cf-excel'
+import { Route as AuthenticatedInvAsignarProdCiaRouteImport } from './routes/_authenticated/inv/asignar-prod-cia'
+import { Route as AuthenticatedInvAlmacenesRouteImport } from './routes/_authenticated/inv/almacenes'
+import { Route as AuthenticatedInvAjusteInventarioCfRouteImport } from './routes/_authenticated/inv/ajuste-inventario-cf'
 import { Route as AuthenticatedFatTransportistasRouteImport } from './routes/_authenticated/fat/transportistas'
 import { Route as AuthenticatedFatTiposPagoRouteImport } from './routes/_authenticated/fat/tipos-pago'
 import { Route as AuthenticatedFatTdocuRouteImport } from './routes/_authenticated/fat/tdocu'
@@ -773,6 +809,222 @@ const AuthenticatedOdcAnularRoute = AuthenticatedOdcAnularRouteImport.update({
   path: '/anular',
   getParentRoute: () => AuthenticatedOdcRoute,
 } as any)
+const AuthenticatedInvUnidadesEmpaqueRoute =
+  AuthenticatedInvUnidadesEmpaqueRouteImport.update({
+    id: '/unidades-empaque',
+    path: '/unidades-empaque',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvTransferenciaMercanciaRoute =
+  AuthenticatedInvTransferenciaMercanciaRouteImport.update({
+    id: '/transferencia-mercancia',
+    path: '/transferencia-mercancia',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvTiposDocumentosRoute =
+  AuthenticatedInvTiposDocumentosRouteImport.update({
+    id: '/tipos-documentos',
+    path: '/tipos-documentos',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvSublineaProductosRoute =
+  AuthenticatedInvSublineaProductosRouteImport.update({
+    id: '/sublinea-productos',
+    path: '/sublinea-productos',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvSalidaMercanciaRoute =
+  AuthenticatedInvSalidaMercanciaRouteImport.update({
+    id: '/salida-mercancia',
+    path: '/salida-mercancia',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvReversarDocumentoRoute =
+  AuthenticatedInvReversarDocumentoRouteImport.update({
+    id: '/reversar-documento',
+    path: '/reversar-documento',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvReportesCfRoute =
+  AuthenticatedInvReportesCfRouteImport.update({
+    id: '/reportes-cf',
+    path: '/reportes-cf',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvReporteMovimientosRoute =
+  AuthenticatedInvReporteMovimientosRouteImport.update({
+    id: '/reporte-movimientos',
+    path: '/reporte-movimientos',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvReporteExistenciaRoute =
+  AuthenticatedInvReporteExistenciaRouteImport.update({
+    id: '/reporte-existencia',
+    path: '/reporte-existencia',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvReferenciaEmpaqueRoute =
+  AuthenticatedInvReferenciaEmpaqueRouteImport.update({
+    id: '/referencia-empaque',
+    path: '/referencia-empaque',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvPuntosTrabajoRoute =
+  AuthenticatedInvPuntosTrabajoRouteImport.update({
+    id: '/puntos-trabajo',
+    path: '/puntos-trabajo',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvProductosRoute =
+  AuthenticatedInvProductosRouteImport.update({
+    id: '/productos',
+    path: '/productos',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvModificarCostoRoute =
+  AuthenticatedInvModificarCostoRouteImport.update({
+    id: '/modificar-costo',
+    path: '/modificar-costo',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvMinimoMaximoRoute =
+  AuthenticatedInvMinimoMaximoRouteImport.update({
+    id: '/minimo-maximo',
+    path: '/minimo-maximo',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvLineasSublineasRoute =
+  AuthenticatedInvLineasSublineasRouteImport.update({
+    id: '/lineas-sublineas',
+    path: '/lineas-sublineas',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvLineaProductosRoute =
+  AuthenticatedInvLineaProductosRouteImport.update({
+    id: '/linea-productos',
+    path: '/linea-productos',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvGrupoProductosRoute =
+  AuthenticatedInvGrupoProductosRouteImport.update({
+    id: '/grupo-productos',
+    path: '/grupo-productos',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvGrupoContableRoute =
+  AuthenticatedInvGrupoContableRouteImport.update({
+    id: '/grupo-contable',
+    path: '/grupo-contable',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvGenerarAsientoRoute =
+  AuthenticatedInvGenerarAsientoRouteImport.update({
+    id: '/generar-asiento',
+    path: '/generar-asiento',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvExistenciaProductoRoute =
+  AuthenticatedInvExistenciaProductoRouteImport.update({
+    id: '/existencia-producto',
+    path: '/existencia-producto',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvExistenciaGrupoRoute =
+  AuthenticatedInvExistenciaGrupoRouteImport.update({
+    id: '/existencia-grupo',
+    path: '/existencia-grupo',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvEstantesTramosRoute =
+  AuthenticatedInvEstantesTramosRouteImport.update({
+    id: '/estantes-tramos',
+    path: '/estantes-tramos',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvEntradaMercanciaRoute =
+  AuthenticatedInvEntradaMercanciaRouteImport.update({
+    id: '/entrada-mercancia',
+    path: '/entrada-mercancia',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvEntradaDiarioRoute =
+  AuthenticatedInvEntradaDiarioRouteImport.update({
+    id: '/entrada-diario',
+    path: '/entrada-diario',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvEntradaComprasRoute =
+  AuthenticatedInvEntradaComprasRouteImport.update({
+    id: '/entrada-compras',
+    path: '/entrada-compras',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvEntradaCfManualRoute =
+  AuthenticatedInvEntradaCfManualRouteImport.update({
+    id: '/entrada-cf-manual',
+    path: '/entrada-cf-manual',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvDevolucionVentasRoute =
+  AuthenticatedInvDevolucionVentasRouteImport.update({
+    id: '/devolucion-ventas',
+    path: '/devolucion-ventas',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvDevolucionSuplidoresRoute =
+  AuthenticatedInvDevolucionSuplidoresRouteImport.update({
+    id: '/devolucion-suplidores',
+    path: '/devolucion-suplidores',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvConsultaDocumentosRoute =
+  AuthenticatedInvConsultaDocumentosRouteImport.update({
+    id: '/consulta-documentos',
+    path: '/consulta-documentos',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvComparativoFisicoRoute =
+  AuthenticatedInvComparativoFisicoRouteImport.update({
+    id: '/comparativo-fisico',
+    path: '/comparativo-fisico',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvCompaniasRoute =
+  AuthenticatedInvCompaniasRouteImport.update({
+    id: '/companias',
+    path: '/companias',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvCierreMensualRoute =
+  AuthenticatedInvCierreMensualRouteImport.update({
+    id: '/cierre-mensual',
+    path: '/cierre-mensual',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvCargarCfExcelRoute =
+  AuthenticatedInvCargarCfExcelRouteImport.update({
+    id: '/cargar-cf-excel',
+    path: '/cargar-cf-excel',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvAsignarProdCiaRoute =
+  AuthenticatedInvAsignarProdCiaRouteImport.update({
+    id: '/asignar-prod-cia',
+    path: '/asignar-prod-cia',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvAlmacenesRoute =
+  AuthenticatedInvAlmacenesRouteImport.update({
+    id: '/almacenes',
+    path: '/almacenes',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
+const AuthenticatedInvAjusteInventarioCfRoute =
+  AuthenticatedInvAjusteInventarioCfRouteImport.update({
+    id: '/ajuste-inventario-cf',
+    path: '/ajuste-inventario-cf',
+    getParentRoute: () => AuthenticatedInvRoute,
+  } as any)
 const AuthenticatedFatTransportistasRoute =
   AuthenticatedFatTransportistasRouteImport.update({
     id: '/transportistas',
@@ -1799,6 +2051,42 @@ export interface FileRoutesByFullPath {
   '/fat/tdocu': typeof AuthenticatedFatTdocuRoute
   '/fat/tipos-pago': typeof AuthenticatedFatTiposPagoRoute
   '/fat/transportistas': typeof AuthenticatedFatTransportistasRoute
+  '/inv/ajuste-inventario-cf': typeof AuthenticatedInvAjusteInventarioCfRoute
+  '/inv/almacenes': typeof AuthenticatedInvAlmacenesRoute
+  '/inv/asignar-prod-cia': typeof AuthenticatedInvAsignarProdCiaRoute
+  '/inv/cargar-cf-excel': typeof AuthenticatedInvCargarCfExcelRoute
+  '/inv/cierre-mensual': typeof AuthenticatedInvCierreMensualRoute
+  '/inv/companias': typeof AuthenticatedInvCompaniasRoute
+  '/inv/comparativo-fisico': typeof AuthenticatedInvComparativoFisicoRoute
+  '/inv/consulta-documentos': typeof AuthenticatedInvConsultaDocumentosRoute
+  '/inv/devolucion-suplidores': typeof AuthenticatedInvDevolucionSuplidoresRoute
+  '/inv/devolucion-ventas': typeof AuthenticatedInvDevolucionVentasRoute
+  '/inv/entrada-cf-manual': typeof AuthenticatedInvEntradaCfManualRoute
+  '/inv/entrada-compras': typeof AuthenticatedInvEntradaComprasRoute
+  '/inv/entrada-diario': typeof AuthenticatedInvEntradaDiarioRoute
+  '/inv/entrada-mercancia': typeof AuthenticatedInvEntradaMercanciaRoute
+  '/inv/estantes-tramos': typeof AuthenticatedInvEstantesTramosRoute
+  '/inv/existencia-grupo': typeof AuthenticatedInvExistenciaGrupoRoute
+  '/inv/existencia-producto': typeof AuthenticatedInvExistenciaProductoRoute
+  '/inv/generar-asiento': typeof AuthenticatedInvGenerarAsientoRoute
+  '/inv/grupo-contable': typeof AuthenticatedInvGrupoContableRoute
+  '/inv/grupo-productos': typeof AuthenticatedInvGrupoProductosRoute
+  '/inv/linea-productos': typeof AuthenticatedInvLineaProductosRoute
+  '/inv/lineas-sublineas': typeof AuthenticatedInvLineasSublineasRoute
+  '/inv/minimo-maximo': typeof AuthenticatedInvMinimoMaximoRoute
+  '/inv/modificar-costo': typeof AuthenticatedInvModificarCostoRoute
+  '/inv/productos': typeof AuthenticatedInvProductosRoute
+  '/inv/puntos-trabajo': typeof AuthenticatedInvPuntosTrabajoRoute
+  '/inv/referencia-empaque': typeof AuthenticatedInvReferenciaEmpaqueRoute
+  '/inv/reporte-existencia': typeof AuthenticatedInvReporteExistenciaRoute
+  '/inv/reporte-movimientos': typeof AuthenticatedInvReporteMovimientosRoute
+  '/inv/reportes-cf': typeof AuthenticatedInvReportesCfRoute
+  '/inv/reversar-documento': typeof AuthenticatedInvReversarDocumentoRoute
+  '/inv/salida-mercancia': typeof AuthenticatedInvSalidaMercanciaRoute
+  '/inv/sublinea-productos': typeof AuthenticatedInvSublineaProductosRoute
+  '/inv/tipos-documentos': typeof AuthenticatedInvTiposDocumentosRoute
+  '/inv/transferencia-mercancia': typeof AuthenticatedInvTransferenciaMercanciaRoute
+  '/inv/unidades-empaque': typeof AuthenticatedInvUnidadesEmpaqueRoute
   '/odc/anular': typeof AuthenticatedOdcAnularRoute
   '/odc/autorizar': typeof AuthenticatedOdcAutorizarRoute
   '/odc/cias': typeof AuthenticatedOdcCiasRoute
@@ -2033,6 +2321,42 @@ export interface FileRoutesByTo {
   '/fat/tdocu': typeof AuthenticatedFatTdocuRoute
   '/fat/tipos-pago': typeof AuthenticatedFatTiposPagoRoute
   '/fat/transportistas': typeof AuthenticatedFatTransportistasRoute
+  '/inv/ajuste-inventario-cf': typeof AuthenticatedInvAjusteInventarioCfRoute
+  '/inv/almacenes': typeof AuthenticatedInvAlmacenesRoute
+  '/inv/asignar-prod-cia': typeof AuthenticatedInvAsignarProdCiaRoute
+  '/inv/cargar-cf-excel': typeof AuthenticatedInvCargarCfExcelRoute
+  '/inv/cierre-mensual': typeof AuthenticatedInvCierreMensualRoute
+  '/inv/companias': typeof AuthenticatedInvCompaniasRoute
+  '/inv/comparativo-fisico': typeof AuthenticatedInvComparativoFisicoRoute
+  '/inv/consulta-documentos': typeof AuthenticatedInvConsultaDocumentosRoute
+  '/inv/devolucion-suplidores': typeof AuthenticatedInvDevolucionSuplidoresRoute
+  '/inv/devolucion-ventas': typeof AuthenticatedInvDevolucionVentasRoute
+  '/inv/entrada-cf-manual': typeof AuthenticatedInvEntradaCfManualRoute
+  '/inv/entrada-compras': typeof AuthenticatedInvEntradaComprasRoute
+  '/inv/entrada-diario': typeof AuthenticatedInvEntradaDiarioRoute
+  '/inv/entrada-mercancia': typeof AuthenticatedInvEntradaMercanciaRoute
+  '/inv/estantes-tramos': typeof AuthenticatedInvEstantesTramosRoute
+  '/inv/existencia-grupo': typeof AuthenticatedInvExistenciaGrupoRoute
+  '/inv/existencia-producto': typeof AuthenticatedInvExistenciaProductoRoute
+  '/inv/generar-asiento': typeof AuthenticatedInvGenerarAsientoRoute
+  '/inv/grupo-contable': typeof AuthenticatedInvGrupoContableRoute
+  '/inv/grupo-productos': typeof AuthenticatedInvGrupoProductosRoute
+  '/inv/linea-productos': typeof AuthenticatedInvLineaProductosRoute
+  '/inv/lineas-sublineas': typeof AuthenticatedInvLineasSublineasRoute
+  '/inv/minimo-maximo': typeof AuthenticatedInvMinimoMaximoRoute
+  '/inv/modificar-costo': typeof AuthenticatedInvModificarCostoRoute
+  '/inv/productos': typeof AuthenticatedInvProductosRoute
+  '/inv/puntos-trabajo': typeof AuthenticatedInvPuntosTrabajoRoute
+  '/inv/referencia-empaque': typeof AuthenticatedInvReferenciaEmpaqueRoute
+  '/inv/reporte-existencia': typeof AuthenticatedInvReporteExistenciaRoute
+  '/inv/reporte-movimientos': typeof AuthenticatedInvReporteMovimientosRoute
+  '/inv/reportes-cf': typeof AuthenticatedInvReportesCfRoute
+  '/inv/reversar-documento': typeof AuthenticatedInvReversarDocumentoRoute
+  '/inv/salida-mercancia': typeof AuthenticatedInvSalidaMercanciaRoute
+  '/inv/sublinea-productos': typeof AuthenticatedInvSublineaProductosRoute
+  '/inv/tipos-documentos': typeof AuthenticatedInvTiposDocumentosRoute
+  '/inv/transferencia-mercancia': typeof AuthenticatedInvTransferenciaMercanciaRoute
+  '/inv/unidades-empaque': typeof AuthenticatedInvUnidadesEmpaqueRoute
   '/odc/anular': typeof AuthenticatedOdcAnularRoute
   '/odc/autorizar': typeof AuthenticatedOdcAutorizarRoute
   '/odc/cias': typeof AuthenticatedOdcCiasRoute
@@ -2283,6 +2607,42 @@ export interface FileRoutesById {
   '/_authenticated/fat/tdocu': typeof AuthenticatedFatTdocuRoute
   '/_authenticated/fat/tipos-pago': typeof AuthenticatedFatTiposPagoRoute
   '/_authenticated/fat/transportistas': typeof AuthenticatedFatTransportistasRoute
+  '/_authenticated/inv/ajuste-inventario-cf': typeof AuthenticatedInvAjusteInventarioCfRoute
+  '/_authenticated/inv/almacenes': typeof AuthenticatedInvAlmacenesRoute
+  '/_authenticated/inv/asignar-prod-cia': typeof AuthenticatedInvAsignarProdCiaRoute
+  '/_authenticated/inv/cargar-cf-excel': typeof AuthenticatedInvCargarCfExcelRoute
+  '/_authenticated/inv/cierre-mensual': typeof AuthenticatedInvCierreMensualRoute
+  '/_authenticated/inv/companias': typeof AuthenticatedInvCompaniasRoute
+  '/_authenticated/inv/comparativo-fisico': typeof AuthenticatedInvComparativoFisicoRoute
+  '/_authenticated/inv/consulta-documentos': typeof AuthenticatedInvConsultaDocumentosRoute
+  '/_authenticated/inv/devolucion-suplidores': typeof AuthenticatedInvDevolucionSuplidoresRoute
+  '/_authenticated/inv/devolucion-ventas': typeof AuthenticatedInvDevolucionVentasRoute
+  '/_authenticated/inv/entrada-cf-manual': typeof AuthenticatedInvEntradaCfManualRoute
+  '/_authenticated/inv/entrada-compras': typeof AuthenticatedInvEntradaComprasRoute
+  '/_authenticated/inv/entrada-diario': typeof AuthenticatedInvEntradaDiarioRoute
+  '/_authenticated/inv/entrada-mercancia': typeof AuthenticatedInvEntradaMercanciaRoute
+  '/_authenticated/inv/estantes-tramos': typeof AuthenticatedInvEstantesTramosRoute
+  '/_authenticated/inv/existencia-grupo': typeof AuthenticatedInvExistenciaGrupoRoute
+  '/_authenticated/inv/existencia-producto': typeof AuthenticatedInvExistenciaProductoRoute
+  '/_authenticated/inv/generar-asiento': typeof AuthenticatedInvGenerarAsientoRoute
+  '/_authenticated/inv/grupo-contable': typeof AuthenticatedInvGrupoContableRoute
+  '/_authenticated/inv/grupo-productos': typeof AuthenticatedInvGrupoProductosRoute
+  '/_authenticated/inv/linea-productos': typeof AuthenticatedInvLineaProductosRoute
+  '/_authenticated/inv/lineas-sublineas': typeof AuthenticatedInvLineasSublineasRoute
+  '/_authenticated/inv/minimo-maximo': typeof AuthenticatedInvMinimoMaximoRoute
+  '/_authenticated/inv/modificar-costo': typeof AuthenticatedInvModificarCostoRoute
+  '/_authenticated/inv/productos': typeof AuthenticatedInvProductosRoute
+  '/_authenticated/inv/puntos-trabajo': typeof AuthenticatedInvPuntosTrabajoRoute
+  '/_authenticated/inv/referencia-empaque': typeof AuthenticatedInvReferenciaEmpaqueRoute
+  '/_authenticated/inv/reporte-existencia': typeof AuthenticatedInvReporteExistenciaRoute
+  '/_authenticated/inv/reporte-movimientos': typeof AuthenticatedInvReporteMovimientosRoute
+  '/_authenticated/inv/reportes-cf': typeof AuthenticatedInvReportesCfRoute
+  '/_authenticated/inv/reversar-documento': typeof AuthenticatedInvReversarDocumentoRoute
+  '/_authenticated/inv/salida-mercancia': typeof AuthenticatedInvSalidaMercanciaRoute
+  '/_authenticated/inv/sublinea-productos': typeof AuthenticatedInvSublineaProductosRoute
+  '/_authenticated/inv/tipos-documentos': typeof AuthenticatedInvTiposDocumentosRoute
+  '/_authenticated/inv/transferencia-mercancia': typeof AuthenticatedInvTransferenciaMercanciaRoute
+  '/_authenticated/inv/unidades-empaque': typeof AuthenticatedInvUnidadesEmpaqueRoute
   '/_authenticated/odc/anular': typeof AuthenticatedOdcAnularRoute
   '/_authenticated/odc/autorizar': typeof AuthenticatedOdcAutorizarRoute
   '/_authenticated/odc/cias': typeof AuthenticatedOdcCiasRoute
@@ -2531,6 +2891,42 @@ export interface FileRouteTypes {
     | '/fat/tdocu'
     | '/fat/tipos-pago'
     | '/fat/transportistas'
+    | '/inv/ajuste-inventario-cf'
+    | '/inv/almacenes'
+    | '/inv/asignar-prod-cia'
+    | '/inv/cargar-cf-excel'
+    | '/inv/cierre-mensual'
+    | '/inv/companias'
+    | '/inv/comparativo-fisico'
+    | '/inv/consulta-documentos'
+    | '/inv/devolucion-suplidores'
+    | '/inv/devolucion-ventas'
+    | '/inv/entrada-cf-manual'
+    | '/inv/entrada-compras'
+    | '/inv/entrada-diario'
+    | '/inv/entrada-mercancia'
+    | '/inv/estantes-tramos'
+    | '/inv/existencia-grupo'
+    | '/inv/existencia-producto'
+    | '/inv/generar-asiento'
+    | '/inv/grupo-contable'
+    | '/inv/grupo-productos'
+    | '/inv/linea-productos'
+    | '/inv/lineas-sublineas'
+    | '/inv/minimo-maximo'
+    | '/inv/modificar-costo'
+    | '/inv/productos'
+    | '/inv/puntos-trabajo'
+    | '/inv/referencia-empaque'
+    | '/inv/reporte-existencia'
+    | '/inv/reporte-movimientos'
+    | '/inv/reportes-cf'
+    | '/inv/reversar-documento'
+    | '/inv/salida-mercancia'
+    | '/inv/sublinea-productos'
+    | '/inv/tipos-documentos'
+    | '/inv/transferencia-mercancia'
+    | '/inv/unidades-empaque'
     | '/odc/anular'
     | '/odc/autorizar'
     | '/odc/cias'
@@ -2765,6 +3161,42 @@ export interface FileRouteTypes {
     | '/fat/tdocu'
     | '/fat/tipos-pago'
     | '/fat/transportistas'
+    | '/inv/ajuste-inventario-cf'
+    | '/inv/almacenes'
+    | '/inv/asignar-prod-cia'
+    | '/inv/cargar-cf-excel'
+    | '/inv/cierre-mensual'
+    | '/inv/companias'
+    | '/inv/comparativo-fisico'
+    | '/inv/consulta-documentos'
+    | '/inv/devolucion-suplidores'
+    | '/inv/devolucion-ventas'
+    | '/inv/entrada-cf-manual'
+    | '/inv/entrada-compras'
+    | '/inv/entrada-diario'
+    | '/inv/entrada-mercancia'
+    | '/inv/estantes-tramos'
+    | '/inv/existencia-grupo'
+    | '/inv/existencia-producto'
+    | '/inv/generar-asiento'
+    | '/inv/grupo-contable'
+    | '/inv/grupo-productos'
+    | '/inv/linea-productos'
+    | '/inv/lineas-sublineas'
+    | '/inv/minimo-maximo'
+    | '/inv/modificar-costo'
+    | '/inv/productos'
+    | '/inv/puntos-trabajo'
+    | '/inv/referencia-empaque'
+    | '/inv/reporte-existencia'
+    | '/inv/reporte-movimientos'
+    | '/inv/reportes-cf'
+    | '/inv/reversar-documento'
+    | '/inv/salida-mercancia'
+    | '/inv/sublinea-productos'
+    | '/inv/tipos-documentos'
+    | '/inv/transferencia-mercancia'
+    | '/inv/unidades-empaque'
     | '/odc/anular'
     | '/odc/autorizar'
     | '/odc/cias'
@@ -3014,6 +3446,42 @@ export interface FileRouteTypes {
     | '/_authenticated/fat/tdocu'
     | '/_authenticated/fat/tipos-pago'
     | '/_authenticated/fat/transportistas'
+    | '/_authenticated/inv/ajuste-inventario-cf'
+    | '/_authenticated/inv/almacenes'
+    | '/_authenticated/inv/asignar-prod-cia'
+    | '/_authenticated/inv/cargar-cf-excel'
+    | '/_authenticated/inv/cierre-mensual'
+    | '/_authenticated/inv/companias'
+    | '/_authenticated/inv/comparativo-fisico'
+    | '/_authenticated/inv/consulta-documentos'
+    | '/_authenticated/inv/devolucion-suplidores'
+    | '/_authenticated/inv/devolucion-ventas'
+    | '/_authenticated/inv/entrada-cf-manual'
+    | '/_authenticated/inv/entrada-compras'
+    | '/_authenticated/inv/entrada-diario'
+    | '/_authenticated/inv/entrada-mercancia'
+    | '/_authenticated/inv/estantes-tramos'
+    | '/_authenticated/inv/existencia-grupo'
+    | '/_authenticated/inv/existencia-producto'
+    | '/_authenticated/inv/generar-asiento'
+    | '/_authenticated/inv/grupo-contable'
+    | '/_authenticated/inv/grupo-productos'
+    | '/_authenticated/inv/linea-productos'
+    | '/_authenticated/inv/lineas-sublineas'
+    | '/_authenticated/inv/minimo-maximo'
+    | '/_authenticated/inv/modificar-costo'
+    | '/_authenticated/inv/productos'
+    | '/_authenticated/inv/puntos-trabajo'
+    | '/_authenticated/inv/referencia-empaque'
+    | '/_authenticated/inv/reporte-existencia'
+    | '/_authenticated/inv/reporte-movimientos'
+    | '/_authenticated/inv/reportes-cf'
+    | '/_authenticated/inv/reversar-documento'
+    | '/_authenticated/inv/salida-mercancia'
+    | '/_authenticated/inv/sublinea-productos'
+    | '/_authenticated/inv/tipos-documentos'
+    | '/_authenticated/inv/transferencia-mercancia'
+    | '/_authenticated/inv/unidades-empaque'
     | '/_authenticated/odc/anular'
     | '/_authenticated/odc/autorizar'
     | '/_authenticated/odc/cias'
@@ -3785,6 +4253,258 @@ declare module '@tanstack/react-router' {
       fullPath: '/odc/anular'
       preLoaderRoute: typeof AuthenticatedOdcAnularRouteImport
       parentRoute: typeof AuthenticatedOdcRoute
+    }
+    '/_authenticated/inv/unidades-empaque': {
+      id: '/_authenticated/inv/unidades-empaque'
+      path: '/unidades-empaque'
+      fullPath: '/inv/unidades-empaque'
+      preLoaderRoute: typeof AuthenticatedInvUnidadesEmpaqueRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/transferencia-mercancia': {
+      id: '/_authenticated/inv/transferencia-mercancia'
+      path: '/transferencia-mercancia'
+      fullPath: '/inv/transferencia-mercancia'
+      preLoaderRoute: typeof AuthenticatedInvTransferenciaMercanciaRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/tipos-documentos': {
+      id: '/_authenticated/inv/tipos-documentos'
+      path: '/tipos-documentos'
+      fullPath: '/inv/tipos-documentos'
+      preLoaderRoute: typeof AuthenticatedInvTiposDocumentosRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/sublinea-productos': {
+      id: '/_authenticated/inv/sublinea-productos'
+      path: '/sublinea-productos'
+      fullPath: '/inv/sublinea-productos'
+      preLoaderRoute: typeof AuthenticatedInvSublineaProductosRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/salida-mercancia': {
+      id: '/_authenticated/inv/salida-mercancia'
+      path: '/salida-mercancia'
+      fullPath: '/inv/salida-mercancia'
+      preLoaderRoute: typeof AuthenticatedInvSalidaMercanciaRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/reversar-documento': {
+      id: '/_authenticated/inv/reversar-documento'
+      path: '/reversar-documento'
+      fullPath: '/inv/reversar-documento'
+      preLoaderRoute: typeof AuthenticatedInvReversarDocumentoRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/reportes-cf': {
+      id: '/_authenticated/inv/reportes-cf'
+      path: '/reportes-cf'
+      fullPath: '/inv/reportes-cf'
+      preLoaderRoute: typeof AuthenticatedInvReportesCfRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/reporte-movimientos': {
+      id: '/_authenticated/inv/reporte-movimientos'
+      path: '/reporte-movimientos'
+      fullPath: '/inv/reporte-movimientos'
+      preLoaderRoute: typeof AuthenticatedInvReporteMovimientosRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/reporte-existencia': {
+      id: '/_authenticated/inv/reporte-existencia'
+      path: '/reporte-existencia'
+      fullPath: '/inv/reporte-existencia'
+      preLoaderRoute: typeof AuthenticatedInvReporteExistenciaRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/referencia-empaque': {
+      id: '/_authenticated/inv/referencia-empaque'
+      path: '/referencia-empaque'
+      fullPath: '/inv/referencia-empaque'
+      preLoaderRoute: typeof AuthenticatedInvReferenciaEmpaqueRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/puntos-trabajo': {
+      id: '/_authenticated/inv/puntos-trabajo'
+      path: '/puntos-trabajo'
+      fullPath: '/inv/puntos-trabajo'
+      preLoaderRoute: typeof AuthenticatedInvPuntosTrabajoRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/productos': {
+      id: '/_authenticated/inv/productos'
+      path: '/productos'
+      fullPath: '/inv/productos'
+      preLoaderRoute: typeof AuthenticatedInvProductosRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/modificar-costo': {
+      id: '/_authenticated/inv/modificar-costo'
+      path: '/modificar-costo'
+      fullPath: '/inv/modificar-costo'
+      preLoaderRoute: typeof AuthenticatedInvModificarCostoRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/minimo-maximo': {
+      id: '/_authenticated/inv/minimo-maximo'
+      path: '/minimo-maximo'
+      fullPath: '/inv/minimo-maximo'
+      preLoaderRoute: typeof AuthenticatedInvMinimoMaximoRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/lineas-sublineas': {
+      id: '/_authenticated/inv/lineas-sublineas'
+      path: '/lineas-sublineas'
+      fullPath: '/inv/lineas-sublineas'
+      preLoaderRoute: typeof AuthenticatedInvLineasSublineasRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/linea-productos': {
+      id: '/_authenticated/inv/linea-productos'
+      path: '/linea-productos'
+      fullPath: '/inv/linea-productos'
+      preLoaderRoute: typeof AuthenticatedInvLineaProductosRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/grupo-productos': {
+      id: '/_authenticated/inv/grupo-productos'
+      path: '/grupo-productos'
+      fullPath: '/inv/grupo-productos'
+      preLoaderRoute: typeof AuthenticatedInvGrupoProductosRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/grupo-contable': {
+      id: '/_authenticated/inv/grupo-contable'
+      path: '/grupo-contable'
+      fullPath: '/inv/grupo-contable'
+      preLoaderRoute: typeof AuthenticatedInvGrupoContableRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/generar-asiento': {
+      id: '/_authenticated/inv/generar-asiento'
+      path: '/generar-asiento'
+      fullPath: '/inv/generar-asiento'
+      preLoaderRoute: typeof AuthenticatedInvGenerarAsientoRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/existencia-producto': {
+      id: '/_authenticated/inv/existencia-producto'
+      path: '/existencia-producto'
+      fullPath: '/inv/existencia-producto'
+      preLoaderRoute: typeof AuthenticatedInvExistenciaProductoRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/existencia-grupo': {
+      id: '/_authenticated/inv/existencia-grupo'
+      path: '/existencia-grupo'
+      fullPath: '/inv/existencia-grupo'
+      preLoaderRoute: typeof AuthenticatedInvExistenciaGrupoRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/estantes-tramos': {
+      id: '/_authenticated/inv/estantes-tramos'
+      path: '/estantes-tramos'
+      fullPath: '/inv/estantes-tramos'
+      preLoaderRoute: typeof AuthenticatedInvEstantesTramosRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/entrada-mercancia': {
+      id: '/_authenticated/inv/entrada-mercancia'
+      path: '/entrada-mercancia'
+      fullPath: '/inv/entrada-mercancia'
+      preLoaderRoute: typeof AuthenticatedInvEntradaMercanciaRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/entrada-diario': {
+      id: '/_authenticated/inv/entrada-diario'
+      path: '/entrada-diario'
+      fullPath: '/inv/entrada-diario'
+      preLoaderRoute: typeof AuthenticatedInvEntradaDiarioRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/entrada-compras': {
+      id: '/_authenticated/inv/entrada-compras'
+      path: '/entrada-compras'
+      fullPath: '/inv/entrada-compras'
+      preLoaderRoute: typeof AuthenticatedInvEntradaComprasRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/entrada-cf-manual': {
+      id: '/_authenticated/inv/entrada-cf-manual'
+      path: '/entrada-cf-manual'
+      fullPath: '/inv/entrada-cf-manual'
+      preLoaderRoute: typeof AuthenticatedInvEntradaCfManualRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/devolucion-ventas': {
+      id: '/_authenticated/inv/devolucion-ventas'
+      path: '/devolucion-ventas'
+      fullPath: '/inv/devolucion-ventas'
+      preLoaderRoute: typeof AuthenticatedInvDevolucionVentasRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/devolucion-suplidores': {
+      id: '/_authenticated/inv/devolucion-suplidores'
+      path: '/devolucion-suplidores'
+      fullPath: '/inv/devolucion-suplidores'
+      preLoaderRoute: typeof AuthenticatedInvDevolucionSuplidoresRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/consulta-documentos': {
+      id: '/_authenticated/inv/consulta-documentos'
+      path: '/consulta-documentos'
+      fullPath: '/inv/consulta-documentos'
+      preLoaderRoute: typeof AuthenticatedInvConsultaDocumentosRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/comparativo-fisico': {
+      id: '/_authenticated/inv/comparativo-fisico'
+      path: '/comparativo-fisico'
+      fullPath: '/inv/comparativo-fisico'
+      preLoaderRoute: typeof AuthenticatedInvComparativoFisicoRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/companias': {
+      id: '/_authenticated/inv/companias'
+      path: '/companias'
+      fullPath: '/inv/companias'
+      preLoaderRoute: typeof AuthenticatedInvCompaniasRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/cierre-mensual': {
+      id: '/_authenticated/inv/cierre-mensual'
+      path: '/cierre-mensual'
+      fullPath: '/inv/cierre-mensual'
+      preLoaderRoute: typeof AuthenticatedInvCierreMensualRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/cargar-cf-excel': {
+      id: '/_authenticated/inv/cargar-cf-excel'
+      path: '/cargar-cf-excel'
+      fullPath: '/inv/cargar-cf-excel'
+      preLoaderRoute: typeof AuthenticatedInvCargarCfExcelRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/asignar-prod-cia': {
+      id: '/_authenticated/inv/asignar-prod-cia'
+      path: '/asignar-prod-cia'
+      fullPath: '/inv/asignar-prod-cia'
+      preLoaderRoute: typeof AuthenticatedInvAsignarProdCiaRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/almacenes': {
+      id: '/_authenticated/inv/almacenes'
+      path: '/almacenes'
+      fullPath: '/inv/almacenes'
+      preLoaderRoute: typeof AuthenticatedInvAlmacenesRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
+    }
+    '/_authenticated/inv/ajuste-inventario-cf': {
+      id: '/_authenticated/inv/ajuste-inventario-cf'
+      path: '/ajuste-inventario-cf'
+      fullPath: '/inv/ajuste-inventario-cf'
+      preLoaderRoute: typeof AuthenticatedInvAjusteInventarioCfRouteImport
+      parentRoute: typeof AuthenticatedInvRoute
     }
     '/_authenticated/fat/transportistas': {
       id: '/_authenticated/fat/transportistas'
@@ -5244,10 +5964,93 @@ const AuthenticatedFatRouteWithChildren =
   AuthenticatedFatRoute._addFileChildren(AuthenticatedFatRouteChildren)
 
 interface AuthenticatedInvRouteChildren {
+  AuthenticatedInvAjusteInventarioCfRoute: typeof AuthenticatedInvAjusteInventarioCfRoute
+  AuthenticatedInvAlmacenesRoute: typeof AuthenticatedInvAlmacenesRoute
+  AuthenticatedInvAsignarProdCiaRoute: typeof AuthenticatedInvAsignarProdCiaRoute
+  AuthenticatedInvCargarCfExcelRoute: typeof AuthenticatedInvCargarCfExcelRoute
+  AuthenticatedInvCierreMensualRoute: typeof AuthenticatedInvCierreMensualRoute
+  AuthenticatedInvCompaniasRoute: typeof AuthenticatedInvCompaniasRoute
+  AuthenticatedInvComparativoFisicoRoute: typeof AuthenticatedInvComparativoFisicoRoute
+  AuthenticatedInvConsultaDocumentosRoute: typeof AuthenticatedInvConsultaDocumentosRoute
+  AuthenticatedInvDevolucionSuplidoresRoute: typeof AuthenticatedInvDevolucionSuplidoresRoute
+  AuthenticatedInvDevolucionVentasRoute: typeof AuthenticatedInvDevolucionVentasRoute
+  AuthenticatedInvEntradaCfManualRoute: typeof AuthenticatedInvEntradaCfManualRoute
+  AuthenticatedInvEntradaComprasRoute: typeof AuthenticatedInvEntradaComprasRoute
+  AuthenticatedInvEntradaDiarioRoute: typeof AuthenticatedInvEntradaDiarioRoute
+  AuthenticatedInvEntradaMercanciaRoute: typeof AuthenticatedInvEntradaMercanciaRoute
+  AuthenticatedInvEstantesTramosRoute: typeof AuthenticatedInvEstantesTramosRoute
+  AuthenticatedInvExistenciaGrupoRoute: typeof AuthenticatedInvExistenciaGrupoRoute
+  AuthenticatedInvExistenciaProductoRoute: typeof AuthenticatedInvExistenciaProductoRoute
+  AuthenticatedInvGenerarAsientoRoute: typeof AuthenticatedInvGenerarAsientoRoute
+  AuthenticatedInvGrupoContableRoute: typeof AuthenticatedInvGrupoContableRoute
+  AuthenticatedInvGrupoProductosRoute: typeof AuthenticatedInvGrupoProductosRoute
+  AuthenticatedInvLineaProductosRoute: typeof AuthenticatedInvLineaProductosRoute
+  AuthenticatedInvLineasSublineasRoute: typeof AuthenticatedInvLineasSublineasRoute
+  AuthenticatedInvMinimoMaximoRoute: typeof AuthenticatedInvMinimoMaximoRoute
+  AuthenticatedInvModificarCostoRoute: typeof AuthenticatedInvModificarCostoRoute
+  AuthenticatedInvProductosRoute: typeof AuthenticatedInvProductosRoute
+  AuthenticatedInvPuntosTrabajoRoute: typeof AuthenticatedInvPuntosTrabajoRoute
+  AuthenticatedInvReferenciaEmpaqueRoute: typeof AuthenticatedInvReferenciaEmpaqueRoute
+  AuthenticatedInvReporteExistenciaRoute: typeof AuthenticatedInvReporteExistenciaRoute
+  AuthenticatedInvReporteMovimientosRoute: typeof AuthenticatedInvReporteMovimientosRoute
+  AuthenticatedInvReportesCfRoute: typeof AuthenticatedInvReportesCfRoute
+  AuthenticatedInvReversarDocumentoRoute: typeof AuthenticatedInvReversarDocumentoRoute
+  AuthenticatedInvSalidaMercanciaRoute: typeof AuthenticatedInvSalidaMercanciaRoute
+  AuthenticatedInvSublineaProductosRoute: typeof AuthenticatedInvSublineaProductosRoute
+  AuthenticatedInvTiposDocumentosRoute: typeof AuthenticatedInvTiposDocumentosRoute
+  AuthenticatedInvTransferenciaMercanciaRoute: typeof AuthenticatedInvTransferenciaMercanciaRoute
+  AuthenticatedInvUnidadesEmpaqueRoute: typeof AuthenticatedInvUnidadesEmpaqueRoute
   AuthenticatedInvIndexRoute: typeof AuthenticatedInvIndexRoute
 }
 
 const AuthenticatedInvRouteChildren: AuthenticatedInvRouteChildren = {
+  AuthenticatedInvAjusteInventarioCfRoute:
+    AuthenticatedInvAjusteInventarioCfRoute,
+  AuthenticatedInvAlmacenesRoute: AuthenticatedInvAlmacenesRoute,
+  AuthenticatedInvAsignarProdCiaRoute: AuthenticatedInvAsignarProdCiaRoute,
+  AuthenticatedInvCargarCfExcelRoute: AuthenticatedInvCargarCfExcelRoute,
+  AuthenticatedInvCierreMensualRoute: AuthenticatedInvCierreMensualRoute,
+  AuthenticatedInvCompaniasRoute: AuthenticatedInvCompaniasRoute,
+  AuthenticatedInvComparativoFisicoRoute:
+    AuthenticatedInvComparativoFisicoRoute,
+  AuthenticatedInvConsultaDocumentosRoute:
+    AuthenticatedInvConsultaDocumentosRoute,
+  AuthenticatedInvDevolucionSuplidoresRoute:
+    AuthenticatedInvDevolucionSuplidoresRoute,
+  AuthenticatedInvDevolucionVentasRoute: AuthenticatedInvDevolucionVentasRoute,
+  AuthenticatedInvEntradaCfManualRoute: AuthenticatedInvEntradaCfManualRoute,
+  AuthenticatedInvEntradaComprasRoute: AuthenticatedInvEntradaComprasRoute,
+  AuthenticatedInvEntradaDiarioRoute: AuthenticatedInvEntradaDiarioRoute,
+  AuthenticatedInvEntradaMercanciaRoute: AuthenticatedInvEntradaMercanciaRoute,
+  AuthenticatedInvEstantesTramosRoute: AuthenticatedInvEstantesTramosRoute,
+  AuthenticatedInvExistenciaGrupoRoute: AuthenticatedInvExistenciaGrupoRoute,
+  AuthenticatedInvExistenciaProductoRoute:
+    AuthenticatedInvExistenciaProductoRoute,
+  AuthenticatedInvGenerarAsientoRoute: AuthenticatedInvGenerarAsientoRoute,
+  AuthenticatedInvGrupoContableRoute: AuthenticatedInvGrupoContableRoute,
+  AuthenticatedInvGrupoProductosRoute: AuthenticatedInvGrupoProductosRoute,
+  AuthenticatedInvLineaProductosRoute: AuthenticatedInvLineaProductosRoute,
+  AuthenticatedInvLineasSublineasRoute: AuthenticatedInvLineasSublineasRoute,
+  AuthenticatedInvMinimoMaximoRoute: AuthenticatedInvMinimoMaximoRoute,
+  AuthenticatedInvModificarCostoRoute: AuthenticatedInvModificarCostoRoute,
+  AuthenticatedInvProductosRoute: AuthenticatedInvProductosRoute,
+  AuthenticatedInvPuntosTrabajoRoute: AuthenticatedInvPuntosTrabajoRoute,
+  AuthenticatedInvReferenciaEmpaqueRoute:
+    AuthenticatedInvReferenciaEmpaqueRoute,
+  AuthenticatedInvReporteExistenciaRoute:
+    AuthenticatedInvReporteExistenciaRoute,
+  AuthenticatedInvReporteMovimientosRoute:
+    AuthenticatedInvReporteMovimientosRoute,
+  AuthenticatedInvReportesCfRoute: AuthenticatedInvReportesCfRoute,
+  AuthenticatedInvReversarDocumentoRoute:
+    AuthenticatedInvReversarDocumentoRoute,
+  AuthenticatedInvSalidaMercanciaRoute: AuthenticatedInvSalidaMercanciaRoute,
+  AuthenticatedInvSublineaProductosRoute:
+    AuthenticatedInvSublineaProductosRoute,
+  AuthenticatedInvTiposDocumentosRoute: AuthenticatedInvTiposDocumentosRoute,
+  AuthenticatedInvTransferenciaMercanciaRoute:
+    AuthenticatedInvTransferenciaMercanciaRoute,
+  AuthenticatedInvUnidadesEmpaqueRoute: AuthenticatedInvUnidadesEmpaqueRoute,
   AuthenticatedInvIndexRoute: AuthenticatedInvIndexRoute,
 }
 

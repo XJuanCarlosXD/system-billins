@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { getRouteApi } from '@tanstack/react-router'
+import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { Plus, Trash2, Search, FileDown, CheckCircle2, History } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -30,7 +30,7 @@ interface EmpaqueOpt {
 }
 
 const ENDPOINT_READY = true
-const invRoute = getRouteApi('/_authenticated/inv')
+const invRoute = getRouteApi('/_authenticated/inv/entrada-compras')
 
 interface Props {
   noCia: string
@@ -97,7 +97,7 @@ async function apiFetch<T>(path: string): Promise<T> {
 }
 
 export function EntradaCompras({ noCia, punto }: Props) {
-  const navigate = invRoute.useNavigate()
+  const navigate = useNavigate()
   const { edit: editParam } = invRoute.useSearch()
   // Documento en edición: no_docu original (se reversa y re-crea al guardar).
   const [editNoDocu, setEditNoDocu] = useState('')
@@ -495,10 +495,8 @@ export function EntradaCompras({ noCia, punto }: Props) {
           { duration: 8000 })
         // Volver a la consulta y salir del modo edición.
         navigate({
-          search: (prev: any) => ({
-            ...prev, section: 'consultas', view: 'consulta-documentos',
-            tipo_docu: 'EC', edit: undefined,
-          }),
+          to: '/inv/consulta-documentos',
+          search: { tipo_docu: 'EC' },
           replace: true,
         })
         return
@@ -562,7 +560,8 @@ export function EntradaCompras({ noCia, punto }: Props) {
             size='sm'
             onClick={() =>
               navigate({
-                search: (prev) => ({ ...prev, section: 'consultas', view: 'consulta-documentos', tipo_docu: 'EC' }),
+                to: '/inv/consulta-documentos',
+                search: { tipo_docu: 'EC' },
                 replace: true,
               })
             }

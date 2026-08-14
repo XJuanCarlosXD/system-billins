@@ -12,7 +12,6 @@ import {
 import {
   CONSULTA_PATHS,
   DOC_MODULES,
-  INV_CONSULTA_VIEW,
   type DocModule,
 } from '@/lib/sidebar-badges'
 import {
@@ -75,10 +74,7 @@ function withConsultaBadge(
 ): NavItem[] {
   if (!badge) return items
   const target = CONSULTA_PATHS[code]
-  const isTarget = (it: NavItem) =>
-    it.url === target &&
-    (code !== 'inv' ||
-      (it.search as { view?: string } | undefined)?.view === INV_CONSULTA_VIEW)
+  const isTarget = (it: NavItem) => it.url === target
 
   // Devuelve [item, contieneObjetivo]; propaga el badge hacia arriba.
   const inject = (it: NavItem): [NavItem, boolean] => {
@@ -210,9 +206,6 @@ export function AppSidebar() {
   // everything for non-admins). Fall back to the previous isAdmin-only rule.
   const modGate = accessLoading ? () => true : hasModule
   const pathname = useLocation({ select: (l) => l.pathname })
-  const searchView = useLocation({
-    select: (l) => (l.search as { view?: string } | undefined)?.view,
-  })
   const moduleCode = currentModuleCode(pathname)
   const activeModule = moduleCode
     ? sidebarData.modules.find((m) => m.code === moduleCode)
@@ -232,8 +225,7 @@ export function AppSidebar() {
             ? 'cxc'
             : pathname === CONSULTA_PATHS.cxp
               ? 'cxp'
-              : pathname === CONSULTA_PATHS.inv &&
-                  searchView === INV_CONSULTA_VIEW
+              : pathname === CONSULTA_PATHS.inv
                 ? 'inv'
                 : null
 

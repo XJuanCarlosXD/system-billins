@@ -25,10 +25,8 @@ export const CONSULTA_PATHS: Record<DocModule, string> = {
   fat: '/fat/facturas',
   cxc: '/cxc/documentos',
   cxp: '/cxp/documentos',
-  inv: '/inv', // + ?section=consultas&view=consulta-documentos
+  inv: '/inv/consulta-documentos',
 }
-
-export const INV_CONSULTA_VIEW = 'consulta-documentos'
 
 export const NOVEDADES_TOTAL = NOVEDADES.length
 

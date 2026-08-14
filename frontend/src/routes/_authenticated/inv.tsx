@@ -1,26 +1,29 @@
-import z from 'zod'
-import { createFileRoute } from '@tanstack/react-router'
-import { InvPage } from '@/features/inv'
+import { createFileRoute, Outlet } from '@tanstack/react-router'
+import { Package } from 'lucide-react'
+import { Header } from '@/components/layout/header'
+import { Main } from '@/components/layout/main'
+import { ProfileDropdown } from '@/components/profile-dropdown'
+import { ThemeSwitch } from '@/components/theme-switch'
 import { RequireModule } from '@/components/access'
 
 export const Route = createFileRoute('/_authenticated/inv')({
-  validateSearch: z.object({
-    section: z
-      .enum(['configuracion', 'procesos', 'consultas', 'reportes', 'conteo-fisico', 'cierre'])
-      .optional()
-      .catch('configuracion'),
-    view: z.string().optional().catch(undefined),
-    tipo_docu: z.string().optional().catch(undefined),
-    // Edición de un documento existente: "<tipo_docu>-<no_docu>" (ej. "EC-0001234").
-    edit: z.string().optional().catch(undefined),
-  }),
-  component: GuardedInvPage,
+  component: InvLayout,
 })
 
-function GuardedInvPage() {
+function InvLayout() {
   return (
     <RequireModule modulo="inv">
-      <InvPage />
+      <Header>
+        <div className="me-auto flex items-center gap-2">
+          <Package className="h-5 w-5 shrink-0" />
+          <h2 className="text-lg font-semibold">Inventario (INV)</h2>
+        </div>
+        <ThemeSwitch />
+        <ProfileDropdown />
+      </Header>
+      <Main>
+        <Outlet />
+      </Main>
     </RequireModule>
   )
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type MouseEvent } from 'react'
-import { getRouteApi } from '@tanstack/react-router'
+import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import {
   X, FileText, ExternalLink, ArrowDownToLine, ArrowUpFromLine,
   ArrowLeftRight, Minus, Package, TrendingUp, TrendingDown, Wallet, Search, Pencil, History,
@@ -18,7 +18,7 @@ import { DocumentoDetalleSheet } from '@/features/documentos/documento-detalle-s
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
 
-const invRoute = getRouteApi('/_authenticated/inv')
+const invRoute = getRouteApi('/_authenticated/inv/consulta-documentos')
 
 interface Documento {
   tipo_docu: string
@@ -403,7 +403,7 @@ export function ConsultaDocumentos() {
   // Deep-link desde otras pantallas (ej. "Ver entradas anteriores" en Entrada
   // de Compras) que llegan con ?tipo_docu=EC para abrir ya filtrado.
   const search = invRoute.useSearch()
-  const nav = invRoute.useNavigate()
+  const nav = useNavigate()
 
   // Tipos de entrada editables desde aquí (reusan la vista de entrada en modo
   // edición). EC va a Entrada de Compras; el resto a Entrada de Mercancía.
@@ -412,12 +412,10 @@ export function ConsultaDocumentos() {
   const irAEditar = (r: Documento, e: MouseEvent) => {
     e.stopPropagation()
     const tipo = (r.tipo_docu || '').toUpperCase()
-    const view = tipo === 'EC' ? 'entrada-compras' : 'entrada-mercancia'
+    const to = tipo === 'EC' ? '/inv/entrada-compras' : '/inv/entrada-mercancia'
     nav({
-      search: (prev) => ({
-        ...prev, section: 'procesos', view,
-        edit: `${tipo}-${String(r.no_docu)}`,
-      }),
+      to,
+      search: { edit: `${tipo}-${String(r.no_docu)}` },
     })
   }
 

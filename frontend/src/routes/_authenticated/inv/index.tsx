@@ -1,6 +1,6 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { InvModule } from '@/features/inv'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authenticated/inv/')({
-  component: InvModule,
+  beforeLoad: () => { throw redirect({ to: '/inv/productos' }) },
+  component: () => null,
 })

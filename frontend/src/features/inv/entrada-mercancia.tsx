@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { getRouteApi } from '@tanstack/react-router'
+import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { Plus, Trash2, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { regalGeneralApi } from '@/lib/regal-general-api'
@@ -40,7 +40,7 @@ import { empaqueLabel } from '@/features/fat/utils/empaque-label'
 const API_BASE =
   import.meta.env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
 
-const invRoute = getRouteApi('/_authenticated/inv')
+const invRoute = getRouteApi('/_authenticated/inv/entrada-mercancia')
 
 interface EmpaqueOpt {
   empaque: number
@@ -165,7 +165,7 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
   const legacy = isEntrada ? 'FINV210' : 'FINV211'
   const totalLabel = isEntrada ? 'Total Entrada' : 'Total Salida'
 
-  const navigate = invRoute.useNavigate()
+  const navigate = useNavigate()
   const { edit: editParam } = invRoute.useSearch()
   // Documento en edición (solo entradas EA): no_docu original.
   const [editNoDocu, setEditNoDocu] = useState('')
@@ -511,10 +511,8 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
           `Entrada EA-${editNoDocu} editada. Nueva versión: ${docNo} (la original quedó reversada).`,
           { duration: 8000 })
         navigate({
-          search: (prev: Record<string, unknown>) => ({
-            ...prev, section: 'consultas', view: 'consulta-documentos',
-            tipo_docu: 'EA', edit: undefined,
-          }),
+          to: '/inv/consulta-documentos',
+          search: { tipo_docu: 'EA' },
           replace: true,
         })
         return
