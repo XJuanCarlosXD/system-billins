@@ -433,7 +433,7 @@ export function CatalogoProductos() {
         grupo_contable: form.grupo_contable,
         servicio: form.servicio,
         tiene_impuesto: form.tiene_impuesto ? 'S' : 'N',
-        porciento_impuesto: parseFloat(form.porciento_impuesto) || 0,
+        porciento_impuesto: form.tiene_impuesto ? (parseFloat(form.porciento_impuesto) || 0) : 0,
         costo: parseFloat(form.costo) || 0,
         activo: form.activo,
         // Detalles legacy FINV111

@@ -2266,6 +2266,7 @@ def search_productos(no_cia, punto, no_lista="", search="", page=1, page_size=20
 
     select_cols = (
         "p.no_produ, NVL(p.descri, p.no_produ) AS descri, "
+        "NVL(p.tiene_impuesto, 'S') AS tiene_impuesto, "
         "NVL(p.porciento_impuesto, 0) AS porciento_impuesto, "
         "NVL(p.activo, 'S') AS activo "
     )
@@ -2412,11 +2413,16 @@ def _productos_items(rows: list[dict], no_cia: str, almacen: str,
         precio_base = float(r["precio_base"] or 0)
         # precio venta = precio unitario × CPE del empaque por defecto.
         precio = round(precio_base * (emp["cpe"] or 1), 4)
+        # Producto exento (TIENE_IMPUESTO='N') nunca cobra ITBIS aunque la
+        # columna PORCIENTO_IMPUESTO haya quedado con un valor viejo (ej. el
+        # 18% por defecto que tenia antes de marcarlo exento) — reportado por
+        # MPILAR: producto "exento" seguia saliendo con ITBIS al facturar.
+        tiene_imp = (r.get("tiene_impuesto") or "S") == "S"
         items.append({
             "no_produ": np,
             "descri": (r["descri"] or "").strip(),
             "precio": precio,
-            "porciento_impuesto": float(r["porciento_impuesto"] or 0),
+            "porciento_impuesto": float(r["porciento_impuesto"] or 0) if tiene_imp else 0.0,
             "existencia": ex,
             "unidad_empaque": emp["unidad_empaque"],
             "activo": r["activo"] == "S",
