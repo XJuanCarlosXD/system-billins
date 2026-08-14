@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { getRouteApi, useNavigate } from '@tanstack/react-router'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Plus, Trash2, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { regalGeneralApi } from '@/lib/regal-general-api'
@@ -40,7 +40,10 @@ import { empaqueLabel } from '@/features/fat/utils/empaque-label'
 const API_BASE =
   import.meta.env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
 
-const invRoute = getRouteApi('/_authenticated/inv/entrada-mercancia')
+// Este componente lo montan dos rutas distintas (/inv/entrada-mercancia y,
+// vía SalidaMercancia, /inv/salida-mercancia), así que no puede depender de
+// un route id fijo: getRouteApi(id).useSearch() lanza "Invariant failed"
+// cuando el id no está en la rama de rutas actualmente montada.
 
 interface EmpaqueOpt {
   empaque: number
@@ -166,7 +169,7 @@ export function EntradaMercancia({ noCia, punto, tipoMov = 'entrada' }: Props) {
   const totalLabel = isEntrada ? 'Total Entrada' : 'Total Salida'
 
   const navigate = useNavigate()
-  const { edit: editParam } = invRoute.useSearch()
+  const { edit: editParam } = useSearch({ strict: false }) as { edit?: string }
   // Documento en edición (solo entradas EA): no_docu original.
   const [editNoDocu, setEditNoDocu] = useState('')
   const editLoadedRef = useRef('')
