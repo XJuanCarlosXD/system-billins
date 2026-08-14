@@ -61,10 +61,10 @@ export const NOVEDADES: Novedad[] = [
     fecha: '2026-08-14',
     tipo: 'nuevo',
     modulo: 'General',
-    titulo: 'Historial de "quién creó" en más módulos',
+    titulo: 'Mismo panel lateral (sidebar) e historial en todos los módulos',
     descripcion:
-      'El botón "Ver historial" que ya existía en Cuentas por Pagar (para ver quién creó, editó o anuló un documento sin necesidad de ser administrador) ahora está disponible también en Inventario, Cuentas por Cobrar, Órdenes de Compra y Facturación, en sus pantallas de Consulta de Documentos. Es de solo lectura: muestra la línea de tiempo de eventos o, si el documento es viejo y no tiene bitácora detallada, al menos indica quién lo creó. Se corrigió además un caso en Facturación donde el historial de una factura no mostraba quién la había creado.',
-    commit: '43ddf92',
+      'El panel lateral de detalle de documento que ya se veía bien en Cuentas por Pagar ahora es un solo componente reutilizado en Inventario, Cuentas por Cobrar, Órdenes de Compra y Facturación — antes Cuentas por Cobrar y Órdenes de Compra mostraban el detalle en una ventana centrada distinta. Dentro de ese panel, el botón "Ver historial" (quién creó, editó o anuló el documento, sin necesidad de ser administrador) también quedó disponible en los cinco módulos: es de solo lectura, muestra la línea de tiempo de eventos o, si el documento es viejo y no tiene bitácora detallada, al menos indica quién lo creó. Se corrigió además un caso en Facturación donde el historial de una factura no mostraba quién la había creado.',
+    commit: '0fe2356',
   },
   {
     fecha: '2026-08-11',
