@@ -16,7 +16,8 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { Eye, CheckCircle2, XCircle, Lock, Loader2, Search, Printer } from 'lucide-react'
+import { Eye, CheckCircle2, XCircle, Lock, Loader2, Search, Printer, History } from 'lucide-react'
+import { DocumentoHistorial } from '@/features/historial/documento-historial'
 
 interface Requisicion {
   no_cia: string; punto: string; no_requisicion: string
@@ -44,6 +45,7 @@ export function OdcRequisiciones() {
   const [openAnular, setOpenAnular] = useState(false)
   const [motivo, setMotivo] = useState('')
   const [slot, setSlot] = useState<number>(1)
+  const [verHistorial, setVerHistorial] = useState(false)
 
   const listQ = useQuery<Requisicion[]>({
     queryKey: ['odc-requisiciones', selectedCompany, selectedPoint, filtros],
@@ -102,6 +104,11 @@ export function OdcRequisiciones() {
   })
 
   const rows = listQ.data || []
+
+  function openDetalle(r: Requisicion) {
+    setSelected(r)
+    setVerHistorial(false)
+  }
 
   return (
     <div className="space-y-4">
@@ -175,7 +182,7 @@ export function OdcRequisiciones() {
                   </TableCell>
                   <TableCell className="text-xs">{r.usuario}</TableCell>
                   <TableCell className="text-right">
-                    <Button size="sm" variant="ghost" onClick={() => setSelected(r)}>
+                    <Button size="sm" variant="ghost" onClick={() => openDetalle(r)}>
                       <Eye className="h-4 w-4" />
                     </Button>
                   </TableCell>
@@ -233,6 +240,21 @@ export function OdcRequisiciones() {
                       ))}
                     </TableBody>
                   </Table>
+                </div>
+                <div className="border-t pt-3">
+                  <Button size="sm" variant="outline" onClick={() => setVerHistorial(v => !v)}>
+                    <History className="h-4 w-4 mr-1" /> {verHistorial ? 'Ocultar historial' : 'Ver historial'}
+                  </Button>
+                  {verHistorial && selected && (
+                    <div className="mt-3">
+                      <DocumentoHistorial
+                        modulo="ODC"
+                        noCia={selected.no_cia} punto={selected.punto}
+                        tipoDocumento="REQUISICION" noDocumento={selected.no_requisicion}
+                        usuarioDoc={selected.usuario}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             )}

@@ -168,6 +168,7 @@ def odc_orden_anular(request):
     odc_repo.anular_orden(
         data['no_cia'], _norm_punto(data['punto']),
         data['no_orden'], data.get('motivo', ''),
+        usuario=request.user.username,
     )
     return JsonResponse({'ok': True})
 
@@ -251,6 +252,7 @@ def odc_requisicion_anular(request):
     odc_repo.anular_requisicion(
         data['no_cia'], _norm_punto(data['punto']),
         data['no_requisicion'], data.get('motivo', ''),
+        usuario=request.user.username,
     )
     return JsonResponse({'ok': True})
 

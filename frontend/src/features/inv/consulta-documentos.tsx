@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type MouseEvent } from 'react'
 import { getRouteApi } from '@tanstack/react-router'
 import {
   X, FileText, ExternalLink, ArrowDownToLine, ArrowUpFromLine,
-  ArrowLeftRight, Minus, Package, TrendingUp, TrendingDown, Wallet, Search, Pencil,
+  ArrowLeftRight, Minus, Package, TrendingUp, TrendingDown, Wallet, Search, Pencil, History,
 } from 'lucide-react'
 import { useCompany } from '@/context/company-context'
 import { useDocHighlightCount } from '@/hooks/use-sidebar-badges'
@@ -19,6 +19,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { DocumentoHistorial } from '@/features/historial/documento-historial'
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
 
@@ -453,6 +454,7 @@ export function ConsultaDocumentos() {
   const [detalleLoading, setDetalleLoading] = useState(false)
   const [detalleDoc, setDetalleDoc] = useState<Documento | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [verHistorial, setVerHistorial] = useState(false)
 
   useEffect(() => {
     if (!noCia) return
@@ -535,6 +537,7 @@ export function ConsultaDocumentos() {
     setDetalleDoc(doc)
     setDetalle(null)
     setSheetOpen(true)
+    setVerHistorial(false)
     setDetalleLoading(true)
     apiFetch<any>(`/inv/documentos/${doc.tipo_docu}/${doc.no_docu}/?no_cia=${noCia}`)
       .then((d) => {
@@ -830,16 +833,38 @@ export function ConsultaDocumentos() {
                 fallback={detalleDoc || undefined}
               />
 
-              {detalleDoc && (
-                <Button
-                  variant='outline'
-                  size='sm'
-                  className='gap-2'
-                  onClick={(e) => openPdf(detalleDoc, e)}
-                >
-                  <ExternalLink className='h-4 w-4' />
-                  Abrir PDF
-                </Button>
+              <div className='flex flex-wrap gap-2'>
+                {detalleDoc && (
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='gap-2'
+                    onClick={(e) => openPdf(detalleDoc, e)}
+                  >
+                    <ExternalLink className='h-4 w-4' />
+                    Abrir PDF
+                  </Button>
+                )}
+                {detalleDoc && (
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='gap-2'
+                    onClick={() => setVerHistorial(v => !v)}
+                  >
+                    <History className='h-4 w-4' />
+                    {verHistorial ? 'Ocultar historial' : 'Ver historial'}
+                  </Button>
+                )}
+              </div>
+
+              {verHistorial && detalleDoc && (
+                <DocumentoHistorial
+                  modulo="INV"
+                  noCia={noCia} punto={String(detalle.header?.punto ?? '')}
+                  tipoDocumento={detalleDoc.tipo_docu} noDocumento={String(detalleDoc.no_docu)}
+                  usuarioDoc={detalle.header?.usuario}
+                />
               )}
 
               <div>

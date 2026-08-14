@@ -16,6 +16,7 @@ Oracle 11g: NO soporta OFFSET...FETCH NEXT; usar subconsulta con ROWNUM.
 from __future__ import annotations
 
 from .. import client
+from apps.historial import repo as historial_repo
 
 
 def count_productos(search: str = '', grupo: str = '', linea: str = '') -> int:
@@ -3135,6 +3136,11 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
             descuento=total_descuento, total_neto=total_neto,
             valor_bienes=valor_bienes,
             ncf=ncf_val, posiciones_fijas_ncf=posiciones_fijas_ncf)
+        historial_repo.log_evento(
+            cur, usuario=usuario, no_cia=no_cia, punto=punto,
+            modulo="INV", tipo_documento=tipo_docu, no_documento=no_docu,
+            accion="CREAR",
+        )
         cur.connection.commit()
 
     cxp_mirror = None
@@ -3311,6 +3317,11 @@ def reversar_documento_inv(*, no_cia: str, punto: str, tipo_docu: str,
                 cur, no_cia=no_cia, punto=punto, almacen=almacen_o,
                 no_produ=no_produ_o, tipo_movi=tipo_opuesto,
                 cantidad=float(cant or 0))
+        historial_repo.log_evento(
+            cur, usuario=usuario, no_cia=no_cia, punto=punto,
+            modulo="INV", tipo_documento=tipo_docu, no_documento=no_docu,
+            accion="REVERSAR", motivo=motivo,
+        )
         cur.connection.commit()
 
     return {

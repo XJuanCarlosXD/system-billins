@@ -301,6 +301,17 @@ def list_available_doc_types(modulo: str, no_cia: str) -> list[dict]:
     return [{'tipo_docu': r['tipo_docu'], 'descripcion': r['descripcion'] or ''} for r in rows]
 
 
+def module_has_doc_perms(modulo: str) -> bool:
+    """True si el módulo maneja permisos finos por tipo de documento
+    (tiene tabla TXXX_USUARIOD). ODC/SDN/CNT/ACC no la tienen -- para esos,
+    el acceso se gatea a nivel de módulo (ver get_for)."""
+    modulo = modulo.lower()
+    if modulo not in _MODULES:
+        raise ValueError(f'modulo no soportado: {modulo}')
+    _schema, _tab, tabd, _td = _MODULES[modulo]
+    return bool(tabd)
+
+
 def list_user_doc_perms(usuario: str, modulo: str, no_cia: str, punto: str) -> list[dict]:
     """Tipos de documentos asignados al usuario en ese módulo/empresa/punto."""
     modulo = modulo.lower()

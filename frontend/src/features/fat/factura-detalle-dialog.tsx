@@ -3,9 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useQuery } from '@tanstack/react-query'
-import { historialDocumento } from '@/lib/api-client-historial'
-import { HistorialTimeline } from '@/features/historial/historial-timeline'
+import { DocumentoHistorial } from '@/features/historial/documento-historial'
 import { Printer } from 'lucide-react'
 import { fmtN } from './fat-export'
 
@@ -13,6 +11,7 @@ export type FacturaDetalleData = {
   tipo_factura: string; no_factura: string
   nombre_cliente: string; no_cliente: number
   fecha: string | null; vendedor: string; forma_pago: string
+  usuario?: string
   plazo_pago: number; ncf_dgi?: string; codigo_ncf: string; ncf: number | null
   estado: string; st_anulado: string; st_generado_cnt: string
   motivo_anulacion?: string
@@ -134,10 +133,12 @@ export function FacturaDetalleDialog({ factura, loading, onClose, onPrint, noCia
               <p className='rounded border bg-muted/30 p-2 text-xs text-muted-foreground'><strong>Nota:</strong> {factura.nota}</p>
             )}
             </TabsContent>
-            <TabsContent value='historial'>
-              <FacturaHistorialTab
+            <TabsContent value='historial' className='py-2'>
+              <DocumentoHistorial
+                modulo="FAT"
                 noCia={noCia} punto={punto}
                 tipoDocumento={factura.tipo_factura} noDocumento={factura.no_factura}
+                usuarioDoc={factura.usuario}
               />
             </TabsContent>
           </Tabs>
@@ -145,16 +146,4 @@ export function FacturaDetalleDialog({ factura, loading, onClose, onPrint, noCia
       </DialogContent>
     </Dialog>
   )
-}
-
-function FacturaHistorialTab({
-  noCia, punto, tipoDocumento, noDocumento,
-}: { noCia: string; punto: string; tipoDocumento: string; noDocumento: string }) {
-  const { data, isLoading } = useQuery({
-    queryKey: ['historial-documento', 'FAT', noCia, punto, tipoDocumento, noDocumento],
-    queryFn: () =>
-      historialDocumento({ no_cia: noCia, punto, modulo: 'FAT', tipo_documento: tipoDocumento, no_documento: noDocumento }),
-  })
-  if (isLoading) return <p className='py-8 text-center text-muted-foreground'>Cargando historial…</p>
-  return <div className='py-2'><HistorialTimeline eventos={data?.items ?? []} modo='completo' /></div>
 }

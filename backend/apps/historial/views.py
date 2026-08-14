@@ -61,10 +61,17 @@ class HistorialDocumentoView(APIView):
 
         username = request.user.username
         if not users_repo.is_dba(username):
-            asignados = permissions_repo.list_user_doc_perms(username, modulo, no_cia, punto)
-            tipos_asignados = {d["tipo_docu"] for d in asignados}
-            if tipo_documento.upper() not in tipos_asignados:
-                return Response({"detail": "forbidden"}, status=403)
+            if permissions_repo.module_has_doc_perms(modulo):
+                # Módulo con permisos finos por tipo de documento (FAT/CXP/INV/CXC/CHC/ACF).
+                asignados = permissions_repo.list_user_doc_perms(username, modulo, no_cia, punto)
+                tipos_asignados = {d["tipo_docu"] for d in asignados}
+                if tipo_documento.upper() not in tipos_asignados:
+                    return Response({"detail": "forbidden"}, status=403)
+            else:
+                # Módulo sin tabla de tipo-documento (ej. ODC): gatear por
+                # acceso al módulo, igual que ya protege ver la orden/requisición.
+                if permissions_repo.get_for(username, modulo, no_cia, punto) is None:
+                    return Response({"detail": "forbidden"}, status=403)
 
         items = repo.list_documento(
             no_cia=no_cia, punto=punto, modulo=modulo,

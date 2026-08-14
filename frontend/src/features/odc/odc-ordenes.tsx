@@ -17,7 +17,8 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { Loader2, Search, Eye, CheckCircle2, XCircle, Lock, Printer, Pencil } from 'lucide-react'
+import { Loader2, Search, Eye, CheckCircle2, XCircle, Lock, Printer, Pencil, History } from 'lucide-react'
+import { DocumentoHistorial } from '@/features/historial/documento-historial'
 
 interface Orden {
   no_cia: string; punto: string; no_orden: string
@@ -63,6 +64,7 @@ export function OdcOrdenes() {
   const [openAnular, setOpenAnular] = useState(false)
   const [openCerrar, setOpenCerrar] = useState(false)
   const [motivo, setMotivo] = useState('')
+  const [verHistorial, setVerHistorial] = useState(false)
 
   const ordenesQ = useQuery<Orden[]>({
     queryKey: ['odc-ordenes', selectedCompany, selectedPoint, filtros],
@@ -121,6 +123,11 @@ export function OdcOrdenes() {
   })
 
   const rows = ordenesQ.data || []
+
+  function openDetalle(o: Orden) {
+    setSelected(o)
+    setVerHistorial(false)
+  }
 
   return (
     <div className="space-y-4">
@@ -196,7 +203,7 @@ export function OdcOrdenes() {
               {rows.map((o) => (
                 <TableRow
                   key={`${o.no_cia}-${o.punto}-${o.no_orden}`}
-                  onClick={() => setSelected(o)}
+                  onClick={() => openDetalle(o)}
                   className="cursor-pointer hover:bg-muted/50"
                 >
                   <TableCell className="font-mono text-xs">ODC-{o.no_orden}</TableCell>
@@ -213,7 +220,7 @@ export function OdcOrdenes() {
                   </TableCell>
                   <TableCell className="text-xs">{o.usuario}</TableCell>
                   <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                    <Button size="sm" variant="ghost" onClick={() => setSelected(o)} title="Ver detalle">
+                    <Button size="sm" variant="ghost" onClick={() => openDetalle(o)} title="Ver detalle">
                       <Eye className="h-4 w-4" />
                     </Button>
                   </TableCell>
@@ -281,6 +288,21 @@ export function OdcOrdenes() {
                   <div><span className="text-muted-foreground">Descuento:</span> {formatMoney(detalleQ.data.cabecera.descuento)}</div>
                   <div><span className="text-muted-foreground">ITBIS:</span> {formatMoney(detalleQ.data.cabecera.impuesto)}</div>
                   <div className="font-semibold"><span className="text-muted-foreground">Total:</span> {formatMoney(detalleQ.data.cabecera.total_neto)}</div>
+                </div>
+                <div className="border-t pt-3">
+                  <Button size="sm" variant="outline" onClick={() => setVerHistorial(v => !v)}>
+                    <History className="h-4 w-4 mr-1" /> {verHistorial ? 'Ocultar historial' : 'Ver historial'}
+                  </Button>
+                  {verHistorial && selected && (
+                    <div className="mt-3">
+                      <DocumentoHistorial
+                        modulo="ODC"
+                        noCia={selected.no_cia} punto={selected.punto}
+                        tipoDocumento="ORDEN" noDocumento={selected.no_orden}
+                        usuarioDoc={selected.usuario}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             )}

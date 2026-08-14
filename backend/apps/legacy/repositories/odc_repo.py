@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from .. import client
+from apps.historial import repo as historial_repo
 
 
 # ---------------------------------------------------------------------------
@@ -300,6 +301,13 @@ def create_orden(no_cia: str, punto: str, cabecera: dict, lineas: list[dict],
                 ln.get('porciento_impuesto', 0),
             ],
         )
+    with client.cursor() as cur:
+        historial_repo.log_evento(
+            cur, usuario=usuario, no_cia=no_cia, punto=punto,
+            modulo="ODC", tipo_documento="ORDEN", no_documento=no_orden,
+            accion="CREAR",
+        )
+        cur.connection.commit()
     return no_orden
 
 
@@ -398,11 +406,17 @@ def actualizar_orden(no_cia: str, punto: str, no_orden: str, cabecera: dict,
                     ln.get('porciento_impuesto', 0),
                 ],
             )
+        historial_repo.log_evento(
+            cur, usuario=usuario, no_cia=no_cia, punto=punto,
+            modulo="ODC", tipo_documento="ORDEN", no_documento=no_orden,
+            accion="EDITAR",
+            cambios=[{'campo': 'lineas', 'etiqueta': 'Líneas/cabecera', 'valor_anterior': '', 'valor_nuevo': 'editada'}],
+        )
         cur.connection.commit()
     return no_orden
 
 
-def anular_orden(no_cia: str, punto: str, no_orden: str, motivo: str = '') -> None:
+def anular_orden(no_cia: str, punto: str, no_orden: str, motivo: str = '', usuario: str = 'API') -> None:
     # Dominio real legado: st_anulado 'A'=Activa / 'N'=Anulada.
     # El estado conserva su valor; el rastro de anulación queda en st_anulado y detalle.
     client.execute(
@@ -411,6 +425,13 @@ def anular_orden(no_cia: str, punto: str, no_orden: str, motivo: str = '') -> No
         " WHERE no_cia=:2 AND punto=:3 AND no_orden=:4",
         [motivo or 'sin motivo', no_cia, punto, no_orden],
     )
+    with client.cursor() as cur:
+        historial_repo.log_evento(
+            cur, usuario=usuario, no_cia=no_cia, punto=punto,
+            modulo="ODC", tipo_documento="ORDEN", no_documento=no_orden,
+            accion="ANULAR", motivo=motivo,
+        )
+        cur.connection.commit()
 
 
 def autorizar_orden(no_cia: str, punto: str, no_orden: str, usuario: str) -> None:
@@ -538,6 +559,13 @@ def create_requisicion(no_cia: str, punto: str, cabecera: dict,
                 ln.get('empaque', 1), ln.get('cpe', 1),
             ),
         )
+    with client.cursor() as cur:
+        historial_repo.log_evento(
+            cur, usuario=usuario, no_cia=no_cia, punto=punto,
+            modulo="ODC", tipo_documento="REQUISICION", no_documento=no_req,
+            accion="CREAR",
+        )
+        cur.connection.commit()
     return no_req
 
 
@@ -554,7 +582,7 @@ def autorizar_requisicion(no_cia: str, punto: str, no_requisicion: str,
 
 
 def anular_requisicion(no_cia: str, punto: str, no_requisicion: str,
-                       motivo: str = '') -> None:
+                       motivo: str = '', usuario: str = 'API') -> None:
     # Dominio legado: st_anulado 'A'=Activa / 'N'=Anulada (igual que TODC_ORDEN).
     client.execute(
         "UPDATE ODC.TODC_REQUISICION SET st_anulado='N', "
@@ -562,6 +590,13 @@ def anular_requisicion(no_cia: str, punto: str, no_requisicion: str,
         " WHERE no_cia=:2 AND punto=:3 AND no_requisicion=:4",
         [motivo or 'sin motivo', no_cia, punto, no_requisicion],
     )
+    with client.cursor() as cur:
+        historial_repo.log_evento(
+            cur, usuario=usuario, no_cia=no_cia, punto=punto,
+            modulo="ODC", tipo_documento="REQUISICION", no_documento=no_requisicion,
+            accion="ANULAR", motivo=motivo,
+        )
+        cur.connection.commit()
 
 
 def cerrar_requisicion(no_cia: str, punto: str, no_requisicion: str) -> None:

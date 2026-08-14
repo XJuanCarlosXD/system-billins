@@ -2,6 +2,7 @@
 from __future__ import annotations
 from .. import client
 from datetime import date
+from apps.historial import repo as historial_repo
 
 
 # --- COMPANIAS ---------------------------------------------------------------
@@ -833,6 +834,11 @@ def crear_dv_mirror(*, no_cia: str, punto: str, no_cliente, fecha: str,
             "WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4 AND no_docu=:5",
             [monto, no_cia, punto, tipo_docu_devuelto, no_docu_devuelto])
 
+        historial_repo.log_evento(
+            cur, usuario=usuario, no_cia=no_cia, punto=punto,
+            modulo="CXC", tipo_documento="DV", no_documento=no_docu,
+            accion="CREAR",
+        )
         cur.connection.commit()
 
     return {'no_cia': no_cia, 'punto': punto, 'tipo_docu': 'DV', 'no_docu': no_docu,
@@ -941,6 +947,12 @@ def save_documento(d: dict):
                     [no_cia, punto, tipo_docu, no_docu,
                      l.get('cuenta', ''), l.get('tipo_movi', 'D'),
                      l.get('monto', 0), cc, d.get('no_cliente', '')])
+        if not exists:
+            historial_repo.log_evento(
+                cur, usuario=d.get('usuario', 'API'), no_cia=no_cia, punto=punto,
+                modulo="CXC", tipo_documento=tipo_docu, no_documento=no_docu,
+                accion="CREAR",
+            )
         cur.connection.commit()
     return no_docu
 
@@ -1125,6 +1137,11 @@ def reversar_documento(no_cia: str, no_docu: str, tipo_docu: str = '',
             [ajuste['tipo_docu'] if ajuste else None,
              ajuste['no_docu'] if ajuste else None,
              no_cia, punto, tipo_docu, no_docu])
+        historial_repo.log_evento(
+            cur, usuario=usuario or 'API', no_cia=no_cia, punto=punto,
+            modulo="CXC", tipo_documento=tipo_docu, no_documento=no_docu,
+            accion="REVERSAR",
+        )
         cur.connection.commit()
 
     return {
@@ -1216,6 +1233,7 @@ def crear_recibo_cobro(
     valor_doc: float = 0,
     forma_pago: str = '',
     aplicaciones: list | None = None,
+    usuario: str = 'API',
 ) -> dict:
     """Crea un recibo de ingreso siguiendo el flujo legado FCXC201:
 
@@ -1322,16 +1340,16 @@ def crear_recibo_cobro(
             " no_cia, punto, tipo_docu, no_docu, no_cliente, fecha, "
             " valor_original, saldo, ncf, posiciones_fijas_ncf, detalle, st_anulado, tipo_movi, "
             " vendedor, cobrador, fecha_vence, debito, credito, "
-            " tipo_transaccion, tasa_us, forma_pago"
+            " tipo_transaccion, tasa_us, forma_pago, usuario"
             ") VALUES (:1,:2,:3,:4,:5,TO_DATE(:6,'YYYY-MM-DD'),"
             " :7, 0, :8, :18, :9, 'N', :10, :11, :12, "
-            " TO_DATE(:13,'YYYY-MM-DD') + :14, :15, :15, :16, 1, :17)",
+            " TO_DATE(:13,'YYYY-MM-DD') + :14, :15, :15, :16, 1, :17, :19)",
             client.nbinds(
                 no_cia, punto, tipo_doc, no_doc, str(no_cliente), fecha,
                 valor_doc, ncf, detalle, tipo_movi_tdocu,
                 vendedor_doc, cobrador or '', fecha, int(plazo or 0),
                 valor_doc, tipo_transaccion_tdocu, forma_pago or None,
-                posiciones_fijas_ncf))
+                posiciones_fijas_ncf, (usuario or 'API')[:30]))
 
         # 4. Distribución contable auto-generada:
         #    Cuenta del tipo_doc (ej. CAJA) — DR por el valor
@@ -1396,6 +1414,11 @@ def crear_recibo_cobro(
                 [no_cia, punto, tipo_doc, no_doc, str(no_cliente), tipo_ref, no_ref,
                  monto, itbis_retenido, isr_retenido])
 
+        historial_repo.log_evento(
+            cur, usuario=usuario, no_cia=no_cia, punto=punto,
+            modulo="CXC", tipo_documento=tipo_doc, no_documento=no_doc,
+            accion="CREAR",
+        )
         cur.connection.commit()
     ncf_dgi = f"{posiciones_fijas_ncf}{int(ncf):08d}" if posiciones_fijas_ncf and ncf else ''
     return {
@@ -1676,11 +1699,25 @@ def _aplicar_refedocu_y_cerrar(cur, no_cia, punto, tipo_docu, no_docu,
             [no_cia, punto, tipo_ref, no_ref])
 
 
-def corregir_ncf(no_cia: str, no_docu: str, ncf: str, ncf_anterior: str = ''):
+def corregir_ncf(no_cia: str, no_docu: str, ncf: str, ncf_anterior: str = '', usuario: str = 'API'):
     with client.cursor() as cur:
+        doc_row = cur.execute(
+            "SELECT tipo_docu, punto FROM CXC.TCXC_DOCUMENTO "
+            "WHERE no_cia=:1 AND no_docu=:2",
+            [no_cia, no_docu]).fetchone()
         cur.execute(
             "UPDATE CXC.TCXC_DOCUMENTO SET ncf=:1 WHERE no_cia=:2 AND no_docu=:3",
             [ncf, no_cia, no_docu])
+        if doc_row:
+            historial_repo.log_evento(
+                cur, usuario=usuario, no_cia=no_cia, punto=doc_row[1],
+                modulo="CXC", tipo_documento=doc_row[0], no_documento=no_docu,
+                accion="EDITAR",
+                cambios=[{
+                    'campo': 'ncf', 'etiqueta': 'NCF',
+                    'valor_anterior': ncf_anterior, 'valor_nuevo': ncf,
+                }],
+            )
         cur.connection.commit()
     return {'ok': True}
 

@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { History, Pencil } from 'lucide-react'
 import { api } from '@/lib/regal-general-api'
-import { historialDocumento } from '@/lib/api-client-historial'
 import { useCompany } from '@/hooks/use-company'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,7 +15,7 @@ import { cn } from '@/lib/utils'
 import { HIGHLIGHT_ROW_CLASS } from '@/lib/sidebar-badges'
 import { useDocHighlightCount } from '@/hooks/use-sidebar-badges'
 import { esDocumentoEditable, usePeriodoActualCxP } from './corregir-documento-dialog'
-import { HistorialTimeline } from '@/features/historial/historial-timeline'
+import { DocumentoHistorial } from '@/features/historial/documento-historial'
 
 interface Documento {
   no_cia: string; punto: string; tipo_docu: string; no_docu: string
@@ -413,6 +412,7 @@ export function CxpDocumentos() {
               </div>
               {verHistorial && (
                 <DocumentoHistorial
+                  modulo="CXP"
                   noCia={detalle.no_cia} punto={detalle.punto}
                   tipoDocumento={detalle.tipo_docu} noDocumento={detalle.no_docu}
                   usuarioDoc={detalle.usuario}
@@ -468,36 +468,3 @@ function Field({ label, value, mono, className }: { label: string; value: ReactN
   )
 }
 
-// Quién creó/editó/anuló este documento. No requiere ser admin: el backend
-// (HistorialDocumentoView) usa el mismo permiso que ya protege ver el
-// documento (tipo_docu asignado al usuario en el módulo/empresa/punto) --
-// a diferencia de /sistema/historial (auditoría completa, solo admin).
-function DocumentoHistorial({
-  noCia, punto, tipoDocumento, noDocumento, usuarioDoc,
-}: { noCia: string; punto: string; tipoDocumento: string; noDocumento: string; usuarioDoc?: string | null }) {
-  const { data, isLoading } = useQuery({
-    queryKey: ['historial-documento', 'CXP', noCia, punto, tipoDocumento, noDocumento],
-    queryFn: () =>
-      historialDocumento({ no_cia: noCia, punto, modulo: 'CXP', tipo_documento: tipoDocumento, no_documento: noDocumento }),
-  })
-  if (isLoading) return <p className="py-4 text-center text-sm text-muted-foreground">Cargando historial…</p>
-  const items = data?.items ?? []
-  // Los documentos migrados o creados antes de que existiera la bitácora
-  // de auditoría no tienen eventos -- pero TCXP_DOCUMENTO.usuario si guarda
-  // quien lo creo/toco por ultimo, y "sin actividad registrada" a secas
-  // no responde la pregunta que la pantalla existe para resolver.
-  if (items.length === 0) {
-    return (
-      <div className="rounded-lg border p-3 text-sm text-muted-foreground text-center">
-        {usuarioDoc
-          ? <>Creado por <span className="font-medium text-foreground">{usuarioDoc}</span> (sin bitácora detallada de ediciones posteriores).</>
-          : 'Sin actividad registrada.'}
-      </div>
-    )
-  }
-  return (
-    <div className="rounded-lg border p-3">
-      <HistorialTimeline eventos={items} modo="completo" />
-    </div>
-  )
-}

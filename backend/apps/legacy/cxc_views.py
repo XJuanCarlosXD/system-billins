@@ -374,7 +374,8 @@ class CxcDocumentosView(APIView):
 
     def post(self, request):
         try:
-            no_doc = repo.save_documento(request.data)
+            payload = {**request.data, "usuario": request.user.username}
+            no_doc = repo.save_documento(payload)
             return Response({"ok": True, "no_doc": no_doc})
         except Exception as e:
             return Response({"error": str(e)}, status=400)
@@ -431,6 +432,7 @@ class CxcCrearReciboView(APIView):
                 valor_doc=float(d.get('valor_doc') or 0),
                 forma_pago=d.get('forma_pago', ''),
                 aplicaciones=d.get('aplicaciones') or [],
+                usuario=request.user.username,
             )
             return Response({'ok': True, **res})
         except Exception as e:
@@ -569,7 +571,8 @@ class CxcCorregirNcfView(APIView):
                 request.data["no_cia"],
                 request.data["no_doc"],
                 request.data["ncf"],
-                request.data.get("ncf_anterior", "")
+                request.data.get("ncf_anterior", ""),
+                usuario=request.user.username,
             )
             return Response({"ok": True})
         except Exception as e:

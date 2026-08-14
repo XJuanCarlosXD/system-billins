@@ -1818,7 +1818,7 @@ def get_factura(no_cia: str, punto: str, tipo_factura: str, no_factura: str) -> 
         "f.total_linea, f.descuento, f.impuesto, f.total_neto, f.propina, "
         "f.estado, f.ncf, f.posiciones_fijas_ncf, f.codigo_ncf, f.tipo_ncf_fiscal, "
         "f.plazo_pago, NVL(tp.descripcion, f.forma_pago_fat) AS forma_pago, f.no_condicion_pago, "
-        "f.tasa_us, f.porc_impuesto, f.nota, f.detalle, "
+        "f.tasa_us, f.porc_impuesto, f.nota, f.detalle, f.usuario, "
         "f.st_anulado, f.st_impresion, f.st_generado_cnt, "
         "f.tipo_anula_dgii, ta.descripcion AS motivo_anulacion, "
         "NVL(f.valor_recibido,0) AS valor_recibido, NVL(f.valor_devuelto,0) AS valor_devuelto "
@@ -1860,6 +1860,7 @@ def get_factura(no_cia: str, punto: str, tipo_factura: str, no_factura: str) -> 
         'forma_pago': (r['forma_pago'] or '').strip(), 'no_condicion_pago': r['no_condicion_pago'] or '',
         'tasa_us': float(r['tasa_us'] or 0), 'porc_impuesto': float(r['porc_impuesto'] or 0),
         'nota': r['nota'] or '', 'detalle': r['detalle'] or '',
+        'usuario': (r['usuario'] or '').strip(),
         'st_anulado': r['st_anulado'] or 'N', 'st_impresion': r['st_impresion'] or 'N',
         'st_generado_cnt': r['st_generado_cnt'] or 'N',
         'tipo_anula_dgii': r['tipo_anula_dgii'] or '',

@@ -6,11 +6,12 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Search, RotateCcw, CreditCard, FileText } from 'lucide-react'
+import { Search, RotateCcw, CreditCard, FileText, History } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { cn } from '@/lib/utils'
 import { HIGHLIGHT_ROW_CLASS } from '@/lib/sidebar-badges'
 import { useDocHighlightCount } from '@/hooks/use-sidebar-badges'
+import { DocumentoHistorial } from '@/features/historial/documento-historial'
 
 interface P { noCia: string; punto?: string; mes?: number; ano?: number }
 
@@ -42,6 +43,7 @@ export function CxcDocumentos({ noCia, punto }: P) {
   const [tipos, setTipos] = useState<any[]>([])
   const [detail, setDetail] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+  const [verHistorial, setVerHistorial] = useState(false)
 
   const load = useCallback(async (pg = 1) => {
     setLoading(true)
@@ -65,6 +67,7 @@ export function CxcDocumentos({ noCia, punto }: P) {
 
   const openDetail = async (row: any) => {
     setDetail(null) // limpiar antes para evitar mostrar el anterior
+    setVerHistorial(false)
     const d = await regalGeneralApi.cxcGetDocumento(noCia, row.no_doc, row.tipo_doc)
     setDetail({ ...d, tipo_doc: d?.tipo_doc || row.tipo_doc }) // garantiza tipo
   }
@@ -247,7 +250,21 @@ export function CxcDocumentos({ noCia, punto }: P) {
                 >
                   <FileText className="h-4 w-4 mr-1" /> Imprimir / PDF
                 </Button>
+                <Button
+                  size="sm" variant="outline"
+                  onClick={() => setVerHistorial(v => !v)}
+                >
+                  <History className="h-4 w-4 mr-1" /> {verHistorial ? 'Ocultar historial' : 'Ver historial'}
+                </Button>
               </div>
+              {verHistorial && (
+                <DocumentoHistorial
+                  modulo="CXC"
+                  noCia={noCia} punto={detail.punto || punto || ''}
+                  tipoDocumento={detail.tipo_doc} noDocumento={detail.no_doc}
+                  usuarioDoc={detail.usuario}
+                />
+              )}
               <div className="grid grid-cols-3 gap-3 text-sm">
                 <div><span className="text-muted-foreground">Tipo:</span> {detail.tipo_doc}</div>
                 <div><span className="text-muted-foreground">Fecha:</span> {fmtDate(detail.fecha)}</div>
