@@ -59,6 +59,15 @@ export type Novedad = {
 export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-08-14',
+    tipo: 'mejora',
+    modulo: 'Inventario',
+    titulo: 'Inventario navega más rápido: cada pantalla es su propia página',
+    descripcion:
+      'Antes, todo Inventario vivía en una sola pantalla con un menú de pestañas que cargaba el módulo completo de una vez. Ahora cada opción (Productos, Almacenes, Entrada de Compras, Consulta de Documentos, Cierre Mensual, etc.) es una página independiente con su propia dirección, igual que en Cuentas por Pagar, Facturación, Bancos/Cheques y Órdenes de Compra. Esto hace la navegación más liviana y rápida, y los enlaces del menú lateral ahora llevan directo a la pantalla correspondiente.',
+    commit: 'e89691d',
+  },
+  {
+    fecha: '2026-08-14',
     tipo: 'nuevo',
     modulo: 'General',
     titulo: 'Mismo panel lateral (sidebar) e historial en todos los módulos',
