@@ -6,6 +6,7 @@ import {
   Eye,
   FileSpreadsheet,
   FileText,
+  History,
   PackageOpen,
   Pencil,
   Printer,
@@ -14,12 +15,8 @@ import {
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { DocumentoDetalleSheet } from '@/features/documentos/documento-detalle-sheet'
+import { DocumentoHistorial } from '@/features/historial/documento-historial'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -78,6 +75,7 @@ type ConduceDetalle = Conduce & {
   tipo_moneda: string
   tasa_us: number
   ncf_dgi: string
+  usuario?: string
   lineas: Array<{
     no_linea: number
     almacen: string
@@ -135,6 +133,7 @@ export function ConducesFat({ noCia, punto, ano: anoProp, mes: mesProp }: Props)
 
   const [selected, setSelected] = useState<ConduceDetalle | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const [verHistorial, setVerHistorial] = useState(false)
   const detailLookupSeqRef = useRef(0)
 
   const load = (p = 1) => {
@@ -202,6 +201,7 @@ export function ConducesFat({ noCia, punto, ano: anoProp, mes: mesProp }: Props)
 
   const openDetail = async (row: Conduce) => {
     const requestId = ++detailLookupSeqRef.current
+    setVerHistorial(false)
     setLoadingDetail(true)
     try {
       const d = await regalGeneralApi.fatGetConduce(
@@ -565,40 +565,38 @@ export function ConducesFat({ noCia, punto, ano: anoProp, mes: mesProp }: Props)
         </div>
       )}
 
-      {/* Detail Modal */}
-      <Dialog
+      {/* Detalle: mismo sidebar (panel lateral) que CxP/INV/CxC/ODC/Facturas */}
+      <DocumentoDetalleSheet
         open={!!selected || loadingDetail}
-        onOpenChange={() => setSelected(null)}
-      >
-        <DialogContent size='picker-lg'>
-          <DialogHeader className='shrink-0 border-b bg-background px-6 py-4'>
-            <div className='flex flex-wrap items-center justify-between gap-4'>
-              <div className='flex flex-wrap items-center gap-3'>
-                <DialogTitle className='text-lg'>
-                  {loadingDetail
-                    ? 'Cargando...'
-                    : selected
-                      ? `${selected.tipo_conduce === 'CT' ? 'Cotización' : 'Conduce'} ${selected.tipo_conduce}-${selected.no_conduce}`
-                      : ''}
-                </DialogTitle>
-                {selected && (
-                  <>
-                    <Badge
-                      variant={
-                        selected.st_anulado === 'S' ? 'destructive' : 'default'
-                      }
-                    >
-                      {selected.st_anulado === 'S' ? 'Anulado' : 'Activo'}
-                    </Badge>
-                    {selected.ncf_dgi && (
-                      <span className='rounded border border-blue-200 bg-blue-50 px-2 py-0.5 font-mono text-sm text-blue-800'>
-                        NCF: {selected.ncf_dgi}
-                      </span>
-                    )}
-                  </>
+        onOpenChange={(o) => { if (!o) { setSelected(null); setVerHistorial(false) } }}
+        loading={loadingDetail}
+        title={
+          <span className='flex flex-wrap items-center gap-3'>
+            {selected
+              ? `${selected.tipo_conduce === 'CT' ? 'Cotización' : 'Conduce'} ${selected.tipo_conduce}-${selected.no_conduce}`
+              : ''}
+            {selected && (
+              <>
+                <Badge
+                  variant={
+                    selected.st_anulado === 'S' ? 'destructive' : 'default'
+                  }
+                >
+                  {selected.st_anulado === 'S' ? 'Anulado' : 'Activo'}
+                </Badge>
+                {selected.ncf_dgi && (
+                  <span className='rounded border border-blue-200 bg-blue-50 px-2 py-0.5 font-mono text-sm text-blue-800'>
+                    NCF: {selected.ncf_dgi}
+                  </span>
                 )}
-              </div>
-              {selected && (
+              </>
+            )}
+          </span>
+        }
+      >
+          {selected && (
+            <>
+              <div className='flex flex-wrap justify-end gap-2'>
                 <Button
                   size='sm'
                   variant='outline'
@@ -614,31 +612,42 @@ export function ConducesFat({ noCia, punto, ano: anoProp, mes: mesProp }: Props)
                 >
                   <FileText className='h-3.5 w-3.5' /> Imprimir PDF
                 </Button>
-              )}
-              {selected && selected.st_anulado !== 'S' && (
+                {selected.st_anulado !== 'S' && (
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    className='shrink-0 gap-1'
+                    onClick={() => {
+                      setSelected(null)
+                      navigate({
+                        to: '/fat/nuevo-conduce' as never,
+                        search: {
+                          id: selected.no_conduce,
+                          tipo: selected.tipo_conduce,
+                        } as never,
+                      })
+                    }}
+                  >
+                    <Pencil className='h-3.5 w-3.5' /> Editar
+                  </Button>
+                )}
                 <Button
                   size='sm'
                   variant='outline'
                   className='shrink-0 gap-1'
-                  onClick={() => {
-                    setSelected(null)
-                    navigate({
-                      to: '/fat/nuevo-conduce' as never,
-                      search: {
-                        id: selected.no_conduce,
-                        tipo: selected.tipo_conduce,
-                      } as never,
-                    })
-                  }}
+                  onClick={() => setVerHistorial(v => !v)}
                 >
-                  <Pencil className='h-3.5 w-3.5' /> Editar
+                  <History className='h-3.5 w-3.5' /> {verHistorial ? 'Ocultar historial' : 'Ver historial'}
                 </Button>
+              </div>
+              {verHistorial && (
+                <DocumentoHistorial
+                  modulo="FAT"
+                  noCia={selected.no_cia} punto={selected.punto}
+                  tipoDocumento={selected.tipo_conduce} noDocumento={selected.no_conduce}
+                  usuarioDoc={selected.usuario}
+                />
               )}
-            </div>
-          </DialogHeader>
-
-          {selected && (
-            <div className='flex-1 space-y-4 overflow-y-auto px-6 py-4'>
               {/* Header info */}
               <div className='grid grid-cols-2 gap-4 sm:grid-cols-4'>
                 <div>
@@ -785,38 +794,35 @@ export function ConducesFat({ noCia, punto, ano: anoProp, mes: mesProp }: Props)
                   </TableBody>
                 </Table>
               </div>
-            </div>
-          )}
 
-          {/* Footer totals */}
-          {selected && (
-            <div className='flex shrink-0 flex-wrap justify-end gap-6 border-t bg-background px-6 py-3 text-sm'>
-              <div className='flex gap-2'>
-                <span className='text-muted-foreground'>Total Linea:</span>
-                <span className='font-mono font-semibold'>
-                  {fmtN(selected.total_linea)}
-                </span>
-              </div>
-              {selected.descuento > 0 && (
-                <div className='flex gap-2 text-red-600'>
-                  <span>Descuento:</span>
-                  <span className='font-mono'>
-                    ({fmtN(selected.descuento)})
+              {/* Totales */}
+              <div className='flex flex-wrap justify-end gap-6 border-t pt-4 text-sm'>
+                <div className='flex gap-2'>
+                  <span className='text-muted-foreground'>Total Linea:</span>
+                  <span className='font-mono font-semibold'>
+                    {fmtN(selected.total_linea)}
                   </span>
                 </div>
-              )}
-              <div className='flex gap-2'>
-                <span className='text-muted-foreground'>ITBIS:</span>
-                <span className='font-mono'>{fmtN(selected.impuesto)}</span>
+                {selected.descuento > 0 && (
+                  <div className='flex gap-2 text-red-600'>
+                    <span>Descuento:</span>
+                    <span className='font-mono'>
+                      ({fmtN(selected.descuento)})
+                    </span>
+                  </div>
+                )}
+                <div className='flex gap-2'>
+                  <span className='text-muted-foreground'>ITBIS:</span>
+                  <span className='font-mono'>{fmtN(selected.impuesto)}</span>
+                </div>
+                <div className='flex gap-2 text-base font-bold'>
+                  <span>Total Neto:</span>
+                  <span className='font-mono'>{fmtN(selected.total_neto)}</span>
+                </div>
               </div>
-              <div className='flex gap-2 text-base font-bold'>
-                <span>Total Neto:</span>
-                <span className='font-mono'>{fmtN(selected.total_neto)}</span>
-              </div>
-            </div>
+            </>
           )}
-        </DialogContent>
-      </Dialog>
+      </DocumentoDetalleSheet>
     </section>
   )
 }

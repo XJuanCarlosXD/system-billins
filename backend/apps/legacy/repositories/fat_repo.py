@@ -652,7 +652,7 @@ def get_conduce(no_cia: str, punto: str, tipo_conduce: str, no_conduce: str) -> 
         "NVL(c.st_anulado,'N') AS st_anulado, NVL(c.st_impresion,'N') AS st_impresion, "
         "c.clase, c.tipo_factura, c.no_factura, c.detalle, "
         "c.forma_pago, c.no_condicion_pago, c.tipo_moneda, NVL(c.tasa_us,57.5) AS tasa_us, "
-        "c.posiciones_fijas_ncf, c.ncf "
+        "c.posiciones_fijas_ncf, c.ncf, c.creado_por "
         "FROM FAT.TFAT_CONDUCE c "
         "LEFT JOIN ("
         "  SELECT no_cia, punto, no_cliente, MAX(nombre) AS nombre "
@@ -705,6 +705,7 @@ def get_conduce(no_cia: str, punto: str, tipo_conduce: str, no_conduce: str) -> 
         'tipo_moneda': r['tipo_moneda'] or 'RD',
         'tasa_us': float(r['tasa_us'] or 57.5),
         'ncf_dgi': ncf_dgi,
+        'usuario': (r['creado_por'] or '').strip(),
         'lineas': _build_conduce_lineas(lineas),
     }
 
