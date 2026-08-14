@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { DocumentoDetalleSheet } from '@/features/documentos/documento-detalle-sheet'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { downloadCsv } from '@/lib/csv-utils'
 import { cn } from '@/lib/utils'
@@ -280,22 +280,13 @@ export function CxpDocumentos() {
         </div>
       )}
 
-      <Sheet open={!!selected} onOpenChange={o => { if (!o) { setSelected(null); setVerHistorial(false) } }}>
-        {/* SheetContent trae 'sm:max-w-sm' (384px) de base -- un max-w-[Xvw]
-            sin el prefijo sm: nunca lo vence (mismo gotcha que otros modales
-            del proyecto, ver memoria cxp-reversar-responsive): hay que pisarlo
-            con el mismo variant para que tailwind-merge lo reemplace.
-            h-full (no max-h-[Xvh]) para que ocupe el alto completo del
-            viewport igual que un panel lateral real, en vez de flotar con
-            un hueco abajo; header fijo + body con su propio scroll. */}
-        <SheetContent className="sm:max-w-[40vw] h-full flex flex-col gap-0 p-0">
-          <SheetHeader className="border-b px-6 py-4">
-            <SheetTitle>
-              {detalle ? `${TIPO_DOC[detalle.tipo_docu] ?? detalle.tipo_docu} ${detalle.no_docu} — ${detalle.nombre_proveedor}` : 'Cargando…'}
-            </SheetTitle>
-          </SheetHeader>
+      <DocumentoDetalleSheet
+        open={!!selected}
+        onOpenChange={o => { if (!o) { setSelected(null); setVerHistorial(false) } }}
+        title={detalle ? `${TIPO_DOC[detalle.tipo_docu] ?? detalle.tipo_docu} ${detalle.no_docu} — ${detalle.nombre_proveedor}` : 'Cargando…'}
+      >
           {detalle && (
-            <div className="flex-1 overflow-y-auto px-6 py-5 text-sm space-y-6">
+            <>
               <section className="space-y-3">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Datos del documento</h4>
                 <div className="grid grid-cols-2 gap-x-6 gap-y-4">
@@ -449,10 +440,9 @@ export function CxpDocumentos() {
                   </div>
                 </section>
               )}
-            </div>
+            </>
           )}
-        </SheetContent>
-      </Sheet>
+      </DocumentoDetalleSheet>
     </div>
   )
 }

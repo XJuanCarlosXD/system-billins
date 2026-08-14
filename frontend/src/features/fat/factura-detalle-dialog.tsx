@@ -1,10 +1,10 @@
+import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DocumentoHistorial } from '@/features/historial/documento-historial'
-import { Printer } from 'lucide-react'
+import { DocumentoDetalleSheet } from '@/features/documentos/documento-detalle-sheet'
+import { History, Printer } from 'lucide-react'
 import { fmtN } from './fat-export'
 
 export type FacturaDetalleData = {
@@ -42,30 +42,34 @@ interface Props {
 }
 
 export function FacturaDetalleDialog({ factura, loading, onClose, onPrint, noCia, punto }: Props) {
+  const [verHistorial, setVerHistorial] = useState(false)
   return (
-    <Dialog open={!!factura || loading} onOpenChange={onClose}>
-      <DialogContent size='xl'>
-        <DialogHeader>
-          <div className='flex items-center justify-between'>
-            <DialogTitle>
-              {factura ? `Factura ${factura.tipo_factura} ${factura.no_factura}` : 'Cargando…'}
-            </DialogTitle>
-            {factura && onPrint && (
-              <Button variant='outline' size='sm' onClick={onPrint} className='mr-8'>
-                <Printer className='mr-2 h-4 w-4' /> Imprimir
+    <DocumentoDetalleSheet
+      open={!!factura || loading}
+      onOpenChange={(o) => { if (!o) { onClose(); setVerHistorial(false) } }}
+      loading={loading}
+      title={factura ? `Factura ${factura.tipo_factura} ${factura.no_factura}` : 'Cargando…'}
+    >
+        {factura && (
+          <>
+            <div className='flex flex-wrap justify-end gap-2'>
+              {onPrint && (
+                <Button variant='outline' size='sm' onClick={onPrint}>
+                  <Printer className='mr-2 h-4 w-4' /> Imprimir
+                </Button>
+              )}
+              <Button variant='outline' size='sm' onClick={() => setVerHistorial(v => !v)}>
+                <History className='mr-2 h-4 w-4' /> {verHistorial ? 'Ocultar historial' : 'Ver historial'}
               </Button>
+            </div>
+            {verHistorial && (
+              <DocumentoHistorial
+                modulo="FAT"
+                noCia={noCia} punto={punto}
+                tipoDocumento={factura.tipo_factura} noDocumento={factura.no_factura}
+                usuarioDoc={factura.usuario}
+              />
             )}
-          </div>
-        </DialogHeader>
-
-        {loading && <p className='py-8 text-center text-muted-foreground'>Cargando detalle…</p>}
-        {factura && !loading && (
-          <Tabs defaultValue='datos'>
-            <TabsList>
-              <TabsTrigger value='datos'>Datos</TabsTrigger>
-              <TabsTrigger value='historial'>Historial</TabsTrigger>
-            </TabsList>
-            <TabsContent value='datos' className='space-y-4 text-sm'>
             <div className='grid grid-cols-2 gap-x-8 gap-y-1 rounded-lg border p-3'>
               <div><span className='text-muted-foreground'>Cliente:</span> <strong>{factura.nombre_cliente || `#${factura.no_cliente}`}</strong></div>
               <div><span className='text-muted-foreground'>Fecha:</span> {factura.fecha}</div>
@@ -132,18 +136,8 @@ export function FacturaDetalleDialog({ factura, loading, onClose, onPrint, noCia
             {factura.nota && (
               <p className='rounded border bg-muted/30 p-2 text-xs text-muted-foreground'><strong>Nota:</strong> {factura.nota}</p>
             )}
-            </TabsContent>
-            <TabsContent value='historial' className='py-2'>
-              <DocumentoHistorial
-                modulo="FAT"
-                noCia={noCia} punto={punto}
-                tipoDocumento={factura.tipo_factura} noDocumento={factura.no_factura}
-                usuarioDoc={factura.usuario}
-              />
-            </TabsContent>
-          </Tabs>
+          </>
         )}
-      </DialogContent>
-    </Dialog>
+    </DocumentoDetalleSheet>
   )
 }

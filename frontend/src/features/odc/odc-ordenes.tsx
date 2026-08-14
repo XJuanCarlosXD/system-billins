@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select'
 import { Loader2, Search, Eye, CheckCircle2, XCircle, Lock, Printer, Pencil, History } from 'lucide-react'
 import { DocumentoHistorial } from '@/features/historial/documento-historial'
+import { DocumentoDetalleSheet } from '@/features/documentos/documento-detalle-sheet'
 
 interface Orden {
   no_cia: string; punto: string; no_orden: string
@@ -236,123 +237,119 @@ export function OdcOrdenes() {
         </div>
       )}
 
-      {/* Detalle */}
-      <Dialog open={!!selected} onOpenChange={(v) => { if (!v) setSelected(null) }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col gap-0 p-0 overflow-hidden">
-          <DialogHeader className="shrink-0 border-b px-6 py-4">
-            <DialogTitle>Orden ODC-{selected?.no_orden}</DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto px-6 py-4">
-            {detalleQ.isLoading && <div className="text-muted-foreground">Cargando…</div>}
-            {detalleQ.data && (
-              <div className="space-y-3 text-sm">
-                <div className="grid grid-cols-2 gap-3">
-                  <div><span className="text-muted-foreground">Proveedor:</span> {detalleQ.data.cabecera.no_proveedor} — {detalleQ.data.cabecera.nombre_proveedor}</div>
-                  <div><span className="text-muted-foreground">RNC:</span> {detalleQ.data.cabecera.rnc_proveedor}</div>
-                  <div><span className="text-muted-foreground">Fecha:</span> {formatDate(detalleQ.data.cabecera.fecha)}</div>
-                  <div><span className="text-muted-foreground">Entrega:</span> {formatDate(detalleQ.data.cabecera.fecha_entrega)}</div>
-                  <div><span className="text-muted-foreground">Condición pago:</span> {detalleQ.data.cabecera.condicion_pago || `${detalleQ.data.cabecera.plazo_pago || 0} días`}</div>
-                  <div><span className="text-muted-foreground">Tipo:</span> {detalleQ.data.cabecera.tipo_orden}</div>
-                  <div className="col-span-2"><span className="text-muted-foreground">Detalle:</span> {detalleQ.data.cabecera.detalle}</div>
-                </div>
-                <div className="rounded border overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-10">#</TableHead>
-                        <TableHead>Producto</TableHead>
-                        <TableHead>Descripción</TableHead>
-                        <TableHead className="text-right">Pedida</TableHead>
-                        <TableHead className="text-right">Recibida</TableHead>
-                        <TableHead className="text-right">Costo</TableHead>
-                        <TableHead className="text-right">Monto</TableHead>
+      {/* Detalle: mismo sidebar (panel lateral) que CxP/INV/CxC/FAT */}
+      <DocumentoDetalleSheet
+        open={!!selected}
+        onOpenChange={(v) => { if (!v) { setSelected(null); setVerHistorial(false) } }}
+        title={`Orden ODC-${selected?.no_orden}`}
+        loading={detalleQ.isLoading}
+      >
+        {detalleQ.data && (
+          <>
+            <div className="flex flex-wrap justify-end gap-2">
+              {selected && (
+                <Button size="sm" variant="outline" onClick={() => {
+                  const qs = new URLSearchParams({ no_cia: selected.no_cia, punto: selected.punto }).toString()
+                  window.open(`/print/orden-compra/${encodeURIComponent(selected.no_orden)}?${qs}`, '_blank')
+                }}>
+                  <Printer className="h-4 w-4 mr-1" /> Imprimir
+                </Button>
+              )}
+              {/* Editar: solo órdenes activas y no recibidas/cerradas. Reusa la
+                  vista de Entrada de Orden en modo edición (?edit=no_orden). */}
+              {selected && selected.st_anulado === 'A' && selected.estado !== 'R' && (
+                <Button size="sm" variant="outline" onClick={() => {
+                  nav({ to: '/odc/nueva-orden', search: { edit: selected.no_orden } })
+                }}>
+                  <Pencil className="h-4 w-4 mr-1" /> Editar
+                </Button>
+              )}
+              {/* Autorizar: orden Pendiente todavía sin autorizar */}
+              {selected && selected.st_anulado === 'A' && selected.estado === 'P' && !selected.autorizada_por && (
+                <Button size="sm" onClick={() => autorizar.mutate(selected)} disabled={autorizar.isPending}>
+                  <CheckCircle2 className="h-4 w-4 mr-1" /> Autorizar
+                </Button>
+              )}
+              {/* Cerrar (= Marcar Recibida): orden Pendiente ya autorizada.
+                  Requiere confirmación explícita -- esta acción es definitiva
+                  (deja estado='R') y bloquea toda futura entrada de mercancía
+                  contra la orden en INV, aunque no se haya recibido nada
+                  todavía. Antes llamaba a cerrar.mutate directo desde este
+                  mismo botón, sin paso intermedio: un doble clic o un clic
+                  por costumbre justo después de "Autorizar" cerraba la orden
+                  antes de recibir la mercancía físicamente (ver
+                  docs/superpowers/plans -- bug reportado 2026-07-24). */}
+              {selected && selected.st_anulado === 'A' && selected.estado === 'P' && !!selected.autorizada_por && (
+                <Button size="sm" variant="outline" onClick={() => setOpenCerrar(true)} disabled={cerrar.isPending}>
+                  <Lock className="h-4 w-4 mr-1" /> Marcar Recibida
+                </Button>
+              )}
+              {selected && selected.st_anulado === 'A' && (
+                <Button size="sm" variant="destructive" onClick={() => setOpenAnular(true)}>
+                  <XCircle className="h-4 w-4 mr-1" /> Anular
+                </Button>
+              )}
+              <Button size="sm" variant="outline" onClick={() => setVerHistorial(v => !v)}>
+                <History className="h-4 w-4 mr-1" /> {verHistorial ? 'Ocultar historial' : 'Ver historial'}
+              </Button>
+            </div>
+            {verHistorial && selected && (
+              <DocumentoHistorial
+                modulo="ODC"
+                noCia={selected.no_cia} punto={selected.punto}
+                tipoDocumento="ORDEN" noDocumento={selected.no_orden}
+                usuarioDoc={selected.usuario}
+              />
+            )}
+            <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+              <div><span className="text-muted-foreground">Proveedor:</span> {detalleQ.data.cabecera.no_proveedor} — {detalleQ.data.cabecera.nombre_proveedor}</div>
+              <div><span className="text-muted-foreground">RNC:</span> {detalleQ.data.cabecera.rnc_proveedor}</div>
+              <div><span className="text-muted-foreground">Fecha:</span> {formatDate(detalleQ.data.cabecera.fecha)}</div>
+              <div><span className="text-muted-foreground">Entrega:</span> {formatDate(detalleQ.data.cabecera.fecha_entrega)}</div>
+              <div><span className="text-muted-foreground">Condición pago:</span> {detalleQ.data.cabecera.condicion_pago || `${detalleQ.data.cabecera.plazo_pago || 0} días`}</div>
+              <div><span className="text-muted-foreground">Tipo:</span> {detalleQ.data.cabecera.tipo_orden}</div>
+              <div className="col-span-2"><span className="text-muted-foreground">Detalle:</span> {detalleQ.data.cabecera.detalle}</div>
+            </div>
+            <section className="space-y-3 border-t pt-4">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Líneas</h4>
+              <div className="rounded-lg border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10">#</TableHead>
+                      <TableHead>Producto</TableHead>
+                      <TableHead>Descripción</TableHead>
+                      <TableHead className="text-right">Pedida</TableHead>
+                      <TableHead className="text-right">Recibida</TableHead>
+                      <TableHead className="text-right">Costo</TableHead>
+                      <TableHead className="text-right">Monto</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {detalleQ.data.lineas.map((l: any) => (
+                      <TableRow key={l.no_linea}>
+                        <TableCell>{l.no_linea}</TableCell>
+                        <TableCell className="font-mono text-xs">{l.no_produ}</TableCell>
+                        <TableCell className="truncate max-w-[20rem]">{l.descripcion_producto}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatMoney(l.cantidad_pedida)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatMoney(l.cantidad_recibida)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatMoney(l.costo)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatMoney(l.monto_neto)}</TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {detalleQ.data.lineas.map((l: any) => (
-                        <TableRow key={l.no_linea}>
-                          <TableCell>{l.no_linea}</TableCell>
-                          <TableCell className="font-mono text-xs">{l.no_produ}</TableCell>
-                          <TableCell className="truncate max-w-[20rem]">{l.descripcion_producto}</TableCell>
-                          <TableCell className="text-right tabular-nums">{formatMoney(l.cantidad_pedida)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{formatMoney(l.cantidad_recibida)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{formatMoney(l.costo)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{formatMoney(l.monto_neto)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-                <div className="grid grid-cols-4 gap-3 pt-2 border-t">
-                  <div><span className="text-muted-foreground">Subtotal:</span> {formatMoney(detalleQ.data.cabecera.total_linea)}</div>
-                  <div><span className="text-muted-foreground">Descuento:</span> {formatMoney(detalleQ.data.cabecera.descuento)}</div>
-                  <div><span className="text-muted-foreground">ITBIS:</span> {formatMoney(detalleQ.data.cabecera.impuesto)}</div>
-                  <div className="font-semibold"><span className="text-muted-foreground">Total:</span> {formatMoney(detalleQ.data.cabecera.total_neto)}</div>
-                </div>
-                <div className="border-t pt-3">
-                  <Button size="sm" variant="outline" onClick={() => setVerHistorial(v => !v)}>
-                    <History className="h-4 w-4 mr-1" /> {verHistorial ? 'Ocultar historial' : 'Ver historial'}
-                  </Button>
-                  {verHistorial && selected && (
-                    <div className="mt-3">
-                      <DocumentoHistorial
-                        modulo="ODC"
-                        noCia={selected.no_cia} punto={selected.punto}
-                        tipoDocumento="ORDEN" noDocumento={selected.no_orden}
-                        usuarioDoc={selected.usuario}
-                      />
-                    </div>
-                  )}
-                </div>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
-            )}
-          </div>
-          <DialogFooter className="shrink-0 border-t bg-background px-6 py-3 gap-2 sm:gap-2">
-            {selected && (
-              <Button size="sm" variant="outline" onClick={() => {
-                const qs = new URLSearchParams({ no_cia: selected.no_cia, punto: selected.punto }).toString()
-                window.open(`/print/orden-compra/${encodeURIComponent(selected.no_orden)}?${qs}`, '_blank')
-              }}>
-                <Printer className="h-4 w-4 mr-1" /> Imprimir
-              </Button>
-            )}
-            {/* Editar: solo órdenes activas y no recibidas/cerradas. Reusa la
-                vista de Entrada de Orden en modo edición (?edit=no_orden). */}
-            {selected && selected.st_anulado === 'A' && selected.estado !== 'R' && (
-              <Button size="sm" variant="outline" onClick={() => {
-                nav({ to: '/odc/nueva-orden', search: { edit: selected.no_orden } })
-              }}>
-                <Pencil className="h-4 w-4 mr-1" /> Editar
-              </Button>
-            )}
-            {/* Autorizar: orden Pendiente todavía sin autorizar */}
-            {selected && selected.st_anulado === 'A' && selected.estado === 'P' && !selected.autorizada_por && (
-              <Button size="sm" onClick={() => autorizar.mutate(selected)} disabled={autorizar.isPending}>
-                <CheckCircle2 className="h-4 w-4 mr-1" /> Autorizar
-              </Button>
-            )}
-            {/* Cerrar (= Marcar Recibida): orden Pendiente ya autorizada.
-                Requiere confirmación explícita -- esta acción es definitiva
-                (deja estado='R') y bloquea toda futura entrada de mercancía
-                contra la orden en INV, aunque no se haya recibido nada
-                todavía. Antes llamaba a cerrar.mutate directo desde este
-                mismo botón, sin paso intermedio: un doble clic o un clic
-                por costumbre justo después de "Autorizar" cerraba la orden
-                antes de recibir la mercancía físicamente (ver
-                docs/superpowers/plans -- bug reportado 2026-07-24). */}
-            {selected && selected.st_anulado === 'A' && selected.estado === 'P' && !!selected.autorizada_por && (
-              <Button size="sm" variant="outline" onClick={() => setOpenCerrar(true)} disabled={cerrar.isPending}>
-                <Lock className="h-4 w-4 mr-1" /> Marcar Recibida
-              </Button>
-            )}
-            {selected && selected.st_anulado === 'A' && (
-              <Button size="sm" variant="destructive" onClick={() => setOpenAnular(true)}>
-                <XCircle className="h-4 w-4 mr-1" /> Anular
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </section>
+            <div className="grid grid-cols-4 gap-3 pt-2 border-t">
+              <div><span className="text-muted-foreground">Subtotal:</span> {formatMoney(detalleQ.data.cabecera.total_linea)}</div>
+              <div><span className="text-muted-foreground">Descuento:</span> {formatMoney(detalleQ.data.cabecera.descuento)}</div>
+              <div><span className="text-muted-foreground">ITBIS:</span> {formatMoney(detalleQ.data.cabecera.impuesto)}</div>
+              <div className="font-semibold"><span className="text-muted-foreground">Total:</span> {formatMoney(detalleQ.data.cabecera.total_neto)}</div>
+            </div>
+          </>
+        )}
+      </DocumentoDetalleSheet>
 
       <Dialog open={openCerrar} onOpenChange={setOpenCerrar}>
         <DialogContent>

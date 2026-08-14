@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select'
 import { Eye, CheckCircle2, XCircle, Lock, Loader2, Search, Printer, History } from 'lucide-react'
 import { DocumentoHistorial } from '@/features/historial/documento-historial'
+import { DocumentoDetalleSheet } from '@/features/documentos/documento-detalle-sheet'
 
 interface Requisicion {
   no_cia: string; punto: string; no_requisicion: string
@@ -198,105 +199,102 @@ export function OdcRequisiciones() {
         </div>
       )}
 
-      <Dialog open={!!selected} onOpenChange={(v) => { if (!v) setSelected(null) }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col gap-0 p-0 overflow-hidden">
-          <DialogHeader className="shrink-0 border-b px-6 py-4">
-            <DialogTitle>Requisición REQ-{selected?.no_requisicion}</DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto px-6 py-4">
-            {detalleQ.data && (
-              <div className="space-y-3 text-sm">
-                <div className="grid grid-cols-3 gap-3">
-                  <div><span className="text-muted-foreground">Fecha:</span> {formatDate(detalleQ.data.cabecera.fecha)}</div>
-                  <div><span className="text-muted-foreground">Tipo:</span> {detalleQ.data.cabecera.tipo_requisicion}</div>
-                  <div><span className="text-muted-foreground">Localidad:</span> {detalleQ.data.cabecera.no_localidad}</div>
-                  <div className="col-span-3"><span className="text-muted-foreground">Detalle:</span> {detalleQ.data.cabecera.detalle}</div>
-                  <div><span className="text-muted-foreground">Aut. 1:</span> {detalleQ.data.cabecera.autorizacion_1 || '—'}</div>
-                  <div><span className="text-muted-foreground">Aut. 2:</span> {detalleQ.data.cabecera.autorizacion_2 || '—'}</div>
-                  <div><span className="text-muted-foreground">Aut. 3:</span> {detalleQ.data.cabecera.autorizacion_3 || '—'}</div>
-                </div>
-                <div className="rounded border overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-10">#</TableHead>
-                        <TableHead>Producto</TableHead>
-                        <TableHead>Descripción</TableHead>
-                        <TableHead className="text-right">Pedida</TableHead>
-                        <TableHead className="text-right">Pendiente</TableHead>
-                        <TableHead className="text-right">Autorizada</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {detalleQ.data.lineas.map((l: any) => (
-                        <TableRow key={l.no_linea}>
-                          <TableCell>{l.no_linea}</TableCell>
-                          <TableCell className="font-mono text-xs">{l.no_produ}</TableCell>
-                          <TableCell className="truncate max-w-[18rem]">{l.descripcion_producto}</TableCell>
-                          <TableCell className="text-right tabular-nums">{formatNum(l.cantidad_pedida)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{formatNum(l.cantidad_pendiente)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{formatNum(l.cantidad_autorizada)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-                <div className="border-t pt-3">
-                  <Button size="sm" variant="outline" onClick={() => setVerHistorial(v => !v)}>
-                    <History className="h-4 w-4 mr-1" /> {verHistorial ? 'Ocultar historial' : 'Ver historial'}
-                  </Button>
-                  {verHistorial && selected && (
-                    <div className="mt-3">
-                      <DocumentoHistorial
-                        modulo="ODC"
-                        noCia={selected.no_cia} punto={selected.punto}
-                        tipoDocumento="REQUISICION" noDocumento={selected.no_requisicion}
-                        usuarioDoc={selected.usuario}
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-          <DialogFooter className="shrink-0 border-t bg-background px-6 py-3 gap-2 items-center sm:gap-2">
-            {selected && (
-              <Button size="sm" variant="outline" onClick={() => {
-                const qs = new URLSearchParams({ no_cia: selected.no_cia, punto: selected.punto }).toString()
-                window.open(`/print/requisicion-compra/${encodeURIComponent(selected.no_requisicion)}?${qs}`, '_blank')
-              }}>
-                <Printer className="h-4 w-4 mr-1" /> Imprimir
-              </Button>
-            )}
-            {selected && selected.st_anulado === 'A' && selected.estado === 'P' && (
-              <>
-                <Label className="text-xs ml-2">Slot</Label>
-                <Select value={String(slot)} onValueChange={(v) => setSlot(Number(v))}>
-                  <SelectTrigger className="w-20 h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">1</SelectItem>
-                    <SelectItem value="2">2</SelectItem>
-                    <SelectItem value="3">3</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button size="sm" onClick={() => autorizar.mutate()} disabled={autorizar.isPending}>
-                  <CheckCircle2 className="h-4 w-4 mr-1" /> Autorizar
+      {/* Mismo sidebar (panel lateral) que CxP/INV/CxC/FAT/ODC-Órdenes */}
+      <DocumentoDetalleSheet
+        open={!!selected}
+        onOpenChange={(v) => { if (!v) { setSelected(null); setVerHistorial(false) } }}
+        title={`Requisición REQ-${selected?.no_requisicion}`}
+      >
+        {detalleQ.data && (
+          <>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {selected && (
+                <Button size="sm" variant="outline" onClick={() => {
+                  const qs = new URLSearchParams({ no_cia: selected.no_cia, punto: selected.punto }).toString()
+                  window.open(`/print/requisicion-compra/${encodeURIComponent(selected.no_requisicion)}?${qs}`, '_blank')
+                }}>
+                  <Printer className="h-4 w-4 mr-1" /> Imprimir
                 </Button>
-              </>
-            )}
-            {selected && selected.st_anulado === 'A' && selected.estado === 'A' && (
-              <Button size="sm" variant="outline" onClick={() => cerrar.mutate(selected)} disabled={cerrar.isPending}>
-                <Lock className="h-4 w-4 mr-1" /> Cerrar
+              )}
+              {selected && selected.st_anulado === 'A' && selected.estado === 'P' && (
+                <>
+                  <Label className="text-xs ml-2">Slot</Label>
+                  <Select value={String(slot)} onValueChange={(v) => setSlot(Number(v))}>
+                    <SelectTrigger className="w-20 h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1</SelectItem>
+                      <SelectItem value="2">2</SelectItem>
+                      <SelectItem value="3">3</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" onClick={() => autorizar.mutate()} disabled={autorizar.isPending}>
+                    <CheckCircle2 className="h-4 w-4 mr-1" /> Autorizar
+                  </Button>
+                </>
+              )}
+              {selected && selected.st_anulado === 'A' && selected.estado === 'A' && (
+                <Button size="sm" variant="outline" onClick={() => cerrar.mutate(selected)} disabled={cerrar.isPending}>
+                  <Lock className="h-4 w-4 mr-1" /> Cerrar
+                </Button>
+              )}
+              {selected && selected.st_anulado === 'A' && (
+                <Button size="sm" variant="destructive" onClick={() => setOpenAnular(true)}>
+                  <XCircle className="h-4 w-4 mr-1" /> Anular
+                </Button>
+              )}
+              <Button size="sm" variant="outline" onClick={() => setVerHistorial(v => !v)}>
+                <History className="h-4 w-4 mr-1" /> {verHistorial ? 'Ocultar historial' : 'Ver historial'}
               </Button>
+            </div>
+            {verHistorial && selected && (
+              <DocumentoHistorial
+                modulo="ODC"
+                noCia={selected.no_cia} punto={selected.punto}
+                tipoDocumento="REQUISICION" noDocumento={selected.no_requisicion}
+                usuarioDoc={selected.usuario}
+              />
             )}
-            {selected && selected.st_anulado === 'A' && (
-              <Button size="sm" variant="destructive" onClick={() => setOpenAnular(true)}>
-                <XCircle className="h-4 w-4 mr-1" /> Anular
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+              <div><span className="text-muted-foreground">Fecha:</span> {formatDate(detalleQ.data.cabecera.fecha)}</div>
+              <div><span className="text-muted-foreground">Tipo:</span> {detalleQ.data.cabecera.tipo_requisicion}</div>
+              <div><span className="text-muted-foreground">Localidad:</span> {detalleQ.data.cabecera.no_localidad}</div>
+              <div className="col-span-2"><span className="text-muted-foreground">Detalle:</span> {detalleQ.data.cabecera.detalle}</div>
+              <div><span className="text-muted-foreground">Aut. 1:</span> {detalleQ.data.cabecera.autorizacion_1 || '—'}</div>
+              <div><span className="text-muted-foreground">Aut. 2:</span> {detalleQ.data.cabecera.autorizacion_2 || '—'}</div>
+              <div><span className="text-muted-foreground">Aut. 3:</span> {detalleQ.data.cabecera.autorizacion_3 || '—'}</div>
+            </div>
+            <section className="space-y-3 border-t pt-4">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Líneas</h4>
+              <div className="rounded-lg border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10">#</TableHead>
+                      <TableHead>Producto</TableHead>
+                      <TableHead>Descripción</TableHead>
+                      <TableHead className="text-right">Pedida</TableHead>
+                      <TableHead className="text-right">Pendiente</TableHead>
+                      <TableHead className="text-right">Autorizada</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {detalleQ.data.lineas.map((l: any) => (
+                      <TableRow key={l.no_linea}>
+                        <TableCell>{l.no_linea}</TableCell>
+                        <TableCell className="font-mono text-xs">{l.no_produ}</TableCell>
+                        <TableCell className="truncate max-w-[18rem]">{l.descripcion_producto}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatNum(l.cantidad_pedida)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatNum(l.cantidad_pendiente)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatNum(l.cantidad_autorizada)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
+          </>
+        )}
+      </DocumentoDetalleSheet>
 
       <Dialog open={openAnular} onOpenChange={setOpenAnular}>
         <DialogContent>

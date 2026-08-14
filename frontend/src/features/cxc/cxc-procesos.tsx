@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Search, RotateCcw, CreditCard, FileText, History } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
@@ -12,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { HIGHLIGHT_ROW_CLASS } from '@/lib/sidebar-badges'
 import { useDocHighlightCount } from '@/hooks/use-sidebar-badges'
 import { DocumentoHistorial } from '@/features/historial/documento-historial'
+import { DocumentoDetalleSheet } from '@/features/documentos/documento-detalle-sheet'
 
 interface P { noCia: string; punto?: string; mes?: number; ano?: number }
 
@@ -216,67 +216,69 @@ export function CxcDocumentos({ noCia, punto }: P) {
         <Button variant="outline" size="sm" onClick={() => load(page + 1)} disabled={page * 50 >= total}>Siguiente</Button>
       </div>
 
-      {/* Document detail dialog */}
-      <Dialog open={!!detail} onOpenChange={() => setDetail(null)}>
-        <DialogContent size="xl">
-          <DialogHeader>
-            <DialogTitle>Detalle Documento — {docCode(detail?.tipo_doc, detail?.no_doc)}</DialogTitle>
-          </DialogHeader>
-          {detail && (
-            <div className="space-y-4">
-              <div className="flex justify-end">
-                <Button
-                  size="sm" variant="outline"
-                  onClick={() => {
-                    const tipo = (detail.tipo_doc || '').toUpperCase()
-                    const qs = new URLSearchParams({
-                      no_cia: noCia,
-                      punto: punto || '01',
-                      tipo_doc: tipo,
-                    }).toString()
-                    const codigoMap: Record<string, string> = {
-                      RI: 'recibo-cobro', NC: 'cxc-nota-credito', ND: 'cxc-nota-debito',
-                      CD: 'cxc-cheque-devuelto', AC: 'cxc-ajuste-credito', AD: 'cxc-ajuste-debito',
-                      DV: 'cxc-devolucion', AF: 'cxc-anulacion-factura', BI: 'cxc-balance-inicial',
-                      FC: 'factura-credito',
-                    }
-                    const codigo = codigoMap[tipo]
-                    if (!codigo) {
-                      alert(`Imprimir no está disponible para el tipo ${tipo}`)
-                      return
-                    }
-                    window.open(`/print/${codigo}/${encodeURIComponent(detail.no_doc)}?${qs}`, '_blank', 'noopener')
-                  }}
-                >
-                  <FileText className="h-4 w-4 mr-1" /> Imprimir / PDF
-                </Button>
-                <Button
-                  size="sm" variant="outline"
-                  onClick={() => setVerHistorial(v => !v)}
-                >
-                  <History className="h-4 w-4 mr-1" /> {verHistorial ? 'Ocultar historial' : 'Ver historial'}
-                </Button>
-              </div>
-              {verHistorial && (
-                <DocumentoHistorial
-                  modulo="CXC"
-                  noCia={noCia} punto={detail.punto || punto || ''}
-                  tipoDocumento={detail.tipo_doc} noDocumento={detail.no_doc}
-                  usuarioDoc={detail.usuario}
-                />
-              )}
-              <div className="grid grid-cols-3 gap-3 text-sm">
-                <div><span className="text-muted-foreground">Tipo:</span> {detail.tipo_doc}</div>
-                <div><span className="text-muted-foreground">Fecha:</span> {fmtDate(detail.fecha)}</div>
-                <div><span className="text-muted-foreground">Estado:</span> <Badge variant={detail.estado === 'R' ? 'destructive' : 'default'}>{detail.estado === 'R' ? 'Reversado' : 'Activo'}</Badge></div>
-                <div className="col-span-2"><span className="text-muted-foreground">Cliente:</span> {detail.no_cliente} — {detail.nombre_cliente}</div>
-                <div><span className="text-muted-foreground">RNC:</span> {detail.rnc}</div>
-                <div><span className="text-muted-foreground">Valor:</span> {fmt(detail.valor)}</div>
-                <div><span className="text-muted-foreground">Saldo:</span> {fmt(detail.saldo)}</div>
-                <div><span className="text-muted-foreground">NCF:</span> <span className="font-mono">{detail.ncf}</span></div>
-                <div className="col-span-3"><span className="text-muted-foreground">Detalle:</span> {detail.detalle}</div>
-              </div>
-              <div className="border rounded-lg overflow-hidden">
+      {/* Panel lateral de detalle (mismo sidebar que CxP/INV/ODC/FAT) */}
+      <DocumentoDetalleSheet
+        open={!!detail}
+        onOpenChange={(o) => { if (!o) { setDetail(null); setVerHistorial(false) } }}
+        title={`Detalle Documento — ${docCode(detail?.tipo_doc, detail?.no_doc)}`}
+      >
+        {detail && (
+          <>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                size="sm" variant="outline"
+                onClick={() => {
+                  const tipo = (detail.tipo_doc || '').toUpperCase()
+                  const qs = new URLSearchParams({
+                    no_cia: noCia,
+                    punto: punto || '01',
+                    tipo_doc: tipo,
+                  }).toString()
+                  const codigoMap: Record<string, string> = {
+                    RI: 'recibo-cobro', NC: 'cxc-nota-credito', ND: 'cxc-nota-debito',
+                    CD: 'cxc-cheque-devuelto', AC: 'cxc-ajuste-credito', AD: 'cxc-ajuste-debito',
+                    DV: 'cxc-devolucion', AF: 'cxc-anulacion-factura', BI: 'cxc-balance-inicial',
+                    FC: 'factura-credito',
+                  }
+                  const codigo = codigoMap[tipo]
+                  if (!codigo) {
+                    alert(`Imprimir no está disponible para el tipo ${tipo}`)
+                    return
+                  }
+                  window.open(`/print/${codigo}/${encodeURIComponent(detail.no_doc)}?${qs}`, '_blank', 'noopener')
+                }}
+              >
+                <FileText className="h-4 w-4 mr-1" /> Imprimir / PDF
+              </Button>
+              <Button
+                size="sm" variant="outline"
+                onClick={() => setVerHistorial(v => !v)}
+              >
+                <History className="h-4 w-4 mr-1" /> {verHistorial ? 'Ocultar historial' : 'Ver historial'}
+              </Button>
+            </div>
+            {verHistorial && (
+              <DocumentoHistorial
+                modulo="CXC"
+                noCia={noCia} punto={detail.punto || punto || ''}
+                tipoDocumento={detail.tipo_doc} noDocumento={detail.no_doc}
+                usuarioDoc={detail.usuario}
+              />
+            )}
+            <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+              <div><span className="text-muted-foreground">Tipo:</span> {detail.tipo_doc}</div>
+              <div><span className="text-muted-foreground">Fecha:</span> {fmtDate(detail.fecha)}</div>
+              <div><span className="text-muted-foreground">Estado:</span> <Badge variant={detail.estado === 'R' ? 'destructive' : 'default'}>{detail.estado === 'R' ? 'Reversado' : 'Activo'}</Badge></div>
+              <div><span className="text-muted-foreground">RNC:</span> {detail.rnc}</div>
+              <div className="col-span-2"><span className="text-muted-foreground">Cliente:</span> {detail.no_cliente} — {detail.nombre_cliente}</div>
+              <div><span className="text-muted-foreground">Valor:</span> {fmt(detail.valor)}</div>
+              <div><span className="text-muted-foreground">Saldo:</span> {fmt(detail.saldo)}</div>
+              <div><span className="text-muted-foreground">NCF:</span> <span className="font-mono">{detail.ncf}</span></div>
+              <div className="col-span-2"><span className="text-muted-foreground">Detalle:</span> {detail.detalle}</div>
+            </div>
+            <section className="space-y-3 border-t pt-4">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Distribución Contable</h4>
+              <div className="rounded-lg border overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -300,10 +302,10 @@ export function CxcDocumentos({ noCia, punto }: P) {
                   </TableBody>
                 </Table>
               </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+            </section>
+          </>
+        )}
+      </DocumentoDetalleSheet>
     </div>
   )
 }

@@ -13,13 +13,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
 import { DocumentoHistorial } from '@/features/historial/documento-historial'
+import { DocumentoDetalleSheet } from '@/features/documentos/documento-detalle-sheet'
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
 
@@ -806,28 +801,22 @@ export function ConsultaDocumentos() {
         </p>
       )}
 
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent className='sm:max-w-[820px] w-full max-h-screen overflow-y-auto'>
-          <SheetHeader>
-            <SheetTitle className='flex items-center gap-2'>
-              <FileText className='h-5 w-5' />
-              <span className='flex items-center gap-2'>
-                {detalleDoc && tipoMoviIcon(detalleDoc.tipo_movi)}
-                {detalleDoc
-                  ? `${tipoDocuLabel(detalleDoc)} · ${detalleDoc.tipo_docu}-${String(detalleDoc.no_docu).padStart(7, '0')}`
-                  : 'Detalle de Documento'}
-              </span>
-            </SheetTitle>
-          </SheetHeader>
-
-          {detalleLoading && (
-            <div className='py-10 text-center text-muted-foreground text-sm'>
-              Cargando detalle...
-            </div>
-          )}
-
-          {!detalleLoading && detalle && (
-            <div className='space-y-4 mt-4'>
+      <DocumentoDetalleSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        loading={detalleLoading}
+        title={
+          <span className='flex items-center gap-2'>
+            <FileText className='h-5 w-5' />
+            {detalleDoc && tipoMoviIcon(detalleDoc.tipo_movi)}
+            {detalleDoc
+              ? `${tipoDocuLabel(detalleDoc)} · ${detalleDoc.tipo_docu}-${String(detalleDoc.no_docu).padStart(7, '0')}`
+              : 'Detalle de Documento'}
+          </span>
+        }
+      >
+          {detalle && (
+            <>
               <DocumentoInfoGrid
                 header={detalle.header || {}}
                 fallback={detalleDoc || undefined}
@@ -871,10 +860,9 @@ export function ConsultaDocumentos() {
                 <h4 className='text-sm font-semibold mb-2'>Líneas del Documento</h4>
                 <LineasTable lineas={detalleLineas} />
               </div>
-            </div>
+            </>
           )}
-        </SheetContent>
-      </Sheet>
+      </DocumentoDetalleSheet>
     </div>
   )
 }
