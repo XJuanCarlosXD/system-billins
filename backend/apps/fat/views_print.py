@@ -3058,6 +3058,27 @@ def _render_factura_pos_ticket(*, factura, cia, razon_social, rnc_cliente,
     elements.append(grand_table)
     elements.append(Spacer(1, 1 * mm))
 
+    # Recibido / Devuelto (efectivo) -- solo si se registro un pago en
+    # efectivo con vuelto (TFAT_FACTURA.valor_recibido/valor_devuelto).
+    valor_recibido = float(factura.get('valor_recibido') or 0)
+    valor_devuelto = float(factura.get('valor_devuelto') or 0)
+    if valor_recibido:
+        elements.append(hr())
+        elements.append(Spacer(1, 1 * mm))
+        pago_rows = [
+            [Paragraph('Recibido', total_label), Paragraph(money(valor_recibido), total_val)],
+            [Paragraph('Devuelto', total_label), Paragraph(money(valor_devuelto), total_val)],
+        ]
+        pago_table = Table(pago_rows, colWidths=[width * 0.55, width * 0.45])
+        pago_table.setStyle(TableStyle([
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 1),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
+        ]))
+        elements.append(pago_table)
+        elements.append(Spacer(1, 1 * mm))
+
     # Importe en letras
     try:
         letras = _importe_en_letras(total_general)
