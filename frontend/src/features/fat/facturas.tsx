@@ -13,6 +13,7 @@ import {
   Eye,
   AlertTriangle,
   FileText,
+  History,
 } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { cn } from '@/lib/utils'
@@ -27,6 +28,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { DocumentoDetalleSheet } from '@/features/documentos/documento-detalle-sheet'
+import { DocumentoHistorial } from '@/features/historial/documento-historial'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -87,6 +90,7 @@ type FacturaDetalle = Factura & {
   detalle: string
   no_condicion_pago: string
   st_generado_cnt: string
+  usuario?: string
   lineas: Array<{
     no_linea: number
     no_produ: string
@@ -141,6 +145,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
 
   const [selected, setSelected] = useState<FacturaDetalle | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const [verHistorial, setVerHistorial] = useState(false)
 
   // Anulación state
   const [anularOpen, setAnularOpen] = useState(false)
@@ -183,6 +188,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
   const openDetail = async (row: Factura) => {
     setLoadingDetail(true)
     setAnularError('')
+    setVerHistorial(false)
     try {
       const d = await regalGeneralApi.fatGetFactura(
         noCia,
@@ -545,111 +551,109 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
         </div>
       </div>
 
-      {/* Detalle modal — mismo patrón del modal de búsqueda de producto:
-          header con título + chips de info + botones; sub-bar de filtros (aquí, datos
-          del cliente); body scrollable con tabla; footer con totales sticky. */}
-      <Dialog
+      {/* Detalle: mismo sidebar (panel lateral) que CxP/INV/CxC/ODC/Cajero */}
+      <DocumentoDetalleSheet
         open={!!selected || loadingDetail}
-        onOpenChange={() => setSelected(null)}
-      >
-        <DialogContent size='picker-lg'>
-          <DialogHeader className='shrink-0 border-b bg-background px-6 py-4 pr-12'>
-            <div className='flex flex-wrap items-center gap-4'>
-              <DialogTitle className='mr-2 text-lg'>
-                {selected
-                  ? `Factura ${selected.tipo_factura} ${selected.no_factura}`
-                  : 'Cargando…'}
-              </DialogTitle>
-
-              {selected && (
-                <>
-                  <Badge
-                    variant={
-                      ESTADO_BADGE[selected.estado]?.variant ?? 'outline'
-                    }
-                    className='gap-1'
-                  >
-                    {ESTADO_BADGE[selected.estado]?.label ?? selected.estado}
-                  </Badge>
-                  {(selected.ncf_dgi || selected.codigo_ncf) && (
-                    <span className='rounded border border-blue-100 bg-blue-50 px-2 py-1 font-mono text-xs text-gray-600'>
-                      NCF:{' '}
-                      {selected.ncf_dgi ||
-                        `${selected.codigo_ncf} ${selected.ncf ?? ''}`}
-                    </span>
-                  )}
-                  <span className='text-xs text-gray-500'>
-                    {selected.fecha} · {selected.vendedor || 'Sin vendedor'}
+        onOpenChange={(o) => { if (!o) { setSelected(null); setVerHistorial(false) } }}
+        loading={loadingDetail}
+        title={
+          <span className='flex flex-wrap items-center gap-3'>
+            {selected
+              ? `Factura ${selected.tipo_factura} ${selected.no_factura}`
+              : 'Cargando…'}
+            {selected && (
+              <>
+                <Badge
+                  variant={
+                    ESTADO_BADGE[selected.estado]?.variant ?? 'outline'
+                  }
+                  className='gap-1'
+                >
+                  {ESTADO_BADGE[selected.estado]?.label ?? selected.estado}
+                </Badge>
+                {(selected.ncf_dgi || selected.codigo_ncf) && (
+                  <span className='rounded border border-blue-100 bg-blue-50 px-2 py-1 font-mono text-xs text-gray-600'>
+                    NCF:{' '}
+                    {selected.ncf_dgi ||
+                      `${selected.codigo_ncf} ${selected.ncf ?? ''}`}
                   </span>
-
-                  <div className='ml-auto flex flex-wrap gap-2'>
-                    <Button variant='outline' size='sm' onClick={printDetail}>
-                      <Printer className='mr-1 h-4 w-4' /> Imprimir
-                    </Button>
-                    <Button
-                      variant='outline'
-                      size='sm'
-                      onClick={printPos}
-                      title='Ticket POS 80mm'
-                    >
-                      <Printer className='mr-1 h-4 w-4' /> POS
-                    </Button>
-                    {isAnulada ? (
-                      <Badge variant='destructive' className='self-center'>
-                        Anulada
-                      </Badge>
-                    ) : (
-                      <Button
-                        variant='destructive'
-                        size='sm'
-                        onClick={() => {
-                          setMotivo('')
-                          setAnularError('')
-                          setAnularOpen(true)
-                        }}
-                      >
-                        <XCircle className='mr-1 h-4 w-4' /> Anular
-                      </Button>
-                    )}
-                  </div>
-                </>
+                )}
+                <span className='text-xs text-gray-500'>
+                  {selected.fecha} · {selected.vendedor || 'Sin vendedor'}
+                </span>
+              </>
+            )}
+          </span>
+        }
+      >
+          {selected && (
+            <>
+              <div className='flex flex-wrap justify-end gap-2'>
+                <Button variant='outline' size='sm' onClick={printDetail}>
+                  <Printer className='mr-1 h-4 w-4' /> Imprimir
+                </Button>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={printPos}
+                  title='Ticket POS 80mm'
+                >
+                  <Printer className='mr-1 h-4 w-4' /> POS
+                </Button>
+                {isAnulada ? (
+                  <Badge variant='destructive' className='self-center'>
+                    Anulada
+                  </Badge>
+                ) : (
+                  <Button
+                    variant='destructive'
+                    size='sm'
+                    onClick={() => {
+                      setMotivo('')
+                      setAnularError('')
+                      setAnularOpen(true)
+                    }}
+                  >
+                    <XCircle className='mr-1 h-4 w-4' /> Anular
+                  </Button>
+                )}
+                <Button variant='outline' size='sm' onClick={() => setVerHistorial(v => !v)}>
+                  <History className='mr-1 h-4 w-4' /> {verHistorial ? 'Ocultar historial' : 'Ver historial'}
+                </Button>
+              </div>
+              {verHistorial && (
+                <DocumentoHistorial
+                  modulo="FAT"
+                  noCia={selected.no_cia} punto={selected.punto}
+                  tipoDocumento={selected.tipo_factura} noDocumento={selected.no_factura}
+                  usuarioDoc={selected.usuario}
+                />
               )}
-            </div>
-          </DialogHeader>
 
-          {/* Sub-bar tipo "filtros" pero con datos del cliente */}
-          {selected && !loadingDetail && (
-            <div className='grid shrink-0 grid-cols-2 gap-x-6 gap-y-1 border-b bg-background px-6 py-3 text-sm md:grid-cols-4'>
-              <div className='min-w-0 md:col-span-2'>
-                <span className='block text-xs text-gray-500'>Cliente</span>
-                <span className='block truncate font-semibold'>
-                  {selected.nombre_cliente || `Cliente #${selected.no_cliente}`}
-                </span>
+              {/* Datos del cliente */}
+              <div className='grid grid-cols-2 gap-x-6 gap-y-4 text-sm'>
+                <div className='min-w-0 col-span-2'>
+                  <span className='block text-xs text-gray-500'>Cliente</span>
+                  <span className='block truncate font-semibold'>
+                    {selected.nombre_cliente || `Cliente #${selected.no_cliente}`}
+                  </span>
+                </div>
+                <div>
+                  <span className='block text-xs text-gray-500'>Forma pago</span>
+                  <span>
+                    {selected.forma_pago || '—'}
+                    {selected.plazo_pago ? ` · ${selected.plazo_pago}d` : ''}
+                  </span>
+                </div>
+                <div>
+                  <span className='block text-xs text-gray-500'>
+                    Generado CNT
+                  </span>
+                  <span>{selected.st_generado_cnt === 'S' ? 'Sí' : 'No'}</span>
+                </div>
               </div>
-              <div>
-                <span className='block text-xs text-gray-500'>Forma pago</span>
-                <span>
-                  {selected.forma_pago || '—'}
-                  {selected.plazo_pago ? ` · ${selected.plazo_pago}d` : ''}
-                </span>
-              </div>
-              <div>
-                <span className='block text-xs text-gray-500'>
-                  Generado CNT
-                </span>
-                <span>{selected.st_generado_cnt === 'S' ? 'Sí' : 'No'}</span>
-              </div>
-            </div>
-          )}
 
-          {loadingDetail && (
-            <div className='flex flex-1 items-center justify-center text-base text-muted-foreground'>
-              Cargando detalle…
-            </div>
-          )}
-
-          {selected && !loadingDetail && (
-            <div className='flex-1 overflow-y-auto px-6 py-2'>
+              <div className='border-t pt-4'>
               <div className='overflow-x-auto'>
               <Table>
                 <TableHeader className='sticky top-0 z-10 bg-background'>
@@ -717,44 +721,42 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
                   <strong>Nota:</strong> {selected.nota}
                 </p>
               )}
-            </div>
-          )}
-
-          {/* Footer sticky con totales */}
-          {selected && !loadingDetail && (
-            <div className='flex shrink-0 flex-wrap items-center justify-between gap-2 border-t bg-background px-6 py-3 text-sm'>
-              <span className='text-gray-500'>
-                {selected.lineas.filter((l) => l.st_anulado !== 'S').length}{' '}
-                línea
-                {selected.lineas.filter((l) => l.st_anulado !== 'S').length !==
-                1
-                  ? 's'
-                  : ''}
-              </span>
-              <div className='flex flex-wrap items-center gap-x-6 gap-y-1 font-mono'>
-                <span className='text-gray-600'>
-                  Subtotal <b className='ml-1'>{fmtN(selected.total_linea)}</b>
-                </span>
-                <span className='text-gray-600'>
-                  Desc. <b className='ml-1'>{fmtN(selected.descuento)}</b>
-                </span>
-                <span className='text-gray-600'>
-                  ITBIS <b className='ml-1'>{fmtN(selected.impuesto)}</b>
-                </span>
-                {(selected.propina ?? 0) > 0 && (
-                  <span className='text-gray-600'>
-                    Propina <b className='ml-1'>{fmtN(selected.propina)}</b>
-                  </span>
-                )}
-                <span className='text-base font-bold'>
-                  Total{' '}
-                  <span className='ml-1'>{fmtN(selected.total_neto)}</span>
-                </span>
               </div>
-            </div>
+
+              {/* Totales */}
+              <div className='flex flex-wrap items-center justify-between gap-2 border-t pt-4 text-sm'>
+                <span className='text-gray-500'>
+                  {selected.lineas.filter((l) => l.st_anulado !== 'S').length}{' '}
+                  línea
+                  {selected.lineas.filter((l) => l.st_anulado !== 'S').length !==
+                  1
+                    ? 's'
+                    : ''}
+                </span>
+                <div className='flex flex-wrap items-center gap-x-6 gap-y-1 font-mono'>
+                  <span className='text-gray-600'>
+                    Subtotal <b className='ml-1'>{fmtN(selected.total_linea)}</b>
+                  </span>
+                  <span className='text-gray-600'>
+                    Desc. <b className='ml-1'>{fmtN(selected.descuento)}</b>
+                  </span>
+                  <span className='text-gray-600'>
+                    ITBIS <b className='ml-1'>{fmtN(selected.impuesto)}</b>
+                  </span>
+                  {(selected.propina ?? 0) > 0 && (
+                    <span className='text-gray-600'>
+                      Propina <b className='ml-1'>{fmtN(selected.propina)}</b>
+                    </span>
+                  )}
+                  <span className='text-base font-bold'>
+                    Total{' '}
+                    <span className='ml-1'>{fmtN(selected.total_neto)}</span>
+                  </span>
+                </div>
+              </div>
+            </>
           )}
-        </DialogContent>
-      </Dialog>
+      </DocumentoDetalleSheet>
 
       {/* Confirm Anulación dialog */}
       <Dialog open={anularOpen} onOpenChange={setAnularOpen}>
