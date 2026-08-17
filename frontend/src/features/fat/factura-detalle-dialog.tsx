@@ -134,8 +134,11 @@ export function FacturaDetalleDialog({ factura, loading, onClose, onPrint, noCia
               </table>
             </div>
 
-            {(factura.nota || factura.detalle) && (
-              <p className='rounded border bg-muted/30 p-2 text-xs text-muted-foreground'><strong>Nota:</strong> {factura.nota || factura.detalle}</p>
+            {factura.detalle && (
+              <p className='rounded border bg-muted/30 p-2 text-xs text-muted-foreground'><strong>Detalle:</strong> {factura.detalle}</p>
+            )}
+            {factura.nota && (
+              <p className='rounded border bg-muted/30 p-2 text-xs text-muted-foreground'><strong>Nota:</strong> {factura.nota}</p>
             )}
           </>
         )}

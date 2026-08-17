@@ -842,15 +842,18 @@ type NotaProps = { titulo: string; mostrarSiVacio: boolean }
 function NotaDetalle({ titulo, mostrarSiVacio }: NotaProps) {
   const data = usePdfData()
   if (!data || isReportePayload(data)) return null
-  const nota =
-    (data as DocumentoPrintPayload).doc.nota ||
-    (data as DocumentoPrintPayload).doc.detalle ||
-    ''
-  if (!nota && !mostrarSiVacio) return null
+  const doc = (data as DocumentoPrintPayload).doc
+  // FAT puede traer AMBOS a la vez (nota = texto generico repetido en
+  // muchas facturas, detalle = comentario propio de ESE documento) -- se
+  // muestran los dos, no solo el primero que no este vacio.
+  const detalle = doc.detalle || ''
+  const nota = doc.nota || ''
+  if (!detalle && !nota && !mostrarSiVacio) return null
   return (
     <div className='pdf-nota' style={{ marginTop: 8, fontSize: 10 }}>
       <div style={{ fontWeight: 700 }}>{titulo}</div>
-      <div>{nota || '—'}</div>
+      <div>{detalle || nota || '—'}</div>
+      {detalle && nota && <div>{nota}</div>}
     </div>
   )
 }
@@ -2387,12 +2390,18 @@ function DocumentoSimple({
       )}
 
       {/* Observación — algunos modulos usan "nota", otros "detalle" para el
-          comentario libre del documento (ver NotaDetalle mas abajo, mismo
-          fallback); sin el || aqui, el texto quedaba invisible en el PDF
-          para todo documento que solo tuviera detalle (ej. Factura FAT). */}
-      {(doc.nota || doc.detalle) && (
+          comentario libre del documento; en FAT pueden venir AMBOS a la vez
+          (nota = texto generico repetido, detalle = comentario propio de
+          ESE documento) asi que se muestran por separado, no con || (eso
+          escondia el detalle personalizado detras de la nota generica). */}
+      {doc.detalle && (
         <div style={{ marginTop: 8 }}>
-          <b>Observación:</b> {doc.nota || doc.detalle}
+          <b>Detalle:</b> {doc.detalle}
+        </div>
+      )}
+      {doc.nota && (
+        <div style={{ marginTop: 4 }}>
+          <b>Observación:</b> {doc.nota}
         </div>
       )}
 

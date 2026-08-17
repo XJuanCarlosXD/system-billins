@@ -720,9 +720,14 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
               </Table>
               </div>
 
-              {(selected.nota || selected.detalle) && (
+              {selected.detalle && (
                 <p className='mt-3 rounded border bg-muted/30 p-2 text-xs text-muted-foreground'>
-                  <strong>Nota:</strong> {selected.nota || selected.detalle}
+                  <strong>Detalle:</strong> {selected.detalle}
+                </p>
+              )}
+              {selected.nota && (
+                <p className='mt-1 rounded border bg-muted/30 p-2 text-xs text-muted-foreground'>
+                  <strong>Nota:</strong> {selected.nota}
                 </p>
               )}
               </div>
