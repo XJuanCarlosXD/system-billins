@@ -198,6 +198,7 @@ export function CxpDocumentos() {
             <option value="C">Cerrados</option>
             <option value="P">Parciales</option>
             <option value="V">Vencidos</option>
+            <option value="R">Reversados</option>
             <option value="">Todos</option>
           </select>
         </div>
