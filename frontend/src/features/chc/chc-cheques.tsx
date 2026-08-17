@@ -179,6 +179,9 @@ export function ChcCheques() {
               <div><span className="text-muted-foreground">Saldo:</span> {fmt(selected.saldo)}</div>
               <div><span className="text-muted-foreground">Autorizado:</span> {selected.autorizado === 'S' ? '✓ ' + (selected.autorizado_por || '') : '—'}</div>
               <div><span className="text-muted-foreground">Usuario:</span> {selected.usuario}</div>
+              {selected.detalle1 && (
+                <div className="col-span-2"><span className="text-muted-foreground">Detalle:</span> {selected.detalle1}</div>
+              )}
             </div>
           )}
           <DialogFooter className="gap-2">
