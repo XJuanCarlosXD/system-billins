@@ -229,6 +229,17 @@ export function CxcDocumentos({ noCia, punto }: P) {
                 size="sm" variant="outline"
                 onClick={() => {
                   const tipo = (detail.tipo_doc || '').toUpperCase()
+                  // FC/FT son la factura real (TFAT_FACTURA) -- su impresion es la
+                  // plantilla de factura de FAT, no una plantilla generica de CxC
+                  // ('factura-credito' no existe como codigo registrado).
+                  if (tipo === 'FC' || tipo === 'FT') {
+                    const qs = new URLSearchParams({ no_cia: noCia, punto: punto || '01' }).toString()
+                    window.open(
+                      `/print/factura/${encodeURIComponent(`${tipo}-${detail.no_doc}`)}?${qs}`,
+                      '_blank', 'noopener',
+                    )
+                    return
+                  }
                   const qs = new URLSearchParams({
                     no_cia: noCia,
                     punto: punto || '01',
@@ -238,7 +249,6 @@ export function CxcDocumentos({ noCia, punto }: P) {
                     RI: 'recibo-cobro', NC: 'cxc-nota-credito', ND: 'cxc-nota-debito',
                     CD: 'cxc-cheque-devuelto', AC: 'cxc-ajuste-credito', AD: 'cxc-ajuste-debito',
                     DV: 'cxc-devolucion', AF: 'cxc-anulacion-factura', BI: 'cxc-balance-inicial',
-                    FC: 'factura-credito',
                   }
                   const codigo = codigoMap[tipo]
                   if (!codigo) {
