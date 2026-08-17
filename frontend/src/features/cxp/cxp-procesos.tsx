@@ -1011,6 +1011,11 @@ export function CxpEntradaDocumentos({
         ...(modoEdicion && !modoEdicionCola ? { no_docu: siguiente } : {}),
         no_proveedor: proveedor.no_proveedor,
         ...form,
+        // El campo se llama "descripcion" en el form pero la columna/API es
+        // "detalle" (TCXP_DOCUMENTO.detalle) -- sin este mapeo, lo que el
+        // usuario escribe en "Descripcion" nunca llegaba al backend y el
+        // documento quedaba con detalle vacio (reporte de soporte d2b1beae).
+        detalle: form.descripcion || '',
         // valor_original = bienes + ITBIS (total del documento)
         valor_original: totalDoc,
         impuesto: Number(impuesto || 0),

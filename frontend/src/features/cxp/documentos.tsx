@@ -295,6 +295,7 @@ export function CxpDocumentos() {
                   <Field label="Vence" value={fmtDate(detalle.fecha_vence)} />
                   <Field label="NCF" value={detalle.ncf_dgi || composeNcfDgi(detalle.posiciones_fijas_ncf, detalle.ncf) || '—'} mono />
                   <Field label="RNC" value={detalle.rnc} mono />
+                  <Field label="Creado por" value={detalle.usuario || '—'} />
                 </div>
                 <Field label="Concepto / Detalle" value={detalle.detalle || '—'} />
               </section>

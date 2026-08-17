@@ -481,6 +481,13 @@ def cxp_entrada_documentos(request):
         siguiente = cxp_repo.get_siguiente_no_docu(no_cia, punto, tipo_docu)
         return JsonResponse({'siguiente': siguiente})
     data = json.loads(request.body)
+    # El frontend de Entrada de Documentos no manda "usuario" en el payload
+    # (confia en que el backend lo infiera de la sesion, como si hace en
+    # aplicar_saldos_menores/reversar arriba). Sin esto, entrada_documento()
+    # caia siempre al default 'API' y el documento quedaba sin atribucion
+    # real de quien lo registro (reporte de soporte d2b1beae).
+    if not data.get('usuario'):
+        data['usuario'] = (getattr(request.user, 'username', '') or 'API').upper()
     try:
         no_docu = cxp_repo.entrada_documento(data)
         return JsonResponse({'ok': True, 'no_docu': no_docu}, status=201)
