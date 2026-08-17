@@ -205,6 +205,12 @@ export function CxpDocumentos() {
         <Button variant="outline" size="sm" onClick={exportExcel}>Excel</Button>
       </div>
 
+      {status === 'A' && (
+        <p className="text-xs text-muted-foreground -mt-2">
+          Solo se muestran documentos abiertos. Los reversados quedan ocultos con este filtro; si nota huecos en la secuencia de números, cambie el estado a "Reversados" o "Todos" para verlos.
+        </p>
+      )}
+
       <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
