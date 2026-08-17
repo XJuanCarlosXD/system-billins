@@ -2386,10 +2386,13 @@ function DocumentoSimple({
         </div>
       )}
 
-      {/* Observación */}
-      {doc.nota && (
+      {/* Observación — algunos modulos usan "nota", otros "detalle" para el
+          comentario libre del documento (ver NotaDetalle mas abajo, mismo
+          fallback); sin el || aqui, el texto quedaba invisible en el PDF
+          para todo documento que solo tuviera detalle (ej. Factura FAT). */}
+      {(doc.nota || doc.detalle) && (
         <div style={{ marginTop: 8 }}>
-          <b>Observación:</b> {doc.nota}
+          <b>Observación:</b> {doc.nota || doc.detalle}
         </div>
       )}
 

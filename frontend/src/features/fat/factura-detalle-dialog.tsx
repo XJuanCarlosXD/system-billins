@@ -19,6 +19,7 @@ export type FacturaDetalleData = {
   total_linea: number; descuento: number; impuesto: number
   propina?: number; total_neto: number
   nota?: string
+  detalle?: string
   lineas: Array<{
     no_linea: number; no_produ: string; descripcion: string
     cantidad: number; precio: number; porc_descuento: number
@@ -133,8 +134,8 @@ export function FacturaDetalleDialog({ factura, loading, onClose, onPrint, noCia
               </table>
             </div>
 
-            {factura.nota && (
-              <p className='rounded border bg-muted/30 p-2 text-xs text-muted-foreground'><strong>Nota:</strong> {factura.nota}</p>
+            {(factura.nota || factura.detalle) && (
+              <p className='rounded border bg-muted/30 p-2 text-xs text-muted-foreground'><strong>Nota:</strong> {factura.nota || factura.detalle}</p>
             )}
           </>
         )}

@@ -639,6 +639,10 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
                   </span>
                 </div>
                 <div>
+                  <span className='block text-xs text-gray-500'>Vendedor</span>
+                  <span>{selected.vendedor || '—'}</span>
+                </div>
+                <div>
                   <span className='block text-xs text-gray-500'>Forma pago</span>
                   <span>
                     {selected.forma_pago || '—'}
@@ -716,9 +720,9 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
               </Table>
               </div>
 
-              {selected.nota && (
+              {(selected.nota || selected.detalle) && (
                 <p className='mt-3 rounded border bg-muted/30 p-2 text-xs text-muted-foreground'>
-                  <strong>Nota:</strong> {selected.nota}
+                  <strong>Nota:</strong> {selected.nota || selected.detalle}
                 </p>
               )}
               </div>

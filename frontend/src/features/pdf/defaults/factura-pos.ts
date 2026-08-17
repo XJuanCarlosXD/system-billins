@@ -8,7 +8,7 @@ export const facturaPosDefault: any = {
     { type: 'SeparadorHR', props: { id: 'hr1', thickness: 1, color: '#000000', margin: 2 } },
     { type: 'TextoLibre', props: {
       id: 't1',
-      html: '<div style="font-size:11px;font-weight:700;text-align:center">{{ doc.tipo_label }}</div><div style="font-size:10px;text-align:center">{{ doc.numero_display }}</div><div style="font-size:9px;text-align:center">NCF: {{ doc.ncf_dgi }}</div><div style="font-size:9px">Fecha: {{ formatDate doc.fecha }}</div><div style="font-size:9px">Cliente: {{ cliente.nombre }}</div><div style="font-size:9px">RNC: {{ cliente.rnc }}</div>',
+      html: '<div style="font-size:11px;font-weight:700;text-align:center">{{ doc.tipo_label }}</div><div style="font-size:10px;text-align:center">{{ doc.numero_display }}</div><div style="font-size:9px;text-align:center">NCF: {{ doc.ncf_dgi }}</div><div style="font-size:9px">Fecha: {{ formatDate doc.fecha }}</div><div style="font-size:9px">Cliente: {{ cliente.nombre }}</div><div style="font-size:9px">RNC: {{ cliente.rnc }}</div><div style="font-size:9px">Vendedor: {{ default doc.vendedor "—" }}</div>',
       fontSize: 9, textAlign: 'left',
     } },
     { type: 'SeparadorHR', props: { id: 'hr2', thickness: 1, color: '#000000', margin: 2 } },
