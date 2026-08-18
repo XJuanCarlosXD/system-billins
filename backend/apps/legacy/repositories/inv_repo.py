@@ -3317,6 +3317,19 @@ def reversar_documento_inv(*, no_cia: str, punto: str, tipo_docu: str,
                 cur, no_cia=no_cia, punto=punto, almacen=almacen_o,
                 no_produ=no_produ_o, tipo_movi=tipo_opuesto,
                 cantidad=float(cant or 0))
+        # El header (TINV_RME) nunca se marcaba -- solo las lineas
+        # (TINV_MOVIMIENTO) quedaban st_anulado='S'. Resultado: Consulta de
+        # Documentos seguia mostrando "Autorizado" para un documento ya
+        # reversado, y un segundo intento de editarlo (o reversarlo) pasaba
+        # el guardarrail de cabecera (que lee st_anulado del header) y solo
+        # fallaba mas abajo, con un error generico y sin explicacion --
+        # reportado por ACLASE/JC 2026-08-18 (EC-0000986, error al modificar
+        # costo/agregar producto). 16 documentos historicos quedaron con
+        # esta inconsistencia; ver backfill puntual aparte.
+        cur.execute(
+            "UPDATE INV.TINV_RME SET st_anulado='S', tipo_docu_rev='AF', "
+            "no_docu_rev=:1 WHERE no_cia=:2 AND punto=:3 AND tipo_docu=:4 AND no_docu=:5",
+            [no_af, no_cia, punto, tipo_docu, no_docu])
         historial_repo.log_evento(
             cur, usuario=usuario, no_cia=no_cia, punto=punto,
             modulo="INV", tipo_documento=tipo_docu, no_documento=no_docu,
