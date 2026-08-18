@@ -1672,7 +1672,13 @@ def entrada_documento(d, _skip_periodo_gate: bool = False):
             #     aplicacion. Hay que revertirla primero (Reversar/Aplicacion
             #     de Movimientos) en vez de editar por encima.
             _actual = client.fetch_dicts(
-                "SELECT valor_original, saldo, "
+                "SELECT valor_original, saldo, no_proveedor, "
+                "TO_CHAR(fecha,'YYYY-MM-DD') AS fecha, "
+                "TO_CHAR(fecha_vence,'YYYY-MM-DD') AS fecha_vence, "
+                "detalle, ncf, rnc, "
+                "NVL(impuesto,0) impuesto, NVL(itbis_retenido,0) itbis_retenido, "
+                "NVL(isr_retenido,0) isr_retenido, forma_pago, "
+                "NVL(valor_bienes,0) valor_bienes, NVL(valor_servicio,0) valor_servicio, "
                 "TO_CHAR(fecha,'YYYY-MM') AS periodo_docu "
                 "FROM CXP.TCXP_DOCUMENTO "
                 "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
@@ -1738,6 +1744,53 @@ def entrada_documento(d, _skip_periodo_gate: bool = False):
                     float(d.get("valor_servicio") or 0) or None,
                     no_cia, punto, tipo_docu, no_docu,
                 ])
+            # Bitacora: sin esto el boton "Editar" de Consulta de Documentos
+            # nunca dejaba rastro y el Historial siempre caia al fallback
+            # "Creado por <USUARIO original>" -- ni mostraba quien edito ni
+            # corregia la atribucion cuando el documento se habia creado
+            # originalmente sin usuario real (usuario='API', ver INSERT mas
+            # abajo). Reportado por Pilar/JC 2026-08-18.
+            _antes_edit = {
+                "no_proveedor": str(_actual[0]["no_proveedor"]),
+                "fecha": _actual[0]["fecha"],
+                "fecha_vence": _actual[0]["fecha_vence"],
+                "detalle": _actual[0]["detalle"] or "",
+                "ncf": _actual[0]["ncf"],
+                "rnc": _actual[0]["rnc"] or "",
+                "impuesto": float(_actual[0]["impuesto"]),
+                "itbis_retenido": float(_actual[0]["itbis_retenido"]),
+                "isr_retenido": float(_actual[0]["isr_retenido"]),
+                "forma_pago": _actual[0]["forma_pago"],
+                "valor_bienes": float(_actual[0]["valor_bienes"]),
+                "valor_servicio": float(_actual[0]["valor_servicio"]),
+            }
+            _despues_edit = {
+                "no_proveedor": no_proveedor,
+                "fecha": fecha,
+                "fecha_vence": fecha_vence,
+                "detalle": detalle,
+                "ncf": _ncf_num_u,
+                "rnc": d.get("rnc", ""),
+                "impuesto": float(d.get("impuesto") or 0),
+                "itbis_retenido": float(d.get("itbis_retenido") or 0),
+                "isr_retenido": float(d.get("isr_retenido") or 0),
+                "forma_pago": int(d.get("forma_pago") or 1),
+                "valor_bienes": float(d.get("valor_bienes") or 0),
+                "valor_servicio": float(d.get("valor_servicio") or 0),
+            }
+            from apps.historial.diff import diff_campos
+            _cambios_edit = diff_campos(_antes_edit, _despues_edit, etiquetas={
+                "no_proveedor": "Proveedor", "fecha": "Fecha", "fecha_vence": "Fecha vence",
+                "detalle": "Detalle", "ncf": "NCF", "rnc": "RNC",
+                "impuesto": "ITBIS", "itbis_retenido": "ITBIS retenido",
+                "isr_retenido": "ISR retenido", "forma_pago": "Forma de pago",
+                "valor_bienes": "Valor bienes", "valor_servicio": "Valor servicio",
+            })
+            historial_repo.log_evento(
+                cur, usuario=d.get("usuario", "API"), no_cia=no_cia, punto=punto,
+                modulo="CXP", tipo_documento=tipo_docu, no_documento=no_docu,
+                accion="EDITAR", cambios=_cambios_edit,
+            )
         else:
             # NCF: el usuario teclea solo los digitos (o el sistema autoasigna
             # desde TCNT_NCF.PROX_NCF). Lo guardamos como NUMBER y el prefijo
@@ -1797,6 +1850,11 @@ def entrada_documento(d, _skip_periodo_gate: bool = False):
                     _valor_bienes, _valor_servicio,
                     d.get("usuario", "API"),
                 ])
+            historial_repo.log_evento(
+                cur, usuario=d.get("usuario", "API"), no_cia=no_cia, punto=punto,
+                modulo="CXP", tipo_documento=tipo_docu, no_documento=no_docu,
+                accion="CREAR",
+            )
 
         # El legado nunca deja grabar un documento sin su partida doble
         # (ver Fcxp201: no permite COMMIT si Debe<>Haber). El API se estaba
