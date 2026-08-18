@@ -1211,6 +1211,20 @@ def rep_606(no_cia: str, anio: int, mes: int, punto: str = ''):
         r['modulo'] = 'CXP'
     rows += _rows_acc_606(no_cia, anio, mes, punto)
     rows += _rows_acc_reposicion_606(no_cia, anio, mes, punto)
+    # Salvaguarda: un mismo documento no debe aparecer dos veces en el
+    # reporte/Excel (reportado por Pilar/JC -- un registro salia duplicado).
+    # La clave real es modulo+tipo_docu+no_docu; si algun JOIN llegara a
+    # multiplicar una fila (proveedor/beneficiario con claves repetidas) esto
+    # lo corta antes de sumar los totales.
+    vistos = set()
+    unicas = []
+    for r in rows:
+        clave = (r.get('modulo'), r.get('tipo_docu'), r.get('no_docu'))
+        if clave in vistos:
+            continue
+        vistos.add(clave)
+        unicas.append(r)
+    rows = unicas
     rows.sort(key=lambda r: (r.get('fecha') or '', str(r.get('ncf') or '')))
     for r in rows:
         base = _base_606(r)
@@ -1276,7 +1290,22 @@ def archivo_dgii_606(no_cia: str, anio: int, mes: int, punto: str = '') -> tuple
         params)
     rows += _rows_acc_606(no_cia, anio, mes, punto)
     rows += _rows_acc_reposicion_606(no_cia, anio, mes, punto)
-    rows.sort(key=lambda r: (r.get('fecha') or '', str(r.get('ncf') or '')))
+    # Misma salvaguarda anti-duplicado que rep_606() (ver comentario ahi).
+    vistos = set()
+    unicas = []
+    for r in rows:
+        clave = (r.get('modulo', 'CXP'), r.get('tipo_docu'), r.get('no_docu'))
+        if clave in vistos:
+            continue
+        vistos.add(clave)
+        unicas.append(r)
+    rows = unicas
+    # Las filas de CXP ya vienen en YYYYMMDD; las de ACC (_rows_acc_606/
+    # _rows_acc_reposicion_606) en YYYY-MM-DD -- ordenar sin normalizar
+    # comparaba strings de formato distinto y los gastos de Caja Chica
+    # salian fuera de orden cronologico en el .txt. Se quita el guion antes
+    # de ordenar (misma normalizacion que ya se aplicaba mas abajo por linea).
+    rows.sort(key=lambda r: ((r.get('fecha') or '').replace('-', ''), str(r.get('ncf') or '')))
 
     cia = client.fetch_one("SELECT rnc FROM FAT.TFAT_CIAS WHERE no_cia=:1", [no_cia])
     rnc_empresa = (cia[0] if cia else '') or ''
