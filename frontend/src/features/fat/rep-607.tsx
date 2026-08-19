@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { FileSpreadsheet, FileText, Printer, ShieldCheck, RefreshCw, FileDown } from 'lucide-react'
+import { FileSpreadsheet, FileText, ShieldCheck, RefreshCw, FileDown } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { buildReportMeta, downloadCsv } from './fat-export'
 
@@ -31,18 +32,27 @@ const PAGINA_TAM = 50
 
 export function RepNcf607({ noCia, punto }: Props) {
   const today = new Date()
-  const isoToday = today.toISOString().slice(0, 10)
-  const isoMonthStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`
-  const [desde, setDesde] = useState(() => isoMonthStart)
-  const [hasta, setHasta] = useState(() => isoToday)
+  const [selAnio, setSelAnio] = useState(String(today.getFullYear()))
+  const [selMes, setSelMes] = useState(String(today.getMonth() + 1))
   const [rows, setRows] = useState<Ncf607[]>([])
   const [loading, setLoading] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [pagina, setPagina] = useState(1)
   const [error, setError] = useState<string | null>(null)
 
+  // La DGII trabaja por período mensual: derivamos desde/hasta a partir del
+  // año/mes seleccionado para reutilizar el endpoint existente (que aún acepta
+  // rangos), y así unificamos la UX con el 606.
+  const anioNum = parseInt(selAnio, 10)
+  const mesNum = parseInt(selMes, 10)
+  const periodoValido = Number.isFinite(anioNum) && Number.isFinite(mesNum) && mesNum >= 1 && mesNum <= 12
+  const desde = periodoValido ? `${anioNum}-${String(mesNum).padStart(2, '0')}-01` : ''
+  const hasta = periodoValido
+    ? `${anioNum}-${String(mesNum).padStart(2, '0')}-${String(new Date(anioNum, mesNum, 0).getDate()).padStart(2, '0')}`
+    : ''
+
   const load = () => {
-    if (!noCia || !desde || !hasta) return
+    if (!noCia || !periodoValido) return
     setLoading(true)
     setError(null)
     regalGeneralApi.fatRep607(noCia, punto, desde, hasta)
@@ -55,7 +65,7 @@ export function RepNcf607({ noCia, punto }: Props) {
   const totalItbis = rows.reduce((s, r) => s + (r.impuesto ?? 0), 0)
   const totalLinea = rows.reduce((s, r) => s + (r.total_linea ?? 0), 0)
 
-  const periodoLabel = `${desde} / ${hasta}`
+  const periodoLabel = periodoValido ? `${String(mesNum).padStart(2, '0')}/${anioNum}` : ''
 
   const fmtN = (n: number) => Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -64,7 +74,7 @@ export function RepNcf607({ noCia, punto }: Props) {
   const exportCsv = async () => {
     const meta = await buildReportMeta(noCia, punto, periodoLabel)
     downloadCsv(
-      `fat-ncf-607-${desde}-${hasta}.csv`,
+      `fat-ncf-607-${selAnio}-${String(mesNum).padStart(2, '0')}.csv`,
       ['NCF', 'Tipo NCF', 'No. Factura', 'Tipo', 'Fecha', 'RNC', 'Cliente', 'Total Neto', 'ITBIS', 'Total Línea'],
       rows.map((r) => [ncfDgiDe(r), r.posiciones_fijas_ncf, r.no_factura, r.tipo_factura,
                        r.fecha, r.rnc, r.nombre_cliente,
@@ -75,51 +85,21 @@ export function RepNcf607({ noCia, punto }: Props) {
   }
 
   const openListadoPdf = () => {
-    if (!desde || !hasta) return
-    const qs = new URLSearchParams({ no_cia: noCia, punto, desde, hasta }).toString()
+    if (!periodoValido) return
+    const qs = new URLSearchParams({
+      no_cia: noCia, punto, ano: String(anioNum), mes: String(mesNum), desde, hasta,
+    }).toString()
     window.open(`/print/fat-607/x?${qs}`, '_blank')
   }
 
   // Archivo de texto para subir al portal de la DGII (formato 607, pipe-
-  // delimited) -- distinto del PDF/Excel de arriba, es el que exige la ley.
-  // Usa el año/mes del "desde" seleccionado (la DGII exige un periodo
-  // mensual, no un rango arbitrario).
+  // delimited) -- es el que exige la ley.
   const openArchivoDgii = () => {
-    if (!desde) return
-    const [anio, mesStr] = desde.split('-')
+    if (!periodoValido) return
     window.open(
-      regalGeneralApi.fatArchivoDgii607Url(noCia, punto, Number(anio), Number(mesStr)),
+      regalGeneralApi.fatArchivoDgii607Url(noCia, punto, anioNum, mesNum),
       '_blank',
     )
-  }
-
-  const exportPdf = async () => {
-    const meta = await buildReportMeta(noCia, punto, periodoLabel)
-    const win = window.open('', '_blank')!
-    win.document.write(`<html><head><title>NCF 607 - ${desde} a ${hasta}</title>
-    <style>body{font-family:Arial,sans-serif;font-size:8px;padding:15px}
-    table{border-collapse:collapse;width:100%}th,td{border:1px solid #333;padding:2px 4px}
-    th{background:#ddd;font-weight:bold;text-align:left}.hdr{margin-bottom:10px}
-    h3{margin:0;font-size:13px}.sub{color:#666}.r{text-align:right}
-    .total{font-weight:bold;background:#f0f0f0}</style></head><body>
-    <div class="hdr"><h3>${meta.empresa}</h3>
-    <div class="sub">NCF Formato 607 · ${periodoLabel}</div>
-    <div class="sub">Generado: ${meta.fecha}</div></div>
-    <table><thead><tr><th>NCF</th><th>Tipo</th><th>Factura</th><th>T.Fact.</th>
-    <th>Fecha</th><th>RNC</th><th>Cliente</th><th class="r">Total Neto</th><th class="r">ITBIS</th><th class="r">Total Línea</th></tr></thead>
-    <tbody>${rows.map((r) => `<tr>
-    <td>${ncfDgiDe(r)}</td><td>${r.posiciones_fijas_ncf || ''}</td>
-    <td>${r.no_factura}</td><td>${r.tipo_factura}</td><td>${r.fecha}</td>
-    <td>${r.rnc}</td><td>${r.nombre_cliente}</td>
-    <td class="r">${Number(r.total_neto ?? 0).toFixed(2)}</td>
-    <td class="r">${Number(r.impuesto ?? 0).toFixed(2)}</td>
-    <td class="r">${Number(r.total_linea ?? 0).toFixed(2)}</td></tr>`).join('')}
-    <tr class="total"><td colspan="7"><b>TOTALES — ${rows.length} registros</b></td>
-    <td class="r"><b>${totalNeto.toFixed(2)}</b></td>
-    <td class="r"><b>${totalItbis.toFixed(2)}</b></td>
-    <td class="r"><b>${totalLinea.toFixed(2)}</b></td></tr>
-    </tbody></table></body></html>`)
-    win.document.close(); win.print()
   }
 
   return (
@@ -132,9 +112,11 @@ export function RepNcf607({ noCia, punto }: Props) {
           <p className='text-sm text-muted-foreground'>RFAT — Comprobantes Fiscales Emitidos · Empresa {noCia} · Punto {punto}</p>
         </div>
         <div className='flex gap-2'>
-          <Button variant='outline' size='sm' onClick={exportPdf} disabled={!loaded}><Printer className='mr-1 h-4 w-4' /> PDF</Button>
           <Button variant='outline' size='sm' onClick={openListadoPdf} disabled={!loaded}><FileText className='mr-1 h-4 w-4' /> Imprimir PDF</Button>
-          <Button variant='outline' size='sm' onClick={exportCsv} disabled={!loaded}><FileSpreadsheet className='mr-1 h-4 w-4' /> Excel</Button>
+          <Button variant='outline' size='sm' onClick={exportCsv} disabled={!loaded}
+            title='Descargar el 607 en Excel (mismas columnas del reporte legado)'>
+            <FileSpreadsheet className='mr-1 h-4 w-4' /> Exportar Excel
+          </Button>
           <Button variant='outline' size='sm' onClick={openArchivoDgii} disabled={!loaded} title='Archivo de texto para subir al portal de la DGII'>
             <FileDown className='mr-1 h-4 w-4' /> Archivo DGII (607)
           </Button>
@@ -143,17 +125,17 @@ export function RepNcf607({ noCia, punto }: Props) {
 
       {error && <div className="text-destructive text-sm">{error}</div>}
 
-      {/* Filtros de fecha */}
+      {/* Filtros: Año/Mes (mismo patrón que el reporte 606) */}
       <div className='flex flex-wrap items-end gap-3 rounded-md border bg-muted/30 p-3'>
-        <div className='flex flex-col gap-1'>
-          <label className='text-xs font-medium text-muted-foreground'>Desde</label>
-          <Input type='date' value={desde} onChange={(e) => setDesde(e.target.value)} className='h-8 w-36' />
+        <div className='space-y-1'>
+          <Label className='text-xs'>Año</Label>
+          <Input value={selAnio} onChange={(e) => setSelAnio(e.target.value)} className='h-8 w-20' />
         </div>
-        <div className='flex flex-col gap-1'>
-          <label className='text-xs font-medium text-muted-foreground'>Hasta</label>
-          <Input type='date' value={hasta} onChange={(e) => setHasta(e.target.value)} className='h-8 w-36' />
+        <div className='space-y-1'>
+          <Label className='text-xs'>Mes</Label>
+          <Input value={selMes} onChange={(e) => setSelMes(e.target.value)} className='h-8 w-16' placeholder='1-12' />
         </div>
-        <Button size='sm' onClick={load} disabled={loading}>
+        <Button size='sm' onClick={load} disabled={loading || !periodoValido}>
           <RefreshCw className={`mr-1 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           {loading ? 'Cargando...' : 'Generar'}
         </Button>
@@ -176,7 +158,7 @@ export function RepNcf607({ noCia, punto }: Props) {
         </TableHeader>
         <TableBody>
           {loading && <TableRow><TableCell colSpan={10} className='py-10 text-center text-muted-foreground'>Cargando...</TableCell></TableRow>}
-          {!loading && !loaded && <TableRow><TableCell colSpan={10} className='py-10 text-center text-muted-foreground'>Seleccione el rango de fechas y presione Generar.</TableCell></TableRow>}
+          {!loading && !loaded && <TableRow><TableCell colSpan={10} className='py-10 text-center text-muted-foreground'>Seleccione el año y mes y presione Generar.</TableCell></TableRow>}
           {!loading && loaded && rows.length === 0 && <TableRow><TableCell colSpan={10} className='py-10 text-center text-muted-foreground'>Sin comprobantes en este período.</TableCell></TableRow>}
           {paginaRows.map((row, i) => (
             <TableRow key={`${row.ncf}-${i}`}>
