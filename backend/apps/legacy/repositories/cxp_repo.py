@@ -977,21 +977,27 @@ def _tipo_gasto_label(v) -> str:
 def _base_606(r) -> float:
     """Monto Facturado del 606 = base de bienes/servicios SIN impuestos.
 
-    valor_original NO es el bruto: es el NETO A PAGAR al proveedor =
-      base + ITBIS + ISC + otros_impuestos + propina - itbis_retenido - isr_retenido
-    (las retenciones se le descuentan al proveedor y las paga la empresa a la
-    DGII; ISC/otros/propina se le pagan pero no son parte del monto facturado).
-    Despejando la base:
-      base = valor_original - impuesto - isc - otros_impuestos - propina
-             + itbis_retenido + isr_retenido
-    Verificado contra el 606 real de julio/2026 (legado): RMM FP-0008546
-    14638-2340+702 = 13000; TC BANCO POPULAR FP-0008548 840-116.31-64.62-12.92
-    = 646.15 (exacto). Para docs sin retencion/isc/otros/propina el resultado
-    es identico a valor_original - impuesto (no cambia lo que ya estaba bien).
+    Fuente autoritativa: valor_bienes + valor_servicio cuando estan poblados.
+    Los llenan tanto los documentos importados del legado (verificado contra el
+    606 real de julio/2026: RMM FP-0008546 vb+vs=13000; TC BANCO POPULAR
+    FP-0008548 vb+vs=646.15) como los documentos creados por la app nueva
+    (entrada_documento los inserta desde el form). Da la base exacta sin
+    depender de como valor_original se compone respecto a propina/isc/otros.
+
+    Fallback (~1600 docs viejos sin vb/vs poblados): valor_original - impuesto.
+    En la app nueva valor_original = valor_bienes + valor_servicio + impuesto
+    (no incluye propina/isc/otros: se capturan aparte). Para docs sin
+    propina/isc/otros/retenciones, esto es igual al calculo legado antiguo,
+    asi que los ~1600 docs sin vb/vs siguen dando lo mismo. Para los 2 docs
+    con vb/vs=0 y extras (FP-0008577 con propina, FP-0008618 con retenciones,
+    ambos reportados por MPILAR), el modelo de la app manda: propina y
+    retenciones NO estan en valor_original, no hay que restarlas ni sumarlas.
     """
     g = lambda k: float(r.get(k) or 0)
-    return (g('valor_original') - g('impuesto') - g('isc') - g('otros_impuestos')
-            - g('propina') + g('itbis_retenido') + g('isr_retenido'))
+    vb_vs = g('valor_bienes') + g('valor_servicio')
+    if vb_vs > 0:
+        return vb_vs
+    return g('valor_original') - g('impuesto')
 
 
 def _rows_acc_606(no_cia: str, anio: int, mes: int, punto: str = ''):
