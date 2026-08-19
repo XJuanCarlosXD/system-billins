@@ -1175,17 +1175,22 @@ def rep_ncf_607(no_cia: str, desde: str, hasta: str) -> list[dict]:
     la DGII no exige identificar al comprador en esas ventas, y el usuario
     confirmo que el 607 real del legado solo lista comprobantes con cliente
     identificable (B01 credito fiscal, B14 regimenes especiales, B15
-    gubernamental, notas de credito/debito, etc — no factura de consumo)."""
-    params: list = [no_cia]
-    extra = []
+    gubernamental, notas de credito/debito, etc — no factura de consumo).
+
+    Incluye tambien las notas de credito (CXC.TCXC_DOCUMENTO tipo_docu='DV',
+    NCF B04) que salen de una devolucion en INV. Antes solo se leia
+    TFAT_FACTURA y las NC no aparecian nunca en el 607."""
+    # Facturas de venta (TFAT_FACTURA)
+    params_f: list = [no_cia]
+    extra_f = []
     if desde:
-        params.append(desde)
-        extra.append(f"AND TRUNC(f.fecha) >= TO_DATE(:{len(params)},'YYYY-MM-DD')")
+        params_f.append(desde)
+        extra_f.append(f"AND TRUNC(f.fecha) >= TO_DATE(:{len(params_f)},'YYYY-MM-DD')")
     if hasta:
-        params.append(hasta)
-        extra.append(f"AND TRUNC(f.fecha) <= TO_DATE(:{len(params)},'YYYY-MM-DD')")
-    extra_sql = " ".join(extra)
-    rows = client.fetch_dicts(
+        params_f.append(hasta)
+        extra_f.append(f"AND TRUNC(f.fecha) <= TO_DATE(:{len(params_f)},'YYYY-MM-DD')")
+    extra_sql_f = " ".join(extra_f)
+    rows_f = client.fetch_dicts(
         f"SELECT f.ncf, f.codigo_ncf, f.tipo_ncf_fiscal, f.posiciones_fijas_ncf, "
         f"f.no_factura, f.tipo_factura, "
         f"f.fecha, cl.rnc, cl.nombre AS nombre_cliente, "
@@ -1196,9 +1201,35 @@ def rep_ncf_607(no_cia: str, desde: str, hasta: str) -> list[dict]:
         f"  ON cl.no_cia = f.no_cia AND cl.punto = f.punto AND cl.no_cliente = f.no_cliente "
         f"WHERE f.no_cia=:1 AND f.ncf IS NOT NULL "
         f"AND NVL(f.st_anulado,'N')='N' "
-        f"AND NVL(UPPER(f.posiciones_fijas_ncf),'') NOT IN ('B02','E32') {extra_sql} "
-        f"ORDER BY f.fecha, f.ncf",
-        params)
+        f"AND NVL(UPPER(f.posiciones_fijas_ncf),'') NOT IN ('B02','E32') {extra_sql_f}",
+        params_f)
+    # Notas de credito (TCXC_DOCUMENTO tipo_docu='DV'). En TCXC_DOCUMENTO,
+    # `credito` es el total del NC (con ITBIS) e `itbis` es la porcion de ITBIS;
+    # la base sin ITBIS = credito - itbis (equivalente a total_linea en FAT).
+    params_d: list = [no_cia]
+    extra_d = []
+    if desde:
+        params_d.append(desde)
+        extra_d.append(f"AND TRUNC(d.fecha) >= TO_DATE(:{len(params_d)},'YYYY-MM-DD')")
+    if hasta:
+        params_d.append(hasta)
+        extra_d.append(f"AND TRUNC(d.fecha) <= TO_DATE(:{len(params_d)},'YYYY-MM-DD')")
+    extra_sql_d = " ".join(extra_d)
+    rows_d = client.fetch_dicts(
+        f"SELECT d.ncf, NULL AS codigo_ncf, NULL AS tipo_ncf_fiscal, "
+        f"d.posiciones_fijas_ncf, "
+        f"d.no_docu AS no_factura, d.tipo_docu AS tipo_factura, "
+        f"d.fecha, cl.rnc, cl.nombre AS nombre_cliente, "
+        f"NVL(d.credito,0) AS total_neto, NVL(d.itbis,0) AS impuesto, "
+        f"(NVL(d.credito,0) - NVL(d.itbis,0)) AS total_linea "
+        f"FROM CXC.TCXC_DOCUMENTO d "
+        f"LEFT JOIN CXC.TCXC_CLIENTE cl "
+        f"  ON cl.no_cia = d.no_cia AND cl.punto = d.punto AND cl.no_cliente = d.no_cliente "
+        f"WHERE d.no_cia=:1 AND d.tipo_docu='DV' AND d.ncf IS NOT NULL "
+        f"AND NVL(d.st_anulado,'N')='N' {extra_sql_d}",
+        params_d)
+    rows = list(rows_f) + list(rows_d)
+    rows.sort(key=lambda r: (r['fecha'] or 0, int(r['ncf'] or 0)))
     return [{'ncf': int(r['ncf']), 'codigo_ncf': r['codigo_ncf'] or '',
              'tipo_ncf_fiscal': r['tipo_ncf_fiscal'] or '',
              'posiciones_fijas_ncf': (r['posiciones_fijas_ncf'] or '').strip().upper(),
@@ -1227,14 +1258,20 @@ def archivo_dgii_607(no_cia: str, ano: int, mes: int) -> tuple[str, int]:
     identificable (credito fiscal, gubernamental, regimenes especiales,
     notas de credito/debito, etc).
 
+    Incluye tambien las notas de credito (CXC.TCXC_DOCUMENTO tipo_docu='DV',
+    NCF B04). Antes solo se leia TFAT_FACTURA y las NC generadas por
+    devoluciones en INV nunca salian en el .txt DGII.
+
     Limitacion conocida (no resuelta): NCF_MODIFICADO (columna 4, para NC/ND
     que referencian la factura original) se deja en blanco -- el clon no
-    tiene aun un enlace explicito factura->nota de credito para resolverlo.
-    Revisar con un contador antes de enviar a DGII si el periodo tiene
+    tiene aun un enlace explicito factura->nota de credito para resolverlo
+    (TCXC_DOCUMENTO.tipo_docu_r/no_docu_r estan siempre en NULL en las DV).
+    Para las DV tampoco hay forma_pago propia, asi que columnas 17-23 van en
+    cero. Revisar con un contador antes de enviar a DGII si el periodo tiene
     notas de credito/debito.
     """
     from .. import client as _client
-    rows = _client.fetch_dicts(
+    rows_f = _client.fetch_dicts(
         "SELECT NVL(f.rnc_factura, cl.rnc) rnc, f.ncf, f.posiciones_fijas_ncf, f.tipo_ingreso, "
         "TO_CHAR(f.fecha,'YYYYMMDD') fecha, TO_CHAR(f.fecha_retencion,'YYYYMMDD') fecha_retencion, "
         "NVL(f.total_neto,0) total_neto, NVL(f.total_linea,0) total_linea, NVL(f.impuesto,0) impuesto, "
@@ -1246,30 +1283,55 @@ def archivo_dgii_607(no_cia: str, ano: int, mes: int) -> tuple[str, int]:
         "LEFT JOIN FAT.TFAT_TIPO_PAGO tp ON tp.no_cia=f.no_cia AND tp.tipo_pago=f.forma_pago_fat "
         "WHERE f.no_cia=:1 AND EXTRACT(YEAR FROM f.fecha)=:2 AND EXTRACT(MONTH FROM f.fecha)=:3 "
         "AND NVL(f.st_anulado,'N')='N' AND f.ncf IS NOT NULL "
-        "AND NVL(UPPER(f.posiciones_fijas_ncf),'') NOT IN ('B02','E32') "
-        "ORDER BY f.fecha, f.ncf",
+        "AND NVL(UPPER(f.posiciones_fijas_ncf),'') NOT IN ('B02','E32') ",
+        [no_cia, ano, mes])
+    # DV (notas de credito). credito = total con ITBIS; itbis = ITBIS del NC;
+    # base sin ITBIS = credito - itbis (equivale a total_linea en FAT).
+    rows_d = _client.fetch_dicts(
+        "SELECT cl.rnc, d.ncf, d.posiciones_fijas_ncf, "
+        "TO_CHAR(d.fecha,'YYYYMMDD') fecha, "
+        "NVL(d.credito,0) total_neto, "
+        "(NVL(d.credito,0) - NVL(d.itbis,0)) total_linea, "
+        "NVL(d.itbis,0) impuesto, "
+        "NVL(d.itbis_retenido,0) itbis_retenido, NVL(d.isr_retenido,0) isr_retenido "
+        "FROM CXC.TCXC_DOCUMENTO d "
+        "LEFT JOIN CXC.TCXC_CLIENTE cl "
+        "  ON cl.no_cia = d.no_cia AND cl.punto = d.punto AND cl.no_cliente = d.no_cliente "
+        "WHERE d.no_cia=:1 AND d.tipo_docu='DV' AND d.ncf IS NOT NULL "
+        "AND NVL(d.st_anulado,'N')='N' "
+        "AND EXTRACT(YEAR FROM d.fecha)=:2 AND EXTRACT(MONTH FROM d.fecha)=:3 ",
         [no_cia, ano, mes])
 
     cia = _client.fetch_one("SELECT rnc FROM FAT.TFAT_CIAS WHERE no_cia=:1", [no_cia])
     rnc_empresa = (cia[0] if cia else '') or ''
 
+    all_rows = [(r, 'FC') for r in rows_f] + [(r, 'DV') for r in rows_d]
+    all_rows.sort(key=lambda pr: (pr[0]['fecha'] or '', int(pr[0]['ncf'] or 0)))
+
     lineas = []
-    for r in rows:
+    for r, kind in all_rows:
         ncf_dgi = _compose_ncf_dgi(r['posiciones_fijas_ncf'], r['ncf'])
-        tipo_ingreso = f"{int(r['tipo_ingreso'] or 1):02d}"
-        col_pago = int(r['forma_pago_dgii'] or 0)
-        # Columnas 17-23: Efectivo/Cheque-Transf/Tarjeta/Credito/Bonos/Permuta/Otras.
-        # NOTA: en TFAT_FACTURA, total_neto es el TOTAL con ITBIS incluido y
-        # total_linea es la base sin ITBIS (nombres al reves de lo esperado,
-        # verificado contra un documento real: total_neto=7642.54,
-        # total_linea=6476.73, impuesto=1165.81 -> 6476.73+1165.81=7642.54).
         montos_pago = ['0.00'] * 7
-        total_doc = float(r['total_neto'])
-        if 1 <= col_pago <= 7:
-            montos_pago[col_pago - 1] = f"{total_doc:.2f}"
+        if kind == 'FC':
+            tipo_ingreso = f"{int(r['tipo_ingreso'] or 1):02d}"
+            col_pago = int(r['forma_pago_dgii'] or 0)
+            # Columnas 17-23: Efectivo/Cheque-Transf/Tarjeta/Credito/Bonos/Permuta/Otras.
+            # NOTA: en TFAT_FACTURA, total_neto es el TOTAL con ITBIS incluido y
+            # total_linea es la base sin ITBIS (nombres al reves de lo esperado,
+            # verificado contra un documento real: total_neto=7642.54,
+            # total_linea=6476.73, impuesto=1165.81 -> 6476.73+1165.81=7642.54).
+            total_doc = float(r['total_neto'])
+            if 1 <= col_pago <= 7:
+                montos_pago[col_pago - 1] = f"{total_doc:.2f}"
+            fecha_ret = r['fecha_retencion'] or ''
+        else:
+            # DV: sin tipo_ingreso propio, sin fecha_retencion, sin forma_pago
+            # (ver limitacion en el docstring).
+            tipo_ingreso = '01'
+            fecha_ret = ''
         campos = [
             r['rnc'] or '', _tipo_id_de_rnc(r['rnc']), ncf_dgi, '',
-            tipo_ingreso, r['fecha'] or '', r['fecha_retencion'] or '',
+            tipo_ingreso, r['fecha'] or '', fecha_ret,
             f"{float(r['total_linea']):.2f}", f"{float(r['impuesto']):.2f}",
             f"{float(r['itbis_retenido']):.2f}", '',
             f"{float(r['isr_retenido']):.2f}", '',
