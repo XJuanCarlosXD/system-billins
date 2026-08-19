@@ -71,7 +71,7 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
         no_cia: noCia,
         punto,
         ...(fpBusqueda
-          ? { tipo_docu: 'FP', no_docu: fpBusqueda }
+          ? { no_docu: fpBusqueda }
           : { no_proveedor: proveedor.no_proveedor }),
       }),
     enabled: !!noCia && !!punto && (!!fpBusqueda || !!proveedor?.no_proveedor),
@@ -94,7 +94,7 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
       <div className='grid grid-cols-1 gap-3 md:grid-cols-2 md:max-w-3xl'>
         <ProveedorPicker value={proveedor} onChange={setProveedor} />
         <div className='min-w-0 space-y-1'>
-          <Label className='text-xs'>Buscar por No. FP</Label>
+          <Label className='text-xs'>Buscar por No. Documento</Label>
           <div className='flex gap-2'>
             <Input
               value={fpInput}
@@ -117,7 +117,7 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
                   setFpBusqueda('')
                   setFpInput('')
                 }}
-                title='Limpiar búsqueda por FP'
+                title='Limpiar búsqueda por número'
               >
                 <X className='h-4 w-4' />
               </Button>
@@ -125,7 +125,7 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
           </div>
           {fpBusqueda && (
             <p className='font-mono text-xs text-muted-foreground'>
-              Mostrando documento FP-{fpBusqueda}
+              Mostrando documentos con número {fpBusqueda} (FP, ND, NC, CH...)
             </p>
           )}
         </div>
@@ -133,8 +133,9 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
 
       {!proveedor?.no_proveedor && !fpBusqueda ? (
         <div className='rounded border py-10 text-center text-sm text-muted-foreground'>
-          Busca un proveedor con la lupa, o escribe el número de la factura (FP)
-          y pulsa Buscar, para ver los documentos y corregir el NCF.
+          Busca un proveedor con la lupa, o escribe el número del documento
+          (FP, ND, NC, CH...) y pulsa Buscar, para ver los documentos y
+          corregir el NCF.
         </div>
       ) : docsQ.isLoading ? (
         <Skeleton className='h-40 w-full' />
@@ -221,7 +222,7 @@ export function CxpCorregirNcf({ noCia, punto = '' }: P) {
                 <TableRow>
                   <TableCell colSpan={8} className='py-6 text-center text-muted-foreground'>
                     {fpBusqueda
-                      ? `No existe el documento FP-${fpBusqueda} en este punto.`
+                      ? `No existe ningún documento con número ${fpBusqueda} en este punto.`
                       : `El proveedor ${proveedor?.nombre || proveedor?.no_proveedor} no tiene documentos registrados en este punto.`}
                   </TableCell>
                 </TableRow>
