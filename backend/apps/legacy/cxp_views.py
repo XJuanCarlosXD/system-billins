@@ -651,9 +651,16 @@ def cxp_corregir_ncf(request):
         no_docu      = request.GET.get('no_docu', '')
         if not no_cia or not punto:
             return JsonResponse({'error': 'no_cia y punto son requeridos'}, status=400)
-        if not no_proveedor and not (tipo_docu and no_docu):
+        # La pantalla de Corregir NCF permite buscar SOLO por numero de
+        # documento (sin tipo_docu) -- list_documentos_dgii ya soporta
+        # tipo_docu='' (omite ese filtro). Exigir tipo_docu aqui rompia esa
+        # busqueda con un 400 silencioso: el frontend no revisa docsQ.isError
+        # y termina mostrando "No existe ningun documento con numero X" como
+        # si fuera un resultado vacio real, en vez del error verdadero.
+        # Reportado por Pilar/JC 2026-08-20 (dia de vencimiento 606).
+        if not no_proveedor and not no_docu:
             return JsonResponse(
-                {'error': 'Indique no_proveedor o tipo_docu + no_docu'}, status=400)
+                {'error': 'Indique no_proveedor o no_docu'}, status=400)
         rows = cxp_repo.list_documentos_dgii(no_cia, punto, no_proveedor,
                                              tipo_docu, no_docu)
         return JsonResponse(rows, safe=False)
