@@ -131,43 +131,35 @@ function DropdownIndicator(props: DropdownIndicatorProps<SelectOptionData, false
   )
 }
 
-// react-select unmounts the SingleValue the instant you start typing (shows
-// only the tiny search input), and swaps in a shorter/longer SingleValue
-// whenever the selection changes. On a `w-fit` control that made the whole
-// box visibly resize on every keystroke and every selection — reported by
-// the user after the font-size fix. Fix: stack an invisible copy of every
-// option's label (plus the placeholder) in the same grid cell as the real
-// content via CSS grid. The track sizes to the widest of them, so the box's
-// width becomes "widest possible content" and never moves again regardless
-// of what's currently typed or selected.
+// react-select's own renderValue() has a hard `if (inputValue) return null`
+// (no prop to override it) — the instant you type, SingleValue unmounts and
+// only the tiny search input remains. On a content-sized control that made
+// the whole box visibly collapse on every keystroke. First fix sized the box
+// to the widest of *every* option to guarantee it never moved — but that
+// blows up for selects with long option text (grows past its row, overlaps
+// neighboring fields). Narrower fix: stack an invisible copy of only the
+// *currently selected* label (or the placeholder) behind the real content,
+// in the same CSS grid cell. That's the same width the closed control would
+// have anyway, so typing/searching never changes it — capped by max-w-80 +
+// truncate below so one long selected label still can't blow out the row.
 function ValueContainer(props: ValueContainerProps<SelectOptionData, false>) {
-  const { allOptionsForSizing, placeholder } = props.selectProps as {
-    allOptionsForSizing?: SelectOptionData[]
-    placeholder?: React.ReactNode
-  }
+  const { placeholder } = props.selectProps as { placeholder?: React.ReactNode }
+  const selected = props.getValue()[0]
+  const ghost = selected ? selected.label : placeholder
   return (
     <RSComponents.ValueContainer
       {...props}
       className={cn(props.className, 'relative grid')}
     >
-      {placeholder && (
+      {ghost && (
         <span
           aria-hidden='true'
-          className='invisible col-start-1 row-start-1 whitespace-nowrap'
+          className='invisible col-start-1 row-start-1 truncate'
         >
-          {placeholder}
+          {ghost}
         </span>
       )}
-      {allOptionsForSizing?.map((o) => (
-        <span
-          key={o.value}
-          aria-hidden='true'
-          className='invisible col-start-1 row-start-1 whitespace-nowrap'
-        >
-          {o.label}
-        </span>
-      ))}
-      <div className='col-start-1 row-start-1 flex items-center gap-2 overflow-hidden'>
+      <div className='col-start-1 row-start-1 flex min-w-0 items-center gap-2 overflow-hidden'>
         {props.children}
       </div>
     </RSComponents.ValueContainer>
@@ -184,18 +176,22 @@ function ValueContainer(props: ValueContainerProps<SelectOptionData, false>) {
 const selectClassNames = (size: 'sm' | 'default', triggerClassName?: string) => ({
   control: (state: { isFocused: boolean; isDisabled: boolean }) =>
     cn(
-      'flex !min-h-0 w-fit items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-2 !text-sm shadow-xs transition-[color,box-shadow] dark:bg-input/30',
+      'flex !min-h-0 w-fit min-w-40 max-w-80 items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-2 !text-sm shadow-xs transition-[color,box-shadow] dark:bg-input/30',
       size === 'sm' ? 'h-8' : 'h-9',
       state.isFocused && 'border-ring ring-[3px] ring-ring/50',
       state.isDisabled && 'cursor-not-allowed opacity-50',
       !state.isDisabled && !state.isFocused && 'dark:hover:bg-input/50',
       triggerClassName
     ),
-  valueContainer: () => 'flex flex-1 items-center gap-2 overflow-hidden p-0',
+  valueContainer: () => 'flex flex-1 min-w-0 items-center gap-2 overflow-hidden p-0',
   input: () => 'm-0 p-0 !text-sm text-foreground',
-  placeholder: () => 'line-clamp-1 !text-sm text-muted-foreground',
+  // truncate (overflow-hidden + text-ellipsis + nowrap), never line-clamp-*:
+  // line-clamp forces display:-webkit-box, which conflicts with the `flex`
+  // needed here for icon+text labels (company selector, sort icons, etc)
+  // and was silently corrupting/clipping the rendered text.
+  placeholder: () => 'truncate !text-sm text-muted-foreground',
   singleValue: () =>
-    'line-clamp-1 flex items-center gap-2 !text-sm text-foreground',
+    'flex min-w-0 items-center gap-2 truncate !text-sm text-foreground',
   indicatorsContainer: () => 'flex items-center gap-1',
   dropdownIndicator: () => 'p-0 text-muted-foreground',
   clearIndicator: () => 'cursor-pointer p-0 text-muted-foreground',
@@ -289,9 +285,8 @@ function Select({
       value={selectedOption}
       onChange={(opt) => handleChange(opt)}
       placeholder={valueProps.placeholder ?? ''}
-      // @ts-expect-error -- custom props forwarded via selectProps to SingleValue/ValueContainer
+      // @ts-expect-error -- custom prop forwarded via selectProps to SingleValue
       valueOverride={valueProps.children}
-      allOptionsForSizing={options}
       menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
       menuPosition='fixed'
       components={{ Option, SingleValue, DropdownIndicator, ValueContainer }}
