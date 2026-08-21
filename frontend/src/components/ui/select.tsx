@@ -147,12 +147,17 @@ const selectClassNames = (size: 'sm' | 'default', triggerClassName?: string) => 
   clearIndicator: () => 'cursor-pointer p-0 text-muted-foreground',
   indicatorSeparator: () => 'hidden',
   menuPortal: () => 'z-100',
+  // react-select sizes the menu to exactly match the control's width (via
+  // its own width:100% rule). Options reserve extra right padding for the
+  // check icon, so anything longer than the control wraps. min-w-max lets
+  // the menu grow to fit its widest option instead (CSS min-width always
+  // wins over a smaller width, no !important fight needed here).
   menu: () =>
-    'z-100 mt-1 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md',
+    'z-100 mt-1 min-w-max overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md',
   menuList: () => 'max-h-72 overflow-y-auto p-1',
   option: (state: { isFocused: boolean; isDisabled: boolean; isSelected: boolean }) =>
     cn(
-      'relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 ps-2 pe-8 !text-sm select-none [&_svg]:pointer-events-none [&_svg]:shrink-0',
+      'relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 ps-2 pe-8 !text-sm whitespace-nowrap select-none [&_svg]:pointer-events-none [&_svg]:shrink-0',
       state.isFocused && 'bg-accent text-accent-foreground',
       state.isDisabled && 'pointer-events-none opacity-50'
     ),
