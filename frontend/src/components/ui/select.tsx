@@ -201,8 +201,20 @@ const selectClassNames = (size: 'sm' | 'default', triggerClassName?: string) => 
   // to react-select's inline default of z-index:1 — invisible and
   // unclickable behind any open Dialog/Sheet (both z-50), even though the
   // options were correctly loaded in the DOM. Use an arbitrary value so it
-  // actually beats dialog/sheet overlays, including nested ones.
-  menuPortal: () => 'z-[100]',
+  // actually beats dialog/sheet overlays, including nested ones (the actual
+  // zIndex is additionally forced via the `styles` prop below, since
+  // react-select's own emotion CSS-in-JS otherwise wins the cascade).
+  //
+  // pointer-events-auto is load-bearing, not decorative: Radix Dialog/Sheet
+  // sets `pointer-events: none` directly on <body> while open, so only
+  // descendants of its own DialogContent get clicks back (via Radix's own
+  // inline pointer-events:auto on that subtree). This menu portal is
+  // targeted at document.body, so it's a *sibling* of the Sheet's portal,
+  // not a descendant — it silently inherits body's pointer-events:none.
+  // Result: the dropdown renders correctly on top and keyboard selection
+  // (arrow keys + Enter) works, but mouse clicks land on nothing and pass
+  // through to whatever is underneath. Force it back on here.
+  menuPortal: () => 'z-[100] pointer-events-auto',
   // react-select sizes the menu to exactly match the control's width (via
   // its own width:100% rule). Options reserve extra right padding for the
   // check icon, so anything longer than the control wraps. min-w-max lets
