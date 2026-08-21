@@ -120,10 +120,17 @@ function DropdownIndicator(props: DropdownIndicatorProps<SelectOptionData, false
   )
 }
 
+// react-select keeps a "functional" font-size: inherit rule on control/input/
+// option/etc even in unstyled mode (it needs a resolved font-size to measure
+// the autosize input). That rule is emitted via emotion after Tailwind's own
+// stylesheet, so it wins any same-specificity utility class in the cascade —
+// text-sm silently loses, everything renders at the inherited 16px instead of
+// 14px, and the autosize input measures text at the wrong size (visible as
+// the input jumping/shrinking while typing). Force it with !important.
 const selectClassNames = (size: 'sm' | 'default', triggerClassName?: string) => ({
   control: (state: { isFocused: boolean; isDisabled: boolean }) =>
     cn(
-      'flex !min-h-0 w-fit items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] dark:bg-input/30',
+      'flex !min-h-0 w-fit items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-2 !text-sm shadow-xs transition-[color,box-shadow] dark:bg-input/30',
       size === 'sm' ? 'h-8' : 'h-9',
       state.isFocused && 'border-ring ring-[3px] ring-ring/50',
       state.isDisabled && 'cursor-not-allowed opacity-50',
@@ -131,10 +138,10 @@ const selectClassNames = (size: 'sm' | 'default', triggerClassName?: string) => 
       triggerClassName
     ),
   valueContainer: () => 'flex flex-1 items-center gap-2 overflow-hidden p-0',
-  input: () => 'm-0 p-0 text-sm text-foreground',
-  placeholder: () => 'line-clamp-1 text-muted-foreground',
+  input: () => 'm-0 p-0 !text-sm text-foreground',
+  placeholder: () => 'line-clamp-1 !text-sm text-muted-foreground',
   singleValue: () =>
-    'line-clamp-1 flex items-center gap-2 text-foreground',
+    'line-clamp-1 flex items-center gap-2 !text-sm text-foreground',
   indicatorsContainer: () => 'flex items-center gap-1',
   dropdownIndicator: () => 'p-0 text-muted-foreground',
   clearIndicator: () => 'cursor-pointer p-0 text-muted-foreground',
@@ -145,12 +152,12 @@ const selectClassNames = (size: 'sm' | 'default', triggerClassName?: string) => 
   menuList: () => 'max-h-72 overflow-y-auto p-1',
   option: (state: { isFocused: boolean; isDisabled: boolean; isSelected: boolean }) =>
     cn(
-      'relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 ps-2 pe-8 text-sm select-none [&_svg]:pointer-events-none [&_svg]:shrink-0',
+      'relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 ps-2 pe-8 !text-sm select-none [&_svg]:pointer-events-none [&_svg]:shrink-0',
       state.isFocused && 'bg-accent text-accent-foreground',
       state.isDisabled && 'pointer-events-none opacity-50'
     ),
-  noOptionsMessage: () => 'px-2 py-4 text-center text-sm text-muted-foreground',
-  loadingMessage: () => 'px-2 py-4 text-center text-sm text-muted-foreground',
+  noOptionsMessage: () => 'px-2 py-4 text-center !text-sm text-muted-foreground',
+  loadingMessage: () => 'px-2 py-4 text-center !text-sm text-muted-foreground',
 })
 
 type SelectProps = {
