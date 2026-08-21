@@ -49,6 +49,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { CrearProveedorModal } from './components/crear-proveedor-modal'
 
 interface P {
   noCia: string
@@ -113,6 +114,7 @@ export function ProveedorPicker({
   const [results, setResults] = useState<any[]>([])
   const [searching, setSearching] = useState(false)
   const [loadingCode, setLoadingCode] = useState(false)
+  const [crearOpen, setCrearOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
@@ -285,11 +287,22 @@ export function ProveedorPicker({
                       colSpan={5}
                       className='py-12 text-center text-gray-400'
                     >
-                      {searching
-                        ? 'Buscando…'
-                        : search.length >= 2
-                          ? 'Sin resultados'
-                          : 'Escriba al menos 2 caracteres'}
+                      <p>
+                        {searching
+                          ? 'Buscando…'
+                          : search.length >= 2
+                            ? `Sin resultados para "${search}"`
+                            : 'Escriba al menos 2 caracteres'}
+                      </p>
+                      {!searching && search.length >= 2 && (
+                        <Button
+                          variant='link'
+                          className='mt-2'
+                          onClick={() => setCrearOpen(true)}
+                        >
+                          Crear proveedor "{search}" →
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 )}
@@ -333,6 +346,18 @@ export function ProveedorPicker({
           </div>
         </DialogContent>
       </Dialog>
+
+      {crearOpen && (
+        <CrearProveedorModal
+          open={crearOpen}
+          onClose={() => setCrearOpen(false)}
+          nombreInicial={search}
+          onCreated={(p) => {
+            setCrearOpen(false)
+            aplicar(p)
+          }}
+        />
+      )}
     </div>
   )
 }

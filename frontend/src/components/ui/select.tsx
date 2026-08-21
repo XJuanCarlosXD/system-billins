@@ -196,14 +196,20 @@ const selectClassNames = (size: 'sm' | 'default', triggerClassName?: string) => 
   dropdownIndicator: () => 'p-0 text-muted-foreground',
   clearIndicator: () => 'cursor-pointer p-0 text-muted-foreground',
   indicatorSeparator: () => 'hidden',
-  menuPortal: () => 'z-100',
+  // `z-100` is not a real Tailwind utility (default scale tops out at
+  // z-50), so it silently compiled to no CSS and the menu portal fell back
+  // to react-select's inline default of z-index:1 — invisible and
+  // unclickable behind any open Dialog/Sheet (both z-50), even though the
+  // options were correctly loaded in the DOM. Use an arbitrary value so it
+  // actually beats dialog/sheet overlays, including nested ones.
+  menuPortal: () => 'z-[100]',
   // react-select sizes the menu to exactly match the control's width (via
   // its own width:100% rule). Options reserve extra right padding for the
   // check icon, so anything longer than the control wraps. min-w-max lets
   // the menu grow to fit its widest option instead (CSS min-width always
   // wins over a smaller width, no !important fight needed here).
   menu: () =>
-    'z-100 mt-1 min-w-max overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md',
+    'z-[100] mt-1 min-w-max overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md',
   menuList: () => 'max-h-72 overflow-y-auto p-1',
   option: (state: { isFocused: boolean; isDisabled: boolean; isSelected: boolean }) =>
     cn(

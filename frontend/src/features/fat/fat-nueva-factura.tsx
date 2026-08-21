@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/table'
 import { BuscarProductoModal } from './components/buscar-producto-modal'
 import { empaqueLabel } from './utils/empaque-label'
+import { CrearClienteModal } from '@/components/cxc/crear-cliente-modal'
 
 interface Props {
   noCia: string
@@ -246,6 +247,7 @@ export function NuevaFactura({ noCia, punto }: Props) {
   const [clienteSearch, setClienteSearch] = useState('')
   const [clienteResults, setClienteResults] = useState<Cliente[]>([])
   const [buscandoClientes, setBuscandoClientes] = useState(false)
+  const [crearClienteOpen, setCrearClienteOpen] = useState(false)
 
   // Commercial
   const [vendedor, setVendedor] = useState('')
@@ -383,6 +385,26 @@ export function NuevaFactura({ noCia, punto }: Props) {
         if (almArr.length > 0) {
           setDefaultAlmacen(almArr[0].almacen)
           setModalAlmacen(almArr[0].almacen)
+        }
+
+        // Cliente por defecto al entrar a la pantalla: "142 — CONSUMIDOR
+        // FINAL" cubre el caso más frecuente (venta de mostrador) y evita
+        // que el cajero tenga que teclearlo cada vez. Silencioso si esa
+        // compañía no tiene el 142 — el usuario busca el cliente manualmente.
+        try {
+          const clienteRes = await regalGeneralApi.fatListClientes(
+            noCia,
+            '142',
+            1,
+            5,
+            punto
+          )
+          const cliente142 = (clienteRes.items || []).find(
+            (c: Cliente) => String(c.no_cliente).trim() === '142'
+          )
+          if (cliente142) aplicarCliente(cliente142)
+        } catch {
+          /* sin cliente por defecto — el usuario lo busca manualmente */
         }
       } catch {
         toast({
@@ -1849,11 +1871,22 @@ export function NuevaFactura({ noCia, punto }: Props) {
                       colSpan={5}
                       className='py-12 text-center text-gray-400'
                     >
-                      {buscandoClientes
-                        ? 'Buscando...'
-                        : clienteSearch.length >= 2
-                          ? 'No se encontraron clientes'
-                          : 'Escriba al menos 2 caracteres para buscar'}
+                      <p>
+                        {buscandoClientes
+                          ? 'Buscando...'
+                          : clienteSearch.length >= 2
+                            ? `No se encontraron clientes para "${clienteSearch}"`
+                            : 'Escriba al menos 2 caracteres para buscar'}
+                      </p>
+                      {!buscandoClientes && clienteSearch.length >= 2 && (
+                        <Button
+                          variant='link'
+                          className='mt-2'
+                          onClick={() => setCrearClienteOpen(true)}
+                        >
+                          Crear cliente "{clienteSearch}" →
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 )}
@@ -1899,6 +1932,26 @@ export function NuevaFactura({ noCia, punto }: Props) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {crearClienteOpen && (
+        <CrearClienteModal
+          open={crearClienteOpen}
+          onClose={() => setCrearClienteOpen(false)}
+          noCia={noCia}
+          punto={punto}
+          nombreInicial={clienteSearch}
+          onCreated={(c) => {
+            setCrearClienteOpen(false)
+            aplicarCliente({
+              no_cliente: c.no_cliente,
+              nombre: c.nombre || c.nombre_cliente || '',
+              rnc: c.rnc,
+              cedula: c.cedula,
+              direccion: c.direccion,
+            })
+          }}
+        />
+      )}
 
       {/* ── Product Search Modal (componente compartido) ── */}
       <BuscarProductoModal

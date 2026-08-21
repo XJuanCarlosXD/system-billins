@@ -17,6 +17,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import { regalGeneralApi } from '@/lib/regal-general-api'
+import { CrearClienteModal } from './crear-cliente-modal'
 
 export type Cliente = {
   no_cliente: string | number
@@ -50,6 +51,7 @@ export function ClientePicker({ noCia, cliente, onChange, disabled, showRnc = tr
   const [search, setSearch] = useState('')
   const [results, setResults] = useState<Cliente[]>([])
   const [buscando, setBuscando] = useState(false)
+  const [crearOpen, setCrearOpen] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const codigoInputRef = useRef<HTMLInputElement>(null)
 
@@ -157,6 +159,18 @@ export function ClientePicker({ noCia, cliente, onChange, disabled, showRnc = tr
   // ── Input código + lupa ──────────────────────────────────────────────
   return (
     <div className="space-y-1">
+      {crearOpen && (
+        <CrearClienteModal
+          open={crearOpen}
+          onClose={() => setCrearOpen(false)}
+          noCia={noCia}
+          nombreInicial={search}
+          onCreated={(c) => {
+            setCrearOpen(false)
+            aplicarCliente(c)
+          }}
+        />
+      )}
       <div className="flex items-end gap-2">
         <div className="w-40 space-y-1">
           <Label className="text-xs">Código cliente</Label>
@@ -185,7 +199,16 @@ export function ClientePicker({ noCia, cliente, onChange, disabled, showRnc = tr
         </Button>
       </div>
       {errorCodigo && (
-        <p className="text-xs text-destructive">{errorCodigo}</p>
+        <p className="text-xs text-destructive">
+          {errorCodigo}{' '}
+          <button
+            type="button"
+            className="underline hover:no-underline"
+            onClick={() => { setSearch(codigoInput); setCrearOpen(true) }}
+          >
+            Crear cliente →
+          </button>
+        </p>
       )}
 
       {/* Modal de búsqueda */}
@@ -219,11 +242,22 @@ export function ClientePicker({ noCia, cliente, onChange, disabled, showRnc = tr
                 {results.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={5} className="py-12 text-center text-muted-foreground">
-                      {buscando
-                        ? 'Buscando…'
-                        : search.length >= 2
-                          ? 'No se encontraron clientes'
-                          : 'Escriba al menos 2 caracteres para buscar'}
+                      <p>
+                        {buscando
+                          ? 'Buscando…'
+                          : search.length >= 2
+                            ? `No se encontraron clientes para "${search}"`
+                            : 'Escriba al menos 2 caracteres para buscar'}
+                      </p>
+                      {!buscando && search.length >= 2 && (
+                        <Button
+                          variant="link"
+                          className="mt-2"
+                          onClick={() => setCrearOpen(true)}
+                        >
+                          Crear cliente "{search}" →
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 )}
