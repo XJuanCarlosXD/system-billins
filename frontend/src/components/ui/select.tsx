@@ -4,6 +4,7 @@ import ReactSelect, {
   type DropdownIndicatorProps,
   type OptionProps,
   type SingleValueProps,
+  type ValueContainerProps,
 } from 'react-select'
 import { CheckIcon, ChevronDownIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -130,6 +131,49 @@ function DropdownIndicator(props: DropdownIndicatorProps<SelectOptionData, false
   )
 }
 
+// react-select unmounts the SingleValue the instant you start typing (shows
+// only the tiny search input), and swaps in a shorter/longer SingleValue
+// whenever the selection changes. On a `w-fit` control that made the whole
+// box visibly resize on every keystroke and every selection — reported by
+// the user after the font-size fix. Fix: stack an invisible copy of every
+// option's label (plus the placeholder) in the same grid cell as the real
+// content via CSS grid. The track sizes to the widest of them, so the box's
+// width becomes "widest possible content" and never moves again regardless
+// of what's currently typed or selected.
+function ValueContainer(props: ValueContainerProps<SelectOptionData, false>) {
+  const { allOptionsForSizing, placeholder } = props.selectProps as {
+    allOptionsForSizing?: SelectOptionData[]
+    placeholder?: React.ReactNode
+  }
+  return (
+    <RSComponents.ValueContainer
+      {...props}
+      className={cn(props.className, 'relative grid')}
+    >
+      {placeholder && (
+        <span
+          aria-hidden='true'
+          className='invisible col-start-1 row-start-1 whitespace-nowrap'
+        >
+          {placeholder}
+        </span>
+      )}
+      {allOptionsForSizing?.map((o) => (
+        <span
+          key={o.value}
+          aria-hidden='true'
+          className='invisible col-start-1 row-start-1 whitespace-nowrap'
+        >
+          {o.label}
+        </span>
+      ))}
+      <div className='col-start-1 row-start-1 flex items-center gap-2 overflow-hidden'>
+        {props.children}
+      </div>
+    </RSComponents.ValueContainer>
+  )
+}
+
 // react-select keeps a "functional" font-size: inherit rule on control/input/
 // option/etc even in unstyled mode (it needs a resolved font-size to measure
 // the autosize input). That rule is emitted via emotion after Tailwind's own
@@ -245,11 +289,12 @@ function Select({
       value={selectedOption}
       onChange={(opt) => handleChange(opt)}
       placeholder={valueProps.placeholder ?? ''}
-      // @ts-expect-error -- custom prop forwarded via selectProps to SingleValue
+      // @ts-expect-error -- custom props forwarded via selectProps to SingleValue/ValueContainer
       valueOverride={valueProps.children}
+      allOptionsForSizing={options}
       menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
       menuPosition='fixed'
-      components={{ Option, SingleValue, DropdownIndicator }}
+      components={{ Option, SingleValue, DropdownIndicator, ValueContainer }}
       classNames={selectClassNames(size, triggerProps.className)}
     />
   )
