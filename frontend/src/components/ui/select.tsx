@@ -297,6 +297,16 @@ function Select({
       menuPosition='fixed'
       components={{ Option, SingleValue, DropdownIndicator, ValueContainer }}
       classNames={selectClassNames(size, triggerProps.className)}
+      // react-select's own emotion CSS-in-JS injects <style> tags into <head>
+      // as the component mounts, which lands AFTER our static Tailwind
+      // stylesheet in the cascade — at equal specificity (one class each),
+      // its z-index:1 base style then wins over our z-[100] class no matter
+      // what value we give the class. An inline `style` attribute always
+      // beats any class-based rule regardless of injection order, so we set
+      // zIndex here instead of relying on the className alone.
+      styles={{
+        menuPortal: (base) => ({ ...base, zIndex: 100 }),
+      }}
     />
   )
 }
