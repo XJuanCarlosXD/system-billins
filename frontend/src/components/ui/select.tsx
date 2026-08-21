@@ -53,6 +53,16 @@ function findElement<P>(
   return found
 }
 
+// Strips accents so typing "credito" matches an option labeled "Crédito" —
+// Spanish text (client names, "Crédito", "Depreciación", etc.) is everywhere
+// in this app and users don't reliably type diacritics.
+function normalizeSearch(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
 function nodeToText(node: React.ReactNode): string {
   if (node === null || node === undefined || typeof node === 'boolean') return ''
   if (typeof node === 'string' || typeof node === 'number') return String(node)
@@ -77,7 +87,7 @@ function collectOptions(node: React.ReactNode): SelectOptionData[] {
       out.push({
         value: p.value,
         label: p.children,
-        searchText: nodeToText(p.children).toLowerCase(),
+        searchText: normalizeSearch(nodeToText(p.children)),
         disabled: p.disabled,
       })
       return
@@ -230,7 +240,7 @@ function Select({
       getOptionValue={(o) => o.value}
       getOptionLabel={(o) => o.searchText || String(o.value)}
       filterOption={(candidate, input) =>
-        !input || candidate.data.searchText.includes(input.toLowerCase())
+        !input || candidate.data.searchText.includes(normalizeSearch(input))
       }
       value={selectedOption}
       onChange={(opt) => handleChange(opt)}
