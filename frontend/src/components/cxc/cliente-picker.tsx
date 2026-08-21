@@ -6,7 +6,7 @@
 // Card verde con datos al seleccionar (patrón estándar del sistema).
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Search, X, UserCircle2 } from 'lucide-react'
+import { Search, X, UserCircle2, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -215,7 +215,18 @@ export function ClientePicker({ noCia, cliente, onChange, disabled, showRnc = tr
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent size="picker">
           <DialogHeader className="shrink-0 border-b px-6 py-4">
-            <DialogTitle>Buscar Cliente</DialogTitle>
+            <div className="flex items-center justify-between gap-4">
+              <DialogTitle>Buscar Cliente</DialogTitle>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1"
+                onClick={() => setCrearOpen(true)}
+              >
+                <Plus className="h-4 w-4" /> Nuevo Cliente
+              </Button>
+            </div>
           </DialogHeader>
           <div className="shrink-0 border-b bg-background px-6 py-3">
             <Input

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import { Plus } from 'lucide-react'
 import { ApiError, regalGeneralApi } from '@/lib/regal-general-api'
 import { useToast } from '@/hooks/use-toast'
 import { useAccess } from '@/hooks/use-access'
@@ -1838,7 +1839,18 @@ export function NuevaFactura({ noCia, punto }: Props) {
       <Dialog open={clienteModalOpen} onOpenChange={setClienteModalOpen}>
         <DialogContent size='picker-lg'>
           <DialogHeader className='shrink-0 border-b px-6 py-4'>
-            <DialogTitle>Buscar Cliente</DialogTitle>
+            <div className='flex items-center justify-between gap-4'>
+              <DialogTitle>Buscar Cliente</DialogTitle>
+              <Button
+                type='button'
+                size='sm'
+                variant='outline'
+                className='gap-1'
+                onClick={() => setCrearClienteOpen(true)}
+              >
+                <Plus className='h-4 w-4' /> Nuevo Cliente
+              </Button>
+            </div>
           </DialogHeader>
           <div className='shrink-0 border-b bg-background px-6 py-3'>
             <Input

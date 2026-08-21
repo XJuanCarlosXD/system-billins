@@ -14,6 +14,7 @@
 //  - botón "Ver movimientos" en el popover de existencia → abre MovimientosProductoModal
 import { useCallback, useEffect, useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
+import { Plus } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -376,6 +377,18 @@ export function BuscarProductoModal({
                   Solo con existencia
                 </Label>
               </div>
+
+              {permitirCrear && (
+                <Button
+                  type='button'
+                  size='sm'
+                  variant='outline'
+                  className='ml-auto gap-1'
+                  onClick={() => setCrearOpen(true)}
+                >
+                  <Plus className='h-4 w-4' /> Nuevo Producto
+                </Button>
+              )}
             </div>
           </DialogHeader>
 

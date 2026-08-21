@@ -16,6 +16,7 @@ import {
   Printer,
   ChevronRight,
   CheckCircle2,
+  Plus,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { regalGeneralApi as api } from '@/lib/regal-general-api'
@@ -254,7 +255,18 @@ export function ProveedorPicker({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className='flex h-auto max-h-[80vh] min-h-[40vh] w-[90vw] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-h-[80vh] sm:max-w-none lg:w-[60vw]'>
           <DialogHeader className='shrink-0 border-b px-6 py-4'>
-            <DialogTitle>Buscar Proveedor</DialogTitle>
+            <div className='flex items-center justify-between gap-4'>
+              <DialogTitle>Buscar Proveedor</DialogTitle>
+              <Button
+                type='button'
+                size='sm'
+                variant='outline'
+                className='gap-1'
+                onClick={() => setCrearOpen(true)}
+              >
+                <Plus className='h-4 w-4' /> Nuevo Proveedor
+              </Button>
+            </div>
           </DialogHeader>
           <div className='shrink-0 border-b bg-background px-6 py-3'>
             <Input
