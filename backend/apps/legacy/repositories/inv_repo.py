@@ -3249,6 +3249,16 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                 valor_neto=total_neto, ncf=ncf_val, posiciones_fijas_ncf=posiciones_fijas_ncf,
                 tipo_docu_devuelto=tipo_docu_devuelto, no_docu_devuelto=no_docu_devuelto,
                 usuario=usuario, vendedor=vendedor)
+            if cxc_mirror:
+                # _upsert_rme_header siempre inserta afecta_cxc='N'; si el
+                # espejo en CxC se creo, esta DV si afecta CxC (reduce saldo
+                # de una factura a credito) -- corrige el header despues del
+                # hecho (ticket 77ab905c: quedaba en 'N' aunque la factura
+                # devuelta era a credito).
+                client.execute(
+                    "UPDATE INV.TINV_RME SET afecta_cxc='S' "
+                    "WHERE no_cia=:1 AND punto=:2 AND tipo_docu='DV' AND no_docu=:3",
+                    [no_cia, punto, no_docu])
         except Exception as exc:
             # La devolucion en INV ya quedo confirmada (existencia + NCF);
             # si el espejo en CxC falla no se revierte, solo se reporta.

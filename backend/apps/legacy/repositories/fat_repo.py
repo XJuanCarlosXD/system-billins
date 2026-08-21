@@ -1905,6 +1905,22 @@ def get_factura(no_cia: str, punto: str, tipo_factura: str, no_factura: str) -> 
         "FROM FAT.TFAT_FACTURAL "
         "WHERE no_cia=:1 AND punto=:2 AND tipo_factura=:3 AND no_factura=:4 ORDER BY no_linea",
         [no_cia, punto, tipo_factura.strip().upper(), no_factura.strip()])
+    # Notas de credito / devoluciones aplicadas contra esta factura. El
+    # espejo en CXC (cxc_repo.crear_dv_mirror, invocado al crear una DV en
+    # INV) inserta el enlace en CXC.TCXC_REFEDOCU y reduce el saldo alla,
+    # pero nunca tocaba TFAT_FACTURA -- por eso la factura en FAT no
+    # mostraba nada aunque CXC ya reflejara el saldo reducido (ticket
+    # 77ab905c, MPILAR: FC-1530 / DV-0000038).
+    aplicaciones = client.fetch_dicts(
+        "SELECT rd.tipo_docu, rd.no_docu, NVL(rd.monto,0) AS monto, "
+        "d.fecha, d.ncf, d.posiciones_fijas_ncf "
+        "FROM CXC.TCXC_REFEDOCU rd "
+        "LEFT JOIN CXC.TCXC_DOCUMENTO d "
+        "  ON d.no_cia=rd.no_cia AND d.punto=rd.punto "
+        "  AND d.tipo_docu=rd.tipo_docu AND d.no_docu=rd.no_docu "
+        "WHERE rd.no_cia=:1 AND rd.tipo_refe=:2 AND rd.no_refe=:3 "
+        "ORDER BY d.fecha",
+        [no_cia, tipo_factura.strip().upper(), no_factura.strip()])
     return {
         'no_cia': r['no_cia'], 'punto': r['punto'], 'tipo_factura': r['tipo_factura'] or '',
         'no_factura': r['no_factura'] or '', 'no_cliente': int(r['no_cliente'] or 0),
@@ -1939,6 +1955,13 @@ def get_factura(no_cia: str, punto: str, tipo_factura: str, no_factura: str) -> 
             'impuesto': float(l['impuesto'] or 0), 'monto_neto': float(l['monto_neto'] or 0),
             'cantidad_regalia': float(l['cantidad_regalia'] or 0), 'st_anulado': l['st_anulado'] or 'N',
         } for l in lineas],
+        'notas_credito_aplicadas': [{
+            'tipo_docu': a['tipo_docu'] or '',
+            'no_docu': (a['no_docu'] or '').strip(),
+            'monto': float(a['monto'] or 0),
+            'fecha': str(a['fecha'])[:10] if a['fecha'] else None,
+            'ncf_dgi': _compose_ncf_dgi(a['posiciones_fijas_ncf'], a['ncf']),
+        } for a in aplicaciones],
     }
 
 

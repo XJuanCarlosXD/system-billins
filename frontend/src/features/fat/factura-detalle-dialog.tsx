@@ -25,6 +25,10 @@ export type FacturaDetalleData = {
     cantidad: number; precio: number; porc_descuento: number
     porciento_impuesto: number; monto_neto: number; st_anulado: string
   }>
+  notas_credito_aplicadas?: Array<{
+    tipo_docu: string; no_docu: string; monto: number
+    fecha: string | null; ncf_dgi?: string
+  }>
 }
 
 const ESTADO_BADGE: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
@@ -134,6 +138,31 @@ export function FacturaDetalleDialog({ factura, loading, onClose, onPrint, noCia
               </table>
             </div>
 
+            {(factura.notas_credito_aplicadas?.length ?? 0) > 0 && (
+              <div className='rounded-lg border p-3'>
+                <p className='mb-2 text-sm font-medium'>Notas de Crédito / Devoluciones Aplicadas</p>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Documento</TableHead>
+                      <TableHead>NCF</TableHead>
+                      <TableHead>Fecha</TableHead>
+                      <TableHead className='text-right'>Monto</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {factura.notas_credito_aplicadas!.map((nc, i) => (
+                      <TableRow key={i}>
+                        <TableCell>{nc.tipo_docu}-{nc.no_docu}</TableCell>
+                        <TableCell className='font-mono'>{nc.ncf_dgi || '—'}</TableCell>
+                        <TableCell>{nc.fecha || '—'}</TableCell>
+                        <TableCell className='text-right font-mono'>{fmtN(nc.monto)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
             {factura.detalle && (
               <p className='rounded border bg-muted/30 p-2 text-xs text-muted-foreground'><strong>Detalle:</strong> {factura.detalle}</p>
             )}
