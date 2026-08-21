@@ -58,6 +58,15 @@ export type Novedad = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-08-21',
+    tipo: 'mejora',
+    modulo: 'General',
+    titulo: 'Todos los campos de selección del sistema ahora se pueden buscar escribiendo',
+    descripcion:
+      'Los recuadros de "elegir de una lista" (tipo de documento, estado, forma de pago, empresa, proveedor, etc.) en todas las pantallas ahora permiten escribir para filtrar las opciones en vez de tener que desplazarse manualmente, y responden mejor al navegar con el teclado. El look es el mismo de siempre — mismos bordes, colores y el check de la opción marcada — solo cambió el motor por dentro.',
+    commit: '247bc70',
+  },
+  {
     fecha: '2026-08-14',
     tipo: 'mejora',
     modulo: 'Inventario',
