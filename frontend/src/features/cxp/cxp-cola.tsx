@@ -1,11 +1,20 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { RefreshCw, PlayCircle, Pencil, Clock, CheckCircle2, AlertTriangle, ExternalLink } from 'lucide-react'
+import { RefreshCw, PlayCircle, Pencil, Clock, CheckCircle2, AlertTriangle, ExternalLink, Printer } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 interface P { noCia: string; punto?: string }
+
+// tipo de documento CxP -> codigo de plantilla PDF (mismo mapa que
+// features/cxp/documentos.tsx usa para "Imprimir / PDF").
+const CODIGO_PDF: Record<string, string> = {
+  FP: 'cxp-factura-proveedor', FT: 'cxp-factura-proveedor',
+  AC: 'cxp-ajuste-credito', AD: 'cxp-ajuste-debito',
+  BD: 'cxp-balance-debito', NC: 'cxp-nota-credito',
+  ND: 'cxp-nota-debito', SO: 'cxp-solicitud-cheque',
+}
 
 const fmt = (n: any) => Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -113,24 +122,46 @@ export function CxpCola({ noCia, punto = '' }: P) {
                     <div className="text-[11px] text-muted-foreground mt-0.5">→ {r.tipo_docu} {r.no_docu_generado}</div>
                   )}
                   {r.estado === 'ERROR' && r.mensaje_error && (
-                    <div className="text-[11px] text-red-600 mt-0.5 max-w-[16rem]">
+                    <div className="text-[11px] text-red-600 mt-0.5 max-w-[18rem]">
                       <div className="truncate" title={r.mensaje_error}>{r.mensaje_error}</div>
                       {(() => {
                         // Si el error menciona el documento en conflicto
-                        // ("... documento FP 0008690 ..."), ofrecer un enlace
-                        // directo para abrirlo y ver ese caso (misma empresa).
+                        // ("... documento FP 0008690 ..."), mostrar cual es y
+                        // ofrecer abrirlo (Ver) o imprimirlo (PDF) para
+                        // comprobar que ya tiene ese NCF. Misma empresa.
                         const m = /documento\s+([A-Za-z]{2})\s+(\d+)/.exec(r.mensaje_error)
                         if (!m) return null
                         const tipo = m[1].toUpperCase()
                         const noDocu = m[2]
+                        const codigo = CODIGO_PDF[tipo]
+                        const qs = new URLSearchParams({
+                          no_cia: r.no_cia ?? noCia,
+                          punto: r.punto ?? punto ?? '01',
+                        }).toString()
                         return (
-                          <button
-                            type="button"
-                            onClick={() => navigate({ to: '/cxp/entrada-documentos', search: { tipo, no_docu: noDocu, cola_id: undefined } })}
-                            className="mt-0.5 inline-flex items-center gap-1 text-blue-600 hover:underline"
-                          >
-                            <ExternalLink className="h-3 w-3" />Ver {tipo}-{noDocu}
-                          </button>
+                          <div className="mt-1 flex flex-col gap-0.5">
+                            <span className="text-foreground">
+                              Ese NCF ya lo tiene: <b>{tipo}-{noDocu}</b>
+                            </span>
+                            <div className="flex gap-3">
+                              <button
+                                type="button"
+                                onClick={() => navigate({ to: '/cxp/entrada-documentos', search: { tipo, no_docu: noDocu, cola_id: undefined } })}
+                                className="inline-flex items-center gap-1 text-blue-600 hover:underline"
+                              >
+                                <ExternalLink className="h-3 w-3" />Ver
+                              </button>
+                              {codigo && (
+                                <button
+                                  type="button"
+                                  onClick={() => window.open(`/print/${codigo}/${encodeURIComponent(tipo)}-${encodeURIComponent(noDocu)}?${qs}`, '_blank')}
+                                  className="inline-flex items-center gap-1 text-blue-600 hover:underline"
+                                >
+                                  <Printer className="h-3 w-3" />Imprimir
+                                </button>
+                              )}
+                            </div>
+                          </div>
                         )
                       })()}
                     </div>
