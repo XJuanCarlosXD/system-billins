@@ -59,6 +59,15 @@ export type Novedad = {
 export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-08-24',
+    tipo: 'mejora',
+    modulo: 'Cuentas por Pagar',
+    titulo: 'Cola de documentos: enlace directo al documento en conflicto cuando falla por NCF',
+    descripcion:
+      'En la pantalla "Cola de Documentos (período no abierto)", cuando una entrada queda en ERROR porque su NCF ya está registrado para el proveedor, ahora aparece un enlace "Ver FP-…" que abre directamente el documento que ya tiene ese NCF, para revisar el caso sin buscarlo a mano.',
+    commit: 'PENDIENTE',
+  },
+  {
+    fecha: '2026-08-24',
     tipo: 'correccion',
     modulo: 'Impresión / PDF',
     titulo: 'Devoluciones sobre ventas: el precio impreso ahora cuadra con la factura',
