@@ -1632,6 +1632,22 @@ export const registry: Record<string, RegistryEntry> = {
       'totales.total', 'totales.cantidad'],
   },
   // ── CNT ────────────────────────────────────────────────────────────
+  'cnt-catalogo-cuentas': {
+    codigo: 'cnt-catalogo-cuentas', modulo: 'CNT', nombre: 'Catálogo de Cuentas', familia: 'reporte',
+    printDataPath: (_id, qs) => `/cnt/catalogo/print-data/?${qs.toString()}`,
+    defaultTemplate: reporteGenericoDefault('Catálogo de Cuentas', [
+      { campo: 'cuenta', label: 'Cuenta', align: 'left' },
+      { campo: 'descripcion', label: 'Descripción', align: 'left' },
+      { campo: 'tipo_desc', label: 'Tipo', align: 'left' },
+      { campo: 'clase', label: 'Clase', align: 'center' },
+      { campo: 'acepta_movimiento', label: 'Acepta Mov.', align: 'center' },
+      { campo: 'activa', label: 'Activa', align: 'center' },
+    ]),
+    defaultPageSize: 'A4', defaultPageOrientation: 'P',
+    variables: ['reporte.titulo', 'reporte.filtros', 'filas[].cuenta', 'filas[].descripcion',
+      'filas[].tipo', 'filas[].tipo_desc', 'filas[].clase', 'filas[].acepta_movimiento',
+      'filas[].activa', 'totales.cantidad'],
+  },
   'cnt-grupos-contables': {
     codigo: 'cnt-grupos-contables', modulo: 'CNT', nombre: 'Grupos Contables por Sucursal', familia: 'reporte',
     printDataPath: (_id, qs) => `/cnt/grupos-contables/print-data/?${qs.toString()}`,

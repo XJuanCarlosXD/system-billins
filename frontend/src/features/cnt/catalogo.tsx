@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Check, Pencil, Plus, Search, X } from 'lucide-react'
+import { Check, Pencil, Plus, Printer, Search, X } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -36,6 +36,12 @@ export function CatalogoCuentas({ noCia, punto }: Props) {
   const pagedRows = rows.slice((page - 1) * 25, page * 25)
   const totalPages = Math.max(1, Math.ceil(rows.length / 25))
 
+  const exportPdf = () => {
+    // Print fino via plantillas Puck (codigo cnt-catalogo-cuentas).
+    const qs = new URLSearchParams({ no_cia: noCia, punto, ...(search ? { search } : {}) }).toString()
+    window.open(`/print/cnt-catalogo-cuentas/current?${qs}`, '_blank')
+  }
+
   return (
     <div className='space-y-4'>
       <div className='flex flex-wrap items-center justify-between gap-3'>
@@ -43,9 +49,14 @@ export function CatalogoCuentas({ noCia, punto }: Props) {
           <h2 className='text-lg font-semibold'>Catalogo de cuentas</h2>
           <p className='text-sm text-muted-foreground'>Busqueda, paginacion y mantenimiento del catalogo corporativo.</p>
         </div>
-        <Button size='sm' onClick={() => { setEditRow(null); setShowForm(true) }}>
-          <Plus className='mr-2 h-4 w-4' /> Nueva cuenta
-        </Button>
+        <div className='flex gap-2'>
+          <Button variant='outline' size='sm' onClick={exportPdf}>
+            <Printer className='mr-2 h-4 w-4' /> PDF
+          </Button>
+          <Button size='sm' onClick={() => { setEditRow(null); setShowForm(true) }}>
+            <Plus className='mr-2 h-4 w-4' /> Nueva cuenta
+          </Button>
+        </div>
       </div>
 
       <div className='relative rounded-xl border p-4'>

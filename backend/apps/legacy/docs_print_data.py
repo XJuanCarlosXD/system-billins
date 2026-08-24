@@ -771,6 +771,48 @@ def cnt_grupos_contables_print_data(request):
 
 @login_required
 @require_http_methods(["GET"])
+def cnt_catalogo_cuentas_print_data(request):
+    """Catálogo de Cuentas contables (familia reporte)."""
+    no_cia = request.GET.get('no_cia', '01')
+    cia = _cia_payload(no_cia, request=request)
+    search = (request.GET.get('search') or '').strip() or None
+    tipo = (request.GET.get('tipo') or '').strip() or None
+    clase = (request.GET.get('clase') or '').strip() or None
+    activa_param = request.GET.get('activa')
+    activa = None
+    if activa_param not in (None, ''):
+        activa = activa_param.lower() in ('true', '1', 's')
+    try:
+        rows = cnt_repo.list_catalogo(search=search, tipo=tipo, clase=clase, activa=activa) or []
+    except Exception:
+        rows = []
+    filas = [{
+        'cuenta': (r.get('cuenta') or '').strip(),
+        'descripcion': (r.get('descripcion') or '').strip(),
+        'tipo': str(r.get('tipo') or '').strip(),
+        'tipo_desc': (r.get('tipo_desc') or '').strip(),
+        'clase': (r.get('clase') or '').strip(),
+        'acepta_movimiento': 'Sí' if (r.get('acepta_movimiento') or 'N') == 'S' else 'No',
+        'activa': 'Sí' if (r.get('activa') or 'N') == 'S' else 'No',
+    } for r in rows]
+    return JsonResponse({
+        'cia': cia,
+        'reporte': {
+            'codigo': 'cnt-catalogo-cuentas', 'titulo': 'Catálogo de Cuentas',
+            'fecha_generacion': None,
+            'filtros': {
+                'Búsqueda': search or '(todas)',
+                'Tipo': tipo or '(todos)',
+                'Clase': clase or '(todas)',
+            },
+        },
+        'filas': filas,
+        'totales': {'cantidad': len(filas)},
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
 def cxc_asiento_print_data(request):
     no_cia = request.GET.get('no_cia', '01')
     punto = request.GET.get('punto', '01')
