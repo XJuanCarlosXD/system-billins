@@ -133,7 +133,13 @@ def inv_documento_print_data(request, tipo_docu: str, no_docu: str):
         'almacen': (l.get('almacen') or '').strip(),
         'cantidad': _money(l.get('cantidad')),
         'unidad': (l.get('unidad') or '').strip(),
-        'precio': _money(l.get('costo') or l.get('precio')),
+        # Precio de la TRANSACCION (venta/compra) primero; el costo es solo
+        # fallback para movimientos puros de inventario (ajustes/transferencias)
+        # donde no hay precio. Antes se priorizaba el costo, y en una DV eso
+        # imprimia el costo del producto (p.ej. 733.05) en vez del precio de
+        # venta real de la factura (1101.69) -> el precio no cuadraba con la
+        # factura y el subtotal quedaba inconsistente con el total.
+        'precio': _money(l.get('precio') or l.get('costo')),
         'porc_descuento': _money(l.get('porc_descuento')),
         'descuento': _money(l.get('descuento')),
         'porciento_impuesto': _money(l.get('porc_impuesto')),

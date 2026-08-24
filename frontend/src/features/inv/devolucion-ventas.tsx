@@ -269,14 +269,16 @@ export function DevolucionVentas({ noCia, punto }: Props) {
           const arr = [...prev]
           if (!arr[idx] || arr[idx].noProdu !== noProdu) return prev
           const empaque = def ? def.descripcion || def.unidad : 'UND'
-          const factor = def?.cant_por_emp || 1
+          // NO re-escalar el precio por el CPE del empaque por defecto: en la
+          // devolucion el precio viene de la linea de la factura, que YA es el
+          // precio de venta (por la unidad que se facturo). Multiplicarlo por
+          // el CPE del empaque por defecto lo inflaba en productos con CPE>1,
+          // y el precio de la DV no cuadraba con la factura.
           arr[idx] = {
             ...arr[idx],
             empaques: emps,
             empaque,
-            precio: precioBase
-              ? (precioBase * factor).toFixed(4)
-              : arr[idx].precio,
+            precio: precioBase ? precioBase.toFixed(4) : arr[idx].precio,
           }
           return arr
         })

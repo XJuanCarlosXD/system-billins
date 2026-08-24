@@ -58,6 +58,15 @@ export type Novedad = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-08-24',
+    tipo: 'correccion',
+    modulo: 'Impresión / PDF',
+    titulo: 'Devoluciones sobre ventas: el precio impreso ahora cuadra con la factura',
+    descripcion:
+      'Al imprimir (o reimprimir) una Devolución sobre Ventas, el precio de cada artículo mostraba por error el costo del producto en vez del precio de venta de la factura original, y por eso el total de la línea no cuadraba. Ahora la devolución imprime el mismo precio con el que se facturó el artículo, y los totales coinciden con la factura. Además se corrigió un caso, en productos que se venden por empaque (cajas, fundas, etc.), en el que al armar la devolución el precio se inflaba de más.',
+    commit: 'PENDIENTE',
+  },
+  {
     fecha: '2026-08-21',
     tipo: 'mejora',
     modulo: 'General',
