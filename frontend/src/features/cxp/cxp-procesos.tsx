@@ -977,9 +977,23 @@ export function CxpEntradaDocumentos({
     setImpuesto(itbis.toFixed(2))
   }, [form.valor_bienes, form.valor_servicio, porcItbis, proveedor?.no_proveedor, proveedor?.excento_itbis, editandoItbis])
 
-  // Total del documento = bienes + servicio + ITBIS. Es lo que se guarda
-  // como valor_original en TCXP_DOCUMENTO (mismo semántico que el legado).
-  const totalDocumento = Number(form.valor_bienes || 0) + Number(form.valor_servicio || 0) + Number(impuesto || 0)
+  // Total del documento = bienes + servicio + ITBIS + ISC + otros impuestos
+  // + propina, MENOS ITBIS/ISR retenido (la retencion se le paga a la DGII,
+  // no al proveedor -- reduce lo que realmente se le debe). Es lo que se
+  // guarda como valor_original/saldo en TCXP_DOCUMENTO.
+  //
+  // Verificado contra ~20 documentos reales (legado 2021 en adelante + app
+  // nueva): valor_original SIEMPRE incluyo la propina y SIEMPRE resto las
+  // retenciones -- nunca fue solo "bienes+servicio+ITBIS". Ese calculo
+  // reducido se colo al introducir el campo "Valor de Bienes" (commit
+  // dfe5cc6/anterior) y dejo el saldo del proveedor corto por el monto de
+  // la propina (o sin descontar la retencion), forzando a MPILAR a inflar
+  // "Valor de Bienes" a mano con el total de la factura para que el saldo
+  // cuadrara -- eso es lo que ella reporto como "la propina/retencion se
+  // suma dentro del valor" (ticket SEGREGAR, 763b7165).
+  const totalDocumento = Number(form.valor_bienes || 0) + Number(form.valor_servicio || 0)
+    + Number(impuesto || 0) + Number(form.isc || 0) + Number(form.otros_impuestos || 0)
+    + Number(form.propina || 0) - Number(form.itbis_retenido || 0) - Number(form.isr_retenido || 0)
 
   // Un documento es "de débito" (ND/AD/BD -- saldo a favor que se puede
   // aplicar contra facturas) segun TCXP_TDOCU.TIPO_MOVI, no una lista fija
@@ -1029,7 +1043,7 @@ export function CxpEntradaDocumentos({
     }
     setSaving(true)
     try {
-      const totalDoc = Number(form.valor_bienes || 0) + Number(form.valor_servicio || 0) + Number(impuesto || 0)
+      const totalDoc = totalDocumento
       // Movimiento contable (TCXP_DCDOCU): cada fila de la grilla de arriba
       // se manda tal cual el operador la dejó — débito o crédito por línea,
       // igual que en el legado (Fcxp201/Fcxp210).
@@ -1324,11 +1338,6 @@ export function CxpEntradaDocumentos({
               className='h-10 text-right font-mono'
               placeholder='auto'
             />
-            {form.valor_bienes && (
-              <div className='text-[10px] font-semibold text-emerald-700'>
-                Total a registrar (con ITBIS): RD$ {totalDocumento.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </div>
-            )}
           </div>
           <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Fecha Vence</Label>
@@ -1449,6 +1458,44 @@ export function CxpEntradaDocumentos({
               className='h-10 text-right font-mono'
             />
           </div>
+          {(form.valor_bienes || form.valor_servicio) && (
+            <div className='md:col-span-3 rounded-md border bg-muted/30 p-2 text-[11px] font-mono'>
+              {/* Desglose segregado (ticket SEGREGAR): cada componente se ve
+                  por separado para que el operador detecte a tiempo si
+                  copió del recibo un monto que ya trae la propina o la
+                  retención metida adentro. */}
+              <div className='flex justify-between'>
+                <span className='text-muted-foreground'>Subtotal (bienes + servicio, sin ITBIS)</span>
+                <span>RD$ {(Number(form.valor_bienes || 0) + Number(form.valor_servicio || 0)).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+              <div className='flex justify-between'>
+                <span className='text-muted-foreground'>+ ITBIS</span>
+                <span>RD$ {Number(impuesto || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+              {(Number(form.isc || 0) > 0 || Number(form.otros_impuestos || 0) > 0) && (
+                <div className='flex justify-between'>
+                  <span className='text-muted-foreground'>+ ISC / Otros impuestos</span>
+                  <span>RD$ {(Number(form.isc || 0) + Number(form.otros_impuestos || 0)).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {Number(form.propina || 0) > 0 && (
+                <div className='flex justify-between'>
+                  <span className='text-muted-foreground'>+ Propina Legal</span>
+                  <span>RD$ {Number(form.propina || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {(Number(form.itbis_retenido || 0) > 0 || Number(form.isr_retenido || 0) > 0) && (
+                <div className='flex justify-between'>
+                  <span className='text-muted-foreground'>− ITBIS/ISR Retenido (se paga a la DGII, no al proveedor)</span>
+                  <span>RD$ {(Number(form.itbis_retenido || 0) + Number(form.isr_retenido || 0)).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              <div className='flex justify-between border-t mt-1 pt-1 font-semibold text-emerald-700'>
+                <span>Total a Pagar al Proveedor</span>
+                <span>RD$ {totalDocumento.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+          )}
           <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>Forma de Pago</Label>
             <Select
