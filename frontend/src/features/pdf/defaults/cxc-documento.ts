@@ -50,6 +50,12 @@ export const cxcDocumentoDefault: any = {
       <div style="font-size:14px;font-weight:bold">{{upper doc.tipo_label}}</div>
       <div style="font-size:14px;font-weight:bold">{{doc.numero_display}}</div>
       <div style="font-size:9px;margin-top:6px">Fecha {{formatDate doc.fecha}}</div>
+      {{#if extra.documentos_afectados.length}}
+      <div style="font-size:9px;margin-top:4px;font-weight:bold">Afecta a:</div>
+      {{#each extra.documentos_afectados}}
+      <div style="font-size:9px">{{this.numero_display}}{{#if this.ncf_dgi}} · NCF {{this.ncf_dgi}}{{/if}}</div>
+      {{/each}}
+      {{/if}}
     </td>
   </tr>
 </table>`,
