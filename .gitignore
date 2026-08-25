@@ -1,3 +1,6 @@
+# Errores del sistema volcados a .txt (apps/reportes/repo.py:_write_txt_log)
+backend/logs/
+
 # Environment and secrets
 .env
 .env.*

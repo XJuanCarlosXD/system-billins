@@ -39,6 +39,7 @@ import { Textarea } from '@/components/ui/textarea'
 const ESTADOS: EstadoReporte[] = [
   'ABIERTO',
   'EN_PROGRESO',
+  'HOLD',
   'COMPLETADO',
   'CANCELADO',
 ]
@@ -46,6 +47,7 @@ const ESTADOS: EstadoReporte[] = [
 const ESTADO_LABEL: Record<EstadoReporte, string> = {
   ABIERTO: 'Abierto',
   EN_PROGRESO: 'En progreso',
+  HOLD: 'En espera (aprobación externa)',
   COMPLETADO: 'Completado',
   CANCELADO: 'Cancelado',
 }
@@ -56,6 +58,7 @@ const ESTADO_VARIANT: Record<
 > = {
   ABIERTO: 'outline',
   EN_PROGRESO: 'secondary',
+  HOLD: 'destructive',
   COMPLETADO: 'default',
   CANCELADO: 'destructive',
 }

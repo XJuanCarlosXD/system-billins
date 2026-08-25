@@ -33,7 +33,7 @@ export const MODULOS_REPORTE = [
   { value: 'OTRO', label: 'Otro' },
 ] as const
 
-export type EstadoReporte = 'ABIERTO' | 'EN_PROGRESO' | 'COMPLETADO' | 'CANCELADO'
+export type EstadoReporte = 'ABIERTO' | 'EN_PROGRESO' | 'HOLD' | 'COMPLETADO' | 'CANCELADO'
 
 export type ReporteResumen = {
   reporte_id: string

@@ -1,5 +1,8 @@
 """Endpoints /api/reportes/ — reportes de problemas ("Soporte")."""
 
+import hmac
+
+from django.conf import settings
 from django.http import HttpResponse
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -55,14 +58,15 @@ class ErrorLogView(APIView):
     """POST /api/reportes/error-log/ — registro silencioso de un error del
     frontend (API error o crash de render). Best-effort: nunca devuelve 4xx/5xx
     por una falla propia, para no interrumpir el flujo del usuario que ya tuvo
-    un error."""
+    un error. Ademas de TSYS_ERROR_LOG, abre un TREP_PROBLEMA vinculado para
+    que el runner ZentoryERP-Reportes-AutoFix lo revise en su ciclo normal."""
 
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         body = request.data or {}
         try:
-            error_id = repo.log_error(
+            result = repo.log_error_ticket(
                 usuario=_u(request),
                 modulo=body.get("modulo"),
                 url=body.get("url"),
@@ -71,8 +75,8 @@ class ErrorLogView(APIView):
                 detalle=body.get("detalle"),
             )
         except Exception:  # noqa: BLE001
-            error_id = 0
-        return Response({"error_id": error_id}, status=201)
+            result = {"error_id": 0, "reporte_id": None}
+        return Response(result, status=201)
 
 
 class ReporteDetailView(APIView):
@@ -125,3 +129,66 @@ class ReporteImagenView(APIView):
         return HttpResponse(
             data, content_type=media_type or "application/octet-stream"
         )
+
+
+def _check_agente_token(request) -> bool:
+    auth = request.headers.get("Authorization") or ""
+    if not auth.startswith("Bearer "):
+        return False
+    token = auth[len("Bearer "):]
+    expected = settings.AGENTE_REPORTES_TOKEN
+    return bool(expected) and hmac.compare_digest(token, expected)
+
+
+class AgenteLanzarView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if not _is_admin(request):
+            return Response({"detail": "forbidden"}, status=403)
+        try:
+            result = repo.crear_run(usuario=_u(request))
+        except repo.ValidationError as e:
+            return Response({"detail": str(e)}, status=409)
+        return Response(result, status=201)
+
+
+class AgenteEstadoView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        row = repo.get_ultimo_run()
+        return Response(row or {})
+
+
+class AgentePendienteView(APIView):
+    permission_classes = []
+
+    def get(self, request):
+        if not _check_agente_token(request):
+            return Response({"detail": "forbidden"}, status=403)
+        claimed = repo.reclamar_pendiente()
+        if not claimed:
+            return Response({"pendiente": False})
+        return Response({"pendiente": True, **claimed})
+
+
+class AgenteResultadoView(APIView):
+    permission_classes = []
+
+    def post(self, request):
+        if not _check_agente_token(request):
+            return Response({"detail": "forbidden"}, status=403)
+        body = request.data or {}
+        try:
+            result = repo.finalizar_run(
+                body.get("run_id"),
+                estado=body.get("estado"),
+                resumen=body.get("resumen"),
+                commit_sha=body.get("commit_sha"),
+            )
+        except repo.ValidationError as e:
+            return Response({"detail": str(e)}, status=400)
+        except LookupError:
+            return Response({"detail": "not_found"}, status=404)
+        return Response(result)

@@ -54,7 +54,7 @@ def test_log_error_inserta_fila(monkeypatch):
 
 
 def test_log_error_endpoint_siempre_devuelve_201_aunque_falle_el_insert(monkeypatch, mock_user):
-    monkeypatch.setattr(repo, "log_error", lambda **kw: (_ for _ in ()).throw(RuntimeError("db down")))
+    monkeypatch.setattr(repo, "log_error_ticket", lambda **kw: (_ for _ in ()).throw(RuntimeError("db down")))
     client = APIClient()
     client.force_authenticate(mock_user)
     resp = client.post("/api/reportes/error-log/", {
@@ -65,14 +65,33 @@ def test_log_error_endpoint_siempre_devuelve_201_aunque_falle_el_insert(monkeypa
 
 
 def test_log_error_endpoint_ok(monkeypatch, mock_user):
-    monkeypatch.setattr(repo, "log_error", lambda **kw: 42)
+    monkeypatch.setattr(repo, "log_error_ticket", lambda **kw: {"error_id": 42, "reporte_id": "r-1"})
     client = APIClient()
     client.force_authenticate(mock_user)
     resp = client.post("/api/reportes/error-log/", {
         "mensaje": "404 not found", "url": "/inv/productos", "status_http": 404, "modulo": "INV",
     }, format="json")
     assert resp.status_code == 201
-    assert resp.json() == {"error_id": 42}
+    assert resp.json() == {"error_id": 42, "reporte_id": "r-1"}
+
+
+def test_log_error_ticket_crea_reporte_vinculado(monkeypatch):
+    monkeypatch.setattr(repo, "log_error", lambda **kw: 99)
+    calls = {}
+
+    def fake_create_reporte(**kw):
+        calls.update(kw)
+        return "reporte-abc"
+
+    monkeypatch.setattr(repo, "create_reporte", fake_create_reporte)
+    result = repo.log_error_ticket(
+        usuario="JCABREU", modulo="CXP", url="/cxp/proveedores",
+        status_http=500, mensaje="ORA-01400: cannot insert NULL", detalle="Traceback...",
+    )
+    assert result == {"error_id": 99, "reporte_id": "reporte-abc"}
+    assert calls["error_log_id"] == 99
+    assert calls["usuario"] == "JCABREU"
+    assert "Error automático" in calls["titulo"]
 
 
 def test_create_reporte_vincula_error_log_id(monkeypatch):
