@@ -761,14 +761,20 @@ def get_documento(no_cia: str, no_docu: str, tipo_docu: str = '', punto: str = '
     if not rows:
         return None
     doc = rows[0]
+    # NO_DOCU no es unico por si solo: distintos tipos de documento (RI, FC,
+    # DV...) pueden compartir el mismo no_docu (bug de numeracion global en
+    # get_next_no_doc). Filtrar TCXC_DCDOCU solo por no_docu mezclaba las
+    # lineas contables de otro documento con no_docu coincidente pero tipo
+    # distinto -- se veia como "abro un RI y me aparecen lineas de otro
+    # documento". Usar punto+tipo_docu ya resueltos en `doc` para aislarlo.
     # TCXC_DCDOCU NO tiene columna `detalle` — solo cuenta/centro_costo/tipo_movi/monto.
     doc['lineas'] = client.fetch_dicts(
         "SELECT cuenta, centro_costo, tipo_movi, NVL(monto,0) AS monto, "
         "CASE WHEN tipo_movi='D' THEN NVL(monto,0) ELSE 0 END debito, "
         "CASE WHEN tipo_movi='C' THEN NVL(monto,0) ELSE 0 END credito "
-        "FROM CXC.TCXC_DCDOCU WHERE no_cia=:1 AND no_docu=:2 "
+        "FROM CXC.TCXC_DCDOCU WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4 "
         "ORDER BY tipo_movi DESC, cuenta",
-        [no_cia, no_docu])
+        [no_cia, doc['punto'], doc['tipo_doc'], no_docu])
     return doc
 
 def crear_dv_mirror(*, no_cia: str, punto: str, no_cliente, fecha: str,
@@ -826,7 +832,7 @@ def crear_dv_mirror(*, no_cia: str, punto: str, no_cliente, fecha: str,
         saldo_factura = float(row[0] or 0)
         monto = min(valor_neto, saldo_factura) if saldo_factura > 0 else valor_neto
 
-        no_docu = get_next_no_doc(no_cia, punto)
+        no_docu = _next_no_docu_cxc(cur, no_cia, punto, 'DV')
         vendedor_doc = (vendedor or '').strip() or '00'
 
         cur.execute(
@@ -877,7 +883,32 @@ def crear_dv_mirror(*, no_cia: str, punto: str, no_cliente, fecha: str,
             'monto_aplicado': monto, 'factura_afectada': f"{tipo_docu_devuelto}-{no_docu_devuelto}"}
 
 
-def get_next_no_doc(no_cia: str, punto: str) -> str:
+def peek_next_no_doc(no_cia: str, punto: str, tipo_docu: str = '') -> str:
+    """Vista previa (NO reserva numero) del proximo no_docu.
+
+    Con tipo_docu: lee CXC.TCXC_SECUENCIA para ese tipo especifico (mismo
+    contador que usara _next_no_docu_cxc al grabar). Antes esta funcion
+    (como get_next_no_doc) calculaba un MAX global cruzando TODOS los tipos
+    de documento del punto -- eso hacia que el "proximo numero" mostrado en
+    pantalla no coincidiera con el que realmente se grababa por tipo, y
+    contribuia a los huecos/colisiones de numeracion entre RI/FC/DV.
+    Sin tipo_docu, mantiene el estimado global anterior solo como fallback
+    informativo (no se usa para reservar numeros reales).
+    """
+    tipo_docu = (tipo_docu or '').strip().upper()
+    if tipo_docu:
+        row = client.fetch_one(
+            "SELECT NVL(ult_docu,0)+1 FROM CXC.TCXC_SECUENCIA "
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3",
+            [no_cia, punto, tipo_docu])
+        if row and row[0] is not None:
+            return str(int(row[0])).zfill(7)
+        row = client.fetch_one(
+            "SELECT NVL(MAX(TO_NUMBER(no_docu)),0)+1 FROM CXC.TCXC_DOCUMENTO "
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 "
+            "  AND REGEXP_LIKE(no_docu, '^[0-9]+$')",
+            [no_cia, punto, tipo_docu])
+        return str(int(row[0])).zfill(7) if row else '0000001'
     row = client.fetch_one(
         "SELECT NVL(MAX(TO_NUMBER(REGEXP_SUBSTR(no_docu,'[0-9]+'))),0)+1 "
         "FROM CXC.TCXC_DOCUMENTO WHERE no_cia=:1 AND punto=:2",
@@ -1295,9 +1326,14 @@ def crear_recibo_cobro(
     # TCXC_DOCUMENTO.FORMA_PAGO es VARCHAR2(1); el cuadre de caja lo cruza
     # con TFAT_TIPO_PAGO para desglosar los cobros RI por forma de pago.
     forma_pago = str(forma_pago or '').strip()[:1]
-    no_doc = get_next_no_doc(no_cia, punto)
 
     with client.cursor() as cur:
+        # Numeracion POR TIPO via TCXC_SECUENCIA (antes get_next_no_doc calculaba
+        # un MAX global cruzando todos los tipos de documento del punto, lo que
+        # producia huecos al filtrar solo RI y, sin lock, colisiones reales de
+        # no_docu entre RI y otros tipos como FC/DV).
+        no_doc = _next_no_docu_cxc(cur, no_cia, punto, tipo_doc)
+
         # 1. Cuenta y centro_costo defaults del tipo de doc (configurado en FCXC104)
         cur.execute(
             "SELECT NVL(cuenta,''), NVL(centro_costo,'0000000000'), tipo_movi, "
@@ -1616,7 +1652,7 @@ def aplicar_saldos_menores(no_cia: str, punto: str, max_saldo: float,
             total = round(grp['total_saldo'], 2)
             if total <= 0:
                 continue
-            no_doc = get_next_no_doc(no_cia, punto)
+            no_doc = _next_no_docu_cxc(cur, no_cia, punto, td_ac['tipo_docu'])
             cuenta_cliente = _get_cuenta_cliente(cur, no_cia, no_cli)
             _insert_ajuste_header(cur, no_cia, punto, td_ac['tipo_docu'], no_doc,
                                   no_cli, fecha, total, motivo, 'C', usuario)
@@ -1641,7 +1677,7 @@ def aplicar_saldos_menores(no_cia: str, punto: str, max_saldo: float,
             total = round(abs(grp['total_saldo']), 2)
             if total <= 0:
                 continue
-            no_doc = get_next_no_doc(no_cia, punto)
+            no_doc = _next_no_docu_cxc(cur, no_cia, punto, td_ad['tipo_docu'])
             cuenta_cliente = _get_cuenta_cliente(cur, no_cia, no_cli)
             _insert_ajuste_header(cur, no_cia, punto, td_ad['tipo_docu'], no_doc,
                                   no_cli, fecha, total, motivo, 'D', usuario)

@@ -88,12 +88,6 @@ export function CxcTransacciones({ noCia, punto = '01', prefill }: P) {
     enabled: !!noCia,
   })
 
-  const nextDocQ = useQuery({
-    queryKey: ['cxc-next-doc', noCia, punto],
-    queryFn: () => regalGeneralApi.cxcGetNextDoc(noCia, punto),
-    enabled: !!noCia,
-  })
-
   // Vendedores y cobradores
   const vendedoresQ = useQuery({
     queryKey: ['cxc-vendedores', noCia],
@@ -129,6 +123,14 @@ export function CxcTransacciones({ noCia, punto = '01', prefill }: P) {
   const [aplicaciones, setAplicaciones] = useState<Record<string, number>>({})
   const [retenciones, setRetenciones] = useState<Record<string, { itbis: number; isr: number }>>({})
   const [ultimoNoDoc, setUltimoNoDoc] = useState<string | null>(null)
+
+  // La numeracion es POR TIPO (TCXC_SECUENCIA) — sin tipoDoc todavia elegido
+  // no hay "proximo numero" valido que mostrar.
+  const nextDocQ = useQuery({
+    queryKey: ['cxc-next-doc', noCia, punto, tipoDoc],
+    queryFn: () => regalGeneralApi.cxcGetNextDoc(noCia, punto, tipoDoc),
+    enabled: !!noCia && !!tipoDoc,
+  })
 
   const tdocusActivos = useMemo(() => (tdocusQ.data ?? []).filter((t: any) => t.activo === 'S'), [tdocusQ.data])
   const tipoDocSel = useMemo(() => tdocusActivos.find((t: any) => t.tipo_doc === tipoDoc), [tdocusActivos, tipoDoc])

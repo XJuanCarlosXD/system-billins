@@ -444,7 +444,8 @@ class CxcNextDocView(APIView):
     def get(self, request):
         no_cia = request.query_params.get("no_cia", "01")
         punto = request.query_params.get("punto", "01")
-        return Response({"no_doc": repo.get_next_no_doc(no_cia, punto)})
+        tipo_doc = request.query_params.get("tipo_doc", "")
+        return Response({"no_doc": repo.peek_next_no_doc(no_cia, punto, tipo_doc)})
 
 
 # ─── SALDOS MENORES (Fcxc204) ─────────────────────────────────────────────────

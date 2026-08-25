@@ -1031,7 +1031,7 @@ export const regalGeneralApi = {
     request<any[]>(`/cxc/clientes/${encodeURIComponent(noCliente)}/facturas-pendientes/?no_cia=${noCia}${punto ? `&punto=${punto}` : ''}`),
   cxcCrearRecibo: (d: any) =>
     request<any>('/cxc/recibos/', { method: 'POST', body: JSON.stringify(d) }),
-  cxcGetNextDoc: (noCia: string, punto: string) => request<{ no_doc: string }>(`/cxc/next-doc/?no_cia=${noCia}&punto=${punto}`),
+  cxcGetNextDoc: (noCia: string, punto: string, tipoDoc = '') => request<{ no_doc: string }>(`/cxc/next-doc/?no_cia=${noCia}&punto=${punto}${tipoDoc ? `&tipo_doc=${tipoDoc}` : ''}`),
   cxcReversar: (d: any) => request<any>('/cxc/reversar/', { method: 'POST', body: JSON.stringify(d) }),
   cxcGetDocsPendientesMasivo: (noCia: string, desde: string, hasta: string) => request<any[]>(`/cxc/pagos-masivos/?no_cia=${noCia}&desde=${desde}&hasta=${hasta}`),
   cxcAplicarPagosMasivos: (d: any) => request<any>('/cxc/pagos-masivos/', { method: 'POST', body: JSON.stringify(d) }),
