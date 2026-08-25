@@ -280,7 +280,7 @@ export function CxpDocumentoDetalleContent({
                   <TableRow key={i}>
                     <TableCell className="py-2.5 font-mono text-sm">{l.cuenta}</TableCell>
                     <TableCell className="py-2.5 text-sm text-muted-foreground">{nombresCuenta[l.cuenta] ?? '…'}</TableCell>
-                    <TableCell className="py-2.5 text-sm">{l.tipo_movi === 'D' ? 'Débito' : l.tipo_movi === 'C' ? 'Crédito' : l.tipo_movi}</TableCell>
+                    <TableCell className={`py-2.5 text-sm ${l.tipo_movi === 'D' ? 'text-red-700' : l.tipo_movi === 'C' ? 'text-emerald-700' : ''}`}>{l.tipo_movi === 'D' ? 'Débito' : l.tipo_movi === 'C' ? 'Crédito' : l.tipo_movi}</TableCell>
                     <TableCell className="py-2.5 text-right font-mono text-sm">{fmt(l.monto)}</TableCell>
                   </TableRow>
                 ))}

@@ -203,8 +203,8 @@ export function CxpMovimientos() {
                       </TableCell>
                       <TableCell className="text-xs">{fmtDate(m.fecha)}</TableCell>
                       <TableCell className="text-right text-xs font-mono">{m.cheque > 0 ? m.cheque : '—'}</TableCell>
-                      <TableCell className="text-right font-mono">{m.debito > 0 ? fmt(m.debito) : ''}</TableCell>
-                      <TableCell className="text-right font-mono">{m.credito > 0 ? fmt(m.credito) : ''}</TableCell>
+                      <TableCell className="text-right font-mono text-red-700">{m.debito > 0 ? fmt(m.debito) : ''}</TableCell>
+                      <TableCell className="text-right font-mono text-emerald-700">{m.credito > 0 ? fmt(m.credito) : ''}</TableCell>
                       <TableCell className={`text-right font-mono font-medium ${m.balance > 0 ? 'text-blue-700' : m.balance < 0 ? 'text-green-700' : ''}`}>
                         {fmt(Math.abs(m.balance))}
                       </TableCell>
@@ -214,8 +214,8 @@ export function CxpMovimientos() {
                 {movsConBalance.length > 0 && (
                   <TableRow className="bg-muted/50 font-semibold border-t-2">
                     <TableCell colSpan={4} className="text-right text-sm">Totales período ({movsConBalance.length} movimiento{movsConBalance.length === 1 ? '' : 's'}):</TableCell>
-                    <TableCell className="text-right font-mono">{fmt(totalDeb)}</TableCell>
-                    <TableCell className="text-right font-mono">{fmt(totalCred)}</TableCell>
+                    <TableCell className="text-right font-mono text-red-700">{fmt(totalDeb)}</TableCell>
+                    <TableCell className="text-right font-mono text-emerald-700">{fmt(totalCred)}</TableCell>
                     <TableCell className="text-right font-mono font-bold">{fmt(Math.abs(totalCred - totalDeb))}</TableCell>
                   </TableRow>
                 )}
