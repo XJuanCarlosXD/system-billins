@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DocumentoDetalleSheet } from '@/features/documentos/documento-detalle-sheet'
@@ -50,6 +51,7 @@ export function CxpMovimientos() {
   const [desde, setDesde] = useState(isoFirstOfMonth())
   const [hasta, setHasta] = useState(isoToday())
   const [page, setPage] = useState(1)
+  const [mostrarEnCero, setMostrarEnCero] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
 
   const { data: cuenta } = useQuery<ProvCuenta>({
@@ -92,11 +94,20 @@ export function CxpMovimientos() {
 
   const totalDeb = movsNorm.reduce((s, m) => s + (m.debito || 0), 0)
   const totalCred = movsNorm.reduce((s, m) => s + (m.credito || 0), 0)
-  const totalPages = Math.max(1, Math.ceil(movsConBalance.length / PAGE))
-  const slice = movsConBalance.slice((page - 1) * PAGE, page * PAGE)
+  const cantEnCero = movsConBalance.filter(m => m.debito === 0 && m.credito === 0).length
+
+  // "En 0" = quedó sin monto ni con la normalización (valor_original también
+  // era 0, o tipo_movi no es D/C) -- ruido real, no un movimiento válido.
+  // Se ocultan por defecto pero el usuario puede pedir verlos.
+  const movsVisibles = useMemo(
+    () => mostrarEnCero ? movsConBalance : movsConBalance.filter(m => m.debito !== 0 || m.credito !== 0),
+    [movsConBalance, mostrarEnCero]
+  )
+  const totalPages = Math.max(1, Math.ceil(movsVisibles.length / PAGE))
+  const slice = movsVisibles.slice((page - 1) * PAGE, page * PAGE)
 
   function exportarExcel() {
-    downloadCsv(movsConBalance.map(m => ({
+    downloadCsv(movsVisibles.map(m => ({
       'Tipo Doc': TIPO_DOC[m.tipo_docu] ?? m.tipo_docu, 'No. Doc': m.no_docu, 'Tipo Mov': tipoMoviLabel(m.tipo_movi),
       'Fecha': fmtDate(m.fecha), 'Cheque': m.cheque || '',
       'Débito': fmt(m.debito), 'Crédito': fmt(m.credito), 'Balance': fmt(m.balance),
@@ -130,6 +141,12 @@ export function CxpMovimientos() {
             <Label className="text-xs">Hasta</Label>
             <Input type="date" value={hasta} onChange={e => { setHasta(e.target.value); setPage(1) }} className="w-36 h-9" />
           </div>
+          {noProveedor && (
+            <label className="flex items-center gap-2 text-sm h-9 cursor-pointer">
+              <Checkbox checked={mostrarEnCero} onCheckedChange={v => { setMostrarEnCero(!!v); setPage(1) }} />
+              Mostrar movimientos en 0{cantEnCero > 0 ? ` (${cantEnCero})` : ''}
+            </label>
+          )}
           {noProveedor && (
             <div className="flex gap-2 ml-auto">
               <Button variant="outline" size="sm" className="h-9" onClick={exportarExcel} disabled={!movs.length}>
@@ -197,6 +214,11 @@ export function CxpMovimientos() {
                     No hay movimientos para el proveedor {noProveedor} entre {fmtDate(desde)} y {fmtDate(hasta)}.
                   </TableCell></TableRow>
                 )}
+                {movsConBalance.length > 0 && movsVisibles.length === 0 && (
+                  <TableRow><TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                    Los {cantEnCero} movimiento{cantEnCero === 1 ? '' : 's'} del período están en 0. Marque "Mostrar movimientos en 0" para verlos.
+                  </TableCell></TableRow>
+                )}
                 {slice.map(m => {
                   const key = cxpDocKey({ no_cia: noCia || '', punto: punto || '', tipo_docu: m.tipo_docu, no_docu: m.no_docu })
                   return (
@@ -230,9 +252,9 @@ export function CxpMovimientos() {
                     </TableRow>
                   )
                 })}
-                {movsConBalance.length > 0 && (
+                {movsVisibles.length > 0 && (
                   <TableRow className="bg-muted/50 font-semibold border-t-2">
-                    <TableCell colSpan={4} className="text-right text-sm">Totales período ({movsConBalance.length} movimiento{movsConBalance.length === 1 ? '' : 's'}):</TableCell>
+                    <TableCell colSpan={4} className="text-right text-sm">Totales período ({movsVisibles.length} movimiento{movsVisibles.length === 1 ? '' : 's'}):</TableCell>
                     <TableCell className="text-right font-mono text-red-700">{fmt(totalDeb)}</TableCell>
                     <TableCell className="text-right font-mono text-emerald-700">{fmt(totalCred)}</TableCell>
                     <TableCell className="text-right font-mono font-bold">{fmt(Math.abs(totalCred - totalDeb))}</TableCell>

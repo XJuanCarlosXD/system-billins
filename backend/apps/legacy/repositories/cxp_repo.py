@@ -619,10 +619,10 @@ def get_proveedor_cuenta(no_cia, punto, no_proveedor):
     fin = client.fetch_dicts("""
         SELECT
             NVL(SUM(saldo), 0) AS balance,
-            NVL(SUM(CASE WHEN tipo_movi='Credito' THEN valor_original ELSE 0 END), 0) AS compras_acumuladas,
-            NVL(SUM(CASE WHEN tipo_movi='Debito'  THEN valor_original ELSE 0 END), 0) AS pagos_acumulados,
-            MAX(CASE WHEN tipo_movi='Credito' THEN TO_CHAR(fecha,'YYYY-MM-DD') END) AS fecha_ultima_compra,
-            MAX(CASE WHEN tipo_movi='Debito'  THEN TO_CHAR(fecha,'YYYY-MM-DD') END) AS fecha_ultimo_pago
+            NVL(SUM(CASE WHEN tipo_movi='C' THEN valor_original ELSE 0 END), 0) AS compras_acumuladas,
+            NVL(SUM(CASE WHEN tipo_movi='D' THEN valor_original ELSE 0 END), 0) AS pagos_acumulados,
+            MAX(CASE WHEN tipo_movi='C' THEN TO_CHAR(fecha,'YYYY-MM-DD') END) AS fecha_ultima_compra,
+            MAX(CASE WHEN tipo_movi='D' THEN TO_CHAR(fecha,'YYYY-MM-DD') END) AS fecha_ultimo_pago
         FROM CXP.TCXP_DOCUMENTO
         WHERE no_cia=:1 AND punto=:2 AND no_proveedor=:3
     """, [no_cia, punto, no_proveedor])
@@ -703,9 +703,9 @@ def list_movimientos_proveedor(no_cia, punto, no_proveedor, desde='', hasta=''):
     return client.fetch_dicts(f"""
         SELECT d.tipo_docu, d.no_docu, d.tipo_movi,
                TO_CHAR(d.fecha,'YYYY-MM-DD') AS fecha,
-               d.valor_original,
-               CASE WHEN d.tipo_movi='Debito'  THEN d.valor_original ELSE 0 END AS debito,
-               CASE WHEN d.tipo_movi='Credito' THEN d.valor_original ELSE 0 END AS credito
+               d.valor_original, d.no_cheque AS cheque,
+               CASE WHEN d.tipo_movi='D' THEN d.valor_original ELSE 0 END AS debito,
+               CASE WHEN d.tipo_movi='C' THEN d.valor_original ELSE 0 END AS credito
         FROM CXP.TCXP_DOCUMENTO d
         WHERE {where}
         ORDER BY d.fecha, d.no_docu
@@ -998,8 +998,12 @@ def rep_mayor_auxiliar(no_cia: str, punto: str, desde: str, hasta: str,
         "TO_CHAR(d.fecha,'YYYY-MM-DD') AS fecha, "
         "TO_CHAR(d.fecha_vence,'YYYY-MM-DD') AS fecha_vence, "
         "d.tipo_movi, d.valor_original, "
-        "CASE WHEN d.tipo_movi='Credito' THEN d.valor_original ELSE 0 END credito, "
-        "CASE WHEN d.tipo_movi='Debito'  THEN d.valor_original ELSE 0 END debito, "
+        # TCXP_DOCUMENTO.tipo_movi guarda 'C'/'D' (una letra), no la palabra
+        # completa -- con 'Credito'/'Debito' el CASE nunca matcheaba y
+        # credito/debito salian siempre en 0 en el Mayor Auxiliar (pantalla
+        # y PDF).
+        "CASE WHEN d.tipo_movi='C' THEN d.valor_original ELSE 0 END credito, "
+        "CASE WHEN d.tipo_movi='D' THEN d.valor_original ELSE 0 END debito, "
         "NVL(d.saldo,0) saldo, d.status, d.ncf, d.detalle "
         "FROM CXP.TCXP_DOCUMENTO d "
         "JOIN CXP.TCXP_DPROVEEDOR p ON p.no_proveedor=d.no_proveedor "
