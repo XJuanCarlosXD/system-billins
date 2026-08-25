@@ -2098,6 +2098,14 @@ function DocumentoSimple({
     : cli?.nombre
       ? { label: 'CLIENTE', p: cli }
       : null
+  // Documento afectado (ej. la factura que una Devolución de Venta reduce).
+  // El backend ya calcula esto en inv_documento_print_data (extra.factura_afectada)
+  // pero el bloque nunca lo pintaba -- el print de una DV no decia contra
+  // que factura aplicaba, aunque el dato ya viajaba en el payload.
+  const facturaAfectada = d.extra?.factura_afectada as
+    | { tipo_doc: string; no_doc: string; numero_display?: string; cliente?: string; fecha?: string; total_neto?: number; ncf_dgi?: string }
+    | null
+    | undefined
   const lineas = d.lineas || []
   const t = d.totales || { total: 0 }
 
@@ -2258,6 +2266,35 @@ function DocumentoSimple({
               </td>
               <td style={{ padding: '3px 6px' }} colSpan={2}>
                 {tercero.p.telefono || '—'}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      )}
+
+      {/* Documento afectado: a que factura/documento aplica esta devolución
+          o nota. Sin esto no se podía saber, viendo el impreso, contra cuál
+          documento se aplicó. */}
+      {facturaAfectada && (
+        <table
+          style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            border: thin,
+            marginBottom: 6,
+          }}
+        >
+          <tbody>
+            <tr>
+              <td style={{ padding: '3px 6px', fontWeight: 700, borderRight: hair, width: 130 }}>
+                DOCUMENTO AFECTADO
+              </td>
+              <td style={{ padding: '3px 6px' }}>
+                {facturaAfectada.numero_display || `${facturaAfectada.tipo_doc}-${facturaAfectada.no_doc}`}
+                {facturaAfectada.cliente ? ` — ${facturaAfectada.cliente}` : ''}
+                {facturaAfectada.fecha ? ` — ${fmtDate(facturaAfectada.fecha)}` : ''}
+                {facturaAfectada.ncf_dgi ? ` — NCF: ${facturaAfectada.ncf_dgi}` : ''}
+                {facturaAfectada.total_neto ? ` — Total: ${money(facturaAfectada.total_neto)}` : ''}
               </td>
             </tr>
           </tbody>
