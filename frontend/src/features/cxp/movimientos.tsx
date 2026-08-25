@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Printer, FileSpreadsheet, Search } from 'lucide-react'
+import { Printer, FileSpreadsheet } from 'lucide-react'
 import { api } from '@/lib/regal-general-api'
 import { useCompany } from '@/hooks/use-company'
 import { Button } from '@/components/ui/button'
@@ -11,7 +11,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DocumentoDetalleSheet } from '@/features/documentos/documento-detalle-sheet'
 import { downloadCsv } from '@/lib/csv-utils'
+import { ProveedorPicker } from './cxp-procesos'
 import { TIPO_DOC, fmt, fmtDate, cxpDocKey, useCxpDocumentoDetalle, CxpDocumentoDetalleContent } from './cxp-documento-panel'
+
+interface ProveedorSel { no_proveedor: string; nombre: string; rnc: string; direccion: string }
 
 interface ProvCuenta {
   no_proveedor: string; nombre: string; rnc: string
@@ -36,8 +39,8 @@ function isoFirstOfMonth() {
 
 export function CxpMovimientos() {
   const { selectedCompany: noCia, selectedPoint: punto } = useCompany()
-  const [input, setInput] = useState('')
-  const [noProveedor, setNoProveedor] = useState('')
+  const [proveedor, setProveedor] = useState<ProveedorSel | null>(null)
+  const noProveedor = proveedor?.no_proveedor ?? ''
   const [desde, setDesde] = useState(isoFirstOfMonth())
   const [hasta, setHasta] = useState(isoToday())
   const [page, setPage] = useState(1)
@@ -73,13 +76,6 @@ export function CxpMovimientos() {
   const totalPages = Math.max(1, Math.ceil(movsConBalance.length / PAGE))
   const slice = movsConBalance.slice((page - 1) * PAGE, page * PAGE)
 
-  function buscar() {
-    const trimmed = input.trim()
-    if (!trimmed) return
-    setNoProveedor(trimmed.padStart(6, '0'))
-    setPage(1)
-  }
-
   function exportarExcel() {
     downloadCsv(movsConBalance.map(m => ({
       'Tipo Doc': TIPO_DOC[m.tipo_docu] ?? m.tipo_docu, 'No. Doc': m.no_docu, 'Tipo Mov': m.tipo_movi === 'Credito' ? 'Crédito' : m.tipo_movi === 'Debito' ? 'Débito' : m.tipo_movi,
@@ -104,40 +100,28 @@ export function CxpMovimientos() {
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-3 items-end">
-        <div>
-          <Label className="text-xs">No. Proveedor</Label>
-          <div className="flex gap-2">
-            <Input
-              placeholder="000057"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && buscar()}
-              className="w-36 h-9"
-            />
-            <Button onClick={buscar} disabled={!input.trim()} size="sm" className="h-9">
-              <Search className="h-4 w-4 mr-1" /> Consultar
-            </Button>
+      <div className="space-y-3">
+        <ProveedorPicker value={proveedor} onChange={p => { setProveedor(p); setPage(1) }} />
+        <div className="flex flex-wrap gap-3 items-end">
+          <div>
+            <Label className="text-xs">Desde</Label>
+            <Input type="date" value={desde} onChange={e => { setDesde(e.target.value); setPage(1) }} className="w-36 h-9" />
           </div>
-        </div>
-        <div>
-          <Label className="text-xs">Desde</Label>
-          <Input type="date" value={desde} onChange={e => { setDesde(e.target.value); setPage(1) }} className="w-36 h-9" />
-        </div>
-        <div>
-          <Label className="text-xs">Hasta</Label>
-          <Input type="date" value={hasta} onChange={e => { setHasta(e.target.value); setPage(1) }} className="w-36 h-9" />
-        </div>
-        {noProveedor && (
-          <div className="flex gap-2 ml-auto">
-            <Button variant="outline" size="sm" className="h-9" onClick={exportarExcel} disabled={!movs.length}>
-              <FileSpreadsheet className="h-4 w-4 mr-1" /> Excel
-            </Button>
-            <Button variant="outline" size="sm" className="h-9" onClick={imprimirPdf} disabled={!movs.length}>
-              <Printer className="h-4 w-4 mr-1" /> Imprimir PDF
-            </Button>
+          <div>
+            <Label className="text-xs">Hasta</Label>
+            <Input type="date" value={hasta} onChange={e => { setHasta(e.target.value); setPage(1) }} className="w-36 h-9" />
           </div>
-        )}
+          {noProveedor && (
+            <div className="flex gap-2 ml-auto">
+              <Button variant="outline" size="sm" className="h-9" onClick={exportarExcel} disabled={!movs.length}>
+                <FileSpreadsheet className="h-4 w-4 mr-1" /> Excel
+              </Button>
+              <Button variant="outline" size="sm" className="h-9" onClick={imprimirPdf} disabled={!movs.length}>
+                <Printer className="h-4 w-4 mr-1" /> Imprimir PDF
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
 
       {cuenta && (
@@ -252,7 +236,7 @@ export function CxpMovimientos() {
       {!noProveedor && (
         <div className="text-center text-muted-foreground py-16">
           <p className="text-base font-medium">Movimientos de Proveedores</p>
-          <p className="text-sm mt-1">Ingrese el número de proveedor para ver el historial de movimientos</p>
+          <p className="text-sm mt-1">Busque un proveedor (código o lupa) para ver su historial de movimientos</p>
         </div>
       )}
 
