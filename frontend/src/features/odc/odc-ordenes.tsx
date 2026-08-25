@@ -17,7 +17,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { Loader2, Search, Eye, CheckCircle2, XCircle, Lock, Printer, Pencil, History } from 'lucide-react'
+import { Loader2, Search, Eye, CheckCircle2, XCircle, Lock, Printer, Pencil, History, PackagePlus } from 'lucide-react'
 import { DocumentoHistorial } from '@/features/historial/documento-historial'
 import { DocumentoDetalleSheet } from '@/features/documentos/documento-detalle-sheet'
 
@@ -282,6 +282,17 @@ export function OdcOrdenes() {
               {selected && selected.st_anulado === 'A' && selected.estado === 'P' && !!selected.autorizada_por && (
                 <Button size="sm" variant="outline" onClick={() => setOpenCerrar(true)} disabled={cerrar.isPending}>
                   <Lock className="h-4 w-4 mr-1" /> Marcar Recibida
+                </Button>
+              )}
+              {/* Genera la Entrada de Compra (INV) precargada con esta orden.
+                  Al guardarla, el backend registra lo recibido contra la
+                  orden y la cierra sola (estado='R') si ya no queda
+                  pendiente, o la deja abierta para completarla después. */}
+              {selected && selected.st_anulado === 'A' && selected.estado === 'P' && !!selected.autorizada_por && (
+                <Button size="sm" onClick={() => {
+                  nav({ to: '/inv/entrada-compras', search: { no_orden: selected.no_orden, edit: undefined } })
+                }}>
+                  <PackagePlus className="h-4 w-4 mr-1" /> Generar Entrada de Compra
                 </Button>
               )}
               {selected && selected.st_anulado === 'A' && (
