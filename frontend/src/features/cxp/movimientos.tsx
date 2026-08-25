@@ -1,12 +1,17 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Printer, FileSpreadsheet, Search } from 'lucide-react'
 import { api } from '@/lib/regal-general-api'
 import { useCompany } from '@/hooks/use-company'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { DocumentoDetalleSheet } from '@/features/documentos/documento-detalle-sheet'
 import { downloadCsv } from '@/lib/csv-utils'
+import { TIPO_DOC, fmt, fmtDate, cxpDocKey, useCxpDocumentoDetalle, CxpDocumentoDetalleContent } from './cxp-documento-panel'
 
 interface ProvCuenta {
   no_proveedor: string; nombre: string; rnc: string
@@ -21,8 +26,7 @@ interface Movimiento {
   valor_original: number; debito: number; credito: number
 }
 
-const fmt = (n: number) => n?.toLocaleString('es-DO', { minimumFractionDigits: 2 }) ?? '0.00'
-const fmtDate = (s: string) => s ? s.split('-').reverse().join('/') : '—'
+const PAGE = 50
 
 function isoToday() { return new Date().toISOString().slice(0, 10) }
 function isoFirstOfMonth() {
@@ -36,6 +40,8 @@ export function CxpMovimientos() {
   const [noProveedor, setNoProveedor] = useState('')
   const [desde, setDesde] = useState(isoFirstOfMonth())
   const [hasta, setHasta] = useState(isoToday())
+  const [page, setPage] = useState(1)
+  const [selected, setSelected] = useState<string | null>(null)
 
   const { data: cuenta } = useQuery<ProvCuenta>({
     queryKey: ['cxp-cuenta', noCia, punto, noProveedor],
@@ -49,59 +55,88 @@ export function CxpMovimientos() {
     enabled: !!noCia && !!noProveedor,
   })
 
-  const movsConBalance = useMemo(() => {
-    let bal = 0
-    return movs.map(m => {
-      bal += m.credito - m.debito
-      return { ...m, balance: bal }
-    })
-  }, [movs])
+  const { data: detalle } = useCxpDocumentoDetalle(selected)
+
+  // El balance corrido depende del orden completo del período -- se calcula
+  // sobre TODOS los movimientos filtrados y luego se pagina, nunca al revés
+  // (paginar primero rompería el balance de cada página).
+  const movsConBalance = useMemo(() => (
+    movs.reduce<(Movimiento & { balance: number })[]>((acc, m) => {
+      const prevBal = acc.length ? acc[acc.length - 1].balance : 0
+      acc.push({ ...m, balance: prevBal + m.credito - m.debito })
+      return acc
+    }, [])
+  ), [movs])
 
   const totalDeb = movs.reduce((s, m) => s + (m.debito || 0), 0)
   const totalCred = movs.reduce((s, m) => s + (m.credito || 0), 0)
+  const totalPages = Math.max(1, Math.ceil(movsConBalance.length / PAGE))
+  const slice = movsConBalance.slice((page - 1) * PAGE, page * PAGE)
 
   function buscar() {
     const trimmed = input.trim()
     if (!trimmed) return
     setNoProveedor(trimmed.padStart(6, '0'))
+    setPage(1)
   }
 
-  function exportar() {
+  function exportarExcel() {
     downloadCsv(movsConBalance.map(m => ({
-      'Tipo Doc': m.tipo_docu, 'No. Doc': m.no_docu, 'Tipo Mov': m.tipo_movi,
+      'Tipo Doc': TIPO_DOC[m.tipo_docu] ?? m.tipo_docu, 'No. Doc': m.no_docu, 'Tipo Mov': m.tipo_movi === 'Credito' ? 'Crédito' : m.tipo_movi === 'Debito' ? 'Débito' : m.tipo_movi,
       'Fecha': fmtDate(m.fecha), 'Cheque': m.cheque || '',
       'Débito': fmt(m.debito), 'Crédito': fmt(m.credito), 'Balance': fmt(m.balance),
     })), `cxp-movimientos-${noProveedor}.csv`)
   }
 
+  function imprimirPdf() {
+    const qs = new URLSearchParams({
+      no_cia: noCia || '', punto: punto || '', desde, hasta, no_proveedor: noProveedor,
+    }).toString()
+    window.open(`/print/cxp-rep-mayor/${encodeURIComponent(noProveedor)}?${qs}`, '_blank')
+  }
+
   return (
     <div className="space-y-4">
+      <div>
+        <h3 className="text-base font-semibold">Movimientos de Proveedor</h3>
+        <p className="text-sm text-muted-foreground">
+          Mayor auxiliar del proveedor: cada documento que le debita o acredita la cuenta, con balance corrido. Haga clic en una fila para ver el documento completo.
+        </p>
+      </div>
+
       <div className="flex flex-wrap gap-3 items-end">
         <div>
-          <p className="text-xs text-muted-foreground mb-1">No. Proveedor</p>
+          <Label className="text-xs">No. Proveedor</Label>
           <div className="flex gap-2">
             <Input
               placeholder="000057"
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && buscar()}
-              className="w-36"
+              className="w-36 h-9"
             />
-            <Button onClick={buscar} disabled={!input.trim()}>Consultar</Button>
+            <Button onClick={buscar} disabled={!input.trim()} size="sm" className="h-9">
+              <Search className="h-4 w-4 mr-1" /> Consultar
+            </Button>
           </div>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground mb-1">Desde</p>
-          <Input type="date" value={desde} onChange={e => setDesde(e.target.value)} className="w-36" />
+          <Label className="text-xs">Desde</Label>
+          <Input type="date" value={desde} onChange={e => { setDesde(e.target.value); setPage(1) }} className="w-36 h-9" />
         </div>
         <div>
-          <p className="text-xs text-muted-foreground mb-1">Hasta</p>
-          <Input type="date" value={hasta} onChange={e => setHasta(e.target.value)} className="w-36" />
+          <Label className="text-xs">Hasta</Label>
+          <Input type="date" value={hasta} onChange={e => { setHasta(e.target.value); setPage(1) }} className="w-36 h-9" />
         </div>
         {noProveedor && (
-          <Button variant="outline" size="sm" onClick={exportar} disabled={!movs.length} className="self-end">
-            Excel
-          </Button>
+          <div className="flex gap-2 ml-auto">
+            <Button variant="outline" size="sm" className="h-9" onClick={exportarExcel} disabled={!movs.length}>
+              <FileSpreadsheet className="h-4 w-4 mr-1" /> Excel
+            </Button>
+            <Button variant="outline" size="sm" className="h-9" onClick={imprimirPdf} disabled={!movs.length}>
+              <Printer className="h-4 w-4 mr-1" /> Imprimir PDF
+            </Button>
+          </div>
         )}
       </div>
 
@@ -136,61 +171,82 @@ export function CxpMovimientos() {
         </div>
       )}
 
-      {noProveedor && (
-        <div className="rounded-md border overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Tipo</TableHead>
-                <TableHead>No. Doc</TableHead>
-                <TableHead>Mov</TableHead>
-                <TableHead>Fecha</TableHead>
-                <TableHead className="text-right">Cheque</TableHead>
-                <TableHead className="text-right">Débito</TableHead>
-                <TableHead className="text-right">Crédito</TableHead>
-                <TableHead className="text-right">Balance</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading && (
-                <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">Cargando…</TableCell></TableRow>
-              )}
-              {!isLoading && movsConBalance.length === 0 && (
-                <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">Sin movimientos en el período seleccionado</TableCell></TableRow>
-              )}
-              {movsConBalance.map(m => (
-                <TableRow key={`${m.tipo_docu}-${m.no_docu}`} className="text-sm">
-                  <TableCell>
-                    <span className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">{m.tipo_docu}</span>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">{m.no_docu}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={
-                      m.tipo_movi === 'Credito' ? 'border-blue-300 text-blue-700' : 'border-orange-300 text-orange-700'
-                    }>
-                      {m.tipo_movi === 'Credito' ? 'Crédito' : m.tipo_movi === 'Debito' ? 'Débito' : m.tipo_movi}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs">{fmtDate(m.fecha)}</TableCell>
-                  <TableCell className="text-right text-xs font-mono">{m.cheque > 0 ? m.cheque : ''}</TableCell>
-                  <TableCell className="text-right">{m.debito > 0 ? fmt(m.debito) : ''}</TableCell>
-                  <TableCell className="text-right">{m.credito > 0 ? fmt(m.credito) : ''}</TableCell>
-                  <TableCell className={`text-right font-medium ${m.balance > 0 ? 'text-blue-700' : m.balance < 0 ? 'text-green-700' : ''}`}>
-                    {fmt(Math.abs(m.balance))}
-                  </TableCell>
+      {noProveedor && isLoading && <Skeleton className="h-64 w-full" />}
+
+      {noProveedor && !isLoading && (
+        <>
+          <div className="rounded-md border overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Documento</TableHead>
+                  <TableHead>Movimiento</TableHead>
+                  <TableHead>Fecha</TableHead>
+                  <TableHead className="text-right">Cheque</TableHead>
+                  <TableHead className="text-right">Débito</TableHead>
+                  <TableHead className="text-right">Crédito</TableHead>
+                  <TableHead className="text-right">Balance</TableHead>
                 </TableRow>
-              ))}
-              {movsConBalance.length > 0 && (
-                <TableRow className="bg-muted/50 font-semibold border-t-2">
-                  <TableCell colSpan={5} className="text-right text-sm">Totales período:</TableCell>
-                  <TableCell className="text-right">{fmt(totalDeb)}</TableCell>
-                  <TableCell className="text-right">{fmt(totalCred)}</TableCell>
-                  <TableCell className="text-right font-bold">{fmt(Math.abs(totalCred - totalDeb))}</TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {movsConBalance.length === 0 && (
+                  <TableRow><TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                    No hay movimientos para el proveedor {noProveedor} entre {fmtDate(desde)} y {fmtDate(hasta)}.
+                  </TableCell></TableRow>
+                )}
+                {slice.map(m => {
+                  const key = cxpDocKey({ no_cia: noCia || '', punto: punto || '', tipo_docu: m.tipo_docu, no_docu: m.no_docu })
+                  return (
+                    <TableRow
+                      key={`${m.tipo_docu}-${m.no_docu}`}
+                      className="text-sm cursor-pointer hover:bg-muted/50"
+                      onClick={() => setSelected(key)}
+                    >
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" title={TIPO_DOC[m.tipo_docu] ?? m.tipo_docu} className="shrink-0">
+                            {m.tipo_docu}
+                          </Badge>
+                          <span className="font-mono text-xs">{m.no_docu}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={
+                          m.tipo_movi === 'Credito' ? 'border-blue-300 text-blue-700' : 'border-orange-300 text-orange-700'
+                        }>
+                          {m.tipo_movi === 'Credito' ? 'Crédito' : m.tipo_movi === 'Debito' ? 'Débito' : m.tipo_movi}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs">{fmtDate(m.fecha)}</TableCell>
+                      <TableCell className="text-right text-xs font-mono">{m.cheque > 0 ? m.cheque : '—'}</TableCell>
+                      <TableCell className="text-right font-mono">{m.debito > 0 ? fmt(m.debito) : ''}</TableCell>
+                      <TableCell className="text-right font-mono">{m.credito > 0 ? fmt(m.credito) : ''}</TableCell>
+                      <TableCell className={`text-right font-mono font-medium ${m.balance > 0 ? 'text-blue-700' : m.balance < 0 ? 'text-green-700' : ''}`}>
+                        {fmt(Math.abs(m.balance))}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+                {movsConBalance.length > 0 && (
+                  <TableRow className="bg-muted/50 font-semibold border-t-2">
+                    <TableCell colSpan={4} className="text-right text-sm">Totales período ({movsConBalance.length} movimiento{movsConBalance.length === 1 ? '' : 's'}):</TableCell>
+                    <TableCell className="text-right font-mono">{fmt(totalDeb)}</TableCell>
+                    <TableCell className="text-right font-mono">{fmt(totalCred)}</TableCell>
+                    <TableCell className="text-right font-mono font-bold">{fmt(Math.abs(totalCred - totalDeb))}</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex justify-center gap-2 text-sm items-center">
+              <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Anterior</Button>
+              <span>Página {page} de {totalPages}</span>
+              <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Siguiente</Button>
+            </div>
+          )}
+        </>
       )}
 
       {!noProveedor && (
@@ -199,6 +255,16 @@ export function CxpMovimientos() {
           <p className="text-sm mt-1">Ingrese el número de proveedor para ver el historial de movimientos</p>
         </div>
       )}
+
+      <DocumentoDetalleSheet
+        open={!!selected}
+        onOpenChange={o => { if (!o) setSelected(null) }}
+        title={detalle ? `${TIPO_DOC[detalle.tipo_docu] ?? detalle.tipo_docu} ${detalle.no_docu} — ${detalle.nombre_proveedor}` : 'Cargando…'}
+      >
+        {detalle && (
+          <CxpDocumentoDetalleContent key={selected} detalle={detalle} onNavigate={setSelected} />
+        )}
+      </DocumentoDetalleSheet>
     </div>
   )
 }

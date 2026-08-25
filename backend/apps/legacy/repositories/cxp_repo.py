@@ -392,9 +392,14 @@ def get_documento(no_cia, punto, tipo_docu, no_docu):
     doc['lineas'] = client.fetch_dicts(sql_lineas, [no_cia, punto, tipo_docu, no_docu])
     # Si es un credito (FP/FT/NC/AC), traer que debitos (ND/AD/BD) ya se le
     # aplicaron -- el grid "Doc(s) de Debito Afectado" que el legado
-    # (FCXP501) muestra al consultar/editar una factura.
+    # (FCXP501) muestra al consultar/editar una factura. Si es un debito,
+    # el sentido inverso: que creditos/facturas afecto (pantalla de
+    # Movimientos de Proveedor necesita ambas direcciones para responder
+    # "que movimiento hizo o afecto este documento").
     if (doc.get('tipo_movi') or '').strip().upper() == 'C':
         doc['debitos_aplicados'] = get_debitos_aplicados(no_cia, punto, tipo_docu, no_docu)
+    else:
+        doc['documentos_afectados'] = get_documentos_afectados(no_cia, punto, tipo_docu, no_docu)
     return doc
 
 
