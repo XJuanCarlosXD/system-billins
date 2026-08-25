@@ -41,7 +41,8 @@ export async function fetchDocCounts(
     { credentials: 'include' }
   )
   const text = await res.text()
-  const body = text ? JSON.parse(text) : null
+  let body: any = null
+  if (text) { try { body = JSON.parse(text) } catch { body = null } }
   const c = (body && body.counts) || {}
   return {
     fat: c.fat ?? null,

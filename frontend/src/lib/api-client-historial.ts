@@ -1,5 +1,5 @@
 // Endpoints de Historial/Auditoría. Separado del core como reportes/asistente.
-import { ApiError } from './api-client'
+import { ApiError, parseJsonOrThrow } from './api-client'
 
 const API_BASE =
   (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.99:8000/api'
@@ -11,7 +11,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     ...init,
   })
   const text = await res.text()
-  const body = text ? JSON.parse(text) : null
+  const body = parseJsonOrThrow(text, res.status)
   if (!res.ok) throw new ApiError(res.status, body)
   return body as T
 }

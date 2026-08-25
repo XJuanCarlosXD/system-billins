@@ -1,5 +1,5 @@
 // Endpoints de docs (separado de api-client.ts para no inflarlo).
-import { ApiError } from './api-client'
+import { ApiError, parseJsonOrThrow } from './api-client'
 
 export { ApiError }
 
@@ -8,7 +8,7 @@ const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://10.0.0.9
 async function request<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, { credentials: 'include' })
   const text = await res.text()
-  const body = text ? JSON.parse(text) : null
+  const body = parseJsonOrThrow(text, res.status)
   if (!res.ok) throw new ApiError(res.status, body)
   return body as T
 }

@@ -26,9 +26,22 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     ...init,
   })
   const text = await res.text()
-  const body = text ? JSON.parse(text) : null
+  const body = parseJsonOrThrow(text, res.status)
   if (!res.ok) throw new ApiError(res.status, body)
   return body as T
+}
+
+// Cuando el backend cae a página HTML (login redirect, 500 con debug page,
+// Netlify sirviendo el index en un path no-API), text arranca con "<!DOCTYPE"
+// y JSON.parse tira SyntaxError críptico. Convertimos a ApiError con el
+// status real para que la UI muestre algo accionable.
+function parseJsonOrThrow(text: string, status: number): any {
+  if (!text) return null
+  try { return JSON.parse(text) }
+  catch {
+    const snippet = text.slice(0, 200).replace(/\s+/g, ' ').trim()
+    throw new ApiError(status, `Respuesta no-JSON del servidor (HTTP ${status}): ${snippet}`)
+  }
 }
 
 /**
@@ -315,7 +328,7 @@ export const regalGeneralApi = {
       body: form,
     })
     const text = await res.text()
-    const body = text ? JSON.parse(text) : null
+    const body = parseJsonOrThrow(text, res.status)
     if (!res.ok) throw new ApiError(res.status, body)
     return body as { logo_url: string }
   },
