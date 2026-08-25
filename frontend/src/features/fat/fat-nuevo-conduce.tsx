@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import { Plus } from 'lucide-react'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { useToast } from '@/hooks/use-toast'
+import { CrearClienteModal } from '@/components/cxc/crear-cliente-modal'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -151,6 +153,7 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
   const [clienteSearch, setClienteSearch] = useState('')
   const [clienteResults, setClienteResults] = useState<Cliente[]>([])
   const [buscandoClientes, setBuscandoClientes] = useState(false)
+  const [crearClienteOpen, setCrearClienteOpen] = useState(false)
 
   // Product modal
   const [productDialogOpen, setProductDialogOpen] = useState(false)
@@ -215,7 +218,10 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
         const conduces = Array.from(conducesMap.values())
         setTiposDoc(conduces)
         if (!editId && conduces.length > 0) {
-          setTipoDoc((prev) => prev || conduces[0].tipo_docu)
+          // Por defecto abre en Cotización (CT) — es el flujo más usado al
+          // crear un documento nuevo; el usuario cambia a Conduce si aplica.
+          const ct = conduces.find((d) => d.tipo_docu === 'CT')
+          setTipoDoc((prev) => prev || (ct || conduces[0]).tipo_docu)
         }
         setVendedores(vendsRes.items || [])
         setTiposPago(pagosRes.items || [])
@@ -468,8 +474,10 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
       cantidad: 1,
       porc_descuento: 0,
       monto: 0,
-      porciento_impuesto: 0,
-      itbis: false,
+      // Linea X (producto manual/generico) casi siempre lleva ITBIS —
+      // se activa por defecto para no obligar al usuario a marcarlo cada vez.
+      porciento_impuesto: 18,
+      itbis: true,
       empaques: [],
       precioBase: 0,
       cantPorEmpBase: 1,
@@ -573,10 +581,10 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
         linea.precioBase = linea.precio
         linea.cantPorEmpBase = 1
         linea.empaques = []
-        linea.porciento_impuesto = linea.itbis
-          ? linea.porciento_impuesto || 18
-          : linea.porciento_impuesto || 0
-        linea.itbis = linea.porciento_impuesto > 0
+        // Linea X (producto manual/generico) casi siempre lleva ITBIS —
+        // se activa por defecto igual que en agregarLineaCustom.
+        linea.porciento_impuesto = linea.porciento_impuesto || 18
+        linea.itbis = true
         linea.emp = linea.emp || 'UND'
         linea.monto =
           linea.cantidad * linea.precio * (1 - linea.porc_descuento / 100)
@@ -1409,7 +1417,18 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
       <Dialog open={clienteModalOpen} onOpenChange={setClienteModalOpen}>
         <DialogContent size='picker'>
           <DialogHeader className='shrink-0 border-b px-6 py-4'>
-            <DialogTitle>Buscar Cliente</DialogTitle>
+            <div className='flex items-center justify-between gap-4'>
+              <DialogTitle>Buscar Cliente</DialogTitle>
+              <Button
+                type='button'
+                size='sm'
+                variant='outline'
+                className='gap-1'
+                onClick={() => setCrearClienteOpen(true)}
+              >
+                <Plus className='h-4 w-4' /> Nuevo Cliente
+              </Button>
+            </div>
           </DialogHeader>
           <div className='shrink-0 border-b bg-background px-6 py-3'>
             <Input
@@ -1442,11 +1461,22 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
                       colSpan={5}
                       className='py-12 text-center text-gray-400'
                     >
-                      {buscandoClientes
-                        ? 'Buscando...'
-                        : clienteSearch.length >= 2
-                          ? 'No se encontraron clientes'
-                          : 'Escriba al menos 2 caracteres para buscar'}
+                      <p>
+                        {buscandoClientes
+                          ? 'Buscando...'
+                          : clienteSearch.length >= 2
+                            ? `No se encontraron clientes para "${clienteSearch}"`
+                            : 'Escriba al menos 2 caracteres para buscar'}
+                      </p>
+                      {!buscandoClientes && clienteSearch.length >= 2 && (
+                        <Button
+                          variant='link'
+                          className='mt-2'
+                          onClick={() => setCrearClienteOpen(true)}
+                        >
+                          Crear cliente "{clienteSearch}" →
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 )}
@@ -1492,6 +1522,26 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {crearClienteOpen && (
+        <CrearClienteModal
+          open={crearClienteOpen}
+          onClose={() => setCrearClienteOpen(false)}
+          noCia={noCia}
+          punto={punto}
+          nombreInicial={clienteSearch}
+          onCreated={(c) => {
+            setCrearClienteOpen(false)
+            aplicarCliente({
+              no_cliente: c.no_cliente,
+              nombre: c.nombre || c.nombre_cliente || '',
+              rnc: c.rnc,
+              cedula: c.cedula,
+              direccion: c.direccion,
+            })
+          }}
+        />
+      )}
 
       {/* ── Product Search Modal (componente compartido) ── */}
       <BuscarProductoModal
