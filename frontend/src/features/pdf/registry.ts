@@ -961,7 +961,6 @@ export const registry: Record<string, RegistryEntry> = {
       'documentos[].saldo',
       'documentos[].dias_vencido',
       'documentos[].ncf',
-      'documentos[].detalle',
     ]),
   },
   'cxp-rep-alfabetico': {

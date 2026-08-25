@@ -110,14 +110,13 @@ export const cxpEstadoCuentaDefault: any = {
 <table style="width:100%;border-collapse:collapse;font-size:9px;margin-top:12px">
   <thead>
     <tr style="border-top:1px solid #333;border-bottom:1px solid #333;font-weight:bold">
-      <td style="padding:3px 4px;width:90px">Documento</td>
-      <td style="padding:3px 4px;width:130px">Tipo</td>
-      <td style="padding:3px 4px;width:75px">Fecha</td>
-      <td style="padding:3px 4px;text-align:right;width:90px">Valor</td>
-      <td style="padding:3px 4px;text-align:right;width:90px">Saldo</td>
+      <td style="padding:3px 4px;width:95px">Documento</td>
+      <td style="padding:3px 4px;width:150px">Tipo</td>
+      <td style="padding:3px 4px;width:80px">Fecha</td>
+      <td style="padding:3px 4px;text-align:right;width:95px">Valor</td>
+      <td style="padding:3px 4px;text-align:right;width:95px">Saldo</td>
       <td style="padding:3px 4px;text-align:right;width:50px">Días</td>
-      <td style="padding:3px 4px;width:90px">NCF</td>
-      <td style="padding:3px 4px">Detalle</td>
+      <td style="padding:3px 4px">NCF</td>
     </tr>
   </thead>
   <tbody>
@@ -129,8 +128,7 @@ export const cxpEstadoCuentaDefault: any = {
       <td style="padding:3px 4px;text-align:right">{{formatMoney this.valor}}</td>
       <td style="padding:3px 4px;text-align:right;font-weight:bold">{{formatMoney this.saldo}}</td>
       <td style="padding:3px 4px;text-align:right">{{this.dias_vencido}}</td>
-      <td style="padding:3px 4px;font-family:monospace;font-size:8px">{{this.ncf}}</td>
-      <td style="padding:3px 4px;font-size:8px">{{this.detalle}}</td>
+      <td style="padding:3px 4px;font-family:monospace">{{default this.ncf "—"}}</td>
     </tr>
     {{/each}}
   </tbody>
