@@ -31,6 +31,12 @@ interface Movimiento {
 
 const PAGE = 50
 
+// La API devuelve tipo_movi como 'D'/'C' (una letra), no la palabra completa.
+function tipoMoviLabel(tipoMovi: string): string {
+  const t = (tipoMovi || '').trim().toUpperCase()
+  return t === 'C' ? 'Crédito' : t === 'D' ? 'Débito' : tipoMovi
+}
+
 function isoToday() { return new Date().toISOString().slice(0, 10) }
 function isoFirstOfMonth() {
   const d = new Date()
@@ -60,25 +66,38 @@ export function CxpMovimientos() {
 
   const { data: detalle } = useCxpDocumentoDetalle(selected)
 
+  // El backend a veces trae debito=0 y credito=0 con el monto real solo en
+  // valor_original (documentos que se contabilizaron sin desglosar en esas
+  // dos columnas) -- sin derivarlo por tipo_movi, esas filas se ven "en 0"
+  // en vez del monto real, y el balance corrido queda mal.
+  const movsNorm = useMemo(() => movs.map(m => {
+    const d = Number(m.debito || 0)
+    const c = Number(m.credito || 0)
+    if (d > 0 || c > 0) return m
+    const valor = Number(m.valor_original || 0)
+    const tipo = (m.tipo_movi || '').trim().toUpperCase()
+    return { ...m, debito: tipo === 'D' ? valor : 0, credito: tipo === 'C' ? valor : 0 }
+  }), [movs])
+
   // El balance corrido depende del orden completo del período -- se calcula
   // sobre TODOS los movimientos filtrados y luego se pagina, nunca al revés
   // (paginar primero rompería el balance de cada página).
   const movsConBalance = useMemo(() => (
-    movs.reduce<(Movimiento & { balance: number })[]>((acc, m) => {
+    movsNorm.reduce<(Movimiento & { balance: number })[]>((acc, m) => {
       const prevBal = acc.length ? acc[acc.length - 1].balance : 0
       acc.push({ ...m, balance: prevBal + m.credito - m.debito })
       return acc
     }, [])
-  ), [movs])
+  ), [movsNorm])
 
-  const totalDeb = movs.reduce((s, m) => s + (m.debito || 0), 0)
-  const totalCred = movs.reduce((s, m) => s + (m.credito || 0), 0)
+  const totalDeb = movsNorm.reduce((s, m) => s + (m.debito || 0), 0)
+  const totalCred = movsNorm.reduce((s, m) => s + (m.credito || 0), 0)
   const totalPages = Math.max(1, Math.ceil(movsConBalance.length / PAGE))
   const slice = movsConBalance.slice((page - 1) * PAGE, page * PAGE)
 
   function exportarExcel() {
     downloadCsv(movsConBalance.map(m => ({
-      'Tipo Doc': TIPO_DOC[m.tipo_docu] ?? m.tipo_docu, 'No. Doc': m.no_docu, 'Tipo Mov': m.tipo_movi === 'Credito' ? 'Crédito' : m.tipo_movi === 'Debito' ? 'Débito' : m.tipo_movi,
+      'Tipo Doc': TIPO_DOC[m.tipo_docu] ?? m.tipo_docu, 'No. Doc': m.no_docu, 'Tipo Mov': tipoMoviLabel(m.tipo_movi),
       'Fecha': fmtDate(m.fecha), 'Cheque': m.cheque || '',
       'Débito': fmt(m.debito), 'Crédito': fmt(m.credito), 'Balance': fmt(m.balance),
     })), `cxp-movimientos-${noProveedor}.csv`)
@@ -196,9 +215,9 @@ export function CxpMovimientos() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={
-                          m.tipo_movi === 'Credito' ? 'border-blue-300 text-blue-700' : 'border-orange-300 text-orange-700'
+                          m.tipo_movi?.trim().toUpperCase() === 'C' ? 'border-emerald-300 text-emerald-700' : 'border-red-300 text-red-700'
                         }>
-                          {m.tipo_movi === 'Credito' ? 'Crédito' : m.tipo_movi === 'Debito' ? 'Débito' : m.tipo_movi}
+                          {tipoMoviLabel(m.tipo_movi)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-xs">{fmtDate(m.fecha)}</TableCell>
