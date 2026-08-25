@@ -98,10 +98,14 @@ async function apiFetch<T>(path: string): Promise<T> {
 
 export function EntradaCompras({ noCia, punto }: Props) {
   const navigate = useNavigate()
-  const { edit: editParam } = invRoute.useSearch()
+  const { edit: editParam, no_orden: noOrdenParam } = invRoute.useSearch()
   // Documento en edición: no_docu original (se reversa y re-crea al guardar).
   const [editNoDocu, setEditNoDocu] = useState('')
   const editLoadedRef = useRef('')
+  const noOrdenParamLoadedRef = useRef('')
+  // Destino de la mercancía recibida: solo etiqueta informativa, no cambia
+  // inventario ni contabilidad.
+  const [destino, setDestino] = useState<'S' | 'V'>('S')
   // Header
   const [tipoDocu, setTipoDocu] = useState('')
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
@@ -331,8 +335,8 @@ export function EntradaCompras({ noCia, punto }: Props) {
   // dentro del formulario. Equivalente al `extraer por número de orden`
   // del legacy Finv. Sólo importa órdenes activas (st_anulado='A') del
   // punto/empresa actuales.
-  const cargarDesdeOrden = useCallback(async () => {
-    const noOrden = noOrdenOdc.trim().padStart(8, '0')
+  const cargarDesdeOrden = useCallback(async (ordenOverride?: string) => {
+    const noOrden = (ordenOverride ?? noOrdenOdc).trim().padStart(8, '0')
     if (!noOrden) {
       toast.error('Ingrese un número de orden de compra')
       return
@@ -392,6 +396,18 @@ export function EntradaCompras({ noCia, punto }: Props) {
       setCargandoOdc(false)
     }
   }, [noOrdenOdc, noCia, punto, almacenHeader])
+
+  // ── Precarga automática desde Consulta de Órdenes (ODC) ──────────────────
+  // Llega por ?no_orden=<no_orden> con el botón "Generar Entrada de Compra".
+  // Dispara la misma carga que el input manual de arriba, sin que el usuario
+  // tenga que volver a escribir el número.
+  useEffect(() => {
+    if (!noOrdenParam || !noCia) return
+    if (noOrdenParamLoadedRef.current === noOrdenParam) return
+    noOrdenParamLoadedRef.current = noOrdenParam
+    setNoOrdenOdc(noOrdenParam)
+    cargarDesdeOrden(noOrdenParam)
+  }, [noOrdenParam, noCia, cargarDesdeOrden])
 
   const limpiarOrden = () => {
     setOrdenCargada(null)
@@ -453,6 +469,7 @@ export function EntradaCompras({ noCia, punto }: Props) {
       tipo: 'compra',
       nota,
       no_orden: ordenCargada?.no_orden,
+      destino,
       detalle: validRows.map((r) => ({
         no_produ: r.noProdu,
         almacen: r.almacen || almacenHeader,
@@ -520,6 +537,17 @@ export function EntradaCompras({ noCia, punto }: Props) {
           { duration: 15000 }
         )
       }
+      const recepcionOdc = created.recepcion_odc ?? created.data?.recepcion_odc ?? created.data?.nuevo?.recepcion_odc
+      if (recepcionOdc?.error) {
+        toast.warning(
+          `La compra se guardó, pero no se pudo actualizar la Orden ODC-${ordenCargada?.no_orden}: ${recepcionOdc.error}`,
+          { duration: 15000 }
+        )
+      } else if (recepcionOdc?.estado_final === 'R') {
+        toast.success(`Orden ODC-${ordenCargada?.no_orden} cerrada: recepción completa.`, { duration: 8000 })
+      } else if (recepcionOdc?.estado_final === 'P') {
+        toast.info(`Orden ODC-${ordenCargada?.no_orden} queda abierta: faltan productos por recibir.`, { duration: 8000 })
+      }
       // Tipo Documento y Almacen se conservan: el operador registra varios
       // documentos seguidos del mismo tipo, y resetearlos hacia que el
       // siguiente Guardar cayera en "Seleccione el Tipo de Documento" sin
@@ -527,7 +555,7 @@ export function EntradaCompras({ noCia, punto }: Props) {
       setFecha(new Date().toISOString().slice(0, 10))
       setTasaUsd(''); setProveedorSel(null)
       setNcf(''); setRnc(''); setFormaPago(''); setFechaVcto(''); setPctDescuento('')
-      setNota(''); setOrdenCargada(null); setNoOrdenOdc('')
+      setNota(''); setOrdenCargada(null); setNoOrdenOdc(''); setDestino('S')
       setRows([newRow()])
     } catch (err: any) {
       toast.error(`Error al guardar: ${err.message ?? 'Error desconocido'}`)
@@ -649,8 +677,20 @@ export function EntradaCompras({ noCia, punto }: Props) {
                   onKeyDown={(e) => { if (e.key === 'Enter') cargarDesdeOrden() }}
                   disabled={!!ordenCargada || cargandoOdc} />
               </div>
+              <div className='space-y-1'>
+                <Label htmlFor='ec-destino' className='text-xs'>Destino de la mercancía</Label>
+                <Select value={destino} onValueChange={(v) => setDestino(v as 'S' | 'V')}>
+                  <SelectTrigger id='ec-destino' className='h-9 w-36'>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='S'>Stock (almacén)</SelectItem>
+                    <SelectItem value='V'>Reventa directa</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               {!ordenCargada ? (
-                <Button size='sm' onClick={cargarDesdeOrden} disabled={cargandoOdc || !noOrdenOdc.trim()}>
+                <Button size='sm' onClick={() => cargarDesdeOrden()} disabled={cargandoOdc || !noOrdenOdc.trim()}>
                   <FileDown className='h-4 w-4 mr-1' />
                   {cargandoOdc ? 'Cargando…' : 'Cargar líneas'}
                 </Button>

@@ -453,6 +453,111 @@ def cerrar_orden(no_cia: str, punto: str, no_orden: str) -> None:
     )
 
 
+def registrar_recepcion(no_cia: str, punto: str, no_orden: str,
+                        lineas: list[dict], usuario: str = 'API') -> dict:
+    """Suma cantidad_recibida por producto contra una Entrada de Compra (INV)
+    ligada a esta orden y cierra la orden (estado='R') si ya no queda
+    pendiente en ninguna línea con cantidad_pedida > 0. Si queda pendiente,
+    la orden se mantiene/vuelve a 'P' (abierta para otra entrada futura).
+
+    `lineas`: [{no_produ, cantidad}] con lo realmente entrado en INV.
+    Líneas cuyo no_produ no matchea ninguna línea de la orden se ignoran.
+    Llamada desde inv_repo.create_movimiento_documento (non-blocking para
+    el caller: si falla, la entrada de INV ya quedó confirmada igual).
+    """
+    orden = get_orden(no_cia, punto, no_orden)
+    if not orden:
+        raise ValueError(f"Orden {no_orden} no encontrada")
+    if str(orden.get('st_anulado') or 'A').upper() == 'N':
+        raise ValueError(f"Orden {no_orden} está anulada")
+
+    cantidad_por_prod: dict[str, float] = {}
+    for ln in lineas:
+        k = str(ln.get('no_produ') or '').strip().upper()
+        if not k:
+            continue
+        cantidad_por_prod[k] = cantidad_por_prod.get(k, 0.0) + float(ln.get('cantidad') or 0)
+
+    with client.cursor() as cur:
+        cur.execute(
+            "SELECT no_produ, cantidad_pedida, cantidad_recibida "
+            "FROM ODC.TODC_ORDENL WHERE no_cia=:1 AND punto=:2 AND no_orden=:3 FOR UPDATE",
+            [no_cia, punto, no_orden])
+        rows = cur.fetchall()
+        if not rows:
+            raise ValueError(f"Orden {no_orden} no tiene líneas")
+        todo_completo = True
+        actualizadas = []
+        for no_produ, pedida, recibida in rows:
+            no_produ_k = str(no_produ).strip().upper()
+            pedida = float(pedida or 0)
+            recibida = float(recibida or 0)
+            delta = cantidad_por_prod.get(no_produ_k, 0.0)
+            if delta:
+                cur.execute(
+                    "UPDATE ODC.TODC_ORDENL SET cantidad_recibida = "
+                    "NVL(cantidad_recibida,0) + :1 "
+                    "WHERE no_cia=:2 AND punto=:3 AND no_orden=:4 AND no_produ=:5",
+                    [delta, no_cia, punto, no_orden, no_produ])
+                recibida += delta
+                actualizadas.append({'no_produ': no_produ, 'cantidad_recibida': recibida})
+            if pedida > 0 and recibida < pedida - 1e-6:
+                todo_completo = False
+        estado_final = 'R' if todo_completo else 'P'
+        cur.execute(
+            "UPDATE ODC.TODC_ORDEN SET estado=:1 WHERE no_cia=:2 AND punto=:3 AND no_orden=:4",
+            [estado_final, no_cia, punto, no_orden])
+        historial_repo.log_evento(
+            cur, usuario=usuario, no_cia=no_cia, punto=punto,
+            modulo="ODC", tipo_documento="ORDEN", no_documento=no_orden,
+            accion="EDITAR",
+            cambios=[{'campo': 'cantidad_recibida', 'etiqueta': 'Recepción de mercancía',
+                      'valor_anterior': '', 'valor_nuevo': f'estado={estado_final}'}],
+        )
+        cur.connection.commit()
+    return {'estado_final': estado_final, 'lineas_actualizadas': actualizadas}
+
+
+def deshacer_recepcion(no_cia: str, punto: str, no_orden: str,
+                       lineas: list[dict], usuario: str = 'API') -> dict:
+    """Inversa de registrar_recepcion: resta cantidad_recibida por producto y
+    reabre la orden a 'P' si había quedado cerrada ('R'). Se llama desde
+    inv_repo.reversar_documento_inv cuando el documento reversado estaba
+    ligado a una orden (non-blocking para el caller)."""
+    orden = get_orden(no_cia, punto, no_orden)
+    if not orden:
+        raise ValueError(f"Orden {no_orden} no encontrada")
+
+    cantidad_por_prod: dict[str, float] = {}
+    for ln in lineas:
+        k = str(ln.get('no_produ') or '').strip().upper()
+        if not k:
+            continue
+        cantidad_por_prod[k] = cantidad_por_prod.get(k, 0.0) + float(ln.get('cantidad') or 0)
+
+    with client.cursor() as cur:
+        for no_produ, delta in cantidad_por_prod.items():
+            cur.execute(
+                "UPDATE ODC.TODC_ORDENL SET cantidad_recibida = "
+                "GREATEST(NVL(cantidad_recibida,0) - :1, 0) "
+                "WHERE no_cia=:2 AND punto=:3 AND no_orden=:4 AND no_produ=:5",
+                [delta, no_cia, punto, no_orden, no_produ])
+        if str(orden.get('estado') or '').upper() == 'R':
+            cur.execute(
+                "UPDATE ODC.TODC_ORDEN SET estado='P' "
+                "WHERE no_cia=:1 AND punto=:2 AND no_orden=:3",
+                [no_cia, punto, no_orden])
+        historial_repo.log_evento(
+            cur, usuario=usuario, no_cia=no_cia, punto=punto,
+            modulo="ODC", tipo_documento="ORDEN", no_documento=no_orden,
+            accion="EDITAR",
+            cambios=[{'campo': 'cantidad_recibida', 'etiqueta': 'Recepción de mercancía',
+                      'valor_anterior': '', 'valor_nuevo': 'deshecha'}],
+        )
+        cur.connection.commit()
+    return {'estado_final': 'P'}
+
+
 # ---------------------------------------------------------------------------
 # Requisiciones internas
 # ---------------------------------------------------------------------------

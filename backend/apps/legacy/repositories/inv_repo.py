@@ -2721,7 +2721,7 @@ def _insert_movimiento(cur, *, no_cia, punto, tipo_docu, no_docu, no_linea,
                        almacen, no_produ, tipo_movi, tipo_transaccion,
                        fecha, cantidad, precio, costo, empaque, cpe,
                        usuario, impuesto=0.0, descuento=0.0,
-                       tipo_refe='', no_refe=''):
+                       tipo_refe='', no_refe='', no_orden=None):
     """INSERT directo a INV.TINV_MOVIMIENTO con todos los NOT NULL cubiertos.
 
     monto_neto es el valor de la linea al precio del documento (no al costo
@@ -2739,7 +2739,7 @@ def _insert_movimiento(cur, *, no_cia, punto, tipo_docu, no_docu, no_linea,
         "  st_anulado, empaque, cpe, usuario, monto_neto,"
         "  impuesto, descuento,"
         "  no_localidad, fecha_sysdate, aumento_cxc,"
-        "  tipo_refe, no_refe"
+        "  tipo_refe, no_refe, no_orden"
         ") VALUES("
         "  :1, :2, :3, :4, :5,"
         "  :6, :7, :8, :9, 'I',"
@@ -2747,13 +2747,13 @@ def _insert_movimiento(cur, *, no_cia, punto, tipo_docu, no_docu, no_linea,
         "  'N', :14, :15, :16, :17,"
         "  :18, :19,"
         "  :20, SYSDATE, 0,"
-        "  :21, :22)",
+        "  :21, :22, :23)",
         [no_cia, punto, tipo_docu, no_docu, no_linea,
          almacen, no_produ, tipo_movi, tipo_transaccion,
          fecha, cantidad, precio, costo,
          empaque, cpe, (usuario or '')[:30],
          monto_neto, impuesto, descuento,
-         no_cia, tipo_refe, no_refe])
+         no_cia, tipo_refe, no_refe, no_orden])
 
 
 def _adjust_eproducto_stock(cur, *, no_cia, punto, almacen, no_produ,
@@ -2805,7 +2805,7 @@ def _upsert_rme_header(cur, *, no_cia, punto, tipo_docu, no_docu, fecha,
                        no_cliente='', vendedor='', tipo_docu_devuelto='',
                        no_docu_devuelto='', porc_impuesto=0.0, impuesto=0.0,
                        descuento=0.0, total_neto=None, valor_bienes=None,
-                       ncf=None, posiciones_fijas_ncf=None):
+                       ncf=None, posiciones_fijas_ncf=None, destino=None):
     # Binds numerados repetidos (:2,:2 / :11,:11) + lista posicional dan
     # ORA-01008 en modo thick — estos dos statements usan binds nombrados.
     no_proveedor = (no_proveedor or '').strip()[:6] or None
@@ -2836,6 +2836,7 @@ def _upsert_rme_header(cur, *, no_cia, punto, tipo_docu, no_docu, fecha,
         'no_cliente': no_cliente_val, 'vendedor': vendedor,
         'tipo_docu_devuelto': tipo_docu_devuelto, 'no_docu_devuelto': no_docu_devuelto,
         'ncf': ncf, 'posiciones_fijas_ncf': (posiciones_fijas_ncf or None),
+        'destino': (destino or None),
     }
     cur.execute(
         "UPDATE INV.TINV_RME SET nota=:nota, total_linea=:total, "
@@ -2845,7 +2846,8 @@ def _upsert_rme_header(cur, *, no_cia, punto, tipo_docu, no_docu, fecha,
         "no_cliente=NVL(:no_cliente, no_cliente), vendedor=NVL(:vendedor, vendedor), "
         "tipo_docu_devuelto=NVL(:tipo_docu_devuelto, tipo_docu_devuelto), "
         "no_docu_devuelto=NVL(:no_docu_devuelto, no_docu_devuelto), "
-        "ncf=NVL(:ncf, ncf), posiciones_fijas_ncf=NVL(:posiciones_fijas_ncf, posiciones_fijas_ncf) "
+        "ncf=NVL(:ncf, ncf), posiciones_fijas_ncf=NVL(:posiciones_fijas_ncf, posiciones_fijas_ncf), "
+        "destino=NVL(:destino, destino) "
         "WHERE no_cia=:no_cia AND punto=:punto AND tipo_docu=:tipo_docu "
         "AND no_docu=:no_docu",
         binds)
@@ -2859,7 +2861,7 @@ def _upsert_rme_header(cur, *, no_cia, punto, tipo_docu, no_docu, fecha,
         "tasa_us,porc_impuesto,impuesto,descuento,total_linea,total_neto,"
         "valor_bienes,valor_servicio,isc,otros_impuestos,propina,entregado,"
         "no_proveedor,rnc,no_cliente,vendedor,tipo_docu_devuelto,no_docu_devuelto,"
-        "ncf,posiciones_fijas_ncf"
+        "ncf,posiciones_fijas_ncf,destino"
         ") VALUES("
         ":no_cia,:punto,:tipo_docu,:no_docu,TO_DATE(:fecha,'YYYY-MM-DD'),SYSDATE,"
         "'A',:usuario,'N','N','N',"
@@ -2867,7 +2869,7 @@ def _upsert_rme_header(cur, *, no_cia, punto, tipo_docu, no_docu, fecha,
         "1,:porc_impuesto,:impuesto,:descuento,:total,:total_neto,"
         ":valor_bienes,0,0,0,0,'N',"
         ":no_proveedor,:rnc,:no_cliente,:vendedor,:tipo_docu_devuelto,:no_docu_devuelto,"
-        ":ncf,:posiciones_fijas_ncf"
+        ":ncf,:posiciones_fijas_ncf,:destino"
         ")",
         dict(binds, no_localidad=no_cia, fecha=fecha,
              tipo_transaccion=tipo_transaccion, tipo_movi=tipo_movi))
@@ -2954,7 +2956,8 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                                  no_docu_devuelto: str = '',
                                  ncf: str = '', pct_itbis: float = 0.0,
                                  forma_pago: int | None = None,
-                                 fecha_vcto: str = '') -> dict:
+                                 fecha_vcto: str = '',
+                                 no_orden: str = '', destino: str = '') -> dict:
     """Crea un documento de inventario con N lineas.
 
     Soporta los 10 tipos del legado:
@@ -3084,7 +3087,8 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                 tipo_movi=tipo_movi, tipo_transaccion=tipo_transaccion,
                 fecha=fecha, cantidad=cantidad, precio=precio, costo=costo,
                 empaque=empaque, cpe=cpe, usuario=usuario,
-                impuesto=impuesto_linea, descuento=descuento_linea)
+                impuesto=impuesto_linea, descuento=descuento_linea,
+                no_orden=(no_orden or None))
             _adjust_eproducto_stock(
                 cur, no_cia=no_cia, punto=punto, almacen=almacen_origen,
                 no_produ=no_produ, tipo_movi=tipo_movi, cantidad=cantidad)
@@ -3144,7 +3148,8 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
             porc_impuesto=porc_impuesto, impuesto=total_impuesto,
             descuento=total_descuento, total_neto=total_neto,
             valor_bienes=valor_bienes,
-            ncf=ncf_val, posiciones_fijas_ncf=posiciones_fijas_ncf)
+            ncf=ncf_val, posiciones_fijas_ncf=posiciones_fijas_ncf,
+            destino=(destino or None))
         historial_repo.log_evento(
             cur, usuario=usuario, no_cia=no_cia, punto=punto,
             modulo="INV", tipo_documento=tipo_docu, no_documento=no_docu,
@@ -3273,12 +3278,27 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
             # si el espejo en CxC falla no se revierte, solo se reporta.
             cxc_mirror = {'error': str(exc)}
 
+    recepcion_odc = None
+    if tipo_docu == 'EC' and no_orden:
+        # Registra lo recibido en esta entrada contra la orden de origen:
+        # suma cantidad_recibida por producto y cierra la orden (estado='R')
+        # si ya no queda pendiente en ninguna línea; si no, la deja/vuelve a
+        # 'P' (abierta) para completarla con otra entrada. Non-blocking: si
+        # falla, la entrada de INV ya quedó confirmada igual (mismo criterio
+        # que cxp_mirror).
+        from .odc_repo import registrar_recepcion as _odc_registrar_recepcion
+        try:
+            recepcion_odc = _odc_registrar_recepcion(
+                no_cia, punto, no_orden, lineas, usuario)
+        except Exception as exc:
+            recepcion_odc = {'error': str(exc)}
+
     ncf_dgi = f"{posiciones_fijas_ncf}{ncf_val:08d}" if posiciones_fijas_ncf and ncf_val else ''
     return {
         'no_cia': no_cia, 'punto': punto, 'tipo_docu': tipo_docu,
         'no_docu': no_docu, 'lineas_creadas': creadas,
         'ncf': ncf_val, 'ncf_dgi': ncf_dgi, 'cxc_mirror': cxc_mirror,
-        'cxp_mirror': cxp_mirror,
+        'cxp_mirror': cxp_mirror, 'recepcion_odc': recepcion_odc,
         'tipo_movi': tipo_movi, 'fecha': fecha, 'nota': nota,
     }
 
@@ -3303,7 +3323,7 @@ def reversar_documento_inv(*, no_cia: str, punto: str, tipo_docu: str,
         cur.execute(
             "SELECT no_linea, almacen, no_produ, cantidad, precio, costo,"
             "       tipo_movi, tipo_transaccion, empaque, cpe, "
-            "       NVL(st_anulado,'N') "
+            "       NVL(st_anulado,'N'), no_orden "
             "FROM INV.TINV_MOVIMIENTO "
             "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4 "
             "ORDER BY no_linea FOR UPDATE",
@@ -3320,8 +3340,12 @@ def reversar_documento_inv(*, no_cia: str, punto: str, tipo_docu: str,
             [no_cia, punto, tipo_docu, no_docu])
 
         no_af = _next_inv_seq(cur, no_cia, punto, 'AF')
+        lineas_por_orden: dict[str, list[dict]] = {}
         for r in rows:
-            no_linea, almacen_o, no_produ_o, cant, precio, costo, tm, tr, emp, cpe, _ = r
+            no_linea, almacen_o, no_produ_o, cant, precio, costo, tm, tr, emp, cpe, _, no_orden_r = r
+            if no_orden_r and (tm or '').upper() == 'E':
+                lineas_por_orden.setdefault(str(no_orden_r), []).append(
+                    {'no_produ': no_produ_o, 'cantidad': float(cant or 0)})
             tipo_opuesto = 'E' if (tm or '').upper() == 'S' else 'S'
             _insert_movimiento(
                 cur, no_cia=no_cia, punto=punto, tipo_docu='AF', no_docu=no_af,
@@ -3356,10 +3380,24 @@ def reversar_documento_inv(*, no_cia: str, punto: str, tipo_docu: str,
         )
         cur.connection.commit()
 
+    recepcion_odc = None
+    if lineas_por_orden:
+        # Reversar una EC ligada a una orden debe restar lo que había sumado
+        # a cantidad_recibida y reabrir la orden si se había cerrado sola
+        # (non-blocking: la reversa de INV ya quedó confirmada igual).
+        from .odc_repo import deshacer_recepcion as _odc_deshacer_recepcion
+        recepcion_odc = {}
+        for _no_orden, _lineas in lineas_por_orden.items():
+            try:
+                recepcion_odc[_no_orden] = _odc_deshacer_recepcion(
+                    no_cia, punto, _no_orden, _lineas, usuario)
+            except Exception as exc:
+                recepcion_odc[_no_orden] = {'error': str(exc)}
+
     return {
         'tipo_docu': tipo_docu, 'no_docu': no_docu,
         'tipo_anula': 'AF', 'no_anula': no_af, 'motivo': motivo,
-        'lineas_reversadas': len(rows),
+        'lineas_reversadas': len(rows), 'recepcion_odc': recepcion_odc,
     }
 
 
@@ -3395,6 +3433,8 @@ def create_movimiento_from_payload(payload: dict, usuario: str = 'API') -> dict:
         forma_pago={'contado': 1, 'credito': 4}.get(
             str(payload.get('forma_pago', '')).strip().lower()),
         fecha_vcto=str(payload.get('fecha_vcto', '')).strip()[:10],
+        no_orden=str(payload.get('no_orden', '')).strip(),
+        destino=str(payload.get('destino', '')).strip()[:1].upper(),
     )
 
 
