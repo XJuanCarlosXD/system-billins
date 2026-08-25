@@ -1,8 +1,12 @@
 """CXC (Cuentas por Cobrar) - Oracle repository. Schema verified against live DB."""
 from __future__ import annotations
+import re
 from .. import client
 from datetime import date
 from apps.historial import repo as historial_repo
+
+_RNC_RE = re.compile(r'^\d{9}$')
+_CEDULA_RE = re.compile(r'^\d{11}$')
 
 
 # --- COMPANIAS ---------------------------------------------------------------
@@ -488,6 +492,11 @@ def save_cliente(d: dict):
     telefono2 = d.get('telefono2') or d.get('celular', '')
     contactos = d.get('contactos', [])
     referencias = d.get('referencias', [])
+    # RNC/cédula son opcionales (consumidor final no siempre los da), pero si
+    # vienen se normalizan a solo dígitos: así el duplicado y el 606 no se
+    # dividen entre "123-45678-9" y "123456789" como si fueran distintos.
+    rnc = re.sub(r'\D', '', d.get('rnc', '') or '')
+    cedula = re.sub(r'\D', '', d.get('cedula', '') or '')
     # Validar longitudes contra los VARCHAR2 reales de CXC.TCXC_CLIENTE antes
     # de consumir la secuencia — así el usuario ve el campo exacto y no un ORA-12899.
     errores: list = []
@@ -503,8 +512,12 @@ def save_cliente(d: dict):
     _check_len(errores, "Tipo Contable", tipo_contable, 2)
     _check_len(errores, "Tipo de Cliente", tipo_cliente, 2)
     _check_len(errores, "Nombre", nombre, 40)
-    _check_len(errores, "Cédula", d.get('cedula', ''), 12)
-    _check_len(errores, "RNC / Cédula", d.get('rnc', ''), 16)
+    _check_len(errores, "Cédula", cedula, 12)
+    _check_len(errores, "RNC / Cédula", rnc, 16)
+    if rnc and not _RNC_RE.match(rnc):
+        errores.append("El RNC debe tener 9 dígitos")
+    if cedula and not _CEDULA_RE.match(cedula):
+        errores.append("La cédula debe tener 11 dígitos")
     _check_len(errores, "Teléfono", d.get('telefono', ''), 14)
     _check_len(errores, "Celular", telefono2, 14)
     _check_len(errores, "Email", email1, 80)
@@ -534,6 +547,25 @@ def save_cliente(d: dict):
                    r.get('relacion') or r.get('contacto', ''), 40)
     if errores:
         raise ValueError("; ".join(errores))
+
+    # Duplicidad: mismo RNC/cédula ya registrado en otro cliente de la misma
+    # compañía. Sin esto, un cliente tecleado dos veces con el mismo RNC
+    # queda como dos cuentas separadas y el crédito/606 se reparte mal.
+    for campo, valor, etiqueta in (('rnc', rnc, 'RNC'), ('cedula', cedula, 'cédula')):
+        if not valor:
+            continue
+        dup_sql = (f"SELECT no_cliente, nombre FROM CXC.TCXC_CLIENTE "
+                   f"WHERE no_cia=:1 AND {campo}=:2")
+        dup_params = [no_cia, valor]
+        if d.get('no_cliente'):
+            dup_sql += " AND no_cliente != :3"
+            dup_params.append(d['no_cliente'])
+        dup = client.fetch_dicts(dup_sql, dup_params)
+        if dup:
+            raise ValueError(
+                f"Ya existe el cliente {dup[0]['no_cliente']} "
+                f"({dup[0]['nombre']}) con ese {etiqueta}")
+
     with client.cursor() as cur:
         is_new = not d.get('no_cliente')
         if is_new:
@@ -563,7 +595,7 @@ def save_cliente(d: dict):
                 "ruta_entrega=:15, limite_credito=:16, plazo=:17, codigo_ncf=:18 "
                 "WHERE no_cia=:19 AND no_cliente=:20",
                 [nombre, tipo_contable, tipo_cliente,
-                 d.get('cedula', ''), d.get('rnc', ''), d.get('telefono', ''),
+                 cedula, rnc, d.get('telefono', ''),
                  telefono2, email1, d.get('direccion', ''),
                  d.get('ciudad', ''), d.get('barrio', ''), d.get('zona', ''),
                  no_cadena, d.get('vendedor', ''), ruta_entrega,
@@ -583,7 +615,7 @@ def save_cliente(d: dict):
                 "'N',0,'N','S','N','N','N','N')",
                 [no_cia, punto, d['no_cliente'], nombre,
                  tipo_contable, tipo_cliente,
-                 d.get('cedula', ''), d.get('rnc', ''), d.get('telefono', ''),
+                 cedula, rnc, d.get('telefono', ''),
                  telefono2, email1, d.get('direccion', ''),
                  d.get('ciudad', ''), d.get('barrio', ''), d.get('zona', ''),
                  no_cadena, d.get('vendedor', ''), ruta_entrega,

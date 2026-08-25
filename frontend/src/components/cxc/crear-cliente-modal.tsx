@@ -146,6 +146,18 @@ export function CrearClienteModal({
       setCadenas(ca || [])
       setTcontables(tc || [])
       setNcfOptions(ncf || [])
+      // Tipo de Cliente y Tipo Contable son catálogos que casi nadie conoce
+      // de memoria — sin un default, cada alta se traba ahí. Se precargan
+      // con el primero de la lista (editable) solo al crear, nunca al editar.
+      if (!isEdit) {
+        const firstTcli = (t || [])[0] as any
+        const firstTconta = (tc || [])[0] as any
+        setForm((f) => ({
+          ...f,
+          tipo_cli: f.tipo_cli || String(firstTcli?.tipo_cliente ?? firstTcli?.tipo_cli ?? ''),
+          tipo_conta: f.tipo_conta || String(firstTconta?.tipo_contable ?? firstTconta?.tipo_conta ?? ''),
+        }))
+      }
     })
 
     if (isEdit && editingNoCliente) {

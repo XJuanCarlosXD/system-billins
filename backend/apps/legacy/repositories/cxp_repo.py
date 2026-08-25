@@ -1,8 +1,13 @@
 from __future__ import annotations
 import json
+import re
 from datetime import date, datetime
+import oracledb
 from .. import client
 from apps.historial import repo as historial_repo
+
+_RNC_RE = re.compile(r'^\d{9}$')
+_CEDULA_RE = re.compile(r'^\d{11}$')
 
 
 class PeriodoFuturoEncolado(Exception):
@@ -165,6 +170,38 @@ def get_proveedor(no_proveedor):
 
 def save_proveedor(data: dict):
     no_proveedor = (data.get('no_proveedor') or '').strip()
+    nombre = (data.get('nombre') or '').strip()
+    rnc = re.sub(r'\D', '', data.get('rnc') or '')
+    cedula = re.sub(r'\D', '', data.get('cedula') or '')
+    data = {**data, 'nombre': nombre, 'rnc': rnc, 'cedula': cedula}
+
+    errores: list = []
+    if not nombre:
+        errores.append("El nombre es requerido")
+    if rnc and not _RNC_RE.match(rnc):
+        errores.append("El RNC debe tener 9 dígitos")
+    if cedula and not _CEDULA_RE.match(cedula):
+        errores.append("La cédula debe tener 11 dígitos")
+    if errores:
+        raise ValueError("; ".join(errores))
+
+    # Duplicidad: mismo RNC o cédula ya registrado en otro proveedor. Sin
+    # esto, dos altas con el mismo RNC quedan como proveedores separados y
+    # el 606/pagos se dividen entre ambos sin que nadie lo note.
+    for campo, valor, etiqueta in (('rnc', rnc, 'RNC'), ('cedula', cedula, 'cédula')):
+        if not valor:
+            continue
+        dup_sql = f"SELECT no_proveedor, nombre FROM CXP.TCXP_DPROVEEDOR WHERE {campo}=:1"
+        dup_params = [valor]
+        if no_proveedor:
+            dup_sql += " AND no_proveedor != :2"
+            dup_params.append(no_proveedor)
+        dup = client.fetch_dicts(dup_sql, dup_params)
+        if dup:
+            raise ValueError(
+                f"Ya existe el proveedor {dup[0]['no_proveedor']} "
+                f"({dup[0]['nombre']}) con ese {etiqueta}")
+
     with client.cursor() as cur:
         if no_proveedor:
             existing_rows = client.fetch_dicts(
@@ -177,8 +214,9 @@ def save_proveedor(data: dict):
                     e_mail=:7, web_site=:8, direccion=:9,
                     encargado=:10, plazo_pago=:11, activo=:12,
                     excento_itbis=:13, categoria=:14, clasificacion=:15,
-                    cuenta_banco=:16, codigo_banco=:17, tipo_cuenta=:18
-                WHERE no_proveedor=:19
+                    cuenta_banco=:16, codigo_banco=:17, tipo_cuenta=:18,
+                    tipo_proveedor=:19
+                WHERE no_proveedor=:20
             """, [
                 data.get('nombre') or ex.get('nombre', ''),
                 data.get('rnc') if data.get('rnc') is not None else ex.get('rnc', ''),
@@ -188,7 +226,7 @@ def save_proveedor(data: dict):
                 data.get('fax') if data.get('fax') is not None else ex.get('fax', ''),
                 data.get('e_mail') if data.get('e_mail') is not None else ex.get('e_mail', ''),
                 data.get('web_site') if data.get('web_site') is not None else ex.get('web_site', ''),
-                data.get('direccion') if data.get('direccion') is not None else ex.get('direccion', ''),
+                (data.get('direccion') if data.get('direccion') is not None else ex.get('direccion', '')) or 'N/D',
                 data.get('encargado') if data.get('encargado') is not None else ex.get('encargado', ''),
                 data.get('plazo_pago') if data.get('plazo_pago') is not None else ex.get('plazo_pago', 0),
                 data.get('activo') or ex.get('activo', 'S'),
@@ -198,32 +236,56 @@ def save_proveedor(data: dict):
                 data.get('cuenta_banco') if data.get('cuenta_banco') is not None else ex.get('cuenta_banco', ''),
                 data.get('codigo_banco') if data.get('codigo_banco') is not None else ex.get('codigo_banco', ''),
                 data.get('tipo_cuenta') if data.get('tipo_cuenta') is not None else ex.get('tipo_cuenta', ''),
+                data.get('tipo_proveedor') or ex.get('tipo_proveedor', '01'),
                 no_proveedor,
             ])
         else:
-            cur.execute("""
-                SELECT NVL(MAX(TO_NUMBER(no_proveedor)), 0) + 1
-                FROM CXP.TCXP_DPROVEEDOR
-                WHERE REGEXP_LIKE(no_proveedor, '^[0-9]+$')
-            """, [])
-            row = cur.fetchone()
-            no_proveedor = str(int(row[0])).zfill(6)
-            cur.execute("""
-                INSERT INTO CXP.TCXP_DPROVEEDOR
-                    (no_proveedor, nombre, rnc, cedula, telefono, celular, fax,
-                     e_mail, web_site, direccion, encargado, plazo_pago, activo,
-                     excento_itbis, categoria, clasificacion,
-                     cuenta_banco, codigo_banco, tipo_cuenta)
-                VALUES (:1,:2,:3,:4,:5,:6,:7,:8,:9,:10,:11,:12,:13,:14,:15,:16,:17,:18,:19)
-            """, [
-                no_proveedor,
-                data.get('nombre', ''), data.get('rnc', ''), data.get('cedula', ''),
-                data.get('telefono', ''), data.get('celular', ''), data.get('fax', ''),
-                data.get('e_mail', ''), data.get('web_site', ''), data.get('direccion', ''),
-                data.get('encargado', ''), data.get('plazo_pago', 0), data.get('activo', 'S'),
-                data.get('excento_itbis', 'N'), data.get('categoria', ''), data.get('clasificacion', ''),
-                data.get('cuenta_banco', ''), data.get('codigo_banco', ''), data.get('tipo_cuenta', ''),
-            ])
+            # No hay columna "prox_proveedor" para hacer FOR UPDATE como en
+            # clientes (cxc_repo.save_cliente): el codigo sale de MAX+1 sobre
+            # la propia tabla. Sin proteccion, dos altas simultaneas leen el
+            # mismo MAX y la segunda choca con ORA-00001 (PK duplicada) --
+            # reintenta con el siguiente numero en vez de fallar crudo.
+            for intento in range(5):
+                cur.execute("""
+                    SELECT NVL(MAX(TO_NUMBER(no_proveedor)), 0) + 1
+                    FROM CXP.TCXP_DPROVEEDOR
+                    WHERE REGEXP_LIKE(no_proveedor, '^[0-9]+$')
+                """, [])
+                row = cur.fetchone()
+                no_proveedor = str(int(row[0]) + intento).zfill(6)
+                try:
+                    cur.execute("""
+                        INSERT INTO CXP.TCXP_DPROVEEDOR
+                            (no_proveedor, nombre, rnc, cedula, telefono, celular, fax,
+                             e_mail, web_site, direccion, encargado, plazo_pago, activo,
+                             excento_itbis, categoria, clasificacion,
+                             cuenta_banco, codigo_banco, tipo_cuenta, tipo_proveedor, fecha)
+                        VALUES (:1,:2,:3,:4,:5,:6,:7,:8,:9,:10,:11,:12,:13,:14,:15,:16,:17,:18,:19,:20,SYSDATE)
+                    """, [
+                        no_proveedor,
+                        data.get('nombre', ''), data.get('rnc', ''), data.get('cedula', ''),
+                        data.get('telefono', ''), data.get('celular', ''), data.get('fax', ''),
+                        data.get('e_mail', ''), data.get('web_site', ''),
+                        # DIRECCION es NOT NULL — Oracle guarda '' como NULL en
+                        # VARCHAR2, así que sin este fallback el alta revienta
+                        # con ORA-01400 apenas se deja en blanco (campo opcional
+                        # en el formulario). Mismo placeholder 'N/D' que ya usa
+                        # cxc_repo.save_cliente para columnas NOT NULL sin dato.
+                        data.get('direccion') or 'N/D',
+                        data.get('encargado', ''), data.get('plazo_pago', 0), data.get('activo', 'S'),
+                        data.get('excento_itbis', 'N'), data.get('categoria', ''), data.get('clasificacion', ''),
+                        data.get('cuenta_banco', ''), data.get('codigo_banco', ''), data.get('tipo_cuenta', ''),
+                        # TIPO_PROVEEDOR es NOT NULL sin default en el schema; el
+                        # formulario nunca lo pide (nadie sabe distinguir "01
+                        # Nacional" de "02 Internacional" a simple vista), así
+                        # que se asume Nacional salvo que venga explícito.
+                        data.get('tipo_proveedor') or '01',
+                    ])
+                    break
+                except oracledb.DatabaseError as e:
+                    if 'ORA-00001' in str(e) and intento < 4:
+                        continue
+                    raise
         cur.connection.commit()
     return {'no_proveedor': no_proveedor}
 

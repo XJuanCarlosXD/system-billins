@@ -26,7 +26,10 @@ def cxp_proveedores(request):
         rows = cxp_repo.list_proveedores(search=search, activo=activo)
         return JsonResponse(rows, safe=False)
     data = json.loads(request.body)
-    result = cxp_repo.save_proveedor(data)
+    try:
+        result = cxp_repo.save_proveedor(data)
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
     return JsonResponse(result, status=201)
 
 
@@ -41,7 +44,10 @@ def cxp_proveedor(request, no):
         return JsonResponse(row)
     data = json.loads(request.body)
     data['no_proveedor'] = no
-    result = cxp_repo.save_proveedor(data)
+    try:
+        result = cxp_repo.save_proveedor(data)
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
     return JsonResponse(result)
 
 

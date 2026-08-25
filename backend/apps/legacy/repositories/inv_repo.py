@@ -277,6 +277,10 @@ def create_producto(payload: dict, usuario: str = '') -> dict:
     tiene_imp = str(payload.get('tiene_impuesto') or 'S').upper()[:1]
     porc_imp = float(payload.get('porciento_impuesto') or (18 if tiene_imp == 'S' else 0))
     costo = float(payload.get('costo') or 0)
+    if costo < 0:
+        raise ValueError("costo no puede ser negativo")
+    if not (0 <= porc_imp <= 100):
+        raise ValueError("porciento_impuesto debe estar entre 0 y 100")
     servicio = str(payload.get('servicio') or 'I').upper()[:1]
     activo = str(payload.get('activo') or 'S').upper()[:1]
     marca = (payload.get('marca') or '')[:4] or None
@@ -642,6 +646,11 @@ def update_producto(no_produ: str, payload: dict, usuario: str = '') -> dict:
             except (TypeError, ValueError):
                 raise ValueError(f"Valor inválido para {k}")
             sets.append(f"{col} = :{col}")
+
+    if 'costo_mercado_rd' in binds and binds['costo_mercado_rd'] < 0:
+        raise ValueError("costo no puede ser negativo")
+    if 'porciento_impuesto' in binds and not (0 <= binds['porciento_impuesto'] <= 100):
+        raise ValueError("porciento_impuesto debe estar entre 0 y 100")
 
     # Asignación a almacenes de una o varias empresas (checkboxes del
     # formulario "Editar Producto"): mismo mecanismo que create_producto,
