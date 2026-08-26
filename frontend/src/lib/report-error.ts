@@ -12,11 +12,27 @@ function currentModulo(): string {
   return known.includes(seg) ? seg.toUpperCase() : 'OTRO'
 }
 
+// Errores puros de red del navegador (sin status HTTP): fetch abortado por
+// navegacion, wifi cortado un instante, backend reiniciando, offline. No hay
+// bug que arreglar y crean ruido en TREP_PROBLEMA.
+function esErrorRedTransitorio(mensaje: string, statusHttp?: number | null): boolean {
+  if (statusHttp !== undefined && statusHttp !== null) return false
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return true
+  const m = (mensaje || '').toLowerCase()
+  return (
+    m.includes('failed to fetch') ||
+    m.includes('load failed') ||
+    m.includes('networkerror') ||
+    m.includes('network request failed')
+  )
+}
+
 /** Fire-and-forget: nunca lanza, nunca bloquea al caller. */
 export async function logErrorAutomatico(mensaje: string, opts?: {
   statusHttp?: number
   detalle?: string
 }): Promise<number | null> {
+  if (esErrorRedTransitorio(mensaje, opts?.statusHttp)) return null
   try {
     const res = await fetch(`${API_BASE}/reportes/error-log/`, {
       method: 'POST',
