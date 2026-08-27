@@ -1781,7 +1781,8 @@ def estado_cuenta(no_cia: str, no_cliente: str):
         "LEFT JOIN CXC.TCXC_TDOCU t "
         "  ON t.no_cia=d.no_cia AND t.tipo_docu=d.tipo_docu "
         "WHERE d.no_cia=:1 AND d.no_cliente=:2 "
-        "  AND NVL(d.st_anulado,'N')='N' AND NVL(d.saldo,0)<>0 "
+        "  AND NVL(d.st_anulado,'N')='N' "
+        "  AND (NVL(d.saldo,0)<>0 OR d.tipo_docu='DV') "
         "ORDER BY d.fecha, d.no_docu",
         [no_cia, no_cliente])
     row = cli[0]
