@@ -12,18 +12,25 @@ function currentModulo(): string {
   return known.includes(seg) ? seg.toUpperCase() : 'OTRO'
 }
 
-// Errores puros de red del navegador (sin status HTTP): fetch abortado por
-// navegacion, wifi cortado un instante, backend reiniciando, offline. No hay
-// bug que arreglar y crean ruido en TREP_PROBLEMA.
+// Errores puros de red/conectividad: fetch abortado por navegacion, wifi
+// cortado un instante, backend reiniciando, offline, timeout, o el backend
+// caido detras del proxy (502/503/504). No hay bug de la app que arreglar y
+// crean ruido en TREP_PROBLEMA.
 function esErrorRedTransitorio(mensaje: string, statusHttp?: number | null): boolean {
+  if (statusHttp === 502 || statusHttp === 503 || statusHttp === 504) return true
   if (statusHttp !== undefined && statusHttp !== null) return false
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return true
   const m = (mensaje || '').toLowerCase()
   return (
     m.includes('failed to fetch') ||
     m.includes('load failed') ||
+    m.includes('network error') || // mensaje real de axios sin respuesta (espacio, no "networkerror")
     m.includes('networkerror') ||
-    m.includes('network request failed')
+    m.includes('network request failed') ||
+    m.includes('err_network') ||
+    m.includes('timeout') ||
+    m.includes('econnaborted') ||
+    m.includes('econnrefused')
   )
 }
 
