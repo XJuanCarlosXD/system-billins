@@ -237,6 +237,67 @@ def list_reportes(
     )
 
 
+def list_mensajes(reporte_id: str) -> list[dict]:
+    with client.cursor() as cur:
+        cur.execute(
+            "SELECT MENSAJE_ID, ROL, CONTENIDO, USUARIO, "
+            "TO_CHAR(FECHA_CREACION,'YYYY-MM-DD HH24:MI:SS') fecha "
+            "FROM ABREGONZA.TREP_MENSAJE WHERE REPORTE_ID = :1 "
+            "ORDER BY FECHA_CREACION, MENSAJE_ID",
+            [reporte_id],
+        )
+        cols = [c[0].lower() for c in cur.description]
+        out = []
+        for row in cur.fetchall():
+            d = dict(zip(cols, row))
+            if hasattr(d.get("contenido"), "read"):
+                d["contenido"] = d["contenido"].read()
+            out.append(d)
+    return out
+
+
+def responder_hold(reporte_id: str, *, usuario: str, is_admin: bool, mensaje: str) -> dict:
+    """El autor del reporte (o un admin) responde la pregunta que el runner
+    dejo en HOLD. Reabre el reporte a ABIERTO para que la proxima corrida del
+    runner lo retome -- ve la respuesta al leer TREP_MENSAJE junto con el
+    reporte (misma cola normal del Paso 1, sin logica especial de "buscar
+    reportes respondidos")."""
+    mensaje = (mensaje or "").strip()
+    if not mensaje:
+        raise ValidationError("mensaje_requerido")
+
+    with client.cursor() as cur:
+        cur.execute(
+            "SELECT ESTADO, USUARIO FROM ABREGONZA.TREP_PROBLEMA "
+            "WHERE REPORTE_ID = :1",
+            [reporte_id],
+        )
+        row = cur.fetchone()
+        if not row:
+            raise LookupError("not_found")
+        estado_actual, autor = row
+
+        if not is_admin and (autor or "").upper() != (usuario or "").upper():
+            raise PermissionError("forbidden")
+        if estado_actual != "HOLD":
+            raise ValidationError("no_esta_en_hold")
+
+        mensaje_id = str(uuid.uuid4())
+        cur.execute(
+            "INSERT INTO ABREGONZA.TREP_MENSAJE "
+            "(MENSAJE_ID, REPORTE_ID, ROL, CONTENIDO, USUARIO, FECHA_CREACION) "
+            "VALUES (:1, :2, 'USUARIO', :3, :4, SYSDATE)",
+            [mensaje_id, reporte_id, mensaje, (usuario or "").upper()[:30]],
+        )
+        cur.execute(
+            "UPDATE ABREGONZA.TREP_PROBLEMA SET ESTADO = 'ABIERTO', "
+            "FECHA_ACTUALIZACION = SYSDATE WHERE REPORTE_ID = :1",
+            [reporte_id],
+        )
+        cur.connection.commit()
+    return {"reporte_id": reporte_id, "estado": "ABIERTO"}
+
+
 def get_reporte(reporte_id: str, *, usuario: str, is_admin: bool) -> dict | None:
     with client.cursor() as cur:
         cur.execute(
@@ -267,6 +328,7 @@ def get_reporte(reporte_id: str, *, usuario: str, is_admin: bool) -> dict | None
         )
         icols = [c[0].lower() for c in cur.description]
         r["imagenes"] = [dict(zip(icols, row)) for row in cur.fetchall()]
+    r["mensajes"] = list_mensajes(reporte_id)
     return r
 
 
@@ -339,6 +401,14 @@ def update_estado(
                 "WHERE REPORTE_ID = :3",
                 [nuevo_estado, nota_resolucion, reporte_id],
             )
+            if nota_resolucion:
+                cur.execute(
+                    "INSERT INTO ABREGONZA.TREP_MENSAJE "
+                    "(MENSAJE_ID, REPORTE_ID, ROL, CONTENIDO, USUARIO, FECHA_CREACION) "
+                    "VALUES (:1, :2, 'RUNNER', :3, :4, SYSDATE)",
+                    [str(uuid.uuid4()), reporte_id, nota_resolucion,
+                     (usuario or "").upper()[:30]],
+                )
         else:
             cur.execute(
                 "UPDATE ABREGONZA.TREP_PROBLEMA SET ESTADO = :1, "
@@ -447,6 +517,14 @@ def reclamar_pendiente() -> dict | None:
                     else (descripcion or "")
                 ),
             })
+    # Fuera del bloque `with` de arriba (esa conexion ya volvio al pool):
+    # si el reporte estuvo en HOLD antes (el usuario acaba de responder, lo
+    # que lo reabre a ABIERTO), trae el hilo de pregunta/respuesta para que
+    # el runner tenga el contexto sin tener que adivinar que se le pregunto.
+    for r in reportes:
+        mensajes = list_mensajes(r["reporte_id"])
+        if mensajes:
+            r["mensajes"] = mensajes
     return {"run_id": run_id, "reportes": reportes}
 
 

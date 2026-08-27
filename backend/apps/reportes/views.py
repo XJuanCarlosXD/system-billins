@@ -112,6 +112,30 @@ class ReporteDetailView(APIView):
         return Response(result)
 
 
+class ReporteResponderView(APIView):
+    """POST /api/reportes/<id>/responder/ — el autor (o un admin) responde
+    la pregunta que el runner dejo en HOLD. Reabre el reporte a ABIERTO."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, reporte_id):
+        body = request.data or {}
+        try:
+            result = repo.responder_hold(
+                reporte_id,
+                usuario=_u(request),
+                is_admin=_is_admin(request),
+                mensaje=body.get("mensaje"),
+            )
+        except LookupError:
+            return Response({"detail": "not_found"}, status=404)
+        except PermissionError:
+            return Response({"detail": "forbidden"}, status=403)
+        except repo.ValidationError as e:
+            return Response({"detail": str(e)}, status=400)
+        return Response(result)
+
+
 class ReporteImagenView(APIView):
     permission_classes = [IsAuthenticated]
 

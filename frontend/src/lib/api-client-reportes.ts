@@ -55,10 +55,19 @@ export type ReporteImagenMeta = {
   tamano_bytes: number
 }
 
+export type MensajeReporte = {
+  mensaje_id: string
+  rol: 'RUNNER' | 'USUARIO'
+  contenido: string
+  usuario: string | null
+  fecha: string
+}
+
 export type ReporteDetail = ReporteResumen & {
   descripcion: string
   nota_resolucion: string | null
   imagenes: ReporteImagenMeta[]
+  mensajes: MensajeReporte[]
 }
 
 export type NuevaImagenReporte = {
@@ -103,6 +112,13 @@ export function patchReporte(
   return request<{ reporte_id: string; estado: EstadoReporte }>(
     `/reportes/${reporteId}/`,
     { method: 'PATCH', body: JSON.stringify(body) }
+  )
+}
+
+export function responderReporte(reporteId: string, mensaje: string) {
+  return request<{ reporte_id: string; estado: EstadoReporte }>(
+    `/reportes/${reporteId}/responder/`,
+    { method: 'POST', body: JSON.stringify({ mensaje }) }
   )
 }
 

@@ -9,6 +9,7 @@ import {
   listReportes,
   MODULOS_REPORTE,
   patchReporte,
+  responderReporte,
   type EstadoReporte,
   type NuevaImagenReporte,
 } from '@/lib/api-client-reportes'
@@ -44,6 +45,7 @@ const MAX_IMAGEN_MB = 5
 const ESTADO_LABEL: Record<EstadoReporte, string> = {
   ABIERTO: 'Abierto',
   EN_PROGRESO: 'En progreso',
+  HOLD: 'Esperando tu respuesta',
   COMPLETADO: 'Completado',
   CANCELADO: 'Cancelado',
 }
@@ -54,6 +56,7 @@ const ESTADO_VARIANT: Record<
 > = {
   ABIERTO: 'outline',
   EN_PROGRESO: 'secondary',
+  HOLD: 'destructive',
   COMPLETADO: 'default',
   CANCELADO: 'destructive',
 }
@@ -280,6 +283,7 @@ export function MisReportes() {
             <p className='text-muted-foreground text-xs'>
               {r.modulo} · {new Date(r.fecha_creacion).toLocaleString()}
             </p>
+            {r.estado === 'HOLD' && <PreguntaYRespuesta reporteId={r.reporte_id} />}
             {(r.estado === 'COMPLETADO' || r.estado === 'CANCELADO') && (
               <NotaResolucion reporteId={r.reporte_id} />
             )}
@@ -311,5 +315,72 @@ function NotaResolucion({ reporteId }: { reporteId: string }) {
       <span className='font-medium'>Nota: </span>
       {data.nota_resolucion}
     </p>
+  )
+}
+
+// Cuando el runner automático deja un reporte en HOLD, la pregunta queda en
+// nota_resolucion (compatibilidad con lo que ya escribe el runner) y también
+// como mensaje ROL='RUNNER' en el hilo. Responder aquí reabre el reporte a
+// ABIERTO para que la próxima corrida del runner lo retome con la respuesta.
+function PreguntaYRespuesta({ reporteId }: { reporteId: string }) {
+  const queryClient = useQueryClient()
+  const [respuesta, setRespuesta] = useState('')
+  const detalle = useQuery({
+    queryKey: ['reportes', 'detalle', reporteId],
+    queryFn: () => getReporte(reporteId),
+  })
+
+  const responder = useMutation({
+    mutationFn: () => responderReporte(reporteId, respuesta),
+    onSuccess: () => {
+      toast.success('Respuesta enviada. Se revisará en la próxima corrida.')
+      setRespuesta('')
+      queryClient.invalidateQueries({ queryKey: ['reportes', 'mine'] })
+      queryClient.invalidateQueries({ queryKey: ['reportes', 'detalle', reporteId] })
+    },
+    onError: () => toast.error('No se pudo enviar la respuesta'),
+  })
+
+  const mensajes = detalle.data?.mensajes ?? []
+  const pregunta = [...mensajes].reverse().find((m) => m.rol === 'RUNNER')
+
+  return (
+    <div className='space-y-2 rounded-md border border-amber-300 bg-amber-50 p-2'>
+      {mensajes.length > 0 ? (
+        <div className='space-y-1.5'>
+          {mensajes.map((m) => (
+            <p key={m.mensaje_id} className='text-xs'>
+              <span className='font-medium'>
+                {m.rol === 'RUNNER' ? 'Sistema: ' : 'Tú: '}
+              </span>
+              {m.contenido}
+            </p>
+          ))}
+        </div>
+      ) : (
+        pregunta === undefined &&
+        detalle.data?.nota_resolucion && (
+          <p className='text-xs'>
+            <span className='font-medium'>Sistema: </span>
+            {detalle.data.nota_resolucion}
+          </p>
+        )
+      )}
+      <Textarea
+        value={respuesta}
+        onChange={(e) => setRespuesta(e.target.value)}
+        placeholder='Escribe tu respuesta…'
+        rows={2}
+        className='bg-background text-xs'
+      />
+      <Button
+        size='sm'
+        disabled={!respuesta.trim() || responder.isPending}
+        onClick={() => responder.mutate()}
+      >
+        {responder.isPending && <Loader2 className='mr-2 size-4 animate-spin' />}
+        Responder
+      </Button>
+    </div>
   )
 }

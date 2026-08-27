@@ -11,6 +11,10 @@ urlpatterns = [
     path("reportes/agente/resultado/", views.AgenteResultadoView.as_view()),
     path("reportes/<str:reporte_id>/", views.ReporteDetailView.as_view()),
     path(
+        "reportes/<str:reporte_id>/responder/",
+        views.ReporteResponderView.as_view(),
+    ),
+    path(
         "reportes/<str:reporte_id>/imagen/<str:imagen_id>/",
         views.ReporteImagenView.as_view(),
     ),

@@ -251,6 +251,20 @@ function ReporteDetailSheet({
               </div>
             )}
 
+            {detail.data.mensajes.length > 0 && (
+              <div className='space-y-1.5 rounded-md border p-2'>
+                <p className='text-xs font-medium'>Conversación</p>
+                {detail.data.mensajes.map((m) => (
+                  <p key={m.mensaje_id} className='text-xs'>
+                    <span className='font-medium'>
+                      {m.rol === 'RUNNER' ? 'Sistema: ' : `${m.usuario || 'Usuario'}: `}
+                    </span>
+                    {m.contenido}
+                  </p>
+                ))}
+              </div>
+            )}
+
             <div className='space-y-2'>
               <label className='text-sm font-medium'>Estado</label>
               <Select
