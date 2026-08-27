@@ -318,6 +318,28 @@ def sdn_nomina_reabrir(request):
 
 @login_required
 @csrf_exempt
+@require_http_methods(['POST'])
+def sdn_nomina_avanzar(request):
+    data = json.loads(request.body)
+    try:
+        out = sdn_repo.avanzar_periodo(
+            no_cia=data['no_cia'],
+            punto=_norm_punto(data['punto']),
+            nomina=(data['nomina'] or '').upper(),
+            usuario=request.user.username,
+            fecha_inicial=data.get('fecha_inicial'),
+            fecha_final=data.get('fecha_final'),
+            ano_proceso=data.get('ano_proceso'),
+            mes_proceso=data.get('mes_proceso'),
+            periodo=data.get('periodo'),
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse(out)
+
+
+@login_required
+@csrf_exempt
 @require_http_methods(['GET'])
 def sdn_nomina_volante(request):
     try:

@@ -38,6 +38,7 @@ urlpatterns = [
     path('nominas/anular/', sdn_views.sdn_nomina_anular),
     path('nominas/calcular/', sdn_views.sdn_nomina_calcular),
     path('nominas/reabrir/', sdn_views.sdn_nomina_reabrir),
+    path('nominas/avanzar/', sdn_views.sdn_nomina_avanzar),
     path('nominas/volante/', sdn_views.sdn_nomina_volante),
     path('vacaciones/', sdn_views.sdn_vacaciones),
     path('rep-empleados/', sdn_views.sdn_rep_resumen_empleados),

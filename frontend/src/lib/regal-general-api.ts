@@ -1815,6 +1815,12 @@ export const regalGeneralApi = {
     request<any>('/sdn/nominas/calcular/', { method: 'POST', body: JSON.stringify(data) }),
   sdnReabrirNomina: (data: { no_cia: string; punto: string; nomina: string }) =>
     request<any>('/sdn/nominas/reabrir/', { method: 'POST', body: JSON.stringify(data) }),
+  sdnAvanzarNomina: (data: {
+    no_cia: string; punto: string; nomina: string
+    fecha_inicial: string; fecha_final: string
+    ano_proceso: number; mes_proceso: number; periodo: number
+  }) =>
+    request<any>('/sdn/nominas/avanzar/', { method: 'POST', body: JSON.stringify(data) }),
   sdnRepResumenEmpleados: (noCia: string) => request<any>(`/sdn/rep-empleados/?no_cia=${noCia}`),
   sdnRepNominasResumen: (noCia: string, ano?: number) => {
     const qs = new URLSearchParams({ no_cia: noCia, ...(ano && { ano: String(ano) }) }).toString()

@@ -734,6 +734,61 @@ def reabrir_nomina(no_cia: str, punto: str, nomina: str, usuario: str) -> dict:
     return get_nomina(no_cia, punto, nomina)
 
 
+def avanzar_periodo(
+    no_cia: str, punto: str, nomina: str, usuario: str, *,
+    fecha_inicial: str, fecha_final: str, ano_proceso: int, mes_proceso: int,
+    periodo: int,
+) -> dict:
+    """Mueve la definicion de nomina (unica fila por no_cia/punto/nomina) al
+    siguiente periodo de pago. No existia en el codigo -- cada mes se venia
+    haciendo con SQL directo (ver TSDN_AUDITORIA proceso='A'/'U' historico),
+    riesgoso porque toca la definicion de nomina real. Requiere que el
+    periodo actual ya este calculado (mismo candado que impide reabrir sin
+    querer un periodo que el usuario todavia esta trabajando)."""
+    cur = get_nomina(no_cia, punto, nomina)
+    if not cur:
+        raise ValueError(f"Nómina {nomina} no existe")
+    if cur.get('calculo_nomina') != 'S':
+        raise ValueError(
+            f"Nómina {nomina} periodo actual no está calculada — "
+            "calcúlala antes de avanzar al siguiente período")
+    if not fecha_inicial or not fecha_final:
+        raise ValueError("fecha_inicial y fecha_final son obligatorias")
+    if not ano_proceso or not mes_proceso:
+        raise ValueError("ano_proceso y mes_proceso son obligatorios")
+    if not periodo:
+        raise ValueError("periodo es obligatorio")
+
+    periodo_anterior = int(cur.get('periodo') or 0)
+    client.execute(
+        "UPDATE SDN.TSDN_NOMINA SET "
+        " fecha_inicial=TO_DATE(:1,'YYYY-MM-DD'), "
+        " fecha_final=TO_DATE(:2,'YYYY-MM-DD'), "
+        " ano_proceso=:3, mes_proceso=:4, periodo=:5, "
+        " calculo_nomina='N', "
+        " genero_archivo='N', genero_cheque='N', "
+        " genero_archivo_v='N', genero_cheque_v='N', "
+        " genero_archivo_r='N', genero_cheque_r='N' "
+        "WHERE no_cia=:6 AND punto=:7 AND nomina=:8",
+        [fecha_inicial, fecha_final, int(ano_proceso), int(mes_proceso),
+         int(periodo), no_cia, punto, nomina],
+    )
+    client.execute(
+        "INSERT INTO SDN.TSDN_AUDITORIA ("
+        " no_cia, punto, ano, mes, nomina, periodo, proceso, "
+        " fecha_nomina_i, fecha_nomina_f, fecha_sysdate, usuario "
+        ") VALUES ( "
+        " :1, :2, :3, :4, :5, :6, 'U', "
+        " TO_DATE(:7,'YYYY-MM-DD'), TO_DATE(:8,'YYYY-MM-DD'), SYSDATE, :9 "
+        ")",
+        [no_cia, punto, int(ano_proceso), int(mes_proceso), nomina,
+         int(periodo), fecha_inicial, fecha_final, (usuario or '').upper()[:30]],
+    )
+    resultado = get_nomina(no_cia, punto, nomina)
+    resultado['periodo_anterior'] = periodo_anterior
+    return resultado
+
+
 def _fraccion_salario_periodo(cabecera: dict) -> float:
     """Fraccion del salario mensual que corresponde a UN periodo de esta
     nomina, segun FORMA_PAGO ('M'=Mensual, 'Q'=Quincenal, 'S'=Semanal;

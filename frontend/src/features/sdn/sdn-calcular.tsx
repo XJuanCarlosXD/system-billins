@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { api } from '@/lib/regal-general-api'
 import { useCompany } from '@/hooks/use-company'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,7 +15,7 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  Calculator, CheckCircle2, RotateCcw,
+  Calculator, CheckCircle2, RotateCcw, ArrowRightCircle,
 } from 'lucide-react'
 
 const fmt = (n: any) =>
@@ -45,6 +46,9 @@ export function SdnCalcular() {
   const { selectedCompany, selectedPoint } = useCompany()
   const [nominaSel, setNominaSel] = useState('')
   const [confirmar, setConfirmar] = useState<'C' | 'R' | null>(null)
+  const [avanzando, setAvanzando] = useState(false)
+  const [nuevoInicio, setNuevoInicio] = useState('')
+  const [nuevoFin, setNuevoFin] = useState('')
 
   const nominasQ = useQuery({
     queryKey: ['sdn-nominas', selectedCompany, selectedPoint],
@@ -95,6 +99,43 @@ export function SdnCalcular() {
     },
     onError: (e: any) =>
       toast.error(e?.detail?.error || 'No se pudo reabrir la nómina'),
+  })
+
+  const abrirAvanzar = () => {
+    if (!nomina?.fecha_final) return
+    // Sugerencia: la siguiente quincena empieza al dia siguiente del cierre
+    // actual y dura 15 dias. El usuario puede ajustar las fechas antes de
+    // confirmar -- el backend no las infiere solo.
+    const fin = new Date(`${nomina.fecha_final}T00:00:00`)
+    const inicio = new Date(fin)
+    inicio.setDate(inicio.getDate() + 1)
+    const finSugerido = new Date(inicio)
+    finSugerido.setDate(finSugerido.getDate() + 14)
+    const toISO = (d: Date) => d.toISOString().slice(0, 10)
+    setNuevoInicio(toISO(inicio))
+    setNuevoFin(toISO(finSugerido))
+    setAvanzando(true)
+  }
+
+  const avanzar = useMutation({
+    mutationFn: () => {
+      const inicio = new Date(`${nuevoInicio}T00:00:00`)
+      return api.sdnAvanzarNomina({
+        no_cia: selectedCompany, punto: selectedPoint, nomina: nominaSel,
+        fecha_inicial: nuevoInicio, fecha_final: nuevoFin,
+        ano_proceso: inicio.getFullYear(), mes_proceso: inicio.getMonth() + 1,
+        periodo: (nomina?.periodo || 0) + 1,
+      })
+    },
+    onSuccess: (res: any) => {
+      toast.success(`Nómina ${res.nomina} avanzada al período ${fmtDate(res.fecha_inicial)} → ${fmtDate(res.fecha_final)}`)
+      qc.invalidateQueries({ queryKey: ['sdn-nominas'] })
+      qc.invalidateQueries({ queryKey: ['sdn-volante-pre'] })
+      qc.invalidateQueries({ queryKey: ['sdn-rep-nominas'] })
+      setAvanzando(false)
+    },
+    onError: (e: any) =>
+      toast.error(e?.detail?.error || 'No se pudo avanzar la nómina al siguiente período'),
   })
 
   return (
@@ -208,10 +249,15 @@ export function SdnCalcular() {
 
             <div className="flex items-center justify-end gap-2 border-t pt-3">
               {nomina.calculo_nomina === 'S' ? (
-                <Button variant="outline" onClick={() => setConfirmar('R')}
-                        disabled={reabrir.isPending}>
-                  <RotateCcw className="h-4 w-4 mr-1" /> Reabrir para recálculo
-                </Button>
+                <>
+                  <Button variant="outline" onClick={() => setConfirmar('R')}
+                          disabled={reabrir.isPending}>
+                    <RotateCcw className="h-4 w-4 mr-1" /> Reabrir para recálculo
+                  </Button>
+                  <Button onClick={abrirAvanzar} disabled={avanzar.isPending}>
+                    <ArrowRightCircle className="h-4 w-4 mr-1" /> Avanzar a siguiente período
+                  </Button>
+                </>
               ) : (
                 <Button onClick={() => setConfirmar('C')}
                         disabled={empleados.length === 0 || calcular.isPending}>
@@ -276,6 +322,53 @@ export function SdnCalcular() {
                 {reabrir.isPending ? 'Reabriendo…' : 'Reabrir'}
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={avanzando} onOpenChange={(v) => { if (!v) setAvanzando(false) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowRightCircle className="h-4 w-4" /> Avanzar al siguiente período
+            </DialogTitle>
+          </DialogHeader>
+          {nomina && (
+            <div className="space-y-3 text-sm">
+              <div className="rounded border bg-muted/40 p-3">
+                Se moverá la definición de <b>{nomina.nomina} — {nomina.descripcion}</b> del
+                período actual ({fmtDate(nomina.fecha_inicial)} → {fmtDate(nomina.fecha_final)},
+                calculado) al nuevo período de abajo, quedando lista para calcularse de nuevo.
+                Solo aplica porque el período actual ya está calculado.
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Nueva fecha inicial</Label>
+                  <Input type="date" value={nuevoInicio}
+                         onChange={(e) => setNuevoInicio(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Nueva fecha final</Label>
+                  <Input type="date" value={nuevoFin}
+                         onChange={(e) => setNuevoFin(e.target.value)} />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Período sugerido #{(nomina.periodo || 0) + 1}. Verifica las fechas antes de
+                confirmar — no se calculan solas.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAvanzando(false)}
+                    disabled={avanzar.isPending}>
+              Cancelar
+            </Button>
+            <Button onClick={() => avanzar.mutate()}
+                    disabled={avanzar.isPending || !nuevoInicio || !nuevoFin}>
+              <ArrowRightCircle className="h-4 w-4 mr-1" />
+              {avanzar.isPending ? 'Avanzando…' : 'Avanzar período'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
