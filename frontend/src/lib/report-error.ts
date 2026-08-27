@@ -27,12 +27,21 @@ function esErrorRedTransitorio(mensaje: string, statusHttp?: number | null): boo
   )
 }
 
+// Respuestas de politica de autenticacion/autorizacion. 401 = sesion expirada
+// (el queryCache ya redirige a /sign-in), 403 = el usuario no tiene permiso
+// para ese modulo/compania/punto. Ninguna es un bug: son la respuesta correcta
+// del backend y no debe abrirse un TREP_PROBLEMA por ellas.
+function esRespuestaPoliticaAuth(statusHttp?: number | null): boolean {
+  return statusHttp === 401 || statusHttp === 403
+}
+
 /** Fire-and-forget: nunca lanza, nunca bloquea al caller. */
 export async function logErrorAutomatico(mensaje: string, opts?: {
   statusHttp?: number
   detalle?: string
 }): Promise<number | null> {
   if (esErrorRedTransitorio(mensaje, opts?.statusHttp)) return null
+  if (esRespuestaPoliticaAuth(opts?.statusHttp)) return null
   try {
     const res = await fetch(`${API_BASE}/reportes/error-log/`, {
       method: 'POST',
