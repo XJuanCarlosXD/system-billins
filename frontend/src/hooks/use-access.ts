@@ -32,5 +32,7 @@ export function useAccess() {
       isAdmin ||
       data?.tipos_docu?.[`${m.toLowerCase()}:${no_cia}:${punto}`]?.includes(t) ||
       false,
+    defaultDocType: (m: string, no_cia: string, punto: string) =>
+      data?.tipos_docu_default?.[`${m.toLowerCase()}:${no_cia}:${punto}`],
   }
 }

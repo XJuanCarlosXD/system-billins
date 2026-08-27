@@ -120,6 +120,7 @@ class MyAccessView(APIView):
         modules: dict = {}
         flags: dict = {}
         tipos_docu: dict = {}
+        tipos_docu_default: dict = {}
 
         for row in modules_rows:
             if not row.get('activo'):
@@ -154,6 +155,9 @@ class MyAccessView(APIView):
             try:
                 docs = permissions_repo.list_user_doc_perms(username, mod, no_cia, punto)
                 tipos_docu[key] = [d['tipo_docu'] for d in docs]
+                default = next((d['tipo_docu'] for d in docs if d.get('por_defecto')), None)
+                if default:
+                    tipos_docu_default[key] = default
             except Exception:
                 tipos_docu[key] = []
 
@@ -172,6 +176,7 @@ class MyAccessView(APIView):
             },
             'flags': flags,
             'tipos_docu': tipos_docu,
+            'tipos_docu_default': tipos_docu_default,
         })
 
 

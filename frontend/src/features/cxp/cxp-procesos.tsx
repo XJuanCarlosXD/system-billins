@@ -593,7 +593,7 @@ export function CxpEntradaDocumentos({
   noCia, punto = '', editTipo, editNoDocu, editColaId,
 }: P & { editTipo?: string; editNoDocu?: string; editColaId?: number }) {
   const navigate = useNavigate()
-  const { hasDocType } = useAccess()
+  const { hasDocType, defaultDocType } = useAccess()
   const [tiposDocu, setTiposDocu] = useState<any[]>([])
   const [tipoDocu, setTipoDocu] = useState('')
   const [siguiente, setSiguiente] = useState('')
@@ -654,7 +654,11 @@ export function CxpEntradaDocumentos({
         // Preseleccionar el tipo por defecto (o el primero) para captura más
         // rápida. En edición no se pisa: el tipo real del doc se carga aparte.
         if (!editTipo && !editNoDocu && !editColaId) {
-          const def = allowed.find((t: any) => t.por_defecto === 'S') ?? allowed[0]
+          const defaultCode = defaultDocType('cxp', noCia, punto)
+          const def =
+            (defaultCode && allowed.find((t: any) => String(t.codigo ?? t.tipo_docu) === defaultCode)) ||
+            allowed.find((t: any) => t.por_defecto === 'S') ||
+            allowed[0]
           if (def) setTipoDocu((prev) => prev || String(def.codigo ?? def.tipo_docu ?? ''))
         }
       })

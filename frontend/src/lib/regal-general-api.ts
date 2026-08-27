@@ -184,6 +184,7 @@ export const regalGeneralApi = {
       >
       flags: Record<string, string[]>
       tipos_docu: Record<string, string[]>
+      tipos_docu_default?: Record<string, string>
     }>('/me/access/'),
 
   fatNcf: (no_cia: string, punto: string) =>
