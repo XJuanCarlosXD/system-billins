@@ -345,11 +345,11 @@ function PreguntaYRespuesta({ reporteId }: { reporteId: string }) {
   const pregunta = [...mensajes].reverse().find((m) => m.rol === 'RUNNER')
 
   return (
-    <div className='space-y-2 rounded-md border border-amber-300 bg-amber-50 p-2'>
+    <div className='space-y-2 rounded-md border border-amber-300 bg-amber-50 p-2 dark:border-amber-700 dark:bg-amber-950/30'>
       {mensajes.length > 0 ? (
         <div className='space-y-1.5'>
           {mensajes.map((m) => (
-            <p key={m.mensaje_id} className='text-xs'>
+            <p key={m.mensaje_id} className='text-xs text-amber-900 dark:text-amber-200'>
               <span className='font-medium'>
                 {m.rol === 'RUNNER' ? 'Sistema: ' : 'Tú: '}
               </span>
@@ -360,7 +360,7 @@ function PreguntaYRespuesta({ reporteId }: { reporteId: string }) {
       ) : (
         pregunta === undefined &&
         detalle.data?.nota_resolucion && (
-          <p className='text-xs'>
+          <p className='text-xs text-amber-900 dark:text-amber-200'>
             <span className='font-medium'>Sistema: </span>
             {detalle.data.nota_resolucion}
           </p>
