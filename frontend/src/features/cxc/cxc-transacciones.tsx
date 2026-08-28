@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/select'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { ClientePicker } from '@/components/cxc/cliente-picker'
+import { logErrorAutomatico } from '@/lib/report-error'
 
 interface P {
   noCia: string
@@ -326,7 +327,22 @@ export function CxcTransacciones({ noCia, punto = '01', prefill }: P) {
       setAplicaciones({}); setRetenciones({}); setValorDoc(0); setFecha(today)
       setPlazo(0); setFormaPago('1')
     },
-    onError: (e: Error) => toast.error(e.message || 'Error al grabar'),
+    onError: (e: any) => {
+      // e.detail viene de ApiError (regal-general-api.ts): {error: '...'} del
+      // backend, o texto plano. e.message cae a JSON.stringify(detail) si es
+      // un objeto -- por eso antes se veia el JSON crudo en el toast en vez
+      // de un mensaje legible.
+      const detail = e?.detail
+      const mensaje =
+        (detail && typeof detail === 'object' && (detail.error || detail.detail)) ||
+        (typeof detail === 'string' ? detail : null) ||
+        e?.message || 'Error al grabar'
+      toast.error(mensaje)
+      // Sin esto el error solo mostraba un toast y nunca llegaba a
+      // TREP_PROBLEMA -- quedaba invisible para el runner ZentoryERP-Reportes-AutoFix
+      // aunque fuera un bug real (ej. colision de numeracion en TCXC_SECUENCIA).
+      logErrorAutomatico(mensaje, { statusHttp: e?.status, detalle: e?.stack })
+    },
   })
 
   // ── Validación ─────────────────────────────────────────────────────
