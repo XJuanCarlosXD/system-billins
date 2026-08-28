@@ -13,30 +13,27 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog'
-import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { Search, Plus, Trash2, Save } from 'lucide-react'
-import { CrearProductoModal } from '@/features/fat/components/crear-producto-modal'
+import { Plus, Trash2, Save } from 'lucide-react'
+import { ProveedorPicker } from '@/features/cxp/cxp-procesos'
+import {
+  BuscarProductoModal,
+  type BuscarProductoModalAlmacen,
+  type BuscarProductoModalProducto,
+} from '@/features/fat/components/buscar-producto-modal'
 
 // Fodc201 — Entrada de Orden de Compra (legacy).
 // Cabecera (TODC_ORDEN) + Detalle (TODC_ORDENL).
-// Patrón equivalente a CxP/FAT nueva-factura: picker proveedor + picker producto.
+// Usa los pickers compartidos de CxP (proveedor) y FAT/INV (producto) — antes
+// esta pantalla tenia copias locales mas simples de ambos (sin crear proveedor
+// inline, sin filtro de almacen/existencia en productos).
 
 interface Proveedor {
   no_proveedor: string
   nombre: string
   rnc: string
   direccion: string
-}
-
-interface Producto {
-  no_produ: string
-  descri: string
-  precio: number
-  porciento_impuesto: number
 }
 
 interface Linea {
@@ -65,225 +62,6 @@ function calcLinea(l: Linea) {
   const base = bruto - desc
   const imp = base * (l.porciento_impuesto / 100)
   return { bruto, desc, base, imp, total: base + imp }
-}
-
-// ─── Picker de Proveedor ──────────────────────────────────────────────────────
-function ProveedorPicker({
-  value, onChange,
-}: { value: Proveedor | null; onChange: (p: Proveedor | null) => void }) {
-  const [codigo, setCodigo] = useState(value?.no_proveedor ?? '')
-  const [open, setOpen] = useState(false)
-  const [search, setSearch] = useState('')
-  const [results, setResults] = useState<Proveedor[]>([])
-  const [searching, setSearching] = useState(false)
-  const searchRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => { setCodigo(value?.no_proveedor ?? '') }, [value?.no_proveedor])
-
-  const cargar = async (cod: string) => {
-    const t = cod.trim()
-    if (!t) { onChange(null); return }
-    try {
-      const p = await api.cxpGetProveedor(t)
-      if (p?.no_proveedor) onChange(p)
-      else { toast.error(`Proveedor ${t} no encontrado`); onChange(null) }
-    } catch { toast.error(`Proveedor ${t} no encontrado`); onChange(null) }
-  }
-
-  const buscar = async (q: string) => {
-    if (q.trim().length < 2) { setResults([]); return }
-    setSearching(true)
-    try {
-      const rows = await api.cxpListProveedores({ search: q, activo: 'S' })
-      setResults(rows)
-    } catch { setResults([]) } finally { setSearching(false) }
-  }
-
-  const aplicar = (p: Proveedor) => {
-    onChange(p); setOpen(false); setSearch(''); setResults([])
-  }
-
-  return (
-    <div className="flex items-end gap-2">
-      <div className="w-36">
-        <Label className="text-xs">Código Proveedor <span className="text-destructive">*</span></Label>
-        <Input
-          value={codigo}
-          onChange={(e) => { setCodigo(e.target.value); if (value) onChange(null) }}
-          onBlur={(e) => cargar(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') cargar(codigo) }}
-          placeholder="Código"
-          className="h-10 font-mono"
-        />
-      </div>
-      <Button type="button" variant="outline" className="h-10"
-        onClick={() => { setOpen(true); setTimeout(() => searchRef.current?.focus(), 50) }}>
-        <Search className="h-4 w-4" />
-      </Button>
-      {value ? (
-        <div className="flex flex-1 flex-wrap items-center gap-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2">
-          <div className="min-w-0">
-            <span className="block text-xs font-medium text-emerald-600">Nombre</span>
-            <span className="block truncate font-semibold text-emerald-900">{value.nombre}</span>
-          </div>
-          {value.rnc && (
-            <div className="shrink-0">
-              <span className="block text-xs font-medium text-emerald-600">RNC / Cédula</span>
-              <span className="font-mono text-sm text-emerald-800">{value.rnc}</span>
-            </div>
-          )}
-          {value.direccion && (
-            <div className="min-w-0">
-              <span className="block text-xs font-medium text-emerald-600">Dirección</span>
-              <span className="block truncate text-sm text-emerald-700">{value.direccion}</span>
-            </div>
-          )}
-          <Button size="sm" variant="ghost" onClick={() => { onChange(null); setCodigo('') }}
-            className="ml-auto text-gray-400 hover:text-red-500">Cambiar</Button>
-        </div>
-      ) : (
-        <div className="flex h-10 flex-1 items-center rounded-lg border border-dashed border-gray-300 px-3 text-sm text-gray-400">
-          Ingrese código o use la lupa para buscar
-        </div>
-      )}
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent size="picker">
-          <DialogHeader className="border-b px-6 py-4"><DialogTitle>Buscar Proveedor</DialogTitle></DialogHeader>
-          <div className="border-b bg-background px-6 py-3">
-            <Input ref={searchRef} value={search}
-              onChange={(e) => { setSearch(e.target.value); buscar(e.target.value) }}
-              placeholder="Nombre, código o RNC…" className="h-11 text-base" autoFocus />
-          </div>
-          <div className="flex-1 overflow-y-auto px-6 py-2">
-            <Table>
-              <TableHeader className="sticky top-0 z-10 bg-background">
-                <TableRow>
-                  <TableHead className="w-32">Código</TableHead>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead className="w-36">RNC / Cédula</TableHead>
-                  <TableHead className="w-64">Dirección</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {results.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={4} className="py-12 text-center text-gray-400">
-                      {searching ? 'Buscando…' : search.length >= 2 ? 'Sin resultados' : 'Escriba al menos 2 caracteres'}
-                    </TableCell>
-                  </TableRow>
-                )}
-                {results.map((p) => (
-                  <TableRow key={p.no_proveedor} className="cursor-pointer hover:bg-blue-50"
-                    onDoubleClick={() => aplicar(p)} onClick={() => aplicar(p)}>
-                    <TableCell className="font-mono font-semibold">{p.no_proveedor}</TableCell>
-                    <TableCell className="font-medium">{p.nombre}</TableCell>
-                    <TableCell className="font-mono text-sm">{p.rnc || '—'}</TableCell>
-                    <TableCell className="max-w-xs truncate text-sm text-gray-600">{p.direccion || '—'}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-  )
-}
-
-// ─── Picker de Producto (modal) ───────────────────────────────────────────────
-function ProductoPickerDialog({
-  open, onClose, onPick, noCia, punto,
-}: {
-  open: boolean
-  onClose: () => void
-  onPick: (p: Producto) => void
-  noCia: string
-  punto: string
-}) {
-  const [search, setSearch] = useState('')
-  const [results, setResults] = useState<Producto[]>([])
-  const [loading, setLoading] = useState(false)
-  const [crearOpen, setCrearOpen] = useState(false)
-  const ref = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (open) { setSearch(''); setResults([]); setCrearOpen(false); setTimeout(() => ref.current?.focus(), 50) }
-  }, [open])
-
-  const buscar = async (q: string) => {
-    setLoading(true)
-    try {
-      const data = await regalGeneralApi.fatSearchProductos(noCia, punto, '', q, 1, 30)
-      setResults(data.items)
-    } catch { setResults([]) } finally { setLoading(false) }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
-      <DialogContent size="picker">
-        <DialogHeader className="border-b px-6 py-4"><DialogTitle>Buscar Producto</DialogTitle></DialogHeader>
-        <div className="border-b bg-background px-6 py-3">
-          <Input ref={ref} value={search}
-            onChange={(e) => { setSearch(e.target.value); buscar(e.target.value) }}
-            placeholder="Código o descripción…" className="h-11 text-base" autoFocus />
-        </div>
-        <div className="flex-1 overflow-y-auto px-6 py-2">
-          <Table>
-            <TableHeader className="sticky top-0 z-10 bg-background">
-              <TableRow>
-                <TableHead className="w-32">Código</TableHead>
-                <TableHead>Descripción</TableHead>
-                <TableHead className="w-32 text-right">Precio sug.</TableHead>
-                <TableHead className="w-24 text-right">ITBIS %</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {results.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4} className="py-12 text-center text-gray-400">
-                    <p>{loading ? 'Buscando…' : search ? 'Sin resultados' : 'Escriba código o descripción'}</p>
-                    {!loading && search && (
-                      <Button variant="link" className="mt-2" onClick={() => setCrearOpen(true)}>
-                        Crear producto "{search}" →
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              )}
-              {results.map((p) => (
-                <TableRow key={p.no_produ} className="cursor-pointer hover:bg-blue-50"
-                  onDoubleClick={() => onPick(p)} onClick={() => onPick(p)}>
-                  <TableCell className="font-mono font-semibold">{p.no_produ}</TableCell>
-                  <TableCell>{p.descri}</TableCell>
-                  <TableCell className="text-right tabular-nums">{fmtMoney(p.precio)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{p.porciento_impuesto}%</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </DialogContent>
-
-      {crearOpen && (
-        <CrearProductoModal
-          open={crearOpen}
-          onClose={() => setCrearOpen(false)}
-          noCia={noCia}
-          descripcionInicial={search}
-          onCreated={(p) => {
-            setCrearOpen(false)
-            onPick({
-              no_produ: p.no_produ,
-              descri: p.descri,
-              precio: p.costo,
-              porciento_impuesto: p.porciento_impuesto,
-            })
-          }}
-        />
-      )}
-    </Dialog>
-  )
 }
 
 // ─── Vista principal ──────────────────────────────────────────────────────────
@@ -358,12 +136,23 @@ export function OdcNuevaOrden() {
     return acc
   }, { bruto: 0, descuento: 0, impuesto: 0, total: 0 })
 
-  const addProducto = (p: Producto) => {
+  // Almacenes solo para el filtro de existencia dentro de BuscarProductoModal
+  // -- TODC_ORDENL no guarda almacen (la orden aun no es una entrada fisica,
+  // eso se decide despues en Entrada de Mercancia), asi que el `almacen`
+  // devuelto por el modal se ignora al armar la linea.
+  const almacenesQ = useQuery({
+    queryKey: ['odc-almacenes', selectedCompany, selectedPoint],
+    queryFn: () => regalGeneralApi.invAlmacenes(selectedCompany, selectedPoint),
+    enabled: !!selectedCompany,
+  })
+  const almacenes = (almacenesQ.data?.results || []) as BuscarProductoModalAlmacen[]
+
+  const addProducto = (p: BuscarProductoModalProducto, cantidad: number) => {
     setLineas((prev) => [...prev, {
       uid: `${p.no_produ}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       no_produ: p.no_produ,
       descripcion: p.descri,
-      cantidad_pedida: 1,
+      cantidad_pedida: cantidad > 0 ? cantidad : 1,
       costo: Number(p.precio) || 0,
       porc_descuento: 0,
       porciento_impuesto: Number(p.porciento_impuesto) || 0,
@@ -604,12 +393,16 @@ export function OdcNuevaOrden() {
         </Button>
       </div>
 
-      <ProductoPickerDialog
+      <BuscarProductoModal
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
-        onPick={addProducto}
+        onSelect={(p, cantidad) => addProducto(p, cantidad)}
         noCia={selectedCompany}
         punto={selectedPoint}
+        almacenes={almacenes}
+        listas={[]}
+        noLista=""
+        defaultSoloExistencia={false}
       />
     </div>
   )
