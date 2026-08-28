@@ -2,7 +2,7 @@
 // Permite registrar ingresos y deducciones individuales por empleado para una
 // nómina/período abierto. Inserta en SDN.TSDN_MOVIMIENTO con ORIGEN='M'
 // y reabre el cálculo de la nómina (CALCULO_NOMINA='N').
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/regal-general-api'
 import { useCompany } from '@/hooks/use-company'
@@ -23,32 +23,21 @@ import { toast } from 'sonner'
 const fmt = (n: number) =>
   Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-const periodoLabel = (p: number) =>
-  p === 1 ? 'P1 (1ra quincena)' : p === 2 ? 'P2 (2da quincena)' : `P${p}`
-
-// Default al período inmediatamente anterior — donde típicamente ya existen
-// movimientos. Si hoy estamos después del 15 → 1ra quincena del mes actual.
-// Si estamos del 1 al 15 → 2da quincena del mes anterior.
-function periodoAnterior(d: Date) {
-  const ano = d.getFullYear()
-  const mes = d.getMonth() + 1
-  const dia = d.getDate()
-  if (dia > 15) return { ano, mes, periodo: 1 }
-  if (mes === 1) return { ano: ano - 1, mes: 12, periodo: 2 }
-  return { ano, mes: mes - 1, periodo: 2 }
+// Misma formula que backend sdn_repo._fraccion_salario_periodo: que fraccion
+// del salario mensual corresponde a UN periodo de esta nomina segun
+// FORMA_PAGO ('Q'=Quincenal 15 dias, 'S'=Semanal 7 dias, resto=mensual).
+function fraccionSalarioPeriodo(nomina: any): number {
+  const formaPago = (nomina?.forma_pago || 'M').toUpperCase()
+  const factorDiario = Number(nomina?.factor_calculo_diario) || 30
+  const diasPeriodo = formaPago === 'Q' ? 15 : formaPago === 'S' ? 7 : factorDiario
+  return diasPeriodo / factorDiario
 }
 
 export function SdnMovimientos() {
   const { selectedCompany, selectedPoint } = useCompany()
   const qc = useQueryClient()
-  const def = periodoAnterior(new Date())
-  const [f, setF] = useState({
-    nomina: '',
-    ano: def.ano,
-    mes: def.mes,
-    periodo: def.periodo,
-    no_empleado: '',
-  })
+  const [nominaSel, setNominaSel] = useState('')
+  const [noEmpleadoFiltro, setNoEmpleadoFiltro] = useState('')
   const [dlg, setDlg] = useState(false)
   const [form, setForm] = useState({
     no_empleado: '',
@@ -65,6 +54,21 @@ export function SdnMovimientos() {
     enabled: !!selectedCompany,
   })
 
+  // La nomina trae su periodo/ano/mes REALES (contador continuo del año,
+  // ej. 15 = 1-15 agosto 2026) -- antes esta pantalla calculaba un periodo
+  // propio (P1/P2 = quincena del mes) sin relacion con TSDN_NOMINA.PERIODO,
+  // asi que el filtro por defecto nunca coincidia con la nomina activa real
+  // y mostraba (o dejaba vacio) datos de un periodo viejo. Reportado por
+  // MPILAR: "aparece el periodo de hace un mes en vez del actual".
+  const nomina = (nominas.data || []).find((n: any) => n.nomina === nominaSel)
+
+  // Auto-selecciona la primera nomina activa al cargar, para no arrancar sin nada.
+  useEffect(() => {
+    if (!nominaSel && nominas.data && nominas.data.length > 0) {
+      setNominaSel(nominas.data[0].nomina)
+    }
+  }, [nominas.data, nominaSel])
+
   const ingresos = useQuery({
     queryKey: ['sdn-ingresos-act'],
     queryFn: () => api.sdnListIngresos('A'),
@@ -75,19 +79,33 @@ export function SdnMovimientos() {
   })
 
   const movs = useQuery({
-    queryKey: ['sdn-movimientos', selectedCompany, selectedPoint, f],
+    queryKey: ['sdn-movimientos', selectedCompany, selectedPoint, nomina?.nomina, nomina?.ano_proceso, nomina?.mes_proceso, nomina?.periodo, noEmpleadoFiltro],
     queryFn: () => api.sdnListMovimientos({
       no_cia: selectedCompany, punto: selectedPoint,
-      nomina: f.nomina, ano: f.ano, mes: f.mes, periodo: f.periodo,
-      no_empleado: f.no_empleado ? Number(f.no_empleado) : undefined,
+      nomina: nomina.nomina, ano: nomina.ano_proceso, mes: nomina.mes_proceso, periodo: nomina.periodo,
+      no_empleado: noEmpleadoFiltro ? Number(noEmpleadoFiltro) : undefined,
     }),
-    enabled: !!f.nomina && !!f.ano && !!f.mes,
+    enabled: !!nomina,
   })
+
+  // Salario del empleado en el campo "Empleado #" del dialogo -- para sugerir
+  // el monto correcto (mitad del sueldo si la nomina es quincenal) en vez de
+  // dejar que se teclee el sueldo completo por error. Reportado por MPILAR:
+  // "aparece sueldo completo y no la mitad con lo deducible".
+  const empleadoNo = Number(form.no_empleado)
+  const empleadoQ = useQuery({
+    queryKey: ['sdn-empleado-monto', selectedCompany, empleadoNo],
+    queryFn: () => api.sdnGetEmpleado(selectedCompany, empleadoNo),
+    enabled: dlg && !!selectedCompany && !!empleadoNo && empleadoNo > 0,
+  })
+  const fraccion = fraccionSalarioPeriodo(nomina)
+  const salarioMensual = Number(empleadoQ.data?.salario_mensual) || 0
+  const montoSugerido = salarioMensual * fraccion
 
   const create = useMutation({
     mutationFn: () => api.sdnCrearMovimiento({
       no_cia: selectedCompany, punto: selectedPoint,
-      nomina: f.nomina, ano: f.ano, mes: f.mes, periodo: f.periodo,
+      nomina: nomina.nomina, ano: nomina.ano_proceso, mes: nomina.mes_proceso, periodo: nomina.periodo,
       no_empleado: Number(form.no_empleado),
       tipo_transaccion: form.tipo_transaccion,
       no_transaccion: form.no_transaccion,
@@ -107,7 +125,7 @@ export function SdnMovimientos() {
   const remove = useMutation({
     mutationFn: (row: any) => api.sdnEliminarMovimiento({
       no_cia: selectedCompany, punto: selectedPoint,
-      nomina: f.nomina, ano: f.ano, mes: f.mes, periodo: f.periodo,
+      nomina: nomina.nomina, ano: nomina.ano_proceso, mes: nomina.mes_proceso, periodo: nomina.periodo,
       no_empleado: row.no_empleado, linea: row.linea,
     }),
     onSuccess: () => {
@@ -145,56 +163,42 @@ export function SdnMovimientos() {
         <div>
           <Label className="text-xs">Nómina</Label>
           <select
-            className="border rounded px-3 py-2 text-sm h-9 min-w-[180px] bg-background"
-            value={f.nomina}
-            onChange={(e) => setF({ ...f, nomina: e.target.value })}
+            className="border rounded px-3 py-2 text-sm h-9 min-w-[220px] bg-background"
+            value={nominaSel}
+            onChange={(e) => setNominaSel(e.target.value)}
           >
             <option value="">— seleccione —</option>
             {(nominas.data || []).map((n: any) => (
-              <option key={`${n.nomina}-${n.ano_proceso}-${n.mes_proceso}-${n.periodo}`} value={n.nomina}>
-                {n.nomina} — {n.descripcion} · {String(n.mes_proceso).padStart(2, '0')}/{n.ano_proceso}
+              <option key={n.nomina} value={n.nomina}>
+                {n.nomina} — {n.descripcion} · {String(n.mes_proceso).padStart(2, '0')}/{n.ano_proceso} (período {n.periodo})
               </option>
             ))}
           </select>
         </div>
         <div>
-          <Label className="text-xs">Año</Label>
-          <Input className="w-24 h-9" type="number" value={f.ano}
-            onChange={(e) => setF({ ...f, ano: Number(e.target.value) })} />
-        </div>
-        <div>
-          <Label className="text-xs">Mes</Label>
-          <Input className="w-20 h-9" type="number" min={1} max={12} value={f.mes}
-            onChange={(e) => setF({ ...f, mes: Number(e.target.value) })} />
-        </div>
-        <div>
-          <Label className="text-xs">Período</Label>
-          <select
-            className="border rounded px-3 py-2 text-sm h-9 bg-background"
-            value={f.periodo}
-            onChange={(e) => setF({ ...f, periodo: Number(e.target.value) })}
-          >
-            <option value={1}>P1</option>
-            <option value={2}>P2</option>
-          </select>
-        </div>
-        <div>
           <Label className="text-xs">Empleado #</Label>
-          <Input className="w-28 h-9" type="number" value={f.no_empleado}
-            onChange={(e) => setF({ ...f, no_empleado: e.target.value })}
+          <Input className="w-28 h-9" type="number" value={noEmpleadoFiltro}
+            onChange={(e) => setNoEmpleadoFiltro(e.target.value)}
             placeholder="opcional" />
         </div>
-        <Button size="sm" variant="outline" onClick={() => movs.refetch()} disabled={!f.nomina}>
+        <Button size="sm" variant="outline" onClick={() => movs.refetch()} disabled={!nomina}>
           <Search className="h-4 w-4 mr-1" /> Buscar
         </Button>
-        <Button size="sm" className="ml-auto" disabled={!f.nomina}
-          onClick={() => { setForm({ no_empleado: f.no_empleado, tipo_transaccion: 'I', no_transaccion: '', monto: '' }); setDlg(true) }}>
+        <Button size="sm" className="ml-auto" disabled={!nomina}
+          onClick={() => { setForm({ no_empleado: noEmpleadoFiltro, tipo_transaccion: 'I', no_transaccion: '', monto: '' }); setDlg(true) }}>
           <Plus className="h-4 w-4 mr-1" /> Nuevo movimiento
         </Button>
       </div>
 
-      <div className="flex gap-2 text-xs">
-        <Badge variant="secondary">Período: {periodoLabel(f.periodo)}</Badge>
+      <div className="flex flex-wrap gap-2 text-xs items-center">
+        {nomina ? (
+          <Badge variant="secondary">
+            Período activo: {String(nomina.mes_proceso).padStart(2, '0')}/{nomina.ano_proceso} · #{nomina.periodo}
+            {' '}({nomina.fecha_inicial ? String(nomina.fecha_inicial).slice(0, 10) : ''} a {nomina.fecha_final ? String(nomina.fecha_final).slice(0, 10) : ''})
+          </Badge>
+        ) : (
+          <Badge variant="outline">Seleccione una nómina para ver su período activo</Badge>
+        )}
         {rows.length > 0 && (
           <>
             <Badge>Ingresos: RD$ {fmt(totIng)}</Badge>
@@ -258,7 +262,7 @@ export function SdnMovimientos() {
               {!movs.isLoading && rows.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={9} className="text-center text-muted-foreground py-6">
-                    {f.nomina
+                    {nomina
                       ? 'Sin movimientos para los filtros actuales.'
                       : 'Seleccione una nómina para ver sus movimientos.'}
                   </TableCell>
@@ -275,11 +279,22 @@ export function SdnMovimientos() {
             <DialogTitle>Nuevo movimiento manual</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 text-sm">
+            {nomina && (
+              <p className="text-xs text-muted-foreground">
+                Período: {String(nomina.mes_proceso).padStart(2, '0')}/{nomina.ano_proceso} · #{nomina.periodo}
+                {' '}({fmt(fraccion * 100)}% del sueldo mensual — {nomina.forma_pago === 'Q' ? 'quincenal' : nomina.forma_pago === 'S' ? 'semanal' : 'mensual'})
+              </p>
+            )}
             <div>
               <Label className="text-xs">Empleado # <span className="text-destructive">*</span></Label>
               <Input type="number" value={form.no_empleado}
                 onChange={(e) => setForm({ ...form, no_empleado: e.target.value })}
                 placeholder="No. empleado" />
+              {empleadoQ.data && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {empleadoQ.data.nombre} {empleadoQ.data.apellido} · Sueldo mensual: RD$ {fmt(salarioMensual)}
+                </p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
@@ -311,12 +326,26 @@ export function SdnMovimientos() {
             </div>
             <div>
               <Label className="text-xs">Monto (RD$) <span className="text-destructive">*</span></Label>
-              <Input type="number" step="0.01" value={form.monto}
-                onChange={(e) => setForm({ ...form, monto: e.target.value })}
-                placeholder="0.00" />
+              <div className="flex items-center gap-2">
+                <Input type="number" step="0.01" value={form.monto}
+                  onChange={(e) => setForm({ ...form, monto: e.target.value })}
+                  placeholder="0.00" />
+                {form.tipo_transaccion === 'I' && salarioMensual > 0 && (
+                  <Button type="button" size="sm" variant="outline" className="shrink-0"
+                    onClick={() => setForm({ ...form, monto: montoSugerido.toFixed(2) })}>
+                    Usar RD$ {fmt(montoSugerido)}
+                  </Button>
+                )}
+              </div>
+              {form.tipo_transaccion === 'I' && salarioMensual > 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Sugerido para este período ({fmt(fraccion * 100)}% del sueldo mensual RD$ {fmt(salarioMensual)}):
+                  {' '}RD$ {fmt(montoSugerido)}. No teclees el sueldo completo si esta nómina es quincenal.
+                </p>
+              )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Al guardar, la nómina <b>{f.nomina}</b> se reabrirá automáticamente
+              Al guardar, la nómina <b>{nomina?.nomina}</b> se reabrirá automáticamente
               para que el próximo cálculo incluya este movimiento.
             </p>
           </div>

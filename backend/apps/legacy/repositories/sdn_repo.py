@@ -431,7 +431,7 @@ def list_nominas(no_cia: str, punto: str | None = None,
         "SELECT no_cia, punto, nomina, descripcion, forma_pago, "
         "       fecha_inicial, fecha_final, cuenta_contable, cuenta_bancaria, "
         "       mes_proceso, ano_proceso, mes_cierre, periodo, "
-        "       calculo_nomina, estado, regalia_por_pagar "
+        "       calculo_nomina, estado, regalia_por_pagar, factor_calculo_diario "
         "  FROM SDN.TSDN_NOMINA WHERE no_cia=:1"
     )
     params: list = [no_cia]
