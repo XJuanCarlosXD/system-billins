@@ -277,7 +277,7 @@ def list_empleados(no_cia: str, punto: str | None = None,
                 f"      OR cedula LIKE :{len(params)+1}"
                 f"      OR TO_CHAR(no_empleado) LIKE :{len(params)+1})")
         params.append(f"%{search}%")
-    sql += " ORDER BY apellido, nombre"
+    sql += " ORDER BY nombre, apellido"
     if limit:
         sql = f"SELECT * FROM ({sql}) WHERE ROWNUM <= {int(limit)}"
     return client.fetch_dicts(sql, params)
@@ -854,7 +854,7 @@ def volante_nomina(no_cia: str, punto: str, nomina: str) -> dict:
         "  FROM SDN.TSDN_EMPLEADO e "
         " WHERE e.no_cia=:no_cia AND e.punto=:punto AND e.nomina=:nomina "
         "   AND e.fecha_egreso IS NULL "
-        " ORDER BY e.apellido, e.nombre",
+        " ORDER BY e.nombre, e.apellido",
         {'no_cia': no_cia, 'punto': punto, 'nomina': nomina,
          'ano': ano, 'mes': mes, 'periodo': periodo},
     )
@@ -1100,7 +1100,7 @@ def aplicar_deduccion_masiva(*, no_cia: str, punto: str, nomina: str,
         ids = ','.join(str(int(i)) for i in empleados_ids if str(i).strip())
         if ids:
             sql_emp += f" AND e.no_empleado IN ({ids})"
-    sql_emp += " ORDER BY e.apellido, e.nombre"
+    sql_emp += " ORDER BY e.nombre, e.apellido"
     empleados = client.fetch_dicts(sql_emp, params)
 
     # Movimientos ya existentes en ese período (para no duplicar)
@@ -1260,7 +1260,7 @@ def generar_vacaciones(*, no_cia: str, punto: str, nomina: str, ano: int,
         "   AND fecha_egreso IS NULL "
         "   AND TO_CHAR(fecha_ingreso,'YYYY') < :4 "
         "   AND NVL(st_vacaciones,'N') = 'N' "
-        " ORDER BY apellido, nombre",
+        " ORDER BY nombre, apellido",
         [no_cia, punto, nomina, str(int(ano))],
     )
 
@@ -1430,7 +1430,7 @@ def rep_informe_nomina(*, no_cia: str, punto: str, nomina: str,
     if no_depto:
         sql += " AND e.no_depto=:no_depto"
         params['no_depto'] = no_depto
-    sql += " ORDER BY e.apellido, e.nombre"
+    sql += " ORDER BY e.nombre, e.apellido"
 
     fraccion_periodo = _fraccion_salario_periodo(cab)
     rows = client.fetch_dicts(sql, params)
@@ -1505,7 +1505,7 @@ def rep_empleados_rnc(*, no_cia: str, punto: str | None = None,
                 f"      OR e.cedula LIKE :{len(params)+1}"
                 f"      OR TO_CHAR(e.no_empleado) LIKE :{len(params)+1})")
         params.append(f"%{search}%")
-    sql += " ORDER BY e.apellido, e.nombre"
+    sql += " ORDER BY e.nombre, e.apellido"
     return client.fetch_dicts(sql, params)
 
 
