@@ -49,7 +49,9 @@ export const cxpDocumentoDefault: any = {
       <div style="font-size:14px;font-weight:bold">{{upper doc.tipo_label}}</div>
       <div style="font-size:14px;font-weight:bold">{{doc.numero_display}}</div>
       <div style="font-size:9px;margin-top:6px">Fecha {{default doc.fecha_larga doc.fecha}}</div>
-      <div style="font-size:8px;color:#666;font-style:italic">{{default doc.reporte_codigo "Rcxp207"}}</div>
+      {{#if doc.ncf_dgi}}<div style="font-size:9px;margin-top:2px"><b>NCF:</b> {{doc.ncf_dgi}}</div>{{/if}}
+      {{#if extra.ncfs_afectados.length}}<div style="font-size:9px;margin-top:2px"><b>NCF Afectado:</b> {{#each extra.ncfs_afectados}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</div>{{/if}}
+      <div style="font-size:8px;color:#666;font-style:italic;margin-top:4px">{{default doc.reporte_codigo "Rcxp207"}}</div>
     </td>
   </tr>
 </table>`,

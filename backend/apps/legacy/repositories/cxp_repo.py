@@ -492,7 +492,8 @@ def get_documentos_afectados(no_cia, punto, tipo_docu, no_docu):
                r.no_cuota, r.monto,
                TO_CHAR(rd.fecha,'YYYY-MM-DD') AS fecha,
                NVL(rd.valor_original,0) AS valor_original,
-               NVL(rd.saldo,0) AS saldo
+               NVL(rd.saldo,0) AS saldo,
+               rd.ncf AS ncf, rd.posiciones_fijas_ncf AS posiciones_fijas_ncf
         FROM CXP.TCXP_REFEDOCU r
         LEFT JOIN CXP.TCXP_DOCUMENTO rd
           ON rd.no_cia=r.no_cia AND rd.punto=r.punto

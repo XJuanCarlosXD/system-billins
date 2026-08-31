@@ -380,6 +380,9 @@ def cxp_documento_print_data(request, tipo_docu: str, no_docu: str):
         for r in cxp_repo.get_documentos_afectados(no_cia, punto, tipo_s, no_docu) or []:
             tr = (r.get('tipo_doc') or '').strip()
             nr = (r.get('no_doc') or '').strip()
+            ncf_afect = _compose_ncf_dgi(
+                r.get('posiciones_fijas_ncf'), r.get('ncf')
+            ) if r.get('ncf') else ''
             docs_afect.append({
                 'componente': '',
                 'tipo_doc': tr,
@@ -388,9 +391,11 @@ def cxp_documento_print_data(request, tipo_docu: str, no_docu: str):
                 'fecha': str(r.get('fecha') or '')[:10],
                 'monto': _money_or_zero(r.get('monto')),
                 'saldo': _money_or_zero(r.get('saldo')),
+                'ncf': ncf_afect,
             })
     except Exception:
         pass
+    ncfs_afectados = [d['ncf'] for d in docs_afect if d.get('ncf')]
 
     # Fecha en español largo: "28 de Abril del 2023"
     fecha_str = str(doc_full.get('fecha') or '')[:10]
@@ -459,6 +464,7 @@ def cxp_documento_print_data(request, tipo_docu: str, no_docu: str):
         'extra': {
             'saldo': _money_or_zero(doc_full.get('saldo')),
             'documentos_afectados': docs_afect,
+            'ncfs_afectados': ncfs_afectados,
             'dist_contable': dist_contable,
             'mostrar_recibido_conforme': tipo_movi == 'D',
         },
