@@ -62,18 +62,34 @@ sección propia). El resto se añade cuando aparezca un caso real de negocio.
 
 ## 4. Plan de trabajo
 
-### Tarea 0 — Descartar el riesgo de firma (bloqueante, hacer primero)
+### Tarea 0 — RESUELTA: firmar con la lógica real de la App oficial, sin GUI
 
-Generar un e-CF mínimo válido tipo 32 con datos de prueba, firmarlo con
-`apps/fe/firma.firmar_xml` (código propio) y por separado con la App Firma
-Digital oficial. Diff byte a byte de ambas firmas (`ds:SignedInfo`,
-`DigestValue`, orden de elementos, `KeyInfo`). Si `testecf` acepta la firma
-propia → seguir con automatización 100% propia. Si la rechaza igual que la
-Postulación → decidir con el usuario: (a) aceptar firmar manualmente con la
-App oficial cada e-CF durante la certificación (no escalable, pero
-desbloquea el Paso 2 ya), o (b) invertir tiempo en replicar exactamente el
-comportamiento de la App oficial en Python (puede requerir volcar su
-binario .NET o interceptar su tráfico/salida para comparar).
+**Actualización 2026-08-31 noche:** no hizo falta reverse-engenieer la
+discrepancia de mi firma Python. La App Firma Digital (`App Firma
+Digital.exe`, descargable en Herramientas Recomendadas de la DGII) es un
+**ensamblado .NET/Mono**, no un binario nativo. Expone una clase de
+servicio separada de la UI:
+
+```
+wfFirma.Services.SignServices.FirmarXml(pathFile, pathCert, passCert, fhFirma) -> XmlDocument
+```
+
+Invocada por reflexión .NET (PowerShell, sin abrir ninguna ventana) produce
+un XML **byte-a-byte idéntico** (mismo SHA256) al que genera la app manual
+— verificado firmando la Postulación 81443 dos veces y comparando hashes.
+`fhFirma` debe ir en `false` (si es `true` agrega `<FechaHoraFirma>`, que
+la Postulación aceptada no tenía).
+
+Script funcional: `C:\Users\JCABREU\Desktop\AppFirmaDigital\Firmar-Xml.ps1`.
+
+**Pendiente de confirmar (en curso):** si `mono-complete` + `pythonnet` en
+el contenedor Linux del backend (`facturation_backend`, Debian 13) pueden
+cargar `SignServices` e invocar `FirmarXml` directo desde Python, sin
+necesitar esta máquina Windows para nada. Si funciona, se integra en
+`apps/fe/firma.py` como el método de firma real (reemplaza o complementa
+`firmar_xml` actual basado en signxml). Si Mono no soporta la clase (por
+dependencias de WinForms), la alternativa es exponer un pequeño servicio
+HTTP en una máquina Windows dedicada que el backend llame por red.
 
 ### Tarea 1 — Generación de XML e-CF
 

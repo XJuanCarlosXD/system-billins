@@ -11,8 +11,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         unzip \
         cron \
+        mono-complete \
         $(apt-cache show libaio1t64 >/dev/null 2>&1 && echo libaio1t64 || echo libaio1) \
     && rm -rf /var/lib/apt/lists/*
+
+# Mono: ejecuta la App Firma Digital oficial de la DGII (apps/fe/tools/) para
+# firmar XMLDSig identico byte-a-byte a la GUI de Windows, sin abrir ventana.
+# Ver apps/fe/tools/firmar_wrapper.cs. El .exe compilado (firmar.exe) se
+# genera en build time porque depende del ensamblado que se monta con el
+# codigo (volumen), no de algo fijo en la imagen.
 
 # Oracle Instant Client 19 (compatible con Oracle 11g) para thick mode de python-oracledb
 RUN mkdir -p /opt/oracle && cd /opt/oracle && \

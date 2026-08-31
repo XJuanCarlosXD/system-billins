@@ -6,6 +6,9 @@ por INDOTEL (propósito "Procedimientos Tributarios").
 from __future__ import annotations
 
 import base64
+import os
+import subprocess
+import tempfile
 from datetime import datetime, timezone
 
 from cryptography import x509
@@ -13,6 +16,12 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from lxml import etree
 from signxml import XMLSigner, XMLVerifier, methods
 from signxml.algorithms import DigestAlgorithm, SignatureMethod
+
+_FIRMAR_EXE = os.path.join(os.path.dirname(__file__), 'tools', 'firmar.exe')
+
+
+class FirmaOficialError(Exception):
+    pass
 
 
 def leer_p12(p12_bytes: bytes, password: str):
@@ -61,6 +70,46 @@ def firmar_xml(xml_str: str, p12_bytes: bytes, password: str) -> str:
     signed = signer.sign(root, key=key, cert=[cert])
     return etree.tostring(
         signed, xml_declaration=True, encoding='utf-8').decode('utf-8')
+
+
+def firmar_con_app_oficial(xml_str: str, p12_bytes: bytes, password: str) -> str:
+    """Firma un XML con la lógica REAL de la App Firma Digital oficial de
+    la DGII (``wfFirma.Services.SignServices.FirmarXml``), vía Mono, sin
+    abrir ninguna ventana.
+
+    ``firmar_xml()`` (signxml/lxml) es correcto por estándar XMLDSig pero
+    el validador de la Postulación de la DGII lo rechazó ("Error XML.
+    Firma Inválida.") en 5 intentos reales; solo la App oficial funcionó.
+    Confirmado 2026-08-31: invocar su método de firma por reflexión/Mono
+    produce un ``DigestValue``/``SignatureValue`` byte-a-byte idéntico al
+    de la GUI manual. Usar esta función para cualquier documento que la
+    DGII vaya a validar de verdad (Postulación, e-CF); ``firmar_xml()``
+    sigue sirviendo para los endpoints propios de recepción P2P donde
+    nosotros mismos controlamos ambos lados (firmante y verificador).
+    """
+    if not os.path.exists(_FIRMAR_EXE):
+        raise FirmaOficialError(
+            'firmar.exe no está compilado — revisar que mono-complete '
+            'esté instalado y que docker/entrypoint.sh haya corrido mcs.')
+    with tempfile.TemporaryDirectory() as tmp:
+        xml_path = os.path.join(tmp, 'in.xml')
+        cert_path = os.path.join(tmp, 'cert.p12')
+        out_path = os.path.join(tmp, 'out.xml')
+        with open(xml_path, 'w', encoding='utf-8') as f:
+            f.write(xml_str)
+        with open(cert_path, 'wb') as f:
+            f.write(p12_bytes)
+        result = subprocess.run(
+            ['mono', _FIRMAR_EXE, xml_path, cert_path, out_path],
+            input=password + '\n', capture_output=True, text=True,
+            timeout=30,
+        )
+        if result.returncode != 0 or not os.path.exists(out_path):
+            raise FirmaOficialError(
+                f'Error firmando con la App oficial: '
+                f'{result.stdout} {result.stderr}'.strip())
+        with open(out_path, encoding='utf-8-sig') as f:
+            return f.read()
 
 
 def verificar_xml(xml_bytes: bytes) -> x509.Certificate:
