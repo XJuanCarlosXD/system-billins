@@ -1,6 +1,6 @@
 # Facturación Electrónica DGII (e-CF) — Fase 2: Comprobante Electrónico — Diseño
 
-Fecha: 2026-08-31 · Estado: PROPUESTO (checkpoint real: Paso 1/15 de la certificación APROBADO)
+Fecha: 2026-08-31 · Estado: EN PROGRESO (Paso 1/15 APROBADO, firma automatizada resuelta — ver §4 Tarea 0)
 
 Continúa [[2026-07-07-fe-ecf-dgii-design.md]] (Fase 1: config + autenticación,
 ya completada y en producción). Este documento cubre lo que falta para tener
@@ -22,17 +22,13 @@ certificación.
 - **Certificación DGII**: solicitud núm. 81443 — **Paso 1 de 15 APROBADO**.
   Estamos en **Paso 2: Pruebas de Datos e-CF** (portal
   `ecf.dgii.gov.do/certecf/portalcertificacion`).
-- **Riesgo abierto y crítico**: la firma XMLDSig generada con código propio
-  (`apps/fe/firma.firmar_xml`, signxml + lxml) fue rechazada por el
-  validador de la Postulación del Paso 1 ("Error XML. Firma Inválida.",
-  repetido en 5 intentos con distintos ajustes de formato). Solo funcionó
-  firmando con la **App Firma Digital oficial de la DGII** (ejecutable
-  Windows, descargable en Herramientas Recomendadas del portal público).
-  **No se sabe todavía si el mismo problema afecta la firma de e-CF reales**
-  (los documentos que sí controla mi propio código de extremo a extremo,
-  vs. la Postulación que es un formato ad-hoc del portal). Esto es lo
-  primero que hay que descartar antes de construir toda la lógica de
-  generación (ver §4, tarea 0).
+- **Firma DGII: RESUELTA Y AUTOMATIZADA (ver Tarea 0).** La firma XMLDSig
+  propia (`apps/fe/firma.firmar_xml`, signxml+lxml) fue rechazada por el
+  validador de la Postulación ("Error XML. Firma Inválida.", 5 intentos).
+  Se resolvió invocando la lógica REAL de la App Firma Digital oficial de
+  la DGII directo desde el backend Linux vía Mono — sin GUI, sin Windows,
+  sin clave visible en la lista de procesos. Función lista para usar:
+  `apps.fe.firma.firmar_con_app_oficial(xml_str, p12_bytes, password)`.
 
 ## 2. Objetivo de esta fase
 
@@ -62,34 +58,43 @@ sección propia). El resto se añade cuando aparezca un caso real de negocio.
 
 ## 4. Plan de trabajo
 
-### Tarea 0 — RESUELTA: firmar con la lógica real de la App oficial, sin GUI
+### Tarea 0 — COMPLETADA: firma automatizada con la lógica real de la App oficial, sin GUI, nativa en el backend Linux
 
-**Actualización 2026-08-31 noche:** no hizo falta reverse-engenieer la
-discrepancia de mi firma Python. La App Firma Digital (`App Firma
-Digital.exe`, descargable en Herramientas Recomendadas de la DGII) es un
-**ensamblado .NET/Mono**, no un binario nativo. Expone una clase de
-servicio separada de la UI:
+La App Firma Digital (`App Firma Digital.exe`, Herramientas Recomendadas de
+la DGII) es un **ensamblado .NET/Mono**, no un binario nativo. Expone una
+clase de servicio separada de la UI:
 
 ```
 wfFirma.Services.SignServices.FirmarXml(pathFile, pathCert, passCert, fhFirma) -> XmlDocument
 ```
 
-Invocada por reflexión .NET (PowerShell, sin abrir ninguna ventana) produce
-un XML **byte-a-byte idéntico** (mismo SHA256) al que genera la app manual
-— verificado firmando la Postulación 81443 dos veces y comparando hashes.
-`fhFirma` debe ir en `false` (si es `true` agrega `<FechaHoraFirma>`, que
-la Postulación aceptada no tenía).
+`fhFirma=false` (si es `true` agrega `<FechaHoraFirma>`, que la Postulación
+aceptada no tenía).
 
-Script funcional: `C:\Users\JCABREU\Desktop\AppFirmaDigital\Firmar-Xml.ps1`.
+**Integrado y probado end-to-end en el backend real:**
+- `apps/fe/tools/App Firma Digital.exe` — el binario oficial, en el repo.
+- `apps/fe/tools/firmar_wrapper.cs` — wrapper CLI compilado con `mcs`
+  (compilador de Mono) que llama `SignServices.FirmarXml` directo (clave
+  por stdin, no por argv).
+- `apps/fe/firma.firmar_con_app_oficial(xml_str, p12_bytes, password) -> str`
+  — invoca `mono firmar.exe` vía subprocess.
+- `Dockerfile.dev` + `docker/entrypoint.sh` — `mono-complete` como
+  dependencia del sistema; `firmar_wrapper.cs` se compila en cada arranque
+  del contenedor (el `.exe` base viaja por volumen junto al código).
 
-**Pendiente de confirmar (en curso):** si `mono-complete` + `pythonnet` en
-el contenedor Linux del backend (`facturation_backend`, Debian 13) pueden
-cargar `SignServices` e invocar `FirmarXml` directo desde Python, sin
-necesitar esta máquina Windows para nada. Si funciona, se integra en
-`apps/fe/firma.py` como el método de firma real (reemplaza o complementa
-`firmar_xml` actual basado en signxml). Si Mono no soporta la clase (por
-dependencias de WinForms), la alternativa es exponer un pequeño servicio
-HTTP en una máquina Windows dedicada que el backend llame por red.
+Verificado: el `DigestValue` firmado bajo Mono/Linux es **idéntico byte a
+byte** al que la DGII ya aceptó desde Windows (única diferencia CRLF/LF,
+irrelevante). `firmar_xml()` (signxml/lxml) se conserva para los endpoints
+propios de recepción P2P donde YO controlo ambos lados (firmante y
+verificador) — no usar `firmar_xml()` para nada que un validador real de
+la DGII vaya a revisar; usar siempre `firmar_con_app_oficial()` para eso.
+
+**Pendiente menor:** `mono-complete` se instaló en caliente en el
+contenedor corriendo (no en un rebuild de imagen) — sobrevive mientras el
+contenedor no se recree. Falta un `docker compose build` + up controlado
+del backend para que persista a través de un reinicio real (no se hizo el
+2026-08-31 por el riesgo de tocar un contenedor compartido con otros
+worktrees en paralelo — coordinarlo antes de ejecutarlo).
 
 ### Tarea 1 — Generación de XML e-CF
 
@@ -132,26 +137,36 @@ Repositorio nuevo `fe_repo.save_documento_enviado(...)` /
   estado). Filtros por estado y tipo. Seguir convenciones visuales de
   `sigaft-ui-facturacion`.
 
-### Tarea 5 — Set de Pruebas del Paso 2
+### Tarea 5 — Set de Pruebas del Paso 2 — MODO TEST, aislado de producción
 
 El portal de certificación entrega un archivo descargable ("Set de datos a
 utilizar") con escenarios de prueba (facturas de consumo ≥ y < RD$250k).
-Por cada escenario: generar el e-CF con ESOS datos (no los reales de
-Abregonza), firmar, enviar a `testecf`, y para los < 250k generar primero
-el Resumen de Factura de Consumo vía RFCE — solo tras aceptado, cargar la
-factura íntegra. Repetir hasta que el portal marque "N/N Comprobantes
-Aceptados" en 100%.
 
-## 5. Preguntas abiertas para el usuario
+**Requisito explícito del usuario: estas pruebas NO pueden afectar
+producción ni la contabilidad real de Abregonza.** Diseño: un "modo test"
+separado del flujo normal de facturación —
+- Los documentos del Set de Pruebas NO se crean como `TFAT_FACTURA` reales
+  (no tocan inventario, CxC, ni el asiento/cuadre de caja real).
+- Se genera el e-CF directo desde los datos que entrega la DGII (una
+  pantalla/formulario de captura mínima, o importando el archivo del Set
+  de Pruebas tal cual), sin pasar por el flujo de facturación de FAT.
+- Se firma con `firmar_con_app_oficial()` y se envía a `testecf` con un
+  botón explícito ("Enviar prueba a DGII"), registrando el resultado en
+  `TFE_DOCUMENTO` marcado con una bandera `ES_PRUEBA='S'` (columna nueva a
+  agregar) para poder filtrarlo/excluirlo de cualquier reporte real.
+- Repetir hasta que el portal marque "N/N Comprobantes Aceptados" al 100%.
 
-1. Ubicación exacta de la pantalla "Comprobante Electrónico" — ¿solo en
-   Configuración, o también accesible/visible desde Contabilidad (CNT)?
-2. Firma: ¿aceptar firmar manualmente con la App oficial mientras se
-   certifica (más lento pero ya funciona), o priorizar resolver la
-   discrepancia técnica para automatizar 100% antes de seguir?
-3. ¿El envío de e-CF debe dispararse automáticamente al crear cada factura
-   en FAT (enganchado al flujo actual), o empezar con un botón manual
-   "Generar e-CF" por documento mientras dura la certificación?
+## 5. Preguntas abiertas — RESUELTAS (2026-08-31 noche)
+
+1. **UI**: solo en Configuración (dentro de la sección existente
+   "Facturación Electrónica (e-CF)"), no una pantalla aparte en
+   Contabilidad.
+2. **Firma**: resuelta y automatizada por completo (Tarea 0) — no hace
+   falta firmar a mano con la App oficial nunca más.
+3. **Disparo**: modo manual/test explícito para el Set de Pruebas del
+   Paso 2 (botón, aislado de producción — ver Tarea 5). El disparo
+   automático al facturar en FAT queda para cuando Abregonza esté
+   certificada y en producción real (fuera del alcance de esta fase).
 
 ## 6. Fuera de alcance de esta fase
 
