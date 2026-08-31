@@ -1218,7 +1218,7 @@ export const regalGeneralApi = {
 
   cxpSaveProveedor: (data: Record<string, unknown>) =>
     data.no_proveedor
-      ? request<any>(`/cxp/proveedores/${data.no_proveedor}/`, { method: "PUT", body: JSON.stringify(data) })
+      ? request<any>(`/cxp/proveedores/${data.no_proveedor}/`, { method: "PATCH", body: JSON.stringify(data) })
       : request<any>("/cxp/proveedores/", { method: "POST", body: JSON.stringify(data) }),
 
   cxpGetProveedorCuenta: (no: string, noCia: string, punto: string) =>
