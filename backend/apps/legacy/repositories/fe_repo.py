@@ -75,10 +75,13 @@ def get_certificado(no_cia: str) -> tuple[bytes, str] | None:
             "SELECT certificado_p12, cert_password_enc "
             "FROM FAT.TFE_CONFIG WHERE no_cia=:1", [no_cia])
         row = cur.fetchone()
-    if not row or row[0] is None:
-        return None
-    blob = row[0].read() if hasattr(row[0], 'read') else row[0]
-    return blob, row[1]
+        if not row or row[0] is None:
+            return None
+        # El LOB debe leerse mientras el cursor/conexión sigue vivo: si se
+        # lee después de salir del `with`, el pool ya liberó la conexión
+        # (DPY-1001 not connected to database).
+        blob = row[0].read() if hasattr(row[0], 'read') else row[0]
+        return blob, row[1]
 
 
 def list_secuencias(no_cia: str) -> list[dict]:
@@ -114,6 +117,28 @@ def upsert_secuencia(no_cia: str, s: dict) -> None:
              'b5': int(s['prox_secuencia']),
              'b6': datetime.strptime(str(s['fecha_vence'])[:10], '%Y-%m-%d'),
              'b7': s.get('activa', 'S')},
+        )
+        cur.connection.commit()
+
+
+def get_config_por_rnc(rnc: str) -> dict | None:
+    """Busca la config FE cuya empresa emite con este RNC (para recepción P2P)."""
+    rows = client.fetch_dicts(
+        f"SELECT {CONFIG_COLS} FROM FAT.TFE_CONFIG WHERE rnc_emisor = :1",
+        [rnc],
+    )
+    return rows[0] if rows else None
+
+
+def save_documento_recibido(no_cia: str, rnc_emisor: str, e_ncf: str | None,
+                            tipo: str, xml: str, track_id: str) -> None:
+    """Registra un e-CF o ACECF recibido de otro emisor (recepción P2P)."""
+    with client.cursor() as cur:
+        cur.execute(
+            "INSERT INTO FAT.TFE_DOCUMENTO_RECIBIDO "
+            "(no_cia, rnc_emisor, e_ncf, tipo, xml_recibido, track_id) "
+            "VALUES (:1, :2, :3, :4, :5, :6)",
+            [no_cia, rnc_emisor, (e_ncf or '')[:20], tipo, xml, track_id],
         )
         cur.connection.commit()
 

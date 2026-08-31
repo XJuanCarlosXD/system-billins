@@ -5,11 +5,13 @@ por INDOTEL (propósito "Procedimientos Tributarios").
 """
 from __future__ import annotations
 
+import base64
 from datetime import datetime, timezone
 
+from cryptography import x509
 from cryptography.hazmat.primitives.serialization import pkcs12
 from lxml import etree
-from signxml import XMLSigner, methods
+from signxml import XMLSigner, XMLVerifier, methods
 from signxml.algorithms import DigestAlgorithm, SignatureMethod
 
 
@@ -39,3 +41,28 @@ def firmar_xml(xml_str: str, p12_bytes: bytes, password: str) -> str:
     )
     signed = signer.sign(root, key=key, cert=[cert])
     return etree.tostring(signed, encoding='unicode')
+
+
+def verificar_xml(xml_bytes: bytes) -> x509.Certificate:
+    """Verifica una firma XMLDSig enveloped y devuelve el certificado firmante.
+
+    Extrae el certificado embebido en la propia firma (KeyInfo/
+    X509Certificate) y lo pasa a signxml como ``x509_cert`` explícito: eso
+    valida la integridad criptográfica de la firma contra ESE certificado
+    exacto sin intentar construir una cadena de confianza (evita que
+    ``require_x509=True`` falle con "candidates exhausted" al no tener el
+    CA bundle de INDOTEL cargado — confirmado con el certificado real de
+    Avansi, cuyo número de serie no positivo además choca con la
+    validación de cadena de RFC 5280). NO valida la cadena contra la CA
+    raíz de INDOTEL ni revocación (OCSP/CRL); endurecer antes de que la
+    DGII pruebe de verdad los pasos 7-11 de la certificación.
+    """
+    root = etree.fromstring(xml_bytes)
+    ns = {'ds': 'http://www.w3.org/2000/09/xmldsig#'}
+    cert_els = root.findall('.//ds:X509Certificate', ns)
+    if not cert_els or not (cert_els[0].text or '').strip():
+        raise ValueError('La firma no incluye certificado (X509Certificate)')
+    der = base64.b64decode(cert_els[0].text.strip())
+    cert = x509.load_der_x509_certificate(der)
+    XMLVerifier().verify(root, x509_cert=cert)
+    return cert
