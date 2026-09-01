@@ -121,9 +121,17 @@ def upsert_secuencia(no_cia: str, s: dict) -> None:
         cur.connection.commit()
 
 
-def consumir_siguiente_encf(no_cia: str, tipo_ecf: int) -> str:
-    """Reserva atomicamente el siguiente e-NCF de TFE_SECUENCIA y lo devuelve
-    ya compuesto (``E`` + tipo 2 digitos + 10 digitos secuencial).
+def consumir_siguiente_encf(no_cia: str, tipo_ecf: int) -> dict:
+    """Reserva atomicamente el siguiente e-NCF de TFE_SECUENCIA.
+
+    Devuelve ``{'e_ncf': ..., 'fecha_vencimiento_secuencia': datetime}``.
+    ``fecha_vencimiento_secuencia`` es ``TFE_SECUENCIA.fecha_vence`` del
+    rango consumido -- lo necesita ``ecf_builder`` para
+    ``IdDoc/FechaVencimientoSecuencia``, obligatorio SOLO en e-CF tipo 31
+    segun el XSD real (``e-CF-31-v1.0.xsd`` lo exige minOccurs=1 justo
+    despues de ``eNCF``; ``e-CF-32-v1.0.xsd`` no tiene ese elemento en
+    absoluto -- confirmado diffeando ambos XSD, no es un campo generico
+    de los 10 tipos).
 
     Mismo patron de reserva (SELECT...FOR UPDATE + UPDATE del contador) que
     fat_repo.create_factura ya usa para el NCF de papel en CNT.TCNT_NCF:
@@ -141,7 +149,7 @@ def consumir_siguiente_encf(no_cia: str, tipo_ecf: int) -> str:
     tipo = int(tipo_ecf)
     with client.cursor() as cur:
         cur.execute(
-            "SELECT secuencia_desde, secuencia_hasta, prox_secuencia "
+            "SELECT secuencia_desde, secuencia_hasta, prox_secuencia, fecha_vence "
             "FROM FAT.TFE_SECUENCIA "
             "WHERE no_cia=:1 AND tipo_ecf=:2 AND NVL(activa,'S')='S' "
             "  AND prox_secuencia <= secuencia_hasta "
@@ -152,13 +160,17 @@ def consumir_siguiente_encf(no_cia: str, tipo_ecf: int) -> str:
             raise ValueError(
                 f"No hay secuencia e-NCF activa/disponible para tipo {tipo} "
                 f"en la compania {no_cia}. Configure TFE_SECUENCIA primero.")
-        secuencia_desde, _hasta, prox = int(row[0]), int(row[1]), int(row[2])
+        secuencia_desde, _hasta, prox, fecha_vence = (
+            int(row[0]), int(row[1]), int(row[2]), row[3])
         cur.execute(
             "UPDATE FAT.TFE_SECUENCIA SET prox_secuencia=:1 "
             "WHERE no_cia=:2 AND tipo_ecf=:3 AND secuencia_desde=:4",
             [prox + 1, no_cia, tipo, secuencia_desde])
         cur.connection.commit()
-    return f"E{tipo:02d}{prox:010d}"
+    return {
+        'e_ncf': f"E{tipo:02d}{prox:010d}",
+        'fecha_vencimiento_secuencia': fecha_vence,
+    }
 
 
 def get_config_por_rnc(rnc: str) -> dict | None:

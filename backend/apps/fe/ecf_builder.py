@@ -4,12 +4,51 @@ Consumo Electronica).
 
 Fuente de verdad: los XSD reales descargados de la DGII en
 ``backend/docs/superpowers/reference/2026-08-31-set-pruebas-paso2/``
-(``e-CF-31-v1.0.xsd`` / ``e-CF-32-v1.0.xsd``). Los dos definen exactamente
-el mismo elemento raiz ``<ECF>`` -- ``TipoeCF`` es solo un valor de dato
-dentro de un esquema unico -- por eso este modulo usa un solo builder
-interno (``_construir_ecf``) para ambos tipos. Ver ``NOTAS.md`` en esa
-misma carpeta para el mapeo completo campo e-CF -> columna real y las
-reglas de validacion (formatos de fecha/decimales/RNC, etc.).
+(``e-CF-31-v1.0.xsd`` / ``e-CF-32-v1.0.xsd``). Los dos comparten el mismo
+elemento raiz ``<ECF>`` y la enorme mayoria del arbol es identica -- por
+eso este modulo usa un solo builder interno (``_construir_ecf``) para
+ambos tipos -- PERO NO SON EL MISMO ESQUEMA: un diff linea por linea
+(normalizando solo espacios/comillas, ver Task 1 self-review) encontro
+diferencias estructurales reales entre 31 y 32 que ``_construir_ecf`` SI
+respeta (rama explicita por ``tipo_ecf``, no una suposicion generica):
+
+- ``IdDoc/FechaVencimientoSecuencia`` (``FechaValidationType``,
+  minOccurs=1) existe SOLO en 31, justo despues de ``eNCF``. No existe en
+  32. Emitido solo cuando ``tipo_ecf == TIPO_CREDITO_FISCAL``.
+- ``Comprador/RNCComprador`` y ``Comprador/RazonSocialComprador`` son
+  obligatorios (minOccurs=1) en 31; opcionales (minOccurs=0) en 32. En 31
+  faltar cualquiera de los dos levanta ``ECFBuilderError`` en vez de
+  omitir el elemento en silencio.
+
+Diferencias estructurales adicionales confirmadas por el mismo diff que
+este modulo NO implementa (fuera de alcance de Task 1, quedan para quien
+implemente esos tipos/campos si algun dia se necesitan -- ningun dato
+real de FAT se pierde por esto en el flujo normal de facturacion):
+
+- ``Totales`` de 31 tiene 4 elementos opcionales extra que 32 no tiene:
+  ``TotalITBISRetenido``, ``TotalISRRetencion``, ``TotalITBISPercepcion``,
+  ``TotalISRPercepcion`` (retencion/percepcion de agentes de retencion).
+  ``TFAT_FACTURA.itbis_retenido``/``isr_retenido`` ya existen como
+  columnas (usadas por ``fat_repo.generar_607``) y podrian mapear aqui,
+  pero no se agregaron: son opcionales y no fueron pedidos.
+- ``DetallesItems/Item`` de 31 tiene un bloque opcional extra
+  ``Retencion`` (``IndicadorAgenteRetencionoPercepcion``,
+  ``MontoITBISRetenido``, ``MontoISRRetenido``) que 32 no tiene. Mismo
+  tema de retencion que el punto anterior, tampoco poblado.
+- ``DetallesItems/Item`` de 32 tiene un bloque opcional extra ``Mineria``
+  (peso/afiliacion/liquidacion) que 31 no tiene -- no aplica a FAT
+  (mineria), no poblado en ninguno de los dos tipos.
+- El resto de diferencias en el archivo XSD crudo (BOM, comillas
+  simples/dobles, espaciado de auto-cierre, un typo de espacio en el
+  nombre ``" IndicadorServicioTodoIncluidoType"`` dentro del propio XSD
+  de 31, alineacion de tabs en comentarios) son ruido de formato del
+  archivo original de la DGII, no diferencias de esquema.
+
+Ver ``NOTAS.md`` en esa misma carpeta para el mapeo completo campo e-CF ->
+columna real y las reglas de validacion (formatos de fecha/decimales/RNC,
+etc.) -- su afirmacion original de que ambos XSD son "exactamente" el
+mismo esquema quedo corregida por este descubrimiento, ver nota agregada
+ahi mismo.
 
 Alcance de este modulo (Task 1 de la Fase 2 e-CF): SOLO arma el XML "sin
 firmar", terminando en ``FechaHoraFirma``. El XSD exige despues un
@@ -163,8 +202,9 @@ def _construir_ecf(tipo_ecf: int, factura: dict, datos_fiscales: dict,
                    emisor: dict) -> str:
     """Builder generico compartido por Credito Fiscal (31) y Consumo (32).
 
-    ``factura`` es el dict de ``fat_repo.get_factura`` (con ``e_ncf``
-    agregado por el wrapper) y ``datos_fiscales`` el de
+    ``factura`` es el dict de ``fat_repo.get_factura`` con ``e_ncf`` y
+    ``fecha_vencimiento_secuencia`` agregados por el wrapper (de
+    ``fe_repo.consumir_siguiente_encf``) y ``datos_fiscales`` el de
     ``fat_repo.get_datos_fiscales_factura``. ``emisor`` viene de
     ``fe_repo.get_config``.
     """
@@ -184,6 +224,19 @@ def _construir_ecf(tipo_ecf: int, factura: dict, datos_fiscales: dict,
     id_doc = _sub(encabezado, 'IdDoc')
     _sub(id_doc, 'TipoeCF', tipo_ecf)
     _sub(id_doc, 'eNCF', factura['e_ncf'])
+    if tipo_ecf == TIPO_CREDITO_FISCAL:
+        # Obligatorio SOLO en 31 -- e-CF-31-v1.0.xsd exige
+        # IdDoc/FechaVencimientoSecuencia (minOccurs=1) justo despues de
+        # eNCF; e-CF-32-v1.0.xsd no tiene este elemento en absoluto
+        # (confirmado diffeando ambos XSD reales, no es un campo comun a
+        # los 10 tipos como se asumio originalmente).
+        fecha_vencimiento = factura.get('fecha_vencimiento_secuencia')
+        if not fecha_vencimiento:
+            raise ECFBuilderError(
+                "TFE_SECUENCIA no tiene fecha_vence configurada para el "
+                "tipo 31 en esta compania -- obligatoria para "
+                "IdDoc/FechaVencimientoSecuencia del e-CF de Credito Fiscal")
+        _sub(id_doc, 'FechaVencimientoSecuencia', _fmt_fecha(fecha_vencimiento))
     _sub(id_doc, 'TipoIngresos', datos_fiscales['tipo_ingreso'])
     tipo_pago, formas_pago = _tipo_pago_y_formas(datos_fiscales, monto_total)
     _sub(id_doc, 'TipoPago', tipo_pago)
@@ -222,12 +275,32 @@ def _construir_ecf(tipo_ecf: int, factura: dict, datos_fiscales: dict,
 
     comprador = _sub(encabezado, 'Comprador')
     rnc_comprador = _solo_digitos(datos_fiscales.get('rnc_comprador'))
-    if _rnc_valido(rnc_comprador):
-        _sub(comprador, 'RNCComprador', rnc_comprador)
     razon_comprador = (factura.get('nombre_cliente_factura')
                        or factura.get('nombre_cliente') or '').strip()
-    if razon_comprador:
+    if tipo_ecf == TIPO_CREDITO_FISCAL:
+        # e-CF-31-v1.0.xsd exige Comprador/RNCComprador y
+        # Comprador/RazonSocialComprador (minOccurs=1 los dos); en
+        # e-CF-32-v1.0.xsd ambos son opcionales (consumidor final sin RNC).
+        # Un e-CF 31 sin RNC/razon social del comprador es un documento
+        # invalido para la DGII -- no se debe generar en silencio.
+        if not _rnc_valido(rnc_comprador):
+            raise ECFBuilderError(
+                "e-CF 31 (Credito Fiscal) requiere un RNC/cedula valido "
+                "(9 u 11 digitos) del comprador; la factura "
+                f"{factura['tipo_factura']}-{factura['no_factura']} tiene "
+                f"{datos_fiscales.get('rnc_comprador')!r}")
+        if not razon_comprador:
+            raise ECFBuilderError(
+                "e-CF 31 (Credito Fiscal) requiere la razon social del "
+                f"comprador; la factura {factura['tipo_factura']}-"
+                f"{factura['no_factura']} no la tiene")
+        _sub(comprador, 'RNCComprador', rnc_comprador)
         _sub(comprador, 'RazonSocialComprador', razon_comprador[:150])
+    else:
+        if _rnc_valido(rnc_comprador):
+            _sub(comprador, 'RNCComprador', rnc_comprador)
+        if razon_comprador:
+            _sub(comprador, 'RazonSocialComprador', razon_comprador[:150])
     if (datos_fiscales.get('direccion_comprador') or '').strip():
         _sub(comprador, 'DireccionComprador',
              datos_fiscales['direccion_comprador'].strip()[:100])
@@ -310,7 +383,9 @@ def _construir_desde_factura(tipo_ecf: int, no_cia: str, punto: str,
             f"La compania {no_cia} no tiene TFE_CONFIG configurado "
             "(Configuracion > Comprobante Electronico)")
 
-    factura['e_ncf'] = fe_repo.consumir_siguiente_encf(no_cia, tipo_ecf)
+    secuencia = fe_repo.consumir_siguiente_encf(no_cia, tipo_ecf)
+    factura['e_ncf'] = secuencia['e_ncf']
+    factura['fecha_vencimiento_secuencia'] = secuencia['fecha_vencimiento_secuencia']
 
     emisor = {
         'rnc': config.get('rnc_emisor'),
