@@ -2,71 +2,36 @@
 para los tipos 31 (Factura de Credito Fiscal Electronica) y 32 (Factura de
 Consumo Electronica).
 
-Fuente de verdad: los XSD reales descargados de la DGII en
+Fuente de verdad: los XSD reales de la DGII en
 ``backend/docs/superpowers/reference/2026-08-31-set-pruebas-paso2/``
-(``e-CF-31-v1.0.xsd`` / ``e-CF-32-v1.0.xsd``). Los dos comparten el mismo
-elemento raiz ``<ECF>`` y la enorme mayoria del arbol es identica -- por
-eso este modulo usa un solo builder interno (``_construir_ecf``) para
-ambos tipos -- PERO NO SON EL MISMO ESQUEMA: un diff linea por linea
-(normalizando solo espacios/comillas, ver Task 1 self-review) encontro
-diferencias estructurales reales entre 31 y 32 que ``_construir_ecf`` SI
-respeta (rama explicita por ``tipo_ecf``, no una suposicion generica):
+(``e-CF-31-v1.0.xsd`` / ``e-CF-32-v1.0.xsd``). Comparten el mismo elemento
+raiz ``<ECF>`` y la mayoria del arbol es identica -- por eso hay un solo
+builder interno (``_construir_ecf``) para ambos -- pero NO son el mismo
+esquema. Diferencias que este modulo SI respeta (rama explicita por
+``tipo_ecf``):
 
-- ``IdDoc/FechaVencimientoSecuencia`` (``FechaValidationType``,
-  minOccurs=1) existe SOLO en 31, justo despues de ``eNCF``. No existe en
-  32. Emitido solo cuando ``tipo_ecf == TIPO_CREDITO_FISCAL``.
-- ``Comprador/RNCComprador`` y ``Comprador/RazonSocialComprador`` son
-  obligatorios (minOccurs=1) en 31; opcionales (minOccurs=0) en 32. En 31
-  faltar cualquiera de los dos levanta ``ECFBuilderError`` en vez de
-  omitir el elemento en silencio.
+- ``IdDoc/FechaVencimientoSecuencia`` (minOccurs=1) existe solo en 31,
+  justo despues de ``eNCF``; no existe en 32.
+- ``Comprador/RNCComprador`` y ``RazonSocialComprador`` son obligatorios
+  en 31 (levanta ``ECFBuilderError`` si faltan); opcionales en 32.
 
-Diferencias estructurales adicionales confirmadas por el mismo diff que
-este modulo NO implementa (fuera de alcance de Task 1, quedan para quien
-implemente esos tipos/campos si algun dia se necesitan -- ningun dato
-real de FAT se pierde por esto en el flujo normal de facturacion):
+Diferencias adicionales que este modulo NO implementa (ambas opcionales
+en el XSD, sin dato mapeado): el bloque de retencion/percepcion de
+``Totales``/``Item`` (solo en 31, ``TFAT_FACTURA.itbis_retenido``/
+``isr_retenido`` ya existen y podrian mapear aqui si algun dia se pide) y
+``Comprador/IdentificadorExtranjero`` + el bloque ``Mineria`` de ``Item``
+(solo en 32, no aplica al negocio de Abregonza). Ver ``NOTAS.md`` en esa
+misma carpeta para el mapeo completo campo e-CF -> columna real.
 
-- ``Totales`` de 31 tiene 4 elementos opcionales extra que 32 no tiene:
-  ``TotalITBISRetenido``, ``TotalISRRetencion``, ``TotalITBISPercepcion``,
-  ``TotalISRPercepcion`` (retencion/percepcion de agentes de retencion).
-  ``TFAT_FACTURA.itbis_retenido``/``isr_retenido`` ya existen como
-  columnas (usadas por ``fat_repo.generar_607``) y podrian mapear aqui,
-  pero no se agregaron: son opcionales y no fueron pedidos.
-- ``DetallesItems/Item`` de 31 tiene un bloque opcional extra
-  ``Retencion`` (``IndicadorAgenteRetencionoPercepcion``,
-  ``MontoITBISRetenido``, ``MontoISRRetenido``) que 32 no tiene. Mismo
-  tema de retencion que el punto anterior, tampoco poblado.
-- ``DetallesItems/Item`` de 32 tiene un bloque opcional extra ``Mineria``
-  (peso/afiliacion/liquidacion) que 31 no tiene -- no aplica a FAT
-  (mineria), no poblado en ninguno de los dos tipos.
-- El resto de diferencias en el archivo XSD crudo (BOM, comillas
-  simples/dobles, espaciado de auto-cierre, un typo de espacio en el
-  nombre ``" IndicadorServicioTodoIncluidoType"`` dentro del propio XSD
-  de 31, alineacion de tabs en comentarios) son ruido de formato del
-  archivo original de la DGII, no diferencias de esquema.
+Alcance: SOLO arma el XML "sin firmar", terminando en ``FechaHoraFirma``.
+El XSD exige despues un ``<xs:any>`` donde va el ``<Signature>`` XMLDSig;
+ese nodo lo agrega ``apps.fe.firma.firmar_con_app_oficial()`` despues y
+este modulo no lo genera ni lo importa.
 
-Ver ``NOTAS.md`` en esa misma carpeta para el mapeo completo campo e-CF ->
-columna real y las reglas de validacion (formatos de fecha/decimales/RNC,
-etc.) -- su afirmacion original de que ambos XSD son "exactamente" el
-mismo esquema quedo corregida por este descubrimiento, ver nota agregada
-ahi mismo.
-
-Alcance de este modulo (Task 1 de la Fase 2 e-CF): SOLO arma el XML "sin
-firmar", terminando en ``FechaHoraFirma``. El XSD exige despues un
-``<xs:any>`` (``minOccurs="1"``) donde va el ``<Signature>`` XMLDSig; ese
-nodo lo agrega ``apps.fe.firma.firmar_con_app_oficial()`` en un paso
-posterior y este modulo NO lo genera ni lo importa.
-
-Desviacion deliberada del nombre de parametro del plan original: el plan
-describe la firma publica como ``construir_ecf_31(no_cia, no_docu)`` /
-``construir_ecf_32(no_cia, punto, no_docu)``. ``TFAT_FACTURA`` no tiene una
-columna ``no_docu`` -- su clave real es
-``(no_cia, punto, tipo_factura, no_factura)`` (ver ``fat_repo.get_factura``)
-y ambos wrappers necesitan los mismos cuatro valores para ubicar la
-factura, asi que aqui los dos aceptan
-``(no_cia, punto, tipo_factura, no_factura)`` de forma simetrica en vez del
-``no_docu`` suelto del plan. Senalado explicitamente en el reporte de
-Task 1 para que se revise si el resto del flujo (Task 2+) esperaba otra
-firma.
+``construir_ecf_31``/``construir_ecf_32`` toman
+``(no_cia, punto, tipo_factura, no_factura)`` -- la clave real de
+``TFAT_FACTURA`` (ver ``fat_repo.get_factura``); no existe una columna
+``no_docu`` unica para identificar una factura de FAT.
 """
 from __future__ import annotations
 
@@ -86,7 +51,7 @@ TIPO_CONSUMO = 32
 
 # posiciones_fijas_ncf reales (ver fat_repo._compose_ncf_dgi / CNT.TCNT_NCF)
 # que clasifican una factura como Credito Fiscal o Consumo -- el MISMO
-# criterio que ya usa el resto del sistema (607 en fat_repo.generar_607,
+# criterio que ya usa el resto del sistema (607 en fat_repo.archivo_dgii_607,
 # cuadre de caja por B01/B02) para distinguir el NCF de papel. No se
 # inventa un criterio nuevo para el e-CF.
 _POSICIONES_CREDITO_FISCAL = {'B01', 'E31'}
@@ -185,7 +150,7 @@ def _tipo_pago_y_formas(datos_fiscales: dict,
     con un unico FormaDePago usando tipo_pago_fiscal (FormaPagoType 1-8);
     si no esta configurado o es invalido se asume 1=Efectivo en vez de
     fallar la generacion del documento (mismo espiritu del fallback que ya
-    usa fat_repo.generar_607: ``int(r['forma_pago_dgii'] or 0)``).
+    usa fat_repo.archivo_dgii_607: ``int(r['forma_pago_dgii'] or 0)``).
     """
     if (datos_fiscales.get('forma_pago_fat') or '') == _FORMA_PAGO_CREDITO:
         return 2, []
@@ -216,6 +181,13 @@ def _construir_ecf(tipo_ecf: int, factura: dict, datos_fiscales: dict,
 
     monto_total = _fmt_monto(factura['total_neto'])
     porcientos_raw = datos_fiscales.get('lineas_porciento_raw') or {}
+    # Se calcula una sola vez por linea (no en Totales y de nuevo en
+    # DetallesItems) y se reutiliza en ambos lugares.
+    indicadores = {
+        int(l['no_linea']): _indicador_facturacion(
+            porcientos_raw.get(int(l['no_linea']), l.get('porciento_impuesto')))
+        for l in lineas
+    }
 
     ecf = etree.Element('ECF')
     encabezado = _sub(ecf, 'Encabezado')
@@ -308,9 +280,7 @@ def _construir_ecf(tipo_ecf: int, factura: dict, datos_fiscales: dict,
     totales = _sub(encabezado, 'Totales')
     total_exento = sum(
         float(l['monto_neto'] or 0) for l in lineas
-        if _indicador_facturacion(
-            porcientos_raw.get(int(l['no_linea']), l.get('porciento_impuesto'))
-        ) == 4)
+        if indicadores[int(l['no_linea'])] == 4)
     monto_gravado_total = float(factura['total_linea'] or 0) - total_exento
     if monto_gravado_total > 0:
         _sub(totales, 'MontoGravadoTotal', _fmt_monto(monto_gravado_total))
@@ -324,8 +294,7 @@ def _construir_ecf(tipo_ecf: int, factura: dict, datos_fiscales: dict,
         no_linea = int(linea['no_linea'])
         item = _sub(detalles, 'Item')
         _sub(item, 'NumeroLinea', no_linea)
-        _sub(item, 'IndicadorFacturacion', _indicador_facturacion(
-            porcientos_raw.get(no_linea, linea.get('porciento_impuesto'))))
+        _sub(item, 'IndicadorFacturacion', indicadores[no_linea])
         nombre_item = (linea.get('descripcion') or linea.get('no_produ') or '').strip()
         _sub(item, 'NombreItem', (nombre_item or 'PRODUCTO')[:80])
         # TFAT_FACTURAL no distingue Bien/Servicio; FAT es mayoritariamente

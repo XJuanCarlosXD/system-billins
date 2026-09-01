@@ -1972,14 +1972,14 @@ def get_datos_fiscales_factura(no_cia: str, punto: str, tipo_factura: str,
     Usado por apps.fe.ecf_builder (Task 1 de Fase 2 e-CF) junto con
     get_factura() para armar el XML del comprobante electronico:
     - rnc_comprador: mismo criterio NVL(rnc_factura, cliente.rnc) que ya usa
-      generar_606 (ver rows_f mas arriba en este archivo) para no divergir
-      del RNC que el 606 ya reporta para esta misma factura.
+      archivo_dgii_607 (ver rows_f mas arriba en este archivo) para no
+      divergir del RNC que el 607 ya reporta para esta misma factura.
     - direccion_comprador/cedula_comprador: de CXC.TCXC_CLIENTE (no hay
       TFAT_CLIENTE, los clientes viven en CXC).
     - tipo_ingreso: crudo de TFAT_FACTURA.tipo_ingreso (catalogo '01'..'06'
       de e-CF IdDoc/TipoIngresos), NVL a 1 si nunca se capturo.
     - forma_pago_fat/tipo_pago_fiscal: codigos crudos de TFAT_TIPO_PAGO
-      (tipo_pago_fiscal es el mismo campo que generar_606 ya usa como
+      (tipo_pago_fiscal es el mismo campo que archivo_dgii_607 ya usa como
       "forma_pago_dgii" para las columnas 17-23 del 607).
     - lineas_porciento_raw: {no_linea: porciento_impuesto|None} SIN el
       `NVL(...,0)` que get_factura() aplica a sus lineas -- ese NVL colapsa
