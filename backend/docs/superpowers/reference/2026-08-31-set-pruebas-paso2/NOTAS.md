@@ -193,3 +193,59 @@ Un builder genérico `construir_ecf(tipo_ecf: int, datos: dict) -> str` que reci
 directamente ese dict (con los mismos nombres de columna del xlsx) cubre los 10 tipos
 sin trabajo adicional — Task 1 puede envolver ese genérico para los wrappers 31/32
 reales, y Task 5 lo llama directo con el dict armado desde la fila del Excel.
+
+## 5. ACTUALIZACIÓN 2026-09-01 — XSD de los 10 tipos completos + esquema de aplanado real
+
+**Se descargaron los 8 XSD restantes** (`e-CF-33` a `e-CF-47`, mismo origen público DGII)
+para que Task 5 tenga estructura real de los 10 tipos, no solo 31/32 — la sección 2 de
+este documento ya advertía no asumir "mismo esquema" para los 8 restantes sin diffearlos;
+ya están en esta misma carpeta listos para diffear igual que se hizo con 31 vs 32.
+Hallazgo rápido: `IndicadorNotaCredito` (visto en el Set de Pruebas) solo existe en
+`e-CF-34-v1.0.xsd` (Nota de Crédito) — confirma que cada tipo puede tener 1-2 campos
+exclusivos adicionales, como ya se sabía.
+
+**Esquema de aplanado real del Set de Pruebas** (extraído programáticamente de las 25
+filas reales de la hoja `ECF`, no de las 5215 columnas teóricas — de esas, solo **347
+columnas tienen datos reales no-vacíos** en los 25 escenarios; ver
+`campos-usados-set-pruebas.txt` en esta carpeta para la lista completa). El
+convenio de nombres de columna del Excel usa corchetes para representar grupos
+repetidos del XSD:
+
+- **Campo simple de encabezado**: nombre tal cual, ej. `RNCEmisor`, `FechaEmision`,
+  `MontoTotal` → mapea 1:1 a un elemento del árbol `Encabezado` (ver §2 para saber en
+  qué sub-sección: `IdDoc`/`Emisor`/`Comprador`/`Totales`/`InformacionesAdicionales`/
+  `Transporte`/`InformacionReferencia`).
+- **Grupo repetido de encabezado, 1 corchete**: `Nombre[N]`, ej. `FormaPago[1]`/
+  `MontoPago[1]`, `FormaPago[2]`/`MontoPago[2]` → los pares con el mismo N arman una
+  instancia de `TablaFormasPago/FormaDePago`. Mismo patrón para
+  `TelefonoEmisor[1..3]` (`TablaTelefonoEmisor`) y para `TipoImpuesto[1]`/
+  `TasaImpuestoAdicional[1]`/... (`Totales/ImpuestosAdicionales/ImpuestoAdicional`,
+  **cuidado**: mismo nombre de campo que a nivel ítem pero con UN solo corchete —
+  se distingue por la profundidad, ver abajo) y `NumeroLineaDoR[N]`/`TipoAjuste[N]`/...
+  (`DescuentosORecargos/DescuentoORecargo`, documento, no confundir con
+  `NumeroLinea[N]` que es de ítem).
+- **Campo de línea/ítem, 1 corchete**: `Nombre[LineaN]`, ej. `NumeroLinea[1]`,
+  `NombreItem[1]`, `CantidadItem[1]`, `MontoItem[1]` → arman la línea N de
+  `DetallesItems/Item`. En el Set de Pruebas real se ven hasta 16 líneas (`[1]`..`[16]`)
+  en un mismo escenario.
+- **Sub-grupo repetido DENTRO de una línea, 2 corchetes**: `Nombre[LineaN][SubM]`, ej.
+  `TipoCodigo[1][1]`/`CodigoItem[1][1]` (`TablaCodigosItem/CodigosItem` de la línea 1),
+  `Subcantidad[1][1]`/`CodigoSubcantidad[1][1]` (`TablaSubcantidad`),
+  `TipoSubDescuento[1][1]`/`MontoSubDescuento[1][1]` (`TablaSubDescuento`),
+  `TipoSubRecargo[1][1]`/`SubRecargoPorcentaje[1][1]`/`MontosubRecargo[1][1]`
+  (`TablaSubRecargo`), `TipoImpuesto[1][1]`/`TipoImpuesto[1][2]`
+  (`TablaImpuestoAdicional` de la línea, hasta 2) — el segundo corchete es el índice
+  dentro del sub-grupo de esa línea específica.
+
+Esto es suficiente para un parser genérico: separar cada clave en
+`nombre_base` + lista de 0/1/2 índices, tener una tabla `nombre_base → (contenedor
+XSD, profundidad_esperada)` construida a partir de los XSD reales, y reconstruir el
+árbol agrupando por índice. **No hace falta soportar los ~4868 campos teóricos que el
+Excel no usa realmente** — construir el mapeo solo para los 347 campos listados en
+`campos-usados-set-pruebas.txt` cubre el 100% de lo que el Set de Pruebas real necesita.
+
+Nota: la API de `POST /api/fe/pruebas/enviar/` (Task 4, ya construida) ya recibe
+`{no_cia, tipo_ecf, encf, datos}` con `encf` como parámetro separado — si el operador
+pega también una clave `ENCF`/`CasoPrueba` dentro de `datos` (copiada tal cual del
+Excel), el builder debe ignorarla y usar el parámetro `encf` explícito como fuente de
+verdad, no fallar ni duplicar.
