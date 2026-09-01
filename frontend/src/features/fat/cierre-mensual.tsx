@@ -31,8 +31,9 @@ function usePeriodoFat(noCia: string, punto: string) {
   return useQuery({
     queryKey: ['fat-punto', noCia, punto],
     queryFn: async () => {
-      const all = await regalGeneralApi.fatListPuntos(noCia)
-      return (all as any[]).find(p => String(p.punto) === String(punto)) || null
+      const d: any = await regalGeneralApi.fatListPuntos(noCia)
+      const items: any[] = d?.items ?? d ?? []
+      return items.find((p) => String(p.punto) === String(punto)) ?? null
     },
     enabled: !!noCia,
   })
