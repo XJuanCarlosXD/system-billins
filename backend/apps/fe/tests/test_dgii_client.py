@@ -306,6 +306,85 @@ def test_enviar_rfce_respuesta_no_json_lanza_dgiierror(monkeypatch, _patch_comun
 
 
 # ---------------------------------------------------------------------------
+# reenviar_ecf (Task 4)
+# ---------------------------------------------------------------------------
+
+def test_reenviar_ecf_no_firma_de_nuevo(monkeypatch, _patch_comunes):
+    """El bug concreto que este test cubre: reenviar_ecf NO debe llamar a
+    firma.firmar_con_app_oficial() -- el XML ya viene firmado (guardado en
+    TFE_DOCUMENTO.XML_FIRMADO), firmarlo otra vez sería double-signing."""
+    state = _patch_comunes
+    _patch_post(monkeypatch, state, FakeResponse(200, {'trackId': 'TRACK-2'}))
+
+    dgii_client.reenviar_ecf('01', 'testecf', 'E320000000006', FAKE_XML_FIRMADO)
+
+    assert state['firmar_calls'] == []
+    assert state['firmar_xml_calls'] == []
+
+
+def test_reenviar_ecf_url_igual_a_enviar_ecf(monkeypatch, _patch_comunes):
+    state = _patch_comunes
+    _patch_post(monkeypatch, state, FakeResponse(200, {'trackId': 'TRACK-2'}))
+
+    dgii_client.reenviar_ecf('01', 'certecf', 'E320000000006', FAKE_XML_FIRMADO)
+
+    url = state['requests_post_calls'][0]['url']
+    assert url == 'https://ecf.dgii.gov.do/certecf/recepcion/api/facturaselectronicas'
+
+
+def test_reenviar_ecf_envia_el_xml_firmado_tal_cual(monkeypatch, _patch_comunes):
+    state = _patch_comunes
+    _patch_post(monkeypatch, state, FakeResponse(200, {'trackId': 'TRACK-2'}))
+
+    dgii_client.reenviar_ecf('01', 'testecf', 'E320000000006', FAKE_XML_FIRMADO)
+
+    files = state['requests_post_calls'][0]['files']
+    nombre_archivo, contenido, content_type = files['xml']
+    assert nombre_archivo == '130217432E320000000006.xml'
+    assert contenido == FAKE_XML_FIRMADO.encode('utf-8')
+    assert content_type == 'text/xml'
+
+
+def test_reenviar_ecf_retorna_nuevo_trackid_y_respuesta_cruda(monkeypatch, _patch_comunes):
+    state = _patch_comunes
+    respuesta_dgii = {'trackId': 'TRACK-NUEVO', 'error': None, 'mensaje': None}
+    _patch_post(monkeypatch, state, FakeResponse(200, respuesta_dgii))
+
+    resultado = dgii_client.reenviar_ecf(
+        '01', 'testecf', 'E320000000006', FAKE_XML_FIRMADO)
+
+    assert resultado == {'trackId': 'TRACK-NUEVO', 'respuesta_cruda': respuesta_dgii}
+    assert 'xml_firmado' not in resultado
+
+
+def test_reenviar_ecf_sin_trackid_lanza_dgiierror(monkeypatch, _patch_comunes):
+    state = _patch_comunes
+    _patch_post(monkeypatch, state, FakeResponse(
+        200, {'trackId': None, 'error': 'DuplicadoTrackId', 'mensaje': 'Ya procesado'}))
+
+    with pytest.raises(dgii_client.DgiiError, match='DuplicadoTrackId'):
+        dgii_client.reenviar_ecf('01', 'testecf', 'E320000000006', FAKE_XML_FIRMADO)
+
+
+def test_reenviar_ecf_http_no_200_lanza_dgiierror(monkeypatch, _patch_comunes):
+    state = _patch_comunes
+    _patch_post(monkeypatch, state, FakeResponse(500, None, text='Internal Server Error'))
+
+    with pytest.raises(dgii_client.DgiiError, match='HTTP 500'):
+        dgii_client.reenviar_ecf('01', 'testecf', 'E320000000006', FAKE_XML_FIRMADO)
+
+
+def test_reenviar_ecf_sin_config_lanza_dgiierror(monkeypatch, _patch_comunes):
+    state = _patch_comunes
+    state['config'] = None
+    _patch_post(monkeypatch, state, FakeResponse(200, {'trackId': 'X'}))
+
+    with pytest.raises(dgii_client.DgiiError, match='RNC emisor'):
+        dgii_client.reenviar_ecf('01', 'testecf', 'E320000000006', FAKE_XML_FIRMADO)
+    assert state['requests_post_calls'] == []
+
+
+# ---------------------------------------------------------------------------
 # consultar_estado
 # ---------------------------------------------------------------------------
 

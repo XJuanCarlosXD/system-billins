@@ -268,6 +268,79 @@ def save_documento_enviado(no_cia: str, e_ncf: str, tipo_ecf: str,
         cur.connection.commit()
 
 
+def _read_lob_or_none(v):
+    """Lee un CLOB ahora (mientras el cursor sigue vivo); devuelve None si
+    v es None. Mismo patrón que ``plantillas_pdf_repo._read_lob_or_none``
+    -- leer un LOB después de cerrar el cursor/conexión falla con
+    DPY-1001 (not connected to database)."""
+    if v is None:
+        return None
+    try:
+        return v.read() if hasattr(v, 'read') else str(v)
+    except Exception:
+        return None
+
+
+def get_documento(no_cia: str, e_ncf: str) -> dict | None:
+    """Detalle completo de un documento de TFE_DOCUMENTO, INCLUYENDO los
+    CLOBs XML_FIRMADO/RESPUESTA_DGII que ``list_documentos`` deliberadamente
+    excluye del listado paginado (ver docstring ahí -- son pesados para un
+    listado, pero la vista de detalle de un solo documento -- ver XML
+    firmado / respuesta DGII en un modal, Task 4 -- sí los necesita).
+    """
+    sql = (
+        f"SELECT {DOCUMENTO_LIST_COLS}, xml_firmado, respuesta_dgii "
+        "FROM FAT.TFE_DOCUMENTO WHERE no_cia=:1 AND e_ncf=:2"
+    )
+    with client.cursor() as cur:
+        cur.execute(sql, [no_cia, e_ncf])
+        row = cur.fetchone()
+        if not row:
+            return None
+        cols = [c[0].lower() for c in cur.description]
+        doc = dict(zip(cols, row))
+        doc['xml_firmado'] = _read_lob_or_none(doc.get('xml_firmado'))
+        doc['respuesta_dgii'] = _read_lob_or_none(doc.get('respuesta_dgii'))
+    for k in ('fecha_firma', 'fecha_crea', 'fecha_actualiza'):
+        if doc.get(k):
+            doc[k] = doc[k].strftime('%Y-%m-%d %H:%M:%S')
+    return doc
+
+
+def actualizar_estado_documento(no_cia: str, e_ncf: str, estado: str,
+                                respuesta: str | None = None) -> None:
+    """Actualiza ESTADO (y opcionalmente RESPUESTA_DGII) de un documento ya
+    registrado en TFE_DOCUMENTO -- usado por el endpoint de "Consultar
+    estado" (Task 4) para reflejar el resultado más reciente de
+    ``dgii_client.consultar_estado`` SIN re-insertar la fila ni tocar
+    XML_FIRMADO/INTENTOS.
+
+    A propósito NO se reusa ``save_documento_enviado`` para esto: esa
+    función incrementa INTENTOS y pisa XML_FIRMADO/RESPUESTA_DGII asumiendo
+    un nuevo *envío* -- una consulta de estado no es un envío y perdería la
+    respuesta original de ``enviar_ecf`` si compartiera el mismo campo sin
+    cuidado. Lanza ``ValueError`` si el documento no existe (evita un
+    UPDATE silencioso de 0 filas).
+    """
+    with client.cursor() as cur:
+        if respuesta is not None:
+            cur.execute(
+                "UPDATE FAT.TFE_DOCUMENTO SET estado=:1, respuesta_dgii=:2, "
+                "fecha_actualiza=SYSDATE WHERE no_cia=:3 AND e_ncf=:4",
+                [estado, respuesta, no_cia, e_ncf],
+            )
+        else:
+            cur.execute(
+                "UPDATE FAT.TFE_DOCUMENTO SET estado=:1, "
+                "fecha_actualiza=SYSDATE WHERE no_cia=:2 AND e_ncf=:3",
+                [estado, no_cia, e_ncf],
+            )
+        if cur.rowcount == 0:
+            raise ValueError(
+                f'No existe el documento e-NCF {e_ncf} para la compañía {no_cia}')
+        cur.connection.commit()
+
+
 def list_documentos(no_cia: str, filtros: dict | None = None) -> list[dict]:
     """Lista la bitácora TFE_DOCUMENTO paginada y filtrada.
 

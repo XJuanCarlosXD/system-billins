@@ -38,6 +38,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   AMBIENTES_FE,
   ESTADOS_CERT,
@@ -49,6 +50,8 @@ import {
   useSaveFeSecuencia,
   useUploadCertificado,
 } from '@/features/fe/api'
+import { FeDocumentos } from '@/features/fe/fe-documentos'
+import { FeModoTest } from '@/features/fe/fe-modo-test'
 
 function diasHasta(fecha: string | null): number | null {
   if (!fecha) return null
@@ -152,7 +155,20 @@ export function UnifiedFacturacionElectronica() {
   const diasCert = diasHasta(cfg?.cert_vence ?? null)
 
   return (
-    <div className='grid gap-4 pb-8 lg:grid-cols-2'>
+    <Tabs defaultValue='config' className='pb-8'>
+      <TabsList className='w-full justify-start overflow-x-auto'>
+        <TabsTrigger value='config'>Configuración</TabsTrigger>
+        <TabsTrigger value='secuencias'>Secuencias e-NCF</TabsTrigger>
+        <TabsTrigger value='documentos'>Comprobante Electrónico</TabsTrigger>
+        <TabsTrigger
+          value='modo-test'
+          className='data-[state=active]:bg-amber-500 data-[state=active]:text-white'
+        >
+          Modo Test
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value='config' className='grid gap-4 pt-4 lg:grid-cols-2'>
       {/* Estado */}
       <Card className='lg:col-span-2'>
         <CardHeader className='pb-2'>
@@ -347,9 +363,20 @@ export function UnifiedFacturacionElectronica() {
         </CardContent>
       </Card>
 
-      {/* Secuencias e-NCF */}
-      <SecuenciasCard noCia={noCia} />
-    </div>
+      </TabsContent>
+
+      <TabsContent value='secuencias' className='pt-4'>
+        <SecuenciasCard noCia={noCia} />
+      </TabsContent>
+
+      <TabsContent value='documentos' className='pt-4'>
+        <FeDocumentos noCia={noCia} />
+      </TabsContent>
+
+      <TabsContent value='modo-test' className='pt-4'>
+        <FeModoTest noCia={noCia} />
+      </TabsContent>
+    </Tabs>
   )
 }
 

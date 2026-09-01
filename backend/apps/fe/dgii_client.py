@@ -235,6 +235,42 @@ def enviar_rfce(no_cia: str, ambiente: str, e_ncf: str, xml_sin_firmar: str) -> 
     }
 
 
+def reenviar_ecf(no_cia: str, ambiente: str, e_ncf: str, xml_firmado: str) -> dict:
+    """Reenvía a la DGII un e-CF que YA fue firmado anteriormente (el mismo
+    ``XML_FIRMADO`` guardado en ``TFE_DOCUMENTO`` por ``enviar_ecf``), SIN
+    volver a firmarlo.
+
+    El e-NCF y la firma digital de un e-CF no cambian entre intentos de
+    envío -- solo se repite la sumisión HTTP (p.ej. reintentar tras un
+    rechazo por un problema transitorio, o un envío que quedó en un estado
+    inconsistente por un timeout de red). Llamar a ``enviar_ecf()`` con
+    este XML ya firmado como ``xml_sin_firmar`` firmaría un XML que ya
+    tiene el nodo ``<Signature>`` una segunda vez (double-signing), que la
+    DGII rechazaría -- por eso esta función existe como variante separada
+    que se salta ``_firmar_para_envio`` por completo y reusa
+    ``_post_multipart_firmado`` (mismo endpoint/formato multipart que
+    ``enviar_ecf``) directo con el XML tal cual está guardado.
+
+    Devuelve ``{'trackId', 'respuesta_cruda'}`` (no incluye
+    ``xml_firmado`` en el resultado -- a diferencia de ``enviar_ecf``, el
+    llamador ya lo tiene, es el mismo que le pasó a esta función).
+    """
+    cfg = fe_repo.get_config(no_cia)
+    if not cfg or not cfg.get('rnc_emisor'):
+        raise DgiiError('La empresa no tiene RNC emisor configurado en TFE_CONFIG')
+    token = obtener_token(no_cia, ambiente)
+    nombre_archivo = f"{cfg['rnc_emisor']}{e_ncf}.xml"
+    data = _post_multipart_firmado(
+        f'{_base(ambiente)}/recepcion/api/facturaselectronicas',
+        token, nombre_archivo, xml_firmado, 'Reenvío e-CF')
+    track_id = data.get('trackId')
+    if not track_id:
+        raise DgiiError(
+            f"Reenvío e-CF sin trackId -- error: {data.get('error')!r}, "
+            f"mensaje: {data.get('mensaje')!r}")
+    return {'trackId': track_id, 'respuesta_cruda': data}
+
+
 def consultar_estado(no_cia: str, ambiente: str, track_id: str) -> dict:
     """Consulta el resultado de validación de un e-CF enviado con
     ``enviar_ecf`` (servicio oficial "Consulta de resultado e-CF").

@@ -1,10 +1,15 @@
-"""API Facturación Electrónica: configuración por empresa (Fase 1).
+"""API Facturación Electrónica: configuración por empresa (Fase 1) y
+bitácora de documentos enviados (Fase 2, Task 4).
 
 Rutas:
   GET/PUT /api/fe/config/?no_cia=01
   POST    /api/fe/config/certificado/        (multipart: no_cia, password, certificado)
   POST    /api/fe/config/probar-conexion/
   GET/POST /api/fe/secuencias/?no_cia=01
+  GET     /api/fe/documentos/?no_cia=01&estado=&tipo_ecf=&es_prueba=&limit=&offset=
+  GET     /api/fe/documentos/<e_ncf>/?no_cia=01
+  POST    /api/fe/documentos/<e_ncf>/consultar-estado/   (body: {no_cia})
+  POST    /api/fe/documentos/<e_ncf>/reenviar/            (body: {no_cia})
 """
 from __future__ import annotations
 
@@ -116,3 +121,96 @@ def secuencias_view(request):
         return _err('prox_secuencia fuera del rango autorizado')
     fe_repo.upsert_secuencia(no_cia, data)
     return JsonResponse({'items': fe_repo.list_secuencias(no_cia)})
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
+def documentos_view(request):
+    no_cia = request.GET.get('no_cia')
+    if not no_cia:
+        return _err('no_cia requerido')
+    filtros = {
+        'estado': request.GET.get('estado'),
+        'tipo_ecf': request.GET.get('tipo_ecf'),
+        'es_prueba': request.GET.get('es_prueba'),
+        'limit': request.GET.get('limit'),
+        'offset': request.GET.get('offset'),
+    }
+    return JsonResponse({'items': fe_repo.list_documentos(no_cia, filtros)})
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
+def documento_detalle_view(request, e_ncf):
+    no_cia = request.GET.get('no_cia')
+    if not no_cia:
+        return _err('no_cia requerido')
+    doc = fe_repo.get_documento(no_cia, e_ncf)
+    if not doc:
+        return _err('Documento no encontrado', status=404)
+    return JsonResponse({'documento': doc})
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def documento_consultar_estado_view(request, e_ncf):
+    try:
+        data = json.loads(request.body or b'{}')
+    except json.JSONDecodeError:
+        return _err('JSON inválido')
+    no_cia = data.get('no_cia')
+    if not no_cia:
+        return _err('no_cia requerido')
+    doc = fe_repo.get_documento(no_cia, e_ncf)
+    if not doc:
+        return _err('Documento no encontrado', status=404)
+    if not doc.get('track_id'):
+        return _err('El documento no tiene trackId (no fue enviado a la DGII)')
+    cfg = fe_repo.get_config(no_cia)
+    if not cfg:
+        return _err('La empresa no tiene configuración de FE guardada')
+    try:
+        resultado = dgii_client.consultar_estado(
+            no_cia, cfg['ambiente'], doc['track_id'])
+    except dgii_client.DgiiError as exc:
+        return _err(str(exc), status=502)
+    estado = (resultado.get('estado') or '').upper() or 'DESCONOCIDO'
+    fe_repo.actualizar_estado_documento(
+        no_cia, e_ncf, estado, json.dumps(resultado))
+    return JsonResponse({'estado': estado, 'respuesta_dgii': resultado})
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def documento_reenviar_view(request, e_ncf):
+    try:
+        data = json.loads(request.body or b'{}')
+    except json.JSONDecodeError:
+        return _err('JSON inválido')
+    no_cia = data.get('no_cia')
+    if not no_cia:
+        return _err('no_cia requerido')
+    doc = fe_repo.get_documento(no_cia, e_ncf)
+    if not doc:
+        return _err('Documento no encontrado', status=404)
+    if not doc.get('xml_firmado'):
+        return _err('El documento no tiene XML firmado almacenado; no se '
+                    'puede reenviar (vuelva a generarlo desde cero)')
+    cfg = fe_repo.get_config(no_cia)
+    if not cfg:
+        return _err('La empresa no tiene configuración de FE guardada')
+    try:
+        resultado = dgii_client.reenviar_ecf(
+            no_cia, cfg['ambiente'], e_ncf, doc['xml_firmado'])
+    except dgii_client.DgiiError as exc:
+        return _err(str(exc), status=502)
+    fe_repo.save_documento_enviado(
+        no_cia, e_ncf, doc['tipo_ecf'], resultado['trackId'],
+        doc['xml_firmado'], json.dumps(resultado['respuesta_cruda']),
+        es_prueba=doc.get('es_prueba') or 'N')
+    return JsonResponse({'trackId': resultado['trackId'],
+                         'respuesta_dgii': resultado['respuesta_cruda']})

@@ -162,3 +162,132 @@ export function useSaveFeSecuencia(noCia: string) {
       qc.invalidateQueries({ queryKey: ['fe-secuencias', noCia] }),
   })
 }
+
+// ---------------------------------------------------------------------------
+// Bitácora de documentos enviados (TFE_DOCUMENTO) — Fase 2, Task 4
+// ---------------------------------------------------------------------------
+
+export interface FeDocumento {
+  no_cia: string
+  e_ncf: string
+  tipo_ecf: string
+  punto: string | null
+  tipo_docu: string | null
+  no_docu: string | null
+  rnc_comprador: string | null
+  monto_total: number | null
+  estado: string
+  track_id: string | null
+  codigo_seguridad: string | null
+  es_prueba: 'S' | 'N'
+  intentos: number
+  fecha_firma: string | null
+  fecha_crea: string | null
+  fecha_actualiza: string | null
+}
+
+export interface FeDocumentoDetalle extends FeDocumento {
+  xml_firmado: string | null
+  respuesta_dgii: string | null
+}
+
+export interface FeDocumentosFiltros {
+  estado?: string
+  tipo_ecf?: string
+  es_prueba?: string
+  limit?: number
+  offset?: number
+}
+
+export const ESTADOS_DOCUMENTO: Record<string, string> = {
+  ENVIADO: 'Enviado',
+  ACEPTADO: 'Aceptado',
+  'ACEPTADO CONDICIONAL': 'Aceptado condicional',
+  RECHAZADO: 'Rechazado',
+  'EN PROCESO': 'En proceso',
+  'NO ENCONTRADO': 'No encontrado',
+  DESCONOCIDO: 'Desconocido',
+}
+
+export function useFeDocumentos(noCia: string, filtros: FeDocumentosFiltros = {}) {
+  return useQuery({
+    queryKey: ['fe-documentos', noCia, filtros],
+    queryFn: () => {
+      const params = new URLSearchParams({ no_cia: noCia })
+      if (filtros.estado) params.set('estado', filtros.estado)
+      if (filtros.tipo_ecf) params.set('tipo_ecf', filtros.tipo_ecf)
+      if (filtros.es_prueba) params.set('es_prueba', filtros.es_prueba)
+      params.set('limit', String(filtros.limit ?? 50))
+      params.set('offset', String(filtros.offset ?? 0))
+      return feRequest<{ items: FeDocumento[] }>(`/fe/documentos/?${params.toString()}`)
+    },
+    enabled: !!noCia,
+    placeholderData: (prev) => prev,
+  })
+}
+
+export function useFeDocumento(noCia: string, eNcf: string | null) {
+  return useQuery({
+    queryKey: ['fe-documento', noCia, eNcf],
+    queryFn: () =>
+      feRequest<{ documento: FeDocumentoDetalle }>(
+        `/fe/documentos/${encodeURIComponent(eNcf as string)}/?no_cia=${encodeURIComponent(noCia)}`
+      ),
+    enabled: !!noCia && !!eNcf,
+  })
+}
+
+export function useConsultarEstado(noCia: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (eNcf: string) =>
+      feRequest<{ estado: string; respuesta_dgii: unknown }>(
+        `/fe/documentos/${encodeURIComponent(eNcf)}/consultar-estado/`,
+        { method: 'POST', body: JSON.stringify({ no_cia: noCia }) }
+      ),
+    onSuccess: (_data, eNcf) => {
+      qc.invalidateQueries({ queryKey: ['fe-documentos', noCia] })
+      qc.invalidateQueries({ queryKey: ['fe-documento', noCia, eNcf] })
+    },
+  })
+}
+
+export function useReenviarDocumento(noCia: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (eNcf: string) =>
+      feRequest<{ trackId: string; respuesta_dgii: unknown }>(
+        `/fe/documentos/${encodeURIComponent(eNcf)}/reenviar/`,
+        { method: 'POST', body: JSON.stringify({ no_cia: noCia }) }
+      ),
+    onSuccess: (_data, eNcf) => {
+      qc.invalidateQueries({ queryKey: ['fe-documentos', noCia] })
+      qc.invalidateQueries({ queryKey: ['fe-documento', noCia, eNcf] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Modo Test — Set de Pruebas DGII (Fase 2, Task 5 — el backend de este
+// endpoint aún no existe; esta pantalla lo llama igual (contrato ya
+// documentado) y mostrará el 404 tal cual hasta que Task 5 lo implemente.
+// ---------------------------------------------------------------------------
+
+export interface EnviarPruebaInput {
+  tipo_ecf: number
+  encf: string
+  datos: Record<string, unknown>
+}
+
+export function useEnviarPrueba(noCia: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: EnviarPruebaInput) =>
+      feRequest<{ trackId?: string; respuesta_dgii?: unknown }>(
+        `/fe/pruebas/enviar/`,
+        { method: 'POST', body: JSON.stringify({ no_cia: noCia, ...input }) }
+      ),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ['fe-documentos', noCia] }),
+  })
+}

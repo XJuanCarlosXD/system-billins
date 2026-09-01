@@ -13,22 +13,39 @@ from contextlib import contextmanager
 from datetime import datetime
 from types import SimpleNamespace
 
+import pytest
+
 from apps.legacy.repositories import fe_repo
 
 
 class FakeCursor:
-    def __init__(self):
+    def __init__(self, fetchone_result=None, description=None, rowcount=1):
         self.executed: list[tuple[str, object]] = []
         self.committed = False
+        self._fetchone_result = fetchone_result
+        self.description = description or []
+        self.rowcount = rowcount
 
     def execute(self, sql, params=None):
         self.executed.append((sql, params))
+
+    def fetchone(self):
+        return self._fetchone_result
 
     @property
     def connection(self):
         def _commit():
             self.committed = True
         return SimpleNamespace(commit=_commit)
+
+
+class FakeLob:
+    """Simula un CLOB de oracledb: expone .read(), no es un str."""
+    def __init__(self, text):
+        self._text = text
+
+    def read(self):
+        return self._text
 
 
 # ---------------------------------------------------------------------------
@@ -207,3 +224,157 @@ def test_list_documentos_tolera_fechas_nulas(monkeypatch):
     assert result[0]['fecha_firma'] is None
     assert result[0]['fecha_crea'] is None
     assert result[0]['fecha_actualiza'] is None
+
+
+# ---------------------------------------------------------------------------
+# get_documento (Task 4) -- a diferencia de list_documentos, SÍ incluye los
+# CLOBs XML_FIRMADO/RESPUESTA_DGII.
+# ---------------------------------------------------------------------------
+
+_DETALLE_COLS = fe_repo.DOCUMENTO_LIST_COLS.split(', ') + [
+    'xml_firmado', 'respuesta_dgii']
+
+
+def _fake_row_detalle(**overrides):
+    valores = {
+        'no_cia': '01', 'e_ncf': 'E320000000006', 'tipo_ecf': '32',
+        'punto': '01', 'tipo_docu': 'FT', 'no_docu': '0001234',
+        'rnc_comprador': '130217432', 'monto_total': 1180.0,
+        'estado': 'ENVIADO', 'track_id': 'TRACK-1',
+        'codigo_seguridad': 'ABC123', 'es_prueba': 'N', 'intentos': 1,
+        'fecha_firma': datetime(2026, 8, 31, 10, 30, 0),
+        'fecha_crea': datetime(2026, 8, 31, 10, 29, 0),
+        'fecha_actualiza': datetime(2026, 8, 31, 10, 31, 0),
+        'xml_firmado': FakeLob('<ECF>firmado</ECF>'),
+        'respuesta_dgii': FakeLob('{"trackId": "TRACK-1"}'),
+    }
+    valores.update(overrides)
+    return tuple(valores[c] for c in _DETALLE_COLS)
+
+
+def test_get_documento_devuelve_none_si_no_existe(monkeypatch):
+    cur = FakeCursor(fetchone_result=None)
+
+    @contextmanager
+    def fake_cursor():
+        yield cur
+
+    monkeypatch.setattr(fe_repo.client, 'cursor', fake_cursor)
+
+    assert fe_repo.get_documento('01', 'E999999999999') is None
+
+
+def test_get_documento_incluye_xml_firmado_y_respuesta_dgii(monkeypatch):
+    """Diferencia clave con list_documentos: get_documento SÍ lee los CLOBs
+    completos (para el modal de detalle de Task 4)."""
+    cur = FakeCursor(
+        fetchone_result=_fake_row_detalle(),
+        description=[(c.upper(),) for c in _DETALLE_COLS],
+    )
+
+    @contextmanager
+    def fake_cursor():
+        yield cur
+
+    monkeypatch.setattr(fe_repo.client, 'cursor', fake_cursor)
+
+    doc = fe_repo.get_documento('01', 'E320000000006')
+
+    assert doc is not None
+    assert doc['xml_firmado'] == '<ECF>firmado</ECF>'
+    assert doc['respuesta_dgii'] == '{"trackId": "TRACK-1"}'
+    assert doc['e_ncf'] == 'E320000000006'
+    # fechas formateadas igual que list_documentos
+    assert doc['fecha_firma'] == '2026-08-31 10:30:00'
+
+
+def test_get_documento_sql_filtra_por_no_cia_y_e_ncf(monkeypatch):
+    cur = FakeCursor(
+        fetchone_result=_fake_row_detalle(),
+        description=[(c.upper(),) for c in _DETALLE_COLS],
+    )
+
+    @contextmanager
+    def fake_cursor():
+        yield cur
+
+    monkeypatch.setattr(fe_repo.client, 'cursor', fake_cursor)
+
+    fe_repo.get_documento('02', 'E310000000010')
+
+    sql, params = cur.executed[0]
+    assert 'FROM FAT.TFE_DOCUMENTO' in sql
+    assert 'xml_firmado' in sql.lower()
+    assert 'respuesta_dgii' in sql.lower()
+    assert params == ['02', 'E310000000010']
+
+
+def test_get_documento_tolera_clobs_nulos(monkeypatch):
+    cur = FakeCursor(
+        fetchone_result=_fake_row_detalle(xml_firmado=None, respuesta_dgii=None),
+        description=[(c.upper(),) for c in _DETALLE_COLS],
+    )
+
+    @contextmanager
+    def fake_cursor():
+        yield cur
+
+    monkeypatch.setattr(fe_repo.client, 'cursor', fake_cursor)
+
+    doc = fe_repo.get_documento('01', 'E320000000006')
+
+    assert doc['xml_firmado'] is None
+    assert doc['respuesta_dgii'] is None
+
+
+# ---------------------------------------------------------------------------
+# actualizar_estado_documento (Task 4)
+# ---------------------------------------------------------------------------
+
+def test_actualizar_estado_documento_con_respuesta(monkeypatch):
+    cur = FakeCursor(rowcount=1)
+
+    @contextmanager
+    def fake_cursor():
+        yield cur
+
+    monkeypatch.setattr(fe_repo.client, 'cursor', fake_cursor)
+
+    fe_repo.actualizar_estado_documento(
+        '01', 'E320000000006', 'ACEPTADO', respuesta='{"estado": "Aceptado"}')
+
+    assert len(cur.executed) == 1
+    sql, params = cur.executed[0]
+    assert 'UPDATE FAT.TFE_DOCUMENTO' in sql
+    assert 'respuesta_dgii' in sql.lower()
+    assert params == ['ACEPTADO', '{"estado": "Aceptado"}', '01', 'E320000000006']
+    assert cur.committed is True
+
+
+def test_actualizar_estado_documento_sin_respuesta_no_toca_respuesta_dgii(monkeypatch):
+    cur = FakeCursor(rowcount=1)
+
+    @contextmanager
+    def fake_cursor():
+        yield cur
+
+    monkeypatch.setattr(fe_repo.client, 'cursor', fake_cursor)
+
+    fe_repo.actualizar_estado_documento('01', 'E320000000006', 'EN_PROCESO')
+
+    sql, params = cur.executed[0]
+    assert 'respuesta_dgii' not in sql.lower()
+    assert params == ['EN_PROCESO', '01', 'E320000000006']
+
+
+def test_actualizar_estado_documento_lanza_valueerror_si_no_existe(monkeypatch):
+    cur = FakeCursor(rowcount=0)
+
+    @contextmanager
+    def fake_cursor():
+        yield cur
+
+    monkeypatch.setattr(fe_repo.client, 'cursor', fake_cursor)
+
+    with pytest.raises(ValueError, match='No existe'):
+        fe_repo.actualizar_estado_documento('01', 'E999999999999', 'ACEPTADO')
