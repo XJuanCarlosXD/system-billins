@@ -133,6 +133,30 @@ def _firmar_para_envio(no_cia: str, xml_sin_firmar: str) -> tuple[str, str]:
     return xml_firmado, cfg['rnc_emisor']
 
 
+def _post_multipart_firmado(url: str, token: str, nombre_archivo: str,
+                             xml_firmado: str, contexto_error: str) -> dict:
+    """POST multipart del XML ya firmado a un servicio de recepción de la
+    DGII; valida el HTTP 200 y parsea el JSON de la respuesta.
+
+    Compartido por ``enviar_ecf`` y ``enviar_rfce`` (mismo request salvo
+    URL/host) -- cada llamador arma su propio dict de retorno a partir del
+    JSON devuelto porque las formas son distintas (ver docstrings). El
+    ``contexto_error`` identifica el servicio en el mensaje de
+    ``DgiiError`` (p.ej. ``'Recepción e-CF'``, ``'Recepción RFCE'``).
+    """
+    r = requests.post(
+        url,
+        headers={'Authorization': f'Bearer {token}'},
+        files={'xml': (nombre_archivo, xml_firmado.encode('utf-8'), 'text/xml')},
+        timeout=TIMEOUT)
+    if r.status_code != 200:
+        raise DgiiError(f'{contexto_error} HTTP {r.status_code}: {r.text[:300]}')
+    try:
+        return r.json()
+    except ValueError:
+        raise DgiiError(f'Respuesta no JSON de la DGII: {r.text[:300]}')
+
+
 def enviar_ecf(no_cia: str, ambiente: str, e_ncf: str, xml_sin_firmar: str) -> dict:
     """Firma y envía un e-CF tentativo al servicio de Recepción de e-CF.
 
@@ -149,22 +173,22 @@ def enviar_ecf(no_cia: str, ambiente: str, e_ncf: str, xml_sin_firmar: str) -> d
     xml_firmado, rnc_emisor = _firmar_para_envio(no_cia, xml_sin_firmar)
     token = obtener_token(no_cia, ambiente)
     nombre_archivo = f'{rnc_emisor}{e_ncf}.xml'
-    r = requests.post(
+    data = _post_multipart_firmado(
         f'{_base(ambiente)}/recepcion/api/facturaselectronicas',
-        headers={'Authorization': f'Bearer {token}'},
-        files={'xml': (nombre_archivo, xml_firmado.encode('utf-8'), 'text/xml')},
-        timeout=TIMEOUT)
-    if r.status_code != 200:
-        raise DgiiError(f'Recepción e-CF HTTP {r.status_code}: {r.text[:300]}')
-    try:
-        data = r.json()
-    except ValueError:
-        raise DgiiError(f'Respuesta no JSON de la DGII: {r.text[:300]}')
+        token, nombre_archivo, xml_firmado, 'Recepción e-CF')
     track_id = data.get('trackId')
     if not track_id:
+        # 'error'/'mensaje' son los nombres de campo reales que documenta la
+        # DGII para este servicio (no el genérico str(data)[:300] usado en
+        # obtener_token) -- se listan explícitos para que el mensaje de
+        # error sea legible sin tener que parsear el dict completo.
         raise DgiiError(
             f"Recepción e-CF sin trackId -- error: {data.get('error')!r}, "
             f"mensaje: {data.get('mensaje')!r}")
+    # NOTA: 'trackId' se deja tal cual (camelCase de la DGII) a propósito --
+    # a diferencia de enviar_rfce, que normaliza a snake_case porque arma un
+    # dict de forma propia. No "corregir" esto a snake_case: rompería a
+    # cualquier llamador que dependa de 'trackId' literal per spec.
     return {'trackId': track_id, 'xml_firmado': xml_firmado, 'respuesta_cruda': data}
 
 
@@ -194,22 +218,17 @@ def enviar_rfce(no_cia: str, ambiente: str, e_ncf: str, xml_sin_firmar: str) -> 
     xml_firmado, rnc_emisor = _firmar_para_envio(no_cia, xml_sin_firmar)
     token = obtener_token(no_cia, ambiente)
     nombre_archivo = f'{rnc_emisor}{e_ncf}.xml'
-    r = requests.post(
+    data = _post_multipart_firmado(
         f'{_base_fc(ambiente)}/recepcionfc/api/recepcion/ecf',
-        headers={'Authorization': f'Bearer {token}'},
-        files={'xml': (nombre_archivo, xml_firmado.encode('utf-8'), 'text/xml')},
-        timeout=TIMEOUT)
-    if r.status_code != 200:
-        raise DgiiError(f'Recepción RFCE HTTP {r.status_code}: {r.text[:300]}')
-    try:
-        data = r.json()
-    except ValueError:
-        raise DgiiError(f'Respuesta no JSON de la DGII: {r.text[:300]}')
+        token, nombre_archivo, xml_firmado, 'Recepción RFCE')
     return {
         'estado': data.get('estado'),
         'codigo': data.get('codigo'),
         'mensajes': data.get('mensajes'),
         'encf': data.get('encf'),
+        # snake_case aqui a proposito -- este dict es una forma propia (no
+        # un passthrough), a diferencia de 'trackId' en enviar_ecf (ver nota
+        # ahi).
         'secuencia_utilizada': data.get('secuenciaUtilizada'),
         'xml_firmado': xml_firmado,
         'respuesta_cruda': data,
