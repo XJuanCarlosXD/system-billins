@@ -217,3 +217,110 @@ def save_token(no_cia: str, ambiente: str, token: str,
             [no_cia, ambiente, token, expira_naive],
         )
         cur.connection.commit()
+
+
+# ---------------------------------------------------------------------------
+# Bitácora de documentos enviados (TFE_DOCUMENTO) — Fase 2, Task 3
+# ---------------------------------------------------------------------------
+
+DOCUMENTO_LIST_COLS = (
+    "no_cia, e_ncf, tipo_ecf, punto, tipo_docu, no_docu, rnc_comprador, "
+    "monto_total, estado, track_id, codigo_seguridad, es_prueba, intentos, "
+    "fecha_firma, fecha_crea, fecha_actualiza"
+)
+
+
+def save_documento_enviado(no_cia: str, e_ncf: str, tipo_ecf: str,
+                           track_id: str, xml_firmado: str, respuesta: str,
+                           es_prueba: str = 'N') -> None:
+    """Registra en la bitácora TFE_DOCUMENTO un e-CF ya firmado y enviado.
+
+    MERGE (mismo patrón que ``upsert_config``/``upsert_secuencia``): la
+    primera vez para un ``(no_cia, e_ncf)`` inserta la fila (INTENTOS=1,
+    ESTADO='ENVIADO'); si ``dgii_client.enviar_ecf`` se reintenta para el
+    mismo e-NCF (p.ej. tras un timeout de red), actualiza track_id/xml/
+    respuesta e incrementa INTENTOS en vez de duplicar la fila -- coherente
+    con la PK real (NO_CIA, E_NCF).
+
+    ``es_prueba='S'`` marca los envíos hechos contra el Set de Pruebas de
+    certificación DGII (ver 2026-08-31-fe-documento-es-prueba.sql) para que
+    puedan excluirse de reportes/consultas de producción real; el llamador
+    (flujo de certificación, Task 5) es quien decide el valor -- por
+    defecto 'N' para no romper el flujo real de facturación ya desplegado.
+    """
+    with client.cursor() as cur:
+        cur.execute(
+            "MERGE INTO FAT.TFE_DOCUMENTO t "
+            "USING (SELECT :b1 no_cia, :b2 e_ncf FROM dual) s "
+            "ON (t.no_cia = s.no_cia AND t.e_ncf = s.e_ncf) "
+            "WHEN MATCHED THEN UPDATE SET tipo_ecf=:b3, track_id=:b4, "
+            " xml_firmado=:b5, respuesta_dgii=:b6, es_prueba=:b7, "
+            " estado='ENVIADO', fecha_firma=SYSDATE, "
+            " intentos=NVL(intentos,0)+1, fecha_actualiza=SYSDATE "
+            "WHEN NOT MATCHED THEN INSERT "
+            " (no_cia, e_ncf, tipo_ecf, track_id, xml_firmado, "
+            "  respuesta_dgii, es_prueba, estado, fecha_firma, intentos) "
+            " VALUES (:b1, :b2, :b3, :b4, :b5, :b6, :b7, 'ENVIADO', "
+            "  SYSDATE, 1)",
+            {'b1': no_cia, 'b2': e_ncf, 'b3': tipo_ecf, 'b4': track_id,
+             'b5': xml_firmado, 'b6': respuesta, 'b7': es_prueba},
+        )
+        cur.connection.commit()
+
+
+def list_documentos(no_cia: str, filtros: dict | None = None) -> list[dict]:
+    """Lista la bitácora TFE_DOCUMENTO paginada y filtrada.
+
+    ``filtros`` (todas opcionales):
+      - ``estado``: filtra por TFE_DOCUMENTO.estado exacto (p.ej. 'ENVIADO',
+        'ACEPTADO', 'RECHAZADO').
+      - ``tipo_ecf``: filtra por tipo de e-CF ('31', '32', ...).
+      - ``es_prueba``: 'S' o 'N' -- para que el flujo de certificación
+        (Task 5) pueda ver solo el Set de Pruebas, y las pantallas de
+        producción (Task 4) puedan excluirlo por defecto.
+      - ``limit``/``offset``: paginación, mismo patrón ROWNUM de doble
+        wrap que ``cxc_repo.list_documentos``/``fat_repo`` (conduce) --
+        Oracle 11g no soporta OFFSET...FETCH NEXT. Default limit=50,
+        offset=0; limit se acota a 500 para evitar cargas completas.
+
+    No incluye XML_FIRMADO/RESPUESTA_DGII (CLOBs pesados que el listado no
+    necesita); quedan disponibles vía consulta directa a la tabla para una
+    futura vista de detalle.
+    """
+    filtros = filtros or {}
+    where = ['no_cia = :1']
+    params: list = [no_cia]
+    if filtros.get('estado'):
+        params.append(filtros['estado'])
+        where.append(f"estado = :{len(params)}")
+    if filtros.get('tipo_ecf'):
+        params.append(filtros['tipo_ecf'])
+        where.append(f"tipo_ecf = :{len(params)}")
+    if filtros.get('es_prueba'):
+        params.append(filtros['es_prueba'])
+        where.append(f"NVL(es_prueba,'N') = :{len(params)}")
+    where_sql = ' AND '.join(where)
+
+    limit = min(int(filtros.get('limit') or 50), 500)
+    offset = max(int(filtros.get('offset') or 0), 0)
+    end_row_pos = len(params) + 1
+    start_row_pos = len(params) + 2
+    params_paged = params + [offset + limit, offset]
+
+    sql = (
+        "SELECT * FROM ( "
+        "  SELECT a.*, ROWNUM rn FROM ( "
+        f"    SELECT {DOCUMENTO_LIST_COLS} "
+        "    FROM FAT.TFE_DOCUMENTO "
+        f"    WHERE {where_sql} "
+        "    ORDER BY NVL(fecha_actualiza, fecha_crea) DESC, e_ncf DESC "
+        f"  ) a WHERE ROWNUM <= :{end_row_pos} "
+        f") WHERE rn > :{start_row_pos}"
+    )
+    rows = client.fetch_dicts(sql, params_paged)
+    for r in rows:
+        for k in ('fecha_firma', 'fecha_crea', 'fecha_actualiza'):
+            if r.get(k):
+                r[k] = r[k].strftime('%Y-%m-%d %H:%M:%S')
+        r.pop('rn', None)
+    return rows
