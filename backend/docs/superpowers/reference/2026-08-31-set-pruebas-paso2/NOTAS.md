@@ -44,17 +44,39 @@ completos en el xlsx para cualquier tipo — ver §3.
 Documentado también en la memoria `project_dgii_ecf_postulacion_estado_20260831` para
 que quede visible sin tener que releer este archivo.
 
-## 2. Estructura del XML (idéntica para los 10 tipos — un solo XSD genérico)
+## 2. Estructura del XML — CORRECCIÓN 2026-09-01: NO son idénticos, hay diffs reales
 
-Los tres XSD descargados (`e-CF-31`, `e-CF-32`, `RFCE-32`) definen el MISMO elemento raíz
-`<ECF>` con el mismo árbol completo y el mismo `TipoeCFType` (enum con los 10 valores
-31,32,33,34,41,43,44,45,46,47) — la DGII no separa un XSD por tipo, es un esquema único
-donde `TipoeCF` decide semánticamente qué reglas de negocio aplican (algunas gratuitas
-para todos los tipos, ver Formato-e-CF-V1.0.pdf para las obligatoriedades condicionales
-por tipo, no capturadas por el XSD en sí — el XSD solo valida estructura/tipos, no reglas
-cross-field). Esto simplifica mucho: **un solo builder genérico sirve para los 10 tipos**,
-alimentado por un dict de datos; los wrappers `construir_ecf_31`/`construir_ecf_32` solo
-arman ese dict desde `TFAT_FACTURA`.
+**Corrección importante** (encontrada por el reviewer de Task 1, la afirmación original de
+esta sección era incorrecta y llevó a un bug real): los XSD de `e-CF-31` y `e-CF-32` **no
+son byte-a-byte el mismo esquema**. Comparten el mismo elemento raíz `<ECF>` y el mismo
+`TipoeCFType` (enum con los 10 valores), y la enorme mayoría del árbol es idéntica — pero
+hay diffs estructurales reales entre 31 y 32 (`diff` de los nombres de elemento):
+
+- **Solo en `e-CF-31`** (Crédito Fiscal): `FechaVencimientoSecuencia` (dentro de `IdDoc`,
+  `minOccurs="1"` — **obligatorio**, viene de `TFE_SECUENCIA.fecha_vence`), y el bloque de
+  retenciones `TotalITBISRetenido`/`TotalISRRetencion`/`TotalITBISPercepcion`/
+  `TotalISRPercepcion` + por-línea `Retencion`/`IndicadorAgenteRetencionoPercepcion`/
+  `MontoITBISRetenido`/`MontoISRRetenido` (Ley 253-12, agentes de retención — aplica solo
+  si el comprador es agente de retención, opcional pero solo existe en el 31).
+- **Solo en `e-CF-32`** (Consumo): `IdentificadorExtranjero` (comprador extranjero sin RNC)
+  y el bloque `Mineria`/`PesoNetoKilogramo`/`PesoNetoMineria`/`TipoAfiliacion`/`Liquidacion`
+  (no aplica a Abregonza, sector minería).
+- `Comprador/RNCComprador` y `RazonSocialComprador` son **obligatorios en 31**
+  (`minOccurs="1"`) pero **opcionales en 32** (consumidor final sin RNC es válido en
+  Consumo, no en Crédito Fiscal — tiene sentido, un Crédito Fiscal sin RNC del comprador
+  no sirve para que el comprador lo use como gasto deducible).
+- El resto de la estructura (Encabezado común, DetallesItems/Item, Totales agregados,
+  FechaHoraFirma) sí es idéntica entre ambos.
+
+**No asumir "mismo esquema" para los 8 tipos restantes (33,34,41,43,44,45,46,47) sin
+diffearlos también** — cada uno puede tener este mismo patrón de 2-3 campos exclusivos.
+Antes de implementar cualquiera de esos 8 (fuera de alcance por ahora), repetir este
+mismo `diff` de nombres de elemento contra `e-CF-32.xsd` como baseline.
+
+Sigue siendo cierto que un builder interno compartido (dict de datos → XML) es la forma
+más limpia de implementar esto — pero el dict debe incluir los campos exclusivos por tipo
+(`fecha_vencimiento_secuencia` para 31, retenciones si aplica) y el código debe **fallar
+duro** (no omitir en silencio) si falta un campo obligatorio del tipo solicitado.
 
 Árbol raíz `ECF`:
 ```
