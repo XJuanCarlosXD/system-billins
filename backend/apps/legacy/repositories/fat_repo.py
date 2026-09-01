@@ -1965,6 +1965,63 @@ def get_factura(no_cia: str, punto: str, tipo_factura: str, no_factura: str) -> 
     }
 
 
+def get_datos_fiscales_factura(no_cia: str, punto: str, tipo_factura: str,
+                               no_factura: str) -> dict | None:
+    """Campos fiscales de la factura no expuestos por get_factura(), para e-CF.
+
+    Usado por apps.fe.ecf_builder (Task 1 de Fase 2 e-CF) junto con
+    get_factura() para armar el XML del comprobante electronico:
+    - rnc_comprador: mismo criterio NVL(rnc_factura, cliente.rnc) que ya usa
+      generar_606 (ver rows_f mas arriba en este archivo) para no divergir
+      del RNC que el 606 ya reporta para esta misma factura.
+    - direccion_comprador/cedula_comprador: de CXC.TCXC_CLIENTE (no hay
+      TFAT_CLIENTE, los clientes viven en CXC).
+    - tipo_ingreso: crudo de TFAT_FACTURA.tipo_ingreso (catalogo '01'..'06'
+      de e-CF IdDoc/TipoIngresos), NVL a 1 si nunca se capturo.
+    - forma_pago_fat/tipo_pago_fiscal: codigos crudos de TFAT_TIPO_PAGO
+      (tipo_pago_fiscal es el mismo campo que generar_606 ya usa como
+      "forma_pago_dgii" para las columnas 17-23 del 607).
+    - lineas_porciento_raw: {no_linea: porciento_impuesto|None} SIN el
+      `NVL(...,0)` que get_factura() aplica a sus lineas -- ese NVL colapsa
+      "sin ITBIS registrado" (NULL, e-CF IndicadorFacturacion=4 Exento) con
+      "ITBIS 0% explicito" (e-CF IndicadorFacturacion=3) en el mismo 0.0, y
+      el e-CF SI distingue ambos casos (ver NOTAS.md #2).
+    """
+    rows = client.fetch_dicts(
+        "SELECT NVL(f.rnc_factura, cl.rnc) rnc_comprador, "
+        "NVL(cl.direccion,'') direccion_comprador, "
+        "NVL(cl.cedula,'') cedula_comprador, "
+        "NVL(f.tipo_ingreso,1) tipo_ingreso, "
+        "f.forma_pago_fat, NVL(tp.tipo_pago_fiscal,'') tipo_pago_fiscal "
+        "FROM FAT.TFAT_FACTURA f "
+        "LEFT JOIN CXC.TCXC_CLIENTE cl "
+        "  ON cl.no_cia = f.no_cia AND cl.punto = f.punto AND cl.no_cliente = f.no_cliente "
+        "LEFT JOIN FAT.TFAT_TIPO_PAGO tp "
+        "  ON tp.no_cia = f.no_cia AND tp.tipo_pago = f.forma_pago_fat "
+        "WHERE f.no_cia=:1 AND f.punto=:2 AND f.tipo_factura=:3 AND f.no_factura=:4",
+        [no_cia, punto, tipo_factura.strip().upper(), no_factura.strip()])
+    if not rows:
+        return None
+    r = rows[0]
+    lineas_raw = client.fetch_dicts(
+        "SELECT no_linea, porciento_impuesto FROM FAT.TFAT_FACTURAL "
+        "WHERE no_cia=:1 AND punto=:2 AND tipo_factura=:3 AND no_factura=:4",
+        [no_cia, punto, tipo_factura.strip().upper(), no_factura.strip()])
+    return {
+        'rnc_comprador': (r['rnc_comprador'] or '').strip(),
+        'direccion_comprador': (r['direccion_comprador'] or '').strip(),
+        'cedula_comprador': (r['cedula_comprador'] or '').strip(),
+        'tipo_ingreso': f"{int(r['tipo_ingreso'] or 1):02d}",
+        'forma_pago_fat': (r['forma_pago_fat'] or '').strip(),
+        'tipo_pago_fiscal': (r['tipo_pago_fiscal'] or '').strip(),
+        'lineas_porciento_raw': {
+            int(l['no_linea']): (float(l['porciento_impuesto'])
+                                 if l['porciento_impuesto'] is not None else None)
+            for l in lineas_raw
+        },
+    }
+
+
 def list_vendedores(no_cia: str) -> list[dict]:
     # Misma fuente que /api/cxc/vendedores/ (TCXC_VENDEDOR sin filtrar por activo)
     # para que la lista de vendedores en facturacion/conduce coincida exactamente

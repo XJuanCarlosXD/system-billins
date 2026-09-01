@@ -121,6 +121,46 @@ def upsert_secuencia(no_cia: str, s: dict) -> None:
         cur.connection.commit()
 
 
+def consumir_siguiente_encf(no_cia: str, tipo_ecf: int) -> str:
+    """Reserva atomicamente el siguiente e-NCF de TFE_SECUENCIA y lo devuelve
+    ya compuesto (``E`` + tipo 2 digitos + 10 digitos secuencial).
+
+    Mismo patron de reserva (SELECT...FOR UPDATE + UPDATE del contador) que
+    fat_repo.create_factura ya usa para el NCF de papel en CNT.TCNT_NCF:
+    aqui el contador es TFE_SECUENCIA.prox_secuencia. Toma el primer rango
+    activo (activa='S') que todavia no se agoto (prox_secuencia <=
+    secuencia_hasta) para (no_cia, tipo_ecf).
+
+    Efecto secundario irreversible: incrementa prox_secuencia en la BD real
+    aunque el e-CF que se arme despues nunca se firme/envie (igual que un
+    NCF de papel que se reserva y despues se anula) -- llamar solo cuando
+    de verdad se va a generar el documento, no en un preview.
+
+    Lanza ValueError si no hay secuencia configurada/activa/disponible.
+    """
+    tipo = int(tipo_ecf)
+    with client.cursor() as cur:
+        cur.execute(
+            "SELECT secuencia_desde, secuencia_hasta, prox_secuencia "
+            "FROM FAT.TFE_SECUENCIA "
+            "WHERE no_cia=:1 AND tipo_ecf=:2 AND NVL(activa,'S')='S' "
+            "  AND prox_secuencia <= secuencia_hasta "
+            "ORDER BY secuencia_desde FOR UPDATE",
+            [no_cia, tipo])
+        row = cur.fetchone()
+        if not row:
+            raise ValueError(
+                f"No hay secuencia e-NCF activa/disponible para tipo {tipo} "
+                f"en la compania {no_cia}. Configure TFE_SECUENCIA primero.")
+        secuencia_desde, _hasta, prox = int(row[0]), int(row[1]), int(row[2])
+        cur.execute(
+            "UPDATE FAT.TFE_SECUENCIA SET prox_secuencia=:1 "
+            "WHERE no_cia=:2 AND tipo_ecf=:3 AND secuencia_desde=:4",
+            [prox + 1, no_cia, tipo, secuencia_desde])
+        cur.connection.commit()
+    return f"E{tipo:02d}{prox:010d}"
+
+
 def get_config_por_rnc(rnc: str) -> dict | None:
     """Busca la config FE cuya empresa emite con este RNC (para recepción P2P)."""
     rows = client.fetch_dicts(
