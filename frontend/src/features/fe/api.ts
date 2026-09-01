@@ -199,11 +199,16 @@ export interface FeDocumentosFiltros {
   offset?: number
 }
 
+// Clave de ESTADOS_DOCUMENTO usada para decidir si el botón "Reenviar" se
+// muestra (fe-documentos.tsx) -- exportada como constante en vez de
+// repetir el literal 'RECHAZADO' en cada sitio que lo compara.
+export const ESTADO_RECHAZADO = 'RECHAZADO'
+
 export const ESTADOS_DOCUMENTO: Record<string, string> = {
   ENVIADO: 'Enviado',
   ACEPTADO: 'Aceptado',
   'ACEPTADO CONDICIONAL': 'Aceptado condicional',
-  RECHAZADO: 'Rechazado',
+  [ESTADO_RECHAZADO]: 'Rechazado',
   'EN PROCESO': 'En proceso',
   'NO ENCONTRADO': 'No encontrado',
   DESCONOCIDO: 'Desconocido',

@@ -153,6 +153,26 @@ def documento_detalle_view(request, e_ncf):
     return JsonResponse({'documento': doc})
 
 
+def _doc_o_404(no_cia: str, e_ncf: str):
+    """Busca el documento en TFE_DOCUMENTO; devuelve ``(doc, None)`` si
+    existe o ``(None, respuesta_404)`` si no. Compartido por
+    documento_consultar_estado_view y documento_reenviar_view -- antes
+    duplicaban el mismo bloque verbatim (code review post-commit)."""
+    doc = fe_repo.get_documento(no_cia, e_ncf)
+    if not doc:
+        return None, _err('Documento no encontrado', status=404)
+    return doc, None
+
+
+def _cfg_o_error(no_cia: str):
+    """Busca la config FE de la cía; devuelve ``(cfg, None)`` si existe o
+    ``(None, respuesta_400)`` si no. Mismo motivo que ``_doc_o_404``."""
+    cfg = fe_repo.get_config(no_cia)
+    if not cfg:
+        return None, _err('La empresa no tiene configuración de FE guardada')
+    return cfg, None
+
+
 @login_required
 @csrf_exempt
 @require_http_methods(['POST'])
@@ -164,22 +184,27 @@ def documento_consultar_estado_view(request, e_ncf):
     no_cia = data.get('no_cia')
     if not no_cia:
         return _err('no_cia requerido')
-    doc = fe_repo.get_documento(no_cia, e_ncf)
-    if not doc:
-        return _err('Documento no encontrado', status=404)
+    doc, error = _doc_o_404(no_cia, e_ncf)
+    if error:
+        return error
     if not doc.get('track_id'):
         return _err('El documento no tiene trackId (no fue enviado a la DGII)')
-    cfg = fe_repo.get_config(no_cia)
-    if not cfg:
-        return _err('La empresa no tiene configuración de FE guardada')
+    cfg, error = _cfg_o_error(no_cia)
+    if error:
+        return error
     try:
         resultado = dgii_client.consultar_estado(
             no_cia, cfg['ambiente'], doc['track_id'])
     except dgii_client.DgiiError as exc:
         return _err(str(exc), status=502)
     estado = (resultado.get('estado') or '').upper() or 'DESCONOCIDO'
-    fe_repo.actualizar_estado_documento(
-        no_cia, e_ncf, estado, json.dumps(resultado))
+    try:
+        fe_repo.actualizar_estado_documento(
+            no_cia, e_ncf, estado, json.dumps(resultado))
+    except ValueError as exc:
+        # Carrera muy poco probable: el documento se borró entre el
+        # _doc_o_404 de arriba y este UPDATE. Mejor un 404 limpio que un 500.
+        return _err(str(exc), status=404)
     return JsonResponse({'estado': estado, 'respuesta_dgii': resultado})
 
 
@@ -194,15 +219,15 @@ def documento_reenviar_view(request, e_ncf):
     no_cia = data.get('no_cia')
     if not no_cia:
         return _err('no_cia requerido')
-    doc = fe_repo.get_documento(no_cia, e_ncf)
-    if not doc:
-        return _err('Documento no encontrado', status=404)
+    doc, error = _doc_o_404(no_cia, e_ncf)
+    if error:
+        return error
     if not doc.get('xml_firmado'):
         return _err('El documento no tiene XML firmado almacenado; no se '
                     'puede reenviar (vuelva a generarlo desde cero)')
-    cfg = fe_repo.get_config(no_cia)
-    if not cfg:
-        return _err('La empresa no tiene configuración de FE guardada')
+    cfg, error = _cfg_o_error(no_cia)
+    if error:
+        return error
     try:
         resultado = dgii_client.reenviar_ecf(
             no_cia, cfg['ambiente'], e_ncf, doc['xml_firmado'])

@@ -29,6 +29,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
+  ESTADO_RECHAZADO,
   ESTADOS_DOCUMENTO,
   TIPOS_ECF,
   useConsultarEstado,
@@ -44,7 +45,7 @@ const fmtDate = (s: string | null) => (s ? s.slice(0, 16).replace('T', ' ') : '�
 function estadoBadgeVariant(estado: string) {
   const e = (estado || '').toUpperCase()
   if (e.startsWith('ACEPTADO')) return 'default' as const
-  if (e === 'RECHAZADO') return 'destructive' as const
+  if (e === ESTADO_RECHAZADO) return 'destructive' as const
   if (e === 'ENVIADO' || e === 'EN PROCESO') return 'secondary' as const
   return 'outline' as const
 }
@@ -81,6 +82,15 @@ export function FeDocumentos({ noCia }: { noCia: string }) {
   }
 
   const onReenviar = (eNcf: string) => {
+    // Reenvía el mismo e-CF firmado a la DGII real -- un click accidental
+    // no debe poder dispararlo (mismo patrón que las operaciones
+    // irreversibles de CxP, ver cxp-procesos.tsx).
+    if (
+      !confirm(
+        `¿Reenviar el e-NCF ${eNcf} a la DGII? Esta es una sumisión real, no una prueba.`
+      )
+    )
+      return
     reenviar.mutate(eNcf, {
       onSuccess: () => toast.success(`e-NCF ${eNcf} reenviado a la DGII`),
       onError: (e: any) => toast.error(e.message),
@@ -244,7 +254,7 @@ export function FeDocumentos({ noCia }: { noCia: string }) {
                           ? 'Consultando…'
                           : 'Consultar estado'}
                       </Button>
-                      {d.estado?.toUpperCase() === 'RECHAZADO' && (
+                      {d.estado?.toUpperCase() === ESTADO_RECHAZADO && (
                         <Button
                           size='sm'
                           disabled={reenviar.isPending}

@@ -185,6 +185,31 @@ def test_consultar_estado_dgii_error_devuelve_502(cliente_autenticado, monkeypat
     assert resp.status_code == 502
 
 
+def test_consultar_estado_documento_borrado_entre_lectura_y_update_da_404(
+    cliente_autenticado, monkeypatch
+):
+    """Carrera muy poco probable pero cubierta: si actualizar_estado_documento
+    no encuentra la fila (p.ej. se borró justo después del _doc_o_404 de
+    arriba), la vista debe responder 404 limpio, no un 500 sin manejar."""
+    monkeypatch.setattr(fe_repo, 'get_documento', lambda *a, **k: dict(DOC_BASE))
+    monkeypatch.setattr(fe_repo, 'get_config', lambda no_cia: FAKE_CONFIG)
+    monkeypatch.setattr(
+        dgii_client, 'consultar_estado',
+        lambda no_cia, ambiente, track_id: {'estado': 'Aceptado'})
+
+    def fake_actualizar_estado_documento(no_cia, e_ncf, estado, respuesta=None):
+        raise ValueError(f'No existe el documento e-NCF {e_ncf} para la compañía {no_cia}')
+
+    monkeypatch.setattr(
+        fe_repo, 'actualizar_estado_documento', fake_actualizar_estado_documento)
+
+    resp = cliente_autenticado.post(
+        '/api/fe/documentos/E320000000006/consultar-estado/',
+        data=json.dumps({'no_cia': '01'}), content_type='application/json')
+
+    assert resp.status_code == 404
+
+
 # ---------------------------------------------------------------------------
 # documento_reenviar_view
 # ---------------------------------------------------------------------------
