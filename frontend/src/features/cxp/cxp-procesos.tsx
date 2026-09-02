@@ -640,6 +640,11 @@ export function CxpEntradaDocumentos({
   const [impuesto, setImpuesto] = useState('')
   const [editandoItbis, setEditandoItbis] = useState(false)
   const [saving, setSaving] = useState(false)
+  // % ISR libre (2, 10, 15, ...): reportado por MPILAR (reporte 5c148e2b) para
+  // proveedores informales (PI, NCF B11) por servicios donde la tasa no
+  // encaja en el catálogo de "Tipo de Retención". Puro estado de UI: no se
+  // persiste; solo actualiza isr_retenido = valor_servicio * porcIsr/100.
+  const [porcIsr, setPorcIsr] = useState('')
 
   // Catálogos DGI para los selects opcionales (tipo_gasto, tipo_retencion, forma_pago).
   const [tiposGasto, setTiposGasto] = useState<{ tipo_gasto: string; descripcion: string }[]>([])
@@ -735,6 +740,18 @@ export function CxpEntradaDocumentos({
         setImpuesto(doc.impuesto ? String(doc.impuesto) : '')
         setEditandoItbis(true)
         setEditandoRetenciones(true)
+        // Reconstruye % ISR desde el monto guardado para mostrarle a MPILAR qué
+        // porcentaje se usó (evita que el % quede vacío al editar un doc viejo).
+        {
+          const _vs = Number(doc.valor_servicio || 0)
+          const _isr = Number(doc.isr_retenido || 0)
+          if (_vs > 0 && _isr > 0) {
+            const pct = (_isr / _vs) * 100
+            setPorcIsr(pct % 1 === 0 ? String(pct) : pct.toFixed(2))
+          } else {
+            setPorcIsr('')
+          }
+        }
         const lineasCargadas: LineaContable[] = (doc.lineas || []).map((l: any) => ({
           cuenta: l.cuenta || '',
           centroCosto: l.centro_costo || '',
@@ -793,6 +810,18 @@ export function CxpEntradaDocumentos({
         setImpuesto(doc.impuesto ? String(doc.impuesto) : '')
         setEditandoItbis(true)
         setEditandoRetenciones(true)
+        // Reconstruye % ISR desde el monto guardado para mostrarle a MPILAR qué
+        // porcentaje se usó (evita que el % quede vacío al editar un doc viejo).
+        {
+          const _vs = Number(doc.valor_servicio || 0)
+          const _isr = Number(doc.isr_retenido || 0)
+          if (_vs > 0 && _isr > 0) {
+            const pct = (_isr / _vs) * 100
+            setPorcIsr(pct % 1 === 0 ? String(pct) : pct.toFixed(2))
+          } else {
+            setPorcIsr('')
+          }
+        }
         const lineasCargadas: LineaContable[] = (doc.lineas || []).map((l: any) => ({
           cuenta: l.cuenta || '',
           centroCosto: l.centro_costo || '',
@@ -931,6 +960,19 @@ export function CxpEntradaDocumentos({
     const itbisRet30 = itbisServicio * 0.30
     setForm((f) => ({ ...f, isr_retenido: '', itbis_retenido: itbisRet30 > 0 ? itbisRet30.toFixed(2) : '' }))
   }, [form.tipo_retencion, form.valor_bienes, form.valor_servicio, impuesto, porcItbis, editandoRetenciones])
+
+  // Cuando MPILAR escribe un % ISR libre (o cambia el valor del servicio con un
+  // % ya escrito), recalcula ISR retenido = valor_servicio * porcIsr / 100.
+  // La base es SOLO valor_servicio porque el usuario reportó que la retención
+  // aplica al proveedor informal (PI) B11 "por servicios" (reporte 5c148e2b).
+  useEffect(() => {
+    if (!porcIsr) return
+    const pct = Number(porcIsr)
+    if (!isFinite(pct)) return
+    const valorServicio = Number(form.valor_servicio || 0)
+    const isr = valorServicio * (pct / 100)
+    setForm((f) => ({ ...f, isr_retenido: isr > 0 ? isr.toFixed(2) : '' }))
+  }, [porcIsr, form.valor_servicio])
 
   // NCF del proveedor: si TCXP_BPROVEEDOR.codigo_ncf != null, el proveedor
   // es informal y el sistema autoasigna NCF B11 desde CNT.TCNT_NCF. Si
@@ -1146,6 +1188,7 @@ export function CxpEntradaDocumentos({
         forma_pago:    defFp  ? String(defFp.forma_pago) : '',
       })
       setEditandoRetenciones(false)
+      setPorcIsr('')
       setLineasContables([filaVacia()])
       setLineasTocadas(false)
       setImpuesto('')
@@ -1419,7 +1462,14 @@ export function CxpEntradaDocumentos({
             <Label className='text-xs'>Tipo de Retención</Label>
             <Select
               value={form.tipo_retencion}
-              onValueChange={(v) => setForm((f) => ({ ...f, tipo_retencion: v === '__none__' ? '' : v }))}
+              onValueChange={(v) => {
+                const nuevo = v === '__none__' ? '' : v
+                setForm((f) => ({ ...f, tipo_retencion: nuevo }))
+                // Al elegir un tipo del catálogo, el cálculo automático (más
+                // arriba) usa base bienes+servicio; el campo % ISR queda
+                // vacío y sólo se activa si MPILAR digita ahí un % manual.
+                setPorcIsr('')
+              }}
             >
               <SelectTrigger className='h-10 w-full'>
                 <SelectValue placeholder='Ninguna' />
@@ -1454,12 +1504,24 @@ export function CxpEntradaDocumentos({
           </div>
           <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>ISR Retenido {form.tipo_retencion && !editandoRetenciones && '(auto)'}</Label>
-            <Input
-              type='number' step='0.01' placeholder='0.00'
-              value={form.isr_retenido}
-              onChange={(e) => { setEditandoRetenciones(true); setForm((f) => ({ ...f, isr_retenido: e.target.value })) }}
-              className='h-10 text-right font-mono'
-            />
+            <div className='flex gap-1'>
+              <Input
+                type='number' step='0.01' placeholder='% ISR'
+                value={porcIsr}
+                onChange={(e) => {
+                  setEditandoRetenciones(true)
+                  setPorcIsr(e.target.value)
+                }}
+                className='h-10 w-20 text-right font-mono'
+                title='% ISR aplicado sobre el Valor del Servicio (ej. 2, 10, 15) — para proveedores informales B11'
+              />
+              <Input
+                type='number' step='0.01' placeholder='0.00'
+                value={form.isr_retenido}
+                onChange={(e) => { setEditandoRetenciones(true); setPorcIsr(''); setForm((f) => ({ ...f, isr_retenido: e.target.value })) }}
+                className='h-10 flex-1 text-right font-mono'
+              />
+            </div>
           </div>
           {(form.valor_bienes || form.valor_servicio) && (
             <div className='md:col-span-3 rounded-md border bg-muted/30 p-2 text-[11px] font-mono'>
