@@ -10,6 +10,7 @@ Rutas:
   GET     /api/fe/documentos/<e_ncf>/?no_cia=01
   POST    /api/fe/documentos/<e_ncf>/consultar-estado/   (body: {no_cia})
   POST    /api/fe/documentos/<e_ncf>/reenviar/            (body: {no_cia})
+  POST    /api/fe/pruebas/enviar/             (body: {no_cia, tipo_ecf, encf, datos})
 """
 from __future__ import annotations
 
@@ -20,7 +21,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from apps.fe import crypto, dgii_client, firma
+from apps.fe import crypto, dgii_client, ecf_builder, firma
 from apps.legacy.repositories import fe_repo
 
 
@@ -237,5 +238,68 @@ def documento_reenviar_view(request, e_ncf):
         no_cia, e_ncf, doc['tipo_ecf'], resultado['trackId'],
         doc['xml_firmado'], json.dumps(resultado['respuesta_cruda']),
         es_prueba=doc.get('es_prueba') or 'N')
+    return JsonResponse({'trackId': resultado['trackId'],
+                         'respuesta_dgii': resultado['respuesta_cruda']})
+
+
+# AMBIENTE hardcodeado a 'testecf' a proposito (Task 5, modo test) -- NO se
+# lee de TFE_CONFIG.ambiente de la cia. El Set de Pruebas de certificacion
+# de la DGII (Paso 2) tiene que ir SIEMPRE contra el ambiente de pruebas,
+# nunca contra 'certecf'/'ecf', sin importar en que ambiente este
+# configurada la cia para su facturacion real -- requisito de seguridad
+# explicito (ver plan de Task 5), no una eleccion de conveniencia.
+_AMBIENTE_MODO_TEST = 'testecf'
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def pruebas_enviar_view(request):
+    """Modo test del Set de Pruebas de certificacion DGII (Paso 2): arma el
+    e-CF directo desde el payload plano que el operador copia de una fila
+    de ``set-pruebas-130217432.xlsx`` (NO pasa por ``TFAT_FACTURA``), firma
+    con la App oficial (via ``dgii_client.enviar_ecf`` -> ``firma.
+    firmar_con_app_oficial``) y envia SIEMPRE contra ``testecf``.
+
+    ``encf`` viene explicito en el body (columna ``ENCF``/``CasoPrueba`` del
+    Excel) -- son e-NCF fijos que la propia DGII define para sus 25/29
+    escenarios de prueba, NUNCA se llama aqui a
+    ``fe_repo.consumir_siguiente_encf`` (eso quemaria numeracion real de
+    ``TFE_SECUENCIA`` sobre datos de prueba, ver ``ecf_builder.
+    construir_ecf_generico``).
+
+    Se guarda en ``TFE_DOCUMENTO`` con ``es_prueba='S'`` siempre (nunca
+    'N') para que estos envios de certificacion queden separados de la
+    bitacora de facturacion real (Task 3/4).
+    """
+    try:
+        data = json.loads(request.body or b'{}')
+    except json.JSONDecodeError:
+        return _err('JSON inválido')
+    no_cia = data.get('no_cia')
+    tipo_ecf_raw = data.get('tipo_ecf')
+    encf = (data.get('encf') or '').strip().upper()
+    datos = data.get('datos') if data.get('datos') is not None else {}
+    if not no_cia or tipo_ecf_raw in (None, '') or not encf:
+        return _err('no_cia, tipo_ecf y encf son requeridos')
+    if not isinstance(datos, dict):
+        return _err("'datos' debe ser un objeto JSON (columnas del Set de Pruebas)")
+    try:
+        tipo_ecf = int(tipo_ecf_raw)
+    except (TypeError, ValueError):
+        return _err('tipo_ecf debe ser un entero del catálogo TipoeCF '
+                    '(31,32,33,34,41,43,44,45,46,47)')
+    try:
+        xml_sin_firmar = ecf_builder.construir_ecf_generico(tipo_ecf, encf, datos)
+    except ecf_builder.ECFBuilderError as exc:
+        return _err(str(exc))
+    try:
+        resultado = dgii_client.enviar_ecf(no_cia, _AMBIENTE_MODO_TEST, encf, xml_sin_firmar)
+    except dgii_client.DgiiError as exc:
+        return _err(str(exc), status=502)
+    fe_repo.save_documento_enviado(
+        no_cia, encf, str(tipo_ecf), resultado['trackId'],
+        resultado['xml_firmado'], json.dumps(resultado['respuesta_cruda']),
+        es_prueba='S')
     return JsonResponse({'trackId': resultado['trackId'],
                          'respuesta_dgii': resultado['respuesta_cruda']})

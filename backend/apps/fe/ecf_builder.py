@@ -35,6 +35,7 @@ este modulo no lo genera ni lo importa.
 """
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -385,3 +386,775 @@ def construir_ecf_31(no_cia: str, punto: str, tipo_factura: str,
     Mismas notas que ``construir_ecf_32`` (consume e-NCF real, no firma).
     """
     return _construir_desde_factura(TIPO_CREDITO_FISCAL, no_cia, punto, tipo_factura, no_factura)
+
+
+# ---------------------------------------------------------------------------
+# Builder generico para el Set de Pruebas de certificacion DGII (Task 5,
+# modo test) -- a diferencia de ``_construir_ecf`` (Task 1, arriba), este NO
+# recibe un dict con forma de negocio derivado de TFAT_FACTURA. Recibe
+# directamente el dict "plano" con notacion de corchetes que el operador
+# pega desde una fila de ``set-pruebas-130217432.xlsx`` (columnas nombradas
+# igual que los elementos del XSD, ej. ``RNCEmisor``, ``FormaPago[1]``,
+# ``NumeroLinea[1]``, ``TipoCodigo[1][1]``). Ver NOTAS.md en
+# ``docs/superpowers/reference/2026-08-31-set-pruebas-paso2/`` seccion 5
+# para el esquema de aplanado completo (0/1/2 corchetes) y
+# ``campos-usados-set-pruebas.txt`` para los 347 campos reales que este
+# parser necesita cubrir (de las ~5215 columnas teoricas posibles).
+#
+# Cubre los 10 valores de TipoeCFType (31,32,33,34,41,43,44,45,46,47) -- los
+# otros 8 tipos, fuera de alcance de Task 1, SI son alcance de este builder
+# porque el Set de Pruebas real de certificacion trae escenarios de los 10
+# (ver NOTAS.md #1). Cada tipo tiene diferencias estructurales reales
+# confirmadas diffeando los 10 XSD reales descargados (NOTAS.md #2 y #5) --
+# la tabla ``_TIPO_CAPS`` de abajo codifica esas diferencias tal cual se
+# encontraron, no una generalizacion inventada.
+# ---------------------------------------------------------------------------
+
+TIPOS_ECF_SOPORTADOS = (31, 32, 33, 34, 41, 43, 44, 45, 46, 47)
+
+# Capacidades/diferencias estructurales por TipoeCF, confirmadas leyendo
+# directamente cada ``e-CF-<tipo>-v1.0.xsd`` real (no inferidas):
+#
+# - fecha_venc: IdDoc/FechaVencimientoSecuencia existe y es minOccurs=1
+#   (todos salvo 32 y 34).
+# - ind_nota_credito: IdDoc/IndicadorNotaCredito existe y es minOccurs=1
+#   (solo 34 -- mutuamente excluyente con fecha_venc en la misma posicion
+#   del IdDoc, justo despues de eNCF).
+# - tipo_ingresos: IdDoc/TipoIngresos existe en el esquema (ausente por
+#   completo, no solo opcional, en 41/43/47).
+# - tipo_pago_mandatory: IdDoc/TipoPago es minOccurs=1 (si no, es
+#   minOccurs=0 en 41/43/47 -- el elemento existe pero no es obligatorio).
+# - tabla_formas_pago: IdDoc/TablaFormasPago existe en el esquema (ausente
+#   por completo en 34 y 43).
+# - comprador: 'rnc_razon_mandatory' (31/41/45 -- RNCComprador Y
+#   RazonSocialComprador minOccurs=1), 'razon_mandatory' (44/46 -- solo
+#   RazonSocialComprador minOccurs=1), 'opcional' (32/33/34 -- todo
+#   opcional), 'reducido' (47 -- Comprador solo tiene
+#   IdentificadorExtranjero+RazonSocialComprador, SIN RNCComprador, y el
+#   contenedor es opcional), 'ninguno' (43 -- el elemento Comprador no
+#   existe en absoluto en e-CF-43-v1.0.xsd).
+# - item_retencion: 'no' (32/43/44/45/46 -- el bloque Item/Retencion no
+#   existe), 'opcional' (31/33/34 -- existe, minOccurs=0),
+#   'mandatory_indicador' (41 -- Retencion e
+#   IndicadorAgenteRetencionoPercepcion son minOccurs=1, los montos son
+#   opcionales), 'mandatory_completo' (47 -- Retencion,
+#   IndicadorAgenteRetencionoPercepcion y MontoISRRetenido son minOccurs=1;
+#   47 ademas no tiene MontoITBISRetenido en absoluto).
+# - totales_completo: False en 43/47 -- Totales se reduce a
+#   MontoExento/MontoTotal/MontoPeriodo/SaldoAnterior/MontoAvancePago/
+#   ValorPagar(+TotalISRRetencion en 47); no existen
+#   MontoGravado*/ITBIS%/TotalITBIS*/MontoImpuestoAdicional/
+#   ImpuestosAdicionales en esos dos tipos.
+# - info_referencia_mandatory: InformacionReferencia y sus hijos
+#   NCFModificado/FechaNCFModificado/CodigoModificacion son minOccurs=1
+#   (33 y 34 -- Nota de Debito/Credito, tienen que referenciar el NCF que
+#   modifican).
+_TIPO_CAPS = {
+    31: dict(fecha_venc=True, ind_nota_credito=False, tipo_ingresos=True,
+             tipo_pago_mandatory=True, tabla_formas_pago=True,
+             comprador='rnc_razon_mandatory', item_retencion='opcional',
+             totales_completo=True, info_referencia_mandatory=False),
+    32: dict(fecha_venc=False, ind_nota_credito=False, tipo_ingresos=True,
+             tipo_pago_mandatory=True, tabla_formas_pago=True,
+             comprador='opcional', item_retencion='no',
+             totales_completo=True, info_referencia_mandatory=False),
+    33: dict(fecha_venc=True, ind_nota_credito=False, tipo_ingresos=True,
+             tipo_pago_mandatory=True, tabla_formas_pago=True,
+             comprador='opcional', item_retencion='opcional',
+             totales_completo=True, info_referencia_mandatory=True),
+    34: dict(fecha_venc=False, ind_nota_credito=True, tipo_ingresos=True,
+             tipo_pago_mandatory=True, tabla_formas_pago=False,
+             comprador='opcional', item_retencion='opcional',
+             totales_completo=True, info_referencia_mandatory=True),
+    41: dict(fecha_venc=True, ind_nota_credito=False, tipo_ingresos=False,
+             tipo_pago_mandatory=False, tabla_formas_pago=True,
+             comprador='rnc_razon_mandatory', item_retencion='mandatory_indicador',
+             totales_completo=True, info_referencia_mandatory=False),
+    43: dict(fecha_venc=True, ind_nota_credito=False, tipo_ingresos=False,
+             tipo_pago_mandatory=False, tabla_formas_pago=False,
+             comprador='ninguno', item_retencion='no',
+             totales_completo=False, info_referencia_mandatory=False),
+    44: dict(fecha_venc=True, ind_nota_credito=False, tipo_ingresos=True,
+             tipo_pago_mandatory=True, tabla_formas_pago=True,
+             comprador='razon_mandatory', item_retencion='no',
+             totales_completo=True, info_referencia_mandatory=False),
+    45: dict(fecha_venc=True, ind_nota_credito=False, tipo_ingresos=True,
+             tipo_pago_mandatory=True, tabla_formas_pago=True,
+             comprador='rnc_razon_mandatory', item_retencion='no',
+             totales_completo=True, info_referencia_mandatory=False),
+    46: dict(fecha_venc=True, ind_nota_credito=False, tipo_ingresos=True,
+             tipo_pago_mandatory=True, tabla_formas_pago=True,
+             comprador='razon_mandatory', item_retencion='no',
+             totales_completo=True, info_referencia_mandatory=False),
+    47: dict(fecha_venc=True, ind_nota_credito=False, tipo_ingresos=False,
+             tipo_pago_mandatory=False, tabla_formas_pago=True,
+             comprador='reducido', item_retencion='mandatory_completo',
+             totales_completo=False, info_referencia_mandatory=False),
+}
+
+# Nombres base (sin corchetes) de los 347 campos reales de
+# campos-usados-set-pruebas.txt que aparecen con UN corchete
+# (``Nombre[N]``). Un mismo corchete simple puede significar dos cosas
+# distintas segun el campo (NOTAS.md #5) -- se distinguen por pertenencia a
+# uno de estos dos conjuntos, que son disjuntos (verificado):
+#
+# - grupo repetido de ENCABEZADO (TablaFormasPago/FormaDePago,
+#   TablaTelefonoEmisor/TelefonoEmisor, Totales/ImpuestosAdicionales/
+#   ImpuestoAdicional, DescuentosORecargos/DescuentoORecargo) -- el N indica
+#   la instancia del grupo repetido, NO una linea de factura.
+_HEADER_REPEAT_BASE_NAMES = frozenset({
+    'FormaPago', 'MontoPago', 'TelefonoEmisor',
+    'TipoImpuesto', 'TasaImpuestoAdicional',
+    'MontoImpuestoSelectivoConsumoEspecifico', 'MontoImpuestoSelectivoConsumoAdvalorem',
+    'NumeroLineaDoR', 'TipoAjuste', 'DescripcionDescuentooRecargo', 'TipoValor',
+    'MontoDescuentooRecargo', 'IndicadorFacturacionDescuentooRecargo',
+})
+
+# - campo de LINEA/ITEM (DetallesItems/Item) -- el N es el numero de linea
+#   (hasta 16 en el Set de Pruebas real).
+_ITEM_BASE_NAMES = frozenset({
+    'NumeroLinea', 'IndicadorFacturacion', 'IndicadorAgenteRetencionoPercepcion',
+    'MontoITBISRetenido', 'MontoISRRetenido', 'NombreItem', 'IndicadorBienoServicio',
+    'CantidadItem', 'UnidadMedida', 'CantidadReferencia', 'UnidadReferencia',
+    'GradosAlcohol', 'PrecioUnitarioReferencia', 'PrecioUnitarioItem', 'DescuentoMonto',
+    'RecargoMonto', 'PrecioOtraMoneda', 'MontoItemOtraMoneda', 'MontoItem',
+})
+
+# Campos con DOS corchetes (``Nombre[LineaN][SubM]``) siempre pertenecen a
+# un sub-grupo repetido DENTRO de la linea N de Item -- no hace falta un
+# conjunto de nombres para distinguirlos (a diferencia de los de 1
+# corchete), la profundidad ya lo dice todo. El typo real de fabrica
+# ``MontosubRecargo`` (con "s" minuscula, columna real del Excel oficial,
+# NO ``MontoSubRecargo``) se traduce al nombre correcto del elemento XSD en
+# ``_gen_detalles_items``.
+
+_CAMPO_RE = re.compile(r'^([^\[\]]+)(?:\[(\d+)\])?(?:\[(\d+)\])?$')
+
+_INFO_ADICIONAL_FIELDS = (
+    'FechaEmbarque', 'NumeroEmbarque', 'NumeroContenedor', 'NumeroReferencia',
+    'PesoBruto', 'PesoNeto', 'UnidadPesoBruto', 'UnidadPesoNeto',
+    'CantidadBulto', 'UnidadBulto', 'VolumenBulto', 'UnidadVolumen',
+)
+_TRANSPORTE_FIELDS = (
+    'PaisDestino', 'Conductor', 'DocumentoTransporte', 'Ficha', 'Placa',
+    'RutaTransporte', 'ZonaTransporte', 'NumeroAlbaran',
+)
+_OTRA_MONEDA_FIELDS = (
+    'TipoMoneda', 'TipoCambio', 'MontoGravadoTotalOtraMoneda',
+    'MontoGravado3OtraMoneda', 'MontoExentoOtraMoneda', 'TotalITBISOtraMoneda',
+    'TotalITBIS3OtraMoneda', 'MontoTotalOtraMoneda',
+)
+
+_ENCF_RE = re.compile(r'^[A-Za-z0-9]{13}$')
+
+
+def _es_vacio(valor) -> bool:
+    """``#e`` es el valor que usa el Excel del Set de Pruebas para "campo
+    vacio / no aplica" (NOTAS.md #4 y placeholder de ``fe-modo-test.tsx``)
+    -- se trata igual que ``None``, no como texto literal."""
+    if valor is None:
+        return True
+    if isinstance(valor, str) and valor.strip() in ('', '#e'):
+        return True
+    return False
+
+
+def _valor_texto(valor, monetario: bool = False):
+    """Convierte un valor del payload JSON a texto para el XML.
+
+    El operador pega el valor EXACTO de la celda del Excel (ya formateado
+    segun el patron del XSD, ej. fechas ``dd-mm-aaaa`` como texto) -- este
+    builder NO reformatea strings, para no corromper un valor que ya viene
+    correcto (ver advertencia del modulo sobre no inventar estructura).
+    La unica excepcion es si el operador pego un numero JSON crudo (ej.
+    ``"MontoTotal": 1180`` en vez de ``"1180.00"``) para un campo monetario
+    -- ahi si se formatea con ``_fmt_monto`` para garantizar el patron
+    Decimal18D1or2 exigido por el XSD.
+    """
+    if valor is None:
+        return None
+    if isinstance(valor, bool):
+        return str(valor)
+    if monetario and isinstance(valor, (int, float)):
+        return _fmt_monto(valor)
+    return str(valor).strip()
+
+
+def _parse_datos_planos(datos: dict) -> dict:
+    """Convierte el dict plano con notacion de corchetes (columnas del
+    Excel del Set de Pruebas) en una estructura anidada por profundidad,
+    ver NOTAS.md #5 para el esquema completo:
+
+    - ``simple``: ``{nombre_base: valor}`` -- campos de encabezado sin
+      corchete (``RNCEmisor``, ``FechaEmision``, ``MontoTotal``, etc).
+    - ``idx1_header``: ``{nombre_base: {n: valor}}`` -- grupos repetidos de
+      encabezado con 1 corchete (``FormaPago[1]``, ``TelefonoEmisor[2]``).
+    - ``idx1_item``: ``{nombre_base: {n: valor}}`` -- campos de linea/item
+      con 1 corchete (``NumeroLinea[1]``, ``MontoItem[3]``).
+    - ``idx2``: ``{n: {nombre_base: {m: valor}}}`` -- sub-grupos DENTRO de
+      la linea n con 2 corchetes (``TipoCodigo[1][1]``).
+
+    ``CasoPrueba``/``ENCF``/``TipoeCF``/``Version`` se ignoran aqui aunque
+    el operador los haya copiado tal cual del Excel dentro de ``datos`` --
+    ``TipoeCF``/``ENCF`` ya vienen por parametro explicito de
+    ``construir_ecf_generico`` (fuente de verdad, NOTAS.md #5 al final) y
+    ``Version`` es fija ``"1.0"``. Cualquier nombre de campo con 1 corchete
+    que no pertenezca a ``_HEADER_REPEAT_BASE_NAMES`` ni a
+    ``_ITEM_BASE_NAMES`` se ignora en silencio -- no forma parte de los 347
+    campos reales del Set de Pruebas (``campos-usados-set-pruebas.txt``) y
+    no hace falta soportar el resto de las ~5215 columnas teoricas
+    (NOTAS.md #5).
+    """
+    simple: dict = {}
+    idx1_header: dict = {}
+    idx1_item: dict = {}
+    idx2: dict = {}
+    for clave_bruta, valor in (datos or {}).items():
+        if _es_vacio(valor):
+            continue
+        clave = str(clave_bruta).strip()
+        if clave in ('CasoPrueba', 'ENCF', 'TipoeCF', 'Version'):
+            continue
+        m = _CAMPO_RE.match(clave)
+        if not m:
+            continue
+        base, n1, n2 = m.group(1).strip(), m.group(2), m.group(3)
+        if n2 is not None:
+            idx2.setdefault(int(n1), {}).setdefault(base, {})[int(n2)] = valor
+        elif n1 is not None:
+            if base in _ITEM_BASE_NAMES:
+                idx1_item.setdefault(base, {})[int(n1)] = valor
+            elif base in _HEADER_REPEAT_BASE_NAMES:
+                idx1_header.setdefault(base, {})[int(n1)] = valor
+            # nombre con 1 corchete no reconocido -- fuera de los 347
+            # campos reales, se ignora (ver docstring).
+        else:
+            simple[base] = valor
+    return {'simple': simple, 'idx1_header': idx1_header,
+            'idx1_item': idx1_item, 'idx2': idx2}
+
+
+def _emitir_subgrupo(tabla_el, tag_instancia: str, subs: dict, campos: list):
+    """Emite un sub-grupo repetido DENTRO de una linea de Item (2do
+    corchete), ej. ``TablaCodigosItem/CodigosItem``.
+
+    ``subs`` es ``idx2[n]`` (``{nombre_base: {m: valor}}``) para la linea
+    ``n`` en curso. ``campos`` es una lista de
+    ``(nombre_base_en_datos, tag_xsd, monetario)`` en el orden real del
+    XSD -- recorre todos los indices ``m`` presentes en cualquiera de esos
+    campos y emite una instancia de ``tag_instancia`` por cada uno.
+    """
+    indices = set()
+    for base, _tag, _mon in campos:
+        indices.update((subs.get(base) or {}).keys())
+    for m in sorted(indices):
+        el = _sub(tabla_el, tag_instancia)
+        for base, tag, monetario in campos:
+            valor = (subs.get(base) or {}).get(m)
+            if valor is not None:
+                _sub(el, tag, _valor_texto(valor, monetario=monetario))
+
+
+def _gen_id_doc(id_doc, tipo_ecf: int, e_ncf: str, caps: dict, simple: dict,
+                idx1_header: dict) -> None:
+    _sub(id_doc, 'TipoeCF', tipo_ecf)
+    _sub(id_doc, 'eNCF', e_ncf)
+    if caps['fecha_venc']:
+        v = simple.get('FechaVencimientoSecuencia')
+        if not v:
+            raise ECFBuilderError(
+                f"IdDoc/FechaVencimientoSecuencia es obligatorio (minOccurs=1) "
+                f"para TipoeCF {tipo_ecf} segun e-CF-{tipo_ecf}-v1.0.xsd; falta "
+                "en 'datos' (columna FechaVencimientoSecuencia del Excel)")
+        _sub(id_doc, 'FechaVencimientoSecuencia', _valor_texto(v))
+    if caps['ind_nota_credito']:
+        v = simple.get('IndicadorNotaCredito')
+        if _es_vacio(v):
+            raise ECFBuilderError(
+                "IdDoc/IndicadorNotaCredito es obligatorio (minOccurs=1) para "
+                "TipoeCF 34 segun e-CF-34-v1.0.xsd; falta en 'datos'")
+        _sub(id_doc, 'IndicadorNotaCredito', _valor_texto(v))
+    if 'IndicadorMontoGravado' in simple:
+        _sub(id_doc, 'IndicadorMontoGravado', _valor_texto(simple['IndicadorMontoGravado']))
+    if caps['tipo_ingresos'] and 'TipoIngresos' in simple:
+        _sub(id_doc, 'TipoIngresos', _valor_texto(simple['TipoIngresos']))
+    tipo_pago = simple.get('TipoPago')
+    if caps['tipo_pago_mandatory'] and _es_vacio(tipo_pago):
+        raise ECFBuilderError(
+            f"IdDoc/TipoPago es obligatorio (minOccurs=1) para TipoeCF "
+            f"{tipo_ecf}; falta en 'datos'")
+    if not _es_vacio(tipo_pago):
+        _sub(id_doc, 'TipoPago', _valor_texto(tipo_pago))
+    if simple.get('TerminoPago'):
+        _sub(id_doc, 'TerminoPago', _valor_texto(simple['TerminoPago']))
+    if caps['tabla_formas_pago'] and idx1_header.get('FormaPago'):
+        tabla = _sub(id_doc, 'TablaFormasPago')
+        for n in sorted(idx1_header['FormaPago']):
+            monto = idx1_header.get('MontoPago', {}).get(n)
+            if monto is None:
+                raise ECFBuilderError(
+                    f"IdDoc/TablaFormasPago/FormaDePago[{n}] tiene FormaPago[{n}] "
+                    f"pero no MontoPago[{n}] (ambos minOccurs=1 dentro de "
+                    "FormaDePago)")
+            fdp = _sub(tabla, 'FormaDePago')
+            _sub(fdp, 'FormaPago', _valor_texto(idx1_header['FormaPago'][n]))
+            _sub(fdp, 'MontoPago', _valor_texto(monto, monetario=True))
+    if simple.get('NumeroCuentaPago'):
+        _sub(id_doc, 'NumeroCuentaPago', _valor_texto(simple['NumeroCuentaPago']))
+    if simple.get('BancoPago'):
+        _sub(id_doc, 'BancoPago', _valor_texto(simple['BancoPago']))
+
+
+def _gen_emisor(emisor, simple: dict, idx1_header: dict) -> None:
+    rnc = _solo_digitos(simple.get('RNCEmisor'))
+    if not _rnc_valido(rnc):
+        raise ECFBuilderError(
+            f"Emisor/RNCEmisor invalido o ausente en 'datos': "
+            f"{simple.get('RNCEmisor')!r} (debe tener 9 u 11 digitos, minOccurs=1)")
+    _sub(emisor, 'RNCEmisor', rnc)
+    razon = _valor_texto(simple.get('RazonSocialEmisor')) or ''
+    if not razon:
+        raise ECFBuilderError(
+            "Emisor/RazonSocialEmisor es obligatorio (minOccurs=1); falta en 'datos'")
+    _sub(emisor, 'RazonSocialEmisor', razon[:150])
+    if simple.get('NombreComercial'):
+        _sub(emisor, 'NombreComercial', _valor_texto(simple['NombreComercial'])[:150])
+    direccion = _valor_texto(simple.get('DireccionEmisor')) or ''
+    if not direccion:
+        raise ECFBuilderError(
+            "Emisor/DireccionEmisor es obligatorio (minOccurs=1); falta en 'datos'")
+    _sub(emisor, 'DireccionEmisor', direccion[:100])
+    if simple.get('Municipio'):
+        _sub(emisor, 'Municipio', _valor_texto(simple['Municipio']))
+    if simple.get('Provincia'):
+        _sub(emisor, 'Provincia', _valor_texto(simple['Provincia']))
+    if idx1_header.get('TelefonoEmisor'):
+        tabla = _sub(emisor, 'TablaTelefonoEmisor')
+        for n in sorted(idx1_header['TelefonoEmisor']):
+            _sub(tabla, 'TelefonoEmisor', _valor_texto(idx1_header['TelefonoEmisor'][n]))
+    if simple.get('CorreoEmisor'):
+        _sub(emisor, 'CorreoEmisor', _valor_texto(simple['CorreoEmisor']))
+    if simple.get('WebSite'):
+        _sub(emisor, 'WebSite', _valor_texto(simple['WebSite']))
+    if simple.get('CodigoVendedor'):
+        _sub(emisor, 'CodigoVendedor', _valor_texto(simple['CodigoVendedor']))
+    if simple.get('NumeroFacturaInterna'):
+        _sub(emisor, 'NumeroFacturaInterna', _valor_texto(simple['NumeroFacturaInterna']))
+    if simple.get('NumeroPedidoInterno') is not None:
+        _sub(emisor, 'NumeroPedidoInterno', _valor_texto(simple['NumeroPedidoInterno']))
+    if simple.get('ZonaVenta'):
+        _sub(emisor, 'ZonaVenta', _valor_texto(simple['ZonaVenta']))
+    fecha_emision = simple.get('FechaEmision')
+    if not fecha_emision:
+        raise ECFBuilderError(
+            "Emisor/FechaEmision es obligatorio (minOccurs=1); falta en 'datos'")
+    _sub(emisor, 'FechaEmision', _valor_texto(fecha_emision))
+
+
+def _gen_comprador(comprador, tipo_ecf: int, caps: dict, simple: dict) -> None:
+    modo = caps['comprador']
+    rnc = _solo_digitos(simple.get('RNCComprador'))
+    razon = _valor_texto(simple.get('RazonSocialComprador')) or ''
+    if modo == 'reducido':
+        # e-CF-47: Comprador SOLO tiene IdentificadorExtranjero +
+        # RazonSocialComprador -- NO existe RNCComprador en este esquema
+        # (confirmado leyendo e-CF-47-v1.0.xsd), a diferencia de todos los
+        # demas tipos.
+        if simple.get('IdentificadorExtranjero'):
+            _sub(comprador, 'IdentificadorExtranjero',
+                 _valor_texto(simple['IdentificadorExtranjero'])[:20])
+        if razon:
+            _sub(comprador, 'RazonSocialComprador', razon[:150])
+        return
+    if modo == 'rnc_razon_mandatory' and not _rnc_valido(rnc):
+        raise ECFBuilderError(
+            f"e-CF {tipo_ecf}: Comprador/RNCComprador es obligatorio (9 u 11 "
+            f"digitos, minOccurs=1); 'datos' tiene {simple.get('RNCComprador')!r}")
+    if modo in ('rnc_razon_mandatory', 'razon_mandatory') and not razon:
+        raise ECFBuilderError(
+            f"e-CF {tipo_ecf}: Comprador/RazonSocialComprador es obligatorio "
+            "(minOccurs=1); falta en 'datos'")
+    if _rnc_valido(rnc):
+        _sub(comprador, 'RNCComprador', rnc)
+    # e-CF-41-v1.0.xsd no tiene IdentificadorExtranjero/FechaEntrega/
+    # TelefonoAdicional/FechaOrdenCompra/NumeroOrdenCompra en Comprador
+    # (confirmado leyendo el XSD); el resto de tipos si.
+    if tipo_ecf != 41 and simple.get('IdentificadorExtranjero'):
+        _sub(comprador, 'IdentificadorExtranjero',
+             _valor_texto(simple['IdentificadorExtranjero'])[:20])
+    if razon:
+        _sub(comprador, 'RazonSocialComprador', razon[:150])
+    if simple.get('ContactoComprador'):
+        _sub(comprador, 'ContactoComprador', _valor_texto(simple['ContactoComprador']))
+    if simple.get('CorreoComprador'):
+        _sub(comprador, 'CorreoComprador', _valor_texto(simple['CorreoComprador']))
+    if simple.get('DireccionComprador'):
+        _sub(comprador, 'DireccionComprador', _valor_texto(simple['DireccionComprador'])[:100])
+    if simple.get('MunicipioComprador'):
+        _sub(comprador, 'MunicipioComprador', _valor_texto(simple['MunicipioComprador']))
+    if simple.get('ProvinciaComprador'):
+        _sub(comprador, 'ProvinciaComprador', _valor_texto(simple['ProvinciaComprador']))
+    if tipo_ecf != 41 and simple.get('FechaEntrega'):
+        _sub(comprador, 'FechaEntrega', _valor_texto(simple['FechaEntrega']))
+    if tipo_ecf != 41 and simple.get('TelefonoAdicional'):
+        _sub(comprador, 'TelefonoAdicional', _valor_texto(simple['TelefonoAdicional']))
+    if tipo_ecf != 41 and simple.get('FechaOrdenCompra'):
+        _sub(comprador, 'FechaOrdenCompra', _valor_texto(simple['FechaOrdenCompra']))
+    if tipo_ecf != 41 and simple.get('NumeroOrdenCompra'):
+        _sub(comprador, 'NumeroOrdenCompra', _valor_texto(simple['NumeroOrdenCompra']))
+    if simple.get('CodigoInternoComprador'):
+        _sub(comprador, 'CodigoInternoComprador', _valor_texto(simple['CodigoInternoComprador']))
+
+
+def _gen_informaciones_adicionales(info_ad, simple: dict) -> None:
+    for campo in ('FechaEmbarque', 'NumeroEmbarque', 'NumeroContenedor', 'NumeroReferencia'):
+        if simple.get(campo):
+            _sub(info_ad, campo, _valor_texto(simple[campo]))
+    for campo in ('PesoBruto', 'PesoNeto'):
+        if simple.get(campo) is not None:
+            _sub(info_ad, campo, _valor_texto(simple[campo], monetario=True))
+    for campo in ('UnidadPesoBruto', 'UnidadPesoNeto'):
+        if simple.get(campo):
+            _sub(info_ad, campo, _valor_texto(simple[campo]))
+    if simple.get('CantidadBulto') is not None:
+        _sub(info_ad, 'CantidadBulto', _valor_texto(simple['CantidadBulto'], monetario=True))
+    if simple.get('UnidadBulto'):
+        _sub(info_ad, 'UnidadBulto', _valor_texto(simple['UnidadBulto']))
+    if simple.get('VolumenBulto') is not None:
+        _sub(info_ad, 'VolumenBulto', _valor_texto(simple['VolumenBulto'], monetario=True))
+    if simple.get('UnidadVolumen'):
+        _sub(info_ad, 'UnidadVolumen', _valor_texto(simple['UnidadVolumen']))
+
+
+def _gen_transporte(transporte, tipo_ecf: int, simple: dict) -> None:
+    # PaisDestino en Transporte solo existe en e-CF-46-v1.0.xsd (Exportacion
+    # -- va ANTES de Conductor en ese esquema); en el resto de tipos ese
+    # elemento no existe dentro de Transporte.
+    if tipo_ecf == 46 and simple.get('PaisDestino'):
+        _sub(transporte, 'PaisDestino', _valor_texto(simple['PaisDestino']))
+    if simple.get('Conductor'):
+        _sub(transporte, 'Conductor', _valor_texto(simple['Conductor']))
+    if simple.get('DocumentoTransporte'):
+        _sub(transporte, 'DocumentoTransporte', _valor_texto(simple['DocumentoTransporte']))
+    for campo in ('Ficha', 'Placa', 'RutaTransporte', 'ZonaTransporte', 'NumeroAlbaran'):
+        if simple.get(campo):
+            _sub(transporte, campo, _valor_texto(simple[campo]))
+
+
+def _gen_totales(totales, tipo_ecf: int, caps: dict, simple: dict, idx1_header: dict) -> None:
+    completo = caps['totales_completo']
+    if completo:
+        for campo in ('MontoGravadoTotal', 'MontoGravadoI1', 'MontoGravadoI2', 'MontoGravadoI3'):
+            if simple.get(campo) is not None:
+                _sub(totales, campo, _valor_texto(simple[campo], monetario=True))
+    if simple.get('MontoExento') is not None:
+        _sub(totales, 'MontoExento', _valor_texto(simple['MontoExento'], monetario=True))
+    if completo:
+        for campo in ('ITBIS1', 'ITBIS2', 'ITBIS3'):
+            if simple.get(campo) is not None:
+                _sub(totales, campo, _valor_texto(simple[campo]))
+        for campo in ('TotalITBIS', 'TotalITBIS1', 'TotalITBIS2', 'TotalITBIS3'):
+            if simple.get(campo) is not None:
+                _sub(totales, campo, _valor_texto(simple[campo], monetario=True))
+        if simple.get('MontoImpuestoAdicional') is not None:
+            _sub(totales, 'MontoImpuestoAdicional',
+                 _valor_texto(simple['MontoImpuestoAdicional'], monetario=True))
+        if idx1_header.get('TipoImpuesto'):
+            grupo = _sub(totales, 'ImpuestosAdicionales')
+            for n in sorted(idx1_header['TipoImpuesto']):
+                tasa = idx1_header.get('TasaImpuestoAdicional', {}).get(n)
+                if tasa is None:
+                    raise ECFBuilderError(
+                        f"Totales/ImpuestosAdicionales/ImpuestoAdicional[{n}] "
+                        f"tiene TipoImpuesto[{n}] pero no TasaImpuestoAdicional[{n}] "
+                        "(ambos minOccurs=1 dentro de ImpuestoAdicional)")
+                item = _sub(grupo, 'ImpuestoAdicional')
+                _sub(item, 'TipoImpuesto', _valor_texto(idx1_header['TipoImpuesto'][n]))
+                _sub(item, 'TasaImpuestoAdicional', _valor_texto(tasa, monetario=True))
+                esp = idx1_header.get('MontoImpuestoSelectivoConsumoEspecifico', {}).get(n)
+                if esp is not None:
+                    _sub(item, 'MontoImpuestoSelectivoConsumoEspecifico',
+                         _valor_texto(esp, monetario=True))
+                adv = idx1_header.get('MontoImpuestoSelectivoConsumoAdvalorem', {}).get(n)
+                if adv is not None:
+                    _sub(item, 'MontoImpuestoSelectivoConsumoAdvalorem',
+                         _valor_texto(adv, monetario=True))
+    monto_total = simple.get('MontoTotal')
+    if _es_vacio(monto_total):
+        raise ECFBuilderError(
+            "Totales/MontoTotal es obligatorio (minOccurs=1); falta en 'datos'")
+    _sub(totales, 'MontoTotal', _valor_texto(monto_total, monetario=True))
+    if simple.get('MontoPeriodo') is not None:
+        _sub(totales, 'MontoPeriodo', _valor_texto(simple['MontoPeriodo'], monetario=True))
+    if simple.get('ValorPagar') is not None:
+        _sub(totales, 'ValorPagar', _valor_texto(simple['ValorPagar'], monetario=True))
+    if simple.get('TotalITBISRetenido') is not None:
+        _sub(totales, 'TotalITBISRetenido',
+             _valor_texto(simple['TotalITBISRetenido'], monetario=True))
+    if simple.get('TotalISRRetencion') is not None:
+        _sub(totales, 'TotalISRRetencion',
+             _valor_texto(simple['TotalISRRetencion'], monetario=True))
+
+
+def _gen_otra_moneda(otra, simple: dict) -> None:
+    if simple.get('TipoMoneda'):
+        _sub(otra, 'TipoMoneda', _valor_texto(simple['TipoMoneda']))
+    if simple.get('TipoCambio') is not None:
+        _sub(otra, 'TipoCambio', _valor_texto(simple['TipoCambio'], monetario=True))
+    for campo in ('MontoGravadoTotalOtraMoneda', 'MontoGravado3OtraMoneda',
+                  'MontoExentoOtraMoneda', 'TotalITBISOtraMoneda',
+                  'TotalITBIS3OtraMoneda', 'MontoTotalOtraMoneda'):
+        if simple.get(campo) is not None:
+            _sub(otra, campo, _valor_texto(simple[campo], monetario=True))
+
+
+def _gen_detalles_items(ecf, tipo_ecf: int, caps: dict, idx1_item: dict, idx2: dict) -> None:
+    numeros = sorted(idx1_item.get('NumeroLinea', {}).keys())
+    if not numeros:
+        raise ECFBuilderError(
+            "DetallesItems/Item no tiene ninguna linea -- 'datos' debe incluir "
+            "al menos NumeroLinea[1], IndicadorFacturacion[1], NombreItem[1], "
+            "IndicadorBienoServicio[1], CantidadItem[1], PrecioUnitarioItem[1] "
+            "y MontoItem[1]")
+    detalles = _sub(ecf, 'DetallesItems')
+    for n in numeros:
+        item = _sub(detalles, 'Item')
+        _sub(item, 'NumeroLinea', _valor_texto(idx1_item['NumeroLinea'][n]))
+        subs = idx2.get(n, {})
+        if subs.get('TipoCodigo') or subs.get('CodigoItem'):
+            tabla = _sub(item, 'TablaCodigosItem')
+            _emitir_subgrupo(tabla, 'CodigosItem', subs,
+                             [('TipoCodigo', 'TipoCodigo', False),
+                              ('CodigoItem', 'CodigoItem', False)])
+        indicador_fact = idx1_item.get('IndicadorFacturacion', {}).get(n)
+        if indicador_fact is None:
+            raise ECFBuilderError(
+                f"Item[{n}] no tiene IndicadorFacturacion[{n}] (minOccurs=1)")
+        _sub(item, 'IndicadorFacturacion', _valor_texto(indicador_fact))
+        if caps['item_retencion'] != 'no':
+            ind_ret = idx1_item.get('IndicadorAgenteRetencionoPercepcion', {}).get(n)
+            monto_itbis_ret = (idx1_item.get('MontoITBISRetenido', {}).get(n)
+                                if caps['item_retencion'] != 'mandatory_completo' else None)
+            monto_isr_ret = idx1_item.get('MontoISRRetenido', {}).get(n)
+            if (caps['item_retencion'] in ('mandatory_indicador', 'mandatory_completo')
+                    and ind_ret is None):
+                raise ECFBuilderError(
+                    f"e-CF {tipo_ecf} Item[{n}]: Retencion/"
+                    "IndicadorAgenteRetencionoPercepcion es obligatorio "
+                    f"(minOccurs=1) para este tipo; falta "
+                    f"IndicadorAgenteRetencionoPercepcion[{n}] en 'datos'")
+            if caps['item_retencion'] == 'mandatory_completo' and monto_isr_ret is None:
+                raise ECFBuilderError(
+                    f"e-CF 47 Item[{n}]: Retencion/MontoISRRetenido es "
+                    f"obligatorio (minOccurs=1); falta MontoISRRetenido[{n}] "
+                    "en 'datos'")
+            if ind_ret is not None or monto_itbis_ret is not None or monto_isr_ret is not None:
+                ret = _sub(item, 'Retencion')
+                if ind_ret is not None:
+                    _sub(ret, 'IndicadorAgenteRetencionoPercepcion', _valor_texto(ind_ret))
+                if monto_itbis_ret is not None:
+                    _sub(ret, 'MontoITBISRetenido', _valor_texto(monto_itbis_ret, monetario=True))
+                if monto_isr_ret is not None:
+                    _sub(ret, 'MontoISRRetenido', _valor_texto(monto_isr_ret, monetario=True))
+        nombre = idx1_item.get('NombreItem', {}).get(n)
+        if not nombre:
+            raise ECFBuilderError(f"Item[{n}] no tiene NombreItem[{n}] (minOccurs=1)")
+        _sub(item, 'NombreItem', _valor_texto(nombre)[:80])
+        ind_bien = idx1_item.get('IndicadorBienoServicio', {}).get(n)
+        if ind_bien is None:
+            raise ECFBuilderError(
+                f"Item[{n}] no tiene IndicadorBienoServicio[{n}] (minOccurs=1)")
+        _sub(item, 'IndicadorBienoServicio', _valor_texto(ind_bien))
+        cantidad = idx1_item.get('CantidadItem', {}).get(n)
+        if cantidad is None:
+            raise ECFBuilderError(f"Item[{n}] no tiene CantidadItem[{n}] (minOccurs=1)")
+        _sub(item, 'CantidadItem', _valor_texto(cantidad, monetario=True))
+        if idx1_item.get('UnidadMedida', {}).get(n) is not None:
+            _sub(item, 'UnidadMedida', _valor_texto(idx1_item['UnidadMedida'][n]))
+        if idx1_item.get('CantidadReferencia', {}).get(n) is not None:
+            _sub(item, 'CantidadReferencia',
+                 _valor_texto(idx1_item['CantidadReferencia'][n], monetario=True))
+        if idx1_item.get('UnidadReferencia', {}).get(n) is not None:
+            _sub(item, 'UnidadReferencia', _valor_texto(idx1_item['UnidadReferencia'][n]))
+        if subs.get('Subcantidad') or subs.get('CodigoSubcantidad'):
+            tabla = _sub(item, 'TablaSubcantidad')
+            _emitir_subgrupo(tabla, 'SubcantidadItem', subs,
+                             [('Subcantidad', 'Subcantidad', True),
+                              ('CodigoSubcantidad', 'CodigoSubcantidad', False)])
+        if idx1_item.get('GradosAlcohol', {}).get(n) is not None:
+            _sub(item, 'GradosAlcohol', _valor_texto(idx1_item['GradosAlcohol'][n], monetario=True))
+        if idx1_item.get('PrecioUnitarioReferencia', {}).get(n) is not None:
+            _sub(item, 'PrecioUnitarioReferencia',
+                 _valor_texto(idx1_item['PrecioUnitarioReferencia'][n], monetario=True))
+        precio = idx1_item.get('PrecioUnitarioItem', {}).get(n)
+        if precio is None:
+            raise ECFBuilderError(f"Item[{n}] no tiene PrecioUnitarioItem[{n}] (minOccurs=1)")
+        _sub(item, 'PrecioUnitarioItem', _valor_texto(precio, monetario=True))
+        if idx1_item.get('DescuentoMonto', {}).get(n) is not None:
+            _sub(item, 'DescuentoMonto', _valor_texto(idx1_item['DescuentoMonto'][n], monetario=True))
+        if subs.get('TipoSubDescuento') or subs.get('SubDescuentoPorcentaje') or subs.get('MontoSubDescuento'):
+            tabla = _sub(item, 'TablaSubDescuento')
+            _emitir_subgrupo(tabla, 'SubDescuento', subs,
+                             [('TipoSubDescuento', 'TipoSubDescuento', False),
+                              ('SubDescuentoPorcentaje', 'SubDescuentoPorcentaje', True),
+                              ('MontoSubDescuento', 'MontoSubDescuento', True)])
+        if idx1_item.get('RecargoMonto', {}).get(n) is not None:
+            _sub(item, 'RecargoMonto', _valor_texto(idx1_item['RecargoMonto'][n], monetario=True))
+        if subs.get('TipoSubRecargo') or subs.get('SubRecargoPorcentaje') or subs.get('MontosubRecargo'):
+            tabla = _sub(item, 'TablaSubRecargo')
+            _emitir_subgrupo(tabla, 'SubRecargo', subs,
+                             [('TipoSubRecargo', 'TipoSubRecargo', False),
+                              ('SubRecargoPorcentaje', 'SubRecargoPorcentaje', True),
+                              # 'MontosubRecargo' (s minuscula) es el nombre REAL
+                              # de la columna en el Excel oficial del Set de
+                              # Pruebas (typo de fabrica) -- el elemento
+                              # correcto de e-CF-*-v1.0.xsd es 'MontoSubRecargo'.
+                              ('MontosubRecargo', 'MontoSubRecargo', True)])
+        if subs.get('TipoImpuesto'):
+            tabla = _sub(item, 'TablaImpuestoAdicional')
+            _emitir_subgrupo(tabla, 'ImpuestoAdicional', subs,
+                             [('TipoImpuesto', 'TipoImpuesto', False)])
+        precio_otra = idx1_item.get('PrecioOtraMoneda', {}).get(n)
+        monto_otra = idx1_item.get('MontoItemOtraMoneda', {}).get(n)
+        if precio_otra is not None or monto_otra is not None:
+            otra = _sub(item, 'OtraMonedaDetalle')
+            if precio_otra is not None:
+                _sub(otra, 'PrecioOtraMoneda', _valor_texto(precio_otra, monetario=True))
+            if monto_otra is not None:
+                _sub(otra, 'MontoItemOtraMoneda', _valor_texto(monto_otra, monetario=True))
+        monto_item = idx1_item.get('MontoItem', {}).get(n)
+        if monto_item is None:
+            raise ECFBuilderError(f"Item[{n}] no tiene MontoItem[{n}] (minOccurs=1)")
+        _sub(item, 'MontoItem', _valor_texto(monto_item, monetario=True))
+
+
+def _gen_descuentos_o_recargos(ecf, idx1_header: dict) -> None:
+    dor = _sub(ecf, 'DescuentosORecargos')
+    for n in sorted(idx1_header.get('NumeroLineaDoR', {}).keys()):
+        tipo_ajuste = idx1_header.get('TipoAjuste', {}).get(n)
+        if tipo_ajuste is None:
+            raise ECFBuilderError(
+                f"DescuentosORecargos/DescuentoORecargo[{n}] no tiene "
+                f"TipoAjuste[{n}] (minOccurs=1 dentro de DescuentoORecargo)")
+        el = _sub(dor, 'DescuentoORecargo')
+        _sub(el, 'NumeroLinea', _valor_texto(idx1_header['NumeroLineaDoR'][n]))
+        _sub(el, 'TipoAjuste', _valor_texto(tipo_ajuste))
+        if idx1_header.get('DescripcionDescuentooRecargo', {}).get(n) is not None:
+            _sub(el, 'DescripcionDescuentooRecargo',
+                 _valor_texto(idx1_header['DescripcionDescuentooRecargo'][n]))
+        if idx1_header.get('TipoValor', {}).get(n) is not None:
+            _sub(el, 'TipoValor', _valor_texto(idx1_header['TipoValor'][n]))
+        if idx1_header.get('MontoDescuentooRecargo', {}).get(n) is not None:
+            _sub(el, 'MontoDescuentooRecargo',
+                 _valor_texto(idx1_header['MontoDescuentooRecargo'][n], monetario=True))
+        if idx1_header.get('IndicadorFacturacionDescuentooRecargo', {}).get(n) is not None:
+            _sub(el, 'IndicadorFacturacionDescuentooRecargo',
+                 _valor_texto(idx1_header['IndicadorFacturacionDescuentooRecargo'][n]))
+
+
+def _gen_informacion_referencia(ecf, tipo_ecf: int, caps: dict, simple: dict) -> None:
+    ncf_mod = simple.get('NCFModificado')
+    fecha_mod = simple.get('FechaNCFModificado')
+    cod_mod = simple.get('CodigoModificacion')
+    if caps['info_referencia_mandatory'] and (
+            _es_vacio(ncf_mod) or _es_vacio(fecha_mod) or _es_vacio(cod_mod)):
+        raise ECFBuilderError(
+            f"e-CF {tipo_ecf}: InformacionReferencia/NCFModificado+"
+            "FechaNCFModificado+CodigoModificacion son obligatorios "
+            "(minOccurs=1, referencian el NCF que este documento modifica); "
+            "falta alguno en 'datos'")
+    info = _sub(ecf, 'InformacionReferencia')
+    if not _es_vacio(ncf_mod):
+        _sub(info, 'NCFModificado', _valor_texto(ncf_mod))
+    if simple.get('RNCOtroContribuyente'):
+        _sub(info, 'RNCOtroContribuyente', _solo_digitos(simple['RNCOtroContribuyente']))
+    if not _es_vacio(fecha_mod):
+        _sub(info, 'FechaNCFModificado', _valor_texto(fecha_mod))
+    if not _es_vacio(cod_mod):
+        _sub(info, 'CodigoModificacion', _valor_texto(cod_mod))
+    if tipo_ecf in (33, 34) and simple.get('RazonModificacion'):
+        _sub(info, 'RazonModificacion', _valor_texto(simple['RazonModificacion'])[:90])
+
+
+def construir_ecf_generico(tipo_ecf: int, e_ncf: str, datos: dict) -> str:
+    """Arma el e-CF "sin firmar" de CUALQUIERA de los 10 tipos directo desde
+    el payload plano del Set de Pruebas de certificacion DGII (Task 5, modo
+    test) -- NO pasa por ``TFAT_FACTURA``/``fat_repo`` en absoluto.
+
+    ``e_ncf`` es el valor EXPLICITO que trae la fila del Excel (columna
+    ``ENCF``/``CasoPrueba``) -- son e-NCF fijos que la propia DGII define
+    para el Set de Pruebas, NO una secuencia real de
+    ``TFE_SECUENCIA``/``fe_repo.consumir_siguiente_encf`` (esta funcion no
+    la llama ni la importa: usarla aqui quemaria numeracion real de
+    produccion sobre datos de prueba, ver NOTAS.md #5 y docstring del
+    endpoint que llama a esta funcion en ``apps/fe/views.py``).
+
+    Lanza ``ECFBuilderError`` (fallo duro, nunca omite en silencio) si
+    falta un campo que el XSD real del ``tipo_ecf`` pedido exige
+    (``minOccurs=1``) segun la tabla ``_TIPO_CAPS`` de este modulo,
+    construida diffeando los 10 XSD reales -- ver ese comentario para el
+    detalle de cada diferencia estructural.
+    """
+    if tipo_ecf not in TIPOS_ECF_SOPORTADOS:
+        raise ECFBuilderError(
+            f"TipoeCF {tipo_ecf} no soportado -- catalogo real (TipoeCFType): "
+            f"{TIPOS_ECF_SOPORTADOS}")
+    e_ncf = (e_ncf or '').strip()
+    if not _ENCF_RE.match(e_ncf):
+        raise ECFBuilderError(
+            f"eNCF invalido: {e_ncf!r} (eNCFValidationType exige exactamente "
+            "13 caracteres alfanumericos, ej. E320000000006)")
+    caps = _TIPO_CAPS[tipo_ecf]
+    parsed = _parse_datos_planos(datos or {})
+    simple = parsed['simple']
+    idx1_header = parsed['idx1_header']
+    idx1_item = parsed['idx1_item']
+    idx2 = parsed['idx2']
+
+    ecf = etree.Element('ECF')
+    encabezado = _sub(ecf, 'Encabezado')
+    _sub(encabezado, 'Version', '1.0')
+
+    id_doc = _sub(encabezado, 'IdDoc')
+    _gen_id_doc(id_doc, tipo_ecf, e_ncf, caps, simple, idx1_header)
+
+    emisor = _sub(encabezado, 'Emisor')
+    _gen_emisor(emisor, simple, idx1_header)
+
+    if caps['comprador'] != 'ninguno':
+        comprador = _sub(encabezado, 'Comprador')
+        _gen_comprador(comprador, tipo_ecf, caps, simple)
+
+    if any(simple.get(campo) is not None for campo in _INFO_ADICIONAL_FIELDS):
+        info_ad = _sub(encabezado, 'InformacionesAdicionales')
+        _gen_informaciones_adicionales(info_ad, simple)
+
+    if any(simple.get(campo) is not None for campo in _TRANSPORTE_FIELDS):
+        transporte = _sub(encabezado, 'Transporte')
+        _gen_transporte(transporte, tipo_ecf, simple)
+
+    totales = _sub(encabezado, 'Totales')
+    _gen_totales(totales, tipo_ecf, caps, simple, idx1_header)
+
+    if any(simple.get(campo) is not None for campo in _OTRA_MONEDA_FIELDS):
+        otra = _sub(encabezado, 'OtraMoneda')
+        _gen_otra_moneda(otra, simple)
+
+    _gen_detalles_items(ecf, tipo_ecf, caps, idx1_item, idx2)
+
+    if idx1_header.get('NumeroLineaDoR'):
+        _gen_descuentos_o_recargos(ecf, idx1_header)
+
+    if caps['info_referencia_mandatory'] or any(
+            simple.get(c) for c in ('NCFModificado', 'FechaNCFModificado',
+                                    'CodigoModificacion', 'RazonModificacion')):
+        _gen_informacion_referencia(ecf, tipo_ecf, caps, simple)
+
+    # FechaHoraFirma es el ultimo elemento real del XSD antes del <xs:any>
+    # donde va <Signature> -- igual que en _construir_ecf (Task 1), no se
+    # genera aqui el nodo de firma.
+    _sub(ecf, 'FechaHoraFirma', _fecha_hora_firma())
+
+    return etree.tostring(
+        ecf, xml_declaration=True, encoding='utf-8',
+    ).decode('utf-8')
