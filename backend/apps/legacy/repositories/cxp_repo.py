@@ -1717,6 +1717,16 @@ def entrada_documento(d, _skip_periodo_gate: bool = False):
     detalle       = d.get("detalle", "")
     no_docu       = (d.get("no_docu") or "").strip()
 
+    # Tipo de Gasto obligatorio en cualquier documento con NCF -- pedido por
+    # MPILAR (reporte 5c148e2b): sin esto el 606/607 sale con el tipo de
+    # gasto en blanco para comprobantes fiscales reales. Aplica a TODOS los
+    # NCF (B01, B02, B04, B11, B14, B15, E31, E32, E34), sin excepcion.
+    if str(d.get("ncf") or "").strip() and not str(d.get("tipo_gasto") or "").strip():
+        raise ValueError(
+            "El Tipo de Gasto es obligatorio cuando el documento lleva "
+            "Numero de Comprobante Fiscal (NCF)."
+        )
+
     # Candado de periodo: solo al CREAR (no_docu vacio) y salvo materializacion.
     if not no_docu and not _skip_periodo_gate:
         _estado_per, _per_proc = _periodo_estado(no_cia, punto, fecha)
@@ -2863,6 +2873,13 @@ def editar_cola_documento(cid: int, d: dict) -> dict:
             raise ValueError(f"La fila ya esta {estado}, no se puede editar")
 
         fecha = _norm_fecha(d.get('fecha', ''), campo='fecha', requerido=True)
+        # Mismo candado de entrada_documento: Tipo de Gasto obligatorio si
+        # el documento lleva NCF (reporte 5c148e2b).
+        if str(d.get('ncf') or '').strip() and not str(d.get('tipo_gasto') or '').strip():
+            raise ValueError(
+                "El Tipo de Gasto es obligatorio cuando el documento lleva "
+                "Numero de Comprobante Fiscal (NCF)."
+            )
         lineas_in = d.get('lineas', [])
         if not lineas_in:
             raise ValueError(

@@ -1086,6 +1086,13 @@ export function CxpEntradaDocumentos({
       toast.error('Tipo de documento, proveedor y valor de bienes o servicio son requeridos')
       return
     }
+    // Tipo de Gasto obligatorio si el documento lleva NCF (reporte 5c148e2b,
+    // MPILAR) -- valida aqui para feedback inmediato; el backend repite el
+    // mismo candado por si algun otro llamador se salta el formulario.
+    if (form.ncf.trim() && !form.tipo_gasto.trim()) {
+      toast.error('El Tipo de Gasto es obligatorio cuando el documento lleva NCF')
+      return
+    }
     setSaving(true)
     try {
       const totalDoc = totalDocumento
