@@ -107,6 +107,51 @@ def _patch_get(monkeypatch, state, response):
 
 
 # ---------------------------------------------------------------------------
+# obtener_token
+# ---------------------------------------------------------------------------
+# Regresion de un bug real encontrado 2026-09-04 ejecutando el primer
+# escenario del Set de Pruebas contra testecf real: obtener_token() se
+# habia quedado firmando la semilla con firma.firmar_xml() (nunca migrado
+# cuando el resto del cliente adopto firmar_con_app_oficial en Task 2),
+# y testecf real rechazo la semilla con 'Firma del certificado invalida'
+# -- el mismo sintoma que bloqueo la Postulacion 5 intentos antes de
+# resolverse con la App oficial. Estos tests SI ejercitan el cuerpo real
+# de obtener_token (a diferencia de _patch_comunes, que lo monkeypatchea
+# para el resto del archivo).
+
+def test_obtener_token_firma_semilla_con_app_oficial_no_con_firmar_xml(
+    monkeypatch, _patch_comunes,
+):
+    state = _patch_comunes
+
+    # obtener_token esta monkeypatcheado en _patch_comunes para el resto
+    # del archivo (para que otros tests no disparen auth real) -- aqui se
+    # deshace ese y el resto de los patches de la fixture para poder
+    # ejercitar el cuerpo REAL de obtener_token, y se reaplican a mano
+    # solo los que este test sigue necesitando.
+    monkeypatch.undo()
+    monkeypatch.setattr(fe_repo, 'get_config', lambda no_cia: state['config'])
+    monkeypatch.setattr(fe_repo, 'get_certificado', lambda no_cia: state['certificado'])
+    monkeypatch.setattr(crypto, 'decrypt', lambda enc: FAKE_PASSWORD)
+    monkeypatch.setattr(
+        firma, 'firmar_con_app_oficial',
+        lambda xml, p12, pw: state['firmar_calls'].append((xml, p12, pw)) or FAKE_XML_FIRMADO)
+    monkeypatch.setattr(
+        firma, 'firmar_xml',
+        lambda xml, p12, pw: (_ for _ in ()).throw(
+            AssertionError('firmar_xml() NO debe usarse para la semilla')))
+    monkeypatch.setattr(fe_repo, 'get_token', lambda no_cia, ambiente: None)
+    monkeypatch.setattr(dgii_client, 'obtener_semilla', lambda ambiente: '<Semilla/>')
+    monkeypatch.setattr(fe_repo, 'save_token', lambda *a, **kw: None)
+    _patch_post(monkeypatch, state, FakeResponse(200, {'token': FAKE_TOKEN}))
+
+    token = dgii_client.obtener_token('01', 'testecf')
+
+    assert token == FAKE_TOKEN
+    assert state['firmar_calls'] == [('<Semilla/>', FAKE_P12, FAKE_PASSWORD)]
+
+
+# ---------------------------------------------------------------------------
 # enviar_ecf
 # ---------------------------------------------------------------------------
 

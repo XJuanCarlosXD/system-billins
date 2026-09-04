@@ -56,7 +56,18 @@ def obtener_semilla(ambiente: str) -> str:
 
 
 def obtener_token(no_cia: str, ambiente: str, forzar: bool = False) -> str:
-    """Token vigente para la cía (cacheado en TFE_TOKEN)."""
+    """Token vigente para la cía (cacheado en TFE_TOKEN).
+
+    Firma la semilla con ``firma.firmar_con_app_oficial()`` -- NUNCA
+    ``firma.firmar_xml()``. Confirmado 2026-09-04 contra ``testecf`` real:
+    la semilla firmada con ``firmar_xml()`` (signxml/lxml) es rechazada por
+    ``validarsemilla`` con ``HTTP 400 "Firma del certificado invalida"``,
+    el mismo síntoma que bloqueó la Postulación 5 intentos antes de
+    resolverse con la App oficial (ver docstring de
+    ``firmar_con_app_oficial`` y memoria del proyecto). Esta función se
+    había quedado sin migrar cuando se aplicó ese fix al resto del cliente
+    (``enviar_ecf``/``enviar_rfce``/``reenviar_ecf`` ya firman correcto).
+    """
     if not forzar:
         cached = fe_repo.get_token(no_cia, ambiente)
         if cached:
@@ -69,7 +80,7 @@ def obtener_token(no_cia: str, ambiente: str, forzar: bool = False) -> str:
     password = crypto.decrypt(password_enc)
 
     semilla = obtener_semilla(ambiente)
-    semilla_firmada = firma.firmar_xml(semilla, p12_bytes, password)
+    semilla_firmada = firma.firmar_con_app_oficial(semilla, p12_bytes, password)
 
     r = requests.post(
         f'{_base(ambiente)}/autenticacion/api/autenticacion/validarsemilla',
