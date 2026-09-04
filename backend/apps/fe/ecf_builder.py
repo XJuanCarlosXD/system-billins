@@ -449,47 +449,152 @@ TIPOS_ECF_SOPORTADOS = (31, 32, 33, 34, 41, 43, 44, 45, 46, 47)
 #   NCFModificado/FechaNCFModificado/CodigoModificacion son minOccurs=1
 #   (33 y 34 -- Nota de Debito/Credito, tienen que referenciar el NCF que
 #   modifican).
+# - tipo_ingresos_mandatory: IdDoc/TipoIngresos es minOccurs=1 cuando
+#   ``tipo_ingresos`` es True (31/32/44/45/46); en 33/34 el elemento existe
+#   pero es minOccurs=0 -- no confundir con "ausente del esquema"
+#   (``tipo_ingresos=False``, que ya cubre 41/43/47).
+# - transporte: conjunto de campos de Transporte que existen en el esquema
+#   de este tipo -- frozenset() vacio significa que el elemento Transporte
+#   NO existe en absoluto (41/43, confirmado -- 0 apariciones del elemento
+#   al grep-ear el XSD). e-CF-47 SI tiene Transporte pero reducido a un
+#   unico campo (``PaisDestino``, semanticamente relevante ahi: pais del
+#   beneficiario del pago al exterior) -- NO tiene
+#   Conductor/Ficha/Placa/etc. e-CF-46 es el unico que tiene los 7 campos
+#   "de transporte de carga" estandar MAS ``PaisDestino``. El resto
+#   (31-34/44/45) tiene los 7 campos estandar pero SIN ``PaisDestino``.
+# - info_adicional: InformacionesAdicionales existe en el esquema (ausente
+#   por completo en 41/43/47, igual que Transporte).
+# - descuentos_o_recargos: DescuentosORecargos existe en el esquema
+#   (ausente por completo en 43/47).
+# - otra_moneda_campos: conjunto de campos de OtraMoneda (de los 8 que usa
+#   el Set de Pruebas real) que existen en el esquema de este tipo --
+#   43/47 solo tienen 4 (TipoMoneda/TipoCambio/MontoExentoOtraMoneda/
+#   MontoTotalOtraMoneda), 44 solo 3 (sin MontoTotalOtraMoneda), 46 tiene 7
+#   (sin MontoExentoOtraMoneda) -- el resto tiene los 8 completos.
+# - item_referencia: bloque CantidadReferencia/UnidadReferencia/
+#   TablaSubcantidad/GradosAlcohol/PrecioUnitarioReferencia de Item existe
+#   (solo 31/32/33/34/45 -- ausente en 41/43/44/46/47).
+# - item_descuento_recargo: bloque DescuentoMonto/TablaSubDescuento/
+#   RecargoMonto/TablaSubRecargo de Item existe (todos salvo 43/47, donde
+#   Item va directo de PrecioUnitarioItem a OtraMonedaDetalle/MontoItem).
+# - item_impuesto_adicional: Item/TablaImpuestoAdicional existe (solo
+#   31/32/33/34/44/45 -- ausente en 41/43/46/47; 46 tiene en su lugar un
+#   bloque Mineria no relacionado, fuera de alcance de los 347 campos).
+_TRANSPORTE_ESTANDAR = frozenset({
+    'Conductor', 'DocumentoTransporte', 'Ficha', 'Placa',
+    'RutaTransporte', 'ZonaTransporte', 'NumeroAlbaran',
+})
+# NOTA: no se referencia ``_OTRA_MONEDA_FIELDS`` aqui (definido mas abajo en
+# el modulo, junto a ``_INFO_ADICIONAL_FIELDS`` --
+# _TIPO_CAPS se evalua primero al cargar el modulo, un forward-reference
+# aqui daria NameError) -- se repite la lista literal, debe mantenerse en
+# sync con ``_OTRA_MONEDA_FIELDS`` si esa cambia.
+_OTRA_MONEDA_COMPLETO = frozenset({
+    'TipoMoneda', 'TipoCambio', 'MontoGravadoTotalOtraMoneda',
+    'MontoGravado3OtraMoneda', 'MontoExentoOtraMoneda', 'TotalITBISOtraMoneda',
+    'TotalITBIS3OtraMoneda', 'MontoTotalOtraMoneda',
+})
+
 _TIPO_CAPS = {
     31: dict(fecha_venc=True, ind_nota_credito=False, tipo_ingresos=True,
-             tipo_pago_mandatory=True, tabla_formas_pago=True,
-             comprador='rnc_razon_mandatory', item_retencion='opcional',
-             totales_completo=True, info_referencia_mandatory=False),
+             tipo_ingresos_mandatory=True, tipo_pago_mandatory=True,
+             tabla_formas_pago=True, comprador='rnc_razon_mandatory',
+             item_retencion='opcional', totales_completo=True,
+             info_referencia_mandatory=False, transporte=_TRANSPORTE_ESTANDAR,
+             info_adicional=True, descuentos_o_recargos=True,
+             otra_moneda_campos=_OTRA_MONEDA_COMPLETO,
+             item_referencia=True, item_descuento_recargo=True,
+             item_impuesto_adicional=True),
     32: dict(fecha_venc=False, ind_nota_credito=False, tipo_ingresos=True,
-             tipo_pago_mandatory=True, tabla_formas_pago=True,
-             comprador='opcional', item_retencion='no',
-             totales_completo=True, info_referencia_mandatory=False),
+             tipo_ingresos_mandatory=True, tipo_pago_mandatory=True,
+             tabla_formas_pago=True, comprador='opcional',
+             item_retencion='no', totales_completo=True,
+             info_referencia_mandatory=False, transporte=_TRANSPORTE_ESTANDAR,
+             info_adicional=True, descuentos_o_recargos=True,
+             otra_moneda_campos=_OTRA_MONEDA_COMPLETO,
+             item_referencia=True, item_descuento_recargo=True,
+             item_impuesto_adicional=True),
     33: dict(fecha_venc=True, ind_nota_credito=False, tipo_ingresos=True,
-             tipo_pago_mandatory=True, tabla_formas_pago=True,
-             comprador='opcional', item_retencion='opcional',
-             totales_completo=True, info_referencia_mandatory=True),
+             tipo_ingresos_mandatory=False, tipo_pago_mandatory=True,
+             tabla_formas_pago=True, comprador='opcional',
+             item_retencion='opcional', totales_completo=True,
+             info_referencia_mandatory=True, transporte=_TRANSPORTE_ESTANDAR,
+             info_adicional=True, descuentos_o_recargos=True,
+             otra_moneda_campos=_OTRA_MONEDA_COMPLETO,
+             item_referencia=True, item_descuento_recargo=True,
+             item_impuesto_adicional=True),
     34: dict(fecha_venc=False, ind_nota_credito=True, tipo_ingresos=True,
-             tipo_pago_mandatory=True, tabla_formas_pago=False,
-             comprador='opcional', item_retencion='opcional',
-             totales_completo=True, info_referencia_mandatory=True),
+             tipo_ingresos_mandatory=False, tipo_pago_mandatory=True,
+             tabla_formas_pago=False, comprador='opcional',
+             item_retencion='opcional', totales_completo=True,
+             info_referencia_mandatory=True, transporte=_TRANSPORTE_ESTANDAR,
+             info_adicional=True, descuentos_o_recargos=True,
+             otra_moneda_campos=_OTRA_MONEDA_COMPLETO,
+             item_referencia=True, item_descuento_recargo=True,
+             item_impuesto_adicional=True),
     41: dict(fecha_venc=True, ind_nota_credito=False, tipo_ingresos=False,
-             tipo_pago_mandatory=False, tabla_formas_pago=True,
-             comprador='rnc_razon_mandatory', item_retencion='mandatory_indicador',
-             totales_completo=True, info_referencia_mandatory=False),
+             tipo_ingresos_mandatory=False, tipo_pago_mandatory=False,
+             tabla_formas_pago=True, comprador='rnc_razon_mandatory',
+             item_retencion='mandatory_indicador', totales_completo=True,
+             info_referencia_mandatory=False, transporte=frozenset(),
+             info_adicional=False, descuentos_o_recargos=True,
+             otra_moneda_campos=_OTRA_MONEDA_COMPLETO,
+             item_referencia=False, item_descuento_recargo=True,
+             item_impuesto_adicional=False),
     43: dict(fecha_venc=True, ind_nota_credito=False, tipo_ingresos=False,
-             tipo_pago_mandatory=False, tabla_formas_pago=False,
-             comprador='ninguno', item_retencion='no',
-             totales_completo=False, info_referencia_mandatory=False),
+             tipo_ingresos_mandatory=False, tipo_pago_mandatory=False,
+             tabla_formas_pago=False, comprador='ninguno',
+             item_retencion='no', totales_completo=False,
+             info_referencia_mandatory=False, transporte=frozenset(),
+             info_adicional=False, descuentos_o_recargos=False,
+             otra_moneda_campos=frozenset({
+                 'TipoMoneda', 'TipoCambio', 'MontoExentoOtraMoneda',
+                 'MontoTotalOtraMoneda'}),
+             item_referencia=False, item_descuento_recargo=False,
+             item_impuesto_adicional=False),
     44: dict(fecha_venc=True, ind_nota_credito=False, tipo_ingresos=True,
-             tipo_pago_mandatory=True, tabla_formas_pago=True,
-             comprador='razon_mandatory', item_retencion='no',
-             totales_completo=True, info_referencia_mandatory=False),
+             tipo_ingresos_mandatory=True, tipo_pago_mandatory=True,
+             tabla_formas_pago=True, comprador='razon_mandatory',
+             item_retencion='no', totales_completo=True,
+             info_referencia_mandatory=False, transporte=_TRANSPORTE_ESTANDAR,
+             info_adicional=True, descuentos_o_recargos=True,
+             otra_moneda_campos=frozenset({
+                 'TipoMoneda', 'TipoCambio', 'MontoExentoOtraMoneda'}),
+             item_referencia=False, item_descuento_recargo=True,
+             item_impuesto_adicional=True),
     45: dict(fecha_venc=True, ind_nota_credito=False, tipo_ingresos=True,
-             tipo_pago_mandatory=True, tabla_formas_pago=True,
-             comprador='rnc_razon_mandatory', item_retencion='no',
-             totales_completo=True, info_referencia_mandatory=False),
+             tipo_ingresos_mandatory=True, tipo_pago_mandatory=True,
+             tabla_formas_pago=True, comprador='rnc_razon_mandatory',
+             item_retencion='no', totales_completo=True,
+             info_referencia_mandatory=False, transporte=_TRANSPORTE_ESTANDAR,
+             info_adicional=True, descuentos_o_recargos=True,
+             otra_moneda_campos=_OTRA_MONEDA_COMPLETO,
+             item_referencia=True, item_descuento_recargo=True,
+             item_impuesto_adicional=True),
     46: dict(fecha_venc=True, ind_nota_credito=False, tipo_ingresos=True,
-             tipo_pago_mandatory=True, tabla_formas_pago=True,
-             comprador='razon_mandatory', item_retencion='no',
-             totales_completo=True, info_referencia_mandatory=False),
+             tipo_ingresos_mandatory=True, tipo_pago_mandatory=True,
+             tabla_formas_pago=True, comprador='razon_mandatory',
+             item_retencion='no', totales_completo=True,
+             info_referencia_mandatory=False,
+             transporte=_TRANSPORTE_ESTANDAR | {'PaisDestino'},
+             info_adicional=True, descuentos_o_recargos=True,
+             otra_moneda_campos=frozenset({
+                 'TipoMoneda', 'TipoCambio', 'MontoGravadoTotalOtraMoneda',
+                 'MontoGravado3OtraMoneda', 'TotalITBISOtraMoneda',
+                 'TotalITBIS3OtraMoneda', 'MontoTotalOtraMoneda'}),
+             item_referencia=False, item_descuento_recargo=True,
+             item_impuesto_adicional=False),
     47: dict(fecha_venc=True, ind_nota_credito=False, tipo_ingresos=False,
-             tipo_pago_mandatory=False, tabla_formas_pago=True,
-             comprador='reducido', item_retencion='mandatory_completo',
-             totales_completo=False, info_referencia_mandatory=False),
+             tipo_ingresos_mandatory=False, tipo_pago_mandatory=False,
+             tabla_formas_pago=True, comprador='reducido',
+             item_retencion='mandatory_completo', totales_completo=False,
+             info_referencia_mandatory=False, transporte=frozenset({'PaisDestino'}),
+             info_adicional=False, descuentos_o_recargos=False,
+             otra_moneda_campos=frozenset({
+                 'TipoMoneda', 'TipoCambio', 'MontoExentoOtraMoneda',
+                 'MontoTotalOtraMoneda'}),
+             item_referencia=False, item_descuento_recargo=False,
+             item_impuesto_adicional=False),
 }
 
 # Nombres base (sin corchetes) de los 347 campos reales de
@@ -535,15 +640,18 @@ _INFO_ADICIONAL_FIELDS = (
     'PesoBruto', 'PesoNeto', 'UnidadPesoBruto', 'UnidadPesoNeto',
     'CantidadBulto', 'UnidadBulto', 'VolumenBulto', 'UnidadVolumen',
 )
-_TRANSPORTE_FIELDS = (
-    'PaisDestino', 'Conductor', 'DocumentoTransporte', 'Ficha', 'Placa',
-    'RutaTransporte', 'ZonaTransporte', 'NumeroAlbaran',
-)
 _OTRA_MONEDA_FIELDS = (
     'TipoMoneda', 'TipoCambio', 'MontoGravadoTotalOtraMoneda',
     'MontoGravado3OtraMoneda', 'MontoExentoOtraMoneda', 'TotalITBISOtraMoneda',
     'TotalITBIS3OtraMoneda', 'MontoTotalOtraMoneda',
 )
+# Verifica que la copia literal ``_OTRA_MONEDA_COMPLETO`` (definida arriba,
+# junto a ``_TIPO_CAPS``, por el forward-reference explicado ahi) no se
+# haya desincronizado de esta lista -- si alguien agrega/quita un campo de
+# ``_OTRA_MONEDA_FIELDS`` sin actualizar la otra, esto falla fuerte al
+# importar el modulo en vez de dejar un bug silencioso.
+assert _OTRA_MONEDA_COMPLETO == frozenset(_OTRA_MONEDA_FIELDS), (
+    '_OTRA_MONEDA_COMPLETO desincronizado de _OTRA_MONEDA_FIELDS')
 
 _ENCF_RE = re.compile(r'^[A-Za-z0-9]{13}$')
 
@@ -676,8 +784,14 @@ def _gen_id_doc(id_doc, tipo_ecf: int, e_ncf: str, caps: dict, simple: dict,
         _sub(id_doc, 'IndicadorNotaCredito', _valor_texto(v))
     if 'IndicadorMontoGravado' in simple:
         _sub(id_doc, 'IndicadorMontoGravado', _valor_texto(simple['IndicadorMontoGravado']))
-    if caps['tipo_ingresos'] and 'TipoIngresos' in simple:
-        _sub(id_doc, 'TipoIngresos', _valor_texto(simple['TipoIngresos']))
+    if caps['tipo_ingresos']:
+        tipo_ingresos = simple.get('TipoIngresos')
+        if caps['tipo_ingresos_mandatory'] and _es_vacio(tipo_ingresos):
+            raise ECFBuilderError(
+                f"IdDoc/TipoIngresos es obligatorio (minOccurs=1) para TipoeCF "
+                f"{tipo_ecf} segun e-CF-{tipo_ecf}-v1.0.xsd; falta en 'datos'")
+        if not _es_vacio(tipo_ingresos):
+            _sub(id_doc, 'TipoIngresos', _valor_texto(tipo_ingresos))
     tipo_pago = simple.get('TipoPago')
     if caps['tipo_pago_mandatory'] and _es_vacio(tipo_pago):
         raise ECFBuilderError(
@@ -826,18 +940,22 @@ def _gen_informaciones_adicionales(info_ad, simple: dict) -> None:
         _sub(info_ad, 'UnidadVolumen', _valor_texto(simple['UnidadVolumen']))
 
 
-def _gen_transporte(transporte, tipo_ecf: int, simple: dict) -> None:
-    # PaisDestino en Transporte solo existe en e-CF-46-v1.0.xsd (Exportacion
-    # -- va ANTES de Conductor en ese esquema); en el resto de tipos ese
-    # elemento no existe dentro de Transporte.
-    if tipo_ecf == 46 and simple.get('PaisDestino'):
+def _gen_transporte(transporte, caps: dict, simple: dict) -> None:
+    """Emite solo los campos de Transporte que ``caps['transporte']``
+    permite para este tipo (ver comentario de ``_TIPO_CAPS``) -- e-CF-46 es
+    el unico con ``PaisDestino`` MAS los 7 campos estandar; e-CF-47 SOLO
+    tiene ``PaisDestino`` (sin Conductor/Ficha/Placa/etc, a diferencia de
+    lo que se asumia antes de este fix); el resto de los tipos que tienen
+    Transporte (31-34/44/45) tienen los 7 campos estandar SIN
+    ``PaisDestino``. ``construir_ecf_generico`` ya se asegura de no llamar
+    a esta funcion en absoluto para 41/43 (``caps['transporte']`` vacio ->
+    el elemento Transporte no existe en esos dos esquemas)."""
+    permitidos = caps['transporte']
+    if 'PaisDestino' in permitidos and simple.get('PaisDestino'):
         _sub(transporte, 'PaisDestino', _valor_texto(simple['PaisDestino']))
-    if simple.get('Conductor'):
-        _sub(transporte, 'Conductor', _valor_texto(simple['Conductor']))
-    if simple.get('DocumentoTransporte'):
-        _sub(transporte, 'DocumentoTransporte', _valor_texto(simple['DocumentoTransporte']))
-    for campo in ('Ficha', 'Placa', 'RutaTransporte', 'ZonaTransporte', 'NumeroAlbaran'):
-        if simple.get(campo):
+    for campo in ('Conductor', 'DocumentoTransporte', 'Ficha', 'Placa',
+                  'RutaTransporte', 'ZonaTransporte', 'NumeroAlbaran'):
+        if campo in permitidos and simple.get(campo):
             _sub(transporte, campo, _valor_texto(simple[campo]))
 
 
@@ -896,15 +1014,20 @@ def _gen_totales(totales, tipo_ecf: int, caps: dict, simple: dict, idx1_header: 
              _valor_texto(simple['TotalISRRetencion'], monetario=True))
 
 
-def _gen_otra_moneda(otra, simple: dict) -> None:
-    if simple.get('TipoMoneda'):
+def _gen_otra_moneda(otra, caps: dict, simple: dict) -> None:
+    """Emite solo los campos de OtraMoneda que ``caps['otra_moneda_campos']``
+    permite para este tipo -- el conjunto varia de verdad (43/47 solo tienen
+    4 de los 8 campos que usa el Set de Pruebas real, 44 solo 3, 46 tiene 7
+    sin ``MontoExentoOtraMoneda``; ver comentario de ``_TIPO_CAPS``)."""
+    permitidos = caps['otra_moneda_campos']
+    if 'TipoMoneda' in permitidos and simple.get('TipoMoneda'):
         _sub(otra, 'TipoMoneda', _valor_texto(simple['TipoMoneda']))
-    if simple.get('TipoCambio') is not None:
+    if 'TipoCambio' in permitidos and simple.get('TipoCambio') is not None:
         _sub(otra, 'TipoCambio', _valor_texto(simple['TipoCambio'], monetario=True))
     for campo in ('MontoGravadoTotalOtraMoneda', 'MontoGravado3OtraMoneda',
                   'MontoExentoOtraMoneda', 'TotalITBISOtraMoneda',
                   'TotalITBIS3OtraMoneda', 'MontoTotalOtraMoneda'):
-        if simple.get(campo) is not None:
+        if campo in permitidos and simple.get(campo) is not None:
             _sub(otra, campo, _valor_texto(simple[campo], monetario=True))
 
 
@@ -971,46 +1094,62 @@ def _gen_detalles_items(ecf, tipo_ecf: int, caps: dict, idx1_item: dict, idx2: d
         _sub(item, 'CantidadItem', _valor_texto(cantidad, monetario=True))
         if idx1_item.get('UnidadMedida', {}).get(n) is not None:
             _sub(item, 'UnidadMedida', _valor_texto(idx1_item['UnidadMedida'][n]))
-        if idx1_item.get('CantidadReferencia', {}).get(n) is not None:
-            _sub(item, 'CantidadReferencia',
-                 _valor_texto(idx1_item['CantidadReferencia'][n], monetario=True))
-        if idx1_item.get('UnidadReferencia', {}).get(n) is not None:
-            _sub(item, 'UnidadReferencia', _valor_texto(idx1_item['UnidadReferencia'][n]))
-        if subs.get('Subcantidad') or subs.get('CodigoSubcantidad'):
-            tabla = _sub(item, 'TablaSubcantidad')
-            _emitir_subgrupo(tabla, 'SubcantidadItem', subs,
-                             [('Subcantidad', 'Subcantidad', True),
-                              ('CodigoSubcantidad', 'CodigoSubcantidad', False)])
-        if idx1_item.get('GradosAlcohol', {}).get(n) is not None:
-            _sub(item, 'GradosAlcohol', _valor_texto(idx1_item['GradosAlcohol'][n], monetario=True))
-        if idx1_item.get('PrecioUnitarioReferencia', {}).get(n) is not None:
-            _sub(item, 'PrecioUnitarioReferencia',
-                 _valor_texto(idx1_item['PrecioUnitarioReferencia'][n], monetario=True))
+        # Bloque CantidadReferencia/UnidadReferencia/TablaSubcantidad/
+        # GradosAlcohol/PrecioUnitarioReferencia -- SOLO existe en
+        # 31/32/33/34/45 (``caps['item_referencia']``); ausente por completo
+        # en 41/43/44/46/47 (confirmado leyendo los 10 XSD reales).
+        if caps['item_referencia']:
+            if idx1_item.get('CantidadReferencia', {}).get(n) is not None:
+                _sub(item, 'CantidadReferencia',
+                     _valor_texto(idx1_item['CantidadReferencia'][n], monetario=True))
+            if idx1_item.get('UnidadReferencia', {}).get(n) is not None:
+                _sub(item, 'UnidadReferencia', _valor_texto(idx1_item['UnidadReferencia'][n]))
+            if subs.get('Subcantidad') or subs.get('CodigoSubcantidad'):
+                tabla = _sub(item, 'TablaSubcantidad')
+                _emitir_subgrupo(tabla, 'SubcantidadItem', subs,
+                                 [('Subcantidad', 'Subcantidad', True),
+                                  ('CodigoSubcantidad', 'CodigoSubcantidad', False)])
+            if idx1_item.get('GradosAlcohol', {}).get(n) is not None:
+                _sub(item, 'GradosAlcohol',
+                     _valor_texto(idx1_item['GradosAlcohol'][n], monetario=True))
+            if idx1_item.get('PrecioUnitarioReferencia', {}).get(n) is not None:
+                _sub(item, 'PrecioUnitarioReferencia',
+                     _valor_texto(idx1_item['PrecioUnitarioReferencia'][n], monetario=True))
         precio = idx1_item.get('PrecioUnitarioItem', {}).get(n)
         if precio is None:
             raise ECFBuilderError(f"Item[{n}] no tiene PrecioUnitarioItem[{n}] (minOccurs=1)")
         _sub(item, 'PrecioUnitarioItem', _valor_texto(precio, monetario=True))
-        if idx1_item.get('DescuentoMonto', {}).get(n) is not None:
-            _sub(item, 'DescuentoMonto', _valor_texto(idx1_item['DescuentoMonto'][n], monetario=True))
-        if subs.get('TipoSubDescuento') or subs.get('SubDescuentoPorcentaje') or subs.get('MontoSubDescuento'):
-            tabla = _sub(item, 'TablaSubDescuento')
-            _emitir_subgrupo(tabla, 'SubDescuento', subs,
-                             [('TipoSubDescuento', 'TipoSubDescuento', False),
-                              ('SubDescuentoPorcentaje', 'SubDescuentoPorcentaje', True),
-                              ('MontoSubDescuento', 'MontoSubDescuento', True)])
-        if idx1_item.get('RecargoMonto', {}).get(n) is not None:
-            _sub(item, 'RecargoMonto', _valor_texto(idx1_item['RecargoMonto'][n], monetario=True))
-        if subs.get('TipoSubRecargo') or subs.get('SubRecargoPorcentaje') or subs.get('MontosubRecargo'):
-            tabla = _sub(item, 'TablaSubRecargo')
-            _emitir_subgrupo(tabla, 'SubRecargo', subs,
-                             [('TipoSubRecargo', 'TipoSubRecargo', False),
-                              ('SubRecargoPorcentaje', 'SubRecargoPorcentaje', True),
-                              # 'MontosubRecargo' (s minuscula) es el nombre REAL
-                              # de la columna en el Excel oficial del Set de
-                              # Pruebas (typo de fabrica) -- el elemento
-                              # correcto de e-CF-*-v1.0.xsd es 'MontoSubRecargo'.
-                              ('MontosubRecargo', 'MontoSubRecargo', True)])
-        if subs.get('TipoImpuesto'):
+        # Bloque DescuentoMonto/TablaSubDescuento/RecargoMonto/
+        # TablaSubRecargo -- ausente por completo en 43/47
+        # (``caps['item_descuento_recargo']``), presente en todos los demas.
+        if caps['item_descuento_recargo']:
+            if idx1_item.get('DescuentoMonto', {}).get(n) is not None:
+                _sub(item, 'DescuentoMonto',
+                     _valor_texto(idx1_item['DescuentoMonto'][n], monetario=True))
+            if subs.get('TipoSubDescuento') or subs.get('SubDescuentoPorcentaje') or subs.get('MontoSubDescuento'):
+                tabla = _sub(item, 'TablaSubDescuento')
+                _emitir_subgrupo(tabla, 'SubDescuento', subs,
+                                 [('TipoSubDescuento', 'TipoSubDescuento', False),
+                                  ('SubDescuentoPorcentaje', 'SubDescuentoPorcentaje', True),
+                                  ('MontoSubDescuento', 'MontoSubDescuento', True)])
+            if idx1_item.get('RecargoMonto', {}).get(n) is not None:
+                _sub(item, 'RecargoMonto',
+                     _valor_texto(idx1_item['RecargoMonto'][n], monetario=True))
+            if subs.get('TipoSubRecargo') or subs.get('SubRecargoPorcentaje') or subs.get('MontosubRecargo'):
+                tabla = _sub(item, 'TablaSubRecargo')
+                _emitir_subgrupo(tabla, 'SubRecargo', subs,
+                                 [('TipoSubRecargo', 'TipoSubRecargo', False),
+                                  ('SubRecargoPorcentaje', 'SubRecargoPorcentaje', True),
+                                  # 'MontosubRecargo' (s minuscula) es el nombre REAL
+                                  # de la columna en el Excel oficial del Set de
+                                  # Pruebas (typo de fabrica) -- el elemento
+                                  # correcto de e-CF-*-v1.0.xsd es 'MontoSubRecargo'.
+                                  ('MontosubRecargo', 'MontoSubRecargo', True)])
+        # TablaImpuestoAdicional (item) -- SOLO 31/32/33/34/44/45
+        # (``caps['item_impuesto_adicional']``); ausente en 41/43/46/47 (46
+        # tiene en su lugar un bloque Mineria no relacionado y fuera de
+        # alcance de los 347 campos reales).
+        if caps['item_impuesto_adicional'] and subs.get('TipoImpuesto'):
             tabla = _sub(item, 'TablaImpuestoAdicional')
             _emitir_subgrupo(tabla, 'ImpuestoAdicional', subs,
                              [('TipoImpuesto', 'TipoImpuesto', False)])
@@ -1125,24 +1264,31 @@ def construir_ecf_generico(tipo_ecf: int, e_ncf: str, datos: dict) -> str:
         comprador = _sub(encabezado, 'Comprador')
         _gen_comprador(comprador, tipo_ecf, caps, simple)
 
-    if any(simple.get(campo) is not None for campo in _INFO_ADICIONAL_FIELDS):
+    # InformacionesAdicionales/Transporte/DescuentosORecargos NO existen en
+    # absoluto en el esquema de algunos tipos (41/43 para los dos primeros;
+    # 43/47 para el tercero) -- ``caps`` gatea la EXISTENCIA del elemento,
+    # no solo si hay datos para llenarlo (ver comentario de ``_TIPO_CAPS``).
+    if caps['info_adicional'] and any(
+            simple.get(campo) is not None for campo in _INFO_ADICIONAL_FIELDS):
         info_ad = _sub(encabezado, 'InformacionesAdicionales')
         _gen_informaciones_adicionales(info_ad, simple)
 
-    if any(simple.get(campo) is not None for campo in _TRANSPORTE_FIELDS):
+    if caps['transporte'] and any(
+            simple.get(campo) is not None for campo in caps['transporte']):
         transporte = _sub(encabezado, 'Transporte')
-        _gen_transporte(transporte, tipo_ecf, simple)
+        _gen_transporte(transporte, caps, simple)
 
     totales = _sub(encabezado, 'Totales')
     _gen_totales(totales, tipo_ecf, caps, simple, idx1_header)
 
-    if any(simple.get(campo) is not None for campo in _OTRA_MONEDA_FIELDS):
+    if any(campo in caps['otra_moneda_campos'] and simple.get(campo) is not None
+           for campo in _OTRA_MONEDA_FIELDS):
         otra = _sub(encabezado, 'OtraMoneda')
-        _gen_otra_moneda(otra, simple)
+        _gen_otra_moneda(otra, caps, simple)
 
     _gen_detalles_items(ecf, tipo_ecf, caps, idx1_item, idx2)
 
-    if idx1_header.get('NumeroLineaDoR'):
+    if caps['descuentos_o_recargos'] and idx1_header.get('NumeroLineaDoR'):
         _gen_descuentos_o_recargos(ecf, idx1_header)
 
     if caps['info_referencia_mandatory'] or any(

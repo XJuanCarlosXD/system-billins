@@ -270,7 +270,7 @@ def test_tipo_31_sin_rnc_comprador_lanza_error():
     datos = {
         'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
         'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
-        'FechaVencimientoSecuencia': '31-12-2028', 'TipoPago': 2,
+        'FechaVencimientoSecuencia': '31-12-2028', 'TipoIngresos': '01', 'TipoPago': 2,
         'MontoTotal': '100.00', 'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1,
         'NombreItem[1]': 'X', 'IndicadorBienoServicio[1]': 1, 'CantidadItem[1]': '1.00',
         'PrecioUnitarioItem[1]': '100.00', 'MontoItem[1]': '100.00',
@@ -535,3 +535,318 @@ def test_todos_los_10_tipos_tienen_schema_cargable(tipo_ecf):
     fixture de modulo _SCHEMA_POR_TIPO) -- si alguno fallara al cargar, los
     tests de arriba fallarian con un error de coleccion menos claro."""
     assert tipo_ecf in _SCHEMA_POR_TIPO
+
+
+# ---------------------------------------------------------------------------
+# 3. Regresion de la revision de spec-compliance: 6 gaps criticos + 1
+#    moderado donde _TIPO_CAPS no gateaba bloques que en algunos tipos NO
+#    existen en absoluto en el XSD real (Transporte/InformacionesAdicionales
+#    ausentes en 41/43/(47 parcial); OtraMoneda con campos distintos por
+#    tipo; sub-bloques de Item ausentes en 41/43/44/46/47; TipoIngresos sin
+#    exigir minOccurs=1). Filosofia del modulo: un campo que NO aplica al
+#    tipo pedido se OMITE en silencio (igual que Comprador/RNCComprador ya
+#    hace para otros tipos) en vez de fallar -- cada test de abajo prueba
+#    que, aun con el campo invalido presente en 'datos', el XML resultante
+#    sigue validando contra el XSD real de ese tipo Y que el elemento
+#    invalido efectivamente no aparece (no es "valido por casualidad").
+# ---------------------------------------------------------------------------
+
+def _base_41():
+    return {
+        'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
+        'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
+        'FechaVencimientoSecuencia': '31-12-2028',
+        'RNCComprador': '101623232', 'RazonSocialComprador': 'PROVEEDOR ZZTEST',
+        'MontoTotal': '100.00', 'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1,
+        'IndicadorAgenteRetencionoPercepcion[1]': 1,
+        'NombreItem[1]': 'X', 'IndicadorBienoServicio[1]': 1, 'CantidadItem[1]': '1.00',
+        'PrecioUnitarioItem[1]': '100.00', 'MontoItem[1]': '100.00',
+    }
+
+
+def _base_43():
+    return {
+        'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
+        'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
+        'FechaVencimientoSecuencia': '31-12-2028', 'MontoTotal': '500.00',
+        'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1, 'NombreItem[1]': 'X',
+        'IndicadorBienoServicio[1]': 2, 'CantidadItem[1]': '1.00',
+        'PrecioUnitarioItem[1]': '500.00', 'MontoItem[1]': '500.00',
+    }
+
+
+def _base_44():
+    return {
+        'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
+        'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
+        'FechaVencimientoSecuencia': '31-12-2028', 'TipoIngresos': '01', 'TipoPago': 1,
+        'RazonSocialComprador': 'ZONA FRANCA ZZTEST', 'MontoTotal': '1000.00',
+        'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1,
+        'NombreItem[1]': 'PRODUCTO ZZTEST', 'IndicadorBienoServicio[1]': 1,
+        'CantidadItem[1]': '1.00', 'PrecioUnitarioItem[1]': '1000.00',
+        'MontoItem[1]': '1000.00',
+    }
+
+
+def _base_46():
+    return {
+        'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
+        'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
+        'FechaVencimientoSecuencia': '31-12-2028', 'TipoIngresos': '01', 'TipoPago': 1,
+        'RazonSocialComprador': 'IMPORTADOR EXTRANJERO ZZTEST', 'MontoTotal': '5000.00',
+        'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 0,
+        'NombreItem[1]': 'PRODUCTO EXPORTACION ZZTEST', 'IndicadorBienoServicio[1]': 1,
+        'CantidadItem[1]': '1.00', 'PrecioUnitarioItem[1]': '5000.00',
+        'MontoItem[1]': '5000.00',
+    }
+
+
+def _base_47():
+    return {
+        'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
+        'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
+        'FechaVencimientoSecuencia': '31-12-2028',
+        'RazonSocialComprador': 'BENEFICIARIO EXTERIOR ZZTEST', 'MontoTotal': '3000.00',
+        'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 0,
+        'IndicadorAgenteRetencionoPercepcion[1]': 1, 'MontoISRRetenido[1]': '300.00',
+        'NombreItem[1]': 'X', 'IndicadorBienoServicio[1]': 2, 'CantidadItem[1]': '1.00',
+        'PrecioUnitarioItem[1]': '3000.00', 'MontoItem[1]': '3000.00',
+    }
+
+
+# --- Finding 1: Transporte no existe en absoluto en 41/43 -----------------
+
+@pytest.mark.parametrize('tipo_ecf,base', [(41, _base_41), (43, _base_43)])
+def test_transporte_no_existe_en_41_y_43_aunque_haya_datos(tipo_ecf, base):
+    datos = {**base(), 'Conductor': 'ZZTEST CONDUCTOR', 'Placa': 'A123456'}
+    xml_str = ecf_builder.construir_ecf_generico(
+        tipo_ecf, f'E{tipo_ecf:02d}0000000001', datos)
+    _validar_estructura_contra_xsd(xml_str, tipo_ecf)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.find('.//Transporte') is None
+
+
+# --- Finding 2: Transporte de 47 SOLO tiene PaisDestino --------------------
+
+def test_transporte_de_47_solo_admite_paisdestino_no_conductor():
+    datos = {**_base_47(), 'PaisDestino': 'ESTADOS UNIDOS', 'Conductor': 'NO DEBE APARECER',
+             'Placa': 'A123456'}
+    xml_str = ecf_builder.construir_ecf_generico(47, 'E470000000001', datos)
+    _validar_estructura_contra_xsd(xml_str, 47)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.findtext('.//Transporte/PaisDestino') == 'ESTADOS UNIDOS'
+    assert root.find('.//Transporte/Conductor') is None
+    assert root.find('.//Transporte/Placa') is None
+
+
+def test_paisdestino_se_emite_para_47_no_solo_para_46():
+    """Bug de comentario/gate encontrado en la revision: el codigo original
+    solo emitia PaisDestino para tipo_ecf==46 -- 47 (Pagos al Exterior,
+    donde PaisDestino es semanticamente relevante: pais del beneficiario)
+    lo perdia en silencio aunque el operador lo pegara en 'datos'."""
+    datos = {**_base_47(), 'PaisDestino': 'ESPANA'}
+    xml_str = ecf_builder.construir_ecf_generico(47, 'E470000000001', datos)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.findtext('.//Transporte/PaisDestino') == 'ESPANA'
+
+
+# --- Finding 3: InformacionesAdicionales no existe en 41/43/47 ------------
+
+@pytest.mark.parametrize('tipo_ecf,base', [(41, _base_41), (43, _base_43), (47, _base_47)])
+def test_informaciones_adicionales_no_existe_en_41_43_47(tipo_ecf, base):
+    datos = {**base(), 'FechaEmbarque': '01-12-2028', 'NumeroEmbarque': 'EMB-1'}
+    xml_str = ecf_builder.construir_ecf_generico(
+        tipo_ecf, f'E{tipo_ecf:02d}0000000001', datos)
+    _validar_estructura_contra_xsd(xml_str, tipo_ecf)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.find('.//InformacionesAdicionales') is None
+
+
+# --- Finding 4: OtraMoneda varia de verdad por tipo ------------------------
+
+def test_otra_moneda_43_y_47_solo_admiten_4_campos():
+    for tipo_ecf, base in ((43, _base_43), (47, _base_47)):
+        datos = {**base(), 'TipoMoneda': 'USD', 'TipoCambio': '58.50',
+                 'MontoExentoOtraMoneda': '10.00', 'MontoTotalOtraMoneda': '100.00',
+                 'MontoGravadoTotalOtraMoneda': 'NO DEBE APARECER',
+                 'TotalITBISOtraMoneda': 'NO DEBE APARECER'}
+        xml_str = ecf_builder.construir_ecf_generico(
+            tipo_ecf, f'E{tipo_ecf:02d}0000000001', datos)
+        _validar_estructura_contra_xsd(xml_str, tipo_ecf)
+        root = etree.fromstring(xml_str.encode('utf-8'))
+        assert root.findtext('.//OtraMoneda/TipoMoneda') == 'USD'
+        assert root.findtext('.//OtraMoneda/MontoTotalOtraMoneda') == '100.00'
+        assert root.find('.//OtraMoneda/MontoGravadoTotalOtraMoneda') is None
+        assert root.find('.//OtraMoneda/TotalITBISOtraMoneda') is None
+
+
+def test_otra_moneda_44_solo_admite_3_campos_sin_monto_total():
+    datos = {**_base_44(), 'TipoMoneda': 'USD', 'TipoCambio': '58.50',
+             'MontoExentoOtraMoneda': '10.00',
+             'MontoTotalOtraMoneda': 'NO DEBE APARECER',
+             'TotalITBISOtraMoneda': 'NO DEBE APARECER'}
+    xml_str = ecf_builder.construir_ecf_generico(44, 'E440000000013', datos)
+    _validar_estructura_contra_xsd(xml_str, 44)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.findtext('.//OtraMoneda/TipoMoneda') == 'USD'
+    assert root.findtext('.//OtraMoneda/MontoExentoOtraMoneda') == '10.00'
+    assert root.find('.//OtraMoneda/MontoTotalOtraMoneda') is None
+    assert root.find('.//OtraMoneda/TotalITBISOtraMoneda') is None
+
+
+def test_otra_moneda_46_sin_monto_exento():
+    datos = {**_base_46(), 'TipoMoneda': 'USD', 'TipoCambio': '58.50',
+             'MontoGravadoTotalOtraMoneda': '90.00', 'MontoTotalOtraMoneda': '100.00',
+             'MontoExentoOtraMoneda': 'NO DEBE APARECER'}
+    xml_str = ecf_builder.construir_ecf_generico(46, 'E460000000009', datos)
+    _validar_estructura_contra_xsd(xml_str, 46)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.findtext('.//OtraMoneda/MontoGravadoTotalOtraMoneda') == '90.00'
+    assert root.find('.//OtraMoneda/MontoExentoOtraMoneda') is None
+
+
+# --- Finding 5: DescuentosORecargos no existe en 43/47 ---------------------
+
+@pytest.mark.parametrize('tipo_ecf,base', [(43, _base_43), (47, _base_47)])
+def test_descuentos_o_recargos_no_existe_en_43_47(tipo_ecf, base):
+    datos = {**base(), 'NumeroLineaDoR[1]': 1, 'TipoAjuste[1]': 1,
+             'MontoDescuentooRecargo[1]': '10.00'}
+    xml_str = ecf_builder.construir_ecf_generico(
+        tipo_ecf, f'E{tipo_ecf:02d}0000000001', datos)
+    _validar_estructura_contra_xsd(xml_str, tipo_ecf)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.find('.//DescuentosORecargos') is None
+
+
+# --- Finding 6: sub-bloques de Item ausentes segun tipo --------------------
+
+@pytest.mark.parametrize('tipo_ecf,base', [
+    (41, _base_41), (43, _base_43), (44, _base_44), (46, _base_46), (47, _base_47)])
+def test_item_bloque_referencia_ausente_fuera_de_31_32_33_34_45(tipo_ecf, base):
+    """CantidadReferencia/UnidadReferencia/TablaSubcantidad/GradosAlcohol/
+    PrecioUnitarioReferencia solo existen en 31/32/33/34/45."""
+    datos = {**base(), 'CantidadReferencia[1]': '5.00', 'UnidadReferencia[1]': '1',
+             'GradosAlcohol[1]': '10.00'}
+    xml_str = ecf_builder.construir_ecf_generico(
+        tipo_ecf, f'E{tipo_ecf:02d}0000000001', datos)
+    _validar_estructura_contra_xsd(xml_str, tipo_ecf)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.find('.//DetallesItems/Item/CantidadReferencia') is None
+    assert root.find('.//DetallesItems/Item/GradosAlcohol') is None
+
+
+@pytest.mark.parametrize('tipo_ecf,base', [(43, _base_43), (47, _base_47)])
+def test_item_bloque_descuento_recargo_ausente_en_43_47(tipo_ecf, base):
+    datos = {**base(), 'DescuentoMonto[1]': '5.00', 'RecargoMonto[1]': '2.00',
+             'TipoSubDescuento[1][1]': 1, 'MontoSubDescuento[1][1]': '5.00'}
+    xml_str = ecf_builder.construir_ecf_generico(
+        tipo_ecf, f'E{tipo_ecf:02d}0000000001', datos)
+    _validar_estructura_contra_xsd(xml_str, tipo_ecf)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.find('.//DetallesItems/Item/DescuentoMonto') is None
+    assert root.find('.//DetallesItems/Item/TablaSubDescuento') is None
+    assert root.find('.//DetallesItems/Item/RecargoMonto') is None
+
+
+@pytest.mark.parametrize('tipo_ecf,base', [
+    (41, _base_41), (43, _base_43), (46, _base_46), (47, _base_47)])
+def test_item_tabla_impuesto_adicional_ausente_fuera_de_31_32_33_34_44_45(tipo_ecf, base):
+    datos = {**base(), 'TipoImpuesto[1][1]': '001'}
+    xml_str = ecf_builder.construir_ecf_generico(
+        tipo_ecf, f'E{tipo_ecf:02d}0000000001', datos)
+    _validar_estructura_contra_xsd(xml_str, tipo_ecf)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.find('.//DetallesItems/Item/TablaImpuestoAdicional') is None
+
+
+def test_item_bloques_opcionales_completos_se_emiten_para_31():
+    """Contraste positivo: 31 SI tiene los 3 bloques (referencia,
+    descuento/recargo, impuesto adicional) -- confirma que el gate no los
+    esta bloqueando de mas para los tipos que si los soportan."""
+    datos = {
+        'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
+        'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
+        'FechaVencimientoSecuencia': '31-12-2028', 'TipoIngresos': '01', 'TipoPago': 1,
+        'RNCComprador': '101623232', 'RazonSocialComprador': 'CLIENTE DE PRUEBA',
+        'MontoTotal': '1000.00',
+        'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1, 'NombreItem[1]': 'X',
+        'IndicadorBienoServicio[1]': 1, 'CantidadItem[1]': '1.00',
+        'CantidadReferencia[1]': '5.00', 'UnidadReferencia[1]': '1',
+        'PrecioUnitarioItem[1]': '1000.00', 'DescuentoMonto[1]': '10.00',
+        'TipoImpuesto[1][1]': '001', 'MontoItem[1]': '1000.00',
+    }
+    xml_str = ecf_builder.construir_ecf_generico(31, 'E310000000001', datos)
+    _validar_estructura_contra_xsd(xml_str, 31)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.find('.//DetallesItems/Item/CantidadReferencia') is not None
+    assert root.find('.//DetallesItems/Item/DescuentoMonto') is not None
+    assert root.find('.//DetallesItems/Item/TablaImpuestoAdicional') is not None
+
+
+# --- Finding 7 (moderado): TipoIngresos mandatoriness ----------------------
+
+@pytest.mark.parametrize('tipo_ecf,base', [
+    (31, None), (32, None), (44, _base_44), (45, None), (46, _base_46)])
+def test_tipo_ingresos_obligatorio_en_31_32_44_45_46(tipo_ecf, base):
+    if tipo_ecf == 31:
+        datos = {
+            'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
+            'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
+            'FechaVencimientoSecuencia': '31-12-2028', 'TipoPago': 2,
+            'RNCComprador': '101623232', 'RazonSocialComprador': 'X',
+            'MontoTotal': '100.00', 'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1,
+            'NombreItem[1]': 'X', 'IndicadorBienoServicio[1]': 1, 'CantidadItem[1]': '1.00',
+            'PrecioUnitarioItem[1]': '100.00', 'MontoItem[1]': '100.00',
+        }
+    elif tipo_ecf == 32:
+        datos = _datos_minimos_32()
+        del datos['TipoIngresos']
+    elif tipo_ecf == 45:
+        datos = {
+            'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
+            'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
+            'FechaVencimientoSecuencia': '31-12-2028', 'TipoPago': 2,
+            'RNCComprador': '401500001', 'RazonSocialComprador': 'MINISTERIO ZZTEST',
+            'MontoTotal': '2000.00', 'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1,
+            'NombreItem[1]': 'X', 'IndicadorBienoServicio[1]': 2, 'CantidadItem[1]': '1.00',
+            'PrecioUnitarioItem[1]': '2000.00', 'MontoItem[1]': '2000.00',
+        }
+    else:
+        datos = base()
+        datos.pop('TipoIngresos', None)
+    with pytest.raises(ecf_builder.ECFBuilderError, match='TipoIngresos'):
+        ecf_builder.construir_ecf_generico(
+            tipo_ecf, f'E{tipo_ecf:02d}0000000001', datos)
+
+
+def test_tipo_ingresos_opcional_en_33_y_34_no_lanza_error():
+    """Contraste con el finding moderado: 33/34 tienen el elemento
+    TipoIngresos (``caps['tipo_ingresos']=True``) pero es minOccurs=0 -- no
+    debe fallar si 'datos' no lo trae (a diferencia de 31/32/44/45/46)."""
+    datos_33 = {
+        'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
+        'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
+        'FechaVencimientoSecuencia': '31-12-2028', 'TipoPago': 1, 'MontoTotal': '100.00',
+        'NCFModificado': 'E320000000006', 'FechaNCFModificado': '01-12-2028',
+        'CodigoModificacion': '1', 'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1,
+        'NombreItem[1]': 'X', 'IndicadorBienoServicio[1]': 1, 'CantidadItem[1]': '1.00',
+        'PrecioUnitarioItem[1]': '100.00', 'MontoItem[1]': '100.00',
+    }
+    xml_str = ecf_builder.construir_ecf_generico(33, 'E330000000001', datos_33)
+    _validar_estructura_contra_xsd(xml_str, 33)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.find('.//IdDoc/TipoIngresos') is None
+
+    datos_34 = {
+        'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
+        'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
+        'IndicadorNotaCredito': 1, 'TipoPago': 1, 'MontoTotal': '100.00',
+        'NCFModificado': 'E340000000013', 'FechaNCFModificado': '01-12-2028',
+        'CodigoModificacion': '1', 'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1,
+        'NombreItem[1]': 'X', 'IndicadorBienoServicio[1]': 1, 'CantidadItem[1]': '1.00',
+        'PrecioUnitarioItem[1]': '100.00', 'MontoItem[1]': '100.00',
+    }
+    xml_str = ecf_builder.construir_ecf_generico(34, 'E340000000013', datos_34)
+    _validar_estructura_contra_xsd(xml_str, 34)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.find('.//IdDoc/TipoIngresos') is None
