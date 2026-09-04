@@ -1,0 +1,287 @@
+[
+  {
+    "tipo": "31",
+    "encf": "E310000000007",
+    "estado": {
+      "trackId": "0f828e2b-dd59-47f0-a321-c82cfa98c3af",
+      "codigo": "1",
+      "estado": "Aceptado",
+      "rnc": "130217432",
+      "encf": "E310000000007",
+      "secuenciaUtilizada": true,
+      "fechaRecepcion": "9/4/2026 11:26:13 AM",
+      "mensajes": [
+        {
+          "valor": "",
+          "codigo": 0
+        }
+      ]
+    }
+  },
+  {
+    "tipo": "32",
+    "encf": "E320000000006",
+    "estado": {
+      "trackId": "1356a0aa-0c80-4af7-a7ce-bd4cb729afbe",
+      "codigo": "1",
+      "estado": "Aceptado",
+      "rnc": "130217432",
+      "encf": "E320000000006",
+      "secuenciaUtilizada": true,
+      "fechaRecepcion": "9/4/2026 11:26:16 AM",
+      "mensajes": [
+        {
+          "valor": "",
+          "codigo": 0
+        }
+      ]
+    }
+  },
+  {
+    "tipo": "32",
+    "encf": "E320000000004",
+    "estado": {
+      "trackId": "68a3cb73-569e-4ca1-a15b-64e68e67eb91",
+      "codigo": "1",
+      "estado": "Aceptado",
+      "rnc": "130217432",
+      "encf": "E320000000004",
+      "secuenciaUtilizada": true,
+      "fechaRecepcion": "9/4/2026 11:26:19 AM",
+      "mensajes": [
+        {
+          "valor": "",
+          "codigo": 0
+        }
+      ]
+    }
+  },
+  {
+    "tipo": "41",
+    "encf": "E410000000008",
+    "estado": {
+      "trackId": "210643de-8ba6-4ab7-945f-03a960f1a64e",
+      "codigo": "1",
+      "estado": "Aceptado",
+      "rnc": "130217432",
+      "encf": "E410000000008",
+      "secuenciaUtilizada": true,
+      "fechaRecepcion": "9/4/2026 11:26:22 AM",
+      "mensajes": [
+        {
+          "valor": "",
+          "codigo": 0
+        }
+      ]
+    }
+  },
+  {
+    "tipo": "41",
+    "encf": "E410000000007",
+    "estado": {
+      "trackId": "5d069d15-a7b3-4fbb-85a0-9af018240942",
+      "codigo": "1",
+      "estado": "Aceptado",
+      "rnc": "130217432",
+      "encf": "E410000000007",
+      "secuenciaUtilizada": true,
+      "fechaRecepcion": "9/4/2026 11:26:25 AM",
+      "mensajes": [
+        {
+          "valor": "",
+          "codigo": 0
+        }
+      ]
+    }
+  },
+  {
+    "tipo": "43",
+    "encf": "E430000000001",
+    "estado": {
+      "trackId": "9ab7d070-66eb-4968-8829-bdd16a6f0603",
+      "codigo": "1",
+      "estado": "Aceptado",
+      "rnc": "130217432",
+      "encf": "E430000000001",
+      "secuenciaUtilizada": true,
+      "fechaRecepcion": "9/4/2026 11:26:28 AM",
+      "mensajes": [
+        {
+          "valor": "",
+          "codigo": 0
+        }
+      ]
+    }
+  },
+  {
+    "tipo": "43",
+    "encf": "E430000000007",
+    "estado": {
+      "trackId": "44c6cb22-5a5c-41f2-bc5b-81450ff96a17",
+      "codigo": "1",
+      "estado": "Aceptado",
+      "rnc": "130217432",
+      "encf": "E430000000007",
+      "secuenciaUtilizada": true,
+      "fechaRecepcion": "9/4/2026 11:26:31 AM",
+      "mensajes": [
+        {
+          "valor": "",
+          "codigo": 0
+        }
+      ]
+    }
+  },
+  {
+    "tipo": "44",
+    "encf": "E440000000013",
+    "estado": {
+      "trackId": "b9cf8c80-7ceb-4747-9ebc-c8ec26b1566f",
+      "codigo": "1",
+      "estado": "Aceptado",
+      "rnc": "130217432",
+      "encf": "E440000000013",
+      "secuenciaUtilizada": true,
+      "fechaRecepcion": "9/4/2026 11:26:34 AM",
+      "mensajes": [
+        {
+          "valor": "",
+          "codigo": 0
+        }
+      ]
+    }
+  },
+  {
+    "tipo": "44",
+    "encf": "E440000000010",
+    "estado": {
+      "trackId": "db0d39ca-aaa0-4d6e-b36e-55df2e795c53",
+      "codigo": "1",
+      "estado": "Aceptado",
+      "rnc": "130217432",
+      "encf": "E440000000010",
+      "secuenciaUtilizada": true,
+      "fechaRecepcion": "9/4/2026 11:26:37 AM",
+      "mensajes": [
+        {
+          "valor": "",
+          "codigo": 0
+        }
+      ]
+    }
+  },
+  {
+    "tipo": "45",
+    "encf": "E450000000003",
+    "estado": {
+      "trackId": "bb70cf49-9bc2-4cee-aa37-a91bd07af8a5",
+      "codigo": "1",
+      "estado": "Aceptado",
+      "rnc": "130217432",
+      "encf": "E450000000003",
+      "secuenciaUtilizada": true,
+      "fechaRecepcion": "9/4/2026 11:26:40 AM",
+      "mensajes": [
+        {
+          "valor": "",
+          "codigo": 0
+        }
+      ]
+    }
+  },
+  {
+    "tipo": "45",
+    "encf": "E450000000007",
+    "estado": {
+      "trackId": "b5df1f01-6d69-4a11-a206-0da90388fa6d",
+      "codigo": "1",
+      "estado": "Aceptado",
+      "rnc": "130217432",
+      "encf": "E450000000007",
+      "secuenciaUtilizada": true,
+      "fechaRecepcion": "9/4/2026 11:26:43 AM",
+      "mensajes": [
+        {
+          "valor": "",
+          "codigo": 0
+        }
+      ]
+    }
+  },
+  {
+    "tipo": "46",
+    "encf": "E460000000009",
+    "estado": {
+      "trackId": "b875f89a-d96a-4302-8191-c10e62bc51be",
+      "codigo": "1",
+      "estado": "Aceptado",
+      "rnc": "130217432",
+      "encf": "E460000000009",
+      "secuenciaUtilizada": true,
+      "fechaRecepcion": "9/4/2026 11:26:46 AM",
+      "mensajes": [
+        {
+          "valor": "",
+          "codigo": 0
+        }
+      ]
+    }
+  },
+  {
+    "tipo": "46",
+    "encf": "E460000000007",
+    "estado": {
+      "trackId": "9ce092ca-9936-4765-b4a0-88d7ebad8b16",
+      "codigo": "1",
+      "estado": "Aceptado",
+      "rnc": "130217432",
+      "encf": "E460000000007",
+      "secuenciaUtilizada": true,
+      "fechaRecepcion": "9/4/2026 11:26:49 AM",
+      "mensajes": [
+        {
+          "valor": "",
+          "codigo": 0
+        }
+      ]
+    }
+  },
+  {
+    "tipo": "47",
+    "encf": "E470000000001",
+    "estado": {
+      "trackId": "17cd9249-0535-47bf-ae9a-dec156e848cc",
+      "codigo": "1",
+      "estado": "Aceptado",
+      "rnc": "130217432",
+      "encf": "E470000000001",
+      "secuenciaUtilizada": true,
+      "fechaRecepcion": "9/4/2026 11:26:52 AM",
+      "mensajes": [
+        {
+          "valor": "",
+          "codigo": 0
+        }
+      ]
+    }
+  },
+  {
+    "tipo": "47",
+    "encf": "E470000000007",
+    "estado": {
+      "trackId": "d5b841aa-4d8d-492c-b453-b406ad912bc7",
+      "codigo": "1",
+      "estado": "Aceptado",
+      "rnc": "130217432",
+      "encf": "E470000000007",
+      "secuenciaUtilizada": true,
+      "fechaRecepcion": "9/4/2026 11:26:55 AM",
+      "mensajes": [
+        {
+          "valor": "",
+          "codigo": 0
+        }
+      ]
+    }
+  }
+]
