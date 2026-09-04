@@ -94,6 +94,10 @@ const TASAS_RETENCION: Record<string, { isr: number; itbis: number }> = {
   '7': { isr: 0.05, itbis: 1.00 },  // Pagos de entidades del Estado (retiene 100% ITBIS)
 }
 
+// Opciones fijas del selector "% ISR" (proveedores informales B11 por
+// servicios, reporte 5c148e2b) -- reemplaza el campo de texto libre original.
+const PORC_ISR_OPCIONES = ['2', '5', '10', '15', '20']
+
 // ─── Selector de proveedor: input código + lupa + modal de búsqueda ──────────
 // Patrón igual al selector de cliente en FAT nueva-factura.
 export function ProveedorPicker({
@@ -640,11 +644,14 @@ export function CxpEntradaDocumentos({
   const [impuesto, setImpuesto] = useState('')
   const [editandoItbis, setEditandoItbis] = useState(false)
   const [saving, setSaving] = useState(false)
-  // % ISR libre (2, 10, 15, ...): reportado por MPILAR (reporte 5c148e2b) para
+  // % ISR (2, 5, 10, 15, 20...): reportado por MPILAR (reporte 5c148e2b) para
   // proveedores informales (PI, NCF B11) por servicios donde la tasa no
-  // encaja en el catálogo de "Tipo de Retención". Puro estado de UI: no se
-  // persiste; solo actualiza isr_retenido = valor_servicio * porcIsr/100.
-  const [porcIsr, setPorcIsr] = useState('')
+  // encaja en el catálogo de "Tipo de Retención". Selector de opciones fijas
+  // (pedido por el usuario tras ver el campo libre) con 15% preseleccionado
+  // por defecto -- el operador puede cambiarlo a otra opción o a "Ninguna".
+  // Puro estado de UI: no se persiste; solo actualiza
+  // isr_retenido = valor_servicio * porcIsr/100.
+  const [porcIsr, setPorcIsr] = useState('15')
 
   // Catálogos DGI para los selects opcionales (tipo_gasto, tipo_retencion, forma_pago).
   const [tiposGasto, setTiposGasto] = useState<{ tipo_gasto: string; descripcion: string }[]>([])
@@ -1512,16 +1519,26 @@ export function CxpEntradaDocumentos({
           <div className='min-w-0 space-y-1'>
             <Label className='text-xs'>ISR Retenido {form.tipo_retencion && !editandoRetenciones && '(auto)'}</Label>
             <div className='flex gap-1'>
-              <Input
-                type='number' step='0.01' placeholder='% ISR'
-                value={porcIsr}
-                onChange={(e) => {
+              <Select
+                value={porcIsr || 'ninguna'}
+                onValueChange={(v) => {
                   setEditandoRetenciones(true)
-                  setPorcIsr(e.target.value)
+                  setPorcIsr(v === 'ninguna' ? '' : v)
                 }}
-                className='h-10 w-20 text-right font-mono'
-                title='% ISR aplicado sobre el Valor del Servicio (ej. 2, 10, 15) — para proveedores informales B11'
-              />
+              >
+                <SelectTrigger
+                  className='h-10 w-24 font-mono'
+                  title='% ISR aplicado sobre el Valor del Servicio — para proveedores informales B11'
+                >
+                  <SelectValue placeholder='% ISR' />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='ninguna'>Ninguna</SelectItem>
+                  {PORC_ISR_OPCIONES.map((p) => (
+                    <SelectItem key={p} value={p}>{p}%</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Input
                 type='number' step='0.01' placeholder='0.00'
                 value={form.isr_retenido}
