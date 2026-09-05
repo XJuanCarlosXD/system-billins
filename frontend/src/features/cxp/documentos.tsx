@@ -137,7 +137,7 @@ export function CxpDocumentos() {
 
       {status === 'A' && (
         <p className="text-xs text-muted-foreground -mt-2">
-          Solo se muestran documentos abiertos. Los reversados quedan ocultos con este filtro; si nota huecos en la secuencia de números, cambie el estado a "Reversados" o "Todos" para verlos.
+          Solo se muestran documentos con saldo pendiente. Los que ya se saldaron por completo (Cerrados) — por ejemplo una Nota de Débito usada como abono a una factura — o fueron reversados no aparecen aquí. Si no encuentra un documento que acaba de registrar, cambie el filtro Estado a "Cerrados", "Reversados" o "Todos".
         </p>
       )}
 
