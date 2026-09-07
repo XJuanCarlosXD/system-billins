@@ -23,13 +23,15 @@ interface Documento {
   pago_bloqueado: string
 }
 
-const STATUS_MAP: Record<string, { label: string; cls: string }> = {
-  A: { label: 'Abierto',    cls: 'bg-green-100 text-green-800' },
-  C: { label: 'Cerrado',    cls: 'bg-gray-100 text-gray-600' },
-  P: { label: 'Parcial',    cls: 'bg-blue-100 text-blue-800' },
-  V: { label: 'Vencido',    cls: 'bg-red-100 text-red-700' },
-  B: { label: 'Bloqueado',  cls: 'bg-orange-100 text-orange-700' },
-  R: { label: 'Reversado',  cls: 'bg-purple-100 text-purple-700' },
+// Estado visual derivado: el legado guarda d.status literal como flag de
+// contabilizacion (A/C), no de saldo, y no cambia cuando el documento se
+// paga. Alineamos el badge con la semantica del filtro Estado (saldo=0 =>
+// Cerrado, saldo<>0 => Abierto) para que la etiqueta describa lo que la
+// usuaria realmente ve.
+function derivedStatus(d: { status: string; saldo: number }): { label: string; cls: string } {
+  if (d.status === 'R') return { label: 'Reversado', cls: 'bg-purple-100 text-purple-700' }
+  if ((d.saldo ?? 0) === 0) return { label: 'Cerrado', cls: 'bg-gray-100 text-gray-600' }
+  return { label: 'Abierto', cls: 'bg-green-100 text-green-800' }
 }
 
 const PAGE = 50
@@ -77,7 +79,7 @@ export function CxpDocumentos() {
       Fecha: fmtDate(r.fecha), Vence: fmtDate(r.fecha_vence),
       'Valor Original': r.valor_original, Saldo: r.saldo,
       'Días Vencidos': diasVencidos(r.fecha_vence) ?? 0,
-      Estado: STATUS_MAP[r.status]?.label ?? r.status,
+      Estado: derivedStatus(r).label,
     })), 'cxp-documentos.csv')
   }
 
@@ -85,7 +87,6 @@ export function CxpDocumentos() {
     return <p className="text-muted-foreground py-8 text-center">Seleccione una empresa para ver los documentos.</p>
   }
 
-  const statusInfo = (s: string) => STATUS_MAP[s] ?? { label: s, cls: 'bg-gray-100 text-gray-600' }
 
   return (
     <div className="space-y-4">
@@ -171,7 +172,7 @@ export function CxpDocumentos() {
               </TableCell></TableRow>
             ) : slice.map((d, idx) => {
               const key = cxpDocKey(d)
-              const si = statusInfo(d.status)
+              const si = derivedStatus(d)
               const dias = diasVencidos(d.fecha_vence)
               const isNew = (page - 1) * PAGE + idx < newHl
               return (

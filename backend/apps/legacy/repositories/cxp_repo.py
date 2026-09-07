@@ -328,6 +328,14 @@ def list_documentos(no_cia, punto, no_proveedor='', tipo='', no_doc='',
         # ver residuos migrados con saldo 0. "Abiertos" en la UI = pendiente,
         # igual semantica ya aplicada en estado_cuenta/get_aging.
         conditions.append('NVL(d.saldo,0)<>0')
+        conditions.append("(d.status IS NULL OR d.status<>'R')")
+    elif status == 'C':
+        # "Cerrados" en la UI = ya saldados. Si se filtrara por d.status='C'
+        # literal ("contabilizado" en el legado) traeria miles de documentos
+        # aun con saldo pendiente, y una ND aplicada como abono se pierde
+        # entre ellos. Semantica alineada con "Abiertos".
+        conditions.append('NVL(d.saldo,0)=0')
+        conditions.append("(d.status IS NULL OR d.status<>'R')")
     elif status:
         params.append(status)
         conditions.append(f'd.status=:{len(params)}')
