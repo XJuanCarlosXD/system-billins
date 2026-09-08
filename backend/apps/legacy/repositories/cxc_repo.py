@@ -1,6 +1,7 @@
 """CXC (Cuentas por Cobrar) - Oracle repository. Schema verified against live DB."""
 from __future__ import annotations
 import re
+import oracledb
 from .. import client
 from datetime import date
 from apps.historial import repo as historial_repo
@@ -885,6 +886,75 @@ def get_next_no_doc(no_cia: str, punto: str) -> str:
     # NO_DOCU es VARCHAR2(7) — el legado usa LPAD a 7
     return str(row[0]).zfill(7) if row else '0000001'
 
+
+def _reservar_no_doc_cxc_global(cur, no_cia: str, punto: str) -> str:
+    """Reserva atomicamente el siguiente no_docu GLOBAL (cruza todos los
+    tipos: RI, FC, NC, ND... -- asi numera el legado Fcxc201, ver docstring
+    de _next_no_docu_cxc) usando CXC.TCXC_SECUENCIA con el centinela
+    tipo_docu='00' (no colisiona: los tipos reales son siempre 2 letras,
+    ej. RI/FC/NC/AD) como fila de bloqueo+contador, igual que el patron ya
+    probado en cxp_repo._next_no_docu.
+
+    Antes de este fix, crear_recibo_cobro llamaba get_next_no_doc() (un
+    SELECT MAX(no_docu)+1 de solo lectura, SIN lock) por fuera de la
+    transaccion del INSERT. Bajo dos solicitudes de RI casi simultaneas
+    (dos pestañas, doble click, o el flujo de pagos masivos aplicando
+    varios recibos seguidos) ambas calculaban el MISMO numero antes de que
+    la primera hiciera commit, y la segunda reventaba con ORA-00001 (PK
+    duplicada) -- el usuario simplemente veia que "no dejaba hacer RI".
+    Ya habia pasado exactamente esto con DABREU (ver commit c4fdc10); esa
+    vez solo se corrigieron los datos en produccion (TCXC_SECUENCIA
+    desincronizada) sin tocar el codigo, asi que el mismo choque podia
+    volver a ocurrir con cualquier otro usuario -- que es lo que se
+    reporto de nuevo aqui.
+    """
+    row = cur.execute(
+        "SELECT ult_docu FROM CXC.TCXC_SECUENCIA "
+        "WHERE no_cia=:1 AND punto=:2 AND tipo_docu='00' FOR UPDATE",
+        [no_cia, punto]).fetchone()
+    if row:
+        a_usar = row[0] or 1
+        cur.execute(
+            "UPDATE CXC.TCXC_SECUENCIA SET ult_docu=:1 "
+            "WHERE no_cia=:2 AND punto=:3 AND tipo_docu='00'",
+            [a_usar + 1, no_cia, punto])
+        return str(int(a_usar)).zfill(7)
+
+    # Fila centinela no existe todavia para esta cia/punto (primera vez que
+    # se reserva un numero desde este fix). Crearla tiene su propia carrera
+    # si dos transacciones llegan aqui a la vez -- ninguna encontro fila que
+    # bloquear con el SELECT de arriba, asi que ambas intentarian el mismo
+    # INSERT. Se usa un SAVEPOINT: si el INSERT choca con ORA-00001 (la otra
+    # transaccion gano), se deshace SOLO el INSERT (no todo el recibo) y se
+    # repite el SELECT FOR UPDATE, que esta vez SI encuentra la fila y queda
+    # bloqueado hasta que la otra transaccion haga commit -- entonces sigue
+    # el camino normal de arriba. Una sola vez por cia/punto en la vida del
+    # sistema; ya no se repite luego de la primera fila creada.
+    row_max = cur.execute(
+        "SELECT NVL(MAX(TO_NUMBER(REGEXP_SUBSTR(no_docu,'[0-9]+'))),0) "
+        "FROM CXC.TCXC_DOCUMENTO WHERE no_cia=:1 AND punto=:2",
+        [no_cia, punto]).fetchone()
+    a_usar = (row_max[0] if row_max else 0) + 1
+    cur.execute("SAVEPOINT sp_cxc_secuencia_global")
+    try:
+        cur.execute(
+            "INSERT INTO CXC.TCXC_SECUENCIA(no_cia,punto,tipo_docu,ult_docu) "
+            "VALUES(:1,:2,'00',:3)",
+            [no_cia, punto, a_usar + 1])
+        return str(int(a_usar)).zfill(7)
+    except oracledb.IntegrityError:
+        cur.execute("ROLLBACK TO SAVEPOINT sp_cxc_secuencia_global")
+        row = cur.execute(
+            "SELECT ult_docu FROM CXC.TCXC_SECUENCIA "
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_docu='00' FOR UPDATE",
+            [no_cia, punto]).fetchone()
+        a_usar = row[0] or 1
+        cur.execute(
+            "UPDATE CXC.TCXC_SECUENCIA SET ult_docu=:1 "
+            "WHERE no_cia=:2 AND punto=:3 AND tipo_docu='00'",
+            [a_usar + 1, no_cia, punto])
+        return str(int(a_usar)).zfill(7)
+
 def save_documento(d: dict):
     no_cia = d['no_cia']
     punto = d.get('punto', '01')
@@ -1295,9 +1365,14 @@ def crear_recibo_cobro(
     # TCXC_DOCUMENTO.FORMA_PAGO es VARCHAR2(1); el cuadre de caja lo cruza
     # con TFAT_TIPO_PAGO para desglosar los cobros RI por forma de pago.
     forma_pago = str(forma_pago or '').strip()[:1]
-    no_doc = get_next_no_doc(no_cia, punto)
 
     with client.cursor() as cur:
+        # Reserva atomica del no_docu (ver _reservar_no_doc_cxc_global) --
+        # DEBE ocurrir dentro de esta misma transaccion/cursor para que el
+        # lock FOR UPDATE se sostenga hasta el commit y serialice cualquier
+        # otro recibo/documento que intente reservar numero al mismo tiempo.
+        no_doc = _reservar_no_doc_cxc_global(cur, no_cia, punto)
+
         # 1. Cuenta y centro_costo defaults del tipo de doc (configurado en FCXC104)
         cur.execute(
             "SELECT NVL(cuenta,''), NVL(centro_costo,'0000000000'), tipo_movi, "
