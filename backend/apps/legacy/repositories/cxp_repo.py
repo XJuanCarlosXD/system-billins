@@ -291,7 +291,7 @@ def save_proveedor(data: dict):
 
 
 def list_documentos(no_cia, punto, no_proveedor='', tipo='', no_doc='',
-                    desde='', hasta='', status='A', ncf=''):
+                    desde='', hasta='', status='A', ncf='', serie_ncf=''):
     conditions = ['d.no_cia=:1', 'd.punto=:2']
     params = [no_cia, punto]
     if no_proveedor:
@@ -303,6 +303,14 @@ def list_documentos(no_cia, punto, no_proveedor='', tipo='', no_doc='',
     if no_doc:
         params.append(f"%{no_doc}%")
         conditions.append(f'd.no_docu LIKE :{len(params)}')
+    if serie_ncf:
+        # Filtro por SERIE de NCF (B01, B02, B11...) -- distinto del filtro
+        # de texto libre `ncf` de abajo: exacto, no substring, para no
+        # confundir "B11" con un numero de NCF que casualmente contenga
+        # esos digitos. Pedido para poder ver p.ej. solo los B11 (proveedores
+        # informales) en Consulta de Documentos.
+        params.append(serie_ncf.strip().upper())
+        conditions.append(f"UPPER(NVL(d.posiciones_fijas_ncf,''))=:{len(params)}")
     if ncf:
         # Compara contra el NCF DGI compuesto (prefijo + numero con ceros a
         # la izquierda, igual formula que composeNcfDgi en el frontend:

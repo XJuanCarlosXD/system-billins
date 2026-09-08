@@ -1261,7 +1261,7 @@ export const regalGeneralApi = {
   cxpListDocumentos: (params: {
     no_cia: string; punto: string;
     no_proveedor?: string; tipo?: string; no_doc?: string; ncf?: string;
-    desde?: string; hasta?: string; status?: string;
+    desde?: string; hasta?: string; status?: string; serie_ncf?: string;
   }) => {
     // status='' significa "Todos" y debe viajar tal cual: si se descarta
     // como los demas strings vacios, el backend cae a su default status='A'

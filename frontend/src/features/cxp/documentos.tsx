@@ -51,6 +51,7 @@ export function CxpDocumentos() {
   const [tipo, setTipo] = useState('')
   const [noDoc, setNoDoc] = useState('')
   const [ncf, setNcf] = useState('')
+  const [serieNcf, setSerieNcf] = useState('')
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
   const [status, setStatus] = useState('A')
@@ -61,11 +62,28 @@ export function CxpDocumentos() {
   const enabled = !!noCia
 
   const { data = [], isLoading, isError } = useQuery<Documento[]>({
-    queryKey: ['cxp-documentos', noCia, punto, noProveedor, tipo, noDoc, ncf, desde, hasta, status],
-    queryFn: () => api.cxpListDocumentos({ no_cia: noCia, punto, no_proveedor: noProveedor, tipo, no_doc: noDoc, ncf, desde, hasta, status }),
+    queryKey: ['cxp-documentos', noCia, punto, noProveedor, tipo, noDoc, ncf, serieNcf, desde, hasta, status],
+    queryFn: () => api.cxpListDocumentos({ no_cia: noCia, punto, no_proveedor: noProveedor, tipo, no_doc: noDoc, ncf, serie_ncf: serieNcf, desde, hasta, status }),
     staleTime: 60_000,
     enabled,
   })
+
+  // Series NCF configuradas para la compañía (Mantenimiento NCF), para
+  // poblar el filtro "Serie NCF" con lo que realmente existe -- p.ej. B11
+  // (proveedores informales) -- en vez de una lista fija adivinada.
+  const { data: seriesNcf = [] } = useQuery<Array<{ posiciones_fijas: string; descripcion: string }>>({
+    queryKey: ['cnt-ncf-series', noCia, punto],
+    queryFn: () => api.cntNcf(noCia, punto),
+    staleTime: 5 * 60_000,
+    enabled,
+  })
+  const serieOptions = Array.from(
+    new Map(
+      seriesNcf
+        .map(r => [String(r.posiciones_fijas || '').trim().toUpperCase(), (r.descripcion || '').trim()] as const)
+        .filter(([serie]) => !!serie),
+    ).entries(),
+  ).sort(([a], [b]) => a.localeCompare(b))
 
   const { data: detalle } = useCxpDocumentoDetalle(selected)
 
@@ -122,6 +140,19 @@ export function CxpDocumentos() {
             onChange={e => { setNcf(e.target.value); setPage(1) }}
             className="w-36 font-mono"
           />
+          <select
+            className="border rounded px-3 py-2 text-sm font-mono"
+            value={serieNcf}
+            onChange={e => { setSerieNcf(e.target.value); setPage(1) }}
+            title="Filtrar por serie de NCF (ej. B11 = proveedores informales)"
+          >
+            <option value="">Todas las series NCF</option>
+            {serieOptions.map(([serie, descripcion]) => (
+              <option key={serie} value={serie}>
+                {serie}{descripcion ? ` · ${descripcion}` : ''}
+              </option>
+            ))}
+          </select>
           <div className="flex items-center gap-1 text-sm"><span className="text-muted-foreground whitespace-nowrap">Desde:</span><Input type="date" value={desde} onChange={e => setDesde(e.target.value)} className="w-36" /></div>
           <div className="flex items-center gap-1 text-sm"><span className="text-muted-foreground whitespace-nowrap">Hasta:</span><Input type="date" value={hasta} onChange={e => setHasta(e.target.value)} className="w-36" /></div>
           <select className="border rounded px-3 py-2 text-sm" value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}>
@@ -164,7 +195,7 @@ export function CxpDocumentos() {
               <TableRow><TableCell colSpan={9} className="text-center py-8 text-red-500">Error al cargar documentos. Intente nuevamente.</TableCell></TableRow>
             ) : slice.length === 0 ? (
               <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                {noProveedor || tipo || desde || hasta
+                {noProveedor || tipo || ncf || serieNcf || desde || hasta
                   ? 'No se encontraron documentos con los filtros actuales.'
                   : status === 'A'
                     ? 'No hay documentos abiertos. Pruebe seleccionando "Todos" en el filtro de estado.'
