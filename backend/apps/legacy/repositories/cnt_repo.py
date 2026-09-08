@@ -1,4 +1,28 @@
+from datetime import datetime
+
 from .. import client
+
+
+def _norm_fecha_ncf(valor):
+    """Valida/normaliza una fecha 'YYYY-MM-DD' (o None) antes de pasarla a
+    TO_DATE(:x,'YYYY-MM-DD'). El <input type="date"> del modal de
+    Mantenimiento NCF manda un string ISO plano; bindearlo directo contra
+    una columna DATE sin TO_DATE() dependia de que NLS_DATE_FORMAT de la
+    sesion Oracle coincidiera con 'YYYY-MM-DD' -- no coincide, asi que
+    cualquier actualizacion con fecha_vencimiento revienta con ORA-01858/
+    ORA-01861 y el endpoint lo devuelve como 400 Bad Request generico
+    aunque los datos del modal sean correctos (reporte de soporte
+    2026-09-08)."""
+    s = (str(valor or '')).strip()
+    if not s:
+        return None
+    try:
+        d = datetime.strptime(s[:10], '%Y-%m-%d').date()
+    except ValueError:
+        raise ValueError(
+            f'La fecha de vencimiento "{s}" no es válida. Use el formato '
+            f'de fecha del calendario (día/mes/año).')
+    return d.strftime('%Y-%m-%d')
 
 
 def get_config(no_cia: str):
@@ -182,6 +206,9 @@ def update_ncf(no_cia: str, codigo_ncf: str, **kwargs):
     """
     allowed = {'ncf_inicial', 'ncf_final', 'prox_ncf', 'cant_min_ncf',
                'fecha_vencimiento', 'ncf_manual'}
+    # Normaliza fecha_vencimiento ANTES de armar el SQL -- ver _norm_fecha_ncf.
+    if 'fecha_vencimiento' in kwargs:
+        kwargs['fecha_vencimiento'] = _norm_fecha_ncf(kwargs['fecha_vencimiento'])
     # Normaliza ncf_manual booleano/string a 'S'/'N'
     if 'ncf_manual' in kwargs:
         v = kwargs['ncf_manual']
@@ -214,7 +241,11 @@ def update_ncf(no_cia: str, codigo_ncf: str, **kwargs):
     params = []
     for k, v in kwargs.items():
         if k in allowed:
-            sets.append(f"{k.upper()}=:{len(params)+1}")
+            placeholder = f":{len(params)+1}"
+            if k == 'fecha_vencimiento' and v is not None:
+                sets.append(f"{k.upper()}=TO_DATE({placeholder},'YYYY-MM-DD')")
+            else:
+                sets.append(f"{k.upper()}={placeholder}")
             params.append(v)
     if not sets:
         return
@@ -540,13 +571,16 @@ def create_ncf(
     ncf_manual='N',
 ):
     """Crear una secuencia NCF en TCNT_NCF."""
+    fecha_vencimiento = _norm_fecha_ncf(fecha_vencimiento)
     with client.connection() as conn:
         cur = conn.cursor()
         cur.execute(
             """INSERT INTO CNT.TCNT_NCF
                (no_localidad, codigo_ncf, ncf_inicial, ncf_final, prox_ncf, tipo_ncf_fiscal,
                 cant_min_ncf, fecha_vencimiento, ncf_manual)
-               VALUES (:1, :2, :3, :4, :5, :6, :7, :8, :9)""",
+               VALUES (:1, :2, :3, :4, :5, :6, :7, """
+            + ("TO_DATE(:8,'YYYY-MM-DD')" if fecha_vencimiento else ":8") +
+            """, :9)""",
             [
                 str(no_cia).strip(),
                 str(codigo_ncf).strip(),

@@ -404,7 +404,16 @@ class NcfDetailView(APIView):
         if not _check_flag(request, 'ADMINISTRAR_NCF', no_cia, punto):
             return Response({'error': 'Sin permiso ADMINISTRAR_NCF'}, status=403)
         try:
-            cnt_repo.update_ncf(no_cia, codigo_ncf, **request.data)
+            # El modal de Mantenimiento NCF manda no_cia/punto en el body
+            # (para resolver el contexto del lado del cliente); si se
+            # reenvian tal cual como **kwargs chocan con el no_cia
+            # posicional de abajo -> "got multiple values for argument
+            # 'no_cia'", un TypeError que este bloque siempre devolvia
+            # como 400 Bad Request generico aunque los valores del modal
+            # fueran correctos (reporte de soporte 2026-09-08).
+            data = {k: v for k, v in request.data.items()
+                     if k not in ('no_cia', 'punto', 'codigo_ncf')}
+            cnt_repo.update_ncf(no_cia, codigo_ncf, **data)
             return Response({'ok': True})
         except Exception as e:
             return Response({'error': str(e)}, status=400)

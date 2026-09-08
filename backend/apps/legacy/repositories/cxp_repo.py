@@ -1898,6 +1898,51 @@ def entrada_documento(d, _skip_periodo_gate: bool = False):
                 or d.get("tipo_ncf")
                 or ''
             ).strip().upper() or None
+
+            # Proveedor informal (TCXP_BPROVEEDOR.codigo_ncf configurado --
+            # ver get_proveedor_ncf_info): el NCF (tipicamente B11) sale de
+            # la serie propia de la empresa en CNT.TCNT_NCF, no del
+            # proveedor. Este flujo nunca avanzaba PROX_NCF tras grabar, asi
+            # que el formulario seguia proponiendo el mismo numero ya usado
+            # en el proximo documento -> "NCF ya esta registrado" sin forma
+            # de resolverlo desde Entrada de Documentos (reporte de soporte
+            # 2026-09-08). Replica el patron ya probado en
+            # fat_repo.crear_factura para B01/B02: bloquea la fila con FOR
+            # UPDATE, salta numeros ya usados por CUALQUIER proveedor (la
+            # serie es de la compania, no de un proveedor en particular) y
+            # deja PROX_NCF apuntando al siguiente disponible.
+            _codigo_ncf_informal = None
+            _bp_row = cur.execute(
+                "SELECT codigo_ncf FROM CXP.TCXP_BPROVEEDOR "
+                "WHERE no_cia=:1 AND punto=:2 AND no_proveedor=:3",
+                [no_cia, punto, no_proveedor]).fetchone()
+            _codigo_ncf_bp = (
+                (_bp_row[0] or '').strip().upper() if _bp_row and _bp_row[0] else None
+            )
+            if _codigo_ncf_bp:
+                _ncf_row = cur.execute(
+                    "SELECT prox_ncf, ncf_final, posiciones_fijas FROM CNT.TCNT_NCF "
+                    "WHERE no_localidad=:1 AND codigo_ncf=:2 FOR UPDATE",
+                    [no_cia, _codigo_ncf_bp]).fetchone()
+                if _ncf_row and (_ncf_row[2] or '').strip().upper() == (_pos_ncf or ''):
+                    _ncf_val = _ncf_num if _ncf_num is not None else int(_ncf_row[0] or 0)
+                    _ncf_final = int(_ncf_row[1] or 0)
+                    while _ncf_val and _ncf_val <= _ncf_final:
+                        _dup_row = cur.execute(
+                            "SELECT 1 FROM CXP.TCXP_DOCUMENTO "
+                            "WHERE no_cia=:1 AND UPPER(posiciones_fijas_ncf)=:2 "
+                            "  AND ncf=:3 AND NVL(status,'A')<>'R' AND ROWNUM=1",
+                            [no_cia, _pos_ncf, _ncf_val]).fetchone()
+                        if _dup_row:
+                            _ncf_val += 1
+                        else:
+                            break
+                    if _ncf_val > _ncf_final:
+                        raise ValueError(
+                            f"La serie NCF {_pos_ncf} ({_codigo_ncf_bp}) esta agotada.")
+                    _ncf_num = _ncf_val
+                    _codigo_ncf_informal = _codigo_ncf_bp
+
             # Validar duplicado ANTES de reservar no_docu para no dejar huecos
             # en TCXP_SECUENCIA cuando el operador reintenta con el mismo NCF.
             _check_ncf_duplicate(cur, no_cia, no_proveedor, _ncf_num, _pos_ncf)
@@ -1946,6 +1991,15 @@ def entrada_documento(d, _skip_periodo_gate: bool = False):
                     _valor_bienes, _valor_servicio,
                     d.get("usuario", "API"),
                 ])
+            if _codigo_ncf_informal:
+                # Avanza prox_ncf al siguiente del NCF efectivamente emitido
+                # (puede haber saltado por colisiones) -- sin esto el
+                # formulario vuelve a proponer el mismo numero en el proximo
+                # documento del proveedor informal.
+                cur.execute(
+                    "UPDATE CNT.TCNT_NCF SET prox_ncf=:1 "
+                    "WHERE no_localidad=:2 AND codigo_ncf=:3",
+                    [_ncf_num + 1, no_cia, _codigo_ncf_informal])
             historial_repo.log_evento(
                 cur, usuario=d.get("usuario", "API"), no_cia=no_cia, punto=punto,
                 modulo="CXP", tipo_documento=tipo_docu, no_documento=no_docu,
