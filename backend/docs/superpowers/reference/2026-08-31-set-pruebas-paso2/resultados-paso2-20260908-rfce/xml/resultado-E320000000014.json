@@ -1,0 +1,19 @@
+{
+  "e_ncf": "E320000000014",
+  "codigo_seguridad": "4c06ef",
+  "ecf32_firmado_path": "/tmp/rfce-task5b-real/E320000000014/130217432E320000000014.xml",
+  "dry_run": false,
+  "estado": "Aceptado",
+  "codigo": 1,
+  "mensajes": null,
+  "encf_respuesta": "E320000000014",
+  "secuencia_utilizada": true,
+  "respuesta_cruda": {
+    "codigo": 1,
+    "estado": "Aceptado",
+    "mensajes": null,
+    "encf": "E320000000014",
+    "secuenciaUtilizada": true
+  },
+  "rfce_firmado_path": "/tmp/rfce-task5b-real/E320000000014/rfce-firmado.xml"
+}

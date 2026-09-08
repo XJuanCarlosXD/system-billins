@@ -35,6 +35,7 @@ este modulo no lo genera ni lo importa.
 """
 from __future__ import annotations
 
+import hashlib
 import re
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
@@ -1304,3 +1305,241 @@ def construir_ecf_generico(tipo_ecf: int, e_ncf: str, datos: dict) -> str:
     return etree.tostring(
         ecf, xml_declaration=True, encoding='utf-8',
     ).decode('utf-8')
+
+
+# ---------------------------------------------------------------------------
+# RFCE (Resumen de Factura de Consumo Electronica, RFCE-32-v1.0.xsd) -- Task
+# 5b, "Tercero" del orden de envio del Set de Pruebas (NOTAS.md #1 /
+# resultados-paso2-20260904/README.md hallazgo #4): paso obligatorio ANTES
+# de subir manualmente al portal la Factura de Consumo Electronica (tipo 32)
+# integra con monto < RD$250,000 ("Cuarto"). Estructura MUCHO mas chica que
+# el e-CF completo -- ~240 lineas de XSD, solo Encabezado
+# (IdDoc/Emisor/Comprador/Totales) + CodigoSeguridadeCF, SIN DetallesItems
+# en absoluto (confirmado leyendo RFCE-32-v1.0.xsd completo).
+# ---------------------------------------------------------------------------
+
+_XMLDSIG_NS = {'ds': 'http://www.w3.org/2000/09/xmldsig#'}
+
+
+def construir_rfce(e_ncf: str, datos: dict, codigo_seguridad: str) -> str:
+    """Arma el RFCE "sin firmar" de una Factura de Consumo Electronica
+    (tipo 32) con monto < RD$250,000, directo desde el payload plano de la
+    hoja ``RFCE`` del Set de Pruebas (mismo dict que llega a
+    ``construir_ecf_generico`` -- ver docstring de ese modulo/NOTAS.md
+    seccion 5 para el esquema de aplanado con corchetes).
+
+    Reusa ``_parse_datos_planos`` porque la hoja ``RFCE`` real del Excel
+    usa los MISMOS nombres de columna que la hoja ``ECF`` para los campos
+    de encabezado que comparten ambos formatos (``RNCEmisor``,
+    ``FechaEmision``, ``MontoTotal``, etc. -- confirmado leyendo las 4 filas
+    reales de la hoja ``RFCE``, ninguna usa corchetes, pero
+    ``TablaFormasPago``/``ImpuestosAdicionales`` se soportan igual por si
+    algun otro escenario los trae, mismo patron que ``_gen_id_doc``/
+    ``_gen_totales``).
+
+    ``e_ncf`` debe ser tipo 32 (RFCE-32-v1.0.xsd ``TipoeCFType`` SOLO admite
+    el valor 32 -- a diferencia de ``construir_ecf_generico``, que cubre los
+    10 tipos, el RFCE es exclusivo de Consumo). ``codigo_seguridad`` es
+    responsabilidad del llamador -- ver ``derivar_codigo_seguridad`` en este
+    mismo modulo para la derivacion documentada; aqui solo se valida el
+    largo exacto (``CodigoSeguridadeCFType``, patron ``.{6}``).
+
+    Lanza ``ECFBuilderError`` (fallo duro) si falta un campo minOccurs=1 del
+    XSD real: ``IdDoc/TipoIngresos``, ``IdDoc/TipoPago``,
+    ``Emisor/RNCEmisor``, ``Emisor/RazonSocialEmisor``,
+    ``Emisor/FechaEmision``, ``Totales/MontoTotal``,
+    ``Encabezado/CodigoSeguridadeCF``.
+    """
+    e_ncf = (e_ncf or '').strip()
+    if not _ENCF_RE.match(e_ncf):
+        raise ECFBuilderError(
+            f"eNCF invalido: {e_ncf!r} (eNCFValidationType exige exactamente "
+            "13 caracteres alfanumericos, ej. E320000000012)")
+    if not e_ncf.upper().startswith('E32'):
+        raise ECFBuilderError(
+            f"RFCE-32-v1.0.xsd (TipoeCFType) solo admite TipoeCF=32 -- el "
+            f"eNCF {e_ncf!r} no corresponde a una Factura de Consumo (32)")
+    codigo_seguridad = (codigo_seguridad or '').strip()
+    if len(codigo_seguridad) != 6:
+        raise ECFBuilderError(
+            "Encabezado/CodigoSeguridadeCF debe tener exactamente 6 "
+            "caracteres (CodigoSeguridadeCFType, patron '.{6}' del XSD real); "
+            f"recibido {codigo_seguridad!r} ({len(codigo_seguridad)} caracteres) "
+            "-- ver derivar_codigo_seguridad()")
+
+    parsed = _parse_datos_planos(datos or {})
+    simple = parsed['simple']
+    idx1_header = parsed['idx1_header']
+
+    rfce = etree.Element('RFCE')
+    encabezado = _sub(rfce, 'Encabezado')
+    _sub(encabezado, 'Version', '1.0')
+
+    id_doc = _sub(encabezado, 'IdDoc')
+    _sub(id_doc, 'TipoeCF', TIPO_CONSUMO)
+    _sub(id_doc, 'eNCF', e_ncf)
+    tipo_ingresos = simple.get('TipoIngresos')
+    if _es_vacio(tipo_ingresos):
+        raise ECFBuilderError(
+            "IdDoc/TipoIngresos es obligatorio (minOccurs=1); falta en 'datos'")
+    _sub(id_doc, 'TipoIngresos', _valor_texto(tipo_ingresos))
+    tipo_pago = simple.get('TipoPago')
+    if _es_vacio(tipo_pago):
+        raise ECFBuilderError(
+            "IdDoc/TipoPago es obligatorio (minOccurs=1); falta en 'datos'")
+    _sub(id_doc, 'TipoPago', _valor_texto(tipo_pago))
+    if idx1_header.get('FormaPago'):
+        tabla = _sub(id_doc, 'TablaFormasPago')
+        for n in sorted(idx1_header['FormaPago']):
+            fdp = _sub(tabla, 'FormaDePago')
+            _sub(fdp, 'FormaPago', _valor_texto(idx1_header['FormaPago'][n]))
+            monto = idx1_header.get('MontoPago', {}).get(n)
+            if monto is not None:
+                _sub(fdp, 'MontoPago', _valor_texto(monto, monetario=True))
+
+    emisor = _sub(encabezado, 'Emisor')
+    rnc_emisor = _solo_digitos(simple.get('RNCEmisor'))
+    if not _rnc_valido(rnc_emisor):
+        raise ECFBuilderError(
+            f"Emisor/RNCEmisor invalido o ausente en 'datos': "
+            f"{simple.get('RNCEmisor')!r} (debe tener 9 u 11 digitos)")
+    _sub(emisor, 'RNCEmisor', rnc_emisor)
+    razon_emisor = _valor_texto(simple.get('RazonSocialEmisor')) or ''
+    if not razon_emisor:
+        raise ECFBuilderError(
+            "Emisor/RazonSocialEmisor es obligatorio (minOccurs=1); falta en 'datos'")
+    _sub(emisor, 'RazonSocialEmisor', razon_emisor[:150])
+    fecha_emision = simple.get('FechaEmision')
+    if not fecha_emision:
+        raise ECFBuilderError(
+            "Emisor/FechaEmision es obligatorio (minOccurs=1); falta en 'datos'")
+    _sub(emisor, 'FechaEmision', _valor_texto(fecha_emision))
+
+    # Comprador entero es minOccurs=1 (el CONTENEDOR), pero sus 3 hijos son
+    # todos minOccurs=0 -- igual que en e-CF tipo 32 (consumidor final sin
+    # RNC es valido). RNCComprador e IdentificadorExtranjero son mutuamente
+    # excluyentes por regla de negocio (Formato-RFCE-v1.0.pdf nota al pie 3:
+    # "Si es completado el campo 'Identificador Extranjero', el campo 'RNC
+    # Comprador' debe ir en blanco") aunque el XSD no lo fuerce con un
+    # xs:choice -- se prioriza RNCComprador si es valido, igual que
+    # _gen_comprador en el builder generico.
+    comprador = _sub(encabezado, 'Comprador')
+    rnc_comprador = _solo_digitos(simple.get('RNCComprador'))
+    if _rnc_valido(rnc_comprador):
+        _sub(comprador, 'RNCComprador', rnc_comprador)
+    elif simple.get('IdentificadorExtranjero'):
+        _sub(comprador, 'IdentificadorExtranjero',
+             _valor_texto(simple['IdentificadorExtranjero'])[:20])
+    razon_comprador = _valor_texto(simple.get('RazonSocialComprador'))
+    if razon_comprador:
+        _sub(comprador, 'RazonSocialComprador', razon_comprador[:150])
+
+    # Orden EXACTO del XSD (RFCE-32-v1.0.xsd, Totales): MontoGravadoTotal,
+    # MontoGravadoI1/I2/I3, MontoExento, TotalITBIS, TotalITBIS1/2/3,
+    # MontoImpuestoAdicional, ImpuestosAdicionales, MontoTotal,
+    # MontoNoFacturable, MontoPeriodo.
+    totales = _sub(encabezado, 'Totales')
+    for campo in ('MontoGravadoTotal', 'MontoGravadoI1', 'MontoGravadoI2',
+                  'MontoGravadoI3', 'MontoExento', 'TotalITBIS',
+                  'TotalITBIS1', 'TotalITBIS2', 'TotalITBIS3'):
+        if simple.get(campo) is not None:
+            _sub(totales, campo, _valor_texto(simple[campo], monetario=True))
+    if simple.get('MontoImpuestoAdicional') is not None:
+        _sub(totales, 'MontoImpuestoAdicional',
+             _valor_texto(simple['MontoImpuestoAdicional'], monetario=True))
+    if idx1_header.get('TipoImpuesto'):
+        grupo = _sub(totales, 'ImpuestosAdicionales')
+        for n in sorted(idx1_header['TipoImpuesto']):
+            item = _sub(grupo, 'ImpuestoAdicional')
+            _sub(item, 'TipoImpuesto', _valor_texto(idx1_header['TipoImpuesto'][n]))
+            esp = idx1_header.get('MontoImpuestoSelectivoConsumoEspecifico', {}).get(n)
+            if esp is not None:
+                _sub(item, 'MontoImpuestoSelectivoConsumoEspecifico',
+                     _valor_texto(esp, monetario=True))
+            adv = idx1_header.get('MontoImpuestoSelectivoConsumoAdvalorem', {}).get(n)
+            if adv is not None:
+                _sub(item, 'MontoImpuestoSelectivoConsumoAdvalorem',
+                     _valor_texto(adv, monetario=True))
+    monto_total = simple.get('MontoTotal')
+    if _es_vacio(monto_total):
+        raise ECFBuilderError(
+            "Totales/MontoTotal es obligatorio (minOccurs=1); falta en 'datos'")
+    _sub(totales, 'MontoTotal', _valor_texto(monto_total, monetario=True))
+    if simple.get('MontoNoFacturable') is not None:
+        _sub(totales, 'MontoNoFacturable',
+             _valor_texto(simple['MontoNoFacturable'], monetario=True))
+    if simple.get('MontoPeriodo') is not None:
+        _sub(totales, 'MontoPeriodo', _valor_texto(simple['MontoPeriodo'], monetario=True))
+
+    _sub(encabezado, 'CodigoSeguridadeCF', codigo_seguridad)
+
+    return etree.tostring(
+        rfce, xml_declaration=True, encoding='utf-8',
+    ).decode('utf-8')
+
+
+def derivar_codigo_seguridad(xml_firmado_ecf32: str) -> str:
+    """Deriva ``Encabezado/CodigoSeguridadeCF`` del RFCE a partir del e-CF32
+    de la MISMA factura, YA FIRMADO (con ``<Signature>`` XMLDSig ya agregado
+    por ``firma.firmar_con_app_oficial`` -- ``apps.fe.dgii_client.
+    _firmar_para_envio``).
+
+    Fuente del algoritmo -- CONFIRMADA leyendo el texto real de DOS
+    documentos oficiales de la DGII (no es una hipotesis; coincide ademas
+    con el comentario del propio campo en ``RFCE-32-v1.0.xsd``,
+    ``CodigoSeguridadeCFType``: "Hash generado en factura de consumo
+    original"):
+
+    1. ``Formato-RFCE-v1.0.pdf``, campo 31 "Codigo Seguridad Factura de
+       Consumo DOP$<250 M <CodigoSeguridadeCF>": "Corresponde a los 6
+       primeros caracteres del Hash de la firma digital correspondiente a
+       la factura de consumo electronica emitida, menor a DOP$250 M."
+    2. ``Descripcion-Tecnica-Servicios-DGII.pdf``, secciones "Consulta de
+       Resumen de Factura de Consumo Electronica (RFCE)" y "Consulta de
+       estado e-CF": "codigoSeguridad: extraido de los primeros seis (6)
+       digitos del hash generado en el SignatureValue de la firma digital
+       [del e-CF recibido]."
+
+    Ambas fuentes coinciden en el CONCEPTO: 6 primeros caracteres de un hash
+    calculado sobre el ``SignatureValue`` del e-CF32 completo YA FIRMADO de
+    esa misma factura. NINGUNO de los dos documentos nombra el algoritmo de
+    hash concreto (SHA-1/SHA-256/MD5/...) ni una codificacion de salida
+    explicita para "digitos"/"caracteres" -- esa es una laguna real de la
+    documentacion publica de la DGII (se buscó en ambos PDF completos, no se
+    encontró mas detalle), no una omision de esta lectura.
+
+    Esto NO bloquea el envio real del RFCE porque:
+
+    (a) ``Formato-RFCE-v1.0.pdf`` fila 31, columna "Validacion": literal
+        "a) Sin validacion" -- la DGII no rechaza el RFCE por el valor
+        exacto de este campo.
+    (b) ``RFCE-32-v1.0.xsd`` (``CodigoSeguridadeCFType``) solo exige el
+        patron ``.{6}`` (6 caracteres cualesquiera).
+    (c) La lista de motivos de "Rechazado" documentados para el servicio de
+        Recepcion RFCE (``Descripcion-Tecnica-Servicios-DGII.pdf``) no
+        incluye el codigo de seguridad.
+
+    Se usa SHA-256 (eleccion documentada, no oculta -- coherente con el
+    resto del proyecto: ``apps.fe.firma`` firma con
+    ``RSA_SHA256``/``DigestAlgorithm.SHA256``) sobre el texto EXACTO del
+    nodo ``<SignatureValue>`` (UTF-8, tal cual viene en el XML, SIN
+    decodificar el base64), hex digest, minusculas, primeros 6 caracteres.
+    Si en algun momento la DGII devuelve un ``codigoSeguridad`` distinto via
+    ``ConsultaEstado``/``ConsultaRFCE`` para un e-NCF real, documentar el
+    valor observado y ajustar esta funcion -- no hay forma de confirmar el
+    algoritmo exacto sin acceso a la implementacion interna de la DGII.
+    """
+    if isinstance(xml_firmado_ecf32, str):
+        xml_bytes = xml_firmado_ecf32.encode('utf-8')
+    else:
+        xml_bytes = xml_firmado_ecf32
+    root = etree.fromstring(xml_bytes)
+    el = root.find('.//ds:SignatureValue', _XMLDSIG_NS)
+    if el is None or not (el.text or '').strip():
+        raise ECFBuilderError(
+            "El XML no tiene <Signature>/<SignatureValue> -- "
+            "derivar_codigo_seguridad() necesita el e-CF32 YA FIRMADO "
+            "(firma.firmar_con_app_oficial), no el XML sin firmar")
+    signature_value = el.text.strip()
+    digest_hex = hashlib.sha256(signature_value.encode('utf-8')).hexdigest()
+    return digest_hex[:6]
