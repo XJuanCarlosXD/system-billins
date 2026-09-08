@@ -35,8 +35,16 @@ describe('logErrorAutomatico - filtro de errores de red transitorios', () => {
     }
   )
 
+  it.each([401, 403, 404])(
+    'no crea ticket para respuesta esperada del servidor (status %d)',
+    async (statusHttp) => {
+      await logErrorAutomatico('{"error":"not found"}', { statusHttp })
+      expect(fetchMock).not.toHaveBeenCalled()
+    }
+  )
+
   it('si crea ticket para un error real con status http (no es de red)', async () => {
-    await logErrorAutomatico('forbidden', { statusHttp: 403 })
+    await logErrorAutomatico('server exploded', { statusHttp: 500 })
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 

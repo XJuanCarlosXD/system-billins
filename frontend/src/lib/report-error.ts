@@ -34,12 +34,14 @@ function esErrorRedTransitorio(mensaje: string, statusHttp?: number | null): boo
   )
 }
 
-// Respuestas de politica de autenticacion/autorizacion. 401 = sesion expirada
-// (el queryCache ya redirige a /sign-in), 403 = el usuario no tiene permiso
-// para ese modulo/compania/punto. Ninguna es un bug: son la respuesta correcta
-// del backend y no debe abrirse un TREP_PROBLEMA por ellas.
-function esRespuestaPoliticaAuth(statusHttp?: number | null): boolean {
-  return statusHttp === 401 || statusHttp === 403
+// Respuestas HTTP donde el backend esta contestando correctamente segun su
+// politica y no hay bug de la app: 401 (sesion expirada, el queryCache redirige
+// a /sign-in), 403 (sin permiso para modulo/cia/punto), 404 (recurso no existe
+// -- fila stale, id inventado, o un doc que otro usuario borro). Ninguna abre
+// un TREP_PROBLEMA util: el mensaje "not found" sin contexto de que endpoint
+// se pidio no da como diagnosticar y solo genera ruido.
+function esRespuestaEsperadaDelServidor(statusHttp?: number | null): boolean {
+  return statusHttp === 401 || statusHttp === 403 || statusHttp === 404
 }
 
 /** Fire-and-forget: nunca lanza, nunca bloquea al caller. */
@@ -48,7 +50,7 @@ export async function logErrorAutomatico(mensaje: string, opts?: {
   detalle?: string
 }): Promise<number | null> {
   if (esErrorRedTransitorio(mensaje, opts?.statusHttp)) return null
-  if (esRespuestaPoliticaAuth(opts?.statusHttp)) return null
+  if (esRespuestaEsperadaDelServidor(opts?.statusHttp)) return null
   try {
     const res = await fetch(`${API_BASE}/reportes/error-log/`, {
       method: 'POST',
