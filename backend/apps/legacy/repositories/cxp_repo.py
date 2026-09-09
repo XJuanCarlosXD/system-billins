@@ -1269,6 +1269,13 @@ def rep_606(no_cia: str, anio: int, mes: int, punto: str = ''):
         # ante la DGII -- el mismo patron usado para NCF duplicados (ver
         # _check_ncf_duplicate) aplica aqui: no debe listarse ni exportarse.
         "NVL(d.status,'A') <> 'R'",
+        # B11 (Comprobante de Compras) que emite la empresa al informal
+        # requiere cedula/RNC del proveedor por regla DGII. Sin RNC no es
+        # un comprobante valido para el 606; casi siempre corresponde a un
+        # ND de abono/aplicacion interno que recibio NCF por error de
+        # captura (reportado por MPILAR 2026-09-09, ND-0001213).
+        "NOT (UPPER(NVL(d.posiciones_fijas_ncf,''))='B11' "
+        "     AND (d.rnc IS NULL OR TRIM(d.rnc) IS NULL))",
     ]
     params = [no_cia, anio, mes]
     if punto:
@@ -1365,6 +1372,9 @@ def archivo_dgii_606(no_cia: str, anio: int, mes: int, punto: str = '') -> tuple
         "NVL(UPPER(d.posiciones_fijas_ncf),'') NOT IN ('B02','E32')",
         # Reversado (status='R') = no es una compra real, no va al archivo DGII.
         "NVL(d.status,'A') <> 'R'",
+        # B11 sin RNC no es comprobante DGII valido -- misma regla que rep_606.
+        "NOT (UPPER(NVL(d.posiciones_fijas_ncf,''))='B11' "
+        "     AND (d.rnc IS NULL OR TRIM(d.rnc) IS NULL))",
     ]
     params: list = [no_cia, anio, mes]
     if punto:
