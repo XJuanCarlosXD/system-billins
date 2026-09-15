@@ -2350,13 +2350,23 @@ def corregir_datos_dgii(d):
     return {'ok': True, 'tipo_docu': tipo_docu, 'no_docu': no_docu}
 
 
+# Saldos por debajo de este monto son "polvo" de redondeos historicos
+# (pagos/aplicaciones parciales que dejaron centavos sueltos) y no
+# representan deuda ni saldo a favor real. Sin este piso, Aplicacion de
+# Movimientos mostraba ND y facturas que ya no debian nada (reporte
+# TREP_PROBLEMA f09c7b1c: "ese buscador sigue mostrando ND o documentos
+# que ya estan cerrados o no deben nada").
+UMBRAL_SALDO_MINIMO = 1.00
+
+
 def aplicar_movimientos_pendientes(no_cia, punto, no_proveedor,
                                    tipo_docu_db='', no_docu_db=''):
     """
     Fcxp206 — datos para Aplicación de Movimientos:
-    - a_favor: debitos (tipo_movi=D) con saldo a favor (saldo < 0).
-    - pendientes: creditos (tipo_movi=C) con saldo, no bloqueados y sin
-      aplicacion previa del debito elegido (NOT EXISTS TCXP_REFEDOCU).
+    - a_favor: debitos (tipo_movi=D) con saldo a favor real (saldo <= -1).
+    - pendientes: creditos (tipo_movi=C) con saldo real (>= 1), no
+      bloqueados y sin aplicacion previa del debito elegido (NOT EXISTS
+      TCXP_REFEDOCU).
     """
     a_favor = client.fetch_dicts(
         "SELECT d.tipo_docu, d.no_docu, TO_CHAR(d.fecha,'YYYY-MM-DD') AS fecha, "
@@ -2364,14 +2374,14 @@ def aplicar_movimientos_pendientes(no_cia, punto, no_proveedor,
         "       NVL(d.saldo,0) AS saldo, d.detalle "
         "FROM CXP.TCXP_DOCUMENTO d "
         "WHERE d.no_cia=:1 AND d.punto=:2 AND d.no_proveedor=:3 "
-        "  AND d.tipo_movi='D' AND NVL(d.saldo,0) < 0 "
+        "  AND d.tipo_movi='D' AND NVL(d.saldo,0) <= :4 "
         "ORDER BY d.fecha, d.no_docu",
-        [no_cia, punto, str(no_proveedor)])
+        [no_cia, punto, str(no_proveedor), -UMBRAL_SALDO_MINIMO])
 
     conditions = [
         "a.no_cia=:1", "a.punto=:2", "a.no_proveedor=:3",
         "a.tipo_movi='C'", "NVL(a.pago_bloqueado,'N')='N'",
-        "NVL(a.saldo,0) != 0",
+        f"ABS(NVL(a.saldo,0)) >= {UMBRAL_SALDO_MINIMO}",
     ]
     params = [no_cia, punto, str(no_proveedor)]
     not_exists = ''

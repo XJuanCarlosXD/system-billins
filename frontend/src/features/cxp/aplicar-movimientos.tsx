@@ -59,6 +59,7 @@ export function CxpAplicarMovimientos({ noCia, punto = '' }: P) {
   const [confirmando, setConfirmando] = useState(false)
   const [buscarNoDocu, setBuscarNoDocu] = useState('')
   const [filtroTipoDocu, setFiltroTipoDocu] = useState('__all__')
+  const [buscarFavor, setBuscarFavor] = useState('')
 
   const q = useQuery({
     queryKey: [
@@ -82,6 +83,12 @@ export function CxpAplicarMovimientos({ noCia, punto = '' }: P) {
 
   const aFavor = q.data?.a_favor || []
   const pendientes = q.data?.pendientes || []
+
+  const aFavorFiltrados = useMemo(() => {
+    const busq = sinCerosIzq(buscarFavor.trim())
+    if (!busq) return aFavor
+    return aFavor.filter((d: any) => sinCerosIzq(String(d.no_docu || '')).includes(busq))
+  }, [aFavor, buscarFavor])
 
   const tiposDocuDisponibles = useMemo(
     () => Array.from(new Set(pendientes.map((d: any) => d.tipo_docu))).sort(),
@@ -214,7 +221,20 @@ export function CxpAplicarMovimientos({ noCia, punto = '' }: P) {
                 1 · Saldos a favor del proveedor
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className='space-y-3'>
+              {aFavor.length > 0 && (
+                <div className='space-y-1'>
+                  <label className='text-xs text-muted-foreground'>
+                    Buscar por número
+                  </label>
+                  <Input
+                    placeholder='Ej. 2188'
+                    className='h-9'
+                    value={buscarFavor}
+                    onChange={(e) => setBuscarFavor(e.target.value)}
+                  />
+                </div>
+              )}
               <div className='overflow-x-auto rounded border'>
                 <Table>
                   <TableHeader>
@@ -226,7 +246,7 @@ export function CxpAplicarMovimientos({ noCia, punto = '' }: P) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {aFavor.map((d: any) => {
+                    {aFavorFiltrados.map((d: any) => {
                       const activo =
                         favor?.tipo_docu === d.tipo_docu && favor?.no_docu === d.no_docu
                       return (
@@ -260,6 +280,13 @@ export function CxpAplicarMovimientos({ noCia, punto = '' }: P) {
                         <TableCell colSpan={4} className='py-6 text-center text-muted-foreground'>
                           {proveedor.nombre || proveedor.no_proveedor} no tiene
                           documentos con saldo a favor (débitos con saldo pendiente).
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {aFavor.length > 0 && aFavorFiltrados.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className='py-6 text-center text-muted-foreground'>
+                          Ningún saldo a favor coincide con el filtro.
                         </TableCell>
                       </TableRow>
                     )}
