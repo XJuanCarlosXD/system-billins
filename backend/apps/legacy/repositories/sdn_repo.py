@@ -13,6 +13,9 @@ Tablas (esquema SDN):
 """
 from __future__ import annotations
 
+import calendar
+from datetime import date as _date
+
 from .. import client
 
 
@@ -787,6 +790,326 @@ def avanzar_periodo(
     resultado = get_nomina(no_cia, punto, nomina)
     resultado['periodo_anterior'] = periodo_anterior
     return resultado
+
+
+def _siguiente_periodo(forma_pago: str, fecha_inicial_actual, ano_proceso: int,
+                        mes_proceso: int) -> dict:
+    """Calcula fecha_inicial/fecha_final/ano_proceso/mes_proceso del proximo
+    periodo de pago segun FORMA_PAGO ('Q'=quincenal, la unica en produccion
+    hoy; 'M'=mensual). Reemplaza el calculo "+14 dias" que hacia el
+    frontend (sdn-calcular.tsx) -- incorrecto en meses de 28/29/31 dias
+    porque no llegaba exactamente al fin de mes."""
+    if isinstance(fecha_inicial_actual, str):
+        y, m, d = (int(x) for x in fecha_inicial_actual[:10].split('-'))
+        fecha_inicial_actual = _date(y, m, d)
+    forma = (forma_pago or '').upper()
+    if forma == 'Q':
+        if fecha_inicial_actual.day == 1:
+            ultimo = calendar.monthrange(ano_proceso, mes_proceso)[1]
+            return {
+                'fecha_inicial': _date(ano_proceso, mes_proceso, 16).isoformat(),
+                'fecha_final': _date(ano_proceso, mes_proceso, ultimo).isoformat(),
+                'ano_proceso': ano_proceso, 'mes_proceso': mes_proceso,
+            }
+        sig_ano, sig_mes = (ano_proceso + 1, 1) if mes_proceso == 12 else (ano_proceso, mes_proceso + 1)
+        return {
+            'fecha_inicial': _date(sig_ano, sig_mes, 1).isoformat(),
+            'fecha_final': _date(sig_ano, sig_mes, 15).isoformat(),
+            'ano_proceso': sig_ano, 'mes_proceso': sig_mes,
+        }
+    if forma == 'M':
+        sig_ano, sig_mes = (ano_proceso + 1, 1) if mes_proceso == 12 else (ano_proceso, mes_proceso + 1)
+        ultimo = calendar.monthrange(sig_ano, sig_mes)[1]
+        return {
+            'fecha_inicial': _date(sig_ano, sig_mes, 1).isoformat(),
+            'fecha_final': _date(sig_ano, sig_mes, ultimo).isoformat(),
+            'ano_proceso': sig_ano, 'mes_proceso': sig_mes,
+        }
+    raise ValueError(f"forma_pago '{forma_pago}' no soportada para avance automático de período")
+
+
+_REGALIA_TASA = 1 / 12  # provision mensual de regalia (1 mes de sueldo / 12 meses)
+
+
+def _lineas_asiento_cierre(no_cia: str, punto: str, nomina: str, cab: dict) -> dict:
+    """Construye las lineas del asiento contable del periodo ya calculado a
+    partir de TSDN_MOVIMIENTO (ingresos/deducciones reales del periodo) mas
+    la provision de regalia. Cuentas tomadas de catalogos ya en uso en el
+    sistema: TSDN_CUENTA_INGRESO (ingreso+grupo_contable -> cuenta gasto),
+    TSDN_DEDUCCIONES.cuenta/cuenta_gasto y TSDN_NOMINA.cuenta_contable
+    (nomina por pagar) / gasto_regalia / regalia_por_pagar.
+
+    Verificado contra TSDN_DCNOMINA historico (periodo 2026-07 #13,
+    generado por el Fsdn210 legado antes del fork): con estas mismas
+    cuentas y reglas se reproducen exactamente las mismas lineas y montos
+    para los empleados de ese periodo.
+
+    Limitacion conocida: calcular_nomina() solo aplica automaticamente las
+    deducciones del EMPLEADO (AFP 01 / SFS 02) -- los aportes PATRONALES
+    (no_deduccion 50/51) no se generan solos todavia, asi que si no hay
+    movimiento patronal en TSDN_MOVIMIENTO para el periodo, esas lineas
+    simplemente no aparecen en el asiento; esta funcion no las inventa.
+    """
+    ano, mes, periodo = int(cab['ano_proceso']), int(cab['mes_proceso']), int(cab.get('periodo') or 0)
+    cuenta_nomina = cab['cuenta_contable']
+
+    movs = client.fetch_dicts(
+        "SELECT m.no_empleado, m.no_transaccion, m.tipo_transaccion, "
+        "       m.empleado_patrono, m.monto_transaccion, "
+        "       NVL(e.grupo_contable,1) AS grupo_contable "
+        "  FROM SDN.TSDN_MOVIMIENTO m "
+        "  JOIN SDN.TSDN_EMPLEADO e "
+        "    ON e.no_cia=m.no_cia AND e.no_empleado=m.no_empleado "
+        " WHERE m.no_cia=:1 AND m.punto=:2 AND m.nomina=:3 "
+        "   AND m.ano=:4 AND m.mes=:5 AND m.periodo=:6 "
+        "   AND m.monto_transaccion != 0",
+        [no_cia, punto, nomina, ano, mes, periodo])
+
+    cuentas_ingreso = {
+        (r['no_ingreso'], int(r['grupo_contable'])): r['cuenta']
+        for r in client.fetch_dicts(
+            "SELECT no_ingreso, grupo_contable, cuenta FROM SDN.TSDN_CUENTA_INGRESO", [])
+    }
+    deducciones = {
+        r['no_deduccion']: r
+        for r in client.fetch_dicts(
+            "SELECT no_deduccion, cuenta, cuenta_gasto, descripcion "
+            "FROM SDN.TSDN_DEDUCCIONES", [])
+    }
+
+    detalle: list[dict] = []
+    faltantes: list[str] = []
+
+    def _add(no_empleado, cuenta, tipo_movi, empleado_patrono, tipo_ed, monto):
+        detalle.append({
+            'no_empleado': no_empleado, 'cuenta': cuenta, 'tipo_movi': tipo_movi,
+            'empleado_patrono': empleado_patrono, 'tipo_ed': tipo_ed,
+            'monto': round(float(monto), 2),
+        })
+
+    for m in movs:
+        monto = float(m['monto_transaccion'])
+        emp = int(m['no_empleado'])
+        ep = m['empleado_patrono']
+        if m['tipo_transaccion'] == 'I':
+            cuenta = cuentas_ingreso.get((m['no_transaccion'], int(m['grupo_contable'])))
+            if not cuenta:
+                faltantes.append(
+                    f"Ingreso {m['no_transaccion']} sin cuenta configurada "
+                    f"(grupo contable {m['grupo_contable']})")
+                continue
+            _add(emp, cuenta, 'D', ep, 'A', monto)
+            _add(emp, cuenta_nomina, 'C', ep, 'A', monto)
+        elif m['tipo_transaccion'] == 'D':
+            ded = deducciones.get(m['no_transaccion'])
+            if not ded:
+                faltantes.append(f"Deducción {m['no_transaccion']} sin catálogo")
+                continue
+            if ep == 'P':
+                if not ded.get('cuenta_gasto'):
+                    faltantes.append(
+                        f"Deducción patronal {m['no_transaccion']} sin cuenta_gasto configurada")
+                    continue
+                _add(emp, ded['cuenta_gasto'], 'D', ep, 'B', monto)
+                _add(emp, ded['cuenta'], 'C', ep, 'B', monto)
+            else:
+                _add(emp, ded['cuenta'], 'C', ep, 'A', monto)
+                _add(emp, cuenta_nomina, 'D', ep, 'A', monto)
+
+    # El salario base casi nunca queda como fila 'I' en TSDN_MOVIMIENTO --
+    # se calcula al vuelo (mismo fallback que ya usa volante_nomina/
+    # sdn-calcular.tsx para "Resumen del calculo": salario_mensual x
+    # fraccion_periodo) y solo se materializaba antes en pantalla, nunca en
+    # el asiento. Sin esto el asiento quedaba "cuadrado" pero mostrando
+    # solo las deducciones, sin el gasto de sueldos real.
+    con_ingreso_explicito = {
+        int(m['no_empleado']) for m in movs if m['tipo_transaccion'] == 'I'
+    }
+    fraccion_periodo = _fraccion_salario_periodo(cab)
+    empleados_activos = client.fetch_dicts(
+        "SELECT no_empleado, NVL(salario_mensual,0) AS salario_mensual, "
+        "       NVL(grupo_contable,1) AS grupo_contable "
+        "  FROM SDN.TSDN_EMPLEADO "
+        " WHERE no_cia=:1 AND punto=:2 AND nomina=:3 AND fecha_egreso IS NULL",
+        [no_cia, punto, nomina])
+    cuenta_salario_base = cuentas_ingreso.get(('01', 1))
+    for e in empleados_activos:
+        emp = int(e['no_empleado'])
+        if emp in con_ingreso_explicito:
+            continue
+        bruto = round(float(e['salario_mensual'] or 0) * fraccion_periodo, 2)
+        if bruto <= 0:
+            continue
+        cuenta = cuentas_ingreso.get(('01', int(e['grupo_contable']))) or cuenta_salario_base
+        if not cuenta:
+            faltantes.append(
+                f"Empleado {emp}: sin cuenta de salario configurada "
+                f"(grupo contable {e['grupo_contable']})")
+            continue
+        _add(emp, cuenta, 'D', 'E', 'A', bruto)
+        _add(emp, cuenta_nomina, 'C', 'E', 'A', bruto)
+
+    # Provision de regalia por empleado: 1/12 de sus ingresos validos para
+    # regalia en el periodo (TSDN_MOVIMIENTO.VALIDO_REGALIA='S'), mas el
+    # salario base derivado arriba (valido para regalia por defecto -- ley
+    # 16-92 RD, el sueldo siempre cuenta para regalia salvo excepcion).
+    base_regalia_dict: dict[int, float] = {}
+    for r in client.fetch_dicts(
+        "SELECT no_empleado, NVL(SUM(monto_transaccion),0) AS monto "
+        "  FROM SDN.TSDN_MOVIMIENTO "
+        " WHERE no_cia=:1 AND punto=:2 AND nomina=:3 AND ano=:4 AND mes=:5 "
+        "   AND periodo=:6 AND tipo_transaccion='I' AND valido_regalia='S' "
+        " GROUP BY no_empleado",
+        [no_cia, punto, nomina, ano, mes, periodo],
+    ):
+        base_regalia_dict[int(r['no_empleado'])] = float(r['monto'] or 0)
+    for e in empleados_activos:
+        emp = int(e['no_empleado'])
+        if emp in con_ingreso_explicito:
+            continue  # su regalia, si aplica, ya vino en la query de arriba
+        bruto = round(float(e['salario_mensual'] or 0) * fraccion_periodo, 2)
+        if bruto > 0:
+            base_regalia_dict[emp] = base_regalia_dict.get(emp, 0.0) + bruto
+    base_regalia = [{'no_empleado': k, 'monto': v} for k, v in base_regalia_dict.items()]
+
+    monto_regalia_total = 0.0
+    tiene_base_regalia = any(float(r['monto'] or 0) > 0 for r in base_regalia)
+    if tiene_base_regalia:
+        if not cab.get('gasto_regalia') or not cab.get('regalia_por_pagar'):
+            faltantes.append("Nómina sin cuentas de regalía configuradas (gasto_regalia/regalia_por_pagar)")
+        else:
+            for r in base_regalia:
+                monto_emp = round(float(r['monto'] or 0) * _REGALIA_TASA, 2)
+                if monto_emp <= 0:
+                    continue
+                _add(int(r['no_empleado']), cab['gasto_regalia'], 'D', 'P', 'S', monto_emp)
+                _add(int(r['no_empleado']), cab['regalia_por_pagar'], 'C', 'P', 'S', monto_emp)
+                monto_regalia_total = round(monto_regalia_total + monto_emp, 2)
+
+    resumen: dict[str, dict] = {}
+    for d in detalle:
+        r = resumen.setdefault(d['cuenta'], {'cuenta': d['cuenta'], 'debito': 0.0, 'credito': 0.0})
+        if d['tipo_movi'] == 'D':
+            r['debito'] = round(r['debito'] + d['monto'], 2)
+        else:
+            r['credito'] = round(r['credito'] + d['monto'], 2)
+
+    total_debito = round(sum(r['debito'] for r in resumen.values()), 2)
+    total_credito = round(sum(r['credito'] for r in resumen.values()), 2)
+
+    return {
+        'detalle': detalle,
+        'resumen_cuentas': sorted(resumen.values(), key=lambda r: r['cuenta']),
+        'total_debito': total_debito,
+        'total_credito': total_credito,
+        'cuadra': abs(total_debito - total_credito) < 0.01,
+        'monto_regalia': monto_regalia_total,
+        'faltantes': faltantes,
+    }
+
+
+def resumen_cierre(no_cia: str, punto: str, nomina: str) -> dict:
+    """Fsdn210 (asiento) + Fsdn214/216 (avance de periodo) combinados en
+    una sola vista: estado del periodo actual, previsualizacion del
+    asiento (sin persistir) y el siguiente periodo sugerido. Antes no
+    existia ninguna pantalla que mostrara esto junto -- el usuario no
+    encontraba por donde cerrar el periodo (TREP_PROBLEMA f5a80e18)."""
+    cab = get_nomina(no_cia, punto, nomina)
+    if not cab:
+        raise ValueError(f"Nómina {nomina} no existe")
+
+    bloqueos = []
+    if cab.get('estado') != 'A':
+        bloqueos.append('La nómina no está activa')
+    if cab.get('calculo_nomina') != 'S':
+        bloqueos.append('El período actual todavía no está calculado — calcúlalo primero')
+
+    asiento = None
+    siguiente = None
+    if not bloqueos:
+        asiento = _lineas_asiento_cierre(no_cia, punto, nomina, cab)
+        try:
+            siguiente = _siguiente_periodo(
+                cab['forma_pago'], cab['fecha_inicial'],
+                int(cab['ano_proceso']), int(cab['mes_proceso']))
+            siguiente['periodo'] = int(cab.get('periodo') or 0) + 1
+        except ValueError as exc:
+            bloqueos.append(str(exc))
+
+    return {
+        'nomina': cab,
+        'bloqueos': bloqueos,
+        'asiento': asiento,
+        'siguiente_periodo': siguiente,
+    }
+
+
+def generar_asiento_y_cerrar(no_cia: str, punto: str, nomina: str, usuario: str) -> dict:
+    """Genera el asiento del periodo ya calculado (TSDN_DCNOMINA, detalle
+    por empleado) y avanza TSDN_NOMINA al siguiente periodo (avanzar_periodo)
+    en un solo paso."""
+    cab = get_nomina(no_cia, punto, nomina)
+    if not cab:
+        raise ValueError(f"Nómina {nomina} no existe")
+    if cab.get('calculo_nomina') != 'S':
+        raise ValueError('El período actual no está calculado — calcúlalo antes de cerrar')
+
+    ano, mes, periodo = int(cab['ano_proceso']), int(cab['mes_proceso']), int(cab.get('periodo') or 0)
+
+    ya_generado = client.fetch_one(
+        "SELECT COUNT(*) FROM SDN.TSDN_DCNOMINA WHERE no_cia=:1 AND punto=:2 "
+        "AND nomina=:3 AND ano=:4 AND mes=:5 AND periodo=:6",
+        [no_cia, punto, nomina, ano, mes, periodo])
+    if ya_generado and int(ya_generado[0]) > 0:
+        raise ValueError('Este período ya tiene un asiento generado')
+
+    asiento = _lineas_asiento_cierre(no_cia, punto, nomina, cab)
+    if asiento['faltantes']:
+        raise ValueError('Faltan cuentas contables: ' + '; '.join(asiento['faltantes']))
+    if not asiento['detalle']:
+        raise ValueError('El período no tiene movimientos que contabilizar')
+
+    no_asiento_map = {'A': '0001', 'B': '0002', 'C': '0002', 'S': '0003'}
+
+    with client.cursor() as cur:
+        for d in asiento['detalle']:
+            no_asiento = no_asiento_map.get(d['tipo_ed'], '0001')
+            cur.execute(
+                "INSERT INTO SDN.TSDN_DCNOMINA ("
+                " no_cia, punto, ano, mes, nomina, periodo, no_empleado, "
+                " cuenta, tipo_movi, origen, empleado_patrono, monto, "
+                " centro_costo, no_asiento, ano_asiento, mes_asiento, "
+                " st_generado_cnt, tipo_ed"
+                ") VALUES (:1,:2,:3,:4,:5,:6,:7, :8,:9,'N',:10,:11, "
+                " '0000000000',:12,:13,:14, 'S',:15)",
+                [no_cia, punto, ano, mes, nomina, periodo, d['no_empleado'],
+                 d['cuenta'], d['tipo_movi'], d['empleado_patrono'], d['monto'],
+                 no_asiento, ano, mes, d['tipo_ed']])
+        cur.execute(
+            "INSERT INTO SDN.TSDN_AUDITORIA ("
+            " no_cia, punto, ano, mes, nomina, periodo, proceso, "
+            " fecha_nomina_i, fecha_nomina_f, fecha_sysdate, usuario "
+            ") VALUES (:1,:2,:3,:4,:5,:6,'C', :7,:8, SYSDATE,:9)",
+            [no_cia, punto, ano, mes, nomina, periodo,
+             cab.get('fecha_inicial'), cab.get('fecha_final'), (usuario or '').upper()[:30]])
+        cur.connection.commit()
+
+    siguiente = _siguiente_periodo(cab['forma_pago'], cab['fecha_inicial'], ano, mes)
+    avance = avanzar_periodo(
+        no_cia, punto, nomina, usuario,
+        fecha_inicial=siguiente['fecha_inicial'], fecha_final=siguiente['fecha_final'],
+        ano_proceso=siguiente['ano_proceso'], mes_proceso=siguiente['mes_proceso'],
+        periodo=periodo + 1,
+    )
+
+    return {
+        'periodo_cerrado': {
+            'ano': ano, 'mes': mes, 'periodo': periodo,
+            'fecha_inicial': cab.get('fecha_inicial'), 'fecha_final': cab.get('fecha_final'),
+        },
+        'asiento': asiento,
+        'nomina': avance,
+    }
 
 
 def _fraccion_salario_periodo(cabecera: dict) -> float:

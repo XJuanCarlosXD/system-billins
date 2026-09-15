@@ -1821,6 +1821,12 @@ export const regalGeneralApi = {
     ano_proceso: number; mes_proceso: number; periodo: number
   }) =>
     request<any>('/sdn/nominas/avanzar/', { method: 'POST', body: JSON.stringify(data) }),
+  sdnResumenCierre: (params: { no_cia: string; punto: string; nomina: string }) => {
+    const qs = new URLSearchParams(params as any).toString()
+    return request<any>(`/sdn/nominas/resumen-cierre/?${qs}`)
+  },
+  sdnCerrarNomina: (data: { no_cia: string; punto: string; nomina: string }) =>
+    request<any>('/sdn/nominas/cerrar/', { method: 'POST', body: JSON.stringify(data) }),
   sdnRepResumenEmpleados: (noCia: string) => request<any>(`/sdn/rep-empleados/?no_cia=${noCia}`),
   sdnRepNominasResumen: (noCia: string, ano?: number) => {
     const qs = new URLSearchParams({ no_cia: noCia, ...(ano && { ano: String(ano) }) }).toString()

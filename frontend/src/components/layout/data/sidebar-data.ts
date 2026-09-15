@@ -627,6 +627,10 @@ export const sidebarData: SidebarData = {
           ],
         },
         {
+          title: 'Cierre',
+          items: [{ title: 'Cierre de Nomina', url: '/sdn/cierre' }],
+        },
+        {
           title: 'Consultas',
           items: [
             { title: 'Volante / Pre-Nomina', url: '/sdn/volante' },

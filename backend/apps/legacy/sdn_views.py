@@ -341,6 +341,38 @@ def sdn_nomina_avanzar(request):
 @login_required
 @csrf_exempt
 @require_http_methods(['GET'])
+def sdn_nomina_resumen_cierre(request):
+    try:
+        out = sdn_repo.resumen_cierre(
+            no_cia=request.GET.get('no_cia', ''),
+            punto=_norm_punto(request.GET.get('punto', '')),
+            nomina=(request.GET.get('nomina') or '').upper(),
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse(out)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def sdn_nomina_cerrar(request):
+    data = json.loads(request.body)
+    try:
+        out = sdn_repo.generar_asiento_y_cerrar(
+            no_cia=data['no_cia'],
+            punto=_norm_punto(data['punto']),
+            nomina=(data['nomina'] or '').upper(),
+            usuario=request.user.username,
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    return JsonResponse(out)
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
 def sdn_nomina_volante(request):
     try:
         out = sdn_repo.volante_nomina(
