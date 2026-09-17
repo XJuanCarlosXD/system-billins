@@ -50,6 +50,7 @@ import {
   useSaveFeSecuencia,
   useUploadCertificado,
 } from '@/features/fe/api'
+import { FeAyuda } from '@/features/fe/fe-ayuda'
 import { FeCertificacion } from '@/features/fe/fe-certificacion'
 import { FeDocumentos } from '@/features/fe/fe-documentos'
 import { FeModoTest } from '@/features/fe/fe-modo-test'
@@ -168,6 +169,7 @@ export function UnifiedFacturacionElectronica() {
           Modo Test
         </TabsTrigger>
         <TabsTrigger value='certificacion'>Certificación e-CF</TabsTrigger>
+        <TabsTrigger value='ayuda'>Ayuda</TabsTrigger>
       </TabsList>
 
       <TabsContent value='config' className='grid gap-4 pt-4 lg:grid-cols-2'>
@@ -381,6 +383,10 @@ export function UnifiedFacturacionElectronica() {
 
       <TabsContent value='certificacion' className='pt-4'>
         <FeCertificacion noCia={noCia} />
+      </TabsContent>
+
+      <TabsContent value='ayuda' className='pt-4'>
+        <FeAyuda />
       </TabsContent>
     </Tabs>
   )
