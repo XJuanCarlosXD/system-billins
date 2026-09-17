@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 
+import openpyxl
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -311,3 +312,70 @@ def pruebas_enviar_view(request):
         es_prueba='S')
     return JsonResponse({'trackId': resultado['trackId'],
                          'respuesta_dgii': resultado['respuesta_cruda']})
+
+
+# e-NCF de tipo 32 que NO se envian por este endpoint -- van por RFCE
+# (ver certificacion_paso2_rfce_view). Filtrado por convencion, no por
+# monto real: en el Set de Pruebas de la DGII estas 4 filas SIEMPRE son
+# las de "Facturas de consumo < 250Mil" (hoja RFCE del mismo Excel).
+_RFCE_ENCFS_PASO2 = frozenset({
+    'E320000000012', 'E320000000013', 'E320000000014', 'E320000000015',
+})
+
+
+def _leer_filas_excel(archivo, hoja: str) -> list[dict]:
+    wb = openpyxl.load_workbook(archivo, data_only=True)
+    if hoja not in wb.sheetnames:
+        raise ValueError(f"El Excel no tiene una hoja '{hoja}'")
+    ws = wb[hoja]
+    filas = list(ws.iter_rows(values_only=True))
+    if not filas:
+        return []
+    headers = filas[0]
+    return [dict(zip(headers, r)) for r in filas[1:]]
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def certificacion_paso2_ecf_view(request):
+    """Paso 2 de certificacion DGII (grupos "Primero"+"Segundo", 21
+    escenarios): sube el Excel oficial completo (hoja ``ECF``) y envia
+    CADA fila contra ``certecf`` -- version "bulk" de
+    ``pruebas_enviar_view``, mismo codigo de construccion/envio, sin que
+    el operador tenga que copiar filas a mano.
+
+    Las 4 filas de Facturas de Consumo < 250Mil (``_RFCE_ENCFS_PASO2``) se
+    saltan aqui -- van por ``certificacion_paso2_rfce_view``, servicio de
+    Recepcion distinto (ver ``dgii_client.enviar_rfce``).
+    """
+    no_cia = request.POST.get('no_cia')
+    archivo = request.FILES.get('archivo')
+    if not no_cia:
+        return _err('no_cia requerido')
+    if not archivo:
+        return _err('archivo (.xlsx) requerido')
+    try:
+        filas = _leer_filas_excel(archivo, 'ECF')
+    except ValueError as exc:
+        return _err(str(exc))
+
+    resultados = []
+    for row in filas:
+        encf = row.get('ENCF')
+        if not encf or encf in _RFCE_ENCFS_PASO2:
+            continue
+        try:
+            tipo_ecf = int(row['TipoeCF'])
+            xml_sin_firmar = ecf_builder.construir_ecf_generico(tipo_ecf, encf, row)
+            resultado = dgii_client.enviar_ecf(no_cia, _AMBIENTE_MODO_TEST, encf, xml_sin_firmar)
+        except (ecf_builder.ECFBuilderError, dgii_client.DgiiError, KeyError, ValueError) as exc:
+            resultados.append({'encf': encf, 'ok': False, 'error': str(exc)})
+            continue
+        fe_repo.save_documento_enviado(
+            no_cia, encf, str(tipo_ecf), resultado['trackId'],
+            resultado['xml_firmado'], json.dumps(resultado['respuesta_cruda']),
+            es_prueba='S')
+        resultados.append({'encf': encf, 'ok': True, 'trackId': resultado['trackId']})
+
+    return JsonResponse({'resultados': resultados})

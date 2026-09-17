@@ -13,4 +13,5 @@ urlpatterns = [
          views.documento_consultar_estado_view),
     path('documentos/<str:e_ncf>/reenviar/', views.documento_reenviar_view),
     path('pruebas/enviar/', views.pruebas_enviar_view),
+    path('certificacion/paso2-ecf/', views.certificacion_paso2_ecf_view),
 ]
