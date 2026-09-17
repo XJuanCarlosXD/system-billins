@@ -244,3 +244,67 @@ def test_paso3_envia_cada_fila_del_excel(cliente_autenticado, monkeypatch):
     assert body['resultados'][0]['ok'] is True
     assert body['resultados'][0]['estado'] == 'Aprobacion Comercial Aprobada.'
     assert envios == [('certecf', 'E310000000001', '130217432')]
+
+
+def test_paso4_factura_real_requiere_login(client, db):
+    resp = client.post('/api/fe/certificacion/paso4-factura-real/', data={'no_cia': '01'})
+    assert resp.status_code in (302, 401, 403)
+
+
+def test_paso4_factura_real_campos_requeridos(cliente_autenticado):
+    resp = cliente_autenticado.post(
+        '/api/fe/certificacion/paso4-factura-real/',
+        data={'no_cia': '01', 'tipo_ecf': '31'})
+    assert resp.status_code == 400
+    assert 'punto' in resp.json()['detail'].lower()
+
+
+def test_paso4_factura_real_envia_tipo_31(cliente_autenticado, monkeypatch):
+    monkeypatch.setattr(
+        ecf_builder, 'construir_ecf_31',
+        lambda no_cia, punto, tipo_factura, no_factura: '<ECF><Encabezado><IdDoc><eNCF>E310000000054</eNCF></IdDoc></Encabezado></ECF>')
+    envios = []
+
+    def fake_enviar_ecf(no_cia, ambiente, e_ncf, xml_sin_firmar):
+        envios.append((ambiente, e_ncf))
+        return {'trackId': 'TRACK-1', 'xml_firmado': '<ECF firmado/>',
+                'respuesta_cruda': {'trackId': 'TRACK-1'}}
+
+    monkeypatch.setattr(dgii_client, 'enviar_ecf', fake_enviar_ecf)
+    monkeypatch.setattr(
+        'apps.legacy.repositories.fe_repo.save_documento_enviado',
+        lambda *a, **k: None)
+
+    resp = cliente_autenticado.post(
+        '/api/fe/certificacion/paso4-factura-real/',
+        data={'no_cia': '01', 'tipo_ecf': '31', 'punto': '01',
+              'tipo_factura': 'FT', 'no_factura': '123'})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body['ok'] is True
+    assert body['trackId'] == 'TRACK-1'
+    assert body['encf'] == 'E310000000054'
+    assert envios == [('certecf', 'E310000000054')]
+
+
+def test_paso4_factura_real_tipo_invalido_da_400(cliente_autenticado):
+    resp = cliente_autenticado.post(
+        '/api/fe/certificacion/paso4-factura-real/',
+        data={'no_cia': '01', 'tipo_ecf': '99', 'punto': '01',
+              'tipo_factura': 'FT', 'no_factura': '123'})
+    assert resp.status_code == 400
+    assert '31' in resp.json()['detail'] or '32' in resp.json()['detail']
+
+
+def test_paso4_factura_real_error_de_builder_da_400(cliente_autenticado, monkeypatch):
+    def fake_construir(*a, **k):
+        raise ecf_builder.ECFBuilderError('factura anulada')
+
+    monkeypatch.setattr(ecf_builder, 'construir_ecf_32', fake_construir)
+
+    resp = cliente_autenticado.post(
+        '/api/fe/certificacion/paso4-factura-real/',
+        data={'no_cia': '01', 'tipo_ecf': '32', 'punto': '01',
+              'tipo_factura': 'FC', 'no_factura': '456'})
+    assert resp.status_code == 400
+    assert 'factura anulada' in resp.json()['detail']
