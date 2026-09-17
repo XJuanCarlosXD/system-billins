@@ -1,0 +1,41 @@
+[
+  {
+    "tipo": "33",
+    "encf": "E330000000001",
+    "status": 200,
+    "payload": {
+      "trackId": "34b51147-6e85-41dc-b484-fbf90dcc0b53",
+      "respuesta_dgii": {
+        "trackId": "34b51147-6e85-41dc-b484-fbf90dcc0b53",
+        "error": null,
+        "mensaje": null
+      }
+    }
+  },
+  {
+    "tipo": "34",
+    "encf": "E340000000013",
+    "status": 200,
+    "payload": {
+      "trackId": "895abc9f-4ec2-41fd-aec6-8002f22d3494",
+      "respuesta_dgii": {
+        "trackId": "895abc9f-4ec2-41fd-aec6-8002f22d3494",
+        "error": null,
+        "mensaje": null
+      }
+    }
+  },
+  {
+    "tipo": "34",
+    "encf": "E340000000001",
+    "status": 200,
+    "payload": {
+      "trackId": "22c101b8-4c17-47a8-bccd-ffbdf28e490b",
+      "respuesta_dgii": {
+        "trackId": "22c101b8-4c17-47a8-bccd-ffbdf28e490b",
+        "error": null,
+        "mensaje": null
+      }
+    }
+  }
+]

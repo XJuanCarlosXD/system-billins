@@ -1,0 +1,197 @@
+[
+  {
+    "tipo": "31",
+    "encf": "E310000000007",
+    "status": 200,
+    "payload": {
+      "trackId": "0f828e2b-dd59-47f0-a321-c82cfa98c3af",
+      "respuesta_dgii": {
+        "trackId": "0f828e2b-dd59-47f0-a321-c82cfa98c3af",
+        "error": null,
+        "mensaje": null
+      }
+    }
+  },
+  {
+    "tipo": "32",
+    "encf": "E320000000006",
+    "status": 200,
+    "payload": {
+      "trackId": "1356a0aa-0c80-4af7-a7ce-bd4cb729afbe",
+      "respuesta_dgii": {
+        "trackId": "1356a0aa-0c80-4af7-a7ce-bd4cb729afbe",
+        "error": null,
+        "mensaje": null
+      }
+    }
+  },
+  {
+    "tipo": "32",
+    "encf": "E320000000004",
+    "status": 200,
+    "payload": {
+      "trackId": "68a3cb73-569e-4ca1-a15b-64e68e67eb91",
+      "respuesta_dgii": {
+        "trackId": "68a3cb73-569e-4ca1-a15b-64e68e67eb91",
+        "error": null,
+        "mensaje": null
+      }
+    }
+  },
+  {
+    "tipo": "41",
+    "encf": "E410000000008",
+    "status": 200,
+    "payload": {
+      "trackId": "210643de-8ba6-4ab7-945f-03a960f1a64e",
+      "respuesta_dgii": {
+        "trackId": "210643de-8ba6-4ab7-945f-03a960f1a64e",
+        "error": null,
+        "mensaje": null
+      }
+    }
+  },
+  {
+    "tipo": "41",
+    "encf": "E410000000007",
+    "status": 200,
+    "payload": {
+      "trackId": "5d069d15-a7b3-4fbb-85a0-9af018240942",
+      "respuesta_dgii": {
+        "trackId": "5d069d15-a7b3-4fbb-85a0-9af018240942",
+        "error": null,
+        "mensaje": null
+      }
+    }
+  },
+  {
+    "tipo": "43",
+    "encf": "E430000000001",
+    "status": 200,
+    "payload": {
+      "trackId": "9ab7d070-66eb-4968-8829-bdd16a6f0603",
+      "respuesta_dgii": {
+        "trackId": "9ab7d070-66eb-4968-8829-bdd16a6f0603",
+        "error": null,
+        "mensaje": null
+      }
+    }
+  },
+  {
+    "tipo": "43",
+    "encf": "E430000000007",
+    "status": 200,
+    "payload": {
+      "trackId": "44c6cb22-5a5c-41f2-bc5b-81450ff96a17",
+      "respuesta_dgii": {
+        "trackId": "44c6cb22-5a5c-41f2-bc5b-81450ff96a17",
+        "error": null,
+        "mensaje": null
+      }
+    }
+  },
+  {
+    "tipo": "44",
+    "encf": "E440000000013",
+    "status": 200,
+    "payload": {
+      "trackId": "b9cf8c80-7ceb-4747-9ebc-c8ec26b1566f",
+      "respuesta_dgii": {
+        "trackId": "b9cf8c80-7ceb-4747-9ebc-c8ec26b1566f",
+        "error": null,
+        "mensaje": null
+      }
+    }
+  },
+  {
+    "tipo": "44",
+    "encf": "E440000000010",
+    "status": 200,
+    "payload": {
+      "trackId": "db0d39ca-aaa0-4d6e-b36e-55df2e795c53",
+      "respuesta_dgii": {
+        "trackId": "db0d39ca-aaa0-4d6e-b36e-55df2e795c53",
+        "error": null,
+        "mensaje": null
+      }
+    }
+  },
+  {
+    "tipo": "45",
+    "encf": "E450000000003",
+    "status": 200,
+    "payload": {
+      "trackId": "bb70cf49-9bc2-4cee-aa37-a91bd07af8a5",
+      "respuesta_dgii": {
+        "trackId": "bb70cf49-9bc2-4cee-aa37-a91bd07af8a5",
+        "error": null,
+        "mensaje": null
+      }
+    }
+  },
+  {
+    "tipo": "45",
+    "encf": "E450000000007",
+    "status": 200,
+    "payload": {
+      "trackId": "b5df1f01-6d69-4a11-a206-0da90388fa6d",
+      "respuesta_dgii": {
+        "trackId": "b5df1f01-6d69-4a11-a206-0da90388fa6d",
+        "error": null,
+        "mensaje": null
+      }
+    }
+  },
+  {
+    "tipo": "46",
+    "encf": "E460000000009",
+    "status": 200,
+    "payload": {
+      "trackId": "b875f89a-d96a-4302-8191-c10e62bc51be",
+      "respuesta_dgii": {
+        "trackId": "b875f89a-d96a-4302-8191-c10e62bc51be",
+        "error": null,
+        "mensaje": null
+      }
+    }
+  },
+  {
+    "tipo": "46",
+    "encf": "E460000000007",
+    "status": 200,
+    "payload": {
+      "trackId": "9ce092ca-9936-4765-b4a0-88d7ebad8b16",
+      "respuesta_dgii": {
+        "trackId": "9ce092ca-9936-4765-b4a0-88d7ebad8b16",
+        "error": null,
+        "mensaje": null
+      }
+    }
+  },
+  {
+    "tipo": "47",
+    "encf": "E470000000001",
+    "status": 200,
+    "payload": {
+      "trackId": "17cd9249-0535-47bf-ae9a-dec156e848cc",
+      "respuesta_dgii": {
+        "trackId": "17cd9249-0535-47bf-ae9a-dec156e848cc",
+        "error": null,
+        "mensaje": null
+      }
+    }
+  },
+  {
+    "tipo": "47",
+    "encf": "E470000000007",
+    "status": 200,
+    "payload": {
+      "trackId": "d5b841aa-4d8d-492c-b453-b406ad912bc7",
+      "respuesta_dgii": {
+        "trackId": "d5b841aa-4d8d-492c-b453-b406ad912bc7",
+        "error": null,
+        "mensaje": null
+      }
+    }
+  }
+]

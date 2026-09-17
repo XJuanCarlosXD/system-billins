@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RFCE>
+  <Encabezado>
+    <Version>1.0</Version>
+    <IdDoc>
+      <TipoeCF>32</TipoeCF>
+      <eNCF>E320000000013</eNCF>
+      <TipoIngresos>01</TipoIngresos>
+      <TipoPago>1</TipoPago>
+    </IdDoc>
+    <Emisor>
+      <RNCEmisor>130217432</RNCEmisor>
+      <RazonSocialEmisor>DOCUMENTOS ELECTRONICOS PRUEBA FACTURA DE CONSUMO MENOR 250MIL</RazonSocialEmisor>
+      <FechaEmision>01-04-2020</FechaEmision>
+    </Emisor>
+    <Comprador>
+      <RNCComprador>130941361</RNCComprador>
+      <RazonSocialComprador>RC HERNANDEZ SRL</RazonSocialComprador>
+    </Comprador>
+    <Totales>
+      <MontoGravadoTotal>95000.00</MontoGravadoTotal>
+      <MontoGravadoI1>95000.00</MontoGravadoI1>
+      <TotalITBIS>17100.00</TotalITBIS>
+      <TotalITBIS1>17100.00</TotalITBIS1>
+      <MontoTotal>112100.00</MontoTotal>
+    </Totales>
+    <CodigoSeguridadeCF>2f2513</CodigoSeguridadeCF>
+  </Encabezado>
+  <Signature xmlns="http://www.w3.org/2000/09/xmldsig#">
+    <SignedInfo>
+      <CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315" />
+      <SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256" />
+      <Reference URI="">
+        <Transforms>
+          <Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature" />
+        </Transforms>
+        <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256" />
+        <DigestValue>yVnHRFiUQNgvkEtl37DRlHkvFLuoJsHcIpxejyPyj7g=</DigestValue>
+      </Reference>
+    </SignedInfo>
+    <SignatureValue>ojYIITmLnnNwG0R2gr7ohsuP05QrLvSky8QDLGkRPaj0EuFkJB+J6u+18fvgbJBJoL/bzoijyFGDD6iyhaRhgedUO96jG3NrpUANHiWquf++EQmcI3/tqiSMJ4BYjhKXW14sn/AbY9ZGZrqA80z91B9FsX16+6J7s/1wuaZXijYirV5h+UUjTBdWRVMmMLVvt2Rq/So2ELxijq5FQuruw8Stjj2Rp0fWsS6+DNuozQmC02BMgvLVqzYhY/tGhcn+ss3/IWrr0ivvgzdp33bV/FdYNcR6K5UxaDuSx8FNKzgsXFL/b9KJm+JMznUvNPEwvQ0W4kAH6D4Xm5j83jAIbg==</SignatureValue>
+    <KeyInfo>
+      <X509Data>
+        <X509Certificate>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</X509Certificate>
+      </X509Data>
+    </KeyInfo>
+  </Signature>
+</RFCE>
