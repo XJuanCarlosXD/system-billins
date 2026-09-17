@@ -296,3 +296,85 @@ export function useEnviarPrueba(noCia: string) {
       qc.invalidateQueries({ queryKey: ['fe-documentos', noCia] }),
   })
 }
+
+// ---------------------------------------------------------------------------
+// Panel de Certificación e-CF — Pasos 2/3 (sube el Excel oficial completo
+// de la DGII, en vez de copiar filas a mano como en Modo Test)
+// ---------------------------------------------------------------------------
+
+export interface ResultadoEnvioCertificacion {
+  encf: string
+  ok: boolean
+  error?: string
+  trackId?: string
+}
+
+export interface ResultadoRfceCertificacion extends ResultadoEnvioCertificacion {
+  estado_rfce?: string
+  codigo_seguridad?: string
+  ecf32_firmado_xml?: string
+  nombre_archivo?: string
+}
+
+export interface ResultadoAprobacionCertificacion extends ResultadoEnvioCertificacion {
+  estado?: string
+  codigo?: string
+}
+
+export function useCertificacionPaso2Ecf(noCia: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (archivo: File) => {
+      const fd = new FormData()
+      fd.append('no_cia', noCia)
+      fd.append('archivo', archivo)
+      return feRequest<{ resultados: ResultadoEnvioCertificacion[] }>(
+        `/fe/certificacion/paso2-ecf/`,
+        { method: 'POST', body: fd }
+      )
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['fe-documentos', noCia] }),
+  })
+}
+
+export function useCertificacionPaso2Rfce(noCia: string) {
+  return useMutation({
+    mutationFn: (archivo: File) => {
+      const fd = new FormData()
+      fd.append('no_cia', noCia)
+      fd.append('archivo', archivo)
+      return feRequest<{ resultados: ResultadoRfceCertificacion[] }>(
+        `/fe/certificacion/paso2-rfce/`,
+        { method: 'POST', body: fd }
+      )
+    },
+  })
+}
+
+export function useCertificacionPaso3(noCia: string) {
+  return useMutation({
+    mutationFn: (archivo: File) => {
+      const fd = new FormData()
+      fd.append('no_cia', noCia)
+      fd.append('archivo', archivo)
+      return feRequest<{ resultados: ResultadoAprobacionCertificacion[] }>(
+        `/fe/certificacion/paso3-aprobaciones/`,
+        { method: 'POST', body: fd }
+      )
+    },
+  })
+}
+
+/** Dispara la descarga de un e-CF32 firmado (texto XML) como archivo local
+ * -- para que el operador lo suba a mano al widget del Portal DGII. */
+export function descargarXmlComoArchivo(nombreArchivo: string, contenidoXml: string) {
+  const blob = new Blob([contenidoXml], { type: 'application/xml' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = nombreArchivo
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
