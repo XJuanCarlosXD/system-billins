@@ -526,3 +526,56 @@ def certificacion_paso4_factura_real_view(request):
         resultado['xml_firmado'], json.dumps(resultado['respuesta_cruda']),
         es_prueba='S')
     return JsonResponse({'ok': True, 'encf': e_ncf, 'trackId': resultado['trackId']})
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def certificacion_paso4_manual_view(request):
+    """Paso 4 de certificacion DGII (grupo "Segundo": tipos 33/34; y el
+    resto de "Primero" sin pipeline de produccion: 41/43/44/45/46/47).
+    Mismo builder que Modo Test (``ecf_builder.construir_ecf_generico``,
+    datos planos escritos a mano por el operador) pero, a diferencia de
+    Modo Test, consume una secuencia REAL y no reutilizable de
+    TFE_SECUENCIA (``fe_repo.consumir_siguiente_encf``) en vez de un
+    e-NCF fijo -- el Paso 4 exige datos de operaciones reales, no el
+    Set de Pruebas fijo de la DGII.
+
+    Para tipo 34 (Nota de Credito), ``datos`` debe incluir
+    ``NCFModificado`` con el e-NCF de un documento YA enviado en el
+    grupo "Primero" (el operador lo copia del resultado de
+    ``certificacion_paso4_factura_real_view``/otro envio manual previo).
+    """
+    try:
+        data = json.loads(request.body or b'{}')
+    except json.JSONDecodeError:
+        return _err('JSON invalido')
+    no_cia = data.get('no_cia')
+    tipo_ecf_raw = data.get('tipo_ecf')
+    datos = data.get('datos') if data.get('datos') is not None else {}
+    if not no_cia or tipo_ecf_raw in (None, ''):
+        return _err('no_cia y tipo_ecf son requeridos')
+    if not isinstance(datos, dict):
+        return _err("'datos' debe ser un objeto JSON")
+    try:
+        tipo_ecf = int(tipo_ecf_raw)
+    except (TypeError, ValueError):
+        return _err('tipo_ecf debe ser un entero del catalogo TipoeCF')
+    try:
+        secuencia = fe_repo.consumir_siguiente_encf(no_cia, tipo_ecf)
+    except ValueError as exc:
+        return _err(str(exc))
+    e_ncf = secuencia['e_ncf']
+    try:
+        xml_sin_firmar = ecf_builder.construir_ecf_generico(tipo_ecf, e_ncf, datos)
+    except ecf_builder.ECFBuilderError as exc:
+        return _err(str(exc))
+    try:
+        resultado = dgii_client.enviar_ecf(no_cia, _AMBIENTE_MODO_TEST, e_ncf, xml_sin_firmar)
+    except dgii_client.DgiiError as exc:
+        return _err(str(exc), status=502)
+    fe_repo.save_documento_enviado(
+        no_cia, e_ncf, str(tipo_ecf), resultado['trackId'],
+        resultado['xml_firmado'], json.dumps(resultado['respuesta_cruda']),
+        es_prueba='S')
+    return JsonResponse({'ok': True, 'encf': e_ncf, 'trackId': resultado['trackId']})

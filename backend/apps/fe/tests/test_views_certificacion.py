@@ -10,6 +10,7 @@ frontera.
 from __future__ import annotations
 
 import io
+import json
 
 import openpyxl
 import pytest
@@ -17,6 +18,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 
 from apps.fe import dgii_client, ecf_builder
+from apps.legacy.repositories import fe_repo
 
 
 @pytest.fixture
@@ -308,3 +310,59 @@ def test_paso4_factura_real_error_de_builder_da_400(cliente_autenticado, monkeyp
               'tipo_factura': 'FC', 'no_factura': '456'})
     assert resp.status_code == 400
     assert 'factura anulada' in resp.json()['detail']
+
+
+def test_paso4_manual_requiere_login(client, db):
+    resp = client.post('/api/fe/certificacion/paso4-manual/', data='{}',
+                        content_type='application/json')
+    assert resp.status_code in (302, 401, 403)
+
+
+def test_paso4_manual_campos_requeridos(cliente_autenticado):
+    resp = cliente_autenticado.post(
+        '/api/fe/certificacion/paso4-manual/',
+        data=json.dumps({'no_cia': '01'}), content_type='application/json')
+    assert resp.status_code == 400
+
+
+def test_paso4_manual_consume_secuencia_real_y_envia(cliente_autenticado, monkeypatch):
+    monkeypatch.setattr(
+        fe_repo, 'consumir_siguiente_encf',
+        lambda no_cia, tipo_ecf: {'e_ncf': 'E410000001000',
+                                   'fecha_vencimiento_secuencia': None})
+    build_calls = []
+    monkeypatch.setattr(
+        ecf_builder, 'construir_ecf_generico',
+        lambda tipo, encf, datos: build_calls.append((tipo, encf)) or '<ECF/>')
+    monkeypatch.setattr(
+        dgii_client, 'enviar_ecf',
+        lambda no_cia, ambiente, e_ncf, xml: {
+            'trackId': 'TRACK-41', 'xml_firmado': '<x/>', 'respuesta_cruda': {}})
+    monkeypatch.setattr(
+        'apps.legacy.repositories.fe_repo.save_documento_enviado',
+        lambda *a, **k: None)
+
+    resp = cliente_autenticado.post(
+        '/api/fe/certificacion/paso4-manual/',
+        data=json.dumps({'no_cia': '01', 'tipo_ecf': 41,
+                          'datos': {'RNCEmisor': '130217432'}}),
+        content_type='application/json')
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body['ok'] is True
+    assert body['encf'] == 'E410000001000'
+    assert build_calls == [(41, 'E410000001000')]
+
+
+def test_paso4_manual_sin_secuencia_configurada_da_400(cliente_autenticado, monkeypatch):
+    def fake_consumir(no_cia, tipo_ecf):
+        raise ValueError('No hay secuencia activa')
+
+    monkeypatch.setattr(fe_repo, 'consumir_siguiente_encf', fake_consumir)
+
+    resp = cliente_autenticado.post(
+        '/api/fe/certificacion/paso4-manual/',
+        data=json.dumps({'no_cia': '01', 'tipo_ecf': 46, 'datos': {}}),
+        content_type='application/json')
+    assert resp.status_code == 400
+    assert 'secuencia' in resp.json()['detail'].lower()
