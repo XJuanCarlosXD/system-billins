@@ -1552,3 +1552,37 @@ def derivar_codigo_seguridad(xml_firmado_ecf32: str) -> str:
             "(firma.firmar_con_app_oficial), no el XML sin firmar")
     signature_value = el.text.strip()
     return signature_value[:6]
+
+
+def construir_acecf(row: dict) -> str:
+    """Arma el XML de Aprobacion Comercial (ACECF) "sin firmar" -- Paso 3
+    de certificacion DGII (servicio "Recepcion de aprobacion comercial").
+
+    ``row`` es un dict plano con los 9 campos EXACTOS del XSD oficial
+    ``ACECF v.1.0.xsd`` (descargado de dgii.gov.do, confirmado 2026-09-17):
+    Version, RNCEmisor, eNCF, FechaEmision, MontoTotal, RNCComprador,
+    Estado, DetalleMotivoRechazo (opcional), FechaHoraAprobacionComercial
+    -- mismos nombres de columna que trae la hoja ``ACEECF_Generadas`` del
+    Excel que se descarga del Paso 3 del Portal de Certificacion
+    ("Descargar aprobaciones comerciales"), asi que un caller puede pasar
+    la fila del Excel directo, sin transformarla.
+
+    A diferencia de ``construir_ecf_generico``, NO hay que sustituir
+    ningun valor "raro" (p.ej. RNCEmisor=131880681 en los datos de
+    prueba) -- certecf exige el dato EXACTO del "conjunto de datos
+    entregados" (mismo aprendizaje que con RNCComprador en Paso 2, ver
+    memoria del proyecto).
+    """
+    acecf = etree.Element('ACECF')
+    det = _sub(acecf, 'DetalleAprobacionComercial')
+    _sub(det, 'Version', row['Version'])
+    _sub(det, 'RNCEmisor', row['RNCEmisor'])
+    _sub(det, 'eNCF', row['eNCF'])
+    _sub(det, 'FechaEmision', row['FechaEmision'])
+    _sub(det, 'MontoTotal', _fmt_monto(row['MontoTotal']))
+    _sub(det, 'RNCComprador', row['RNCComprador'])
+    _sub(det, 'Estado', int(row['Estado']))
+    if row.get('DetalleMotivoRechazo'):
+        _sub(det, 'DetalleMotivoRechazo', row['DetalleMotivoRechazo'])
+    _sub(det, 'FechaHoraAprobacionComercial', row['FechaHoraAprobacionComercial'])
+    return etree.tostring(acecf, xml_declaration=True, encoding='utf-8').decode('utf-8')
