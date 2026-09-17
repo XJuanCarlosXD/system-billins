@@ -246,6 +246,38 @@ def enviar_rfce(no_cia: str, ambiente: str, e_ncf: str, xml_sin_firmar: str) -> 
     }
 
 
+def enviar_aprobacion_comercial(no_cia: str, ambiente: str, e_ncf: str,
+                                 rnc_comprador: str, xml_sin_firmar: str) -> dict:
+    """Firma y envía una Aprobación Comercial (ACECF) -- Paso 3 del flujo
+    de certificación (Postulación), servicio "Recepción de aprobación
+    comercial".
+
+    ``POST https://ecf.dgii.gov.do/{ambiente}/aprobacioncomercial/api/
+    aprobacioncomercial`` -- mismo host que ``enviar_ecf``, distinto
+    recurso. A diferencia de ``enviar_ecf``/``enviar_rfce``, el nombre de
+    archivo estándar usa ``RNCComprador+eNCF`` (NO ``RNCEmisor+eNCF`` --
+    confirmado en ``Descripcion-Tecnica-Servicios-DGII.pdf``, tabla
+    "Formato de Nombre de los Archivos XML").
+
+    Respuesta síncrona (mismo patrón que ``enviar_rfce``): el dict
+    completo se devuelve tal cual para que el llamador pueda inspeccionar
+    "Aprobación comercial aprobada"/"rechazada" sin colapsar a booleano.
+    """
+    xml_firmado, _rnc_emisor = _firmar_para_envio(no_cia, xml_sin_firmar)
+    token = obtener_token(no_cia, ambiente)
+    nombre_archivo = f'{rnc_comprador}{e_ncf}.xml'
+    data = _post_multipart_firmado(
+        f'{_base(ambiente)}/aprobacioncomercial/api/aprobacioncomercial',
+        token, nombre_archivo, xml_firmado, 'Recepción aprobación comercial')
+    return {
+        'mensaje': data.get('mensaje'),
+        'estado': data.get('estado'),
+        'codigo': data.get('codigo'),
+        'xml_firmado': xml_firmado,
+        'respuesta_cruda': data,
+    }
+
+
 def reenviar_ecf(no_cia: str, ambiente: str, e_ncf: str, xml_firmado: str) -> dict:
     """Reenvía a la DGII un e-CF que YA fue firmado anteriormente (el mismo
     ``XML_FIRMADO`` guardado en ``TFE_DOCUMENTO`` por ``enviar_ecf``), SIN
