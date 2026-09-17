@@ -28,9 +28,12 @@ import {
 } from '@/components/ui/table'
 import {
   descargarXmlComoArchivo,
+  TIPOS_ECF_PASO4_MANUAL,
   useCertificacionPaso2Ecf,
   useCertificacionPaso2Rfce,
   useCertificacionPaso3,
+  useEnviarPaso4FacturaReal,
+  useEnviarPaso4Manual,
   type ResultadoAprobacionCertificacion,
   type ResultadoEnvioCertificacion,
   type ResultadoRfceCertificacion,
@@ -128,6 +131,152 @@ function PasoUploadCard({
   )
 }
 
+function Paso4Card({ noCia }: { noCia: string }) {
+  const facturaReal = useEnviarPaso4FacturaReal(noCia)
+  const manual = useEnviarPaso4Manual(noCia)
+  const [tipoEcf, setTipoEcf] = useState<'31' | '32'>('31')
+  const [punto, setPunto] = useState('')
+  const [tipoFactura, setTipoFactura] = useState('FT')
+  const [noFactura, setNoFactura] = useState('')
+  const [tipoManual, setTipoManual] = useState('41')
+  const [datosManual, setDatosManual] = useState('{\n  "RNCEmisor": "130217432"\n}')
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className='text-base'>
+          Paso 4 — Simulación e-CF (datos reales)
+        </CardTitle>
+        <CardDescription>
+          A diferencia de los Pasos 2/3, este paso NO tiene Excel de la
+          DGII: hay que usar operaciones reales de Abregonza. Cantidades
+          requeridas: 4×31, 2×32 (≥RD$250,000), 1×33, 2×34, 2×41, 2×43,
+          2×44, 2×45, 2×46, 2×47, más 4 resúmenes RFCE (&lt;250Mil, usar el
+          mismo flujo del Paso 2 con estos e-NCF reales).
+        </CardDescription>
+      </CardHeader>
+      <CardContent className='space-y-6'>
+        <div className='space-y-2'>
+          <p className='text-sm font-medium'>
+            Desde una factura real (tipos 31 y 32)
+          </p>
+          <div className='flex flex-wrap items-end gap-2'>
+            <div className='space-y-1'>
+              <label className='text-xs'>Tipo e-CF</label>
+              <select
+                className='border-input h-9 rounded-md border bg-transparent px-2 text-sm'
+                value={tipoEcf}
+                onChange={(e) => setTipoEcf(e.target.value as '31' | '32')}
+              >
+                <option value='31'>31 — Crédito Fiscal</option>
+                <option value='32'>32 — Consumo</option>
+              </select>
+            </div>
+            <div className='space-y-1'>
+              <label className='text-xs'>Punto</label>
+              <input
+                className='border-input h-9 w-20 rounded-md border bg-transparent px-2 text-sm'
+                value={punto}
+                onChange={(e) => setPunto(e.target.value)}
+              />
+            </div>
+            <div className='space-y-1'>
+              <label className='text-xs'>Tipo Factura</label>
+              <input
+                className='border-input h-9 w-24 rounded-md border bg-transparent px-2 text-sm'
+                value={tipoFactura}
+                onChange={(e) => setTipoFactura(e.target.value)}
+              />
+            </div>
+            <div className='space-y-1'>
+              <label className='text-xs'>No. Factura</label>
+              <input
+                className='border-input h-9 w-28 rounded-md border bg-transparent px-2 text-sm'
+                value={noFactura}
+                onChange={(e) => setNoFactura(e.target.value)}
+              />
+            </div>
+            <Button
+              disabled={!punto || !noFactura || facturaReal.isPending}
+              onClick={() =>
+                facturaReal.mutate(
+                  {
+                    tipo_ecf: Number(tipoEcf) as 31 | 32,
+                    punto,
+                    tipo_factura: tipoFactura,
+                    no_factura: noFactura,
+                  },
+                  {
+                    onSuccess: (r) =>
+                      toast.success(`Enviado ${r.encf} — trackId ${r.trackId}`),
+                    onError: (e: any) => toast.error(e.message),
+                  }
+                )
+              }
+            >
+              {facturaReal.isPending ? 'Enviando…' : 'Enviar a la DGII'}
+            </Button>
+          </div>
+        </div>
+
+        <div className='space-y-2 border-t pt-4'>
+          <p className='text-sm font-medium'>
+            Entrada manual (tipos 33/34/41/43/44/45/46/47)
+          </p>
+          <p className='text-muted-foreground text-xs'>
+            Igual que Modo Test, pero consume un e-NCF REAL (no
+            reutilizable). Para tipo 34, incluya <code>NCFModificado</code>{' '}
+            con el e-NCF de un documento ya enviado.
+          </p>
+          <div className='flex flex-wrap items-end gap-2'>
+            <div className='space-y-1'>
+              <label className='text-xs'>Tipo e-CF</label>
+              <select
+                className='border-input h-9 rounded-md border bg-transparent px-2 text-sm'
+                value={tipoManual}
+                onChange={(e) => setTipoManual(e.target.value)}
+              >
+                {Object.entries(TIPOS_ECF_PASO4_MANUAL).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {k} — {v}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <textarea
+            className='border-input h-32 w-full rounded-md border bg-transparent p-2 font-mono text-xs'
+            value={datosManual}
+            onChange={(e) => setDatosManual(e.target.value)}
+          />
+          <Button
+            disabled={manual.isPending}
+            onClick={() => {
+              let datos: Record<string, unknown>
+              try {
+                datos = JSON.parse(datosManual)
+              } catch {
+                toast.error('El JSON de datos no es válido')
+                return
+              }
+              manual.mutate(
+                { tipo_ecf: Number(tipoManual), datos },
+                {
+                  onSuccess: (r) =>
+                    toast.success(`Enviado ${r.encf} — trackId ${r.trackId}`),
+                  onError: (e: any) => toast.error(e.message),
+                }
+              )
+            }}
+          >
+            {manual.isPending ? 'Enviando…' : 'Enviar a la DGII'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 export function FeCertificacion({ noCia }: { noCia: string }) {
   const paso2Ecf = useCertificacionPaso2Ecf(noCia)
   const paso2Rfce = useCertificacionPaso2Rfce(noCia)
@@ -203,6 +352,8 @@ export function FeCertificacion({ noCia }: { noCia: string }) {
         isPending={paso3.isPending}
         resultados={paso3.data?.resultados as ResultadoAprobacionCertificacion[] | undefined}
       />
+
+      <Paso4Card noCia={noCia} />
     </div>
   )
 }

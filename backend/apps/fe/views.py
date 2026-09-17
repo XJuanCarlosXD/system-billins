@@ -15,6 +15,7 @@ Rutas:
 from __future__ import annotations
 
 import json
+import re
 
 import openpyxl
 from django.contrib.auth.decorators import login_required
@@ -475,3 +476,106 @@ def certificacion_paso3_view(request):
         })
 
     return JsonResponse({'resultados': resultados})
+
+
+_BUILDERS_DESDE_FACTURA = {31: 'construir_ecf_31', 32: 'construir_ecf_32'}
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def certificacion_paso4_factura_real_view(request):
+    """Paso 4 de certificacion DGII (grupo "Primero", tipos 31/32): arma
+    el e-CF desde una factura REAL ya emitida en TFAT_FACTURA (mismo
+    pipeline de produccion de Fase 1, ``ecf_builder.construir_ecf_31/32``
+    -- consume secuencia REAL de TFE_SECUENCIA, no reutilizable) y la
+    envia contra ``certecf``. A diferencia del Paso 2, aqui NO hay Excel
+    de la DGII: el operador elige que factura real usar.
+    """
+    no_cia = request.POST.get('no_cia')
+    tipo_ecf_raw = request.POST.get('tipo_ecf')
+    punto = request.POST.get('punto')
+    tipo_factura = request.POST.get('tipo_factura')
+    no_factura = request.POST.get('no_factura')
+    if not no_cia:
+        return _err('no_cia requerido')
+    if not all([punto, tipo_factura, no_factura]):
+        return _err('punto, tipo_factura y no_factura son requeridos')
+    try:
+        tipo_ecf = int(tipo_ecf_raw)
+    except (TypeError, ValueError):
+        return _err('tipo_ecf debe ser 31 o 32')
+    builder_name = _BUILDERS_DESDE_FACTURA.get(tipo_ecf)
+    if builder_name is None:
+        return _err('tipo_ecf debe ser 31 (Credito Fiscal) o 32 (Consumo)')
+    builder = getattr(ecf_builder, builder_name)
+    try:
+        xml_sin_firmar = builder(no_cia, punto, tipo_factura, no_factura)
+    except ecf_builder.ECFBuilderError as exc:
+        return _err(str(exc))
+    # ecf_builder ya consumio la secuencia real dentro de xml_sin_firmar;
+    # extraer el eNCF asignado para guardar la bitacora.
+    m = re.search(r'<eNCF>([^<]+)</eNCF>', xml_sin_firmar)
+    e_ncf = m.group(1) if m else None
+    try:
+        resultado = dgii_client.enviar_ecf(no_cia, _AMBIENTE_MODO_TEST, e_ncf, xml_sin_firmar)
+    except dgii_client.DgiiError as exc:
+        return _err(str(exc), status=502)
+    fe_repo.save_documento_enviado(
+        no_cia, e_ncf, str(tipo_ecf), resultado['trackId'],
+        resultado['xml_firmado'], json.dumps(resultado['respuesta_cruda']),
+        es_prueba='S')
+    return JsonResponse({'ok': True, 'encf': e_ncf, 'trackId': resultado['trackId']})
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def certificacion_paso4_manual_view(request):
+    """Paso 4 de certificacion DGII (grupo "Segundo": tipos 33/34; y el
+    resto de "Primero" sin pipeline de produccion: 41/43/44/45/46/47).
+    Mismo builder que Modo Test (``ecf_builder.construir_ecf_generico``,
+    datos planos escritos a mano por el operador) pero, a diferencia de
+    Modo Test, consume una secuencia REAL y no reutilizable de
+    TFE_SECUENCIA (``fe_repo.consumir_siguiente_encf``) en vez de un
+    e-NCF fijo -- el Paso 4 exige datos de operaciones reales, no el
+    Set de Pruebas fijo de la DGII.
+
+    Para tipo 34 (Nota de Credito), ``datos`` debe incluir
+    ``NCFModificado`` con el e-NCF de un documento YA enviado en el
+    grupo "Primero" (el operador lo copia del resultado de
+    ``certificacion_paso4_factura_real_view``/otro envio manual previo).
+    """
+    try:
+        data = json.loads(request.body or b'{}')
+    except json.JSONDecodeError:
+        return _err('JSON invalido')
+    no_cia = data.get('no_cia')
+    tipo_ecf_raw = data.get('tipo_ecf')
+    datos = data.get('datos') if data.get('datos') is not None else {}
+    if not no_cia or tipo_ecf_raw in (None, ''):
+        return _err('no_cia y tipo_ecf son requeridos')
+    if not isinstance(datos, dict):
+        return _err("'datos' debe ser un objeto JSON")
+    try:
+        tipo_ecf = int(tipo_ecf_raw)
+    except (TypeError, ValueError):
+        return _err('tipo_ecf debe ser un entero del catalogo TipoeCF')
+    try:
+        secuencia = fe_repo.consumir_siguiente_encf(no_cia, tipo_ecf)
+    except ValueError as exc:
+        return _err(str(exc))
+    e_ncf = secuencia['e_ncf']
+    try:
+        xml_sin_firmar = ecf_builder.construir_ecf_generico(tipo_ecf, e_ncf, datos)
+    except ecf_builder.ECFBuilderError as exc:
+        return _err(str(exc))
+    try:
+        resultado = dgii_client.enviar_ecf(no_cia, _AMBIENTE_MODO_TEST, e_ncf, xml_sin_firmar)
+    except dgii_client.DgiiError as exc:
+        return _err(str(exc), status=502)
+    fe_repo.save_documento_enviado(
+        no_cia, e_ncf, str(tipo_ecf), resultado['trackId'],
+        resultado['xml_firmado'], json.dumps(resultado['respuesta_cruda']),
+        es_prueba='S')
+    return JsonResponse({'ok': True, 'encf': e_ncf, 'trackId': resultado['trackId']})
