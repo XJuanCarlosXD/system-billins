@@ -8,7 +8,7 @@ frontera, y se ejercita la ruta HTTP real con el test Client de Django.
 
 Los tests mas importantes de seguridad aqui son:
 
-1. ``testecf`` se usa SIEMPRE, sin importar el ambiente configurado en
+1. ``certecf`` se usa SIEMPRE, sin importar el ambiente configurado en
    ``TFE_CONFIG`` de la cia (hardcodeado en la vista, no debe leerse de
    config -- ver docstring de ``_AMBIENTE_MODO_TEST`` en views.py).
 2. ``fe_repo.consumir_siguiente_encf`` NUNCA se llama desde este flujo
@@ -102,7 +102,7 @@ def test_dgii_error_da_502(cliente_autenticado, monkeypatch):
     assert resp.status_code == 502
 
 
-def test_envio_exitoso_usa_testecf_siempre_y_guarda_es_prueba_s(
+def test_envio_exitoso_usa_certecf_siempre_y_guarda_es_prueba_s(
     cliente_autenticado, monkeypatch
 ):
     build_calls = []
@@ -127,11 +127,11 @@ def test_envio_exitoso_usa_testecf_siempre_y_guarda_es_prueba_s(
         fe_repo, 'save_documento_enviado',
         lambda *a, **k: save_calls.append((a, k)))
 
-    # Config de la cia con ambiente='certecf' (avanzada de fase) -- el
-    # endpoint de modo test NO debe usarla, debe forzar 'testecf' siempre.
+    # Config de la cia con ambiente='testecf' (fase anterior) -- el
+    # endpoint de modo test NO debe usarla, debe forzar 'certecf' siempre.
     monkeypatch.setattr(
         fe_repo, 'get_config',
-        lambda no_cia: {'no_cia': no_cia, 'ambiente': 'certecf', 'rnc_emisor': '130217432'})
+        lambda no_cia: {'no_cia': no_cia, 'ambiente': 'testecf', 'rnc_emisor': '130217432'})
 
     # fe_repo.consumir_siguiente_encf NO debe llamarse jamas desde este
     # flujo -- si se llamara, esto haria fallar el test con AssertionError
@@ -154,9 +154,9 @@ def test_envio_exitoso_usa_testecf_siempre_y_guarda_es_prueba_s(
     assert build_calls == [(32, 'E320000000006',
                             {'RNCEmisor': '130217432', 'MontoTotal': '1180.00'})]
 
-    # Seguridad #1: SIEMPRE 'testecf', pase lo que pase en TFE_CONFIG.
+    # Seguridad #1: SIEMPRE 'certecf', pase lo que pase en TFE_CONFIG.
     no_cia, ambiente, e_ncf, xml_sin_firmar = enviar_calls[0]
-    assert ambiente == 'testecf'
+    assert ambiente == 'certecf'
     assert no_cia == '01'
     assert e_ncf == 'E320000000006'
     assert xml_sin_firmar == '<ECF>sin firmar</ECF>'

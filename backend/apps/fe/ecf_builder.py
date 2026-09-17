@@ -1519,15 +1519,25 @@ def derivar_codigo_seguridad(xml_firmado_ecf32: str) -> str:
         Recepcion RFCE (``Descripcion-Tecnica-Servicios-DGII.pdf``) no
         incluye el codigo de seguridad.
 
-    Se usa SHA-256 (eleccion documentada, no oculta -- coherente con el
-    resto del proyecto: ``apps.fe.firma`` firma con
-    ``RSA_SHA256``/``DigestAlgorithm.SHA256``) sobre el texto EXACTO del
-    nodo ``<SignatureValue>`` (UTF-8, tal cual viene en el XML, SIN
-    decodificar el base64), hex digest, minusculas, primeros 6 caracteres.
-    Si en algun momento la DGII devuelve un ``codigoSeguridad`` distinto via
-    ``ConsultaEstado``/``ConsultaRFCE`` para un e-NCF real, documentar el
-    valor observado y ajustar esta funcion -- no hay forma de confirmar el
-    algoritmo exacto sin acceso a la implementacion interna de la DGII.
+    CORREGIDO 2026-09-17: el algoritmo NO es un hash SHA-256 -- es
+    literalmente los primeros 6 caracteres CRUDOS del texto base64 de
+    ``<SignatureValue>`` tal cual aparece en el XML (sin hashear, sin
+    decodificar). Confirmado contra un rechazo real de la DGII al subir
+    ``130217432E320000000012.xml`` por el widget "Facturas de consumo
+    <250Mil" del portal de certificacion (ambiente certecf): el mensaje de
+    error citaba textualmente "mNI/8h" como el codigo que la DGII calculo
+    para ese archivo, y ``mNI/8h`` son, verificado con ``grep`` sobre el
+    XML real, los primeros 6 caracteres EXACTOS de su
+    ``<SignatureValue>`` -- no coinciden en absoluto con un hash SHA-256
+    (que hubiera dado un string hexadecimal en minusculas, nunca con
+    mayusculas ni con ``/``). La redaccion "extraido de los primeros seis
+    (6) digitos del hash generado en el SignatureValue" de
+    ``Descripcion-Tecnica-Servicios-DGII.pdf`` resulto ser coloquial (usa
+    "hash" para referirse al propio valor de la firma, no a una funcion de
+    hash aplicada sobre el), no literal -- la implementacion SHA-256
+    anterior (ver historial git) era una interpretacion razonable dado que
+    el PDF no probaba el algoritmo, pero quedo refutada empiricamente por
+    la propia DGII.
     """
     if isinstance(xml_firmado_ecf32, str):
         xml_bytes = xml_firmado_ecf32.encode('utf-8')
@@ -1541,5 +1551,4 @@ def derivar_codigo_seguridad(xml_firmado_ecf32: str) -> str:
             "derivar_codigo_seguridad() necesita el e-CF32 YA FIRMADO "
             "(firma.firmar_con_app_oficial), no el XML sin firmar")
     signature_value = el.text.strip()
-    digest_hex = hashlib.sha256(signature_value.encode('utf-8')).hexdigest()
-    return digest_hex[:6]
+    return signature_value[:6]

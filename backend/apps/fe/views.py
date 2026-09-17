@@ -242,13 +242,21 @@ def documento_reenviar_view(request, e_ncf):
                          'respuesta_dgii': resultado['respuesta_cruda']})
 
 
-# AMBIENTE hardcodeado a 'testecf' a proposito (Task 5, modo test) -- NO se
-# lee de TFE_CONFIG.ambiente de la cia. El Set de Pruebas de certificacion
-# de la DGII (Paso 2) tiene que ir SIEMPRE contra el ambiente de pruebas,
-# nunca contra 'certecf'/'ecf', sin importar en que ambiente este
-# configurada la cia para su facturacion real -- requisito de seguridad
-# explicito (ver plan de Task 5), no una eleccion de conveniencia.
-_AMBIENTE_MODO_TEST = 'testecf'
+# AMBIENTE hardcodeado a 'certecf' a proposito (Task 5, modo test) -- NO se
+# lee de TFE_CONFIG.ambiente de la cia. CORREGIDO 2026-09-17: el Set de
+# Pruebas de certificacion (Paso 2 de la Postulacion) tiene que ir contra
+# el ambiente de CERTIFICACION, no contra 'testecf' (Pre-Certificacion).
+# El hardcode original a 'testecf' trataba ese ambiente con la misma
+# cautela que produccion por error -- confirmado con la DGII (correo
+# 2026-09-17, con captura de su propia herramienta de consulta interna
+# filtrando por Ambiente) que el contador "Estado actual de las pruebas"
+# del portal solo cuenta comprobantes enviados a 'certecf'; todo lo
+# enviado a 'testecf' es aceptado por la API pero nunca cuenta para el
+# avance de la Postulacion 81443. Ver Descripcion-Tecnica-Servicios-DGII.pdf
+# p.7 ("Certificacion: ambiente que tiene por objetivo validar capacidades
+# ... debiendo para ello agotar un conjunto de pruebas") -- es literalmente
+# la descripcion de este paso. 'ecf' (produccion) sigue fuera de alcance.
+_AMBIENTE_MODO_TEST = 'certecf'
 
 
 @login_required

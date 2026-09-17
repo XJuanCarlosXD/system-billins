@@ -47,10 +47,14 @@ from django.core.management.base import BaseCommand, CommandError
 
 from apps.fe import dgii_client, ecf_builder
 
-# Hardcodeado a proposito, igual que apps.fe.views._AMBIENTE_MODO_TEST -- el
-# Set de Pruebas de certificacion SIEMPRE va contra testecf, nunca
-# certecf/ecf, sin importar TFE_CONFIG.ambiente de la cia.
-_AMBIENTE = 'testecf'
+# Hardcodeado a proposito, igual que apps.fe.views._AMBIENTE_MODO_TEST --
+# CORREGIDO 2026-09-17: el Set de Pruebas de certificacion (Paso 2) va
+# contra 'certecf' (Certificacion), no 'testecf' (Pre-Certificacion) --
+# ver el comentario extendido en views.py._AMBIENTE_MODO_TEST para la
+# explicacion completa (confirmado por la DGII con captura de su propia
+# herramienta de consulta interna). 'ecf' (produccion) sigue fuera de
+# alcance, sin importar TFE_CONFIG.ambiente de la cia.
+_AMBIENTE = 'certecf'
 
 # RNC real activo que sustituye 131880681 ("DOCUMENTOS ELECTRONICOS DE 03",
 # no es contribuyente activo) en RNCComprador/RazonSocialComprador de los 4

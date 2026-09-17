@@ -203,7 +203,15 @@ def test_derivar_codigo_seguridad_devuelve_6_caracteres():
     xml = _xml_firmado_fake('QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo=')
     codigo = ecf_builder.derivar_codigo_seguridad(xml)
     assert len(codigo) == 6
-    assert codigo == codigo.lower()
+
+
+def test_derivar_codigo_seguridad_es_los_primeros_6_caracteres_crudos():
+    # CORREGIDO 2026-09-17: no es un hash -- son los primeros 6
+    # caracteres LITERALES del SignatureValue base64 (mayusculas, '/' y
+    # '+' incluidos tal cual), confirmado contra un rechazo real de la
+    # DGII (ver docstring de derivar_codigo_seguridad).
+    xml = _xml_firmado_fake('mNI/8hXYZ1234567890abcdef==')
+    assert ecf_builder.derivar_codigo_seguridad(xml) == 'mNI/8h'
 
 
 def test_derivar_codigo_seguridad_es_deterministico():
