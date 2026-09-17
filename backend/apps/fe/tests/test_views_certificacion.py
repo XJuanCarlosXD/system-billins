@@ -191,3 +191,56 @@ def test_paso2_rfce_devuelve_xml_firmado_para_descargar(cliente_autenticado, mon
     assert r['estado_rfce'] == 'Aceptado'
     assert 'SignatureValue' in r['ecf32_firmado_xml']
     assert r['nombre_archivo'] == '130217432E320000000012.xml'
+
+
+def _excel_aprobaciones_bytes(filas):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'ACEECF_Generadas'
+    headers = ['Version', 'RNCEmisor', 'eNCF', 'FechaEmision', 'MontoTotal',
+               'RNCComprador', 'Estado', 'DetalleMotivoRechazo',
+               'FechaHoraAprobacionComercial']
+    ws.append(headers)
+    for fila in filas:
+        ws.append([fila.get(h) for h in headers])
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf.read()
+
+
+def test_paso3_requiere_login(client, db):
+    resp = client.post('/api/fe/certificacion/paso3-aprobaciones/', data={'no_cia': '01'})
+    assert resp.status_code in (302, 401, 403)
+
+
+def test_paso3_envia_cada_fila_del_excel(cliente_autenticado, monkeypatch):
+    fila = {
+        'Version': '1.0', 'RNCEmisor': '131880681', 'eNCF': 'E310000000001',
+        'FechaEmision': '01-04-2020', 'MontoTotal': 7080,
+        'RNCComprador': '130217432', 'Estado': 1,
+        'DetalleMotivoRechazo': None,
+        'FechaHoraAprobacionComercial': '17-09-2026 11:44:23',
+    }
+    archivo = _excel_aprobaciones_bytes([fila])
+
+    monkeypatch.setattr(ecf_builder, 'construir_acecf', lambda row: '<ACECF/>')
+    envios = []
+
+    def fake_enviar(no_cia, ambiente, e_ncf, rnc_comprador, xml):
+        envios.append((ambiente, e_ncf, rnc_comprador))
+        return {'mensaje': [], 'estado': 'Aprobacion Comercial Aprobada.',
+                'codigo': '01', 'xml_firmado': '<x/>', 'respuesta_cruda': {}}
+
+    monkeypatch.setattr(dgii_client, 'enviar_aprobacion_comercial', fake_enviar)
+
+    resp = cliente_autenticado.post(
+        '/api/fe/certificacion/paso3-aprobaciones/',
+        data={'no_cia': '01', 'archivo': _as_upload(archivo)},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body['resultados']) == 1
+    assert body['resultados'][0]['ok'] is True
+    assert body['resultados'][0]['estado'] == 'Aprobacion Comercial Aprobada.'
+    assert envios == [('certecf', 'E310000000001', '130217432')]

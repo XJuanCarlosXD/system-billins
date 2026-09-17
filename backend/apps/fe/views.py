@@ -432,3 +432,46 @@ def certificacion_paso2_rfce_view(request):
         })
 
     return JsonResponse({'resultados': resultados})
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def certificacion_paso3_view(request):
+    """Paso 3 de certificacion DGII (Aprobaciones Comerciales): sube el
+    Excel que se descarga del Portal de Certificacion ("Descargar
+    aprobaciones comerciales", hoja ``ACEECF_Generadas``) y envia cada
+    fila TAL CUAL viene -- certecf exige los datos exactos del "conjunto
+    de datos entregados", no hay que corregir RNCEmisor/RNCComprador aqui
+    (a diferencia de lo que se penso al principio con RNCComprador en
+    Paso 2, ver memoria del proyecto).
+    """
+    no_cia = request.POST.get('no_cia')
+    archivo = request.FILES.get('archivo')
+    if not no_cia:
+        return _err('no_cia requerido')
+    if not archivo:
+        return _err('archivo (.xlsx) requerido')
+    try:
+        filas = _leer_filas_excel(archivo, 'ACEECF_Generadas')
+    except ValueError as exc:
+        return _err(str(exc))
+
+    resultados = []
+    for row in filas:
+        encf = row.get('eNCF')
+        if not encf:
+            continue
+        try:
+            xml_sin_firmar = ecf_builder.construir_acecf(row)
+            resultado = dgii_client.enviar_aprobacion_comercial(
+                no_cia, _AMBIENTE_MODO_TEST, encf, str(row['RNCComprador']), xml_sin_firmar)
+        except (ecf_builder.ECFBuilderError, dgii_client.DgiiError, KeyError, ValueError) as exc:
+            resultados.append({'encf': encf, 'ok': False, 'error': str(exc)})
+            continue
+        resultados.append({
+            'encf': encf, 'ok': True,
+            'estado': resultado['estado'], 'codigo': resultado['codigo'],
+        })
+
+    return JsonResponse({'resultados': resultados})
