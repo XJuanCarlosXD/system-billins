@@ -379,3 +379,56 @@ def certificacion_paso2_ecf_view(request):
         resultados.append({'encf': encf, 'ok': True, 'trackId': resultado['trackId']})
 
     return JsonResponse({'resultados': resultados})
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def certificacion_paso2_rfce_view(request):
+    """Paso 2 de certificacion DGII (grupo "Tercero", las 4 Facturas de
+    Consumo < RD$250,000): construye+firma el e-CF32 completo, deriva
+    ``CodigoSeguridadeCF`` de SU FIRMA REAL (``ecf_builder.
+    derivar_codigo_seguridad`` -- primeros 6 caracteres crudos del
+    SignatureValue, NO un hash), arma+envia el RFCE, y devuelve el e-CF32
+    YA FIRMADO en la respuesta para que el operador lo descargue y lo
+    suba a mano en el widget "Facturas de consumo < 250Mil" del propio
+    Portal de Certificacion (paso "Cuarto" -- no automatizable, es una
+    accion de navegador en el sitio de la DGII, no un servicio REST).
+    """
+    no_cia = request.POST.get('no_cia')
+    archivo = request.FILES.get('archivo')
+    if not no_cia:
+        return _err('no_cia requerido')
+    if not archivo:
+        return _err('archivo (.xlsx) requerido')
+    try:
+        filas_ecf = {r['ENCF']: r for r in _leer_filas_excel(archivo, 'ECF')
+                     if r.get('ENCF') in _RFCE_ENCFS_PASO2}
+        archivo.seek(0)
+        filas_rfce = {r.get('ENCF') or r.get('CasoPrueba'): r
+                      for r in _leer_filas_excel(archivo, 'RFCE')}
+    except ValueError as exc:
+        return _err(str(exc))
+
+    resultados = []
+    for encf, ecf_row in filas_ecf.items():
+        rfce_row = filas_rfce.get(encf, ecf_row)
+        try:
+            ecf_sin_firmar = ecf_builder.construir_ecf_generico(32, encf, ecf_row)
+            ecf_firmado, rnc_emisor = dgii_client._firmar_para_envio(no_cia, ecf_sin_firmar)
+            codigo_seguridad = ecf_builder.derivar_codigo_seguridad(ecf_firmado)
+            rfce_sin_firmar = ecf_builder.construir_rfce(encf, rfce_row, codigo_seguridad)
+            resultado = dgii_client.enviar_rfce(no_cia, _AMBIENTE_MODO_TEST, encf, rfce_sin_firmar)
+        except (ecf_builder.ECFBuilderError, dgii_client.DgiiError, KeyError, ValueError) as exc:
+            resultados.append({'encf': encf, 'ok': False, 'error': str(exc)})
+            continue
+        resultados.append({
+            'encf': encf,
+            'ok': True,
+            'estado_rfce': resultado['estado'],
+            'codigo_seguridad': codigo_seguridad,
+            'ecf32_firmado_xml': ecf_firmado,
+            'nombre_archivo': f'{rnc_emisor}{encf}.xml',
+        })
+
+    return JsonResponse({'resultados': resultados})

@@ -134,3 +134,60 @@ def _as_upload(contenido: bytes):
     return SimpleUploadedFile(
         'set-pruebas.xlsx', contenido,
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+def _excel_rfce_bytes(filas_ecf, filas_rfce):
+    wb = openpyxl.Workbook()
+    ws_ecf = wb.active
+    ws_ecf.title = 'ECF'
+    headers = ['TipoeCF', 'ENCF', 'RNCEmisor', 'RNCComprador', 'MontoTotal']
+    ws_ecf.append(headers)
+    for fila in filas_ecf:
+        ws_ecf.append([fila.get(h) for h in headers])
+    ws_rfce = wb.create_sheet('RFCE')
+    ws_rfce.append(headers)
+    for fila in filas_rfce:
+        ws_rfce.append([fila.get(h) for h in headers])
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf.read()
+
+
+def test_paso2_rfce_requiere_login(client, db):
+    resp = client.post('/api/fe/certificacion/paso2-rfce/', data={'no_cia': '01'})
+    assert resp.status_code in (302, 401, 403)
+
+
+def test_paso2_rfce_devuelve_xml_firmado_para_descargar(cliente_autenticado, monkeypatch):
+    fila = {'TipoeCF': 32, 'ENCF': 'E320000000012', 'RNCEmisor': '130217432',
+            'RNCComprador': '131880681', 'MontoTotal': 47200}
+    archivo = _excel_rfce_bytes([fila], [fila])
+
+    monkeypatch.setattr(ecf_builder, 'construir_ecf_generico', lambda t, e, d: '<ECF/>')
+    monkeypatch.setattr(
+        dgii_client, '_firmar_para_envio',
+        lambda no_cia, xml: ('<ECF firmado><Signature><SignatureValue>abc123XYZ==</SignatureValue></Signature></ECF>', '130217432'))
+    monkeypatch.setattr(
+        ecf_builder, 'derivar_codigo_seguridad', lambda xml_firmado: 'abc123')
+    monkeypatch.setattr(ecf_builder, 'construir_rfce', lambda e, d, c: '<RFCE/>')
+    monkeypatch.setattr(
+        dgii_client, 'enviar_rfce',
+        lambda no_cia, ambiente, e_ncf, xml: {
+            'estado': 'Aceptado', 'codigo': 1, 'mensajes': None,
+            'encf': e_ncf, 'secuencia_utilizada': True,
+            'xml_firmado': '<RFCE firmado/>', 'respuesta_cruda': {}})
+
+    resp = cliente_autenticado.post(
+        '/api/fe/certificacion/paso2-rfce/',
+        data={'no_cia': '01', 'archivo': _as_upload(archivo)},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body['resultados']) == 1
+    r = body['resultados'][0]
+    assert r['ok'] is True
+    assert r['encf'] == 'E320000000012'
+    assert r['estado_rfce'] == 'Aceptado'
+    assert 'SignatureValue' in r['ecf32_firmado_xml']
+    assert r['nombre_archivo'] == '130217432E320000000012.xml'
