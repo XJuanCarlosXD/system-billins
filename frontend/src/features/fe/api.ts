@@ -378,3 +378,66 @@ export function descargarXmlComoArchivo(nombreArchivo: string, contenidoXml: str
   a.remove()
   URL.revokeObjectURL(url)
 }
+
+// ---------------------------------------------------------------------------
+// Paso 4 — Simulación e-CF (datos reales de Abregonza, NO el Excel de la
+// DGII). Dos vías: factura real ya emitida (31/32) o entrada manual con
+// secuencia real (resto de tipos).
+// ---------------------------------------------------------------------------
+
+export interface ResultadoPaso4 {
+  ok: boolean
+  encf?: string
+  trackId?: string
+  detail?: string
+}
+
+export interface EnviarFacturaRealInput {
+  tipo_ecf: 31 | 32
+  punto: string
+  tipo_factura: string
+  no_factura: string
+}
+
+export function useEnviarPaso4FacturaReal(noCia: string) {
+  return useMutation({
+    mutationFn: (input: EnviarFacturaRealInput) => {
+      const fd = new FormData()
+      fd.append('no_cia', noCia)
+      fd.append('tipo_ecf', String(input.tipo_ecf))
+      fd.append('punto', input.punto)
+      fd.append('tipo_factura', input.tipo_factura)
+      fd.append('no_factura', input.no_factura)
+      return feRequest<ResultadoPaso4>(`/fe/certificacion/paso4-factura-real/`, {
+        method: 'POST',
+        body: fd,
+      })
+    },
+  })
+}
+
+export interface EnviarPaso4ManualInput {
+  tipo_ecf: number
+  datos: Record<string, unknown>
+}
+
+export const TIPOS_ECF_PASO4_MANUAL: Record<string, string> = {
+  '33': 'Nota de Débito Electrónica',
+  '34': 'Nota de Crédito Electrónica',
+  '41': 'Compras Electrónico',
+  '43': 'Gastos Menores Electrónico',
+  '44': 'Regímenes Especiales Electrónica',
+  '45': 'Gubernamental Electrónico',
+  '46': 'Exportaciones Electrónico',
+  '47': 'Pagos al Exterior Electrónico',
+}
+
+export function useEnviarPaso4Manual(noCia: string) {
+  return useMutation({
+    mutationFn: (input: EnviarPaso4ManualInput) =>
+      feRequest<ResultadoPaso4>(`/fe/certificacion/paso4-manual/`, {
+        method: 'POST',
+        body: JSON.stringify({ no_cia: noCia, ...input }),
+      }),
+  })
+}
