@@ -174,6 +174,7 @@ export function AccNuevoEgreso() {
   const [ncf, setNcf] = useState('')
   const [rnc, setRnc] = useState('')
   const [detalle, setDetalle] = useState('')
+  const [noFormulario, setNoFormulario] = useState('')
 
   const cajaSel = (cajasQ.data || []).find((c: any) => c.no_caja === noCaja && c.activa === 'S')
   const gastoSel = (gastosQ.data || []).find((g: any) => g.tipo_gasto === tipoGasto)
@@ -210,6 +211,7 @@ export function AccNuevoEgreso() {
   const reset = () => {
     setBeneficiario(null); setTipoGasto(''); setValor('');
     setImpuesto('0'); setNcf(''); setRnc(''); setDetalle('')
+    setNoFormulario('')
     setFecha(new Date().toISOString().slice(0, 10))
     setLineas([filaVacia()]); setLineasTocadas(false)
   }
@@ -227,6 +229,7 @@ export function AccNuevoEgreso() {
       ncf: ncf.trim() || undefined,
       rnc: rnc.trim() || undefined,
       detalle: detalle.trim() || undefined,
+      no_formulario: noFormulario.trim() || undefined,
       cuenta: cajaSel?.cuenta,
       lineas: lineasValidas.map((l) => ({
         cuenta: l.cuenta,
@@ -345,7 +348,18 @@ export function AccNuevoEgreso() {
             titulo="Cuenta de gasto a afectar (débito)"
           />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {cajaSel && (
+            <div className="rounded-md border border-dashed bg-muted/20 px-3 py-2 text-xs flex items-center justify-between">
+              <span>
+                <span className="text-muted-foreground">Crédito (automático — cuenta de la caja): </span>
+                <span className="font-mono">{cajaSel.cuenta}</span>
+                <span className="text-muted-foreground"> — {cajaSel.descripcion}</span>
+              </span>
+              <span className="tabular-nums font-medium">RD$ {fmt(valorNum)}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">NCF (B01–B15)</Label>
               <Input value={ncf} onChange={(e) => setNcf(e.target.value.toUpperCase())}
@@ -355,6 +369,11 @@ export function AccNuevoEgreso() {
               <Label className="text-xs">RNC / Cédula</Label>
               <Input value={rnc} onChange={(e) => setRnc(e.target.value)}
                      placeholder="Sin guiones" className="h-9 font-mono" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">No. Formulario</Label>
+              <Input value={noFormulario} onChange={(e) => setNoFormulario(e.target.value)}
+                     placeholder="No. de comprobante preimpreso" className="h-9 font-mono" />
             </div>
           </div>
 

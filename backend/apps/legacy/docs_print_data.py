@@ -1826,16 +1826,15 @@ def acc_documento_print_data(request, no_docu: str):
     }
     total = _money_or_zero(doc_full.get('valor'))
     itbis = _money_or_zero(doc_full.get('impuesto'))
-    # Solo las líneas de DÉBITO son gasto real (a qué se aplicó el dinero).
-    # La línea de CRÉDITO es siempre la cuenta de la caja (contrapartida
-    # contable, no un renglón de compra) -- incluirla en el recibo confundía
-    # al beneficiario mostrando la cuenta de la caja como si fuera un gasto.
-    lineas_cnt = [
-        l for l in acc_repo.list_lineas_documento(no_cia, punto, no_docu)
-        if (l.get('tipo_movi') or 'D') == 'D'
-    ]
+    # Débito = a qué cuenta(s) de gasto se aplicó el dinero (elegidas por el
+    # usuario). Crédito = siempre la cuenta de la caja chica, automática, no
+    # editable -- se muestra al final, etiquetada como crédito, para que el
+    # comprobante refleje el asiento completo (no solo la mitad del gasto).
+    lineas_full = acc_repo.list_lineas_documento(no_cia, punto, no_docu)
+    lineas_debito = [l for l in lineas_full if (l.get('tipo_movi') or 'D') == 'D']
+    lineas_credito = [l for l in lineas_full if l.get('tipo_movi') == 'C']
     lineas = []
-    for i, l in enumerate(lineas_cnt):
+    for i, l in enumerate(lineas_debito):
         cuenta_cod = (l.get('cuenta') or '').strip()
         cuenta_info = cnt_repo.get_cuenta(cuenta_cod) if cuenta_cod else None
         # Nombre real de la cuenta afectada por esta línea (puede haber
@@ -1850,6 +1849,19 @@ def acc_documento_print_data(request, no_docu: str):
             'no_linea': i + 1,
             'codigo': cuenta_cod,
             'descripcion': nombre,
+            'cantidad': 1,
+            'precio': _money_or_zero(l.get('monto')),
+            'descuento': 0, 'itbis': 0,
+            'total': _money_or_zero(l.get('monto')),
+        })
+    for l in lineas_credito:
+        cuenta_cod = (l.get('cuenta') or '').strip()
+        caja = acc_repo.get_caja_chica(no_cia, punto, doc_full.get('no_caja') or '')
+        nombre_caja = (caja or {}).get('descripcion') or 'Caja Chica'
+        lineas.append({
+            'no_linea': len(lineas) + 1,
+            'codigo': cuenta_cod,
+            'descripcion': f"(Crédito automático) {nombre_caja}",
             'cantidad': 1,
             'precio': _money_or_zero(l.get('monto')),
             'descuento': 0, 'itbis': 0,
