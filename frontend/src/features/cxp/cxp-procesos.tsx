@@ -958,10 +958,56 @@ export function CxpEntradaDocumentos({
         )
       }
       if (esDocDebito) {
-        setDocRecienCreado({
-          tipoDocu, noDocu: res.no_docu,
-          proveedorNo: proveedor.no_proveedor, proveedorNombre: proveedor.nombre,
-        })
+        // Si el operador ya escribió montos en el preview "Facturas
+        // pendientes a las que se podrá afectar este documento", eso es
+        // intent explícito de aplicar: aplicar de inmediato en vez de
+        // exigir un segundo click en AplicarDocRecienCreado. Sin esto,
+        // MPILAR reportó que "aplicamos ND afectamos FP/FT pero no la
+        // esta debitando" — llenaba los montos, apretaba Guardar y
+        // asumía que ya se aplicó; el card posterior aparecía debajo del
+        // fold (el print del PDF abre otra pestaña) y quedaba sin
+        // apretar "Aplicar", dejando la ND con todo su saldo a favor
+        // (evidencia: ND-2249, 2246, 2226, 2223, 2222, 2241 sin filas
+        // en TCXP_REFEDOCU y con saldo negativo intacto).
+        const pendientesPrev = pendientesPreview.data?.pendientes || []
+        const aplicacionesPre = pendientesPrev
+          .map((d: any) => ({
+            tipo_docu: d.tipo_docu,
+            no_docu: d.no_docu,
+            monto: Number(montosPreview[`${d.tipo_docu}|${d.no_docu}`] || 0),
+          }))
+          .filter((a: any) => a.monto > 0)
+        if (aplicacionesPre.length > 0) {
+          try {
+            const rAp: any = await api.cxpAplicarMovimientos({
+              no_cia: noCia, punto,
+              tipo_docu: tipoDocu, no_docu: res.no_docu,
+              aplicaciones: aplicacionesPre,
+            })
+            toast.success(
+              `${tipoDocu}-${res.no_docu} aplicado contra ${rAp.aplicaciones.length} factura(s). ` +
+              `Saldo a favor restante: RD$ ${Math.abs(Number(rAp.saldo_favor_restante || 0)).toLocaleString('es-DO', { minimumFractionDigits: 2 })}`
+            )
+          } catch (e: any) {
+            // Doc creado pero aplicación falló: dejar el card manual
+            // como fallback para que el operador pueda corregir montos
+            // y reintentar sin salir de la pantalla.
+            toast.error(
+              `Se creó ${tipoDocu}-${res.no_docu} pero la aplicación automática falló: ` +
+              `${e?.detail?.error || e?.message || 'error desconocido'}. ` +
+              `Revise los montos abajo y reintente.`
+            )
+            setDocRecienCreado({
+              tipoDocu, noDocu: res.no_docu,
+              proveedorNo: proveedor.no_proveedor, proveedorNombre: proveedor.nombre,
+            })
+          }
+        } else {
+          setDocRecienCreado({
+            tipoDocu, noDocu: res.no_docu,
+            proveedorNo: proveedor.no_proveedor, proveedorNombre: proveedor.nombre,
+          })
+        }
       }
       setProveedor(null)
       // reset preservando el default del catálogo de forma de pago; la
@@ -1434,7 +1480,7 @@ export function CxpEntradaDocumentos({
               </div>
             )}
             <p className='mt-2 text-xs text-muted-foreground'>
-              Escribe aquí el monto a aplicar; al guardar el documento aparece el mismo listado con estos montos ya puestos, listo para confirmar la aplicación sin volver a escribirlos.
+              Escribe aquí el monto a aplicar contra cada factura. Al guardar el documento, las aplicaciones se registran automáticamente y el saldo de las facturas se reduce en el acto.
             </p>
           </CardContent>
         </Card>
