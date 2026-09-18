@@ -215,64 +215,110 @@ def list_lineas_documento(no_cia: str, punto: str, no_docu: str) -> list[dict]:
     )
 
 
-def next_no_documento(no_cia: str, punto: str) -> str:
-    row = client.fetch_one(
+def _next_no_documento(cur, no_cia: str, punto: str) -> str:
+    """Reserva el siguiente no_docu (FOR UPDATE). DEBE llamarse dentro del
+    mismo cursor/transacción que el INSERT del documento: si el SELECT FOR
+    UPDATE y el UPDATE corren en conexiones distintas del pool, el lock se
+    libera al terminar el primero y dos llamadas concurrentes pueden leer el
+    mismo valor -- mismo patrón de bug que TCXP_SECUENCIA/PROX_NCF (ver
+    memoria [[project_cxc_ri_race_condition_20260908]]). Encontrado aquí con
+    ACC.TACC_PUNTO.prox_documento 24 números detrás del MAX(no_docu) real.
+    """
+    row = cur.execute(
         "SELECT NVL(prox_documento,1) FROM ACC.TACC_PUNTO "
         "WHERE no_cia=:1 AND punto=:2 FOR UPDATE",
         [no_cia, punto],
-    )
+    ).fetchone()
     prox = int(row[0]) if row else 1
-    client.execute(
-        "UPDATE ACC.TACC_PUNTO SET prox_documento = NVL(prox_documento,0)+1 "
-        "WHERE no_cia=:1 AND punto=:2",
+    # Nunca reservar un número ya usado: si prox_documento quedó desalineado
+    # (drift histórico, o la primera vez que este punto usa esta función),
+    # arrancar desde MAX(no_docu)+1 en vez de confiar ciegamente en el
+    # contador.
+    max_row = cur.execute(
+        "SELECT NVL(MAX(TO_NUMBER(no_docu)),0) FROM ACC.TACC_DOCUMENTO "
+        "WHERE no_cia=:1 AND punto=:2 AND REGEXP_LIKE(no_docu, '^[0-9]+$')",
         [no_cia, punto],
+    ).fetchone()
+    max_real = int(max_row[0]) if max_row and max_row[0] is not None else 0
+    prox = max(prox, max_real + 1)
+    cur.execute(
+        "UPDATE ACC.TACC_PUNTO SET prox_documento=:1 "
+        "WHERE no_cia=:2 AND punto=:3",
+        [prox + 1, no_cia, punto],
     )
     return str(prox).zfill(8)
 
 
 def crear_documento(no_cia: str, punto: str, data: dict, usuario: str) -> str:
-    """Crea egreso de caja chica. Genera línea contable básica en DCDOCU."""
-    no_docu = next_no_documento(no_cia, punto)
+    """Crea egreso de caja chica. Genera línea(s) contable(s) en DCDOCU.
+
+    data['lineas'] es una lista de {cuenta, centro_costo, monto} para el
+    débito -- el legado (Facc201) permitía repartir el gasto entre varias
+    cuentas (10% de los egresos históricos lo hacían así). Sin 'lineas' cae
+    a una sola línea con data['cuenta_gasto']/data['centro_costo'], igual
+    que antes. Todo en una sola transacción (mismo cursor) para que la
+    reserva del no_docu sea atómica.
+    """
     fecha = data.get('fecha') or date.today().isoformat()
     valor = float(data['valor'])
 
-    client.execute(
-        "INSERT INTO ACC.TACC_DOCUMENTO ("
-        " no_cia, punto, no_docu, no_caja, no_bene, tipo_gasto, fecha, "
-        " anulado, valor, debito, credito, usuario, moneda, cuenta, "
-        " st_generado_cnt, detalle, impuesto, ncf, rnc, tipo_gasto_dgii, "
-        " forma_pago, no_formulario"
-        ") VALUES ("
-        " :1, :2, :3, :4, :5, :6, TO_DATE(:7,'YYYY-MM-DD'), "
-        " 'N', :8, :8, 0, :9, :10, :11, "
-        " 'N', :12, :13, :14, :15, :16, :17, :18)",
-        client.nbinds(
-            no_cia, punto, no_docu, data['no_caja'], data['no_bene'],
-            data['tipo_gasto'], fecha, valor, usuario,
-            data.get('moneda', 'DOP'), data['cuenta'], data.get('detalle'),
-            float(data.get('impuesto', 0)),
-            data.get('ncf'), data.get('rnc'),
-            data.get('tipo_gasto_dgii'),
-            int(data.get('forma_pago', 1)),
-            data.get('no_formulario'),
-        ),
-    )
-    # Línea contable: débito al tipo_gasto.cuenta, crédito al cuenta de caja
-    cuenta_gasto = data.get('cuenta_gasto') or data['cuenta']
-    client.execute(
-        "INSERT INTO ACC.TACC_DCDOCU "
-        "(no_cia, punto, no_docu, cuenta, centro_costo, tipo_movi, no_caja, "
-        " monto, afecta_presupuesto) VALUES (:1,:2,:3,:4,:5,'D',:6,:7,'S')",
-        [no_cia, punto, no_docu, cuenta_gasto,
-         data.get('centro_costo', '0000000000'), data['no_caja'], valor],
-    )
-    client.execute(
-        "INSERT INTO ACC.TACC_DCDOCU "
-        "(no_cia, punto, no_docu, cuenta, centro_costo, tipo_movi, no_caja, "
-        " monto, afecta_presupuesto) VALUES (:1,:2,:3,:4,:5,'C',:6,:7,'S')",
-        [no_cia, punto, no_docu, data['cuenta'], '0000000000',
-         data['no_caja'], valor],
-    )
+    lineas = data.get('lineas') or [{
+        'cuenta': data.get('cuenta_gasto') or data['cuenta'],
+        'centro_costo': data.get('centro_costo', '0000000000'),
+        'monto': valor,
+    }]
+    if not lineas:
+        raise ValueError('El egreso necesita al menos una línea de distribución contable')
+    suma = sum(float(l['monto']) for l in lineas)
+    if round(suma - valor, 2) != 0:
+        raise ValueError(
+            f'Las líneas de distribución contable suman {suma:.2f} '
+            f'pero el valor del egreso es {valor:.2f}'
+        )
+
+    with client.cursor() as cur:
+        no_docu = _next_no_documento(cur, no_cia, punto)
+
+        cur.execute(
+            "INSERT INTO ACC.TACC_DOCUMENTO ("
+            " no_cia, punto, no_docu, no_caja, no_bene, tipo_gasto, fecha, "
+            " anulado, valor, debito, credito, usuario, moneda, cuenta, "
+            " st_generado_cnt, detalle, impuesto, ncf, rnc, tipo_gasto_dgii, "
+            " forma_pago, no_formulario"
+            ") VALUES ("
+            " :1, :2, :3, :4, :5, :6, TO_DATE(:7,'YYYY-MM-DD'), "
+            " 'N', :8, :8, :8, :9, :10, :11, "
+            " 'N', :12, :13, :14, :15, :16, :17, :18)",
+            client.nbinds(
+                no_cia, punto, no_docu, data['no_caja'], data['no_bene'],
+                data['tipo_gasto'], fecha, valor, usuario,
+                data.get('moneda', 'DOP'), data['cuenta'], data.get('detalle'),
+                float(data.get('impuesto', 0)),
+                data.get('ncf'), data.get('rnc'),
+                data.get('tipo_gasto_dgii'),
+                int(data.get('forma_pago', 1)),
+                data.get('no_formulario'),
+            ),
+        )
+        # Línea(s) contable(s): débito a la(s) cuenta(s) de gasto, crédito al
+        # cuenta de caja (siempre una sola línea, fija -- así fue el 100% de
+        # los egresos históricos, la caja nunca cambia de cuenta por doc).
+        for l in lineas:
+            cur.execute(
+                "INSERT INTO ACC.TACC_DCDOCU "
+                "(no_cia, punto, no_docu, cuenta, centro_costo, tipo_movi, no_caja, "
+                " monto, afecta_presupuesto) VALUES (:1,:2,:3,:4,:5,'D',:6,:7,'S')",
+                [no_cia, punto, no_docu, l['cuenta'],
+                 l.get('centro_costo') or '0000000000', data['no_caja'], float(l['monto'])],
+            )
+        cur.execute(
+            "INSERT INTO ACC.TACC_DCDOCU "
+            "(no_cia, punto, no_docu, cuenta, centro_costo, tipo_movi, no_caja, "
+            " monto, afecta_presupuesto) VALUES (:1,:2,:3,:4,:5,'C',:6,:7,'S')",
+            [no_cia, punto, no_docu, data['cuenta'], '0000000000',
+             data['no_caja'], valor],
+        )
+        cur.connection.commit()
     return no_docu
 
 

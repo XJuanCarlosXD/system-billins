@@ -18,6 +18,11 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import { Search, Save, Wallet } from 'lucide-react'
+import {
+  MovimientoContableGrid,
+  filaVacia,
+  type LineaContable,
+} from '@/components/shared/movimiento-contable-grid'
 
 const fmt = (n: any) =>
   Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -173,6 +178,30 @@ export function AccNuevoEgreso() {
   const cajaSel = (cajasQ.data || []).find((c: any) => c.no_caja === noCaja && c.activa === 'S')
   const gastoSel = (gastosQ.data || []).find((g: any) => g.tipo_gasto === tipoGasto)
 
+  const valorNum = Number(valor || 0)
+
+  // Distribución contable del débito (a qué cuenta(s) de gasto afecta el
+  // egreso). En el legado (Facc201) esto era editable: 80% de los egresos
+  // históricos corregían la cuenta sugerida por el tipo de gasto, y 10%
+  // repartían el gasto entre 2-3 cuentas. Se sugiere una línea única con la
+  // cuenta del tipo de gasto mientras el usuario no la toque a mano; el
+  // crédito (cuenta de la caja) es siempre fijo, no se edita aquí.
+  const [lineas, setLineas] = useState<LineaContable[]>([filaVacia()])
+  const [lineasTocadas, setLineasTocadas] = useState(false)
+  useEffect(() => {
+    if (lineasTocadas || !gastoSel) return
+    setLineas([{
+      cuenta: gastoSel.cuenta || '',
+      centroCosto: gastoSel.centro_costo || '0000000000',
+      debito: valor || '',
+      credito: '',
+    }])
+  }, [gastoSel?.cuenta, gastoSel?.centro_costo, valor, lineasTocadas]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const lineasValidas = lineas.filter((l) => l.cuenta && Number(l.debito || 0) > 0)
+  const sumaLineas = lineasValidas.reduce((s, l) => s + Number(l.debito || 0), 0)
+  const distribucionCuadra = lineasValidas.length > 0 && Math.abs(sumaLineas - valorNum) < 0.01
+
   // Si selecciona beneficiario con RNC y aún no llenó RNC manual, autocompletar.
   useEffect(() => {
     if (beneficiario?.rnc && !rnc) setRnc(beneficiario.rnc)
@@ -182,6 +211,7 @@ export function AccNuevoEgreso() {
     setBeneficiario(null); setTipoGasto(''); setValor('');
     setImpuesto('0'); setNcf(''); setRnc(''); setDetalle('')
     setFecha(new Date().toISOString().slice(0, 10))
+    setLineas([filaVacia()]); setLineasTocadas(false)
   }
 
   const crear = useMutation({
@@ -192,14 +222,17 @@ export function AccNuevoEgreso() {
       no_bene: beneficiario!.no_bene,
       tipo_gasto: tipoGasto,
       fecha,
-      valor: Number(valor),
+      valor: valorNum,
       impuesto: Number(impuesto || 0),
       ncf: ncf.trim() || undefined,
       rnc: rnc.trim() || undefined,
       detalle: detalle.trim() || undefined,
       cuenta: cajaSel?.cuenta,
-      cuenta_gasto: gastoSel?.cuenta,
-      centro_costo: gastoSel?.centro_costo || '0000000000',
+      lineas: lineasValidas.map((l) => ({
+        cuenta: l.cuenta,
+        centro_costo: l.centroCosto || '0000000000',
+        monto: Number(l.debito),
+      })),
       moneda: cajaSel?.moneda || 'DOP',
       forma_pago: 1,
     }),
@@ -212,10 +245,10 @@ export function AccNuevoEgreso() {
     onError: (e: any) => toast.error(e?.detail?.error || 'No se pudo crear el egreso'),
   })
 
-  const valorNum = Number(valor || 0)
   const impuestoNum = Number(impuesto || 0)
   const total = valorNum + impuestoNum
-  const puedeGuardar = !!noCaja && !!tipoGasto && !!beneficiario && !!fecha && valorNum > 0
+  const puedeGuardar = !!noCaja && !!tipoGasto && !!beneficiario && !!fecha
+    && valorNum > 0 && distribucionCuadra
 
   const formRef = useEnterAdvancesFocus<HTMLDivElement>()
 
@@ -278,10 +311,6 @@ export function AccNuevoEgreso() {
                 <span className="font-mono">{cajaSel.cuenta}</span></span>
               <span><span className="text-muted-foreground">Tope: </span>
                 <span className="tabular-nums">RD$ {fmt(cajaSel.monto)}</span></span>
-              {gastoSel && (
-                <span><span className="text-muted-foreground">Cuenta gasto: </span>
-                  <span className="font-mono">{gastoSel.cuenta}</span></span>
-              )}
             </div>
           )}
 
@@ -307,6 +336,14 @@ export function AccNuevoEgreso() {
               </div>
             </div>
           </div>
+
+          <MovimientoContableGrid
+            lineas={lineas}
+            onChange={(v) => { setLineasTocadas(true); setLineas(v) }}
+            soloDebito
+            totalEsperado={valorNum}
+            titulo="Cuenta de gasto a afectar (débito)"
+          />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1">

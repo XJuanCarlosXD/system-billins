@@ -109,10 +109,13 @@ def acc_documento(request, no_cia, punto, no_docu):
 @require_http_methods(['POST'])
 def acc_documento_crear(request):
     data = json.loads(request.body)
-    no_docu = acc_repo.crear_documento(
-        data['no_cia'], _norm_punto(data['punto']),
-        data, request.user.username,
-    )
+    try:
+        no_docu = acc_repo.crear_documento(
+            data['no_cia'], _norm_punto(data['punto']),
+            data, request.user.username,
+        )
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
     return JsonResponse({'no_docu': no_docu}, status=201)
 
 
