@@ -1826,17 +1826,35 @@ def acc_documento_print_data(request, no_docu: str):
     }
     total = _money_or_zero(doc_full.get('valor'))
     itbis = _money_or_zero(doc_full.get('impuesto'))
-    lineas_cnt = acc_repo.list_lineas_documento(no_cia, punto, no_docu)
-    lineas = [{
-        'no_linea': i + 1,
-        'codigo': (l.get('cuenta') or '').strip(),
-        'descripcion': (doc_full.get('desc_gasto') or doc_full.get('detalle') or '')
-                       + (f" · CC {l.get('centro_costo')}" if l.get('centro_costo') else ''),
-        'cantidad': 1,
-        'precio': _money_or_zero(l.get('monto')),
-        'descuento': 0, 'itbis': 0,
-        'total': _money_or_zero(l.get('monto')),
-    } for i, l in enumerate(lineas_cnt)]
+    # Solo las líneas de DÉBITO son gasto real (a qué se aplicó el dinero).
+    # La línea de CRÉDITO es siempre la cuenta de la caja (contrapartida
+    # contable, no un renglón de compra) -- incluirla en el recibo confundía
+    # al beneficiario mostrando la cuenta de la caja como si fuera un gasto.
+    lineas_cnt = [
+        l for l in acc_repo.list_lineas_documento(no_cia, punto, no_docu)
+        if (l.get('tipo_movi') or 'D') == 'D'
+    ]
+    lineas = []
+    for i, l in enumerate(lineas_cnt):
+        cuenta_cod = (l.get('cuenta') or '').strip()
+        cuenta_info = cnt_repo.get_cuenta(cuenta_cod) if cuenta_cod else None
+        # Nombre real de la cuenta afectada por esta línea (puede haber
+        # varias cuentas distintas si el egreso se repartió) -- cae al
+        # nombre del tipo de gasto solo si la cuenta no existe en el
+        # catálogo contable.
+        nombre = (cuenta_info or {}).get('descripcion') or doc_full.get('desc_gasto') or doc_full.get('detalle') or ''
+        centro_costo = l.get('centro_costo')
+        if centro_costo and centro_costo not in ('0000000000', '0'):
+            nombre += f" · CC {centro_costo}"
+        lineas.append({
+            'no_linea': i + 1,
+            'codigo': cuenta_cod,
+            'descripcion': nombre,
+            'cantidad': 1,
+            'precio': _money_or_zero(l.get('monto')),
+            'descuento': 0, 'itbis': 0,
+            'total': _money_or_zero(l.get('monto')),
+        })
     if not lineas:
         lineas = [{
             'no_linea': 1, 'codigo': doc_full.get('tipo_gasto') or '',
