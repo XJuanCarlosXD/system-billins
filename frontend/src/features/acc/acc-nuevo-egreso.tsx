@@ -180,6 +180,18 @@ export function AccNuevoEgreso() {
   const gastoSel = (gastosQ.data || []).find((g: any) => g.tipo_gasto === tipoGasto)
 
   const valorNum = Number(valor || 0)
+  const impuestoNum = Number(impuesto || 0)
+  const total = valorNum + impuestoNum
+
+  // Cuenta de ITBIS deducible de la compañía (misma cuenta que usa CxP,
+  // 2106-02 en el 92% de los egresos históricos con impuesto en ACC) --
+  // cuando hay ITBIS, el legado siempre generaba una línea de débito
+  // automática a esta cuenta, además de la(s) de gasto que elige el usuario.
+  const cuentaItbisQ = useQuery({
+    queryKey: ['acc-cuenta-itbis', selectedCompany],
+    queryFn: () => api.cxpGetCuentaItbisDefault(selectedCompany),
+    enabled: impuestoNum > 0,
+  })
 
   // Distribución contable del débito (a qué cuenta(s) de gasto afecta el
   // egreso). En el legado (Facc201) esto era editable: 80% de los egresos
@@ -231,6 +243,7 @@ export function AccNuevoEgreso() {
       detalle: detalle.trim() || undefined,
       no_formulario: noFormulario.trim() || undefined,
       cuenta: cajaSel?.cuenta,
+      cuenta_itbis: cuentaItbisQ.data?.cuenta || undefined,
       lineas: lineasValidas.map((l) => ({
         cuenta: l.cuenta,
         centro_costo: l.centroCosto || '0000000000',
@@ -240,7 +253,7 @@ export function AccNuevoEgreso() {
       forma_pago: 1,
     }),
     onSuccess: (res: any) => {
-      toast.success(`Egreso ACC-${res.no_docu} creado por RD$ ${fmt(valor)}`)
+      toast.success(`Egreso ACC-${res.no_docu} creado por RD$ ${fmt(total)}`)
       qc.invalidateQueries({ queryKey: ['acc-documentos'] })
       qc.invalidateQueries({ queryKey: ['acc-rep-resumen'] })
       reset()
@@ -248,8 +261,6 @@ export function AccNuevoEgreso() {
     onError: (e: any) => toast.error(e?.detail?.error || 'No se pudo crear el egreso'),
   })
 
-  const impuestoNum = Number(impuesto || 0)
-  const total = valorNum + impuestoNum
   const puedeGuardar = !!noCaja && !!tipoGasto && !!beneficiario && !!fecha
     && valorNum > 0 && distribucionCuadra
 
@@ -348,14 +359,24 @@ export function AccNuevoEgreso() {
             titulo="Cuenta de gasto a afectar (débito)"
           />
 
+          {impuestoNum > 0 && (
+            <div className="rounded-md border border-dashed bg-muted/20 px-3 py-2 text-xs flex items-center justify-between">
+              <span>
+                <span className="text-muted-foreground">ITBIS (automático — cuenta deducible): </span>
+                <span className="font-mono">{cuentaItbisQ.data?.cuenta || '…'}</span>
+              </span>
+              <span className="tabular-nums font-medium">RD$ {fmt(impuestoNum)}</span>
+            </div>
+          )}
+
           {cajaSel && (
             <div className="rounded-md border border-dashed bg-muted/20 px-3 py-2 text-xs flex items-center justify-between">
               <span>
-                <span className="text-muted-foreground">Crédito (automático — cuenta de la caja): </span>
+                <span className="text-muted-foreground">Crédito (automático — cuenta de la caja, total desembolsado): </span>
                 <span className="font-mono">{cajaSel.cuenta}</span>
                 <span className="text-muted-foreground"> — {cajaSel.descripcion}</span>
               </span>
-              <span className="tabular-nums font-medium">RD$ {fmt(valorNum)}</span>
+              <span className="tabular-nums font-medium">RD$ {fmt(total)}</span>
             </div>
           )}
 
