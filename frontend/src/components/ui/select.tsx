@@ -222,7 +222,7 @@ const selectClassNames = (size: 'sm' | 'default', triggerClassName?: string) => 
   // wins over a smaller width, no !important fight needed here).
   menu: () =>
     'z-[100] mt-1 min-w-max overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md',
-  menuList: () => 'max-h-72 overflow-y-auto p-1',
+  menuList: () => 'max-h-96 overflow-y-auto p-1',
   option: (state: { isFocused: boolean; isDisabled: boolean; isSelected: boolean }) =>
     cn(
       'relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 ps-2 pe-8 !text-sm whitespace-nowrap select-none [&_svg]:pointer-events-none [&_svg]:shrink-0',
