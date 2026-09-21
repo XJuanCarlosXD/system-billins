@@ -58,6 +58,24 @@ export type Novedad = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-09-21',
+    tipo: 'nuevo',
+    modulo: 'General',
+    titulo: 'Aviso automático cuando resuelven o responden tu reporte de problema',
+    descripcion:
+      'Ya no hace falta entrar a "Reportes de Problemas" para enterarte: en cuanto uno de tus reportes se resuelve, se cancela, o el sistema necesita que aclares algo, aparece un aviso en pantalla (no importa en qué módulo estés) con la nota de la solución o la pregunta a responder ahí mismo. Se puede cerrar para verlo después, pero vuelve a aparecer la próxima vez que entres al sistema hasta que lo aceptes o respondas. El aviso incluye un botón para actualizar la página al aceptar.',
+    commit: '1229949',
+  },
+  {
+    fecha: '2026-09-21',
+    tipo: 'mejora',
+    modulo: 'Inventario',
+    titulo: 'La descripción del producto ya admite hasta 355 caracteres',
+    descripcion:
+      'Antes, el nombre/descripción al crear o editar un producto estaba limitado a solo 40 caracteres. Ahora admite hasta 355, tanto en la pantalla como al facturar o hacer un conduce con ese producto, para poder escribir nombres completos sin que se corten.',
+    commit: 'd37f6af',
+  },
+  {
     fecha: '2026-08-21',
     tipo: 'mejora',
     modulo: 'General',
