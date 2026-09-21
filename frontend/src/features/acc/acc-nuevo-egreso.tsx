@@ -185,7 +185,14 @@ export function AccNuevoEgreso() {
   const [beneficiario, setBeneficiario] = useState<Beneficiario | null>(null)
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10))
   const [valor, setValor] = useState('')
-  const [impuesto, setImpuesto] = useState('0')
+  const [impuesto, setImpuesto] = useState('')
+  // ITBIS calculado a partir del valor con la tasa de la empresa (misma
+  // fuente y mismo patrón que CxP — Entrada de Documentos: TCNT_CIAS.ITBIS,
+  // 18% por defecto si la empresa no tiene el dato). El usuario puede
+  // editarlo a mano (botón "editar"/"auto"); mientras no lo toque, se
+  // recalcula solo cuando cambia el Valor.
+  const [porcItbis, setPorcItbis] = useState(18)
+  const [editandoItbis, setEditandoItbis] = useState(false)
   const [ncf, setNcf] = useState('')
   const [rnc, setRnc] = useState('')
   const [detalle, setDetalle] = useState('')
@@ -202,12 +209,28 @@ export function AccNuevoEgreso() {
 
   const ncfRequiereDgii = !!ncf.trim()
 
+  useEffect(() => {
+    if (!selectedCompany) return
+    api.cntGetCia(selectedCompany)
+      .then((c: any) => {
+        const p = Number(c?.itbis ?? c?.porc_impuesto ?? 18)
+        if (p > 0) setPorcItbis(p)
+      })
+      .catch(() => { /* queda en 18 por defecto */ })
+  }, [selectedCompany])
+
   const cajaSel = (cajasQ.data || []).find((c: any) => c.no_caja === noCaja && c.activa === 'S')
   const gastoSel = (gastosQ.data || []).find((g: any) => g.tipo_gasto === tipoGasto)
 
   const valorNum = Number(valor || 0)
   const impuestoNum = Number(impuesto || 0)
   const total = valorNum + impuestoNum
+
+  useEffect(() => {
+    if (editandoItbis) return
+    if (!valorNum) { setImpuesto(''); return }
+    setImpuesto((valorNum * (porcItbis / 100)).toFixed(2))
+  }, [valorNum, porcItbis, editandoItbis])
 
   // Cuenta de ITBIS deducible de la compañía (misma cuenta que usa CxP,
   // 2106-02 en el 92% de los egresos históricos con impuesto en ACC) --
@@ -265,7 +288,7 @@ export function AccNuevoEgreso() {
 
   const reset = () => {
     setBeneficiario(null); setTipoGasto(''); setValor('');
-    setImpuesto('0'); setNcf(''); setRnc(''); setDetalle('')
+    setImpuesto(''); setEditandoItbis(false); setNcf(''); setRnc(''); setDetalle('')
     setNoFormulario(''); setTipoGastoDgii(''); setFechaVenceNcf('')
     const def = formasPagoQ.data?.find((f) => f.por_defecto === 'S') || formasPagoQ.data?.[0]
     setFormaPago(def ? String(def.forma_pago) : '')
@@ -391,10 +414,17 @@ export function AccNuevoEgreso() {
                      value={valor} onChange={(e) => setValor(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">ITBIS / Impuesto</Label>
+              <Label className="text-xs flex items-center justify-between">
+                <span>ITBIS ({porcItbis}%)</span>
+                <button type="button" onClick={() => setEditandoItbis(!editandoItbis)}
+                        className="text-[10px] text-emerald-700 hover:underline">
+                  {editandoItbis ? 'auto' : 'editar'}
+                </button>
+              </Label>
               <Input type="number" min="0" step="0.01"
                      className="h-9 text-right tabular-nums"
-                     value={impuesto} onChange={(e) => setImpuesto(e.target.value)} />
+                     placeholder="auto"
+                     value={impuesto} onChange={(e) => { setEditandoItbis(true); setImpuesto(e.target.value) }} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Total</Label>
