@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { api } from '@/lib/regal-general-api'
 import { useCompany } from '@/hooks/use-company'
@@ -152,9 +153,11 @@ function BeneficiarioPicker({
   )
 }
 
-export function AccNuevoEgreso() {
+export function AccNuevoEgreso({ editNoDocu }: { editNoDocu?: string } = {}) {
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const { selectedCompany, selectedPoint } = useCompany()
+  const modoEdicion = !!editNoDocu
 
   const cajasQ = useQuery({
     queryKey: ['acc-cajas-egreso', selectedCompany, selectedPoint],
@@ -178,6 +181,16 @@ export function AccNuevoEgreso() {
   const tiposGastoDgiiQ = useQuery({
     queryKey: ['acc-tipos-gasto-dgii'],
     queryFn: () => api.cxpListTiposGasto(),
+  })
+  // Editar (botón "Editar" de Consulta de Documentos): esta misma pantalla
+  // se precarga con el documento existente y, al guardar, manda no_docu en
+  // el payload -- acc_repo.crear_documento hace UPDATE en el mismo no_docu
+  // en vez de reservar uno nuevo de la secuencia (mismo patrón que
+  // cxp_repo.entrada_documento en modo edición: no se "salta" ningún número).
+  const editDocQ = useQuery({
+    enabled: modoEdicion && !!selectedCompany && !!selectedPoint,
+    queryKey: ['acc-doc-editar', selectedCompany, selectedPoint, editNoDocu],
+    queryFn: () => api.accGetDocumento(selectedCompany, selectedPoint, editNoDocu!),
   })
 
   const [noCaja, setNoCaja] = useState('')
@@ -286,6 +299,41 @@ export function AccNuevoEgreso() {
     if (beneficiario?.rnc && !rnc) setRnc(beneficiario.rnc)
   }, [beneficiario?.rnc])
 
+  // Precarga del documento en modo edición (equivalente a cxp_procesos'
+  // useEffect de modoEdicion): VALOR guardado es el total desembolsado, aquí
+  // se separa de vuelta en neto (para el campo Valor) + impuesto.
+  useEffect(() => {
+    const cab = editDocQ.data?.cabecera
+    if (!cab) return
+    setNoCaja(cab.no_caja || '')
+    setTipoGasto(cab.tipo_gasto || '')
+    setBeneficiario({
+      no_bene: cab.no_bene || '',
+      nombre: cab.nombre_bene || '',
+    })
+    setFecha((cab.fecha || '').slice(0, 10) || new Date().toISOString().slice(0, 10))
+    const impuestoCab = Number(cab.impuesto || 0)
+    setValor(String(Number(cab.valor || 0) - impuestoCab))
+    setImpuesto(String(impuestoCab))
+    setEditandoItbis(true)
+    const posNcf = (cab.posiciones_fijas_ncf || '').toString().trim().toUpperCase()
+    setNcf(cab.ncf != null && cab.ncf !== '' ? `${posNcf}${String(cab.ncf).padStart(8, '0')}` : '')
+    setRnc(cab.rnc || '')
+    setDetalle(cab.detalle || '')
+    setNoFormulario(cab.no_formulario || '')
+    setFormaPago(cab.forma_pago != null ? String(cab.forma_pago) : '')
+    setTipoGastoDgii(cab.tipo_gasto_dgii || '')
+    setFechaVenceNcf((cab.fecha_vence_ncf || '').slice(0, 10))
+    const lineasCargadas: LineaContable[] = (editDocQ.data?.lineas || []).map((l: any) => ({
+      cuenta: l.cuenta || '',
+      centroCosto: l.centro_costo || '',
+      debito: l.tipo_movi === 'D' ? String(l.monto) : '',
+      credito: l.tipo_movi === 'C' ? String(l.monto) : '',
+    }))
+    setLineas(lineasCargadas.length > 0 ? lineasCargadas : [filaVacia()])
+    setLineasTocadas(true)
+  }, [editDocQ.data])
+
   const reset = () => {
     setBeneficiario(null); setTipoGasto(''); setValor('');
     setImpuesto(''); setEditandoItbis(false); setNcf(''); setRnc(''); setDetalle('')
@@ -300,6 +348,7 @@ export function AccNuevoEgreso() {
     mutationFn: () => api.accCrearDocumento({
       no_cia: selectedCompany,
       punto: selectedPoint,
+      ...(modoEdicion ? { no_docu: editNoDocu } : {}),
       no_caja: noCaja,
       no_bene: beneficiario!.no_bene,
       tipo_gasto: tipoGasto,
@@ -328,12 +377,17 @@ export function AccNuevoEgreso() {
       moneda: cajaSel?.moneda || 'DOP',
     }),
     onSuccess: (res: any) => {
-      toast.success(`Egreso ACC-${res.no_docu} creado por RD$ ${fmt(total)}`)
       qc.invalidateQueries({ queryKey: ['acc-documentos'] })
       qc.invalidateQueries({ queryKey: ['acc-rep-resumen'] })
+      if (modoEdicion) {
+        toast.success(`Egreso ACC-${res.no_docu} actualizado`)
+        navigate({ to: '/acc/documentos' })
+        return
+      }
+      toast.success(`Egreso ACC-${res.no_docu} creado por RD$ ${fmt(total)}`)
       reset()
     },
-    onError: (e: any) => toast.error(e?.detail?.error || 'No se pudo crear el egreso'),
+    onError: (e: any) => toast.error(e?.detail?.error || (modoEdicion ? 'No se pudo actualizar el egreso' : 'No se pudo crear el egreso')),
   })
 
   const puedeGuardar = !!noCaja && !!tipoGasto && !!beneficiario && !!fecha
@@ -345,10 +399,14 @@ export function AccNuevoEgreso() {
   return (
     <div className="space-y-4" ref={formRef}>
       <div>
-        <h3 className="text-base font-semibold">Nuevo Egreso de Caja Chica</h3>
+        <h3 className="text-base font-semibold">
+          {modoEdicion ? `Editar Egreso ACC-${editNoDocu}` : 'Nuevo Egreso de Caja Chica'}
+        </h3>
         <p className="text-sm text-muted-foreground">
-          Registra un pago de caja chica con beneficiario, tipo de gasto y comprobante NCF.
-          Equivale a <i>Facc201 — Egresos de Caja Chica</i>. Tabla base: <code>TACC_DOCUMENTO</code> + <code>TACC_DCDOCU</code>.
+          {modoEdicion
+            ? 'Corrige el egreso sin generar uno nuevo -- se guarda en el mismo número de documento, no se salta la secuencia.'
+            : 'Registra un pago de caja chica con beneficiario, tipo de gasto y comprobante NCF.'}
+          {' '}Equivale a <i>Facc201 — Egresos de Caja Chica</i>. Tabla base: <code>TACC_DOCUMENTO</code> + <code>TACC_DCDOCU</code>.
         </p>
       </div>
 
@@ -506,13 +564,15 @@ export function AccNuevoEgreso() {
           </div>
 
           <div className="flex items-center justify-end gap-3 border-t pt-3">
-            <Button type="button" variant="outline" onClick={reset} disabled={crear.isPending}>
-              Limpiar
+            <Button type="button" variant="outline"
+                    onClick={() => modoEdicion ? navigate({ to: '/acc/documentos' }) : reset()}
+                    disabled={crear.isPending}>
+              {modoEdicion ? 'Cancelar' : 'Limpiar'}
             </Button>
             <Button type="button" onClick={() => crear.mutate()}
                     disabled={!puedeGuardar || crear.isPending}>
               <Save className="h-4 w-4 mr-1" />
-              {crear.isPending ? 'Guardando…' : 'Registrar egreso'}
+              {crear.isPending ? 'Guardando…' : modoEdicion ? 'Guardar cambios' : 'Registrar egreso'}
             </Button>
           </div>
         </CardContent>

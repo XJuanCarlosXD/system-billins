@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from datetime import date
 from .. import client
+from apps.historial import repo as historial_repo
 
 
 # ---------------------------------------------------------------------------
@@ -250,17 +251,63 @@ def _next_no_documento(cur, no_cia: str, punto: str) -> str:
 
 
 def crear_documento(no_cia: str, punto: str, data: dict, usuario: str) -> str:
-    """Crea egreso de caja chica. Genera línea(s) contable(s) en DCDOCU.
+    """Crea (o edita, si data['no_docu'] viene con un valor) un egreso de
+    caja chica. Genera línea(s) contable(s) en DCDOCU.
 
     data['lineas'] es la distribución contable COMPLETA del asiento (débito
     Y crédito), cada una como {cuenta, centro_costo, monto, tipo_movi},
     exactamente igual que cxp_repo.crear_documento -- el operador entra la(s)
     cuenta(s) de gasto en débito y la cuenta de la caja en crédito (la UI
     solo la sugiere de entrada; el legado, Facc201, permitía repartir el
-    gasto entre varias cuentas y no forzaba la cuenta de crédito). Todo en
-    una sola transacción (mismo cursor) para que la reserva del no_docu sea
-    atómica.
+    gasto entre varias cuentas y no forzaba la cuenta de crédito).
+
+    Editar (data['no_docu'] presente, botón "Editar" de Consulta de
+    Documentos) hace UPDATE en el mismo no_docu -- NO reserva ni consume un
+    número nuevo de la secuencia (mismo patrón que cxp_repo.entrada_documento
+    en modo edición). Candados antes de permitirlo, igual que CxP:
+      1) El documento no puede estar anulado.
+      2) El documento no puede ya formar parte de una reposición generada
+         (no_reposicion NOT NULL) -- editar el valor por encima rompería el
+         total ya repuesto de esa reposición.
+      3) Solo se puede editar mientras el período contable del documento
+         sigue abierto (TACC_PUNTO.ano_proceso/mes_proceso).
+    Todo en una sola transacción (mismo cursor) para que la reserva del
+    no_docu (al crear) sea atómica.
     """
+    no_docu_existente = (data.get('no_docu') or '').strip()
+    doc_actual = None
+    if no_docu_existente:
+        rows = client.fetch_dicts(
+            "SELECT no_docu, NVL(anulado,'N') anulado, no_reposicion, "
+            "  TO_CHAR(fecha,'YYYY-MM') periodo_docu, "
+            "  TO_CHAR(fecha,'YYYY-MM-DD') fecha, no_caja, no_bene, tipo_gasto, "
+            "  valor, NVL(impuesto,0) impuesto, ncf, rnc, tipo_gasto_dgii, "
+            "  forma_pago, no_formulario, detalle "
+            "  FROM ACC.TACC_DOCUMENTO "
+            " WHERE no_cia=:1 AND punto=:2 AND no_docu=:3",
+            [no_cia, punto, no_docu_existente])
+        if not rows:
+            raise ValueError(f'Egreso {no_docu_existente} no existe')
+        doc_actual = rows[0]
+        if doc_actual['anulado'] == 'S':
+            raise ValueError(f'Egreso {no_docu_existente} está anulado; no se puede editar.')
+        if doc_actual.get('no_reposicion'):
+            raise ValueError(
+                f"Egreso {no_docu_existente} ya forma parte de la reposición "
+                f"{doc_actual['no_reposicion']}; editarlo rompería el total ya "
+                f"repuesto. Anule y cree uno nuevo si necesita corregirlo.")
+        punto_rows = client.fetch_dicts(
+            "SELECT ano_proceso, mes_proceso FROM ACC.TACC_PUNTO "
+            "WHERE no_cia=:1 AND punto=:2", [no_cia, punto])
+        if punto_rows:
+            periodo_actual = '{:04d}-{:02d}'.format(
+                int(punto_rows[0]['ano_proceso']), int(punto_rows[0]['mes_proceso']))
+            if doc_actual['periodo_docu'] < periodo_actual:
+                raise ValueError(
+                    'Este egreso pertenece a un período contable ya cerrado '
+                    '({1}); el período en curso es {0}.'.format(
+                        periodo_actual, doc_actual['periodo_docu']))
+
     fecha = data.get('fecha') or date.today().isoformat()
     # TACC_DOCUMENTO.VALOR es el TOTAL desembolsado (confirmado contra datos
     # reales del legado: VALOR = DEBITO = CREDITO = neto_gasto + impuesto,
@@ -331,42 +378,101 @@ def crear_documento(no_cia: str, punto: str, data: dict, usuario: str) -> str:
             raise ValueError(
                 f'NCF "{ncf_raw}" no tiene un formato válido (ej. B0100001234).')
 
-    with client.cursor() as cur:
-        no_docu = _next_no_documento(cur, no_cia, punto)
+    forma_pago = data.get('forma_pago')
+    forma_pago = int(forma_pago) if forma_pago not in (None, '') else None
+    fecha_vence_ncf = data.get('fecha_vence_ncf') or None
 
-        forma_pago = data.get('forma_pago')
-        forma_pago = int(forma_pago) if forma_pago not in (None, '') else None
-        fecha_vence_ncf = data.get('fecha_vence_ncf') or None
-        cur.execute(
-            "INSERT INTO ACC.TACC_DOCUMENTO ("
-            " no_cia, punto, no_docu, no_caja, no_bene, tipo_gasto, fecha, "
-            " anulado, valor, debito, credito, usuario, moneda, cuenta, "
-            " st_generado_cnt, detalle, impuesto, ncf, rnc, tipo_gasto_dgii, "
-            " forma_pago, no_formulario, valor_bienes, valor_servicio, "
-            " fecha_vence_ncf, posiciones_fijas_ncf"
-            ") VALUES ("
-            " :1, :2, :3, :4, :5, :6, TO_DATE(:7,'YYYY-MM-DD'), "
-            " 'N', :8, :8, :8, :9, :10, :11, "
-            " 'N', :12, :13, :14, :15, :16, "
-            " :17, :18, :19, :20, "
-            # TO_DATE(NULL, fmt) es NULL en Oracle -- no hace falta omitir
-            # el bind cuando no hay fecha (evita desalinear la numeración
-            # del resto de los binds, bug real detectado al probar sin NCF).
-            " TO_DATE(:21,'YYYY-MM-DD'), :22)",
-            client.nbinds(
-                no_cia, punto, no_docu, data['no_caja'], data['no_bene'],
-                data['tipo_gasto'], fecha, valor_total, usuario,
-                data.get('moneda', 'DOP'), data['cuenta'], data.get('detalle'),
-                impuesto,
-                ncf_num, data.get('rnc'),
-                data.get('tipo_gasto_dgii'),
-                forma_pago,
-                data.get('no_formulario'),
-                valor_bienes, valor_servicio,
-                fecha_vence_ncf,
-                pos_ncf,
-            ),
-        )
+    with client.cursor() as cur:
+        if doc_actual:
+            no_docu = no_docu_existente
+            cur.execute(
+                "UPDATE ACC.TACC_DOCUMENTO SET "
+                "no_caja=:1, no_bene=:2, tipo_gasto=:3, fecha=TO_DATE(:4,'YYYY-MM-DD'), "
+                "valor=:5, debito=:5, credito=:5, usuario=:6, moneda=:7, cuenta=:8, "
+                "detalle=:9, impuesto=:10, ncf=:11, rnc=:12, tipo_gasto_dgii=:13, "
+                "forma_pago=:14, no_formulario=:15, valor_bienes=:16, valor_servicio=:17, "
+                "fecha_vence_ncf=TO_DATE(:18,'YYYY-MM-DD'), posiciones_fijas_ncf=:19 "
+                "WHERE no_cia=:20 AND punto=:21 AND no_docu=:22",
+                client.nbinds(
+                    data['no_caja'], data['no_bene'], data['tipo_gasto'], fecha,
+                    valor_total, usuario, data.get('moneda', 'DOP'), data['cuenta'],
+                    data.get('detalle'), impuesto, ncf_num, data.get('rnc'),
+                    data.get('tipo_gasto_dgii'), forma_pago, data.get('no_formulario'),
+                    valor_bienes, valor_servicio, fecha_vence_ncf, pos_ncf,
+                    no_cia, punto, no_docu,
+                ),
+            )
+            cur.execute(
+                "DELETE FROM ACC.TACC_DCDOCU WHERE no_cia=:1 AND punto=:2 AND no_docu=:3",
+                [no_cia, punto, no_docu],
+            )
+            from apps.historial.diff import diff_campos
+            cambios = diff_campos(
+                {
+                    "no_caja": doc_actual["no_caja"], "no_bene": doc_actual["no_bene"],
+                    "tipo_gasto": doc_actual["tipo_gasto"], "fecha": doc_actual["fecha"],
+                    "valor": float(doc_actual["valor"]), "impuesto": float(doc_actual["impuesto"]),
+                    "ncf": doc_actual["ncf"], "rnc": doc_actual["rnc"] or "",
+                    "tipo_gasto_dgii": doc_actual["tipo_gasto_dgii"],
+                    "forma_pago": doc_actual["forma_pago"],
+                    "no_formulario": doc_actual["no_formulario"] or "",
+                    "detalle": doc_actual["detalle"] or "",
+                },
+                {
+                    "no_caja": data['no_caja'], "no_bene": data['no_bene'],
+                    "tipo_gasto": data['tipo_gasto'], "fecha": fecha,
+                    "valor": valor_total, "impuesto": impuesto,
+                    "ncf": ncf_num, "rnc": data.get('rnc') or "",
+                    "tipo_gasto_dgii": data.get('tipo_gasto_dgii'),
+                    "forma_pago": forma_pago,
+                    "no_formulario": data.get('no_formulario') or "",
+                    "detalle": data.get('detalle') or "",
+                },
+                etiquetas={
+                    "no_caja": "Caja", "no_bene": "Beneficiario", "tipo_gasto": "Tipo de gasto",
+                    "fecha": "Fecha", "valor": "Valor", "impuesto": "ITBIS", "ncf": "NCF",
+                    "rnc": "RNC", "tipo_gasto_dgii": "Tipo Gasto DGII",
+                    "forma_pago": "Forma de pago", "no_formulario": "No. Formulario",
+                    "detalle": "Detalle",
+                },
+            )
+            historial_repo.log_evento(
+                cur, usuario=usuario, no_cia=no_cia, punto=punto,
+                modulo="ACC", tipo_documento="EGRESO", no_documento=no_docu,
+                accion="EDITAR", cambios=cambios or None,
+            )
+        else:
+            no_docu = _next_no_documento(cur, no_cia, punto)
+            cur.execute(
+                "INSERT INTO ACC.TACC_DOCUMENTO ("
+                " no_cia, punto, no_docu, no_caja, no_bene, tipo_gasto, fecha, "
+                " anulado, valor, debito, credito, usuario, moneda, cuenta, "
+                " st_generado_cnt, detalle, impuesto, ncf, rnc, tipo_gasto_dgii, "
+                " forma_pago, no_formulario, valor_bienes, valor_servicio, "
+                " fecha_vence_ncf, posiciones_fijas_ncf"
+                ") VALUES ("
+                " :1, :2, :3, :4, :5, :6, TO_DATE(:7,'YYYY-MM-DD'), "
+                " 'N', :8, :8, :8, :9, :10, :11, "
+                " 'N', :12, :13, :14, :15, :16, "
+                " :17, :18, :19, :20, "
+                # TO_DATE(NULL, fmt) es NULL en Oracle -- no hace falta omitir
+                # el bind cuando no hay fecha (evita desalinear la numeración
+                # del resto de los binds, bug real detectado al probar sin NCF).
+                " TO_DATE(:21,'YYYY-MM-DD'), :22)",
+                client.nbinds(
+                    no_cia, punto, no_docu, data['no_caja'], data['no_bene'],
+                    data['tipo_gasto'], fecha, valor_total, usuario,
+                    data.get('moneda', 'DOP'), data['cuenta'], data.get('detalle'),
+                    impuesto,
+                    ncf_num, data.get('rnc'),
+                    data.get('tipo_gasto_dgii'),
+                    forma_pago,
+                    data.get('no_formulario'),
+                    valor_bienes, valor_servicio,
+                    fecha_vence_ncf,
+                    pos_ncf,
+                ),
+            )
         for l in lineas:
             tm = (l.get('tipo_movi') or 'D').upper()
             cur.execute(

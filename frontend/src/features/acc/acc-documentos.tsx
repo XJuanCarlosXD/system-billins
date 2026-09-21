@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { api } from '@/lib/regal-general-api'
 import { useCompany } from '@/hooks/use-company'
@@ -10,13 +11,14 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Eye, Plus, XCircle, Search, Printer, PencilLine } from 'lucide-react'
+import { Eye, Plus, XCircle, Search, Printer, PencilLine, Pencil } from 'lucide-react'
 
 const fmt = (n: any) => Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2 })
 const fmtDate = (s: any) => s ? String(s).slice(0, 10) : ''
 
 export function AccDocumentos() {
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const { selectedCompany, selectedPoint } = useCompany()
   const [filtros, setFiltros] = useState({ no_caja: '', fecha_desde: '', fecha_hasta: '', anulado: '' })
   const [selected, setSelected] = useState<any | null>(null)
@@ -236,6 +238,12 @@ export function AccDocumentos() {
                 window.open(`/print/acc-documento/${encodeURIComponent(selected.no_docu)}?${qs}`, '_blank')
               }}>
                 <Printer className="h-4 w-4 mr-1" /> Imprimir
+              </Button>
+            )}
+            {selected && selected.anulado !== 'S' && (
+              <Button size="sm" variant="outline"
+                onClick={() => navigate({ to: '/acc/nuevo-egreso', search: { no_docu: selected.no_docu } })}>
+                <Pencil className="h-4 w-4 mr-1" /> Editar
               </Button>
             )}
             {selected && selected.anulado !== 'S' && (
