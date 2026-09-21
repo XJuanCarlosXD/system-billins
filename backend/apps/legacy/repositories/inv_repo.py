@@ -18,6 +18,9 @@ from __future__ import annotations
 from .. import client
 from apps.historial import repo as historial_repo
 
+# INV.TINV_PRODUCTO.DESCRI es VARCHAR2(100 CHAR) en Oracle.
+PRODUCTO_DESCRI_MAX = 100
+
 
 def count_productos(search: str = '', grupo: str = '', linea: str = '') -> int:
     params: list = []
@@ -223,7 +226,7 @@ def create_producto(payload: dict, usuario: str = '') -> dict:
       no_produ (str, opcional — si vacio se asigna desde TINV_NEXT_PRODU)
       codigo_auto (str 'S'|'N', def='N' — 'S' si no_produ vino del preview
         next-codigo sin editar; permite reasignar si ya fue tomado)
-      descripcion (str, requerido, max 40 chars)
+      descripcion (str, requerido, max 100 chars)
       grupo_produ (str, requerido)
       linea (str, requerido)
       sub_linea (str, requerido)
@@ -246,9 +249,9 @@ def create_producto(payload: dict, usuario: str = '') -> dict:
 
     if not descri:
         raise ValueError("descripcion es requerida")
-    if len(descri) > 40:
+    if len(descri) > PRODUCTO_DESCRI_MAX:
         raise ValueError(
-            f"descripcion supera los 40 caracteres permitidos ({len(descri)})"
+            f"descripcion supera los {PRODUCTO_DESCRI_MAX} caracteres permitidos ({len(descri)})"
         )
     if not grupo_produ:
         raise ValueError("grupo_produ es requerido")
@@ -605,16 +608,16 @@ def update_producto(no_produ: str, payload: dict, usuario: str = '') -> dict:
 
     if 'descripcion' in payload:
         _d = str(payload.get('descripcion') or '').strip()
-        if len(_d) > 40:
+        if len(_d) > PRODUCTO_DESCRI_MAX:
             raise ValueError(
-                f"descripcion supera los 40 caracteres permitidos ({len(_d)})"
+                f"descripcion supera los {PRODUCTO_DESCRI_MAX} caracteres permitidos ({len(_d)})"
             )
 
     sets: list[str] = []
     binds: dict = {'no_produ': no_produ}
 
     field_map = {
-        'descripcion': ('descri', lambda v: (str(v) or '').strip()[:40]),
+        'descripcion': ('descri', lambda v: (str(v) or '').strip()[:PRODUCTO_DESCRI_MAX]),
         'linea': ('linea', lambda v: (str(v) or '').strip()),
         'sub_linea': ('sub_linea', lambda v: (str(v) or '').strip()),
         'grupo_produ': ('grupo_produ', lambda v: (str(v) or '').strip()),

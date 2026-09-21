@@ -464,8 +464,8 @@ export function CrearProductoModal({
     setError('')
     if (!isEdit && !codigoPreview) return setError('Aún generando el código, espere un momento')
     if (!form.descripcion.trim()) return setError('La descripción es requerida')
-    if (form.descripcion.trim().length > 40)
-      return setError('La descripción supera los 40 caracteres')
+    if (form.descripcion.trim().length > 100)
+      return setError('La descripción supera los 100 caracteres')
     if (!form.linea) return setError('Seleccione la línea')
     if (!form.sub_linea) return setError('Seleccione la sub-línea')
     if (!form.grupo_produ) return setError('Seleccione el grupo')
@@ -680,7 +680,7 @@ export function CrearProductoModal({
                 Descripción <span className='text-destructive'>*</span>
               </Label>
               <span className='text-[11px] text-muted-foreground tabular-nums'>
-                {form.descripcion.length}/40
+                {form.descripcion.length}/100
               </span>
             </div>
             <Input
@@ -688,7 +688,7 @@ export function CrearProductoModal({
               className='h-9'
               placeholder='Nombre del producto'
               value={form.descripcion}
-              maxLength={40}
+              maxLength={100}
               onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
               autoFocus
             />
