@@ -252,12 +252,14 @@ def _next_no_documento(cur, no_cia: str, punto: str) -> str:
 def crear_documento(no_cia: str, punto: str, data: dict, usuario: str) -> str:
     """Crea egreso de caja chica. Genera línea(s) contable(s) en DCDOCU.
 
-    data['lineas'] es una lista de {cuenta, centro_costo, monto} para el
-    débito -- el legado (Facc201) permitía repartir el gasto entre varias
-    cuentas (10% de los egresos históricos lo hacían así). Sin 'lineas' cae
-    a una sola línea con data['cuenta_gasto']/data['centro_costo'], igual
-    que antes. Todo en una sola transacción (mismo cursor) para que la
-    reserva del no_docu sea atómica.
+    data['lineas'] es la distribución contable COMPLETA del asiento (débito
+    Y crédito), cada una como {cuenta, centro_costo, monto, tipo_movi},
+    exactamente igual que cxp_repo.crear_documento -- el operador entra la(s)
+    cuenta(s) de gasto en débito y la cuenta de la caja en crédito (la UI
+    solo la sugiere de entrada; el legado, Facc201, permitía repartir el
+    gasto entre varias cuentas y no forzaba la cuenta de crédito). Todo en
+    una sola transacción (mismo cursor) para que la reserva del no_docu sea
+    atómica.
     """
     fecha = data.get('fecha') or date.today().isoformat()
     # TACC_DOCUMENTO.VALOR es el TOTAL desembolsado (confirmado contra datos
@@ -270,19 +272,22 @@ def crear_documento(no_cia: str, punto: str, data: dict, usuario: str) -> str:
     impuesto = float(data.get('impuesto', 0) or 0)
     valor_total = round(valor_neto + impuesto, 2)
 
-    lineas = data.get('lineas') or [{
-        'cuenta': data.get('cuenta_gasto') or data['cuenta'],
-        'centro_costo': data.get('centro_costo', '0000000000'),
-        'monto': valor_neto,
-    }]
+    # El legado nunca deja grabar un egreso sin su partida doble (mismo
+    # candado que cxp_repo.crear_documento sobre Fcxp201: no permite COMMIT
+    # si Debe<>Haber).
+    lineas = data.get('lineas') or []
     if not lineas:
-        raise ValueError('El egreso necesita al menos una línea de distribución contable')
-    suma = sum(float(l['monto']) for l in lineas)
-    if round(suma - valor_neto, 2) != 0:
         raise ValueError(
-            f'Las líneas de distribución contable suman {suma:.2f} '
-            f'pero el valor (neto de ITBIS) del egreso es {valor_neto:.2f}'
-        )
+            'El egreso debe incluir la distribución contable '
+            '(líneas de Débito/Crédito) -- no se puede grabar sin ella.')
+    tot_deb = sum(float(l.get('monto') or 0) for l in lineas
+                  if (l.get('tipo_movi') or 'D').upper() == 'D')
+    tot_cre = sum(float(l.get('monto') or 0) for l in lineas
+                  if (l.get('tipo_movi') or 'D').upper() == 'C')
+    if round(abs(tot_deb - tot_cre), 2) > 0.01:
+        raise ValueError(
+            'La distribución contable no cuadra: Débito {:.2f} vs '
+            'Crédito {:.2f}.'.format(tot_deb, tot_cre))
 
     with client.cursor() as cur:
         no_docu = _next_no_documento(cur, no_cia, punto)
@@ -308,37 +313,16 @@ def crear_documento(no_cia: str, punto: str, data: dict, usuario: str) -> str:
                 data.get('no_formulario'),
             ),
         )
-        # Línea(s) de gasto (débito, elegidas por el usuario) + línea de
-        # ITBIS (débito automático a la cuenta de ITBIS deducible de la
-        # compañía, IGUAL que en el legado: cuenta 2106-02 en el 92% de los
-        # egresos con impuesto -- ver cxp_repo.get_cuenta_itbis_default,
-        # misma cuenta que usa CxP) + crédito fijo a la cuenta de la caja
-        # por el TOTAL (nunca cambia de cuenta por documento).
         for l in lineas:
+            tm = (l.get('tipo_movi') or 'D').upper()
             cur.execute(
                 "INSERT INTO ACC.TACC_DCDOCU "
                 "(no_cia, punto, no_docu, cuenta, centro_costo, tipo_movi, no_caja, "
-                " monto, afecta_presupuesto) VALUES (:1,:2,:3,:4,:5,'D',:6,:7,'S')",
+                " monto, afecta_presupuesto) VALUES (:1,:2,:3,:4,:5,:6,:7,:8,'S')",
                 [no_cia, punto, no_docu, l['cuenta'],
-                 l.get('centro_costo') or '0000000000', data['no_caja'], float(l['monto'])],
+                 l.get('centro_costo') or '0000000000', tm,
+                 data['no_caja'], float(l['monto'])],
             )
-        if impuesto > 0:
-            from .cxp_repo import get_cuenta_itbis_default
-            cuenta_itbis = data.get('cuenta_itbis') or get_cuenta_itbis_default(no_cia)
-            if cuenta_itbis:
-                cur.execute(
-                    "INSERT INTO ACC.TACC_DCDOCU "
-                    "(no_cia, punto, no_docu, cuenta, centro_costo, tipo_movi, no_caja, "
-                    " monto, afecta_presupuesto) VALUES (:1,:2,:3,:4,'0000000000','D',:5,:6,'S')",
-                    [no_cia, punto, no_docu, cuenta_itbis, data['no_caja'], impuesto],
-                )
-        cur.execute(
-            "INSERT INTO ACC.TACC_DCDOCU "
-            "(no_cia, punto, no_docu, cuenta, centro_costo, tipo_movi, no_caja, "
-            " monto, afecta_presupuesto) VALUES (:1,:2,:3,:4,:5,'C',:6,:7,'S')",
-            [no_cia, punto, no_docu, data['cuenta'], '0000000000',
-             data['no_caja'], valor_total],
-        )
         cur.connection.commit()
     return no_docu
 

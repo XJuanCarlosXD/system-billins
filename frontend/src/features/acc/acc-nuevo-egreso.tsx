@@ -22,7 +22,6 @@ import {
   MovimientoContableGrid,
   filaVacia,
   type LineaContable,
-  type LineaFija,
 } from '@/components/shared/movimiento-contable-grid'
 
 const fmt = (n: any) =>
@@ -194,50 +193,44 @@ export function AccNuevoEgreso() {
     enabled: impuestoNum > 0,
   })
 
-  // Distribución contable del débito (a qué cuenta(s) de gasto afecta el
-  // egreso). En el legado (Facc201) esto era editable: 80% de los egresos
-  // históricos corregían la cuenta sugerida por el tipo de gasto, y 10%
-  // repartían el gasto entre 2-3 cuentas. Se sugiere una línea única con la
-  // cuenta del tipo de gasto mientras el usuario no la toque a mano; el
-  // crédito (cuenta de la caja) es siempre fijo, no se edita aquí.
+  // Distribución contable del egreso -- misma grilla y mismo modelo que
+  // CxP — Entrada de Documentos (Fcxp201/Fcxp210): una lista plana de líneas
+  // Débito/Crédito, todas editables por el usuario. Se sugieren de entrada
+  // la cuenta de gasto del tipo elegido (débito), el ITBIS deducible si hay
+  // impuesto (débito) y la cuenta de la caja por el total (crédito) -- el
+  // legado (Facc201) permitía repartir el gasto entre 2-3 cuentas y no
+  // forzaba la cuenta de crédito, así que nada aquí queda bloqueado.
   const [lineas, setLineas] = useState<LineaContable[]>([filaVacia()])
   const [lineasTocadas, setLineasTocadas] = useState(false)
   useEffect(() => {
-    if (lineasTocadas || !gastoSel) return
-    setLineas([{
+    if (lineasTocadas || !gastoSel || !cajaSel) return
+    const sugeridas: LineaContable[] = [{
       cuenta: gastoSel.cuenta || '',
       centroCosto: gastoSel.centro_costo || '0000000000',
       debito: valor || '',
       credito: '',
-    }])
-  }, [gastoSel?.cuenta, gastoSel?.centro_costo, valor, lineasTocadas]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const lineasValidas = lineas.filter((l) => l.cuenta && Number(l.debito || 0) > 0)
-  const sumaLineas = lineasValidas.reduce((s, l) => s + Number(l.debito || 0), 0)
-  const distribucionCuadra = lineasValidas.length > 0 && Math.abs(sumaLineas - valorNum) < 0.01
-
-  // Líneas automáticas del asiento (no editables): ITBIS deducible (débito,
-  // solo si hay impuesto) y el crédito a la cuenta de la caja (débito=crédito
-  // total desembolsado). Se muestran en la MISMA grilla que la(s) línea(s) de
-  // gasto, cada una con su etiqueta Débito/Crédito, para que se vea como un
-  // asiento contable completo -- igual que en el legado (Facc201).
-  const lineasFijas: LineaFija[] = []
-  if (impuestoNum > 0 && cuentaItbisQ.data?.cuenta) {
-    lineasFijas.push({
-      cuenta: cuentaItbisQ.data.cuenta,
-      tipo: 'D',
-      monto: impuestoNum,
-      etiqueta: 'ITBIS automático',
-    })
-  }
-  if (cajaSel) {
-    lineasFijas.push({
+    }]
+    if (impuestoNum > 0 && cuentaItbisQ.data?.cuenta) {
+      sugeridas.push({
+        cuenta: cuentaItbisQ.data.cuenta,
+        centroCosto: '0000000000',
+        debito: impuesto || '',
+        credito: '',
+      })
+    }
+    sugeridas.push({
       cuenta: cajaSel.cuenta,
-      tipo: 'C',
-      monto: total,
-      etiqueta: 'crédito automático — cuenta de la caja',
+      centroCosto: '0000000000',
+      debito: '',
+      credito: String(total),
     })
-  }
+    setLineas(sugeridas)
+  }, [gastoSel?.cuenta, gastoSel?.centro_costo, cajaSel?.cuenta, valor, impuesto, cuentaItbisQ.data?.cuenta, lineasTocadas]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const totalDebitoLineas = lineas.reduce((s, l) => s + Number(l.debito || 0), 0)
+  const totalCreditoLineas = lineas.reduce((s, l) => s + Number(l.credito || 0), 0)
+  const distribucionCuadra = lineas.some((l) => l.cuenta && (Number(l.debito || 0) > 0 || Number(l.credito || 0) > 0))
+    && Math.abs(totalDebitoLineas - totalCreditoLineas) < 0.01
 
   // Si selecciona beneficiario con RNC y aún no llenó RNC manual, autocompletar.
   useEffect(() => {
@@ -267,12 +260,17 @@ export function AccNuevoEgreso() {
       detalle: detalle.trim() || undefined,
       no_formulario: noFormulario.trim() || undefined,
       cuenta: cajaSel?.cuenta,
-      cuenta_itbis: cuentaItbisQ.data?.cuenta || undefined,
-      lineas: lineasValidas.map((l) => ({
-        cuenta: l.cuenta,
-        centro_costo: l.centroCosto || '0000000000',
-        monto: Number(l.debito),
-      })),
+      // Movimiento contable (TACC_DCDOCU): cada fila de la grilla se manda
+      // tal cual el operador la dejó -- débito o crédito por línea, igual
+      // que en CxP — Entrada de Documentos.
+      lineas: lineas
+        .filter((l) => l.cuenta && (Number(l.debito || 0) > 0 || Number(l.credito || 0) > 0))
+        .map((l) => ({
+          cuenta: l.cuenta,
+          centro_costo: l.centroCosto || '0000000000',
+          monto: Number(l.debito || 0) > 0 ? Number(l.debito) : Number(l.credito),
+          tipo_movi: Number(l.debito || 0) > 0 ? 'D' : 'C',
+        })),
       moneda: cajaSel?.moneda || 'DOP',
       forma_pago: 1,
     }),
@@ -378,10 +376,7 @@ export function AccNuevoEgreso() {
           <MovimientoContableGrid
             lineas={lineas}
             onChange={(v) => { setLineasTocadas(true); setLineas(v) }}
-            soloDebito
-            totalEsperado={valorNum}
-            lineasFijas={lineasFijas}
-            titulo="Distribución contable del egreso (débito / crédito)"
+            titulo="Movimiento Contable (Distribución del egreso)"
           />
           {impuestoNum > 0 && !cuentaItbisQ.data?.cuenta && (
             <p className="text-xs text-muted-foreground">Buscando cuenta de ITBIS deducible…</p>

@@ -12,7 +12,6 @@ import { regalGeneralApi as api } from '@/lib/regal-general-api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
   DialogContent,
@@ -45,55 +44,22 @@ export function filaVacia(): LineaContable {
   return { cuenta: '', centroCosto: '', debito: '', credito: '' }
 }
 
-/** Línea no editable que el sistema genera automáticamente (ej. ITBIS
- * deducible o el crédito a la cuenta de la caja en Caja Chica) — se muestra
- * en la misma tabla que las líneas editables, con su etiqueta Débito/Crédito,
- * para que el asiento se vea completo en un solo lugar (como en el legado). */
-export type LineaFija = {
-  cuenta: string
-  centroCosto?: string
-  monto: number
-  tipo: 'D' | 'C'
-  etiqueta?: string
-}
-
-function TipoBadge({ tipo }: { tipo: 'D' | 'C' }) {
-  return tipo === 'D' ? (
-    <Badge variant='outline' className='border-blue-200 bg-blue-50 text-blue-700'>
-      Débito
-    </Badge>
-  ) : (
-    <Badge variant='outline' className='border-amber-200 bg-amber-50 text-amber-700'>
-      Crédito
-    </Badge>
-  )
-}
-
 export function MovimientoContableGrid({
   lineas,
   onChange,
   soloDebito = false,
   totalEsperado,
-  lineasFijas,
   titulo = 'Movimiento Contable (Distribución del documento)',
 }: {
   lineas: LineaContable[]
   onChange: (lineas: LineaContable[]) => void
   /** Oculta la columna Crédito — para pantallas donde el crédito es fijo
    * (ej. Caja Chica: siempre la cuenta de la caja) y esta grilla solo reparte
-   * el débito entre una o varias cuentas de gasto. Cuando está activo se
-   * agrega una columna "Tipo" (Débito/Crédito) para que quede claro a qué
-   * lado del asiento pertenece cada línea. */
+   * el débito entre una o varias cuentas de gasto. */
   soloDebito?: boolean
-  /** Cuando soloDebito=true y no hay lineasFijas, valor contra el que se
-   * compara la suma de las líneas para mostrar la Diferencia (ej. el
-   * "Valor" del egreso). Se ignora si lineasFijas tiene datos: en ese caso
-   * la Diferencia compara Débito total vs Crédito total, como un asiento
-   * real. */
+  /** Cuando soloDebito=true, valor contra el que se compara la suma de las
+   * líneas para mostrar la Diferencia (ej. el "Valor" del egreso). */
   totalEsperado?: number
-  /** Líneas automáticas de solo lectura (ITBIS, crédito a la caja, etc.)
-   * que se muestran debajo de las editables, en la misma tabla. */
-  lineasFijas?: LineaFija[]
   titulo?: string
 }) {
   const [nombres, setNombres] = useState<Record<string, string>>({})
@@ -103,11 +69,8 @@ export function MovimientoContableGrid({
   const [searching, setSearching] = useState(false)
 
   const cuentasEnUso = useMemo(
-    () => Array.from(new Set([
-      ...lineas.map((l) => l.cuenta),
-      ...(lineasFijas || []).map((l) => l.cuenta),
-    ].filter(Boolean))),
-    [lineas, lineasFijas],
+    () => Array.from(new Set(lineas.map((l) => l.cuenta).filter(Boolean))),
+    [lineas],
   )
   useEffect(() => {
     const faltantes = cuentasEnUso.filter((c) => !(c in nombres))
@@ -127,20 +90,9 @@ export function MovimientoContableGrid({
   const agregarFila = () => onChange([...lineas, filaVacia()])
   const quitarFila = (i: number) => onChange(lineas.length <= 1 ? [filaVacia()] : lineas.filter((_, idx) => idx !== i))
 
-  const totalDebitoEditable = lineas.reduce((s, l) => s + Number(l.debito || 0), 0)
-  const totalCreditoEditable = lineas.reduce((s, l) => s + Number(l.credito || 0), 0)
-  const totalDebitoFijo = (lineasFijas || [])
-    .filter((f) => f.tipo === 'D').reduce((s, f) => s + Number(f.monto || 0), 0)
-  const totalCreditoFijo = (lineasFijas || [])
-    .filter((f) => f.tipo === 'C').reduce((s, f) => s + Number(f.monto || 0), 0)
-  const totalDebito = totalDebitoEditable + totalDebitoFijo
-  const totalCredito = totalCreditoEditable + totalCreditoFijo
-  const hayFijas = (lineasFijas || []).length > 0
-  const diferencia = hayFijas
-    ? totalDebito - totalCredito
-    : soloDebito
-      ? totalDebitoEditable - Number(totalEsperado ?? totalDebitoEditable)
-      : totalDebitoEditable - totalCreditoEditable
+  const totalDebito = lineas.reduce((s, l) => s + Number(l.debito || 0), 0)
+  const totalCredito = lineas.reduce((s, l) => s + Number(l.credito || 0), 0)
+  const diferencia = soloDebito ? totalDebito - Number(totalEsperado ?? totalDebito) : totalDebito - totalCredito
 
   const buscar = async (q: string) => {
     if (q.trim().length < 1) { setResults([]); return }
@@ -173,9 +125,8 @@ export function MovimientoContableGrid({
               <TableHead className='w-36 py-3'>Cuenta</TableHead>
               <TableHead className='py-3'>Nombre Cuenta</TableHead>
               <TableHead className='w-32 py-3'>Centro Costo</TableHead>
-              {soloDebito && <TableHead className='w-28 py-3'>Tipo</TableHead>}
-              <TableHead className='w-32 py-3 text-right'>Débito</TableHead>
-              {(!soloDebito || hayFijas) && <TableHead className='w-32 py-3 text-right'>Crédito</TableHead>}
+              <TableHead className='w-32 py-3 text-right'>{soloDebito ? 'Monto' : 'Débito'}</TableHead>
+              {!soloDebito && <TableHead className='w-32 py-3 text-right'>Crédito</TableHead>}
               <TableHead className='w-10' />
             </TableRow>
           </TableHeader>
@@ -209,11 +160,6 @@ export function MovimientoContableGrid({
                     className='h-10 font-mono text-sm'
                   />
                 </TableCell>
-                {soloDebito && (
-                  <TableCell className='p-2'>
-                    <TipoBadge tipo='D' />
-                  </TableCell>
-                )}
                 <TableCell className='p-2'>
                   <Input
                     type='number' step='0.01'
@@ -235,7 +181,6 @@ export function MovimientoContableGrid({
                     />
                   </TableCell>
                 )}
-                {soloDebito && hayFijas && <TableCell className='p-2' />}
                 <TableCell className='p-2'>
                   <button
                     type='button'
@@ -248,32 +193,6 @@ export function MovimientoContableGrid({
                 </TableCell>
               </TableRow>
             ))}
-            {(lineasFijas || []).map((f, i) => (
-              <TableRow key={`fija-${i}`} className='bg-muted/20'>
-                <TableCell className='p-2 font-mono text-sm'>{f.cuenta}</TableCell>
-                <TableCell className='truncate p-2 text-sm text-muted-foreground'>
-                  {nombres[f.cuenta] ?? '…'}
-                  {f.etiqueta && <span className='ml-1 text-xs italic'>({f.etiqueta})</span>}
-                </TableCell>
-                <TableCell className='p-2 font-mono text-sm text-muted-foreground'>
-                  {f.centroCosto || '0000000000'}
-                </TableCell>
-                {soloDebito && (
-                  <TableCell className='p-2'>
-                    <TipoBadge tipo={f.tipo} />
-                  </TableCell>
-                )}
-                <TableCell className='p-2 text-right font-mono text-sm'>
-                  {f.tipo === 'D' ? fmt(f.monto) : ''}
-                </TableCell>
-                {(!soloDebito || hayFijas) && (
-                  <TableCell className='p-2 text-right font-mono text-sm'>
-                    {f.tipo === 'C' ? fmt(f.monto) : ''}
-                  </TableCell>
-                )}
-                <TableCell className='p-2' />
-              </TableRow>
-            ))}
           </TableBody>
         </Table>
       </div>
@@ -282,7 +201,7 @@ export function MovimientoContableGrid({
           + Línea
         </Button>
         <div className='flex gap-5 text-sm'>
-          {soloDebito && !hayFijas ? (
+          {soloDebito ? (
             <span>Total: <b className='font-mono'>{fmt(totalDebito)}</b></span>
           ) : (
             <>
