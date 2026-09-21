@@ -302,7 +302,8 @@ def crear_documento(no_cia: str, punto: str, data: dict, usuario: str) -> str:
     # Mismas reglas duras de Facc201 cuando el egreso lleva NCF (validado
     # ahí con "Si se digitó un NCF, debe digitar la forma de pago" / "...el
     # tipo de gasto para la DGII" / control de vencimiento del NCF).
-    if (data.get('ncf') or '').strip():
+    ncf_raw = (data.get('ncf') or '').strip().upper()
+    if ncf_raw:
         if not data.get('forma_pago'):
             raise ValueError('Si digitó un NCF, debe digitar la forma de pago.')
         if not (data.get('tipo_gasto_dgii') or '').strip():
@@ -311,37 +312,59 @@ def crear_documento(no_cia: str, punto: str, data: dict, usuario: str) -> str:
         if not (data.get('fecha_vence_ncf') or '').strip():
             raise ValueError('Si digitó un NCF, debe digitar su fecha de vencimiento.')
 
+    # ACC.TACC_DOCUMENTO.NCF es NUMBER -- el prefijo (B01..B15) va en
+    # POSICIONES_FIJAS_NCF por separado, igual que en CxP/FAT (ver
+    # fat_repo._compose_ncf_dgi: NCF_DGI = POSICIONES_FIJAS_NCF ||
+    # LPAD(NCF,8,'0')). El formulario del clon captura el NCF completo en un
+    # solo campo (ej. "B0100003850"), así que aquí se separa antes de grabar
+    # -- mandarlo tal cual a una columna NUMBER tronaba con ORA-01722 en
+    # cualquier egreso con NCF real (reportado en producción 2026-09-21).
+    pos_ncf = None
+    ncf_num = None
+    if ncf_raw:
+        if len(ncf_raw) > 8 and ncf_raw[-8:].isdigit():
+            pos_ncf = ncf_raw[:-8]
+            ncf_num = int(ncf_raw[-8:])
+        elif ncf_raw.isdigit():
+            ncf_num = int(ncf_raw)
+        else:
+            raise ValueError(
+                f'NCF "{ncf_raw}" no tiene un formato válido (ej. B0100001234).')
+
     with client.cursor() as cur:
         no_docu = _next_no_documento(cur, no_cia, punto)
 
         forma_pago = data.get('forma_pago')
         forma_pago = int(forma_pago) if forma_pago not in (None, '') else None
         fecha_vence_ncf = data.get('fecha_vence_ncf') or None
-        fecha_vence_sql = "TO_DATE(:21,'YYYY-MM-DD')" if fecha_vence_ncf else 'NULL'
         cur.execute(
             "INSERT INTO ACC.TACC_DOCUMENTO ("
             " no_cia, punto, no_docu, no_caja, no_bene, tipo_gasto, fecha, "
             " anulado, valor, debito, credito, usuario, moneda, cuenta, "
             " st_generado_cnt, detalle, impuesto, ncf, rnc, tipo_gasto_dgii, "
             " forma_pago, no_formulario, valor_bienes, valor_servicio, "
-            " fecha_vence_ncf"
+            " fecha_vence_ncf, posiciones_fijas_ncf"
             ") VALUES ("
             " :1, :2, :3, :4, :5, :6, TO_DATE(:7,'YYYY-MM-DD'), "
             " 'N', :8, :8, :8, :9, :10, :11, "
             " 'N', :12, :13, :14, :15, :16, "
             " :17, :18, :19, :20, "
-            + fecha_vence_sql + ")",
+            # TO_DATE(NULL, fmt) es NULL en Oracle -- no hace falta omitir
+            # el bind cuando no hay fecha (evita desalinear la numeración
+            # del resto de los binds, bug real detectado al probar sin NCF).
+            " TO_DATE(:21,'YYYY-MM-DD'), :22)",
             client.nbinds(
                 no_cia, punto, no_docu, data['no_caja'], data['no_bene'],
                 data['tipo_gasto'], fecha, valor_total, usuario,
                 data.get('moneda', 'DOP'), data['cuenta'], data.get('detalle'),
                 impuesto,
-                data.get('ncf'), data.get('rnc'),
+                ncf_num, data.get('rnc'),
                 data.get('tipo_gasto_dgii'),
                 forma_pago,
                 data.get('no_formulario'),
                 valor_bienes, valor_servicio,
-                *([fecha_vence_ncf] if fecha_vence_ncf else []),
+                fecha_vence_ncf,
+                pos_ncf,
             ),
         )
         for l in lineas:
