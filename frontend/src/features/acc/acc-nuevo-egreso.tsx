@@ -22,6 +22,7 @@ import {
   MovimientoContableGrid,
   filaVacia,
   type LineaContable,
+  type LineaFija,
 } from '@/components/shared/movimiento-contable-grid'
 
 const fmt = (n: any) =>
@@ -215,6 +216,29 @@ export function AccNuevoEgreso() {
   const sumaLineas = lineasValidas.reduce((s, l) => s + Number(l.debito || 0), 0)
   const distribucionCuadra = lineasValidas.length > 0 && Math.abs(sumaLineas - valorNum) < 0.01
 
+  // Líneas automáticas del asiento (no editables): ITBIS deducible (débito,
+  // solo si hay impuesto) y el crédito a la cuenta de la caja (débito=crédito
+  // total desembolsado). Se muestran en la MISMA grilla que la(s) línea(s) de
+  // gasto, cada una con su etiqueta Débito/Crédito, para que se vea como un
+  // asiento contable completo -- igual que en el legado (Facc201).
+  const lineasFijas: LineaFija[] = []
+  if (impuestoNum > 0 && cuentaItbisQ.data?.cuenta) {
+    lineasFijas.push({
+      cuenta: cuentaItbisQ.data.cuenta,
+      tipo: 'D',
+      monto: impuestoNum,
+      etiqueta: 'ITBIS automático',
+    })
+  }
+  if (cajaSel) {
+    lineasFijas.push({
+      cuenta: cajaSel.cuenta,
+      tipo: 'C',
+      monto: total,
+      etiqueta: 'crédito automático — cuenta de la caja',
+    })
+  }
+
   // Si selecciona beneficiario con RNC y aún no llenó RNC manual, autocompletar.
   useEffect(() => {
     if (beneficiario?.rnc && !rnc) setRnc(beneficiario.rnc)
@@ -356,28 +380,11 @@ export function AccNuevoEgreso() {
             onChange={(v) => { setLineasTocadas(true); setLineas(v) }}
             soloDebito
             totalEsperado={valorNum}
-            titulo="Cuenta de gasto a afectar (débito)"
+            lineasFijas={lineasFijas}
+            titulo="Distribución contable del egreso (débito / crédito)"
           />
-
-          {impuestoNum > 0 && (
-            <div className="rounded-md border border-dashed bg-muted/20 px-3 py-2 text-xs flex items-center justify-between">
-              <span>
-                <span className="text-muted-foreground">ITBIS (automático — cuenta deducible): </span>
-                <span className="font-mono">{cuentaItbisQ.data?.cuenta || '…'}</span>
-              </span>
-              <span className="tabular-nums font-medium">RD$ {fmt(impuestoNum)}</span>
-            </div>
-          )}
-
-          {cajaSel && (
-            <div className="rounded-md border border-dashed bg-muted/20 px-3 py-2 text-xs flex items-center justify-between">
-              <span>
-                <span className="text-muted-foreground">Crédito (automático — cuenta de la caja, total desembolsado): </span>
-                <span className="font-mono">{cajaSel.cuenta}</span>
-                <span className="text-muted-foreground"> — {cajaSel.descripcion}</span>
-              </span>
-              <span className="tabular-nums font-medium">RD$ {fmt(total)}</span>
-            </div>
+          {impuestoNum > 0 && !cuentaItbisQ.data?.cuenta && (
+            <p className="text-xs text-muted-foreground">Buscando cuenta de ITBIS deducible…</p>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
