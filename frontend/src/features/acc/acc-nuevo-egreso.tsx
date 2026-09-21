@@ -164,6 +164,21 @@ export function AccNuevoEgreso() {
     queryKey: ['acc-tipos-gasto'],
     queryFn: () => api.accListTiposGasto(),
   })
+  // Forma de Pago y Tipo de Gasto DGII: campos reales de Facc201
+  // (TACC_DOCUMENTO.FORMA_PAGO / TIPO_GASTO_DGII) que el clon nunca exponía
+  // -- FORMA_PAGO estaba poblado en 2,875/2,876 documentos históricos (99.97%)
+  // pero el código mandaba un 1 fijo; TIPO_GASTO_DGII/FECHA_VENCE_NCF están
+  // poblados en el 90%+ de los documentos que sí llevan NCF (obligatorios ahí
+  // en el legado: "Si digitó un NCF, debe digitar la forma de pago / el tipo
+  // de gasto para la DGII"). Mismos catálogos que ya usa CxP.
+  const formasPagoQ = useQuery({
+    queryKey: ['acc-formas-pago'],
+    queryFn: () => api.cxpListFormasPago(),
+  })
+  const tiposGastoDgiiQ = useQuery({
+    queryKey: ['acc-tipos-gasto-dgii'],
+    queryFn: () => api.cxpListTiposGasto(),
+  })
 
   const [noCaja, setNoCaja] = useState('')
   const [tipoGasto, setTipoGasto] = useState('')
@@ -175,6 +190,17 @@ export function AccNuevoEgreso() {
   const [rnc, setRnc] = useState('')
   const [detalle, setDetalle] = useState('')
   const [noFormulario, setNoFormulario] = useState('')
+  const [formaPago, setFormaPago] = useState('')
+  const [tipoGastoDgii, setTipoGastoDgii] = useState('')
+  const [fechaVenceNcf, setFechaVenceNcf] = useState('')
+
+  useEffect(() => {
+    if (formaPago || !formasPagoQ.data?.length) return
+    const def = formasPagoQ.data.find((f) => f.por_defecto === 'S') || formasPagoQ.data[0]
+    if (def) setFormaPago(String(def.forma_pago))
+  }, [formasPagoQ.data]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const ncfRequiereDgii = !!ncf.trim()
 
   const cajaSel = (cajasQ.data || []).find((c: any) => c.no_caja === noCaja && c.activa === 'S')
   const gastoSel = (gastosQ.data || []).find((g: any) => g.tipo_gasto === tipoGasto)
@@ -240,7 +266,9 @@ export function AccNuevoEgreso() {
   const reset = () => {
     setBeneficiario(null); setTipoGasto(''); setValor('');
     setImpuesto('0'); setNcf(''); setRnc(''); setDetalle('')
-    setNoFormulario('')
+    setNoFormulario(''); setTipoGastoDgii(''); setFechaVenceNcf('')
+    const def = formasPagoQ.data?.find((f) => f.por_defecto === 'S') || formasPagoQ.data?.[0]
+    setFormaPago(def ? String(def.forma_pago) : '')
     setFecha(new Date().toISOString().slice(0, 10))
     setLineas([filaVacia()]); setLineasTocadas(false)
   }
@@ -259,6 +287,9 @@ export function AccNuevoEgreso() {
       rnc: rnc.trim() || undefined,
       detalle: detalle.trim() || undefined,
       no_formulario: noFormulario.trim() || undefined,
+      forma_pago: formaPago ? Number(formaPago) : undefined,
+      tipo_gasto_dgii: tipoGastoDgii.trim() || undefined,
+      fecha_vence_ncf: fechaVenceNcf || undefined,
       cuenta: cajaSel?.cuenta,
       // Movimiento contable (TACC_DCDOCU): cada fila de la grilla se manda
       // tal cual el operador la dejó -- débito o crédito por línea, igual
@@ -272,7 +303,6 @@ export function AccNuevoEgreso() {
           tipo_movi: Number(l.debito || 0) > 0 ? 'D' : 'C',
         })),
       moneda: cajaSel?.moneda || 'DOP',
-      forma_pago: 1,
     }),
     onSuccess: (res: any) => {
       toast.success(`Egreso ACC-${res.no_docu} creado por RD$ ${fmt(total)}`)
@@ -285,6 +315,7 @@ export function AccNuevoEgreso() {
 
   const puedeGuardar = !!noCaja && !!tipoGasto && !!beneficiario && !!fecha
     && valorNum > 0 && distribucionCuadra
+    && (!ncfRequiereDgii || (!!formaPago && !!tipoGastoDgii.trim() && !!fechaVenceNcf))
 
   const formRef = useEnterAdvancesFocus<HTMLDivElement>()
 
@@ -397,6 +428,44 @@ export function AccNuevoEgreso() {
               <Label className="text-xs">No. Formulario</Label>
               <Input value={noFormulario} onChange={(e) => setNoFormulario(e.target.value)}
                      placeholder="No. de comprobante preimpreso" className="h-9 font-mono" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Forma de Pago</Label>
+              <Select value={formaPago} onValueChange={setFormaPago}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="Selecciona…" /></SelectTrigger>
+                <SelectContent>
+                  {(formasPagoQ.data || []).map((f) => (
+                    <SelectItem key={f.forma_pago} value={String(f.forma_pago)}>
+                      {f.descripcion}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">
+                Tipo Gasto DGII{ncfRequiereDgii ? ' *' : ''}
+              </Label>
+              <Select value={tipoGastoDgii} onValueChange={setTipoGastoDgii}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="Selecciona…" /></SelectTrigger>
+                <SelectContent>
+                  {(tiposGastoDgiiQ.data || []).map((t) => (
+                    <SelectItem key={t.tipo_gasto} value={t.tipo_gasto}>
+                      {t.tipo_gasto} — {t.descripcion}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">
+                Vence NCF{ncfRequiereDgii ? ' *' : ''}
+              </Label>
+              <Input type="date" className="h-9" value={fechaVenceNcf}
+                     onChange={(e) => setFechaVenceNcf(e.target.value)} />
             </div>
           </div>
 
