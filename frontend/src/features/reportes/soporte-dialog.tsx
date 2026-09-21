@@ -42,7 +42,7 @@ const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
 const MAX_IMAGENES = 3
 const MAX_IMAGEN_MB = 5
 
-const ESTADO_LABEL: Record<EstadoReporte, string> = {
+export const ESTADO_LABEL: Record<EstadoReporte, string> = {
   ABIERTO: 'Abierto',
   EN_PROGRESO: 'En progreso',
   HOLD: 'Esperando tu respuesta',
@@ -50,7 +50,7 @@ const ESTADO_LABEL: Record<EstadoReporte, string> = {
   CANCELADO: 'Cancelado',
 }
 
-const ESTADO_VARIANT: Record<
+export const ESTADO_VARIANT: Record<
   EstadoReporte,
   'outline' | 'secondary' | 'default' | 'destructive'
 > = {
@@ -304,7 +304,7 @@ export function MisReportes() {
   )
 }
 
-function NotaResolucion({ reporteId }: { reporteId: string }) {
+export function NotaResolucion({ reporteId }: { reporteId: string }) {
   const { data } = useQuery({
     queryKey: ['reportes', 'detalle', reporteId],
     queryFn: () => getReporte(reporteId),
@@ -322,7 +322,7 @@ function NotaResolucion({ reporteId }: { reporteId: string }) {
 // nota_resolucion (compatibilidad con lo que ya escribe el runner) y también
 // como mensaje ROL='RUNNER' en el hilo. Responder aquí reabre el reporte a
 // ABIERTO para que la próxima corrida del runner lo retome con la respuesta.
-function PreguntaYRespuesta({ reporteId }: { reporteId: string }) {
+export function PreguntaYRespuesta({ reporteId }: { reporteId: string }) {
   const queryClient = useQueryClient()
   const [respuesta, setRespuesta] = useState('')
   const detalle = useQuery({

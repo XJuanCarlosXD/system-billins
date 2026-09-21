@@ -7,6 +7,7 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { SkipToMain } from '@/components/skip-to-main'
 import { AsistenteFloatingButton } from '@/features/asistente/floating-button'
+import { TicketAlertDialog } from '@/features/reportes/ticket-alert-dialog'
 
 type AuthenticatedLayoutProps = {
   children?: React.ReactNode
@@ -38,6 +39,7 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
             {children ?? <Outlet />}
           </SidebarInset>
           {!bare && <AsistenteFloatingButton />}
+          {!bare && <TicketAlertDialog />}
         </SidebarProvider>
       </LayoutProvider>
     </SearchProvider>
