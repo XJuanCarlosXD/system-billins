@@ -5,6 +5,29 @@
 // el resto de esta pestaña — vuelve a aparecer en la próxima carga.
 const ACK_PREFIX = 'zerp.ticketalert.ack.'
 const DISMISSED_SESSION_KEY = 'zerp.ticketalert.dismissedSession'
+const BASELINED_KEY = 'zerp.ticketalert.baselined'
+
+/**
+ * Antes de este feature ya existían tickets resueltos/cancelados/en HOLD.
+ * En el primer polling de cada navegador los marcamos como reconocidos sin
+ * mostrarlos, para no volcarle al usuario todo el historial de una vez —
+ * solo se alerta sobre cambios de estado que ocurran de ahora en adelante.
+ */
+export function hasBaseline() {
+  try {
+    return localStorage.getItem(BASELINED_KEY) === '1'
+  } catch {
+    return true // si localStorage falla, mejor no alertar sobre el historial
+  }
+}
+
+export function setBaselined() {
+  try {
+    localStorage.setItem(BASELINED_KEY, '1')
+  } catch {
+    /* ignore */
+  }
+}
 
 function ackKey(reporteId: string) {
   return `${ACK_PREFIX}${reporteId}`

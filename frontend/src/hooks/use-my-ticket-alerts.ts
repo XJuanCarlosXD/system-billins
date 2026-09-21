@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { listReportes, type ReporteResumen } from '@/lib/api-client-reportes'
 import {
   acknowledge,
   dismissThisSession,
+  hasBaseline,
   isAcknowledged,
   isDismissedThisSession,
+  setBaselined,
 } from '@/lib/ticket-alerts-store'
 
 const ALERT_ESTADOS = ['COMPLETADO', 'CANCELADO', 'HOLD']
@@ -25,6 +27,20 @@ export function useMyTicketAlerts() {
     staleTime: 60_000,
     refetchInterval: 120_000,
   })
+
+  // Primera vez que este navegador ve la lista: reconoce en silencio todo lo
+  // que ya estaba resuelto/cancelado/en HOLD antes de este feature, para no
+  // mostrar de golpe el historial completo de tickets viejos.
+  useEffect(() => {
+    if (!query.data || hasBaseline()) return
+    for (const r of query.data.items) {
+      if (ALERT_ESTADOS.includes(r.estado)) {
+        acknowledge(r.reporte_id, r.fecha_actualizacion)
+      }
+    }
+    setBaselined()
+    setSeenVersion((v) => v + 1)
+  }, [query.data])
 
   const queue = useMemo(() => {
     void seenVersion
