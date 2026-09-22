@@ -70,6 +70,12 @@ const today = new Date().toISOString().slice(0, 10)
 const curYear = new Date().getFullYear()
 const curMonth = new Date().getMonth() + 1
 
+// El usuario busca "8653" y espera encontrar el documento "0008653" (NO_DOCU
+// es CHAR con ceros a la izquierda) sin escribir el padding completo -- mismo
+// helper que aplicar-movimientos.tsx (Fcxp206), reutilizado aqui para los
+// grids de "facturas pendientes" que viven en esta pantalla de Entrada.
+const sinCerosIzq = (v: string) => v.replace(/^0+(?=\d)/, '')
+
 // NCF DGI real: posiciones_fijas_ncf (B01-B15 o E31/E32/E34) || LPAD(ncf).
 // B01..B15 usan 8 dígitos (total 11); e-CF (E3X) usan 10 (total 13).
 // CODIGO_NCF/TIPO_NCF_FISCAL son legacy y suelen venir vacíos.
@@ -383,6 +389,7 @@ export function CxpEntradaDocumentos({
   noCia, punto = '', editTipo, editNoDocu, editColaId,
 }: P & { editTipo?: string; editNoDocu?: string; editColaId?: number }) {
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const { hasDocType, defaultDocType } = useAccess()
   const [tiposDocu, setTiposDocu] = useState<any[]>([])
   const [tipoDocu, setTipoDocu] = useState('')
@@ -854,7 +861,17 @@ export function CxpEntradaDocumentos({
   // como valor inicial a AplicarDocRecienCreado tras guardar, para no
   // obligar a re-escribirlos.
   const [montosPreview, setMontosPreview] = useState<Record<string, string>>({})
-  useEffect(() => { setMontosPreview({}) }, [proveedor?.no_proveedor])
+  // Filtro por numero (igual que aplicar-movimientos.tsx): la lista de
+  // pendientes puede tener decenas de facturas por proveedor y sin esto
+  // el operador tiene que scrollear una por una para encontrar la que busca.
+  const [buscarPendientePreview, setBuscarPendientePreview] = useState('')
+  useEffect(() => { setMontosPreview({}); setBuscarPendientePreview('') }, [proveedor?.no_proveedor])
+  const pendientesPreviewFiltrados = useMemo(() => {
+    const rows = pendientesPreview.data?.pendientes || []
+    const busq = sinCerosIzq(buscarPendientePreview.trim())
+    if (!busq) return rows
+    return rows.filter((d: any) => sinCerosIzq(String(d.no_docu || '')).includes(busq))
+  }, [pendientesPreview.data?.pendientes, buscarPendientePreview])
 
   // Tras registrar una Nota de Débito/Ajuste Débito/Balance Débito (saldo a
   // favor del proveedor), MPILAR reportó dos veces que "no trae las
@@ -988,6 +1005,13 @@ export function CxpEntradaDocumentos({
               `${tipoDocu}-${res.no_docu} aplicado contra ${rAp.aplicaciones.length} factura(s). ` +
               `Saldo a favor restante: RD$ ${Math.abs(Number(rAp.saldo_favor_restante || 0)).toLocaleString('es-DO', { minimumFractionDigits: 2 })}`
             )
+            // Sin esto, si el operador arma otra ND para el mismo proveedor a
+            // continuacion, la lista de "facturas pendientes" reaparecia con
+            // la factura recien aplicada todavia mostrando su saldo viejo
+            // (cache de React Query no invalidada) -- forzando a refrescar la
+            // pagina para verla realmente descontada o ya sin saldo.
+            qc.invalidateQueries({ queryKey: ['cxp-pendientes-preview'] })
+            qc.invalidateQueries({ queryKey: ['cxp-aplicar-movimientos'] })
           } catch (e: any) {
             // Doc creado pero aplicación falló: dejar el card manual
             // como fallback para que el operador pueda corregir montos
@@ -1438,7 +1462,7 @@ export function CxpEntradaDocumentos({
               Facturas pendientes de {proveedor.nombre || proveedor.no_proveedor} a las que se podrá afectar este documento
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className='space-y-3'>
             {pendientesPreview.isLoading ? (
               <p className='text-sm text-muted-foreground'>Cargando facturas pendientes…</p>
             ) : (pendientesPreview.data?.pendientes || []).length === 0 ? (
@@ -1446,40 +1470,60 @@ export function CxpEntradaDocumentos({
                 {proveedor.nombre || proveedor.no_proveedor} no tiene facturas pendientes (créditos con saldo, sin pago bloqueado) por ahora.
               </p>
             ) : (
-              <div className='max-h-64 overflow-y-auto overflow-x-auto rounded border'>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>No. Documento</TableHead>
-                      <TableHead>Fecha</TableHead>
-                      <TableHead className='text-right'>Valor Pendiente</TableHead>
-                      <TableHead className='w-36 text-right'>Monto</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(pendientesPreview.data?.pendientes || []).map((d: any) => {
-                      const key = `${d.tipo_docu}|${d.no_docu}`
-                      return (
-                        <TableRow key={key}>
-                          <TableCell className='font-mono'>{d.tipo_docu}-{d.no_docu}</TableCell>
-                          <TableCell>{d.fecha}</TableCell>
-                          <TableCell className='text-right font-mono tabular-nums'>RD$ {fmt(d.saldo)}</TableCell>
-                          <TableCell>
-                            <Input
-                              type='number' step='0.01' min='0' className='h-9 text-right font-mono'
-                              placeholder='0.00'
-                              value={montosPreview[key] || ''}
-                              onChange={(e) => setMontosPreview((m) => ({ ...m, [key]: e.target.value }))}
-                            />
+              <>
+                {(pendientesPreview.data?.pendientes || []).length > 5 && (
+                  <div className='space-y-1'>
+                    <Label className='text-xs text-muted-foreground'>Buscar por número</Label>
+                    <Input
+                      placeholder='Ej. 8653'
+                      className='h-9'
+                      value={buscarPendientePreview}
+                      onChange={(e) => setBuscarPendientePreview(e.target.value)}
+                    />
+                  </div>
+                )}
+                <div className='max-h-64 overflow-y-auto overflow-x-auto rounded border'>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>No. Documento</TableHead>
+                        <TableHead>Fecha</TableHead>
+                        <TableHead className='text-right'>Valor Pendiente</TableHead>
+                        <TableHead className='w-36 text-right'>Monto</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pendientesPreviewFiltrados.map((d: any) => {
+                        const key = `${d.tipo_docu}|${d.no_docu}`
+                        return (
+                          <TableRow key={key}>
+                            <TableCell className='font-mono'>{d.tipo_docu}-{d.no_docu}</TableCell>
+                            <TableCell>{d.fecha}</TableCell>
+                            <TableCell className='text-right font-mono tabular-nums'>RD$ {fmt(d.saldo)}</TableCell>
+                            <TableCell>
+                              <Input
+                                type='number' step='0.01' min='0' className='h-9 text-right font-mono'
+                                placeholder='0.00'
+                                value={montosPreview[key] || ''}
+                                onChange={(e) => setMontosPreview((m) => ({ ...m, [key]: e.target.value }))}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                      {pendientesPreviewFiltrados.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={4} className='py-6 text-center text-muted-foreground'>
+                            Ninguna factura pendiente coincide con el filtro.
                           </TableCell>
                         </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
             )}
-            <p className='mt-2 text-xs text-muted-foreground'>
+            <p className='text-xs text-muted-foreground'>
               Escribe aquí el monto a aplicar contra cada factura. Al guardar el documento, las aplicaciones se registran automáticamente y el saldo de las facturas se reduce en el acto.
             </p>
           </CardContent>
@@ -1580,6 +1624,9 @@ function AplicarDocRecienCreado({
   onDone: () => void
 }) {
   const [montos, setMontos] = useState<Record<string, string>>(() => initialMontos || {})
+  // Igual que en aplicar-movimientos.tsx (Fcxp206): sin este filtro, un
+  // proveedor con muchas facturas obliga a scrollear una por una.
+  const [buscarPendiente, setBuscarPendiente] = useState('')
   const qc = useQueryClient()
 
   const q = useQuery({
@@ -1594,6 +1641,11 @@ function AplicarDocRecienCreado({
     (d: any) => d.tipo_docu === docInfo.tipoDocu && d.no_docu === docInfo.noDocu,
   )
   const pendientes = q.data?.pendientes || []
+  const pendientesFiltradas = useMemo(() => {
+    const busq = sinCerosIzq(buscarPendiente.trim())
+    if (!busq) return pendientes
+    return pendientes.filter((d: any) => sinCerosIzq(String(d.no_docu || '')).includes(busq))
+  }, [pendientes, buscarPendiente])
   const disponible = favor ? Math.abs(Number(favor.saldo || 0)) : 0
 
   const keyOf = (d: any) => `${d.tipo_docu}|${d.no_docu}`
@@ -1619,7 +1671,12 @@ function AplicarDocRecienCreado({
     onSuccess: (r: any) => {
       toast.success(`${docInfo.tipoDocu}-${docInfo.noDocu} aplicado contra ${r.aplicaciones.length} factura(s).`)
       setMontos({})
+      setBuscarPendiente('')
       qc.invalidateQueries({ queryKey: ['cxp-aplicar-movimientos'] })
+      // Para que si el operador sigue de una vez con OTRA ND del mismo
+      // proveedor, la vista previa de "facturas pendientes" en la pantalla
+      // de Entrada ya no muestre la que se acaba de saldar aqui.
+      qc.invalidateQueries({ queryKey: ['cxp-pendientes-preview'] })
       onDone()
     },
     onError: (e: any) => toast.error(e?.detail?.error || e?.message || 'No se pudo aplicar'),
@@ -1648,6 +1705,17 @@ function AplicarDocRecienCreado({
               <span>Disponible: <b className='font-mono tabular-nums'>RD$ {fmt(disponible)}</b></span>
               <span>A aplicar: <b className='font-mono tabular-nums'>RD$ {fmt(totalAplicar)}</b></span>
             </div>
+            {pendientes.length > 5 && (
+              <div className='space-y-1'>
+                <Label className='text-xs text-muted-foreground'>Buscar por número</Label>
+                <Input
+                  placeholder='Ej. 8653'
+                  className='h-9'
+                  value={buscarPendiente}
+                  onChange={(e) => setBuscarPendiente(e.target.value)}
+                />
+              </div>
+            )}
             <div className='overflow-x-auto rounded border'>
               <Table>
                 <TableHeader>
@@ -1659,7 +1727,7 @@ function AplicarDocRecienCreado({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pendientes.map((d: any) => (
+                  {pendientesFiltradas.map((d: any) => (
                     <TableRow key={keyOf(d)}>
                       <TableCell className='font-mono'>{d.tipo_docu}-{d.no_docu}</TableCell>
                       <TableCell>{d.fecha}</TableCell>
@@ -1680,6 +1748,13 @@ function AplicarDocRecienCreado({
                       </TableCell>
                     </TableRow>
                   ))}
+                  {pendientesFiltradas.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className='py-6 text-center text-muted-foreground'>
+                        Ninguna factura pendiente coincide con el filtro.
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </div>
