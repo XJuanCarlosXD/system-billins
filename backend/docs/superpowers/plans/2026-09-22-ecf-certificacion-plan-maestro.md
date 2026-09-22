@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 Construido, NO ejecutado | 2026-09-22 |
+| 4 | Pruebas Simulación e-CF | 🔲 En ejecución — 3 e-NCF quemados; 3 bugs del builder detectados (2 corregidos, 1 pendiente) | 2026-09-22 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -285,8 +285,70 @@ Declaración Jurada, Verificación Estatus, Finalizado.
    que compromete legalmente a Abregonza SIEMPRE debe pasar por el
    usuario, no la firme el runner solo.
 
+## Fase 4 — Hallazgos de la primera ejecución real (2026-09-22)
+
+Primer intento real de enviar 4×31 desde facturas reales de Abregonza
+(FC-0007829, FC-0007607, FC-0008076, FC-0007766). Descubierto que el
+builder `_construir_ecf` de Task 1 estaba incompleto para envío contra
+`certecf` real (los tests XSD sí pasaban porque el XSD marca varios
+campos como `minOccurs=0` que en la realidad la DGII exige). Cada rechazo
+quema el e-NCF (`secuenciaUtilizada: True`), por eso se paró la corrida al
+tercer rechazo para arreglar el builder correctamente antes de seguir.
+
+**e-NCF quemados** (todos con FC-0007829, RD$ 682709.10, RNC comprador
+131265863; rechazados por `certecf`, ya NO se reintentan):
+
+| e-NCF | trackId | Código | Mensaje |
+|-------|---------|--------|---------|
+| E310000000054 | efe84117-d3d1-4c76-ba68-02fd95503671 | 176 | IndicadorMontoGravado no es válido |
+| E310000000055 | 3a6472bb-5061-4984-b628-a10e1984cb3f | 1100 | FechaLimitePago no es válido |
+| E310000000056 | 3f4dcbdb-711c-4eef-bf22-91f1aad9b528 | 1930 | MontoGravadoI1 no es válido |
+
+**Bugs corregidos esta corrida** (`apps/fe/ecf_builder.py`, con tests en
+`apps/fe/tests/test_ecf_builder.py`, desplegados a la VM):
+
+1. `IdDoc/IndicadorMontoGravado` faltaba. DGII lo exige aunque el XSD
+   diga `minOccurs=0`. Se fija en `0` (los `MontoItem` van SIN ITBIS).
+2. `DetallesItems/Item/MontoItem` se emitía con ITBIS incluido (usaba
+   `TFAT_FACTURAL.monto_neto` que en producción sí incluye ITBIS —
+   confirmado con FC-0007829: cantidad=1, precio=578567.03,
+   impuesto=104142.07, monto_neto=682709.10). Ahora se calcula como
+   `precio × cantidad − descuento`, consistente con
+   `IndicadorMontoGravado=0`.
+3. `IdDoc/FechaLimitePago` faltaba cuando `TipoPago=2` (crédito). Muchas
+   facturas de crédito reales tienen `plazo_pago=0` (crédito "sin plazo
+   definido"); en ese caso se defaultea a `fecha_emisión + 30 días`.
+
+**Bug pendiente para la siguiente corrida** (bloqueante para retomar el
+envío, NO enviar otro 31 hasta arreglarlo):
+
+- `Encabezado/Totales/MontoGravadoI1` (+ `ITBIS1` = 18, +
+  `TotalITBIS1`) faltan. La DGII exige el **breakdown por tasa** cuando
+  hay líneas con ITBIS 18% (probablemente también `MontoGravadoI2`+`I3`
+  para 16% y 0% si aplican, y `MontoExento` — que sí lo genera). Confirmar
+  contra `Formato-e-CF-V1.0.pdf` en `backend/docs/superpowers/reference/
+  2026-08-31-set-pruebas-paso2/` la lista completa de campos I1/I2/I3
+  antes de codificar, y agregar assert XSD + assert de valor en
+  `test_ecf_builder.py`. Después, retomar FC-0007829 (E310000000057 será
+  la próxima secuencia).
+
+Es decir: la próxima corrida NO abre otro grupo del Paso 4 — arregla este
+bug primero, valida un solo 31, y solo si queda **Aceptado** por DGII se
+avanza a los otros 3. Ese es el orden correcto para no seguir quemando
+secuencias reales.
+
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
 
-- (vacío todavía — la primera corrida programada la agrega acá)
+- **2026-09-22 20:30 UTC** — Runner scheduled. Fase 4 arrancó: elegidas 4
+  facturas reales (FC-0007829/0007607/0008076/0007766, todas B01 con RNC
+  válido, de la base real de Abregonza). Primer intento contra `certecf`
+  quemó 3 e-NCF de 31 antes de que se pudiera arreglar el builder
+  incompleto (ver "Fase 4 — Hallazgos" arriba). Se corrigió y desplegó a
+  la VM 2 de los 3 bugs (IndicadorMontoGravado + MontoItem sin ITBIS,
+  FechaLimitePago default 30d), con tests. Bug pendiente: MontoGravadoI1/
+  ITBIS1/TotalITBIS1 (breakdown por tasa en Totales). Portal sigue
+  mostrando 0/4 tipo 31 — los rechazos no cuentan hacia el contador.
+  Próxima corrida: arreglar el bug 3, retomar FC-0007829 (E310000000057).
+  Commits: (ver commit de esta misma corrida).

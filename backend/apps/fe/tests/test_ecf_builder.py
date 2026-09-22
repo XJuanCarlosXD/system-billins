@@ -266,6 +266,55 @@ def test_construir_ecf_31_credito_fiscal_sin_tabla_formas_pago(_patch_repos):
     assert root.findtext('.//Comprador/RazonSocialComprador') == 'CLIENTE ZZTEST SRL'
 
 
+def test_fecha_limite_pago_default_30_dias_cuando_credito_sin_plazo(_patch_repos):
+    """Bug encontrado en Paso 4 real (E310000000055 rechazado 2026-09-22
+    con codigo 1100 'FechaLimitePago no es valido'): la DGII exige
+    FechaLimitePago cuando TipoPago=2 (credito). Muchas facturas reales
+    de credito en FAT tienen plazo_pago=0; en ese caso default=30 dias.
+    """
+    _patch_repos['factura'] = _factura_zztest(
+        tipo_factura='FC', no_factura='0000903', posiciones_fijas_ncf='B01')
+    _patch_repos['factura']['plazo_pago'] = 0
+    _patch_repos['factura']['fecha'] = '2026-08-31'
+    _patch_repos['datos_fiscales'] = _datos_fiscales_zztest(forma_pago_fat='4')
+    xml_str = ecf_builder.construir_ecf_31('01', '01', 'FC', '0000903')
+
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.findtext('.//IdDoc/TipoPago') == '2'
+    # fecha 2026-08-31 + 30 dias = 2026-09-30 -> '30-09-2026'
+    assert root.findtext('.//IdDoc/FechaLimitePago') == '30-09-2026'
+
+
+def test_indicador_monto_gravado_es_cero_y_monto_item_no_incluye_itbis(_patch_repos):
+    """Bug critico encontrado en Paso 4 real (E310000000054 rechazado por
+    DGII 2026-09-22 con codigo 176 'IndicadorMontoGravado no es valido'):
+    la DGII exige IndicadorMontoGravado en IdDoc (aunque el XSD diga
+    minOccurs=0) Y que MontoItem NO incluya el ITBIS cuando ese indicador
+    es 0. En la BD real (TFAT_FACTURAL) monto_neto SI incluye el ITBIS
+    (ej. FC-0007829: cantidad=1, precio=578567.03, impuesto=104142.07,
+    monto_neto=682709.10) -- por eso MontoItem se calcula de
+    precio*cantidad-descuento en vez de monto_neto directo.
+    """
+    # Linea con ITBIS 18%: precio 100 x cantidad 2 - descuento 0 = 200
+    # (sin ITBIS). En cambio monto_neto+ITBIS seria 200+36 = 236.
+    _patch_repos['factura'] = _factura_zztest(
+        tipo_factura='FC', no_factura='0000902', posiciones_fijas_ncf='B01')
+    xml_str = ecf_builder.construir_ecf_31('01', '01', 'FC', '0000902')
+
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    # IndicadorMontoGravado presente y con valor 0
+    assert root.findtext('.//IdDoc/IndicadorMontoGravado') == '0'
+    # Debe ir antes de TipoIngresos (orden del XSD).
+    id_doc = root.find('.//IdDoc')
+    tags = [child.tag for child in id_doc]
+    assert tags.index('IndicadorMontoGravado') < tags.index('TipoIngresos')
+    # MontoItem = precio*cantidad-descuento (SIN ITBIS), no monto_neto.
+    items = root.findall('.//DetallesItems/Item')
+    assert items[0].findtext('MontoItem') == '200.00'  # 100*2 - 0
+    assert items[1].findtext('MontoItem') == '50.00'   # 50*1 - 0 exento
+    assert items[2].findtext('MontoItem') == '30.00'   # 30*1 - 0 itbis 0%
+
+
 def test_construir_ecf_31_sin_rnc_comprador_lanza_error_en_vez_de_omitir(_patch_repos):
     """Bug critico (code review post-commit 54e2de3): un e-CF 31 sin RNC del
     comprador es un documento invalido para la DGII (RNCComprador es
