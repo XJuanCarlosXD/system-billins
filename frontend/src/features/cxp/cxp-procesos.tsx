@@ -947,50 +947,80 @@ export function CxpEntradaDocumentos({
         return
       }
 
-      const res = await api.cxpEntradaDocumento(payload)
-
-      if (modoEdicion) {
-        // Si es un debito (ND/AD/BD) y el operador ya lleno montos en la
-        // tarjeta "Aplicar" de abajo (AplicarDocRecienCreado, reusa
-        // montosPreview como estado compartido) SIN apretar su boton
-        // "Aplicar" -- que es una accion separada de "Guardar Cambios" --
-        // "Guardar Cambios" navegaba de inmediato a Consulta de Documentos
-        // y esos montos se perdian en silencio, dejando el documento con
-        // todo su saldo a favor intacto. Reportado por MPILAR (ticket
-        // 76fb8b85 "ND NO APLICA A FACT."): "aun sea seleccionada [la
-        // factura], el registro esta quedando como saldo a favor".
-        if (esDocDebito) {
-          const aplicaciones = Object.entries(montosPreview)
-            .map(([key, v]) => {
-              const [tipo_docu_ap, no_docu_ap] = key.split('|')
-              return { tipo_docu: tipo_docu_ap, no_docu: no_docu_ap, monto: Number(v || 0) }
+      // Si es un debito (ND/AD/BD) en edicion y el operador ya lleno montos
+      // en la tarjeta "Aplicar" de abajo (AplicarDocRecienCreado, reusa
+      // montosPreview como estado compartido) SIN apretar su boton "Aplicar"
+      // -- una accion separada de "Guardar Cambios" -- esos montos se
+      // perdian en silencio al navegar, dejando el documento con todo su
+      // saldo a favor intacto. Reportado por MPILAR (ticket 76fb8b85 "ND NO
+      // APLICA A FACT."): "aun sea seleccionada [la factura], el registro
+      // esta quedando como saldo a favor".
+      //
+      // Esto va ANTES de cxpEntradaDocumento (guardado de campos) a
+      // proposito: el backend rechaza editar los campos de un documento
+      // cuyo saldo ya difiere de su valor_original ("ya tiene pagos o
+      // aplicaciones parciales"), que es el estado normal de una ND a la
+      // que ya se le aplico algo antes -- si aplicaramos despues del
+      // guardado de campos, nunca se llegaria a este paso en ese caso
+      // comun. Aplicar no toca los campos del documento, asi que no choca
+      // con ese candado.
+      let aplicacionResultado: { aplicaciones: any[]; saldo_favor_restante: number } | null = null
+      if (modoEdicion && !modoEdicionCola && esDocDebito) {
+        const aplicaciones = Object.entries(montosPreview)
+          .map(([key, v]) => {
+            const [tipo_docu_ap, no_docu_ap] = key.split('|')
+            return { tipo_docu: tipo_docu_ap, no_docu: no_docu_ap, monto: Number(v || 0) }
+          })
+          .filter((a) => a.monto > 0)
+        if (aplicaciones.length > 0) {
+          try {
+            aplicacionResultado = await api.cxpAplicarMovimientos({
+              no_cia: noCia, punto, tipo_docu: tipoDocu, no_docu: siguiente,
+              aplicaciones,
             })
-            .filter((a) => a.monto > 0)
-          if (aplicaciones.length > 0) {
-            try {
-              const rAp: any = await api.cxpAplicarMovimientos({
-                no_cia: noCia, punto, tipo_docu: tipoDocu, no_docu: siguiente,
-                aplicaciones,
-              })
-              toast.success(
-                `${tipoDocu}-${siguiente} actualizado y aplicado contra ${rAp.aplicaciones.length} factura(s). ` +
-                `Saldo a favor restante: RD$ ${Math.abs(Number(rAp.saldo_favor_restante || 0)).toLocaleString('es-DO', { minimumFractionDigits: 2 })}`
-              )
-              qc.invalidateQueries({ queryKey: ['cxp-pendientes-preview'] })
-              qc.invalidateQueries({ queryKey: ['cxp-aplicar-movimientos'] })
-              setMontosPreview({})
-              navigate({ to: '/cxp/documentos' })
-              return
-            } catch (e: any) {
-              toast.error(
-                `Se guardaron los cambios de ${tipoDocu}-${siguiente}, pero la aplicación contra las facturas seleccionadas falló: ` +
-                `${e?.detail?.error || e?.message || 'error desconocido'}. Revise los montos abajo y reintente antes de salir.`
-              )
-              return
-            }
+            qc.invalidateQueries({ queryKey: ['cxp-pendientes-preview'] })
+            qc.invalidateQueries({ queryKey: ['cxp-aplicar-movimientos'] })
+            setMontosPreview({})
+          } catch (e: any) {
+            toast.error(
+              `No se pudo aplicar ${tipoDocu}-${siguiente} contra las facturas seleccionadas: ` +
+              `${e?.detail?.error || e?.message || 'error desconocido'}. Revise los montos e intente de nuevo.`
+            )
+            return
           }
         }
-        toast.success(`Documento ${tipoDocu}-${res.no_docu} actualizado`)
+      }
+
+      let res: any
+      try {
+        res = await api.cxpEntradaDocumento(payload)
+      } catch (e: any) {
+        const msg = e?.detail?.error || e?.message || ''
+        if (modoEdicion && aplicacionResultado && msg.includes('pagos o aplicaciones parciales')) {
+          // Esperado: el documento ya tiene aplicaciones (la que acabamos de
+          // hacer incluida), asi que sus campos base ya no se pueden tocar
+          // -- pero la aplicacion en si SI se guardo. No es un fallo.
+          toast.success(
+            `${tipoDocu}-${siguiente} aplicado contra ${aplicacionResultado.aplicaciones.length} factura(s). ` +
+            `Saldo a favor restante: RD$ ${Math.abs(Number(aplicacionResultado.saldo_favor_restante || 0)).toLocaleString('es-DO', { minimumFractionDigits: 2 })} ` +
+            `(los demás campos no se modificaron: el documento ya tiene aplicaciones).`
+          )
+          navigate({ to: '/cxp/documentos' })
+          return
+        }
+        toast.error(msg || 'Error guardando documento')
+        return
+      }
+
+      if (modoEdicion) {
+        if (aplicacionResultado) {
+          toast.success(
+            `${tipoDocu}-${res.no_docu} actualizado y aplicado contra ${aplicacionResultado.aplicaciones.length} factura(s). ` +
+            `Saldo a favor restante: RD$ ${Math.abs(Number(aplicacionResultado.saldo_favor_restante || 0)).toLocaleString('es-DO', { minimumFractionDigits: 2 })}`
+          )
+        } else {
+          toast.success(`Documento ${tipoDocu}-${res.no_docu} actualizado`)
+        }
         navigate({ to: '/cxp/documentos' })
         return
       }
