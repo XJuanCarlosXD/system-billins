@@ -211,9 +211,35 @@ def _construir_ecf(tipo_ecf: int, factura: dict, datos_fiscales: dict,
                 "tipo 31 en esta compania -- obligatoria para "
                 "IdDoc/FechaVencimientoSecuencia del e-CF de Credito Fiscal")
         _sub(id_doc, 'FechaVencimientoSecuencia', _fmt_fecha(fecha_vencimiento))
+    # IndicadorMontoGravado=0: los MontoItem de la seccion B se emiten SIN
+    # ITBIS incluido (ver ``_sub(item, 'MontoItem', ...)`` mas abajo, que usa
+    # ``precio*cantidad-descuento``). Aunque en el XSD es minOccurs=0, DGII
+    # rechaza los e-CF 31 que lo omiten con codigo 176 "IndicadorMontoGravado
+    # no es valido" (confirmado 2026-09-22 con E310000000054 rechazado). El
+    # unico otro valor legal es 1 ("MontoItem CON ITBIS"), que ademas
+    # obligaria a emitir tambien MontoItemSinITBIS por linea -- no soportado
+    # todavia en este builder, y se prefiere 0 que es el uso normal de FAT.
+    _sub(id_doc, 'IndicadorMontoGravado', 0)
     _sub(id_doc, 'TipoIngresos', datos_fiscales['tipo_ingreso'])
     tipo_pago, formas_pago = _tipo_pago_y_formas(datos_fiscales, monto_total)
     _sub(id_doc, 'TipoPago', tipo_pago)
+    if tipo_pago == 2:
+        # DGII exige IdDoc/FechaLimitePago cuando TipoPago=2 (credito),
+        # aunque el XSD lo declare minOccurs=0 (E310000000055 rechazado
+        # 2026-09-22 con codigo 1100 "FechaLimitePago no es valido").
+        # Muchas facturas reales de credito en FAT tienen plazo_pago=0
+        # (credito "sin plazo definido"); en ese caso se usa el default
+        # dominicano estandar de 30 dias.
+        from datetime import timedelta
+        fecha_str = factura.get('fecha')
+        try:
+            fecha_dt = datetime.strptime(fecha_str, '%Y-%m-%d')
+        except (TypeError, ValueError):
+            raise ECFBuilderError(
+                f"La factura {factura['tipo_factura']}-{factura['no_factura']} "
+                "no tiene fecha valida para calcular FechaLimitePago")
+        plazo = int(factura.get('plazo_pago') or 0) or 30
+        _sub(id_doc, 'FechaLimitePago', _fmt_fecha(fecha_dt + timedelta(days=plazo)))
     if formas_pago:
         tabla = _sub(id_doc, 'TablaFormasPago')
         for forma_pago, monto_pago in formas_pago:
@@ -305,7 +331,15 @@ def _construir_ecf(tipo_ecf: int, factura: dict, datos_fiscales: dict,
         _sub(item, 'IndicadorBienoServicio', 1)
         _sub(item, 'CantidadItem', _fmt_monto(linea['cantidad']))
         _sub(item, 'PrecioUnitarioItem', _fmt_monto(linea['precio']))
-        _sub(item, 'MontoItem', _fmt_monto(linea['monto_neto']))
+        # MontoItem debe ir SIN ITBIS (coherente con IndicadorMontoGravado=0
+        # en IdDoc). No se usa ``linea['monto_neto']`` directamente porque en
+        # TFAT_FACTURAL real ese campo INCLUYE el ITBIS (ej. cantidad=1,
+        # precio=578567.03, impuesto=104142.07, monto_neto=682709.10 --
+        # confirmado con FC-0007829 el 2026-09-22). ``precio*cantidad-descuento``
+        # es equivalente y consistente en ambos sentidos (test y produccion).
+        _sub(item, 'MontoItem', _fmt_monto(
+            float(linea['precio'] or 0) * float(linea['cantidad'] or 0)
+            - float(linea['descuento'] or 0)))
 
     # FechaHoraFirma es el ultimo elemento real del XSD antes del <xs:any>
     # donde va el <Signature> -- ese nodo lo agrega firmar_con_app_oficial(),
