@@ -862,6 +862,32 @@ class FatConduceDetailView(APIView):
         return Response(conduce, status=200)
 
 
+class FatAnularConduceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        no_cia = request.data.get('no_cia')
+        punto = request.data.get('punto', '01')
+        tipo_conduce = request.data.get('tipo_conduce')
+        no_conduce = request.data.get('no_conduce')
+        motivo = request.data.get('motivo', '')
+        if not all([no_cia, tipo_conduce, no_conduce]):
+            return Response({'detail': 'no_cia, tipo_conduce y no_conduce son requeridos'}, status=400)
+        forbidden = _check_fat_access(request.user.username, str(no_cia).strip(), str(punto).strip())
+        if forbidden:
+            return forbidden
+        try:
+            res = fat_repo.anular_conduce(
+                no_cia=str(no_cia).strip(), punto=str(punto).strip(),
+                tipo_conduce=str(tipo_conduce).strip(), no_conduce=str(no_conduce).strip(),
+                usuario=request.user.username, motivo=str(motivo).strip())
+            return Response(res)
+        except ValueError as e:
+            return Response({'detail': str(e)}, status=422)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=500)
+
+
 # -- Cuadre de Caja -----------------------------------------------------------
 
 class FatCuadreCajaView(APIView):

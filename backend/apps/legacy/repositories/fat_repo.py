@@ -3495,6 +3495,41 @@ def update_conduce(no_cia, punto, tipo_conduce, no_conduce, no_cliente, fecha,
             "descuento": total_descuento, "impuesto": total_impuesto}
 
 
+def anular_conduce(no_cia, punto, tipo_conduce, no_conduce, usuario, motivo=""):
+    """Anula (reversa) una cotizacion/conduce. Una cotizacion no genera NCF,
+    movimiento de inventario ni documento CXC -- no hay nada que revertir
+    contablemente, asi que anular es solo marcar ST_ANULADO='S'. Bloqueado
+    si ya esta anulado o si ya tiene una factura vinculada (esa se anula
+    aparte, desde Facturas)."""
+    tc = tipo_conduce.strip().upper()
+    nc = no_conduce.strip()
+    with client.cursor() as cur:
+        cur.execute(
+            "SELECT NVL(st_anulado,'N'), no_factura FROM FAT.TFAT_CONDUCE "
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_conduce=:3 AND no_conduce=:4 "
+            "FOR UPDATE",
+            [no_cia, punto, tc, nc])
+        row = cur.fetchone()
+        if not row:
+            raise ValueError("Conduce no encontrado")
+        st_anulado, no_factura = row[0], (row[1] or '').strip()
+        if st_anulado == 'S':
+            raise ValueError("El conduce ya esta anulado")
+        if no_factura:
+            raise ValueError(
+                "No se puede anular: ya esta facturado (factura {})".format(no_factura))
+        cur.execute(
+            "UPDATE FAT.TFAT_CONDUCE SET st_anulado='S' "
+            "WHERE no_cia=:1 AND punto=:2 AND tipo_conduce=:3 AND no_conduce=:4",
+            [no_cia, punto, tc, nc])
+        historial_repo.log_evento(
+            cur, usuario=usuario, no_cia=no_cia, punto=punto, modulo="FAT",
+            tipo_documento=tc, no_documento=nc, accion="ANULAR", motivo=motivo,
+        )
+        cur.connection.commit()
+    return {"tipo_conduce": tc, "no_conduce": nc, "anulado": True, "motivo": motivo}
+
+
 # ── Lookups secundarios usados por views_print (FAT-print sprint) ─────────────
 
 def get_vendedor_nombre(no_cia: str, vendedor: str) -> str:
