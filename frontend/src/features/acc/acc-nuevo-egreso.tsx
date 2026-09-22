@@ -44,7 +44,13 @@ function BeneficiarioPicker({
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [codigo, setCodigo] = useState(value?.no_bene ?? '')
+  const [buscandoCodigo, setBuscandoCodigo] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setCodigo(value?.no_bene ?? '')
+  }, [value?.no_bene])
 
   const benesQ = useQuery({
     queryKey: ['acc-bene-pick', search],
@@ -52,14 +58,41 @@ function BeneficiarioPicker({
     enabled: open,
   })
 
+  // Igual que ProveedorPicker en CxP: el operador que ya conoce el código
+  // del beneficiario no debería tener que abrir la lupa y buscarlo por
+  // nombre cada vez -- puede escribirlo directo y confirmarlo con Tab/Enter.
+  const cargarPorCodigo = async (cod: string) => {
+    const trimmed = cod.trim()
+    if (!trimmed) { onChange(null); return }
+    if (trimmed === value?.no_bene) return
+    setBuscandoCodigo(true)
+    try {
+      const rows = await api.accListBeneficiarios({ activo: 'S', search: trimmed })
+      const match = (rows || []).find((b: any) => b.no_bene === trimmed) || null
+      if (match) onChange(match)
+      else {
+        toast.error(`Beneficiario ${trimmed} no encontrado`)
+        onChange(null)
+      }
+    } catch {
+      toast.error(`Beneficiario ${trimmed} no encontrado`)
+      onChange(null)
+    } finally {
+      setBuscandoCodigo(false)
+    }
+  }
+
   return (
     <div className="space-y-1">
       <Label className="text-xs">Beneficiario *</Label>
       <div className="flex items-center gap-2">
         <Input
-          value={value?.no_bene ?? ''}
-          readOnly
-          placeholder="—"
+          value={codigo}
+          onChange={(e) => setCodigo(e.target.value)}
+          onBlur={(e) => cargarPorCodigo(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') cargarPorCodigo(codigo) }}
+          placeholder="Código"
+          disabled={buscandoCodigo}
           className="h-9 w-32 font-mono"
         />
         <Button type="button" variant="outline" size="sm" className="h-9"
@@ -92,7 +125,7 @@ function BeneficiarioPicker({
           </div>
         ) : (
           <div className="flex h-9 flex-1 items-center rounded-md border border-dashed px-3 text-xs text-muted-foreground">
-            Usa la lupa para buscar el beneficiario.
+            Escriba el código si lo conoce, o use la lupa para buscarlo.
           </div>
         )}
       </div>
