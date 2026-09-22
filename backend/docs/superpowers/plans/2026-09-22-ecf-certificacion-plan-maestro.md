@@ -107,6 +107,19 @@ fase hasta que esta sección diga explícitamente que se resolvió.
    de este proyecto), luego `superpowers:executing-plans` o
    `superpowers:subagent-driven-development` para ejecutarlo con TDD. Para
    fases que son solo "usar la UI/API ya construida", ir directo.
+
+   **Regla explícita: que ZentoryERP "no tenga esa opción todavía" NUNCA es
+   motivo para no hacer nada.** Si el paso de la DGII exige una capacidad
+   que el sistema no tiene (un endpoint que falta, una plantilla PDF que no
+   existe, un builder de un tipo de e-CF que Fase 1 no cubrió, etc.), el
+   runner la CONSTRUYE esta misma corrida (o la deja como Tarea 1 de un
+   sub-plan si es grande) — no se salta el paso, no lo deja "pendiente de
+   decisión" solo por faltar código. Esto sigue
+   [[feedback-ecf-todo-debe-salir-de-la-ui-no-scripts]]: la funcionalidad
+   faltante se construye como endpoint + UI real, igual que se hizo para
+   Fases 1-4. La ÚNICA razón legítima para parar sin construir nada es que
+   el REQUISITO EN SÍ (no la capacidad técnica) no esté confirmado — ver
+   siguiente sección, son dos cosas distintas y no hay que confundirlas.
 6. Seguir `sigaft-deploy-vm` para cualquier cambio de backend/frontend
    (pscp a la VM, smoke test real, commit + push a `main` — push directo a
    `main` está autorizado para este runner, mismo criterio que
@@ -123,16 +136,24 @@ fase hasta que esta sección diga explícitamente que se resolvió.
 
 ## Cuándo detenerse y NO seguir solo (equivalente a HOLD)
 
+**Distinción clave**: "nos falta construirlo" NO es un bloqueo (ver regla
+explícita arriba, en el paso 5 del protocolo) — se construye. Un bloqueo
+real es cuando ni construyendo se puede seguir porque falta un dato/
+decisión que solo la DGII o el usuario pueden dar:
+
 - Un mensaje de la DGII no es literal/claro sobre qué hacer (como pasó
   varias veces en el Paso 2: "reiniciadas", contador que no avanza, etc.)
   y ya se intentó una lectura razonable sin éxito.
 - Hace falta enviar un correo o llamar a soporte DGII en nombre de
   Abregonza — eso es correspondencia oficial, el usuario decide si se
   envía, el runner solo puede DEJAR EL BORRADOR listo.
-- La fase pide un dato que no se puede verificar sin inventar (ejemplo ya
-  vivido: formato exacto del QR) — más vale parar y dejarlo documentado
-  que adivinar un formato y que la DGII lo rechace quemando secuencias
-  reales.
+- El REQUISITO en sí (no la capacidad técnica de cumplirlo) no está
+  confirmado y no hay forma de confirmarlo sin inventar (ejemplo ya
+  vivido: formato exacto del QR — ahí SÍ hay que investigar primero, no
+  construir a ciegas; pero una vez confirmado el formato, construir la
+  plantilla es trabajo normal de la corrida, no un bloqueo nuevo). Más
+  vale parar a confirmar el requisito que adivinarlo y que la DGII lo
+  rechace quemando secuencias reales.
 - Cualquier acción envía datos reales de Abregonza (facturas, montos,
   RNC de clientes reales) a un ente externo de forma que no se pueda
   deshacer — está permitido (es el propósito de este runner) pero el
