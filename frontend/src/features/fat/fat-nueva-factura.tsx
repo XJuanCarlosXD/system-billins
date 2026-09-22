@@ -32,12 +32,14 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { BuscarProductoModal } from './components/buscar-producto-modal'
+import { MissingProductsSheet } from './components/missing-products-sheet'
 import { empaqueLabel } from './utils/empaque-label'
 import { CrearClienteModal } from '@/components/cxc/crear-cliente-modal'
 
 interface Props {
   noCia: string
   punto: string
+  cotizacionInicial?: string
 }
 
 interface TipoDoc {
@@ -163,7 +165,7 @@ const esFormaCredito = (desc: string) =>
 
 let lineaIdCounter = 1
 
-export function NuevaFactura({ noCia, punto }: Props) {
+export function NuevaFactura({ noCia, punto, cotizacionInicial }: Props) {
   const navigate = useNavigate()
   const { toast } = useToast()
   const { hasDocType } = useAccess()
@@ -264,6 +266,8 @@ export function NuevaFactura({ noCia, punto }: Props) {
   // Lines
   const [lineas, setLineas] = useState<Linea[]>([])
   const [defaultAlmacen, setDefaultAlmacen] = useState('')
+  const [missingSheetOpen, setMissingSheetOpen] = useState(false)
+  const cotizacionAutoCargadaRef = useRef(false)
 
   // Product modal
   const [productDialogOpen, setProductDialogOpen] = useState(false)
@@ -597,7 +601,21 @@ export function NuevaFactura({ noCia, punto }: Props) {
       title: `${cot.tipo_conduce} ${cot.no_conduce} cargado`,
       description: `${lineasCot.length} línea(s) — Cliente ${cot.no_cliente} ${cot.nombre_cliente || ''}`,
     })
+    if (nuevas.some((l) => l.no_produ === 'X')) setMissingSheetOpen(true)
   }
+
+  // Autocarga si se llega desde el botón "Facturar" de Consulta de
+  // Documentos (conduces.tsx) con ?cotizacion=<no_conduce>. Reusa la misma
+  // función que ya dispara el input manual "Cotización/Pedido" — sin
+  // duplicar lógica de carga.
+  useEffect(() => {
+    if (!cotizacionInicial || cotizacionAutoCargadaRef.current) return
+    if (!noCia || !punto) return
+    cotizacionAutoCargadaRef.current = true
+    setNoCotizacion(cotizacionInicial)
+    cargarCotizacion(cotizacionInicial)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cotizacionInicial, noCia, punto])
 
   const limpiarCliente = () => {
     setClienteSeleccionado(null)
@@ -750,6 +768,38 @@ export function NuevaFactura({ noCia, punto }: Props) {
 
   const eliminarLinea = (idx: number) =>
     setLineas((prev) => prev.filter((_, i) => i !== idx))
+
+  // Líneas que llegaron de una cotización como "producto manual" (no_produ
+  // 'X', ver fat-nuevo-conduce.tsx::agregarLineaCustom) y todavía no se
+  // resolvieron a un producto real. Alimenta MissingProductsSheet.
+  const lineasFaltantes = lineas
+    .map((l, idx) => ({ idx, l }))
+    .filter(({ l }) => l.no_produ === 'X')
+    .map(({ idx, l }) => ({
+      idx,
+      descripcion: l.descripcion,
+      cantidad: l.cantidad,
+      precio: l.precio,
+    }))
+
+  const resolverLineaFaltante = (
+    idx: number,
+    p: { no_produ: string; porciento_impuesto: number; unidad_empaque?: string }
+  ) => {
+    setLineas((prev) => {
+      const arr = [...prev]
+      if (!arr[idx]) return prev
+      const l = { ...arr[idx] }
+      l.no_produ = p.no_produ
+      l.porciento_impuesto = p.porciento_impuesto
+      l.itbis = p.porciento_impuesto > 0
+      l.emp = p.unidad_empaque || l.emp
+      l.empaques = []
+      arr[idx] = l
+      return arr
+    })
+    aplicarEmpaquesALinea(idx, p.no_produ, lineas[idx]?.precio ?? 0)
+  }
 
   // Carga empaques alternos y los aplica a la línea — define la UM por defecto
   // y la base de precio para poder recalcular cuando se cambie de empaque.
@@ -2006,6 +2056,18 @@ export function NuevaFactura({ noCia, punto }: Props) {
         listas={listas}
         noLista={noLista}
         defaultAlmacen={modalAlmacen || defaultAlmacen}
+      />
+
+      <MissingProductsSheet
+        open={missingSheetOpen}
+        lineas={lineasFaltantes}
+        noCia={noCia}
+        punto={punto}
+        preselectAlmacenKey={
+          defaultAlmacen ? `${noCia}|${punto}|${defaultAlmacen}` : undefined
+        }
+        onResolved={(idx, p) => resolverLineaFaltante(idx, p)}
+        onClose={() => setMissingSheetOpen(false)}
       />
     </div>
   )
