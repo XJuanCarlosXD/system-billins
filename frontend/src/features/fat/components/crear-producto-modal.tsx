@@ -70,6 +70,14 @@ interface Props {
   /** Si se define, el sheet abre en modo edición para este no_produ en vez
    * de crear uno nuevo. */
   editingNoProdu?: string | null
+  /** Preselecciona el tipo (Inventario/Servicio/Kit/Compuesto) al crear.
+   * Solo aplica al crear. */
+  tipoInicial?: 'I' | 'S' | 'K' | 'C'
+  /** Formato `no_cia|punto|almacen`. Si viene, ese almacén queda pre-marcado
+   * en "Asignar a Empresa/Almacén" al crear (evita que el producto recién
+   * creado quede sin asignar y la operación que lo disparó falle después).
+   * Solo aplica al crear. */
+  preselectAlmacenKey?: string
 }
 
 interface CatalogItem {
@@ -180,6 +188,8 @@ export function CrearProductoModal({
   punto,
   descripcionInicial = '',
   editingNoProdu = null,
+  tipoInicial,
+  preselectAlmacenKey,
 }: Props) {
   const usuario = useCurrentUsername()
   const isEdit = !!editingNoProdu
@@ -260,7 +270,7 @@ export function CrearProductoModal({
     if (!open) return
     setError('')
     setEmpaques([])
-    setAlmacenesSel(new Set())
+    setAlmacenesSel(!isEdit && preselectAlmacenKey ? new Set([preselectAlmacenKey]) : new Set())
     setPrecioVenta('')
     setDetallesOpen(false)
 
@@ -401,7 +411,7 @@ export function CrearProductoModal({
         })
         .catch((err: any) => setError(err?.message ?? 'No se pudo cargar el producto'))
     } else {
-      setForm({ ...emptyForm, descripcion: descripcionInicial })
+      setForm({ ...emptyForm, descripcion: descripcionInicial, servicio: tipoInicial || emptyForm.servicio })
       setCodigoPreview('')
       setAutoCodigo(false)
       fetchNextCodigo()
@@ -417,7 +427,7 @@ export function CrearProductoModal({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, noCia, editingNoProdu])
+  }, [open, noCia, editingNoProdu, preselectAlmacenKey, tipoInicial])
 
   const sublineasFiltradas = form.linea
     ? sublineas.filter((s) => String(s.linea) === String(form.linea))
