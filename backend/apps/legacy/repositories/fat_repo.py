@@ -2730,11 +2730,14 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
             no_produ_norm = lin.get("no_produ", "").strip().upper()
             almacen_norm = lin.get("almacen", "").strip()
             cur.execute(
-                "SELECT 1 FROM INV.TINV_PRODUCTO "
+                "SELECT NVL(servicio,'I') FROM INV.TINV_PRODUCTO "
                 "WHERE no_produ=:1 AND NVL(activo,'S')='S'",
                 [no_produ_norm])
-            if not cur.fetchone():
+            prod_row = cur.fetchone()
+            if not prod_row:
                 raise ValueError("Producto {} no existe o esta inactivo".format(no_produ_norm))
+            servicio_flag = (prod_row[0] or 'I').strip().upper()
+            es_servicio = servicio_flag == 'S'
             cur.execute(
                 "SELECT NVL(ep.costo_actual,0), NVL(ep.exist_actual,0) "
                 "FROM INV.TINV_EPRODUCTO ep "
@@ -2751,9 +2754,12 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
             # existencia negativa Oracle lanza ORA-02290 y el cliente recibe
             # un 500 opaco. Validar aqui (acumulando lineas repetidas del
             # mismo producto/almacen) para responder 400 con mensaje claro.
+            # Los productos tipo Servicio no tienen existencia fisica -- no
+            # aplica la validacion (un exist_actual=0 no debe bloquear
+            # facturar un servicio).
             key_ped = (almacen_norm, no_produ_norm)
             pedido_acum[key_ped] = pedido_acum.get(key_ped, 0.0) + cant
-            if pedido_acum[key_ped] > exist_disp:
+            if not es_servicio and pedido_acum[key_ped] > exist_disp:
                 raise ValueError(
                     "Existencia insuficiente del producto {} en almacen {}: "
                     "disponible {:g}, solicitado {:g}".format(
@@ -2778,7 +2784,8 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
                 "cantidad": cant, "precio": precio, "porc_descuento": porc_desc,
                 "descuento": desc_monto, "porciento_impuesto": porc_imp,
                 "impuesto": imp_monto, "monto_neto": neto,
-                "costo": costo_unit, "empaque": empaque_unit, "cpe": cpe_unit})
+                "costo": costo_unit, "empaque": empaque_unit, "cpe": cpe_unit,
+                "servicio": servicio_flag})
         total_neto = total_linea - total_descuento + total_impuesto
         valor_devuelto = round(max(0.0, valor_recibido - total_neto), 2) if valor_recibido else 0.0
         cur.execute(
@@ -2824,6 +2831,7 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
                  lin["porciento_impuesto"], lin["impuesto"], lin["monto_neto"],
                  lin["descripcion"]])
             # La factura nueva debe descargar inventario en el ledger INV.
+            # servicio real (antes 'I' hardcodeado sin importar el producto).
             cur.execute(
                 "INSERT INTO INV.TINV_MOVIMIENTO("
                 "  no_cia, punto, tipo_docu, no_docu, no_linea,"
@@ -2833,7 +2841,7 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
                 "  no_localidad, fecha_sysdate, aumento_cxc"
                 ") VALUES("
                 "  :1, :2, :3, :4, :5,"
-                "  :6, :7, 'S', :8, 'I',"
+                "  :6, :7, 'S', :8, :17,"
                 "  TO_DATE(:9,'YYYY-MM-DD'), :10, :11, :12,"
                 "  'N', :13, :14, :15, :16,"
                 "  :1, SYSDATE, 0)",
@@ -2842,26 +2850,27 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
                     lin["almacen"], lin["no_produ"], tipo_transaccion,
                     fecha, lin["cantidad"], lin["precio"], lin["costo"],
                     lin["empaque"], lin["cpe"], usuario[:30],
-                    round(lin["cantidad"] * lin["costo"], 2)))
-            try:
-                cur.execute(
-                    "UPDATE INV.TINV_EPRODUCTO "
-                    "SET exist_actual = NVL(exist_actual, 0) - :1 "
-                    "WHERE no_cia=:2 AND punto=:3 AND almacen=:4 AND no_produ=:5",
-                    [lin["cantidad"], no_cia, punto, lin["almacen"], lin["no_produ"]])
-            except Exception as exc:
-                # Otra venta pudo consumir la existencia entre la validacion
-                # y este UPDATE; el CHECK exist_actual >= 0 lo detecta.
-                if "ORA-02290" in str(exc):
+                    round(lin["cantidad"] * lin["costo"], 2), lin["servicio"]))
+            if lin["servicio"] != 'S':
+                try:
+                    cur.execute(
+                        "UPDATE INV.TINV_EPRODUCTO "
+                        "SET exist_actual = NVL(exist_actual, 0) - :1 "
+                        "WHERE no_cia=:2 AND punto=:3 AND almacen=:4 AND no_produ=:5",
+                        [lin["cantidad"], no_cia, punto, lin["almacen"], lin["no_produ"]])
+                except Exception as exc:
+                    # Otra venta pudo consumir la existencia entre la validacion
+                    # y este UPDATE; el CHECK exist_actual >= 0 lo detecta.
+                    if "ORA-02290" in str(exc):
+                        raise ValueError(
+                            "Existencia insuficiente del producto {} en almacen {} "
+                            "(consumida por otra operacion)".format(
+                                lin["no_produ"], lin["almacen"]))
+                    raise
+                if cur.rowcount == 0:
                     raise ValueError(
-                        "Existencia insuficiente del producto {} en almacen {} "
-                        "(consumida por otra operacion)".format(
+                        "Producto {} no esta asignado al almacen {}".format(
                             lin["no_produ"], lin["almacen"]))
-                raise
-            if cur.rowcount == 0:
-                raise ValueError(
-                    "Producto {} no esta asignado al almacen {}".format(
-                        lin["no_produ"], lin["almacen"]))
         if fp:
             cur.execute(
                 "INSERT INTO FAT.TFAT_FORMA_PAGO("
