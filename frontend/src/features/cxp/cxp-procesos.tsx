@@ -950,6 +950,46 @@ export function CxpEntradaDocumentos({
       const res = await api.cxpEntradaDocumento(payload)
 
       if (modoEdicion) {
+        // Si es un debito (ND/AD/BD) y el operador ya lleno montos en la
+        // tarjeta "Aplicar" de abajo (AplicarDocRecienCreado, reusa
+        // montosPreview como estado compartido) SIN apretar su boton
+        // "Aplicar" -- que es una accion separada de "Guardar Cambios" --
+        // "Guardar Cambios" navegaba de inmediato a Consulta de Documentos
+        // y esos montos se perdian en silencio, dejando el documento con
+        // todo su saldo a favor intacto. Reportado por MPILAR (ticket
+        // 76fb8b85 "ND NO APLICA A FACT."): "aun sea seleccionada [la
+        // factura], el registro esta quedando como saldo a favor".
+        if (esDocDebito) {
+          const aplicaciones = Object.entries(montosPreview)
+            .map(([key, v]) => {
+              const [tipo_docu_ap, no_docu_ap] = key.split('|')
+              return { tipo_docu: tipo_docu_ap, no_docu: no_docu_ap, monto: Number(v || 0) }
+            })
+            .filter((a) => a.monto > 0)
+          if (aplicaciones.length > 0) {
+            try {
+              const rAp: any = await api.cxpAplicarMovimientos({
+                no_cia: noCia, punto, tipo_docu: tipoDocu, no_docu: siguiente,
+                aplicaciones,
+              })
+              toast.success(
+                `${tipoDocu}-${siguiente} actualizado y aplicado contra ${rAp.aplicaciones.length} factura(s). ` +
+                `Saldo a favor restante: RD$ ${Math.abs(Number(rAp.saldo_favor_restante || 0)).toLocaleString('es-DO', { minimumFractionDigits: 2 })}`
+              )
+              qc.invalidateQueries({ queryKey: ['cxp-pendientes-preview'] })
+              qc.invalidateQueries({ queryKey: ['cxp-aplicar-movimientos'] })
+              setMontosPreview({})
+              navigate({ to: '/cxp/documentos' })
+              return
+            } catch (e: any) {
+              toast.error(
+                `Se guardaron los cambios de ${tipoDocu}-${siguiente}, pero la aplicación contra las facturas seleccionadas falló: ` +
+                `${e?.detail?.error || e?.message || 'error desconocido'}. Revise los montos abajo y reintente antes de salir.`
+              )
+              return
+            }
+          }
+        }
         toast.success(`Documento ${tipoDocu}-${res.no_docu} actualizado`)
         navigate({ to: '/cxp/documentos' })
         return
@@ -1542,6 +1582,8 @@ export function CxpEntradaDocumentos({
             tipoDocu, noDocu: siguiente,
             proveedorNo: proveedor.no_proveedor, proveedorNombre: proveedor.nombre || proveedor.no_proveedor,
           }}
+          initialMontos={montosPreview}
+          onMontosChange={setMontosPreview}
           onDone={() => {}}
         />
       )}
@@ -1602,6 +1644,7 @@ export function CxpEntradaDocumentos({
           punto={punto}
           docInfo={docRecienCreado}
           initialMontos={montosPreview}
+          onMontosChange={setMontosPreview}
           onDone={() => { setDocRecienCreado(null); setMontosPreview({}) }}
         />
       )}
@@ -1616,14 +1659,26 @@ export function CxpEntradaDocumentos({
 // reales; aquí el "saldo a favor" ya se conoce (el doc recién creado), asi
 // que se salta el paso de elegirlo.
 function AplicarDocRecienCreado({
-  noCia, punto, docInfo, initialMontos, onDone,
+  noCia, punto, docInfo, initialMontos, onMontosChange, onDone,
 }: {
   noCia: string; punto: string
   docInfo: { tipoDocu: string; noDocu: string; proveedorNo: string; proveedorNombre: string }
   initialMontos?: Record<string, string>
+  // Espeja cada cambio de monto hacia el padre (CxpEntradaDocumentos) para
+  // que, si el operador llena montos aqui pero sale por "Guardar Cambios"
+  // en vez del boton "Aplicar" de esta tarjeta, el padre sepa que hay una
+  // aplicacion pendiente y la ejecute el mismo -- ver ticket 76fb8b85.
+  onMontosChange?: (m: Record<string, string>) => void
   onDone: () => void
 }) {
-  const [montos, setMontos] = useState<Record<string, string>>(() => initialMontos || {})
+  const [montos, setMontosState] = useState<Record<string, string>>(() => initialMontos || {})
+  const setMontos = (updater: Record<string, string> | ((m: Record<string, string>) => Record<string, string>)) => {
+    setMontosState((prev) => {
+      const next = typeof updater === 'function' ? (updater as (m: Record<string, string>) => Record<string, string>)(prev) : updater
+      onMontosChange?.(next)
+      return next
+    })
+  }
   // Igual que en aplicar-movimientos.tsx (Fcxp206): sin este filtro, un
   // proveedor con muchas facturas obliga a scrollear una por una.
   const [buscarPendiente, setBuscarPendiente] = useState('')
