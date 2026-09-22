@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import {
+  AlertTriangle,
   Calendar,
   Eye,
   FileSpreadsheet,
@@ -10,11 +11,20 @@ import {
   PackageOpen,
   Pencil,
   Printer,
+  Receipt,
   Search,
+  XCircle,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { DocumentoDetalleSheet } from '@/features/documentos/documento-detalle-sheet'
 import { DocumentoHistorial } from '@/features/historial/documento-historial'
 import { Input } from '@/components/ui/input'
@@ -34,6 +44,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Textarea } from '@/components/ui/textarea'
 import { buildReportMeta, downloadCsv } from './fat-export'
 
 interface Props {
@@ -135,6 +146,10 @@ export function ConducesFat({ noCia, punto, ano: anoProp, mes: mesProp }: Props)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [verHistorial, setVerHistorial] = useState(false)
   const detailLookupSeqRef = useRef(0)
+  const [anularOpen, setAnularOpen] = useState(false)
+  const [motivoAnular, setMotivoAnular] = useState('')
+  const [anulando, setAnulando] = useState(false)
+  const [anularError, setAnularError] = useState('')
 
   const load = (p = 1) => {
     if (!noCia) return
@@ -327,6 +342,30 @@ export function ConducesFat({ noCia, punto, ano: anoProp, mes: mesProp }: Props)
       `/print/${codigo}/${encodeURIComponent(id)}?${qs}`,
       '_blank'
     )
+  }
+
+  const confirmarAnularConduce = async () => {
+    if (!selected) return
+    setAnulando(true)
+    setAnularError('')
+    try {
+      await regalGeneralApi.fatAnularConduce({
+        no_cia: selected.no_cia,
+        punto: selected.punto,
+        tipo_conduce: selected.tipo_conduce,
+        no_conduce: selected.no_conduce,
+        motivo: motivoAnular.trim(),
+      })
+      setAnularOpen(false)
+      setSelected((s) => (s ? { ...s, st_anulado: 'S' } : s))
+      toast.success(`${selected.tipo_conduce}-${selected.no_conduce} anulado`)
+      load(page)
+    } catch (e: any) {
+      const msg = e?.body?.detail ?? e?.message ?? 'Error al anular'
+      setAnularError(typeof msg === 'string' ? msg : JSON.stringify(msg))
+    } finally {
+      setAnulando(false)
+    }
   }
 
   const totalPages = Math.ceil(total / pageSize)
@@ -612,7 +651,25 @@ export function ConducesFat({ noCia, punto, ano: anoProp, mes: mesProp }: Props)
                 >
                   <FileText className='h-3.5 w-3.5' /> Imprimir PDF
                 </Button>
-                {selected.st_anulado !== 'S' && (
+                {selected.tipo_conduce === 'CT' &&
+                  selected.st_anulado !== 'S' &&
+                  !selected.no_factura && (
+                    <Button
+                      size='sm'
+                      className='shrink-0 gap-1'
+                      onClick={() => {
+                        const no = selected.no_conduce
+                        setSelected(null)
+                        navigate({
+                          to: '/fat/nueva-factura' as never,
+                          search: { cotizacion: no } as never,
+                        })
+                      }}
+                    >
+                      <Receipt className='h-3.5 w-3.5' /> Facturar
+                    </Button>
+                  )}
+                {selected.st_anulado !== 'S' && !selected.no_factura && (
                   <Button
                     size='sm'
                     variant='outline'
@@ -629,6 +686,20 @@ export function ConducesFat({ noCia, punto, ano: anoProp, mes: mesProp }: Props)
                     }}
                   >
                     <Pencil className='h-3.5 w-3.5' /> Editar
+                  </Button>
+                )}
+                {selected.st_anulado !== 'S' && !selected.no_factura && (
+                  <Button
+                    size='sm'
+                    variant='destructive'
+                    className='shrink-0 gap-1'
+                    onClick={() => {
+                      setMotivoAnular('')
+                      setAnularError('')
+                      setAnularOpen(true)
+                    }}
+                  >
+                    <XCircle className='h-3.5 w-3.5' /> Anular
                   </Button>
                 )}
                 <Button
@@ -823,6 +894,58 @@ export function ConducesFat({ noCia, punto, ano: anoProp, mes: mesProp }: Props)
             </>
           )}
       </DocumentoDetalleSheet>
+
+      <Dialog open={anularOpen} onOpenChange={setAnularOpen}>
+        <DialogContent className='p-6 sm:max-w-md'>
+          <DialogHeader>
+            <DialogTitle className='flex items-center gap-2 text-destructive'>
+              <AlertTriangle className='h-5 w-5' /> Confirmar Anulación
+            </DialogTitle>
+          </DialogHeader>
+          <div className='space-y-3 text-sm'>
+            <p>
+              Va a anular{' '}
+              <strong>
+                {selected?.tipo_conduce === 'CT' ? 'la cotización' : 'el conduce'}{' '}
+                {selected?.tipo_conduce}-{selected?.no_conduce}
+              </strong>
+              . Esta acción no se puede deshacer.
+            </p>
+            <div className='space-y-1'>
+              <Label className='text-xs'>Motivo (opcional)</Label>
+              <Textarea
+                value={motivoAnular}
+                onChange={(e) => setMotivoAnular(e.target.value)}
+                placeholder='Describa el motivo de anulación...'
+                rows={3}
+                className='resize-none'
+              />
+            </div>
+            {anularError && (
+              <p className='text-xs text-destructive'>{anularError}</p>
+            )}
+            <div className='flex justify-end gap-2 pt-1'>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => setAnularOpen(false)}
+                disabled={anulando}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant='destructive'
+                size='sm'
+                onClick={confirmarAnularConduce}
+                disabled={anulando}
+              >
+                <XCircle className='mr-1 h-3 w-3' />
+                {anulando ? 'Anulando...' : 'Confirmar Anulación'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }
