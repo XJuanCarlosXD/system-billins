@@ -2609,7 +2609,8 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
                    forma_pago, no_lista, nota, lineas, usuario,
                    codigo_ncf: str = "", detalle: str = "",
                    valor_recibido: float = 0.0,
-                   nombre_cliente_factura: str = "", rnc_factura: str = ""):
+                   nombre_cliente_factura: str = "", rnc_factura: str = "",
+                   no_cotizacion: str = ""):
     # Override por documento del nombre/RNC del cliente -- necesario para
     # clientes genericos compartidos (ej. 142 CONSUMIDOR FINAL, RNC
     # generico) donde cada venta puede ser a una persona/empresa real
@@ -2621,7 +2622,30 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
     tf = tipo_factura.strip().upper()
     fp = forma_pago.strip().upper() if forma_pago else ""
     detalle_s = str(detalle or '').strip()
+    no_cot = (no_cotizacion or "").strip()
+    tipo_cot_origen = ""
     with client.cursor() as cur:
+        if no_cot:
+            # Probamos CT (cotizacion) y luego CO (conduce/pedido) -- mismo
+            # orden que cargarCotizacion() en el frontend. Fail-fast: si el
+            # conduce ya esta anulado o ya tiene factura, no se crea nada.
+            for tc_probe in ("CT", "CO"):
+                cur.execute(
+                    "SELECT NVL(st_anulado,'N'), no_factura FROM FAT.TFAT_CONDUCE "
+                    "WHERE no_cia=:1 AND punto=:2 AND tipo_conduce=:3 AND no_conduce=:4",
+                    [no_cia, punto, tc_probe, no_cot])
+                cot_row = cur.fetchone()
+                if cot_row:
+                    tipo_cot_origen = tc_probe
+                    st_anulado_cot, no_factura_cot = cot_row[0], (cot_row[1] or '').strip()
+                    if st_anulado_cot == 'S':
+                        raise ValueError(
+                            "La cotizacion/conduce {} esta anulada, no se puede facturar".format(no_cot))
+                    if no_factura_cot:
+                        raise ValueError(
+                            "La cotizacion/conduce {} ya esta facturada (factura {})".format(
+                                no_cot, no_factura_cot))
+                    break
         cur.execute(
             "SELECT prox_formulario, prox_documento FROM FAT.TFAT_SECUENCIA "
             "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 FOR UPDATE",
@@ -2928,6 +2952,11 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
                 "UPDATE CNT.TCNT_NCF SET prox_ncf=:1 "
                 "WHERE no_localidad=:2 AND codigo_ncf=:3",
                 [ncf_val + 1, no_cia, codigo_ncf_emitir])
+        if no_cot and tipo_cot_origen:
+            cur.execute(
+                "UPDATE FAT.TFAT_CONDUCE SET no_factura=:1, tipo_factura=:2 "
+                "WHERE no_cia=:3 AND punto=:4 AND tipo_conduce=:5 AND no_conduce=:6",
+                [new_no_factura, tf, no_cia, punto, tipo_cot_origen, no_cot])
         historial_repo.log_evento(
             cur, usuario=usuario, no_cia=no_cia, punto=punto, modulo="FAT",
             tipo_documento=tf, no_documento=new_no_factura, accion="CREAR",
@@ -2936,7 +2965,8 @@ def create_factura(no_cia, punto, tipo_factura, no_cliente, fecha, vendedor,
     return {"no_factura": new_no_factura, "tipo_factura": tf, "ncf": ncf_val,
             "total_neto": total_neto, "total_linea": total_linea,
             "descuento": total_descuento, "impuesto": total_impuesto,
-            "valor_recibido": valor_recibido, "valor_devuelto": valor_devuelto}
+            "valor_recibido": valor_recibido, "valor_devuelto": valor_devuelto,
+            "no_cotizacion": no_cot, "tipo_cotizacion": tipo_cot_origen}
 
 
 # -- Anular Factura -----------------------------------------------------------
