@@ -1174,6 +1174,11 @@ export const regalGeneralApi = {
       method: 'POST', body: JSON.stringify(data),
     }),
 
+  fatAnularConduce: (data: { no_cia: string; punto?: string; tipo_conduce: string; no_conduce: string; motivo?: string }) =>
+    request<{ tipo_conduce: string; no_conduce: string; anulado: boolean; motivo: string }>('/fat/conduces/anular/', {
+      method: 'POST', body: JSON.stringify(data),
+    }),
+
   fatMotivosAnulacion: () =>
     request<{ items: Array<{ tipo: string; descripcion: string }> }>('/fat/anulacion-motivos/'),
 
