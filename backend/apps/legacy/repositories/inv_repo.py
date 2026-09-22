@@ -2724,12 +2724,19 @@ def _insert_movimiento(cur, *, no_cia, punto, tipo_docu, no_docu, no_linea,
                        almacen, no_produ, tipo_movi, tipo_transaccion,
                        fecha, cantidad, precio, costo, empaque, cpe,
                        usuario, impuesto=0.0, descuento=0.0,
-                       tipo_refe='', no_refe='', no_orden=None):
+                       tipo_refe='', no_refe='', no_orden=None,
+                       servicio='I'):
     """INSERT directo a INV.TINV_MOVIMIENTO con todos los NOT NULL cubiertos.
 
     monto_neto es el valor de la linea al precio del documento (no al costo
     de inventario) menos el descuento: es lo que se imprime en la columna
     "Monto Neto" de los documentos (factura, devolucion, etc).
+
+    `servicio` es el flag real de TINV_PRODUCTO.SERVICIO del producto de la
+    linea -- antes quedaba hardcodeado a 'I' sin importar el producto, lo
+    que hacia indistinguible en el ledger una venta de servicio de una de
+    articulo. El caller decide, con ese mismo flag, si tambien debe tocar
+    TINV_EPRODUCTO (los servicios no deben).
     """
     impuesto = round(impuesto or 0, 2)
     descuento = round(descuento or 0, 2)
@@ -2745,14 +2752,14 @@ def _insert_movimiento(cur, *, no_cia, punto, tipo_docu, no_docu, no_linea,
         "  tipo_refe, no_refe, no_orden"
         ") VALUES("
         "  :1, :2, :3, :4, :5,"
-        "  :6, :7, :8, :9, 'I',"
-        "  TO_DATE(:10,'YYYY-MM-DD'), :11, :12, :13,"
-        "  'N', :14, :15, :16, :17,"
-        "  :18, :19,"
-        "  :20, SYSDATE, 0,"
-        "  :21, :22, :23)",
+        "  :6, :7, :8, :9, :10,"
+        "  TO_DATE(:11,'YYYY-MM-DD'), :12, :13, :14,"
+        "  'N', :15, :16, :17, :18,"
+        "  :19, :20,"
+        "  :21, SYSDATE, 0,"
+        "  :22, :23, :24)",
         [no_cia, punto, tipo_docu, no_docu, no_linea,
-         almacen, no_produ, tipo_movi, tipo_transaccion,
+         almacen, no_produ, tipo_movi, tipo_transaccion, servicio,
          fecha, cantidad, precio, costo,
          empaque, cpe, (usuario or '')[:30],
          monto_neto, impuesto, descuento,
@@ -2913,6 +2920,17 @@ def _producto_impuesto_info(cur, no_produ: str) -> tuple[str, float]:
     return (row[0] or 'S').strip().upper(), float(row[1] or 0)
 
 
+def _producto_servicio_flag(cur, no_produ: str) -> str:
+    """Flag SERVICIO de TINV_PRODUCTO ('I' inventariable, 'S' servicio, 'K'
+    kit, 'C' compuesto). Los productos servicio no tienen existencia fisica:
+    quien llama debe omitir TINV_EPRODUCTO para ellos."""
+    cur.execute(
+        "SELECT NVL(servicio,'I') FROM INV.TINV_PRODUCTO WHERE no_produ=:1",
+        [no_produ])
+    row = cur.fetchone()
+    return (row[0] or 'I').strip().upper() if row else 'I'
+
+
 def _emitir_ncf_inv(cur, no_cia: str) -> tuple[int, str] | tuple[None, None]:
     """Emite el proximo NCF para una devolucion (DV/DC) de forma atomica.
 
@@ -3013,6 +3031,8 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                     f"Linea {idx}: el producto '{no_produ}' no existe. "
                     "Selecciónelo desde el buscador en vez de escribir el código a mano."
                 )
+            servicio_flag = _producto_servicio_flag(cur, no_produ)
+            es_servicio = servicio_flag == 'S'
             almacen_origen = (lin.get('almacen') or almacen or '').strip()
             if not almacen_origen:
                 raise ValueError(f"Linea {idx}: almacen requerido")
@@ -3067,21 +3087,22 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
             # ORA-02291 si falta). En entradas el producto se auto-asigna al
             # almacen (mismo patron Finv113 que usa el conteo fisico); en
             # salidas no hay nada que sacar, asi que es un error de negocio.
-            if tipo_movi == 'E':
-                _insert_eproducto(cur, no_cia=no_cia, punto=punto,
-                                  almacen=almacen_origen, no_produ=no_produ,
-                                  costo=costo)
-            else:
-                cur.execute(
-                    "SELECT 1 FROM INV.TINV_EPRODUCTO "
-                    "WHERE no_cia=:1 AND punto=:2 AND almacen=:3 AND no_produ=:4",
-                    [no_cia, punto, almacen_origen, no_produ])
-                if not cur.fetchone():
-                    raise ValueError(
-                        f"Linea {idx}: el producto {no_produ} no esta asignado "
-                        f"al almacen {almacen_origen} de la compania {no_cia}. "
-                        "Asignelo en Catalogo de Productos antes de registrar "
-                        "la salida.")
+            if not es_servicio:
+                if tipo_movi == 'E':
+                    _insert_eproducto(cur, no_cia=no_cia, punto=punto,
+                                      almacen=almacen_origen, no_produ=no_produ,
+                                      costo=costo)
+                else:
+                    cur.execute(
+                        "SELECT 1 FROM INV.TINV_EPRODUCTO "
+                        "WHERE no_cia=:1 AND punto=:2 AND almacen=:3 AND no_produ=:4",
+                        [no_cia, punto, almacen_origen, no_produ])
+                    if not cur.fetchone():
+                        raise ValueError(
+                            f"Linea {idx}: el producto {no_produ} no esta asignado "
+                            f"al almacen {almacen_origen} de la compania {no_cia}. "
+                            "Asignelo en Catalogo de Productos antes de registrar "
+                            "la salida.")
 
             _insert_movimiento(
                 cur, no_cia=no_cia, punto=punto, tipo_docu=tipo_docu,
@@ -3091,10 +3112,11 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                 fecha=fecha, cantidad=cantidad, precio=precio, costo=costo,
                 empaque=empaque, cpe=cpe, usuario=usuario,
                 impuesto=impuesto_linea, descuento=descuento_linea,
-                no_orden=(no_orden or None))
-            _adjust_eproducto_stock(
-                cur, no_cia=no_cia, punto=punto, almacen=almacen_origen,
-                no_produ=no_produ, tipo_movi=tipo_movi, cantidad=cantidad)
+                no_orden=(no_orden or None), servicio=servicio_flag)
+            if not es_servicio:
+                _adjust_eproducto_stock(
+                    cur, no_cia=no_cia, punto=punto, almacen=almacen_origen,
+                    no_produ=no_produ, tipo_movi=tipo_movi, cantidad=cantidad)
             creadas += 1
 
             if es_transferencia:
@@ -3103,10 +3125,11 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                 if idx > 499:
                     raise ValueError("Transferencia con mas de 499 lineas no soportada")
                 almacen_dest = (lin.get('almacen_destino') or almacen_destino).strip()
-                # La entrada al destino tambien auto-asigna el producto.
-                _insert_eproducto(cur, no_cia=no_cia, punto=punto,
-                                  almacen=almacen_dest, no_produ=no_produ,
-                                  costo=costo)
+                if not es_servicio:
+                    # La entrada al destino tambien auto-asigna el producto.
+                    _insert_eproducto(cur, no_cia=no_cia, punto=punto,
+                                      almacen=almacen_dest, no_produ=no_produ,
+                                      costo=costo)
                 _insert_movimiento(
                     cur, no_cia=no_cia, punto=punto, tipo_docu=tipo_docu,
                     no_docu=no_docu, no_linea=idx + 500,
@@ -3115,11 +3138,12 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
                     tipo_movi='E', tipo_transaccion=tipo_transaccion,
                     fecha=fecha, cantidad=cantidad, precio=precio, costo=costo,
                     empaque=empaque, cpe=cpe, usuario=usuario,
-                    tipo_refe=tipo_docu, no_refe=no_docu)
-                _adjust_eproducto_stock(
-                    cur, no_cia=no_cia, punto=punto,
-                    almacen=almacen_dest,
-                    no_produ=no_produ, tipo_movi='E', cantidad=cantidad)
+                    tipo_refe=tipo_docu, no_refe=no_docu, servicio=servicio_flag)
+                if not es_servicio:
+                    _adjust_eproducto_stock(
+                        cur, no_cia=no_cia, punto=punto,
+                        almacen=almacen_dest,
+                        no_produ=no_produ, tipo_movi='E', cantidad=cantidad)
                 creadas += 1
         valor_bienes = round(total_bruto - total_descuento, 2)
         total_neto = round(valor_bienes + total_impuesto, 2)
