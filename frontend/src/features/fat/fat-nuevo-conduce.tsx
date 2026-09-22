@@ -174,6 +174,7 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
   const [noConduceEdit, setNoConduceEdit] = useState('')
   const [ncfDgi, setNcfDgi] = useState('')
   const [cargandoEdicion, setCargandoEdicion] = useState(false)
+  const [conduceCargado, setConduceCargado] = useState<{ no_factura?: string; st_anulado?: string } | null>(null)
 
   const noClienteInputRef = useRef<HTMLInputElement>(null)
   const clienteModalInputRef = useRef<HTMLInputElement>(null)
@@ -263,6 +264,7 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
         setModoEdicion(true)
         setNoConduceEdit(d.no_conduce || '')
         setNcfDgi(d.ncf_dgi || '')
+        setConduceCargado({ no_factura: d.no_factura || '', st_anulado: d.st_anulado || 'N' })
         // Populate header fields
         if (d.tipo_conduce) setTipoDoc(d.tipo_conduce)
         if (d.fecha) setFecha(d.fecha)
@@ -924,7 +926,31 @@ export function NuevoConduce({ noCia, punto, editId, editTipo }: Props) {
             </Select>
           </div>
           <div className='flex items-end'>
-            <Button variant='outline' disabled className='w-full text-gray-400'>
+            <Button
+              variant='outline'
+              className='w-full'
+              disabled={!editId || conduceCargado?.st_anulado === 'S' || !!conduceCargado?.no_factura}
+              onClick={async () => {
+                if (!editId || !editTipo) return
+                if (!window.confirm(`¿Anular ${editTipo}-${editId}? Esta acción no se puede deshacer.`)) return
+                try {
+                  await regalGeneralApi.fatAnularConduce({
+                    no_cia: noCia,
+                    punto,
+                    tipo_conduce: editTipo,
+                    no_conduce: editId,
+                  })
+                  toast({ title: `${editTipo}-${editId} anulado` })
+                  navigate({ to: '/fat/conduces' as never })
+                } catch (e: any) {
+                  toast({
+                    title: 'Error al anular',
+                    description: e?.body?.detail ?? e?.message ?? 'Error desconocido',
+                    variant: 'destructive',
+                  })
+                }
+              }}
+            >
               Anular
             </Button>
           </div>
