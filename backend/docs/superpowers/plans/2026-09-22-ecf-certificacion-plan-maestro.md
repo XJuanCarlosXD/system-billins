@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En ejecución — 4/4 tipo 31 ✅, 0/2 tipo 32≥250Mil (bloqueado por falta de facturas B02 reales con RNC de comprador, ver Hallazgos 3ra corrida) | 2026-09-23 |
+| 4 | Pruebas Simulación e-CF | 🔲 En ejecución — **contador REINICIADO a 0/N en TODOS los tipos** por rechazo del E320000001004 (ver Hallazgos 4ta corrida). Secuencias 31 quedaron consumidas (próximo=E310000000061). | 2026-09-23 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -450,10 +450,171 @@ Cualquier ruta que se elija ANTES DE ENVIAR, doble-chequear que:
 - El `RazonSocialComprador` corresponde al RNC/Cédula real (no "CONSUMIDOR
   FINAL" con un RNC inventado).
 
+## Fase 4 — Hallazgos de la cuarta corrida (2026-09-23) — CRÍTICO
+
+**Hallazgo crítico no documentado antes**: en Fase 4, la DGII **reinicia TODOS
+los contadores** (no solo el del tipo rechazado) cada vez que rechaza un e-CF.
+Evidencia dura: al login del portal en esta corrida (~08:12 UTC del 23-09) el
+tablero de "Estado actual de las pruebas de simulación" muestra `0/N` en
+**todos** los 11 renglones (31/32≥250K/33/34/41/43/44/45/46/47/32 RFCE),
+aunque la 2da corrida (00:20 UTC del 23-09) dejó `4/4 tipo 31` confirmado en
+verde. El log del portal deja el motivo textual:
+
+    23/09/2026 12:18:08 AM — Las pruebas de simulación de eCF han sido
+      reiniciadas debido a que se han rechazado comprobantes.
+      -El campo RNCComprador del área Comprador de la sección Encabezado es obligatorio.
+
+Ese timestamp (RD, UTC-4 → 04:18 UTC) coincide con el rechazo del
+`E320000001004` que envió la 3ra corrida. Los 3 rechazos previos del 22-09
+también dispararon "reinicio" (misma frase en cada renglón del log), pero
+todavía no había e-CF aceptados que perder — el 4to rechazo (23-09) fue el
+que sí borró progreso real.
+
+**Implicación de estrategia (obligatoria para las próximas corridas)**:
+
+1. Los 4×31 aceptados (E310000000057-060, trackIds ya en `TFE_DOCUMENTO`) NO
+   se pueden reutilizar — quedaron quemados con las secuencias, aunque el
+   contador del portal ya no los tiene. Habrá que enviar 4 e-CF 31 nuevos
+   (`E310000000061` en adelante) con las mismas 4 facturas reales para
+   volver a 4/4.
+2. Cualquier rechazo cuesta **todo el progreso acumulado del paso**, no solo
+   una secuencia. Costo real por rechazo ≈ (# aceptados hasta ese momento)
+   secuencias que hay que reenviar. Regla nueva: nunca enviar un e-CF a
+   `certecf` en Fase 4 sin haber validado el XML contra el XSD real
+   **localmente** primero (`etree.parse` con el XSD del tipo correspondiente
+   en `apps/fe/tests/schemas/e-CF-XX-v1.0.xsd`).
+3. Orden óptimo de reenvío para llenar Fase 4 con mínimo riesgo:
+   a. Preparar el 32≥250Mil primero (es el que tiene riesgo real por ser
+      builder genérico no probado + RNC de un cliente CXC — variable
+      externa nueva); validarlo XSD + snapshot antes de enviar.
+   b. Recién con el 32 confirmado, enviar los 4×31 (reutiliza builder ya
+      validado, mínimo riesgo), luego 33/34, y así.
+   c. RFCE al final (grupo Tercero+Cuarto según orden DGII, ya conocido).
+4. Los tipos 41/43/44/45/46/47 usan `construir_ecf_generico` que tampoco ha
+   sido probado contra `certecf` — cada uno es "un tipo 32 de riesgo" a
+   escala menor. Enviar UNO solo primero de cada tipo antes de completar
+   la cuota.
+
+**Estado real de TFE_SECUENCIA (confirmado en BD real esta corrida)**:
+
+| Tipo | Próxima secuencia | Rango |
+|------|-------------------|-------|
+| 31 | 61 → E310000000061 | 1..100 |
+| 32 | 1005 → E320000001005 | 1..50000000 |
+| 33 | 1 → E330000000001 | 1..10M |
+| 34 | 52 → E340000000052 | 1..100 |
+| 41/43/44/45/46/47 | 1 (cada uno) | 1..10M cada uno |
+
+**Candidatos de cliente CXC con RNC válido reales de Abregonza**
+(query `CXC.TCXC_CLIENTE` filtro `LENGTH(TRIM(rnc))=9 AND REGEXP_LIKE(rnc,
+'^[0-9]{9}$') AND rnc<>'123456789'`, top 10 por `no_cliente` ordenado):
+
+| no_cliente | Nombre | RNC | Dirección |
+|-----------:|--------|-----|-----------|
+| 1  | COMERCIAL VALOIS                  | 131175341 | C/ Pimentel esq. Ana valverde |
+| 2  | E & P SERVICIOS INSTITUCIONALES   | 101799463 | C/ 30 de marzo #41 |
+| 3  | AQUAMAR                           | 130299625 | C/ Pimentel casi esquina Montecristi. |
+| 4  | CORTES HERMANOS                   | 101001811 | C/ Francisco Villa Espesa #175 |
+| 5  | C H  ALIMENTOS SAS                | 130805253 | C/ Francisco Villa Espesa #176 |
+| 7  | CONSORCIO RYLCO & ASOCIADOS       | 131376292 | C/ Rodrigo Objio #23 |
+| 8  | ALARIFES SRL                      | 131209855 | C/ Lic Lovaton #6 |
+| 11 | MOLINOS MODERNOS S.A              | 101006374 | C/ Alexander Fleming No.5 Ensanche la Fe |
+| 12 | MOLINOS DEL OZAMA S.A.            | 101808502 | C/ Olegario Vargas No.1, Villa Duarte |
+| 13 | AGUA PLANETA AZUL,S. A.           | 101503939 | Calle Central El Gala, Santo Domingo |
+
+Se confirma también que las 6 facturas B02≥250K de la BD SIGUEN sin tener
+RNC del comprador (mismo resultado que la 3ra corrida — nada nuevo desde
+entonces). No hay ruta "factura real" para el 32≥250Mil.
+
+**Payload propuesto para la próxima corrida (envío tipo 32 vía
+`paso4-manual`)**. NO se envió esta corrida por decisión de riesgo (ver
+"Por qué esta corrida no envió nada" abajo). El payload debe validarse
+antes contra el XSD real de e-CF-32 (`apps/fe/tests/schemas/e-CF-32-v1.0.xsd`
+si existe, o el que use `test_ecf_builder_generico.py`) — corrida siguiente:
+
+```json
+POST /api/fe/certificacion/paso4-manual/
+Content-Type: application/json
+{
+  "no_cia": "01",
+  "tipo_ecf": 32,
+  "datos": {
+    "RNCEmisor": "130217432",
+    "RazonSocialEmisor": "ABREGONZA COMERCIAL SRL",
+    "FechaEmision": "23-09-2026",
+    "TipoIngresos": "01",
+    "TipoPago": "1",
+    "RNCComprador": "131376292",
+    "RazonSocialComprador": "CONSORCIO RYLCO & ASOCIADOS",
+    "MontoTotal": 295000.00,
+    "MontoGravadoTotal": 250000.00,
+    "MontoGravadoI1": 250000.00,
+    "ITBIS1": "18",
+    "TotalITBIS": 45000.00,
+    "TotalITBIS1": 45000.00,
+    "NumeroLinea[1]": 1,
+    "IndicadorFacturacion[1]": 1,
+    "NombreItem[1]": "Servicio profesional",
+    "IndicadorBienoServicio[1]": 2,
+    "CantidadItem[1]": 1,
+    "PrecioUnitarioItem[1]": 250000.00,
+    "MontoItem[1]": 250000.00
+  }
+}
+```
+
+Notas para la próxima corrida antes de disparar ese POST:
+
+- Cliente #7 CONSORCIO RYLCO (RNC 131376292) es cliente real de Abregonza
+  con dirección captada en CXC — no es RNC inventado.
+- `MontoTotal=295000 (>250000)` cumple la regla Norma 06-2018 confirmada
+  por `certecf` en la 3ra corrida.
+- Antes de POST: correr un test unitario que llame
+  `ecf_builder.construir_ecf_generico(32, e_ncf_fake, datos)` con este
+  payload y valide el XML resultante contra el XSD real. Si falta algún
+  campo minOccurs=1 del XSD (`IdDoc/TipoIngresos`, etc.) que la validación
+  detecte, agregarlo al `datos` antes de enviar. **Este paso es
+  obligatorio** — el costo de un rechazo ya no es "una secuencia", es
+  "todo el progreso del paso".
+- Si el envío queda Aceptado, la corrida SIGUIENTE puede reenviar los 4×31
+  desde las mismas facturas reales de Abregonza (FC-0007829, FC-0007607,
+  FC-0008076, FC-0007766) — builder ya validado.
+
+**Por qué esta corrida no envió nada** (para la trazabilidad del proceso):
+
+Cuando se descubrió que el rechazo del 32 borró los 4/4 tipo 31, la
+prioridad pasó a documentar la lección y no arriesgar más secuencias sin
+la validación XSD-local previa nueva. Enviar un 32 genérico sin ese
+gate hubiera repetido exactamente el mismo error que causó el reinicio
+en la 3ra corrida. El presupuesto de esta corrida se gastó en:
+
+1. Confirmar el estado real del portal (Playwright).
+2. Consultar la BD real (docker exec) por facturas B02≥250K, clientes CXC
+   con RNC válido, y estado de `TFE_SECUENCIA`.
+3. Documentar el hallazgo del reinicio y la nueva estrategia obligatoria.
+4. Dejar el payload propuesto listo para la próxima corrida.
+
+Sin código nuevo esta corrida — solo commit del plan maestro actualizado.
+
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
 
+- **2026-09-23 08:12 UTC** — Runner scheduled. Fase 4 — investigación + doc.
+  Hallazgo crítico nuevo: la DGII **reinicia TODOS los contadores** de
+  Fase 4 cada vez que rechaza un e-CF, no solo el del tipo rechazado. El
+  rechazo del E320000001004 (3ra corrida) borró los 4/4 tipo 31 aceptados
+  en la 2da corrida — portal ahora muestra 0/N en todos los 11 renglones.
+  Consultada la BD real: sigue sin haber facturas B02≥250K con RNC real
+  del comprador (mismas 6 facturas), pero hay 20+ clientes CXC con RNC
+  válido usables para `paso4-manual` tipo 32. Documentada la estrategia
+  obligatoria nueva (validar XSD local antes de cada envío, orden
+  32→31→resto), y dejado el payload concreto propuesto para la próxima
+  corrida (cliente #7 CONSORCIO RYLCO, RNC 131376292, MontoTotal 295000).
+  No se envió nada esta corrida para no repetir el mismo error. Próximo
+  paso: la corrida siguiente valida el payload contra el XSD local,
+  envía el 32, y solo si Aceptado reintenta los 4×31 (E310000000061-064).
+  Commits: (ver commit de esta corrida).
 - **2026-09-23 04:20 UTC** — Runner scheduled. Fase 4 — intento 2×32≥250Mil.
   Envío desde FC-0007867 rechazado (E320000001004 quemado, código 1381
   RNCComprador obligatorio). Descubierto que en toda la historia de
