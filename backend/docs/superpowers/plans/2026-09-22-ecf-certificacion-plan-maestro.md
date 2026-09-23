@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En ejecución — 4/4 tipo 31 ✅ (grupo Primero restante: 32≥250Mil, 41, 43, 44, 45, 46, 47) | 2026-09-23 |
+| 4 | Pruebas Simulación e-CF | 🔲 En ejecución — 4/4 tipo 31 ✅, 0/2 tipo 32≥250Mil (bloqueado por falta de facturas B02 reales con RNC de comprador, ver Hallazgos 3ra corrida) | 2026-09-23 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -381,10 +381,93 @@ usar para cada tipo — probablemente conviene sub-plan con
 `superpowers:writing-plans` antes de tocar el builder genérico contra
 `certecf`.
 
+## Fase 4 — Hallazgos de la tercera corrida (2026-09-23)
+
+Primer intento de 32≥250Mil desde FC-0007867 (RD$282,262.50, cliente 835
+"JOSE ENRIQUE YABER HENRIQUE", sin RNC/Cédula capturado en TCXC_CLIENTE).
+`certecf` rechazó con código 1381 "El campo RNCComprador del área
+Comprador de la sección Encabezado es obligatorio":
+
+| Factura | e-NCF | trackId | Estado | Motivo |
+|---------|-------|---------|--------|--------|
+| FC-0007867 | E320000001004 | 882d70fd-a666-4cc2-9aba-29fbe1ed3b0f | Rechazado | 1381: RNCComprador obligatorio en 32 con MontoTotal≥250Mil |
+
+**Regla real DGII (Norma 06-2018) confirmada por certecf**: para tipo 32
+(Consumo) con `MontoTotal >= RD$250,000` el `RNCComprador` es obligatorio,
+aunque el XSD lo declare `minOccurs=0`. Para consumo <250Mil el RNC sigue
+siendo opcional (patrón consumidor final).
+
+**Bug pre-envío corregido** (previene quemar más secuencias):
+`_construir_ecf` ahora valida antes de consumir el e-NCF que si el tipo es
+32 y `total_neto >= 250000` el `rnc_comprador` sea válido (9/11 dígitos);
+si no, lanza `ECFBuilderError` sin llegar a `certecf`. Test nuevo
+`test_construir_ecf_32_mayor_o_igual_250mil_sin_rnc_lanza_error` cubre
+este caso. 19/19 tests pasan.
+
+**Bloqueo real, no técnico** (no se puede resolver construyendo más código):
+en `FAT.TFAT_FACTURA` solo hay 6 facturas B02 con `total_neto >= 250,000`
+en toda la historia de Abregonza, y de esas **ninguna** tiene un
+`rnc_comprador` real (5 tienen `NULL`, 1 tiene el placeholder falso
+`123456789` de "CONSUMIDOR FINAL"). Es decir: Abregonza históricamente no
+factura consumos ≥250Mil a clientes con RNC (los clientes con RNC compran
+crédito fiscal B01, no consumo B02) — la ausencia de datos es real, no un
+error de captura.
+
+Facturas candidatas actuales (`_tmp_query_b02.py`, no commiteado):
+
+| Factura | Fecha | Total | Cliente | rnc/cédula |
+|---------|-------|-------|---------|------------|
+| FC-0007867 | 2025-12-09 | 282,262.50 | 835 JOSE ENRIQUE YABER HENRIQUE | vacío |
+| FC-0007518 | 2025-02-11 | 280,799.66 | 142 CONSUMIDOR FINAL | 123456789 (placeholder inválido) |
+| FT-0023736 | 2023-06-16 | 435,000.00 | 740 LEIVY SUERO | vacío |
+| FC-0005981 | 2023-05-15 | 453,999.76 | 740 LEIVY SUERO | vacío |
+| FC-0004508 | 2022-07-19 | 303,825.39 | 239 ROBERTO ABREU FINCA | vacío |
+| FC-0000077 | 2021-03-01 | 445,551.47 | 182 DOMINGO CONTRERAS | vacío |
+
+**Opciones para la siguiente corrida** (elegir UNA, en orden de preferencia):
+
+1. **Preferida**: usar `POST /api/fe/certificacion/paso4-manual/` con
+   `tipo_ecf=32`, `datos.MontoTotal >= 250000` y `datos.RNCComprador` de un
+   **cliente real de Abregonza que sí tenga RNC/Cédula capturado**. Elegir
+   uno de CXC.TCXC_CLIENTE (query directa en la corrida siguiente); no
+   inventar RNC. Riesgo: `construir_ecf_generico` NO ha sido probado
+   contra `certecf` real todavía — probable que salten bugs equivalentes
+   a los 3 que ya se corrigieron para el builder 31/32. Enviar **UNO
+   solo** primero.
+2. **Alternativa**: capturar la Cédula real de "JOSE ENRIQUE YABER
+   HENRIQUE" (cliente 835) en `CXC.TCXC_CLIENTE.cedula` (`UPDATE` puntual
+   en la BD real, decisión operativa, no financiera — sólo completa un
+   campo de datos maestro faltante) y reintentar `paso4-factura-real` con
+   FC-0007867. Requiere confirmar con Roberto/JCABREU cuál es la cédula
+   real de ese cliente antes de escribir en BD.
+3. **No hacer**: emitir una factura B02 nueva ≥250Mil solo para
+   certificación — sería una operación financiera inventada.
+
+Cualquier ruta que se elija ANTES DE ENVIAR, doble-chequear que:
+- El e-CF a enviar es tipo 32 y su `MontoTotal >= 250000`.
+- El `RNCComprador` es un RNC (9 dígitos) o Cédula (11 dígitos) real y
+  válido — no `123456789`, no `00000000000`, no vacío.
+- El `RazonSocialComprador` corresponde al RNC/Cédula real (no "CONSUMIDOR
+  FINAL" con un RNC inventado).
+
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
 
+- **2026-09-23 04:20 UTC** — Runner scheduled. Fase 4 — intento 2×32≥250Mil.
+  Envío desde FC-0007867 rechazado (E320000001004 quemado, código 1381
+  RNCComprador obligatorio). Descubierto que en toda la historia de
+  Abregonza sólo hay 6 facturas B02≥250Mil y ninguna tiene un
+  RNC/Cédula real del comprador — es un bloqueo de datos, no técnico
+  (ver Hallazgos 3ra corrida). Se agregó validación pre-envío al
+  builder (`_construir_ecf` chequea RNC obligatorio si 32+MontoTotal≥250K)
+  con test nuevo, 19/19 pasan. Portal sigue en 0/2 tipo 32≥250Mil.
+  Próximo paso decidido: la siguiente corrida NO abre otro envío hasta
+  elegir una de las 3 opciones documentadas (preferida: `paso4-manual`
+  con RNC/Cédula real de un cliente CXC existente); enviar UNO solo
+  primero por si el builder generico requiere más ajustes contra
+  `certecf` real.
+  Commits: (ver commit de esta corrida).
 - **2026-09-23 00:20 UTC** — Runner scheduled. Fase 4 — grupo Primero, tipo 31.
   Corregido el bug 3 pendiente (`MontoGravadoI1`/`ITBIS1`/`TotalITBIS1` +
   orden estricto del XSD en Totales) en `_construir_ecf`, con 2 tests

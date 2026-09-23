@@ -297,6 +297,19 @@ def _construir_ecf(tipo_ecf: int, factura: dict, datos_fiscales: dict,
         _sub(comprador, 'RNCComprador', rnc_comprador)
         _sub(comprador, 'RazonSocialComprador', razon_comprador[:150])
     else:
+        # Consumo (32): la DGII exige RNCComprador cuando MontoTotal >=
+        # RD$250,000 aunque el XSD lo marque minOccurs=0 (regla Norma
+        # 06-2018 replicada en la validacion de negocio de certecf --
+        # E320000001004 rechazado 2026-09-23 codigo 1381 "El campo
+        # RNCComprador del area Comprador de la seccion Encabezado es
+        # obligatorio"). Solo se emite si es valido (9/11 digitos).
+        if float(factura['total_neto']) >= 250000 and not _rnc_valido(rnc_comprador):
+            raise ECFBuilderError(
+                "e-CF 32 (Consumo) con MontoTotal >= RD$250,000 requiere un "
+                "RNC/cedula valido del comprador (9 u 11 digitos); la factura "
+                f"{factura['tipo_factura']}-{factura['no_factura']} tiene "
+                f"{datos_fiscales.get('rnc_comprador')!r}. Elegir otra factura "
+                "o usar paso4-manual con datos de un cliente real con RNC.")
         if _rnc_valido(rnc_comprador):
             _sub(comprador, 'RNCComprador', rnc_comprador)
         if razon_comprador:

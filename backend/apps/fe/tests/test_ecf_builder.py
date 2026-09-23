@@ -434,12 +434,34 @@ def test_construir_ecf_31_sin_fecha_vencimiento_secuencia_lanza_error(_patch_rep
 
 def test_construir_ecf_32_sin_rnc_comprador_no_lanza_error(_patch_repos):
     """Contraste directo con el bug de 31: en 32 (Consumo) el comprador SI
-    puede no tener RNC (consumidor final) -- eso debe seguir funcionando."""
+    puede no tener RNC (consumidor final) -- eso debe seguir funcionando
+    para MontoTotal < 250,000."""
     _patch_repos['datos_fiscales'] = _datos_fiscales_zztest(rnc_comprador='')
     xml_str = ecf_builder.construir_ecf_32('01', '01', 'FT', '0000900')
     _validar_estructura_contra_xsd(xml_str, 32)
     root = etree.fromstring(xml_str.encode('utf-8'))
     assert root.find('.//Comprador/RNCComprador') is None
+
+
+def test_construir_ecf_32_mayor_o_igual_250mil_sin_rnc_lanza_error(_patch_repos):
+    """DGII exige RNCComprador para tipo 32 (Consumo) cuando MontoTotal
+    >= RD$250,000, aunque el XSD lo marque minOccurs=0. E320000001004
+    rechazado 2026-09-23 codigo 1381 confirma la regla contra certecf
+    real."""
+    factura = _factura_zztest()
+    # Escalar total_neto por encima de 250,000 (mantener la estructura de
+    # lineas para que el XSD sigue siendo valido si no fuera por el RNC).
+    factura['lineas'][0]['cantidad'] = 2500.0
+    factura['lineas'][0]['monto_neto'] = 250000.0 * 1.18  # con ITBIS
+    factura['lineas'][0]['impuesto'] = 250000.0 * 0.18
+    factura['impuesto'] = factura['lineas'][0]['impuesto']
+    factura['total_linea'] = 250000.0 + 50.0 + 30.0
+    factura['total_neto'] = factura['total_linea'] + factura['impuesto']  # ~295K
+    assert factura['total_neto'] >= 250000
+    _patch_repos['factura'] = factura
+    _patch_repos['datos_fiscales'] = _datos_fiscales_zztest(rnc_comprador='')
+    with pytest.raises(ecf_builder.ECFBuilderError, match=r'250,000.*RNC'):
+        ecf_builder.construir_ecf_32('01', '01', 'FT', '0000900')
 
 
 def test_consume_encf_del_tipo_correcto(_patch_repos):
