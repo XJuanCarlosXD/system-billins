@@ -791,6 +791,10 @@ export function NuevaFactura({ noCia, punto, cotizacionInicial }: Props) {
       if (!arr[idx]) return prev
       const l = { ...arr[idx] }
       l.no_produ = p.no_produ
+      // La línea manual (no_produ='X') trae almacen='X' — inválido para un
+      // producto real. Al resolverla, cae al almacén de la factura en curso
+      // (el mismo que se le pre-marcó al crear el producto en el side sheet).
+      if (l.almacen === 'X' || !l.almacen) l.almacen = defaultAlmacen
       l.porciento_impuesto = p.porciento_impuesto
       l.itbis = p.porciento_impuesto > 0
       l.emp = p.unidad_empaque || l.emp
