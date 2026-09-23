@@ -218,7 +218,11 @@ def test_construir_ecf_32_consumo_contado_valida_contra_xsd(_patch_repos):
     assert root.findtext('.//Totales/TotalITBIS') == '36.00'
     assert root.findtext('.//Totales/MontoTotal') == '316.00'
     assert root.findtext('.//Totales/MontoExento') == '50.00'
+    # Gravado 18% (200) + gravado 0% (30) = 230 (exento 50 no cuenta).
     assert root.findtext('.//Totales/MontoGravadoTotal') == '230.00'
+    assert root.findtext('.//Totales/MontoGravadoI1') == '200.00'
+    assert root.findtext('.//Totales/MontoGravadoI3') == '30.00'
+    assert root.find('.//Totales/MontoGravadoI2') is None  # no hay lineas 16%
 
     items = root.findall('.//DetallesItems/Item')
     assert len(items) == 3
@@ -313,6 +317,79 @@ def test_indicador_monto_gravado_es_cero_y_monto_item_no_incluye_itbis(_patch_re
     assert items[0].findtext('MontoItem') == '200.00'  # 100*2 - 0
     assert items[1].findtext('MontoItem') == '50.00'   # 50*1 - 0 exento
     assert items[2].findtext('MontoItem') == '30.00'   # 30*1 - 0 itbis 0%
+
+
+def test_totales_desglose_por_tasa_itbis_y_orden_xsd(_patch_repos):
+    """Bug encontrado en Paso 4 real (E310000000056 rechazado 2026-09-22
+    codigo 1930 "MontoGravadoI1 no es valido"): la DGII exige el desglose
+    Totales/MontoGravadoI1..I3 + ITBIS1..3 + TotalITBIS1..3 cuando hay
+    lineas gravadas, aunque en el XSD todos esos campos sean minOccurs=0.
+    Ademas, el XSD exige un orden estricto entre esos elementos y
+    MontoExento/TotalITBIS/MontoTotal -- si se emiten fuera de orden el
+    XSD marca el documento invalido.
+    """
+    _patch_repos['factura'] = _factura_zztest(
+        tipo_factura='FC', no_factura='0000904', posiciones_fijas_ncf='B01')
+    _patch_repos['datos_fiscales'] = _datos_fiscales_zztest(forma_pago_fat='4')
+    xml_str = ecf_builder.construir_ecf_31('01', '01', 'FC', '0000904')
+    _validar_estructura_contra_xsd(xml_str, 31)
+
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    totales = root.find('.//Totales')
+    # Base gravada por linea = precio*cantidad - descuento (SIN ITBIS).
+    # Linea 1 (18%): 100*2 = 200 base, 36 ITBIS.
+    # Linea 3 (0%): 30*1 = 30 base, 0 ITBIS.
+    # Linea 2 (exento): 50*1 = 50 -> MontoExento (no cuenta a I1..I3).
+    assert totales.findtext('MontoGravadoTotal') == '230.00'
+    assert totales.findtext('MontoGravadoI1') == '200.00'
+    assert totales.find('MontoGravadoI2') is None
+    assert totales.findtext('MontoGravadoI3') == '30.00'
+    assert totales.findtext('MontoExento') == '50.00'
+    assert totales.findtext('ITBIS1') == '18'
+    assert totales.find('ITBIS2') is None
+    assert totales.findtext('ITBIS3') == '0'
+    assert totales.findtext('TotalITBIS') == '36.00'
+    assert totales.findtext('TotalITBIS1') == '36.00'
+    assert totales.find('TotalITBIS2') is None
+    assert totales.findtext('TotalITBIS3') == '0.00'
+    assert totales.findtext('MontoTotal') == '316.00'
+
+    # Orden exacto del XSD (e-CF-31-v1.0.xsd lineas 132-162).
+    tags = [c.tag for c in totales]
+    esperado = [
+        'MontoGravadoTotal', 'MontoGravadoI1', 'MontoGravadoI3',
+        'MontoExento', 'ITBIS1', 'ITBIS3', 'TotalITBIS', 'TotalITBIS1',
+        'TotalITBIS3', 'MontoTotal',
+    ]
+    assert tags == esperado, f"orden incorrecto en Totales: {tags}"
+
+
+def test_totales_16pct_emite_i2_e_itbis2(_patch_repos):
+    """Cobertura del breakdown para 16% (MontoGravadoI2/ITBIS2/TotalITBIS2)
+    -- FAT en la practica factura casi solo 18%, pero el builder tiene que
+    manejar 16% correctamente igual (no adivinar el orden en produccion).
+    """
+    factura = _factura_zztest(
+        tipo_factura='FC', no_factura='0000905', posiciones_fijas_ncf='B01')
+    factura['lineas'] = [
+        _linea(1, 'PROD ITBIS 16', 1.0, 100.0, 16.0, 16.0, 116.0),
+    ]
+    factura['total_linea'] = 100.0
+    factura['impuesto'] = 16.0
+    factura['total_neto'] = 116.0
+    _patch_repos['factura'] = factura
+    _patch_repos['datos_fiscales'] = _datos_fiscales_zztest(forma_pago_fat='4')
+    _patch_repos['datos_fiscales']['lineas_porciento_raw'] = {1: 16.0}
+    xml_str = ecf_builder.construir_ecf_31('01', '01', 'FC', '0000905')
+    _validar_estructura_contra_xsd(xml_str, 31)
+
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    totales = root.find('.//Totales')
+    assert totales.findtext('MontoGravadoI2') == '100.00'
+    assert totales.findtext('ITBIS2') == '16'
+    assert totales.findtext('TotalITBIS2') == '16.00'
+    assert totales.find('MontoGravadoI1') is None
+    assert totales.find('MontoGravadoI3') is None
 
 
 def test_construir_ecf_31_sin_rnc_comprador_lanza_error_en_vez_de_omitir(_patch_repos):

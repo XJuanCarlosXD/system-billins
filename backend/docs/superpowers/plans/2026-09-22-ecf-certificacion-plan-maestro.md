@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En ejecución — 3 e-NCF quemados; 3 bugs del builder detectados (2 corregidos, 1 pendiente) | 2026-09-22 |
+| 4 | Pruebas Simulación e-CF | 🔲 En ejecución — 4/4 tipo 31 ✅ (grupo Primero restante: 32≥250Mil, 41, 43, 44, 45, 46, 47) | 2026-09-23 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -337,10 +337,64 @@ bug primero, valida un solo 31, y solo si queda **Aceptado** por DGII se
 avanza a los otros 3. Ese es el orden correcto para no seguir quemando
 secuencias reales.
 
+## Fase 4 — Hallazgos de la segunda corrida (2026-09-23)
+
+Bug pendiente 3 (`MontoGravadoI1`/`ITBIS1`/`TotalITBIS1`) corregido en
+`_construir_ecf`. La DGII exige el desglose completo por tasa de ITBIS
+(I1=18%, I2=16%, I3=0%) aunque el XSD lo marque `minOccurs=0`. El orden
+EXACTO del XSD para el bloque Totales es:
+`MontoGravadoTotal, MontoGravadoI1..I3, MontoExento, ITBIS1..3,
+TotalITBIS, TotalITBIS1..3, MontoImpuestoAdicional, ImpuestosAdicionales,
+MontoTotal` — cualquier desvío hace que el XSD marque el documento
+invalido. Se emiten solo los `MontoGravadoIn`/`ITBISn`/`TotalITBISn` de
+las tasas con base > 0. Base gravada por tasa se calcula como
+`precio*cantidad - descuento` de las líneas cuyo `IndicadorFacturacion`
+mapea a esa tasa (mismo criterio que `MontoItem`, no `monto_neto` de
+`TFAT_FACTURAL` que incluye ITBIS). Cobertura con 2 tests nuevos:
+`test_totales_desglose_por_tasa_itbis_y_orden_xsd` (18% + exento + 0%,
+verifica valores, ausencias y orden exacto) y `test_totales_16pct_emite_i2_e_itbis2`
+(escenario 16% puro, poco común en FAT pero soportado). 18/18 tests
+pasan localmente contra el XSD real de la DGII.
+
+**4/4 tipo 31 aceptados por certecf en esta corrida** (contador del
+portal confirmado 4/4):
+
+| Factura | e-NCF | trackId | Estado |
+|---------|-------|---------|--------|
+| FC-0007829 | E310000000057 | 7d41a61f-f4c8-496d-803a-28fb6a450d15 | Aceptado |
+| FC-0007607 | E310000000058 | 0839647c-88bb-459e-a79d-ee6943f2a44e | Aceptado |
+| FC-0008076 | E310000000059 | 44347bb4-5c44-4466-9c32-cb565c5835de | Aceptado |
+| FC-0007766 | E310000000060 | 8a8168ac-4937-4d5b-bece-be4d25698d2a | Aceptado |
+
+**Próximo paso para la corrida siguiente**: seguir con el resto del grupo
+"Primero" — 2×32≥250Mil, 2×41, 2×43, 2×44, 2×45, 2×46, 2×47. Los tipos
+41/43/44/45/46/47 no tienen pipeline de producción en FAT (van por
+`paso4-manual` con builder genérico `ecf_builder.construir_ecf_generico`
+que NO ha sido probado contra `certecf` real todavía; es probable que
+salten más bugs equivalentes a los 3 del builder 31/32). Envíar **UNO
+solo primero** de cada nuevo tipo antes de continuar, no la cuota
+completa — cada rechazo quema secuencia real e irreversible. Para
+32≥250Mil hay que elegir una factura B02 real de Abregonza con monto
+≥250Mil (el builder es el mismo `construir_ecf_32` ya validado, así que
+es la parte segura). Los demás requieren investigación de qué RNC/datos
+usar para cada tipo — probablemente conviene sub-plan con
+`superpowers:writing-plans` antes de tocar el builder genérico contra
+`certecf`.
+
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
 
+- **2026-09-23 00:20 UTC** — Runner scheduled. Fase 4 — grupo Primero, tipo 31.
+  Corregido el bug 3 pendiente (`MontoGravadoI1`/`ITBIS1`/`TotalITBIS1` +
+  orden estricto del XSD en Totales) en `_construir_ecf`, con 2 tests
+  nuevos contra XSD real (18/18 pasan). Desplegado a la VM. Enviados 4
+  e-CF tipo 31 (E310000000057-060) desde las 4 facturas reales elegidas
+  en la corrida anterior — los 4 **Aceptados** por `certecf`, portal
+  confirma 4/4. Sin bloqueos. Próximo paso: seguir con el resto del
+  grupo Primero (32≥250Mil primero, que reusa el mismo builder ya
+  validado; luego 41/43/44/45/46/47 uno a uno con `paso4-manual`).
+  Commits: (ver commit de esta corrida).
 - **2026-09-22 20:30 UTC** — Runner scheduled. Fase 4 arrancó: elegidas 4
   facturas reales (FC-0007829/0007607/0008076/0007766, todas B01 con RNC
   válido, de la base real de Abregonza). Primer intento contra `certecf`

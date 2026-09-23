@@ -305,16 +305,53 @@ def _construir_ecf(tipo_ecf: int, factura: dict, datos_fiscales: dict,
         _sub(comprador, 'DireccionComprador',
              datos_fiscales['direccion_comprador'].strip()[:100])
 
+    # Breakdown de Totales por tasa de ITBIS (I1=18%, I2=16%, I3=0%). DGII
+    # rechaza los e-CF que emiten TotalITBIS agregado sin el desglose por
+    # tasa cuando hay lineas gravadas (E310000000056 rechazado 2026-09-22
+    # codigo 1930 "MontoGravadoI1 no es valido"). Aunque todos los campos
+    # del bloque son minOccurs=0 en el XSD, la validacion de negocio de
+    # certecf real los exige.
+    #
+    # Base gravada por linea = precio*cantidad - descuento (mismo criterio
+    # que MontoItem, coherente con IndicadorMontoGravado=0). monto_neto de
+    # TFAT_FACTURAL INCLUYE ITBIS y no sirve aca.
+    #
+    # Orden EXACTO del XSD (ver e-CF-31-v1.0.xsd lineas 132-162):
+    # MontoGravadoTotal, MontoGravadoI1, MontoGravadoI2, MontoGravadoI3,
+    # MontoExento, ITBIS1, ITBIS2, ITBIS3, TotalITBIS, TotalITBIS1,
+    # TotalITBIS2, TotalITBIS3, MontoImpuestoAdicional,
+    # ImpuestosAdicionales, MontoTotal. Salir de este orden hace que el
+    # XSD marque el documento invalido.
+    _TASAS = {1: '18', 2: '16', 3: '0'}
+    gravado_por_ind = {1: 0.0, 2: 0.0, 3: 0.0}
+    itbis_por_ind = {1: 0.0, 2: 0.0, 3: 0.0}
+    total_exento = 0.0
+    for l in lineas:
+        ind = indicadores[int(l['no_linea'])]
+        base_linea = (float(l['precio'] or 0) * float(l['cantidad'] or 0)
+                      - float(l['descuento'] or 0))
+        if ind == 4:
+            total_exento += base_linea
+        elif ind in gravado_por_ind:
+            gravado_por_ind[ind] += base_linea
+            itbis_por_ind[ind] += float(l['impuesto'] or 0)
+
+    monto_gravado_total = sum(gravado_por_ind.values())
     totales = _sub(encabezado, 'Totales')
-    total_exento = sum(
-        float(l['monto_neto'] or 0) for l in lineas
-        if indicadores[int(l['no_linea'])] == 4)
-    monto_gravado_total = float(factura['total_linea'] or 0) - total_exento
     if monto_gravado_total > 0:
         _sub(totales, 'MontoGravadoTotal', _fmt_monto(monto_gravado_total))
+    for ind in (1, 2, 3):
+        if gravado_por_ind[ind] > 0:
+            _sub(totales, f'MontoGravadoI{ind}', _fmt_monto(gravado_por_ind[ind]))
     if total_exento > 0:
         _sub(totales, 'MontoExento', _fmt_monto(total_exento))
+    for ind in (1, 2, 3):
+        if gravado_por_ind[ind] > 0:
+            _sub(totales, f'ITBIS{ind}', _TASAS[ind])
     _sub(totales, 'TotalITBIS', _fmt_monto(factura['impuesto']))
+    for ind in (1, 2, 3):
+        if gravado_por_ind[ind] > 0:
+            _sub(totales, f'TotalITBIS{ind}', _fmt_monto(itbis_por_ind[ind]))
     _sub(totales, 'MontoTotal', monto_total)
 
     detalles = _sub(ecf, 'DetallesItems')
