@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En ejecución — **contador REINICIADO a 0/N en TODOS los tipos** por rechazo del E320000001004 (ver Hallazgos 4ta corrida). Secuencias 31 quedaron consumidas (próximo=E310000000061). | 2026-09-23 |
+| 4 | Pruebas Simulación e-CF | 🔲 En ejecución — 4/4 tipo 31 + 1/2 tipo 32≥250Mil Aceptados (5ta corrida). Contador reconstruido tras el reinicio de la 3ra corrida. | 2026-09-23 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -596,10 +596,113 @@ en la 3ra corrida. El presupuesto de esta corrida se gastó en:
 
 Sin código nuevo esta corrida — solo commit del plan maestro actualizado.
 
+## Fase 4 — Hallazgos de la quinta corrida (2026-09-23)
+
+Aplicada la estrategia obligatoria de la 4ta corrida: **gate XSD-local antes
+de cada envío a certecf**. Un test nuevo
+(`test_payload_corrida5_tipo_32_mayor_250k_valida_contra_xsd`) valida el XML
+del tipo 32≥250K con RNCComprador contra `e-CF-32-v1.0.xsd` real. 89/89
+tests pasan.
+
+**Un solo envío 32≥250Mil vía `paso4-manual`** (builder `construir_ecf_generico`,
+primer contacto real con certecf de ese path):
+
+| # | e-NCF | trackId | Estado | Cliente comprador |
+|---|-------|---------|--------|-------------------|
+| 1 | E320000001005 | eab0e8a3-5a9e-4590-b2f9-a40c672e5857 | **Aceptado** | CONSORCIO RYLCO & ASOCIADOS (RNC 131376292) |
+
+Con el 32 confirmado, se reenviaron los **4×31** desde las mismas 4 facturas
+reales de la corrida 2 (builder `construir_ecf_31` ya validado, mínimo
+riesgo):
+
+| Factura | e-NCF | trackId | Estado |
+|---------|-------|---------|--------|
+| FC-0007829 | E310000000061 | 132c2376-f88c-4d34-98e2-b42bbda5ef99 | Aceptado |
+| FC-0007607 | E310000000062 | 96505ac8-f580-4101-850e-a6e50dd6ef7c | Aceptado |
+| FC-0008076 | E310000000063 | 4acab832-2065-40e9-a680-39ff157a1fdb | Aceptado |
+| FC-0007766 | E310000000064 | dc27faab-0a64-4c6c-841b-32a9dbf4ea35 | Aceptado |
+
+**Portal (verificado por Playwright, 2026-09-23 ~12:20 UTC)**:
+
+- 4/4 Comprobantes tipo 31
+- 1/2 Comprobantes tipo 32 >= 250Mil
+- 0/N el resto de renglones
+
+**Payload real usado para el 32** (incluye 3 campos adicionales frente al
+propuesto por la 4ta corrida: `DireccionEmisor` obligatorio, `TipoPago=1`
+entero en vez de string, `IndicadorMontoGravado=0` defensivo aunque el XSD
+32 lo permita omitir — misma lección que se aprendió con el 31 en corridas
+1-2, código 176):
+
+```python
+{
+    'RNCEmisor': '130217432',
+    'RazonSocialEmisor': 'ABREGONZA COMERCIAL SRL',
+    'DireccionEmisor': 'AV LOPE DE VEGA #55, ENSANCHE NACO, SANTO DOMINGO',
+    'FechaEmision': '23-09-2026',
+    'TipoIngresos': '01',
+    'TipoPago': 1,
+    'IndicadorMontoGravado': 0,
+    'RNCComprador': '131376292',
+    'RazonSocialComprador': 'CONSORCIO RYLCO & ASOCIADOS',
+    'MontoGravadoTotal': '250000.00', 'MontoGravadoI1': '250000.00',
+    'ITBIS1': '18', 'TotalITBIS': '45000.00', 'TotalITBIS1': '45000.00',
+    'MontoTotal': '295000.00',
+    'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1,
+    'NombreItem[1]': 'Servicio profesional',
+    'IndicadorBienoServicio[1]': 2,
+    'CantidadItem[1]': '1.00',
+    'PrecioUnitarioItem[1]': '250000.00', 'MontoItem[1]': '250000.00',
+}
+```
+
+**Próximo paso para la corrida siguiente**: seguir con el resto del grupo
+"Primero" (aplicando gate XSD-local antes de cada envío):
+
+1. **1×32≥250Mil restante** — mismo builder, elegir OTRO cliente CXC real
+   con RNC válido (para no duplicar RNCComprador; opción: cliente #1
+   COMERCIAL VALOIS RNC 131175341, o cualquiera de los otros 20+ listados
+   en Hallazgos 4ta corrida). Payload idéntico al de esta corrida excepto
+   RNCComprador/RazonSocialComprador. Escribir test XSD-gate espejo del
+   de esta corrida.
+2. **1×33 (Nota de Débito)** — vía `paso4-manual`, `datos.NCFModificado` =
+   E310000000061 (o cualquier 31 aceptado ya en TFE_DOCUMENTO). Ver
+   `test_tipo_33_nota_debito_valida_contra_xsd` como plantilla del payload
+   mínimo — tiene un motivo/monto/fecha realistas. Escribir test XSD-gate
+   con NCFModificado=E310000000061 real antes de enviar.
+3. **2×34 (Nota de Crédito)** — mismo patrón, `datos.NCFModificado` de un
+   31 aceptado + `IndicadorNotaCredito=1`. Ver
+   `test_tipo_34_nota_credito_valida_contra_xsd`.
+4. **2×41 + 2×43 + 2×44 + 2×45 + 2×46 + 2×47** — TODOS pasan por
+   `construir_ecf_generico`, ninguno ha sido probado contra `certecf`
+   real. Riesgo real por cada uno. Enviar **UNO solo primero** de cada
+   tipo (12 envíos experimentales, no 24 completos) — cualquier rechazo
+   quema los 5 aceptados actuales, así que probablemente 4-5 corridas de
+   ~1 tipo cada una es lo prudente.
+5. **RFCE (4×32<250Mil)** al final (grupo "Tercero"), luego los 4 e-CF32
+   correspondientes (grupo "Cuarto", subida manual por el widget).
+
+Es decir: quedan ~10 envíos "riesgosos" (2do 32, 33, 34, y uno-a-uno de
+41-47) antes de que el resto sea repetición segura. Cada uno debe pasar
+por gate XSD-local + smoke test + verificación en portal antes de
+declararlo aceptado.
+
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
 
+- **2026-09-23 12:12-12:20 UTC** — Runner scheduled. Fase 4 — grupo Primero.
+  Aplicado por primera vez el gate XSD-local obligatorio (test nuevo
+  `test_payload_corrida5_tipo_32_mayor_250k_valida_contra_xsd`, 89/89
+  tests pasan). Enviado 1×32≥250Mil vía `paso4-manual` con RNC de cliente
+  CXC real (CONSORCIO RYLCO 131376292) — **Aceptado**
+  (E320000001005/eab0e8a3). Con el 32 confirmado, reenviados los 4×31
+  desde las mismas 4 facturas reales de la corrida 2 vía
+  `paso4-factura-real` — **4/4 Aceptados** (E310000000061-064). Portal
+  confirma 4/4 tipo 31 + 1/2 tipo 32≥250Mil. Sin bloqueos. Próximo paso:
+  2do 32≥250K con otro cliente CXC, luego 33/34 con NCFModificado real,
+  luego 41-47 uno-a-uno.
+  Commits: (ver commit de esta corrida).
 - **2026-09-23 08:12 UTC** — Runner scheduled. Fase 4 — investigación + doc.
   Hallazgo crítico nuevo: la DGII **reinicia TODOS los contadores** de
   Fase 4 cada vez que rechaza un e-CF, no solo el del tipo rechazado. El

@@ -850,3 +850,68 @@ def test_tipo_ingresos_opcional_en_33_y_34_no_lanza_error():
     _validar_estructura_contra_xsd(xml_str, 34)
     root = etree.fromstring(xml_str.encode('utf-8'))
     assert root.find('.//IdDoc/TipoIngresos') is None
+
+
+# Payload REAL para el envio de la 5ta corrida a certecf (Fase 4, 32>=250K
+# con RNC de un cliente CXC real -- CONSORCIO RYLCO, RNC 131376292). Este
+# test es el "gate XSD-local" obligatorio nuevo (ver plan maestro Fase 4
+# Hallazgos 4ta corrida, "Regla nueva: nunca enviar un e-CF a certecf sin
+# validar el XML contra el XSD real localmente primero" -- costo de un
+# rechazo en Fase 4 = todos los aceptados hasta ese momento, no solo la
+# secuencia). Este payload es el mismo que consume el POST paso4-manual.
+_PAYLOAD_32_MAYOR_250K_CORRIDA_5 = {
+    'RNCEmisor': '130217432',
+    'RazonSocialEmisor': 'ABREGONZA COMERCIAL SRL',
+    'DireccionEmisor': 'AV LOPE DE VEGA #55, ENSANCHE NACO, SANTO DOMINGO',
+    'FechaEmision': '23-09-2026',
+    'TipoIngresos': '01',
+    'TipoPago': 1,
+    'IndicadorMontoGravado': 0,
+    'RNCComprador': '131376292',
+    'RazonSocialComprador': 'CONSORCIO RYLCO & ASOCIADOS',
+    'MontoGravadoTotal': '250000.00',
+    'MontoGravadoI1': '250000.00',
+    'ITBIS1': '18',
+    'TotalITBIS': '45000.00',
+    'TotalITBIS1': '45000.00',
+    'MontoTotal': '295000.00',
+    'NumeroLinea[1]': 1,
+    'IndicadorFacturacion[1]': 1,
+    'NombreItem[1]': 'Servicio profesional',
+    'IndicadorBienoServicio[1]': 2,
+    'CantidadItem[1]': '1.00',
+    'PrecioUnitarioItem[1]': '250000.00',
+    'MontoItem[1]': '250000.00',
+}
+
+
+def test_payload_corrida5_tipo_32_mayor_250k_valida_contra_xsd():
+    """Gate XSD-local para el envio real de la 5ta corrida (32>=250K con
+    RNCComprador 131376292 CONSORCIO RYLCO). Debe validar contra el XSD
+    real e-CF-32-v1.0.xsd antes de disparar el POST a paso4-manual --
+    reduce a cero el riesgo de un rechazo estructural que borre los
+    contadores otra vez."""
+    xml_str = ecf_builder.construir_ecf_generico(
+        32, 'E320000001005', _PAYLOAD_32_MAYOR_250K_CORRIDA_5)
+    _validar_estructura_contra_xsd(xml_str, 32)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.findtext('.//IdDoc/TipoeCF') == '32'
+    assert root.findtext('.//IdDoc/IndicadorMontoGravado') == '0'
+    assert root.findtext('.//Comprador/RNCComprador') == '131376292'
+    assert root.findtext('.//Comprador/RazonSocialComprador') == 'CONSORCIO RYLCO & ASOCIADOS'
+    assert root.findtext('.//Totales/MontoGravadoTotal') == '250000.00'
+    assert root.findtext('.//Totales/MontoGravadoI1') == '250000.00'
+    assert root.findtext('.//Totales/ITBIS1') == '18'
+    assert root.findtext('.//Totales/TotalITBIS') == '45000.00'
+    assert root.findtext('.//Totales/TotalITBIS1') == '45000.00'
+    assert root.findtext('.//Totales/MontoTotal') == '295000.00'
+    # Orden estricto del bloque Totales segun el XSD (lección de la 2da
+    # corrida): MontoGravadoTotal, MontoGravadoI1..I3, MontoExento,
+    # ITBIS1..3, TotalITBIS, TotalITBIS1..3, ..., MontoTotal.
+    totales = root.find('.//Totales')
+    hijos = [t.tag for t in totales]
+    orden_esperado = ['MontoGravadoTotal', 'MontoGravadoI1', 'ITBIS1',
+                      'TotalITBIS', 'TotalITBIS1', 'MontoTotal']
+    posiciones = [hijos.index(t) for t in orden_esperado]
+    assert posiciones == sorted(posiciones), (
+        f"Totales fuera de orden XSD: {hijos}")
