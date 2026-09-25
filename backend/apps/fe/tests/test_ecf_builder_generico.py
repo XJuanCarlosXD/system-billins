@@ -294,7 +294,7 @@ def test_tipo_33_nota_debito_valida_contra_xsd():
         'FechaVencimientoSecuencia': '31-12-2028', 'TipoPago': 1,
         'MontoTotal': '100.00',
         'NCFModificado': 'E320000000006', 'FechaNCFModificado': '01-12-2028',
-        'CodigoModificacion': '1',
+        'CodigoModificacion': '3',
         'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1,
         'NombreItem[1]': 'AJUSTE ZZTEST', 'IndicadorBienoServicio[1]': 1,
         'CantidadItem[1]': '1.00', 'PrecioUnitarioItem[1]': '100.00',
@@ -828,7 +828,7 @@ def test_tipo_ingresos_opcional_en_33_y_34_no_lanza_error():
         'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
         'FechaVencimientoSecuencia': '31-12-2028', 'TipoPago': 1, 'MontoTotal': '100.00',
         'NCFModificado': 'E320000000006', 'FechaNCFModificado': '01-12-2028',
-        'CodigoModificacion': '1', 'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1,
+        'CodigoModificacion': '3', 'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1,
         'NombreItem[1]': 'X', 'IndicadorBienoServicio[1]': 1, 'CantidadItem[1]': '1.00',
         'PrecioUnitarioItem[1]': '100.00', 'MontoItem[1]': '100.00',
     }
@@ -1018,14 +1018,49 @@ _PAYLOAD_33_CORRIDA_7 = {
 }
 
 
-def test_payload_corrida7_tipo_33_nota_debito_valida_contra_xsd():
-    """Gate XSD-local obligatorio para el 1x33 (Nota de Debito) de la 7ma
-    corrida. Primer contacto real con certecf via construir_ecf_generico
-    para tipo 33 -- una regresion silenciosa aqui borraria los 6 aceptados
-    acumulados en Fase 4 (4x31 + 2x32>=250K). NCFModificado apunta a un 31
-    real ya Aceptado (E310000000061)."""
+def test_payload_corrida7_tipo_33_codigo_modificacion_1_es_rechazado_por_builder():
+    """Documenta el rechazo real de la 7ma corrida y verifica que el builder
+    ahora bloquea localmente el error semantico. El payload de la 7ma
+    corrida uso CodigoModificacion=1 (Anula el NCF modificado) con
+    tipo_ecf=33 (Nota de Debito) -- inconsistente porque una Nota de Debito
+    AGREGA cargos, no anula. Certecf rechazo el envio con codigo interno 64
+    + mensaje vacio y reinicio TODOS los contadores de Fase 4 (6 aceptados
+    perdidos: 4x31 + 2x32>=250K). El builder ahora levanta ECFBuilderError
+    ANTES de generar el XML para prevenir la repeticion del mismo error."""
+    with pytest.raises(ecf_builder.ECFBuilderError) as exc:
+        ecf_builder.construir_ecf_generico(
+            33, 'E330000000001', _PAYLOAD_33_CORRIDA_7)
+    mensaje = str(exc.value)
+    assert 'CodigoModificacion=1' in mensaje
+    assert '33' in mensaje
+
+
+# Payload corregido para el 1x33 (Nota de Debito), 8va corrida. Mismos
+# datos que la 7ma corrida (NCFModificado=E310000000061, monto RD$5,900),
+# pero con CodigoModificacion=3 (Corrige montos del NCF modificado) que es
+# el codigo semanticamente correcto para una Nota de Debito -- una Nota
+# de Debito por definicion corrige montos hacia ARRIBA (agrega cargos
+# faltantes a la factura original), por eso el codigo 3 encaja natural. La
+# 7ma corrida uso codigo=1 (Anula) y certecf rechazo con codigo interno 64
+# + mensaje vacio. Ver plan maestro seccion "Bloqueos activos" 2026-09-25
+# para el detalle completo del rechazo.
+_PAYLOAD_33_CORRIDA_8 = {
+    **_PAYLOAD_33_CORRIDA_7,
+    'CodigoModificacion': '3',
+    'RazonModificacion': 'Correccion de monto por diferencia de precio en FC-0007829',
+}
+
+
+def test_payload_corrida8_tipo_33_codigo_modificacion_3_valida_contra_xsd():
+    """Gate XSD-local obligatorio para el 1x33 corregido (8va corrida).
+    Mismo NCFModificado real que la 7ma corrida (E310000000061) pero con
+    CodigoModificacion=3 (Corrige montos) en vez de 1 (Anular). La proxima
+    corrida real puede usar este payload para reintentar el envio a
+    certecf una vez que el usuario valide la hipotesis del bloqueo. Sin
+    este gate, un XML invalido llegaria a certecf y disparraria otro
+    reinicio de contadores."""
     xml_str = ecf_builder.construir_ecf_generico(
-        33, 'E330000000001', _PAYLOAD_33_CORRIDA_7)
+        33, 'E330000000001', _PAYLOAD_33_CORRIDA_8)
     _validar_estructura_contra_xsd(xml_str, 33)
     root = etree.fromstring(xml_str.encode('utf-8'))
     assert root.findtext('.//IdDoc/TipoeCF') == '33'
@@ -1043,7 +1078,7 @@ def test_payload_corrida7_tipo_33_nota_debito_valida_contra_xsd():
         'E310000000061'
     assert root.findtext('.//InformacionReferencia/FechaNCFModificado') == \
         '20-11-2025'
-    assert root.findtext('.//InformacionReferencia/CodigoModificacion') == '1'
+    assert root.findtext('.//InformacionReferencia/CodigoModificacion') == '3'
     totales = root.find('.//Totales')
     hijos = [t.tag for t in totales]
     orden_esperado = ['MontoGravadoTotal', 'MontoGravadoI1', 'ITBIS1',
@@ -1051,3 +1086,38 @@ def test_payload_corrida7_tipo_33_nota_debito_valida_contra_xsd():
     posiciones = [hijos.index(t) for t in orden_esperado]
     assert posiciones == sorted(posiciones), (
         f"Totales fuera de orden XSD: {hijos}")
+
+
+def test_construir_ecf_generico_tipo_33_codigo_modificacion_2_permitido():
+    """Codigo 2 (Corrige Texto) tambien es semanticamente valido para una
+    Nota de Debito (menos comun, pero footnote 80 del Formato-e-CF-V1.0.pdf
+    dice que codigos 1/2/3 aplican a notas 'segun corresponda'). El builder
+    solo bloquea el codigo 1 (Anular) para tipo 33 porque una anulacion no
+    encaja en la definicion de Nota de Debito (que agrega cargos)."""
+    payload = {
+        **_PAYLOAD_33_CORRIDA_7,
+        'CodigoModificacion': '2',
+    }
+    xml_str = ecf_builder.construir_ecf_generico(
+        33, 'E330000000001', payload)
+    _validar_estructura_contra_xsd(xml_str, 33)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.findtext('.//InformacionReferencia/CodigoModificacion') == '2'
+
+
+def test_construir_ecf_generico_tipo_34_codigo_modificacion_1_permitido():
+    """Confirma que la validacion NO se aplica a tipo 34 (Nota de Credito):
+    codigo 1 (Anular) es semanticamente valido para una Nota de Credito
+    porque anular un NCF por su totalidad es un caso natural de emision de
+    nota de credito. Regresion guard para no romper el 34 al arreglar el
+    33."""
+    payload_34 = {
+        **_PAYLOAD_33_CORRIDA_7,
+        'IndicadorNotaCredito': '0',
+        'CodigoModificacion': '1',
+    }
+    xml_str = ecf_builder.construir_ecf_generico(
+        34, 'E340000000052', payload_34)
+    _validar_estructura_contra_xsd(xml_str, 34)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.findtext('.//InformacionReferencia/CodigoModificacion') == '1'

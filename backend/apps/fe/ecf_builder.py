@@ -1287,6 +1287,18 @@ def _gen_informacion_referencia(ecf, tipo_ecf: int, caps: dict, simple: dict) ->
             "FechaNCFModificado+CodigoModificacion son obligatorios "
             "(minOccurs=1, referencian el NCF que este documento modifica); "
             "falta alguno en 'datos'")
+    if tipo_ecf == 33 and not _es_vacio(cod_mod) and str(cod_mod).strip() == '1':
+        raise ECFBuilderError(
+            "e-CF 33 (Nota de Debito) con CodigoModificacion=1 (Anula el NCF "
+            "modificado) es semanticamente inconsistente: una Nota de Debito "
+            "AGREGA cargos a la factura original, no la anula. Formato-e-CF-"
+            "V1.0.pdf nota 80 dice que codigos 1/2/3 aplican a notas de "
+            "credito/debito 'segun corresponda'. Para 33 usar 3 (Corrige "
+            "montos) o 2 (Corrige texto). Envio a certecf en 7ma corrida "
+            "confirmo empiricamente que codigo=1 en 33 dispara rechazo con "
+            "codigo interno 64 y mensaje vacio + reinicio total de "
+            "contadores de Fase 4 (ver plan maestro seccion 'Bloqueos "
+            "activos' 2026-09-25)")
     info = _sub(ecf, 'InformacionReferencia')
     if not _es_vacio(ncf_mod):
         _sub(info, 'NCFModificado', _valor_texto(ncf_mod))

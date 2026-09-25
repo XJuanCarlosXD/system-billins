@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🛑 Reiniciada por 7ma corrida (todos 0/N). Bloqueo activo: código 64 con mensaje vacío en 33. Ver "Bloqueos activos". | 2026-09-25 |
+| 4 | Pruebas Simulación e-CF | 🛑 Reiniciada por 7ma corrida (todos 0/N). Hipótesis técnica fuerte del bloqueo identificada + fix desplegado por 8va corrida (pendiente validar contra certecf). | 2026-09-25 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -119,6 +119,30 @@ vacío; portal reiniciado (0/N en todos los 11 renglones)**. Detalle:
 - **Runner NO debe reintentar Fase 4 hasta que este bloqueo esté
   resuelto** — cualquier envío estructuralmente ambiguo puede volver a
   disparar reinicio.
+- **Hipótesis técnica fuerte identificada por la 8va corrida (2026-09-25)**:
+  el payload de la 7ma corrida usó `CodigoModificacion=1` (Anula el NCF
+  modificado) con `tipo_ecf=33` (Nota de Débito). Formato-e-CF-V1.0.pdf
+  nota 80 dice que códigos 1/2/3 aplican a notas de crédito/débito "según
+  corresponda"; una Nota de Débito por definición **AGREGA cargos** a la
+  factura original (no la anula), así que código 1 es semánticamente
+  inconsistente y probablemente lo que disparó el rechazo con `codigo:64`
+  y `valor:""` (rechazo de regla de negocio, no de campo — por eso viene
+  sin mensaje textual). Para tipo 33 el código semánticamente correcto es
+  `3` (Corrige montos). La 8va corrida agregó validación defensiva en
+  `_gen_informacion_referencia` que rechaza `tipo_ecf==33` +
+  `CodigoModificacion=='1'` en el builder, más tests XSD-gate con
+  `CodigoModificacion=3` (`test_payload_corrida8_tipo_33_codigo_modificacion_3_valida_contra_xsd`),
+  219/219 tests pasan. Payload propuesto para la 9na corrida en
+  `_PAYLOAD_33_CORRIDA_8` (mismo NCFModificado=E310000000061 real ya
+  Aceptado, solo cambia CodigoModificacion 1→3 y RazonModificacion).
+- **La 9na corrida (o el usuario) puede reintentar 1×33 con
+  `_PAYLOAD_33_CORRIDA_8`** una vez que quiera validar la hipótesis
+  empíricamente. Riesgo controlado: los contadores YA están en 0/N desde
+  la 7ma corrida, no hay progreso que perder; y `secuenciaUtilizada:false`
+  del rechazo anterior significa que E330000000001 sigue disponible en
+  TFE_SECUENCIA para reutilizar. Si el rechazo se repite con código 64
+  vacío, el problema NO es CodigoModificacion (el fix falla) y hay que
+  seguir la ruta 1 (catálogo oficial DGII).
 - Secuencias reales actuales de TFE_SECUENCIA (para orientar la próxima
   corrida cuando se desbloquee): 31 → siguiente E310000000065; 32 →
   siguiente E320000001007; 33 → siguiente E330000000001 (NO quemado,
@@ -826,6 +850,37 @@ que el bloqueo esté resuelto.
 
 Agregar una línea por corrida, más reciente arriba:
 
+- **2026-09-25 12:20-14:00 UTC (8va corrida)** — Runner scheduled. Fase 4
+  BLOQUEADA (todos los contadores en 0/N por rechazo código 64 de la 7ma
+  corrida) — corrida de investigación + fix técnico, SIN envío nuevo a
+  certecf. Extraído texto de `Descripcion-Tecnica-Servicios-DGII.pdf` y
+  `Formato-e-CF-V1.0.pdf` con pdftotext, encontrado el hallazgo: el
+  `CodigoModificacion=1` (Anula el NCF modificado) usado en la 7ma corrida
+  es semánticamente inconsistente con `tipo_ecf=33` (Nota de Débito, que
+  AGREGA cargos). Nota 80 del Formato-e-CF-V1.0.pdf dice que códigos 1/2/3
+  aplican a notas de crédito/débito "según corresponda"; para 33 solo 2 o
+  3 tienen sentido (2=Corrige texto, 3=Corrige montos). Fix desplegado en
+  `apps/fe/ecf_builder.py::_gen_informacion_referencia`: valida que
+  `tipo_ecf==33` + `CodigoModificacion=='1'` levante `ECFBuilderError`
+  local antes de firmar/enviar. Tests actualizados: `test_tipo_33_nota_debito_valida_contra_xsd`
+  y `test_tipo_ingresos_opcional_en_33_y_34_no_lanza_error` usan código 3
+  ahora; `test_payload_corrida7_tipo_33_codigo_modificacion_1_es_rechazado_por_builder`
+  documenta el rechazo histórico; nuevos `test_payload_corrida8_tipo_33_codigo_modificacion_3_valida_contra_xsd`,
+  `test_construir_ecf_generico_tipo_33_codigo_modificacion_2_permitido` y
+  `test_construir_ecf_generico_tipo_34_codigo_modificacion_1_permitido`
+  como regression guards. 219/219 tests fe pasan en contenedor de VM.
+  Payload propuesto para la próxima corrida en `_PAYLOAD_33_CORRIDA_8`.
+  Bloqueo movido de "sin resolución" a "hipótesis técnica identificada +
+  fix desplegado, pendiente validación empírica contra certecf". Sin
+  envío a DGII (secuencias intactas: 31→E310000000065, 32→E320000001007,
+  33→E330000000001 reutilizable). Próximo paso: la 9na corrida (o el
+  usuario) puede disparar `POST /api/fe/certificacion/paso4-manual/` con
+  el payload de `_PAYLOAD_33_CORRIDA_8` para validar la hipótesis. Si
+  Aceptado, portal debe ir a 1/1 tipo 33 y el resto del grupo Segundo (34,
+  41-47) puede seguir el patrón. Si Rechazado con código 64 vacío otra
+  vez, el problema NO es CodigoModificacion — cerrar esa ruta y seguir
+  con investigación del catálogo oficial DGII (ruta 1 del bloqueo).
+  Commits: (ver commit de esta corrida).
 - **2026-09-25 04:12-04:20 UTC** — Runner scheduled. Fase 4 — intento 1×33
   Nota de Débito (grupo Segundo, primer contacto real de
   `construir_ecf_generico(33)` contra certecf). Gate XSD-local nuevo
