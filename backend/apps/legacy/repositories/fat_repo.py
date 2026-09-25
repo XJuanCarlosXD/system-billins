@@ -1215,30 +1215,52 @@ def rep_ncf_607(no_cia: str, desde: str, hasta: str) -> list[dict]:
         params_d.append(hasta)
         extra_d.append(f"AND TRUNC(d.fecha) <= TO_DATE(:{len(params_d)},'YYYY-MM-DD')")
     extra_sql_d = " ".join(extra_d)
+    # Para las DVs (notas de credito), resolvemos NCF afectado v?a
+    # TCXC_REFEDOCU -> TFAT_FACTURA. El enlace factura original->NC se guarda
+    # en TCXC_REFEDOCU.tipo_refe/no_refe cuando crear_dv_mirror() crea la DV
+    # (cxc_repo.crear_dv_mirror). Antes esta columna salia vacia en el 607
+    # aunque la data existiera (reportado por MPILAR 2026-09-23).
     rows_d = client.fetch_dicts(
         f"SELECT d.ncf, NULL AS codigo_ncf, NULL AS tipo_ncf_fiscal, "
         f"d.posiciones_fijas_ncf, "
         f"d.no_docu AS no_factura, d.tipo_docu AS tipo_factura, "
         f"d.fecha, cl.rnc, cl.nombre AS nombre_cliente, "
         f"NVL(d.credito,0) AS total_neto, NVL(d.itbis,0) AS impuesto, "
-        f"(NVL(d.credito,0) - NVL(d.itbis,0)) AS total_linea "
+        f"(NVL(d.credito,0) - NVL(d.itbis,0)) AS total_linea, "
+        f"forig.posiciones_fijas_ncf AS pf_afectado, forig.ncf AS ncf_afectado_num "
         f"FROM CXC.TCXC_DOCUMENTO d "
         f"LEFT JOIN CXC.TCXC_CLIENTE cl "
         f"  ON cl.no_cia = d.no_cia AND cl.punto = d.punto AND cl.no_cliente = d.no_cliente "
+        f"LEFT JOIN CXC.TCXC_REFEDOCU r "
+        f"  ON r.no_cia = d.no_cia AND r.punto = d.punto "
+        f"  AND r.tipo_docu = d.tipo_docu AND r.no_docu = d.no_docu "
+        f"LEFT JOIN FAT.TFAT_FACTURA forig "
+        f"  ON forig.no_cia = r.no_cia AND forig.punto = r.punto "
+        f"  AND forig.tipo_factura = r.tipo_refe AND forig.no_factura = r.no_refe "
+        f"  AND forig.ncf IS NOT NULL "
         f"WHERE d.no_cia=:1 AND d.tipo_docu='DV' AND d.ncf IS NOT NULL "
         f"AND NVL(d.st_anulado,'N')='N' {extra_sql_d}",
         params_d)
-    rows = list(rows_f) + list(rows_d)
-    rows.sort(key=lambda r: (r['fecha'] or 0, int(r['ncf'] or 0)))
-    return [{'ncf': int(r['ncf']), 'codigo_ncf': r['codigo_ncf'] or '',
-             'tipo_ncf_fiscal': r['tipo_ncf_fiscal'] or '',
-             'posiciones_fijas_ncf': (r['posiciones_fijas_ncf'] or '').strip().upper(),
-             'ncf_dgi': _compose_ncf_dgi(r['posiciones_fijas_ncf'], r['ncf']),
-             'no_factura': r['no_factura'] or '', 'tipo_factura': r['tipo_factura'] or '',
-             'fecha': str(r['fecha'])[:10] if r['fecha'] else None,
-             'rnc': r['rnc'] or '', 'nombre_cliente': (r['nombre_cliente'] or '').strip(),
-             'total_neto': float(r['total_neto']), 'impuesto': float(r['impuesto']),
-             'total_linea': float(r['total_linea'])} for r in rows]
+    all_rows = [(r, 'FC') for r in rows_f] + [(r, 'DV') for r in rows_d]
+    all_rows.sort(key=lambda pr: (pr[0]['fecha'] or 0, int(pr[0]['ncf'] or 0)))
+    out = []
+    for r, kind in all_rows:
+        ncf_afectado = ''
+        if kind == 'DV':
+            ncf_afectado = _compose_ncf_dgi(r.get('pf_afectado'), r.get('ncf_afectado_num'))
+        out.append({
+            'ncf': int(r['ncf']), 'codigo_ncf': r['codigo_ncf'] or '',
+            'tipo_ncf_fiscal': r['tipo_ncf_fiscal'] or '',
+            'posiciones_fijas_ncf': (r['posiciones_fijas_ncf'] or '').strip().upper(),
+            'ncf_dgi': _compose_ncf_dgi(r['posiciones_fijas_ncf'], r['ncf']),
+            'no_factura': r['no_factura'] or '', 'tipo_factura': r['tipo_factura'] or '',
+            'fecha': str(r['fecha'])[:10] if r['fecha'] else None,
+            'rnc': r['rnc'] or '', 'nombre_cliente': (r['nombre_cliente'] or '').strip(),
+            'total_neto': float(r['total_neto']), 'impuesto': float(r['impuesto']),
+            'total_linea': float(r['total_linea']),
+            'ncf_modificado': ncf_afectado,
+        })
+    return out
 
 
 def _tipo_id_de_rnc(rnc: str) -> str:
@@ -1262,13 +1284,11 @@ def archivo_dgii_607(no_cia: str, ano: int, mes: int) -> tuple[str, int]:
     NCF B04). Antes solo se leia TFAT_FACTURA y las NC generadas por
     devoluciones en INV nunca salian en el .txt DGII.
 
-    Limitacion conocida (no resuelta): NCF_MODIFICADO (columna 4, para NC/ND
-    que referencian la factura original) se deja en blanco -- el clon no
-    tiene aun un enlace explicito factura->nota de credito para resolverlo
-    (TCXC_DOCUMENTO.tipo_docu_r/no_docu_r estan siempre en NULL en las DV).
-    Para las DV tampoco hay forma_pago propia, asi que columnas 17-23 van en
-    cero. Revisar con un contador antes de enviar a DGII si el periodo tiene
-    notas de credito/debito.
+    NCF_MODIFICADO (columna 4) para las DVs se resuelve v?a
+    TCXC_REFEDOCU.tipo_refe/no_refe -> TFAT_FACTURA (el enlace lo guarda
+    crear_dv_mirror en cxc_repo). Antes salia vacio aunque la data existiera
+    (reportado por MPILAR 2026-09-23). Para las DV no hay forma_pago propia,
+    asi que columnas 17-23 siguen en cero.
     """
     from .. import client as _client
     rows_f = _client.fetch_dicts(
@@ -1293,10 +1313,18 @@ def archivo_dgii_607(no_cia: str, ano: int, mes: int) -> tuple[str, int]:
         "NVL(d.credito,0) total_neto, "
         "(NVL(d.credito,0) - NVL(d.itbis,0)) total_linea, "
         "NVL(d.itbis,0) impuesto, "
-        "NVL(d.itbis_retenido,0) itbis_retenido, NVL(d.isr_retenido,0) isr_retenido "
+        "NVL(d.itbis_retenido,0) itbis_retenido, NVL(d.isr_retenido,0) isr_retenido, "
+        "forig.posiciones_fijas_ncf pf_afectado, forig.ncf ncf_afectado_num "
         "FROM CXC.TCXC_DOCUMENTO d "
         "LEFT JOIN CXC.TCXC_CLIENTE cl "
         "  ON cl.no_cia = d.no_cia AND cl.punto = d.punto AND cl.no_cliente = d.no_cliente "
+        "LEFT JOIN CXC.TCXC_REFEDOCU r "
+        "  ON r.no_cia = d.no_cia AND r.punto = d.punto "
+        "  AND r.tipo_docu = d.tipo_docu AND r.no_docu = d.no_docu "
+        "LEFT JOIN FAT.TFAT_FACTURA forig "
+        "  ON forig.no_cia = r.no_cia AND forig.punto = r.punto "
+        "  AND forig.tipo_factura = r.tipo_refe AND forig.no_factura = r.no_refe "
+        "  AND forig.ncf IS NOT NULL "
         "WHERE d.no_cia=:1 AND d.tipo_docu='DV' AND d.ncf IS NOT NULL "
         "AND NVL(d.st_anulado,'N')='N' "
         "AND EXTRACT(YEAR FROM d.fecha)=:2 AND EXTRACT(MONTH FROM d.fecha)=:3 ",
@@ -1311,6 +1339,7 @@ def archivo_dgii_607(no_cia: str, ano: int, mes: int) -> tuple[str, int]:
     lineas = []
     for r, kind in all_rows:
         ncf_dgi = _compose_ncf_dgi(r['posiciones_fijas_ncf'], r['ncf'])
+        ncf_modificado = ''
         montos_pago = ['0.00'] * 7
         if kind == 'FC':
             tipo_ingreso = f"{int(r['tipo_ingreso'] or 1):02d}"
@@ -1329,8 +1358,10 @@ def archivo_dgii_607(no_cia: str, ano: int, mes: int) -> tuple[str, int]:
             # (ver limitacion en el docstring).
             tipo_ingreso = '01'
             fecha_ret = ''
+            ncf_modificado = _compose_ncf_dgi(
+                r.get('pf_afectado'), r.get('ncf_afectado_num'))
         campos = [
-            r['rnc'] or '', _tipo_id_de_rnc(r['rnc']), ncf_dgi, '',
+            r['rnc'] or '', _tipo_id_de_rnc(r['rnc']), ncf_dgi, ncf_modificado,
             tipo_ingreso, r['fecha'] or '', fecha_ret,
             f"{float(r['total_linea']):.2f}", f"{float(r['impuesto']):.2f}",
             f"{float(r['itbis_retenido']):.2f}", '',
