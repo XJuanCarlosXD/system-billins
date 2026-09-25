@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En ejecución — 4/4 tipo 31 + 1/2 tipo 32≥250Mil Aceptados (5ta corrida). Contador reconstruido tras el reinicio de la 3ra corrida. | 2026-09-23 |
+| 4 | Pruebas Simulación e-CF | 🔲 En ejecución — 4/4 tipo 31 + 2/2 tipo 32≥250Mil Aceptados (6ta corrida). Grupo "Primero" restante: 33, 34, 41, 43, 44, 45, 46, 47. | 2026-09-24 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -687,10 +687,74 @@ Es decir: quedan ~10 envíos "riesgosos" (2do 32, 33, 34, y uno-a-uno de
 por gate XSD-local + smoke test + verificación en portal antes de
 declararlo aceptado.
 
+## Fase 4 — Hallazgos de la sexta corrida (2026-09-24)
+
+Aplicado el gate XSD-local obligatorio (test nuevo
+`test_payload_corrida6_tipo_32_mayor_250k_valida_contra_xsd`, 215/215 tests
+del módulo `fe` pasan). Un solo envío 32≥250Mil vía `paso4-manual` con RNC
+de un cliente CXC real distinto del de la 5ta corrida (COMERCIAL VALOIS,
+cliente #1 CXC, RNC 131175341, MontoTotal 306800):
+
+| # | e-NCF | trackId | Estado | Cliente comprador |
+|---|-------|---------|--------|-------------------|
+| 2 | E320000001006 | 73456765-7a96-4d4a-8728-17d8cecd7c84 | **Aceptado** | COMERCIAL VALOIS (RNC 131175341) |
+
+**Portal (verificado por Playwright, 2026-09-25 ~00:10 UTC)**:
+- 4/4 Comprobantes tipo 31
+- **2/2** Comprobantes tipo 32 >= 250Mil ← completo
+- 0/N el resto de renglones (33, 34, 41, 43, 44, 45, 46, 47, RFCE)
+
+Grupo "Primero" para 32/31 CERRADO. No hubo nuevos "reinicios" en el log del
+portal — el gate XSD-local está funcionando como diseñado.
+
+**Próximo paso para la corrida siguiente** (grupo "Segundo" + resto del
+Primero, todos vía `paso4-manual` con `construir_ecf_generico` — ninguno
+probado contra `certecf` real todavía, mismo riesgo que se documentó en la
+5ta corrida). Enviar **UNO solo primero** de cada tipo, con gate XSD-local
+antes de cada uno:
+
+1. **1×33 (Nota de Débito)** — vía `paso4-manual` con `NCFModificado` de un
+   31 aceptado (recomendado: E310000000061, el 1er 31 de la 5ta corrida,
+   FC-0007829, ya en `TFE_DOCUMENTO`). Ver
+   `test_tipo_33_nota_debito_valida_contra_xsd` como plantilla. Escribir
+   test-gate espejo con `NCFModificado=E310000000061` + monto realista
+   (ej. RD$5,000, motivo "Ajuste por diferencia de precio") ANTES de
+   enviar. Si Aceptado, portal debe pasar a 1/1 tipo 33.
+2. **1×34 (Nota de Crédito)** — mismo patrón que 33, con
+   `IndicadorNotaCredito=1`. Ver `test_tipo_34_nota_credito_valida_contra_xsd`.
+   Si Aceptado, enviar el 2do (2/2).
+3. **1×41 (Compras)** — sin NCFModificado. Requiere investigar payload
+   típico: RNCComprador = 130217432 (nosotros, es la compra propia), RNC
+   del emisor = proveedor real. Consultar `TCXP_FACTURA` para elegir un
+   proveedor real. Igual patrón: gate XSD + 1 solo primero.
+4. **1×43 (Gastos Menores)**, **1×44 (Regímenes Especiales)**, **1×45
+   (Gubernamental)**, **1×46 (Exportaciones)**, **1×47 (Pagos al Exterior)**
+   — cada uno tiene requisitos particulares del XSD. Investigar el payload
+   mínimo de cada uno en el propio XSD (`docs/superpowers/reference/2026-08-31-
+   set-pruebas-paso2/e-CF-XX-v1.0.xsd`) antes de tocar.
+
+Estrategia recomendada por corrida (para no exceder budget y minimizar
+riesgo de rechazo cascada): **1 tipo por corrida** — escribir gate + enviar
++ verificar. 8 envíos exitosos = 8 corridas mínimas antes del grupo Tercero
+(RFCE). Puede parecer lento pero cada rechazo cuesta TODOS los aceptados
+acumulados, así que la aritmética favorece la prudencia.
+
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
 
+- **2026-09-24 23:30 UTC — 2026-09-25 00:10 UTC** — Runner scheduled. Fase 4
+  — 2do 32≥250Mil (grupo Primero, cierre). Aplicado el gate XSD-local
+  obligatorio (test nuevo `test_payload_corrida6_tipo_32_mayor_250k_valida_contra_xsd`,
+  215/215 tests fe pasan localmente en el contenedor de la VM). Enviado
+  1×32≥250Mil vía `paso4-manual` con RNC de cliente CXC real distinto del
+  de la 5ta corrida (COMERCIAL VALOIS, RNC 131175341, MontoTotal 306800)
+  — **Aceptado** (E320000001006/73456765). Portal confirma 4/4 tipo 31 +
+  **2/2 tipo 32≥250Mil**. Grupo "Primero" para 32/31 CERRADO. Sin
+  bloqueos. Próximo paso: 1×33 con NCFModificado=E310000000061 real,
+  gate XSD-local antes de enviar (patrón nuevo de la 5ta corrida ya
+  validado por 2do envío consecutivo sin reinicios).
+  Commits: (ver commit de esta corrida).
 - **2026-09-23 12:12-12:20 UTC** — Runner scheduled. Fase 4 — grupo Primero.
   Aplicado por primera vez el gate XSD-local obligatorio (test nuevo
   `test_payload_corrida5_tipo_32_mayor_250k_valida_contra_xsd`, 89/89

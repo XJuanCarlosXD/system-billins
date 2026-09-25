@@ -915,3 +915,65 @@ def test_payload_corrida5_tipo_32_mayor_250k_valida_contra_xsd():
     posiciones = [hijos.index(t) for t in orden_esperado]
     assert posiciones == sorted(posiciones), (
         f"Totales fuera de orden XSD: {hijos}")
+
+
+# Payload REAL para el 2do 32>=250K de la 6ta corrida (Fase 4). Usa otro
+# cliente CXC real distinto del de la 5ta corrida (COMERCIAL VALOIS, cliente
+# #1 de CXC.TCXC_CLIENTE, RNC 131175341) para no duplicar RNCComprador. El
+# builder ya quedo confirmado contra certecf en la 5ta corrida
+# (E320000001005 Aceptado) -- este payload solo cambia RNC/RazonSocial, la
+# estructura del XML es identica; el gate XSD-local sigue siendo obligatorio
+# antes de disparar el POST a certecf.
+_PAYLOAD_32_MAYOR_250K_CORRIDA_6 = {
+    'RNCEmisor': '130217432',
+    'RazonSocialEmisor': 'ABREGONZA COMERCIAL SRL',
+    'DireccionEmisor': 'AV LOPE DE VEGA #55, ENSANCHE NACO, SANTO DOMINGO',
+    'FechaEmision': '24-09-2026',
+    'TipoIngresos': '01',
+    'TipoPago': 1,
+    'IndicadorMontoGravado': 0,
+    'RNCComprador': '131175341',
+    'RazonSocialComprador': 'COMERCIAL VALOIS',
+    'MontoGravadoTotal': '260000.00',
+    'MontoGravadoI1': '260000.00',
+    'ITBIS1': '18',
+    'TotalITBIS': '46800.00',
+    'TotalITBIS1': '46800.00',
+    'MontoTotal': '306800.00',
+    'NumeroLinea[1]': 1,
+    'IndicadorFacturacion[1]': 1,
+    'NombreItem[1]': 'Servicio profesional',
+    'IndicadorBienoServicio[1]': 2,
+    'CantidadItem[1]': '1.00',
+    'PrecioUnitarioItem[1]': '260000.00',
+    'MontoItem[1]': '260000.00',
+}
+
+
+def test_payload_corrida6_tipo_32_mayor_250k_valida_contra_xsd():
+    """Gate XSD-local para el 2do 32>=250K (COMERCIAL VALOIS 131175341).
+    Estructura identica a la 5ta corrida (ya Aceptada por certecf), solo
+    cambia RNCComprador/RazonSocial/monto. Sigue siendo obligatorio validar
+    contra el XSD real antes de disparar el POST -- una regresion silenciosa
+    en el builder generico borraria los 5 aceptados que hay hasta ahora."""
+    xml_str = ecf_builder.construir_ecf_generico(
+        32, 'E320000001006', _PAYLOAD_32_MAYOR_250K_CORRIDA_6)
+    _validar_estructura_contra_xsd(xml_str, 32)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.findtext('.//IdDoc/TipoeCF') == '32'
+    assert root.findtext('.//IdDoc/IndicadorMontoGravado') == '0'
+    assert root.findtext('.//Comprador/RNCComprador') == '131175341'
+    assert root.findtext('.//Comprador/RazonSocialComprador') == 'COMERCIAL VALOIS'
+    assert root.findtext('.//Totales/MontoGravadoTotal') == '260000.00'
+    assert root.findtext('.//Totales/MontoGravadoI1') == '260000.00'
+    assert root.findtext('.//Totales/ITBIS1') == '18'
+    assert root.findtext('.//Totales/TotalITBIS') == '46800.00'
+    assert root.findtext('.//Totales/TotalITBIS1') == '46800.00'
+    assert root.findtext('.//Totales/MontoTotal') == '306800.00'
+    totales = root.find('.//Totales')
+    hijos = [t.tag for t in totales]
+    orden_esperado = ['MontoGravadoTotal', 'MontoGravadoI1', 'ITBIS1',
+                      'TotalITBIS', 'TotalITBIS1', 'MontoTotal']
+    posiciones = [hijos.index(t) for t in orden_esperado]
+    assert posiciones == sorted(posiciones), (
+        f"Totales fuera de orden XSD: {hijos}")
