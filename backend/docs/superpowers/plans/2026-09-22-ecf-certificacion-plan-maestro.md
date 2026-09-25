@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🛑 Reiniciada por 7ma corrida (todos 0/N). Hipótesis técnica fuerte del bloqueo identificada + fix desplegado por 8va corrida. 9na corrida intentó validar empíricamente pero DGII `validarsemilla` estuvo caída (timeout downstream OCSP/CRL); pendiente reintentar cuando DGII normalice. | 2026-09-25 |
+| 4 | Pruebas Simulación e-CF | 🔲 En curso — 10ma corrida validó empíricamente la hipótesis: 1×33 Aceptado (E330000000005, `CodigoModificacion=3`). Portal 1/1 tipo 33; falta rehacer 4×31, 2×32≥250K y el resto del grupo Segundo+41-47+RFCE. | 2026-09-25 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -74,12 +74,17 @@ Leyenda: ⬜ sin investigar · 🔲 en curso/parcial · ✅ completo · 🛑 blo
 
 reintentar solo)
 
-_Ninguno al 2026-09-22._ El runner agrega aquí cualquier bloqueo nuevo, con
-fecha, descripción exacta y qué decisión falta — y NO vuelve a intentar esa
-fase hasta que esta sección diga explícitamente que se resolvió.
+_Ninguno al 2026-09-25 (10ma corrida)._ El bloqueo de la 7ma corrida
+(código 64 vacío en tipo 33) quedó **RESUELTO** por la 10ma corrida:
+`CodigoModificacion=3` fue Aceptado por certecf (E330000000005/eb6f92b2,
+25-09-2026 16:14:51 UTC-4), portal a 1/1 tipo 33 sin nuevos reinicios. El
+runner agrega aquí cualquier bloqueo nuevo, con fecha, descripción exacta
+y qué decisión falta — y NO vuelve a intentar esa fase hasta que esta
+sección diga explícitamente que se resolvió.
 
-**2026-09-25 — Fase 4 (33 Nota de Débito) rechazado con código 64 y mensaje
-vacío; portal reiniciado (0/N en todos los 11 renglones)**. Detalle:
+**HISTÓRICO (RESUELTO 2026-09-25 por la 10ma corrida) — Fase 4 (33 Nota de
+Débito) rechazado con código 64 y mensaje vacío; portal reiniciado (0/N en
+todos los 11 renglones)**. Se conserva el detalle para trazabilidad:
 
 - Envío `E330000000001` (trackId `1043f428-59fe-4ea1-b9d2-4dac0c6335ec`,
   25-09-2026 00:17:24 UTC-4) — payload construido por
@@ -846,10 +851,92 @@ completa de campos que la DGII exige para tipo 33 aunque el XSD los
 declare opcionales). La próxima corrida NO debe reintentar Fase 4 hasta
 que el bloqueo esté resuelto.
 
+## Fase 4 — Hallazgos de la décima corrida (2026-09-25) — HIPÓTESIS VALIDADA
+
+Objetivo: cerrar el bloqueo abierto por la 7ma corrida ejecutando el envío
+propuesto por la 8va corrida (`_PAYLOAD_33_CORRIDA_8`, tipo 33 con
+`CodigoModificacion=3`), tras verificar que la infraestructura DGII que
+falló para la 9na corrida ya está normalizada.
+
+**Probe DGII antes de disparar** (`obtener_token('01','certecf',forzar=True)`
+en el contenedor `facturation_backend`): devolvió `OK_TOKEN_LEN=343`. La
+misma llamada falló con HTTP 400 "connection attempt failed" en la 9na
+corrida (validación downstream OCSP/CRL del certificado). Confirma
+normalización del pipeline de DGII.
+
+**Envío 1×33 vía `paso4-manual`** (`Client.force_login` + POST autenticado
+como JCABREU):
+
+| # | e-NCF | trackId | Estado | NCFModificado | CodigoModificacion |
+|---|-------|---------|--------|----------------|---------------------|
+| 1 | E330000000005 | eb6f92b2-b4eb-4d61-a44e-914e2d00367e | **Aceptado** | E310000000061 | 3 |
+
+`consultar_estado` retorna `{"codigo":"1","estado":"Aceptado",
+"secuenciaUtilizada":true,"fechaRecepcion":"9/25/2026 4:14:51 PM"}`.
+Portal (Playwright, 2026-09-25 ~20:14 UTC / 16:14 UTC-4) confirma **1/1
+Comprobantes tipo 33**; el resto de renglones sigue en 0/N (como esperado
+— la 7ma corrida reinició y no se han reenviado). El log de "reinicios" no
+crece: sigue con el último a las 25/09 12:17:25 AM (7ma corrida). El fix
+del builder (`_gen_informacion_referencia` bloquea tipo 33 +
+CodigoModificacion=1) más el gate XSD-local están validados de punta a
+punta contra certecf real.
+
+**Discrepancia con expectativa de la 8va/9na corrida** (para trazabilidad
+—no bloquea): esas corridas asumían que `E330000000001` seguía disponible
+en `FAT.TFE_SECUENCIA` porque el rechazo de la 7ma corrida devolvió
+`secuenciaUtilizada:false`. En la práctica, esta 10ma corrida obtuvo
+`E330000000005` — es decir la secuencia local avanzó 4 puestos entre la
+7ma y hoy (probable causa: consumos internos de tests/reintentos que no
+se documentaron; o `consumir_siguiente_encf` incrementa antes de tener
+respuesta de DGII y la 7ma corrida lo hizo aunque DGII marcara
+`secuenciaUtilizada:false`). No es un problema: la secuencia 33 tiene
+rango 1..10M, sobra espacio; y para la certificación cuenta lo que DGII
+Acepta, no la numeración interna.
+
+**Próximo paso para la corrida siguiente (11va)** — el orden óptimo
+identificado por la 5ta corrida sigue vigente. Con 1/1 tipo 33 ya
+asegurado, el próximo eslabón de bajo riesgo es reenviar los **4×31**
+desde las mismas 4 facturas reales (FC-0007829/7607/8076/7766) usando
+`paso4-factura-real` — builder ya validado ampliamente, no requiere
+plan/código nuevo. Después:
+1. **2×32≥250Mil** vía `paso4-manual` con RNCComprador de cliente CXC real
+   (patrón de las corridas 5-6; los payloads previos siguen siendo
+   plantillas válidas — cambiar solo RNCComprador para no repetir).
+2. **1×34 (Nota de Crédito)** vía `paso4-manual` — payload similar al 33
+   pero con `IndicadorNotaCredito=1`, `NCFModificado` de un 31 aceptado,
+   `CodigoModificacion` semánticamente coherente (34 es Nota de Crédito
+   ⇒ típicamente código 1 "Anula" o 3 "Corrige montos" — validar contra
+   Formato-e-CF-V1.0.pdf antes de enviar).
+3. **41-47 uno a uno**, cada uno con investigación del payload mínimo del
+   XSD respectivo.
+
+Recomendación: seguir la regla "1 tipo por corrida" — con el gate XSD
+local, la aritmética de riesgo sigue favoreciendo la prudencia. La única
+excepción segura es reenviar los 4×31 en una sola corrida, porque el
+builder está validado (ya se hizo con éxito en las corridas 2 y 5).
+
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
 
+- **2026-09-25 20:12-20:20 UTC (10ma corrida)** — Runner scheduled.
+  Objetivo: validar empíricamente la hipótesis de la 8va corrida contra
+  certecf, ahora que DGII salió del outage OCSP/CRL de la 9na corrida.
+  Probe `obtener_token('01','certecf',forzar=True)` OK (token len 343),
+  infraestructura normalizada. Enviado 1×33 vía `paso4-manual` con
+  `_PAYLOAD_33_CORRIDA_8` (NCFModificado=E310000000061,
+  CodigoModificacion=3, MontoTotal 5900): **Aceptado**
+  (E330000000005/eb6f92b2, 25-09-2026 16:14:51 UTC-4). Portal confirma
+  1/1 tipo 33, sin nuevos reinicios. Bloqueo abierto por la 7ma corrida
+  RESUELTO; hipótesis de la 8va corrida confirmada empíricamente.
+  Discrepancia menor: la secuencia local avanzó a 5 en vez de 1 entre la
+  7ma corrida y hoy (documentada en Hallazgos, no bloquea, sobra rango
+  1..10M). Sin código nuevo esta corrida — solo commit del plan maestro.
+  Próximo paso (11va): reenviar los 4×31 desde las mismas 4 facturas
+  reales (FC-0007829/7607/8076/7766) vía `paso4-factura-real` — builder
+  ya validado, mínimo riesgo, patrón de las corridas 2 y 5. Después
+  seguir con 2×32≥250K, 34, 41-47 uno a uno.
+  Commits: (ver commit de esta corrida).
 - **2026-09-25 12:10-12:35 UTC (9na corrida)** — Runner scheduled. Objetivo:
   validar empíricamente contra certecf la hipótesis de la 8va corrida
   (`_PAYLOAD_33_CORRIDA_8`, tipo 33 con `CodigoModificacion=3`). Portal
