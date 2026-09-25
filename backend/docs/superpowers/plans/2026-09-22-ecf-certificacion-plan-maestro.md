@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🛑 Reiniciada por 7ma corrida (todos 0/N). Hipótesis técnica fuerte del bloqueo identificada + fix desplegado por 8va corrida (pendiente validar contra certecf). | 2026-09-25 |
+| 4 | Pruebas Simulación e-CF | 🛑 Reiniciada por 7ma corrida (todos 0/N). Hipótesis técnica fuerte del bloqueo identificada + fix desplegado por 8va corrida. 9na corrida intentó validar empíricamente pero DGII `validarsemilla` estuvo caída (timeout downstream OCSP/CRL); pendiente reintentar cuando DGII normalice. | 2026-09-25 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -850,6 +850,63 @@ que el bloqueo esté resuelto.
 
 Agregar una línea por corrida, más reciente arriba:
 
+- **2026-09-25 12:10-12:35 UTC (9na corrida)** — Runner scheduled. Objetivo:
+  validar empíricamente contra certecf la hipótesis de la 8va corrida
+  (`_PAYLOAD_33_CORRIDA_8`, tipo 33 con `CodigoModificacion=3`). Portal
+  confirmado por Playwright: Fase 4, contadores en 0/N (0/4×31, 0/2×32≥250K,
+  0/1×33, ...), último log de reinicio 25/09 00:17:25 (7ma corrida). Fix
+  local verificado: `_gen_informacion_referencia` bloquea `tipo_ecf==33 +
+  CodigoModificacion=='1'`, `_PAYLOAD_33_CORRIDA_8` presente con
+  `CodigoModificacion='3'`. Tests `test_payload_corrida7_tipo_33_codigo_modificacion_1_es_rechazado_por_builder`
+  + `test_payload_corrida8_tipo_33_codigo_modificacion_3_valida_contra_xsd`
+  pasaron 2/2 en el contenedor `facturation_backend` de la VM.
+
+  **Envío NO realizado** — outage transitoria del lado DGII. Al llamar
+  `POST /api/fe/certificacion/paso4-manual/` (autenticado como JCABREU vía
+  `Client.force_login`) la respuesta fue HTTP 502 con
+  `{"detail":"ValidarSemilla HTTP 400: \"One or more errors occurred. (A
+  connection attempt failed because the connected party did not properly
+  respond after a period of time, or established connection failed because
+  connected host has failed to respond.)\""}`. Reintentado 3 veces (2 con
+  ~15s + 90s de espera y una final tras >10 min de polling activo del
+  endpoint), mismo error persistente.
+
+  **Diagnóstico** (probes directos vía `curl` desde el contenedor):
+  1. `GET https://ecf.dgii.gov.do/certecf/autenticacion/api/autenticacion/semilla`
+     → HTTP 200 en <100ms (servicio de semilla operativo).
+  2. `POST .../validarsemilla` con la semilla CRUDA (sin firmar) → HTTP 400
+     con mensaje semántico esperado (`"La estructura del archivo XML no es
+     válido... The element 'SemillaModel' has incomplete content"`), es
+     decir el endpoint acepta requests y aplica su validación XSD.
+  3. `POST .../validarsemilla` con la semilla FIRMADA por
+     `firma.firmar_con_app_oficial()` (mismo cert de Roberto que funcionó
+     en corridas 5/6/8-tests) → HTTP 400 con el mensaje "connection
+     attempt failed" ANTES documentado.
+  Conclusión: el pipeline interno de DGII que valida el certificado del
+  firmante contra su servicio de OCSP/CRL (probablemente la CA emisora del
+  certificado — Avansi/CamaraTIC/ONA/etc.) está degradado. Cuando llega
+  una semilla firmada, DGII intenta consultar la CA y su timeout downstream
+  hace fallar todo el request con `HTTP 400 "connection attempt failed"`.
+  Sin firma no llega a esa etapa (falla antes en la validación XSD), por
+  eso el probe sin firmar sí responde. **No es problema de nuestro código**
+  — el certificado y la App Firma Digital oficial son los mismos que
+  funcionaron en las 8 corridas previas.
+
+  **Sin código nuevo esta corrida**, sin envíos a certecf, sin quemar
+  secuencias. Solo commit del plan maestro con esta anotación. Secuencia
+  E330000000001 sigue disponible en TFE_SECUENCIA (no quemada por la 7ma
+  corrida, `secuenciaUtilizada:false`; ni por esta corrida, no se llegó a
+  emitirla). Fix de la 8va corrida sigue desplegado y esperando validación
+  empírica.
+
+  **Próximo paso para la corrida siguiente (10ma)**: reintentar el mismo
+  envío. Antes de disparar, hacer el mismo probe `curl` (semilla firmada
+  contra `.../validarsemilla`) — si responde con un `HTTP 400 "Firma del
+  certificado invalida"` o similar semántico (o un `HTTP 200` con token),
+  DGII se normalizó y se puede seguir. Si sigue "connection attempt
+  failed", esperar la siguiente corrida (4h más). No hay bloqueo lógico
+  activo nuevo por resolver — es infraestructura externa.
+  Commits: (ver commit de esta corrida).
 - **2026-09-25 12:20-14:00 UTC (8va corrida)** — Runner scheduled. Fase 4
   BLOQUEADA (todos los contadores en 0/N por rechazo código 64 de la 7ma
   corrida) — corrida de investigación + fix técnico, SIN envío nuevo a
