@@ -977,3 +977,77 @@ def test_payload_corrida6_tipo_32_mayor_250k_valida_contra_xsd():
     posiciones = [hijos.index(t) for t in orden_esperado]
     assert posiciones == sorted(posiciones), (
         f"Totales fuera de orden XSD: {hijos}")
+
+
+# Payload REAL para el 1x33 (Nota de Debito) de la 7ma corrida (Fase 4,
+# grupo "Segundo"). NCFModificado = E310000000061 (1er 31 aceptado de la
+# 5ta corrida, FC-0007829, RNCComprador 131265863 EMPRESA DISTRIBUIDORA Y
+# SERVICIO PAE SRL, FechaEmision 20-11-2025 -- todos datos reales leidos
+# de FAT.TFE_DOCUMENTO). Monto pequeno realista (RD$5,000 base + 18% ITBIS
+# = RD$5,900 total) porque una Nota de Debito de "diferencia de precio"
+# tipicamente es un ajuste menor sobre la factura original. Codigo
+# Modificacion=1 + RazonModificacion literal para trazabilidad.
+_PAYLOAD_33_CORRIDA_7 = {
+    'RNCEmisor': '130217432',
+    'RazonSocialEmisor': 'ABREGONZA COMERCIAL SRL',
+    'DireccionEmisor': 'AV LOPE DE VEGA #55, ENSANCHE NACO, SANTO DOMINGO',
+    'FechaEmision': '25-09-2026',
+    'FechaVencimientoSecuencia': '31-12-2028',
+    'TipoIngresos': '01',
+    'TipoPago': 1,
+    'IndicadorMontoGravado': 0,
+    'RNCComprador': '131265863',
+    'RazonSocialComprador': 'EMPRESA DISTRIBUIDORA Y SERVICIO PAE SRL',
+    'MontoGravadoTotal': '5000.00',
+    'MontoGravadoI1': '5000.00',
+    'ITBIS1': '18',
+    'TotalITBIS': '900.00',
+    'TotalITBIS1': '900.00',
+    'MontoTotal': '5900.00',
+    'NCFModificado': 'E310000000061',
+    'FechaNCFModificado': '20-11-2025',
+    'CodigoModificacion': '1',
+    'RazonModificacion': 'Ajuste por diferencia de precio en FC-0007829',
+    'NumeroLinea[1]': 1,
+    'IndicadorFacturacion[1]': 1,
+    'NombreItem[1]': 'Ajuste por diferencia de precio',
+    'IndicadorBienoServicio[1]': 2,
+    'CantidadItem[1]': '1.00',
+    'PrecioUnitarioItem[1]': '5000.00',
+    'MontoItem[1]': '5000.00',
+}
+
+
+def test_payload_corrida7_tipo_33_nota_debito_valida_contra_xsd():
+    """Gate XSD-local obligatorio para el 1x33 (Nota de Debito) de la 7ma
+    corrida. Primer contacto real con certecf via construir_ecf_generico
+    para tipo 33 -- una regresion silenciosa aqui borraria los 6 aceptados
+    acumulados en Fase 4 (4x31 + 2x32>=250K). NCFModificado apunta a un 31
+    real ya Aceptado (E310000000061)."""
+    xml_str = ecf_builder.construir_ecf_generico(
+        33, 'E330000000001', _PAYLOAD_33_CORRIDA_7)
+    _validar_estructura_contra_xsd(xml_str, 33)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.findtext('.//IdDoc/TipoeCF') == '33'
+    assert root.findtext('.//IdDoc/IndicadorMontoGravado') == '0'
+    assert root.findtext('.//Comprador/RNCComprador') == '131265863'
+    assert root.findtext('.//Comprador/RazonSocialComprador') == \
+        'EMPRESA DISTRIBUIDORA Y SERVICIO PAE SRL'
+    assert root.findtext('.//Totales/MontoGravadoTotal') == '5000.00'
+    assert root.findtext('.//Totales/MontoGravadoI1') == '5000.00'
+    assert root.findtext('.//Totales/ITBIS1') == '18'
+    assert root.findtext('.//Totales/TotalITBIS') == '900.00'
+    assert root.findtext('.//Totales/TotalITBIS1') == '900.00'
+    assert root.findtext('.//Totales/MontoTotal') == '5900.00'
+    assert root.findtext('.//InformacionReferencia/NCFModificado') == \
+        'E310000000061'
+    assert root.findtext('.//InformacionReferencia/FechaNCFModificado') == \
+        '20-11-2025'
+    assert root.findtext('.//InformacionReferencia/CodigoModificacion') == '1'
+    totales = root.find('.//Totales')
+    hijos = [t.tag for t in totales]
+    orden_esperado = ['MontoGravadoTotal', 'MontoGravadoI1', 'ITBIS1',
+                      'TotalITBIS', 'TotalITBIS1', 'MontoTotal']
+    posiciones = [hijos.index(t) for t in orden_esperado]
+    assert posiciones == sorted(posiciones), (
+        f"Totales fuera de orden XSD: {hijos}")

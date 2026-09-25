@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En ejecución — 4/4 tipo 31 + 2/2 tipo 32≥250Mil Aceptados (6ta corrida). Grupo "Primero" restante: 33, 34, 41, 43, 44, 45, 46, 47. | 2026-09-24 |
+| 4 | Pruebas Simulación e-CF | 🛑 Reiniciada por 7ma corrida (todos 0/N). Bloqueo activo: código 64 con mensaje vacío en 33. Ver "Bloqueos activos". | 2026-09-25 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -77,6 +77,57 @@ reintentar solo)
 _Ninguno al 2026-09-22._ El runner agrega aquí cualquier bloqueo nuevo, con
 fecha, descripción exacta y qué decisión falta — y NO vuelve a intentar esa
 fase hasta que esta sección diga explícitamente que se resolvió.
+
+**2026-09-25 — Fase 4 (33 Nota de Débito) rechazado con código 64 y mensaje
+vacío; portal reiniciado (0/N en todos los 11 renglones)**. Detalle:
+
+- Envío `E330000000001` (trackId `1043f428-59fe-4ea1-b9d2-4dac0c6335ec`,
+  25-09-2026 00:17:24 UTC-4) — payload construido por
+  `construir_ecf_generico(33, ...)`, pasó el gate XSD-local
+  (`test_payload_corrida7_tipo_33_nota_debito_valida_contra_xsd`, corriendo
+  contra el XSD real `e-CF-33-v1.0.xsd`). NCFModificado apuntaba a
+  E310000000061 real ya Aceptado (5ta corrida, FC-0007829, RNCComprador
+  131265863 EMPRESA DISTRIBUIDORA Y SERVICIO PAE SRL, FechaEmision
+  20-11-2025). MontoTotal 5900.00 (5000 base + 900 ITBIS 18%).
+- `consultar_estado` devuelve `{"estado":"Rechazado","codigo":"2",
+  "secuenciaUtilizada":false,"mensajes":[{"valor":"","codigo":64}]}` — o
+  sea NO se quemó la secuencia (E330000000001 sigue disponible en
+  TFE_SECUENCIA), pero el mensaje textual del rechazo viene VACÍO. Detalle
+  del mensaje en Bandeja de Entrada del portal (MensajeId=1589511)
+  confirma: "Las pruebas de simulación de eCF han sido reiniciadas debido
+  a que se han rechazado comprobantes." — sin la coletilla "-El campo X
+  del área Y" que sí traen todos los rechazos previos con motivo
+  identificable.
+- **Lección crítica NUEVA (contra la hipótesis de la 5ta corrida)**: el
+  reinicio de contadores en Fase 4 **NO depende de `secuenciaUtilizada`**.
+  Aunque el rechazo no queme secuencia, sigue reiniciando los 11
+  contadores. Portal muestra 0/4 tipo 31 + 0/2 tipo 32≥250K + resto en
+  cero después de este rechazo, incluso con `secuenciaUtilizada:false`.
+- **Qué falta para desbloquear** (una de dos, ambas requieren
+  investigación humana, no técnica):
+  1. Confirmar qué significa `codigo:64` con `valor:""` en el catálogo
+     oficial de códigos de respuesta DGII (`Descripcion-Tecnica-
+     Servicios-DGII.pdf` en `backend/docs/superpowers/reference/
+     2026-08-31-set-pruebas-paso2/`) o vía soporte DGII. Los rechazos
+     anteriores traen mensaje textual — que este venga vacío es
+     patológico y hay que entenderlo antes de reintentar.
+  2. Confirmar si algún campo obligatorio del 33 real no está siendo
+     emitido por `construir_ecf_generico` aunque el XSD lo permita omitir
+     (mismo patrón que la 1ra-2da corrida con IndicadorMontoGravado,
+     FechaLimitePago, MontoGravadoI1 — el XSD dice `minOccurs=0` pero la
+     DGII exige el campo).
+- **Runner NO debe reintentar Fase 4 hasta que este bloqueo esté
+  resuelto** — cualquier envío estructuralmente ambiguo puede volver a
+  disparar reinicio.
+- Secuencias reales actuales de TFE_SECUENCIA (para orientar la próxima
+  corrida cuando se desbloquee): 31 → siguiente E310000000065; 32 →
+  siguiente E320000001007; 33 → siguiente E330000000001 (NO quemado,
+  reutilizable); 34/41/43/44/45/46/47 en 1.
+- Nota: al reenviar tipo 31 desde `paso4-factura-real` con las mismas 4
+  facturas reales (FC-0007829/7607/8076/7766), el builder de FT ya
+  validado va a asignar E310000000065-068 (secuencia real, no
+  reutilizada). Es la parte segura para retomar cuando este bloqueo
+  cierre.
 
 ## Protocolo de cada corrida (qué hace el runner, en orden)
 
@@ -739,10 +790,57 @@ riesgo de rechazo cascada): **1 tipo por corrida** — escribir gate + enviar
 (RFCE). Puede parecer lento pero cada rechazo cuesta TODOS los aceptados
 acumulados, así que la aritmética favorece la prudencia.
 
+## Fase 4 — Hallazgos de la séptima corrida (2026-09-25) — CRÍTICO
+
+Primer intento de 1×33 (Nota de Débito) vía `construir_ecf_generico` +
+`paso4-manual`. Payload construido con NCFModificado real E310000000061
+(1er 31 aceptado de la 5ta corrida). Gate XSD-local
+(`test_payload_corrida7_tipo_33_nota_debito_valida_contra_xsd`) pasó
+localmente contra el XSD real e-CF-33-v1.0.xsd. Envío disparado como sesión
+Django autenticada de JCABREU vía `Client.force_login` + POST a
+`/api/fe/certificacion/paso4-manual/` — respuesta HTTP 200
+`{"ok":true, "encf":"E330000000001", "trackId":"1043f428-59fe-4ea1-b9d2-4dac0c6335ec"}`.
+
+Un minuto después, `consultar_estado` retorna
+`{"estado":"Rechazado","codigo":"2","secuenciaUtilizada":false,
+"mensajes":[{"valor":"","codigo":64}]}`. El mensaje viene VACÍO —
+patológico, todos los rechazos previos traen "-El campo X del área Y" con
+detalle. `secuenciaUtilizada:false` → E330000000001 NO se quemó.
+
+Portal (Playwright, ~00:17 UTC-4 = 04:17 UTC): **todos los 11 contadores
+en 0/N** — se perdieron los 4/4 tipo 31 + 2/2 tipo 32≥250K acumulados
+hasta la 6ta corrida. Log del portal confirma reinicio a las 12:17:25 AM
+(RD) con mensaje "Las pruebas de simulación de eCF han sido reiniciadas
+debido a que se han rechazado comprobantes." — sin motivo textual
+específico, cosa que **contradice la hipótesis previa** de que el reinicio
+depende de `secuenciaUtilizada`.
+
+**Ver "Bloqueos activos" arriba** para el detalle completo y las dos rutas
+posibles de desbloqueo (una es investigar el catálogo oficial de códigos
+DGII, la otra es cotejar `construir_ecf_generico(33, ...)` contra la lista
+completa de campos que la DGII exige para tipo 33 aunque el XSD los
+declare opcionales). La próxima corrida NO debe reintentar Fase 4 hasta
+que el bloqueo esté resuelto.
+
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
 
+- **2026-09-25 04:12-04:20 UTC** — Runner scheduled. Fase 4 — intento 1×33
+  Nota de Débito (grupo Segundo, primer contacto real de
+  `construir_ecf_generico(33)` contra certecf). Gate XSD-local nuevo
+  (`test_payload_corrida7_tipo_33_nota_debito_valida_contra_xsd`) pasó
+  localmente. POST a `paso4-manual` retornó HTTP 200 con
+  E330000000001/1043f428, pero `consultar_estado` = **Rechazado** con
+  código 64 y mensaje VACÍO. `secuenciaUtilizada:false` (E330000000001 no
+  quemado). Portal: los 11 contadores reiniciados a 0/N — se perdieron
+  los 4/4 tipo 31 + 2/2 tipo 32≥250K de las corridas 5-6. Contradice la
+  hipótesis previa de que el reinicio depende de `secuenciaUtilizada`.
+  Bloqueo real registrado en "Bloqueos activos" — la próxima corrida NO
+  debe reintentar Fase 4 hasta entender qué es código 64 con mensaje
+  vacío (dos rutas: catálogo oficial DGII, o campo obligatorio de facto
+  que `construir_ecf_generico(33)` no emite aunque el XSD lo permita).
+  Commits: (ver commit de esta corrida).
 - **2026-09-24 23:30 UTC — 2026-09-25 00:10 UTC** — Runner scheduled. Fase 4
   — 2do 32≥250Mil (grupo Primero, cierre). Aplicado el gate XSD-local
   obligatorio (test nuevo `test_payload_corrida6_tipo_32_mayor_250k_valida_contra_xsd`,
