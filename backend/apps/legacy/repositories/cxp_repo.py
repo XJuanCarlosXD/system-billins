@@ -2876,6 +2876,12 @@ def listar_cola(no_cia: str, punto: str = '', estado: str = '') -> dict:
         params.append(punto); conds.append('punto=:' + str(len(params)))
     if estado:
         params.append(estado.upper()); conds.append('estado=:' + str(len(params)))
+    else:
+        # Por defecto la vista "Cola" solo muestra lo que sigue en espera:
+        # PENDIENTE (aguardando apertura del periodo) y ERROR (materializacion
+        # fallo). Los MATERIALIZADO ya pasaron a TCXP_DOCUMENTO y quedarian
+        # como ruido historico de meses anteriores.
+        conds.append("estado IN ('PENDIENTE','ERROR')")
     where = ' AND '.join(conds)
     rows = client.fetch_dicts(
         "SELECT id, no_cia, punto, ano_objetivo, mes_objetivo, origen, "
