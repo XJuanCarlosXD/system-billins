@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En curso — 13va corrida: dos rechazos del 1×34 quemaron secuencias 52 y 53 y **reiniciaron todo el progreso** (perdidos 4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33). Diagnósticos claros: código 181 "TipoIngresos no es válido" para 34 (mismo patrón de facto que 1-2), código 615 "NCFModificado no es válido, saldo disponible" (el 34 apuntaba a E310000000067 pre-reset que ya no existe en certecf). Fix builder+tests desplegado: `tipo_ingresos_mandatory=True` para tipo 34. Al final se rehicieron los 4×31 desde las mismas 4 facturas reales (E310000000069-072 Aceptados). Portal final: 4/4 tipo 31 + resto 0/N. Falta 2×32≥250K, 1×33, 2×34, 2×41-47 c/u y 4×32 RFCE. | 2026-09-26 |
+| 4 | Pruebas Simulación e-CF | 🔲 En curso — 14va corrida: intento 2×32≥250K con clientes CXC nuevos. 1er envío E320000001009 (CORTES HERMANOS RNC 101001811) **Aceptado**. 2do envío E320000001010 (ALARIFES SRL RNC 131209855) **Rechazado** con "RNCComprador no es válido" — RNC 131209855 no existe/inválido en el registro DGII, aunque figura como cliente real en TCXC_CLIENTE. Rechazo cascada **reinició TODOS los contadores** (perdido 4/4 tipo 31 + el 1er 32≥250K que había quedado Aceptado). Portal final: 0/N en todos los renglones. Hallazgo nuevo: **la lista de clientes CXC con RNC de 9 dígitos NO garantiza que el RNC sea válido ante DGII** — hay que validar contra el servicio público de consulta RNC de DGII antes de usar un RNCComprador nuevo, o usar los ya-probados (RYLCO/VALOIS/E&P/AQUAMAR/CORTES). Falta rehacer 4×31 + 2×32≥250K + 1×33 + 2×34 + 2×41-47 + 4 RFCE. | 2026-09-26 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -1170,10 +1170,156 @@ quemadas + 1 ciclo de progreso perdido (aceptable, ya que reveló dos
 reglas de negocio no documentadas de la DGII y el patrón de reset
 detrás del código 615).
 
+## Fase 4 — Hallazgos de la 14va corrida (2026-09-26) — CRÍTICO: RNC DE CXC NO GARANTIZA VALIDEZ ANTE DGII
+
+Objetivo de la corrida: cerrar 0/2 → 2/2 tipo 32≥250K con dos clientes CXC
+nuevos (cliente #4 CORTES HERMANOS RNC 101001811 y cliente #8 ALARIFES SRL
+RNC 131209855, ambos de la lista de "clientes CXC con RNC válido" que la 4ta
+corrida armó filtrando `LENGTH(TRIM(rnc))=9 AND REGEXP_LIKE(rnc,'^[0-9]{9}$')
+AND rnc<>'123456789'`). Builder ya validado 4 veces contra certecf en corridas
+5/6/12. Gate XSD-local añadido (`test_payload_corrida14_a/b_tipo_32_mayor_250k_valida_contra_xsd`),
+80/80 tests del módulo pasan localmente en el contenedor. Probe
+`obtener_token('01','certecf',forzar=True)` OK (len 343).
+
+Envíos vía `paso4-manual` autenticado como JCABREU con `Client.force_login`
++ manage.py shell -c, abort-on-first-failure con 45s de pausa entre uno y
+otro para dejar reconciliar certecf:
+
+| # | e-NCF | trackId | Estado | Cliente comprador | fechaRecepcion |
+|---|-------|---------|--------|-------------------|-----------------|
+| 1 | E320000001009 | 15430d90-32d3-4b24-8ef1-579938d5d11d | **Aceptado** | CORTES HERMANOS (RNC 101001811) | 9/26/2026 8:19:18 AM |
+| 2 | E320000001010 | 330a86a4-b49b-4d28-bf66-f883731b6beb | **Rechazado** | ALARIFES SRL (RNC 131209855) | 9/26/2026 8:20:04 AM |
+
+`consultar_estado` del 2do envío:
+
+```json
+{"codigo":"2","estado":"Rechazado","secuenciaUtilizada":true,
+ "mensajes":[{"valor":"El campo RNCComprador del área Comprador de la
+              sección Encabezado no es válido.","codigo":0}]}
+```
+
+Portal (Playwright, 2026-09-26 ~8:20 UTC-4): **todos los 11 contadores en
+0/N**. Log del portal registra el reset a las 8:20:04 AM con el mensaje
+literal `"El campo RNCComprador del área Comprador de la sección Encabezado
+no es válido."` — es decir el rechazo cascada perdió también el 1er 32
+(CORTES) que había sido Aceptado. Total pérdida esta corrida:
+E320000001009 quemado sin quedar en el ciclo + E320000001010 quemado + 0
+progreso portal (venía de 4/4 tipo 31, se cae a 0/4).
+
+### Hallazgo nuevo — RNC en TCXC_CLIENTE NO garantiza validez ante DGII
+
+Antes de esta corrida se asumía que cualquier RNC de 9 dígitos numéricos en
+`CXC.TCXC_CLIENTE` era usable como `RNCComprador` para un e-CF32. La 14va
+corrida demuestra empíricamente que NO: el RNC 131209855 (registrado como
+"ALARIFES SRL" en la BD real de Abregonza con dirección "C/ Lic Lovaton
+#6") NO existe/no es válido en el registro de contribuyentes de la DGII, y
+certecf lo rechaza con mensaje literal. Es un dato maestro obsoleto o
+mal-capturado en algún punto histórico.
+
+**Regla nueva para futuras corridas**: antes de usar cualquier `RNCComprador`
+nuevo (ya sea de CXC, TCXP_FACTURA, o cualquier otra fuente), validar
+contra el servicio público de consulta de contribuyentes de DGII:
+`https://dgii.gov.do/app/WebApps/ConsultasWeb2/ConsultasWeb/consultas/rnc.aspx`
+o el endpoint JSON equivalente. RNCs ya probados y confirmados VÁLIDOS por
+certecf (Aceptado en al menos un envío histórico):
+
+| RNC | Razón social | Confirmado en |
+|-----|--------------|----------------|
+| 131265863 | EMPRESA DISTRIBUIDORA Y SERVICIO PAE SRL | tipo 31 corridas 2/5/11/13 |
+| 131376292 | CONSORCIO RYLCO & ASOCIADOS | tipo 32 corrida 5 |
+| 131175341 | COMERCIAL VALOIS | tipo 32 corrida 6 |
+| 101799463 | E & P SERVICIOS INSTITUCIONALES | tipo 32 corrida 12 |
+| 130299625 | AQUAMAR | tipo 32 corrida 12 |
+| 101001811 | CORTES HERMANOS | tipo 32 corrida 14 (Aceptado antes del cascada) |
+
+RNCs de la lista de la 4ta corrida SIN validación empírica todavía (usar
+solo tras verificar contra DGII):
+- 130805253 (C H ALIMENTOS SAS)
+- **131209855 (ALARIFES SRL)** ← INVÁLIDO CONFIRMADO POR CERTECF
+- 101006374 (MOLINOS MODERNOS S.A)
+- 101808502 (MOLINOS DEL OZAMA S.A.)
+- 101503939 (AGUA PLANETA AZUL,S. A.)
+
+### Estado real de TFE_SECUENCIA (después de esta corrida)
+
+Vía `fe_repo.list_secuencias('01')`:
+
+| Tipo | prox_secuencia (=próximo e-NCF) | Rango |
+|------|--------------------------------|-------|
+| 31 | 73 → E310000000073 | 1..100 |
+| 32 | 1011 → E320000001011 | 1..50M (E320000001009/1010 quemadas) |
+| 33 | 6 → E330000000006 | 1..10M |
+| 34 | 54 → E340000000054 | 1..100 (52/53 quemadas por 13va) |
+| 41-47 | 1 cada uno | 1..10M cada uno |
+
+Rango de tipo 31 (1..100) se está estrechando: van 12 secuencias quemadas
+(54-56 corrida 1, 57-60 corrida 2, 61-64 corrida 5, 65-68 corrida 11,
+69-72 corrida 13). Con la próxima 73, quedan 100-73+1 = 28 secuencias
+disponibles antes de tener que ampliar el rango o pedir uno nuevo. Cada
+reset borra 4 y las nuevas se emiten con la siguiente numeración.
+
+### Próximo paso para la corrida siguiente (15va)
+
+1. **Restaurar 4/4 tipo 31** — mismas 4 facturas reales
+   (FC-0007607/7766/7829/8076), próximas secuencias E310000000073-076,
+   patrón validado 4 veces (corridas 2/5/11/13). Riesgo mínimo.
+2. **1×32≥250K con CORTES HERMANOS** — payload
+   `_PAYLOAD_32_MAYOR_250K_CORRIDA_14_A` (RNC 101001811), próxima secuencia
+   E320000001011. Ya validado empíricamente en esta corrida (Aceptado por
+   certecf antes del cascada). Riesgo mínimo — es el mismo RNC/monto.
+3. **2do 32≥250K con OTRO cliente CXC**, PERO validar el RNC contra el
+   servicio de consulta de DGII PRIMERO. Candidatos frescos (sin envío
+   histórico y sin validar aún): C H ALIMENTOS SAS 130805253, MOLINOS
+   MODERNOS 101006374, MOLINOS DEL OZAMA 101808502, AGUA PLANETA AZUL
+   101503939. Si el usuario prefiere no depender de validar contra DGII,
+   otra opción segura es **reutilizar un RNC ya probado**: RYLCO/VALOIS
+   /E&P/AQUAMAR ya funcionaron. La 6ta corrida en su momento decidió
+   evitar duplicar RNCComprador — pero eso NO fue una regla DGII, fue una
+   preferencia de diversidad de datos. Reutilizar es lícito.
+4. Solo después del 2/2 tipo 32, seguir con 1×33 (payload
+   `_PAYLOAD_33_CORRIDA_8` + cambiar NCFModificado a un 31 del ciclo
+   actual, ej. E310000000073).
+5. 1×34, 41-47 uno a uno, RFCE al final.
+
+Alternativa considerada (y no elegida): implementar `apps/fe/rnc_validator.py`
+que consulte el servicio público de DGII y cachear resultados. Es trabajo
+razonable (~30 min), pero no urgente si la 15va corrida reutiliza un RNC ya
+probado. Deja el TODO documentado; si en algún tipo (34/41-47) surge otro
+rechazo por RNCComprador inválido, ahí sí conviene construirlo.
+
+Sin secuencias 34 tocadas esta corrida (E340000000054 sigue disponible).
+Fix del builder para tipo 34 de la 13va corrida sigue desplegado y validado
+localmente — solo espera un envío exitoso a certecf para validar
+end-to-end.
+
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
 
+- **2026-09-26 12:11-12:23 UTC (14va corrida)** — Runner scheduled. Fase 4
+  — intento 2×32≥250K con 2 clientes CXC nuevos (CORTES HERMANOS RNC
+  101001811 y ALARIFES SRL RNC 131209855). Portal previo confirmado 4/4
+  tipo 31 + resto 0/N. Payloads + tests XSD-gate corrida14 a/b agregados
+  a `test_ecf_builder_generico.py`, 80/80 tests pasan localmente en el
+  contenedor `facturation_backend` de la VM. Probe
+  `obtener_token('01','certecf',forzar=True)` OK (len 343). **1er envío
+  E320000001009 (CORTES) Aceptado** (fechaRecepcion 8:19:18 AM UTC-4).
+  **2do envío E320000001010 (ALARIFES) Rechazado** con "RNCComprador no
+  es válido" (código 0, `secuenciaUtilizada:true`) — RNC 131209855 no
+  existe/inválido en registro DGII, aunque figura en TCXC_CLIENTE. Reset
+  cascada borró también el 1er 32 (CORTES) que estaba Aceptado. Portal
+  final: 0/N en los 11 renglones. **Hallazgo nuevo crítico**: la lista de
+  clientes CXC con RNC de 9 dígitos NO garantiza validez ante DGII — hay
+  que validar contra el servicio público de consulta RNC. Tabla de RNCs
+  ya probados/válidos documentada, ALARIFES 131209855 marcado como
+  INVÁLIDO. Costo: 2 secuencias 32 quemadas (1009 y 1010) + reset del
+  ciclo. TFE_SECUENCIA post-corrida: 31→73, 32→1011, 33→6, 34→54,
+  41-47→1 cada uno. Bloqueos: ninguno. Próximo paso (15va): rehacer 4×31
+  (E310000000073-076, patrón conocido), 1×32 con CORTES HERMANOS (ya
+  validado empíricamente antes del cascada, E320000001011), 2do 32 con
+  otro RNC — reutilizar uno ya probado (RYLCO/VALOIS/E&P/AQUAMAR) O
+  validar RNC nuevo contra DGII primero. Después 33/34/41-47 uno a uno.
+  Commits: (ver commit de esta corrida).
 - **2026-09-26 08:10-08:23 UTC (13va corrida)** — Runner scheduled. Fase 4
   — intento 1×34 (Nota de Crédito, primer contacto real de
   `construir_ecf_generico(34)` contra certecf). Payload inicial sin

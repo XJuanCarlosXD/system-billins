@@ -1333,3 +1333,116 @@ def test_payload_corrida13_tipo_34_nota_credito_valida_contra_xsd():
     posiciones = [hijos.index(t) for t in orden_esperado]
     assert posiciones == sorted(posiciones), (
         f"Totales fuera de orden XSD: {hijos}")
+
+
+# Payloads REALES para los 2x32>=250K de la 14va corrida (Fase 4, recuperar
+# 0/2 -> 2/2 tras el reset cascada de la 13va corrida). Estructura identica a
+# corridas 5/6/12 (builder validado 4 veces contra certecf). Se usan 2
+# clientes CXC reales distintos de los ya usados (RYLCO 131376292 / VALOIS
+# 131175341 / E&P 101799463 / AQUAMAR 130299625): cliente #4 CORTES HERMANOS
+# (RNC 101001811) y cliente #8 ALARIFES SRL (RNC 131209855). Ambos figuran
+# en la lista de clientes CXC con RNC valido de la 4ta corrida.
+_PAYLOAD_32_MAYOR_250K_CORRIDA_14_A = {
+    'RNCEmisor': '130217432',
+    'RazonSocialEmisor': 'ABREGONZA COMERCIAL SRL',
+    'DireccionEmisor': 'AV LOPE DE VEGA #55, ENSANCHE NACO, SANTO DOMINGO',
+    'FechaEmision': '26-09-2026',
+    'TipoIngresos': '01',
+    'TipoPago': 1,
+    'IndicadorMontoGravado': 0,
+    'RNCComprador': '101001811',
+    'RazonSocialComprador': 'CORTES HERMANOS',
+    'MontoGravadoTotal': '275000.00',
+    'MontoGravadoI1': '275000.00',
+    'ITBIS1': '18',
+    'TotalITBIS': '49500.00',
+    'TotalITBIS1': '49500.00',
+    'MontoTotal': '324500.00',
+    'NumeroLinea[1]': 1,
+    'IndicadorFacturacion[1]': 1,
+    'NombreItem[1]': 'Servicio profesional',
+    'IndicadorBienoServicio[1]': 2,
+    'CantidadItem[1]': '1.00',
+    'PrecioUnitarioItem[1]': '275000.00',
+    'MontoItem[1]': '275000.00',
+}
+
+
+_PAYLOAD_32_MAYOR_250K_CORRIDA_14_B = {
+    'RNCEmisor': '130217432',
+    'RazonSocialEmisor': 'ABREGONZA COMERCIAL SRL',
+    'DireccionEmisor': 'AV LOPE DE VEGA #55, ENSANCHE NACO, SANTO DOMINGO',
+    'FechaEmision': '26-09-2026',
+    'TipoIngresos': '01',
+    'TipoPago': 1,
+    'IndicadorMontoGravado': 0,
+    'RNCComprador': '131209855',
+    'RazonSocialComprador': 'ALARIFES SRL',
+    'MontoGravadoTotal': '285000.00',
+    'MontoGravadoI1': '285000.00',
+    'ITBIS1': '18',
+    'TotalITBIS': '51300.00',
+    'TotalITBIS1': '51300.00',
+    'MontoTotal': '336300.00',
+    'NumeroLinea[1]': 1,
+    'IndicadorFacturacion[1]': 1,
+    'NombreItem[1]': 'Servicio profesional',
+    'IndicadorBienoServicio[1]': 2,
+    'CantidadItem[1]': '1.00',
+    'PrecioUnitarioItem[1]': '285000.00',
+    'MontoItem[1]': '285000.00',
+}
+
+
+def test_payload_corrida14_a_tipo_32_mayor_250k_valida_contra_xsd():
+    """Gate XSD-local para el 1er 32>=250K de la 14va corrida (CORTES
+    HERMANOS 101001811). Estructura identica a corridas 5/6/12 (builder
+    validado 4 veces contra certecf), solo cambia RNC/RazonSocial/monto."""
+    xml_str = ecf_builder.construir_ecf_generico(
+        32, 'E320000001009', _PAYLOAD_32_MAYOR_250K_CORRIDA_14_A)
+    _validar_estructura_contra_xsd(xml_str, 32)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.findtext('.//IdDoc/TipoeCF') == '32'
+    assert root.findtext('.//IdDoc/IndicadorMontoGravado') == '0'
+    assert root.findtext('.//Comprador/RNCComprador') == '101001811'
+    assert root.findtext('.//Comprador/RazonSocialComprador') == 'CORTES HERMANOS'
+    assert root.findtext('.//Totales/MontoGravadoTotal') == '275000.00'
+    assert root.findtext('.//Totales/MontoGravadoI1') == '275000.00'
+    assert root.findtext('.//Totales/ITBIS1') == '18'
+    assert root.findtext('.//Totales/TotalITBIS') == '49500.00'
+    assert root.findtext('.//Totales/TotalITBIS1') == '49500.00'
+    assert root.findtext('.//Totales/MontoTotal') == '324500.00'
+    totales = root.find('.//Totales')
+    hijos = [t.tag for t in totales]
+    orden_esperado = ['MontoGravadoTotal', 'MontoGravadoI1', 'ITBIS1',
+                      'TotalITBIS', 'TotalITBIS1', 'MontoTotal']
+    posiciones = [hijos.index(t) for t in orden_esperado]
+    assert posiciones == sorted(posiciones), (
+        f"Totales fuera de orden XSD: {hijos}")
+
+
+def test_payload_corrida14_b_tipo_32_mayor_250k_valida_contra_xsd():
+    """Gate XSD-local para el 2do 32>=250K de la 14va corrida (ALARIFES SRL
+    131209855). Cierre del renglon tipo 32>=250K (2/2). Se envia solo si el
+    1ero (CORTES HERMANOS) quedo Aceptado -- patron abort-on-first-failure."""
+    xml_str = ecf_builder.construir_ecf_generico(
+        32, 'E320000001010', _PAYLOAD_32_MAYOR_250K_CORRIDA_14_B)
+    _validar_estructura_contra_xsd(xml_str, 32)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.findtext('.//IdDoc/TipoeCF') == '32'
+    assert root.findtext('.//IdDoc/IndicadorMontoGravado') == '0'
+    assert root.findtext('.//Comprador/RNCComprador') == '131209855'
+    assert root.findtext('.//Comprador/RazonSocialComprador') == 'ALARIFES SRL'
+    assert root.findtext('.//Totales/MontoGravadoTotal') == '285000.00'
+    assert root.findtext('.//Totales/MontoGravadoI1') == '285000.00'
+    assert root.findtext('.//Totales/ITBIS1') == '18'
+    assert root.findtext('.//Totales/TotalITBIS') == '51300.00'
+    assert root.findtext('.//Totales/TotalITBIS1') == '51300.00'
+    assert root.findtext('.//Totales/MontoTotal') == '336300.00'
+    totales = root.find('.//Totales')
+    hijos = [t.tag for t in totales]
+    orden_esperado = ['MontoGravadoTotal', 'MontoGravadoI1', 'ITBIS1',
+                      'TotalITBIS', 'TotalITBIS1', 'MontoTotal']
+    posiciones = [hijos.index(t) for t in orden_esperado]
+    assert posiciones == sorted(posiciones), (
+        f"Totales fuera de orden XSD: {hijos}")
