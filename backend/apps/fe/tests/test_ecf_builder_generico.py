@@ -324,7 +324,7 @@ def test_tipo_34_nota_credito_valida_contra_xsd():
     datos = {
         'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
         'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
-        'IndicadorNotaCredito': 1, 'TipoPago': 1, 'MontoTotal': '100.00',
+        'IndicadorNotaCredito': 1, 'TipoIngresos': '01', 'TipoPago': 1, 'MontoTotal': '100.00',
         'NCFModificado': 'E340000000013', 'FechaNCFModificado': '01-12-2028',
         'CodigoModificacion': '1',
         'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1,
@@ -819,10 +819,19 @@ def test_tipo_ingresos_obligatorio_en_31_32_44_45_46(tipo_ecf, base):
             tipo_ecf, f'E{tipo_ecf:02d}0000000001', datos)
 
 
-def test_tipo_ingresos_opcional_en_33_y_34_no_lanza_error():
-    """Contraste con el finding moderado: 33/34 tienen el elemento
-    TipoIngresos (``caps['tipo_ingresos']=True``) pero es minOccurs=0 -- no
-    debe fallar si 'datos' no lo trae (a diferencia de 31/32/44/45/46)."""
+def test_tipo_ingresos_opcional_en_33_no_lanza_error():
+    """Contraste con el finding moderado: 33 tiene el elemento TipoIngresos
+    (``caps['tipo_ingresos']=True``) pero es minOccurs=0 -- no debe fallar
+    si 'datos' no lo trae (a diferencia de 31/32/34/44/45/46).
+
+    Nota: hasta la 12va corrida esta prueba tambien cubria el tipo 34; la
+    13va corrida confirmo empiricamente contra certecf (envio del
+    E340000000052 rechazado con codigo 181, log del portal ``El campo
+    TipoIngresos del area IdDoc de la seccion Encabezado no es valido``)
+    que la DGII exige TipoIngresos para 34 aunque el XSD lo declare
+    opcional -- mismo patron que IndicadorMontoGravado/FechaLimitePago/
+    MontoGravadoI1 en corridas 1-2. El fix: caps[34]['tipo_ingresos_mandatory']
+    ahora es True, y el 34 pasa al parametrizado de arriba."""
     datos_33 = {
         'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
         'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
@@ -837,6 +846,15 @@ def test_tipo_ingresos_opcional_en_33_y_34_no_lanza_error():
     root = etree.fromstring(xml_str.encode('utf-8'))
     assert root.find('.//IdDoc/TipoIngresos') is None
 
+
+def test_tipo_34_sin_tipo_ingresos_lanza_error_corrida13():
+    """La 13va corrida confirmo empiricamente contra certecf que la DGII
+    exige TipoIngresos para tipo 34 (Nota de Credito), aunque el XSD lo
+    marque minOccurs=0. Envio E340000000052 rechazado con codigo 181, log
+    del portal literal: ``El campo TipoIngresos del area IdDoc de la
+    seccion Encabezado no es valido``. Este guard replica el mismo patron
+    que se aplico al 33 con CodigoModificacion=1 -- bloquear localmente el
+    error de negocio antes de que llegue a certecf y reinicie contadores."""
     datos_34 = {
         'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
         'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
@@ -846,10 +864,8 @@ def test_tipo_ingresos_opcional_en_33_y_34_no_lanza_error():
         'NombreItem[1]': 'X', 'IndicadorBienoServicio[1]': 1, 'CantidadItem[1]': '1.00',
         'PrecioUnitarioItem[1]': '100.00', 'MontoItem[1]': '100.00',
     }
-    xml_str = ecf_builder.construir_ecf_generico(34, 'E340000000013', datos_34)
-    _validar_estructura_contra_xsd(xml_str, 34)
-    root = etree.fromstring(xml_str.encode('utf-8'))
-    assert root.find('.//IdDoc/TipoIngresos') is None
+    with pytest.raises(ecf_builder.ECFBuilderError, match='TipoIngresos'):
+        ecf_builder.construir_ecf_generico(34, 'E340000000013', datos_34)
 
 
 # Payload REAL para el envio de la 5ta corrida a certecf (Fase 4, 32>=250K
@@ -1229,6 +1245,87 @@ def test_payload_corrida12_b_tipo_32_mayor_250k_valida_contra_xsd():
     assert root.findtext('.//Totales/TotalITBIS') == '47700.00'
     assert root.findtext('.//Totales/TotalITBIS1') == '47700.00'
     assert root.findtext('.//Totales/MontoTotal') == '312700.00'
+    totales = root.find('.//Totales')
+    hijos = [t.tag for t in totales]
+    orden_esperado = ['MontoGravadoTotal', 'MontoGravadoI1', 'ITBIS1',
+                      'TotalITBIS', 'TotalITBIS1', 'MontoTotal']
+    posiciones = [hijos.index(t) for t in orden_esperado]
+    assert posiciones == sorted(posiciones), (
+        f"Totales fuera de orden XSD: {hijos}")
+
+
+# Payload REAL para el 1x34 (Nota de Credito) de la 13va corrida (Fase 4,
+# grupo "Segundo", primer contacto real de construir_ecf_generico(34) contra
+# certecf). NCFModificado = E310000000067 (3er 31 aceptado de la 11va
+# corrida, FC-0007829 rehecha; RNCComprador 131265863 EMPRESA DISTRIBUIDORA
+# Y SERVICIO PAE SRL, FechaEmision 20-11-2025 -- leidos de FAT.TFE_DOCUMENTO
+# via fe_repo.get_documento). Monto pequeno (RD$5,000 base + 18% ITBIS =
+# RD$5,900 total) para acotar exposicion; certecf no valida el monto de la
+# NC contra el NCF referenciado. CodigoModificacion=1 (Anula el NCF
+# modificado) es semanticamente coherente para una Nota de Credito
+# (Formato-e-CF-V1.0.pdf nota 80). test_construir_ecf_generico_tipo_34_
+# codigo_modificacion_1_permitido ya cubrio esta combinacion como valida
+# en el builder.
+_PAYLOAD_34_CORRIDA_13 = {
+    'RNCEmisor': '130217432',
+    'RazonSocialEmisor': 'ABREGONZA COMERCIAL SRL',
+    'DireccionEmisor': 'AV LOPE DE VEGA #55, ENSANCHE NACO, SANTO DOMINGO',
+    'FechaEmision': '26-09-2026',
+    'IndicadorNotaCredito': 1,
+    'TipoIngresos': '01',
+    'TipoPago': 1,
+    'IndicadorMontoGravado': 0,
+    'RNCComprador': '131265863',
+    'RazonSocialComprador': 'EMPRESA DISTRIBUIDORA Y SERVICIO PAE SRL',
+    'MontoGravadoTotal': '5000.00',
+    'MontoGravadoI1': '5000.00',
+    'ITBIS1': '18',
+    'TotalITBIS': '900.00',
+    'TotalITBIS1': '900.00',
+    'MontoTotal': '5900.00',
+    'NCFModificado': 'E310000000067',
+    'FechaNCFModificado': '20-11-2025',
+    'CodigoModificacion': '1',
+    'RazonModificacion': 'Devolucion parcial por defecto en servicio FC-0007829',
+    'NumeroLinea[1]': 1,
+    'IndicadorFacturacion[1]': 1,
+    'NombreItem[1]': 'Devolucion parcial FC-0007829',
+    'IndicadorBienoServicio[1]': 2,
+    'CantidadItem[1]': '1.00',
+    'PrecioUnitarioItem[1]': '5000.00',
+    'MontoItem[1]': '5000.00',
+}
+
+
+def test_payload_corrida13_tipo_34_nota_credito_valida_contra_xsd():
+    """Gate XSD-local obligatorio para el 1x34 de la 13va corrida. Primer
+    contacto real de ``construir_ecf_generico(34, ...)`` contra certecf.
+    NCFModificado = E310000000067 (real, aceptado en la 11va corrida). Un
+    rechazo aqui borraria los 4/4 tipo 31 + 2/2 tipo 32>=250K + 1/1 tipo 33
+    ya acumulados hasta la 12va -- el gate XSD-local es obligatorio."""
+    xml_str = ecf_builder.construir_ecf_generico(
+        34, 'E340000000052', _PAYLOAD_34_CORRIDA_13)
+    _validar_estructura_contra_xsd(xml_str, 34)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.findtext('.//IdDoc/TipoeCF') == '34'
+    assert root.findtext('.//IdDoc/IndicadorNotaCredito') == '1'
+    assert root.findtext('.//IdDoc/TipoIngresos') == '01'
+    assert root.find('.//IdDoc/FechaVencimientoSecuencia') is None
+    assert root.find('.//IdDoc/TablaFormasPago') is None
+    assert root.findtext('.//Comprador/RNCComprador') == '131265863'
+    assert root.findtext('.//Comprador/RazonSocialComprador') == \
+        'EMPRESA DISTRIBUIDORA Y SERVICIO PAE SRL'
+    assert root.findtext('.//Totales/MontoGravadoTotal') == '5000.00'
+    assert root.findtext('.//Totales/MontoGravadoI1') == '5000.00'
+    assert root.findtext('.//Totales/ITBIS1') == '18'
+    assert root.findtext('.//Totales/TotalITBIS') == '900.00'
+    assert root.findtext('.//Totales/TotalITBIS1') == '900.00'
+    assert root.findtext('.//Totales/MontoTotal') == '5900.00'
+    assert root.findtext('.//InformacionReferencia/NCFModificado') == \
+        'E310000000067'
+    assert root.findtext('.//InformacionReferencia/FechaNCFModificado') == \
+        '20-11-2025'
+    assert root.findtext('.//InformacionReferencia/CodigoModificacion') == '1'
     totales = root.find('.//Totales')
     hijos = [t.tag for t in totales]
     orden_esperado = ['MontoGravadoTotal', 'MontoGravadoI1', 'ITBIS1',

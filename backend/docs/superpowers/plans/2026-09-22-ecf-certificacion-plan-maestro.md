@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En curso — 12va corrida cerró 2×32≥250K con clientes CXC nuevos (E&P SERVICIOS 101799463 → E320000001007; AQUAMAR 130299625 → E320000001008), ambos Aceptados. Portal: 4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33, sin nuevos reinicios (último sigue 25/09 12:17:25 AM). Falta 2×34, 2×41-47 c/u y 4×32 RFCE. | 2026-09-26 |
+| 4 | Pruebas Simulación e-CF | 🔲 En curso — 13va corrida: dos rechazos del 1×34 quemaron secuencias 52 y 53 y **reiniciaron todo el progreso** (perdidos 4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33). Diagnósticos claros: código 181 "TipoIngresos no es válido" para 34 (mismo patrón de facto que 1-2), código 615 "NCFModificado no es válido, saldo disponible" (el 34 apuntaba a E310000000067 pre-reset que ya no existe en certecf). Fix builder+tests desplegado: `tipo_ingresos_mandatory=True` para tipo 34. Al final se rehicieron los 4×31 desde las mismas 4 facturas reales (E310000000069-072 Aceptados). Portal final: 4/4 tipo 31 + resto 0/N. Falta 2×32≥250K, 1×33, 2×34, 2×41-47 c/u y 4×32 RFCE. | 2026-09-26 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -1036,10 +1036,165 @@ sugerido conservador (1 tipo por corrida con gate XSD-local previo):
 4. **RFCE (4×32<250Mil)** al final, luego los 4 e-CF32 correspondientes
    por widget manual.
 
+## Fase 4 — Hallazgos de la 13va corrida (2026-09-26) — DOS HALLAZGOS CRÍTICOS
+
+Primer intento de 1×34 (Nota de Crédito) vía `construir_ecf_generico` +
+`paso4-manual`. Primer contacto real del builder-34 contra certecf. Se
+disparó DOBLE rechazo cascada que borró todo el progreso acumulado
+(4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33). Pero cada rechazo trajo un
+diagnóstico literal muy útil, sin ambigüedad como el código 64 del 33.
+
+### Hallazgo 1 — TipoIngresos obligatorio de facto para tipo 34 (código 181)
+
+Payload inicial `_PAYLOAD_34_CORRIDA_13` sin `TipoIngresos` (el XSD del 34
+lo marca `minOccurs=0` y el test histórico `test_tipo_ingresos_opcional_en_
+33_y_34_no_lanza_error` lo trataba como opcional). Certecf rechazó
+`E340000000052` (trackId `4d5e4738-95d4-4f54-88ed-723b88520112`) a las
+26/09/2026 4:18:01 AM UTC-4 con:
+
+```json
+{"estado":"Rechazado","codigo":"2","secuenciaUtilizada":true,
+ "mensajes":[{"valor":"El campo TipoIngresos del área IdDoc de la sección
+              Encabezado no es válido","codigo":181}]}
+```
+
+Log del portal (4:18:02 AM) confirmó el reset con el mismo mensaje literal.
+Mismo patrón de facto que ya se documentó en las corridas 1-2 para
+`IndicadorMontoGravado`, `FechaLimitePago` y `MontoGravadoI1`: el XSD dice
+opcional, la DGII exige.
+
+**Fix desplegado** (`apps/fe/ecf_builder.py` + tests):
+
+- `_CAPS_POR_TIPO[34]['tipo_ingresos_mandatory']=True` (era False). El
+  builder ahora levanta `ECFBuilderError` local antes de firmar/enviar si
+  `TipoIngresos` falta en `datos` para tipo 34.
+- `_PAYLOAD_34_CORRIDA_13` incluye `TipoIngresos: '01'` y el gate XSD-local
+  `test_payload_corrida13_tipo_34_nota_credito_valida_contra_xsd` verifica
+  la presencia del campo en el XML.
+- Test antiguo `test_tipo_ingresos_opcional_en_33_y_34_no_lanza_error`
+  reducido a solo tipo 33; nuevo test defensivo
+  `test_tipo_34_sin_tipo_ingresos_lanza_error_corrida13` documenta el
+  hallazgo empírico y el guard.
+- `test_tipo_34_nota_credito_valida_contra_xsd` (histórico) actualizado
+  con `TipoIngresos: '01'` en `datos`.
+- 78/78 tests del módulo `test_ecf_builder_generico.py` pasan en el
+  contenedor `facturation_backend` de la VM tras el fix.
+
+### Hallazgo 2 — NCFModificado en 33/34 solo puede referenciar e-CFs del ciclo actual del portal (código 615)
+
+Con el fix del hallazgo 1, se re-envió el 1×34 (secuencia siguiente
+`E340000000053`, trackId `0ab4ee70-d496-453d-b0f9-7eeff7c34676`,
+`NCFModificado='E310000000067'` — 3er 31 aceptado de la 11va corrida).
+Certecf rechazó a las 4:21:41 AM UTC-4 con:
+
+```json
+{"estado":"Rechazado","codigo":"2","secuenciaUtilizada":true,
+ "mensajes":[{"valor":"El campo NCFModificado de la sección
+              InformacionReferencia no es válido. El monto total de la
+              nota de crédito no puede ser mayor al saldo disponible de la
+              sumatoria de las operaciones relacionadas al comprobante
+              referenciado.","codigo":615}]}
+```
+
+**Regla NUEVA (nunca documentada antes)**: `NCFModificado` en un 33/34
+debe apuntar a un e-CF que **exista en el ciclo actual del portal** — no
+uno aceptado antes del último reset. Cuando certecf reinicia los
+contadores, también borra los e-CFs aceptados de su registro, por lo que
+el "saldo disponible" de cualquier NCF referenciado desde antes es 0. La
+próxima corrida (14va) DEBE elegir un NCFModificado emitido en el ciclo
+actual (E310000000069-072, ver abajo).
+
+### Restauración del ciclo actual
+
+Al final de la corrida se re-enviaron los 4×31 desde las mismas 4 facturas
+reales (patrón super-conocido de corridas 2/5/11, `paso4-factura-real`,
+builder 31 no tocado por el fix del 34):
+
+| Factura | e-NCF | trackId | Estado |
+|---------|-------|---------|--------|
+| FC-0007607 | E310000000069 | 97e8d147-694b-4bdc-9869-c892fd1af61c | **Aceptado** |
+| FC-0007766 | E310000000070 | f6ecb348-5097-4d3a-a1c4-0d098e2a558c | **Aceptado** |
+| FC-0007829 | E310000000071 | fae9a542-ebd4-4644-a35e-b53eee78cb03 | **Aceptado** |
+| FC-0008076 | E310000000072 | 1e67f684-804c-4a8f-84fe-d4f7320ca929 | **Aceptado** |
+
+Sin nuevos reinicios entre estos 4 envíos (último log sigue siendo el
+4:21:41 AM del rechazo del 34). El fix del builder para 34 no rompió el
+builder 31 — regresión guard implícito superado.
+
+**Portal final (Playwright, 2026-09-26 ~08:22 UTC / 4:22 AM UTC-4)**:
+- **4/4 Comprobantes tipo 31** ← restaurado
+- 0/2 tipo 32 >= 250Mil (perdido, pendiente rehacer)
+- 0/1 tipo 33 (perdido, pendiente rehacer)
+- 0/2 tipo 34 (2 secuencias quemadas: 52 y 53)
+- 0/N resto (34, 41-47, RFCE)
+
+**Estado real de TFE_SECUENCIA (después de esta corrida)**: 31 →
+E310000000073; 32 → E320000001009; 33 → E330000000006;
+34 → E340000000054 (**52 y 53 quemadas por esta corrida**);
+41/43/44/45/46/47 sin cambios.
+
+### Próximo paso para la corrida siguiente (14va)
+
+Con el fix del hallazgo 1 desplegado + el hallazgo 2 documentado, el
+orden recomendado para las próximas corridas cambia (menor a mayor
+riesgo):
+
+1. **2×32≥250K** vía `paso4-manual` con 2 clientes CXC nuevos (evitar
+   RYLCO 131376292/VALOIS 131175341/E&P 101799463/AQUAMAR 130299625 que
+   ya se usaron en corridas 5/6/12). Builder validado 4 veces contra
+   certecf, riesgo mínimo — se pueden hacer los 2 en la misma corrida
+   con abort-on-first. Candidatos frescos de la lista de Hallazgos 4ta
+   corrida: #4 CORTES HERMANOS 101001811, #5 C H ALIMENTOS SAS
+   130805253, #7 CONSORCIO RYLCO YA USADO, #8 ALARIFES SRL 131209855,
+   #11 MOLINOS MODERNOS S.A 101006374, #12 MOLINOS DEL OZAMA 101808502,
+   #13 AGUA PLANETA AZUL 101503939. Elegir 2 distintos.
+2. **1×33 (Nota de Débito)** — payload `_PAYLOAD_33_CORRIDA_8` ya
+   validado (10ma corrida lo tuvo Aceptado), pero **cambiar
+   `NCFModificado` a E310000000069 (o 070/071/072)** — un e-CF del ciclo
+   actual. Actualizar `FechaNCFModificado` a la fecha de emisión del NCF
+   elegido (leer con `fe_repo.get_documento` — para FC-0007607 la fecha
+   es la de la factura física en TFAT_FACTURA, no la de firma).
+3. **1×34 (Nota de Crédito)** — payload `_PAYLOAD_34_CORRIDA_13` ya
+   validado por gate XSD-local, cambiar `NCFModificado` a otro e-CF del
+   ciclo actual (recomendado E310000000071 = FC-0007829, monto grande).
+   Escribir test-gate espejo con el nuevo NCF antes de enviar.
+4. **41-47 uno a uno**, cada uno con investigación del payload mínimo
+   del XSD y builder no probado contra certecf — mayor riesgo.
+5. **RFCE (4×32<250Mil)** al final (grupo Tercero), luego los 4 e-CF32
+   por widget manual (grupo Cuarto).
+
+Esta corrida NO tocó el orden de envío obligatorio del portal (grupo
+Primero antes que Segundo antes que Tercero) — solo aprendió la restricción
+adicional de referencias intra-ciclo. Costo total: 2 secuencias 34
+quemadas + 1 ciclo de progreso perdido (aceptable, ya que reveló dos
+reglas de negocio no documentadas de la DGII y el patrón de reset
+detrás del código 615).
+
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
 
+- **2026-09-26 08:10-08:23 UTC (13va corrida)** — Runner scheduled. Fase 4
+  — intento 1×34 (Nota de Crédito, primer contacto real de
+  `construir_ecf_generico(34)` contra certecf). Payload inicial sin
+  TipoIngresos (el XSD lo marca opcional) → certecf rechazó
+  `E340000000052` con **código 181** y mensaje literal "TipoIngresos no
+  es válido"; reinició todos los contadores (perdidos 4/4 tipo 31 + 2/2
+  tipo 32≥250K + 1/1 tipo 33). **Fix desplegado**: builder ahora exige
+  TipoIngresos para tipo 34 (`caps[34]['tipo_ingresos_mandatory']=True`),
+  con nuevos tests defensivos, 78/78 pasan. Re-envío con TipoIngresos:
+  `E340000000053` rechazado con **código 615** — `NCFModificado
+  E310000000067` (un 31 aceptado en la 11va corrida) ya no existe en
+  certecf tras el reset del primer rechazo, "saldo disponible = 0".
+  Hallazgo NUEVO no documentado: NCs/NDs solo pueden referenciar e-CFs
+  del ciclo actual del portal. Al final se rehicieron los 4×31 desde
+  las mismas 4 facturas reales (E310000000069-072 Aceptados) vía
+  `paso4-factura-real` — patrón conocido, builder 31 no roto por el
+  fix del 34. Portal final: 4/4 tipo 31 + resto 0/N. Bloqueos: ninguno.
+  Próximo paso (14va): retomar el ciclo con 2×32≥250K (2 clientes CXC
+  nuevos), 1×33 y 1×34 con `NCFModificado` de E310000000069-072
+  (ciclo actual). Después 41-47 uno-a-uno.
+  Commits: (ver commit de esta corrida).
 - **2026-09-26 04:10-04:16 UTC (12va corrida)** — Runner scheduled. Fase 4
   — 2×32≥250K con clientes CXC nuevos (E & P SERVICIOS INSTITUCIONALES
   RNC 101799463; AQUAMAR RNC 130299625). Agregados 2 payloads + tests
