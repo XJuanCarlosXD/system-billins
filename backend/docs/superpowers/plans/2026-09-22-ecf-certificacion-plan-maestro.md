@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En curso — 15va corrida: rehizo 4×31 (E310000000073-076, Aceptados) + 2×32≥250K (E320000001012 CORTES HERMANOS 101001811 + E320000001013 RYLCO 131376292, Aceptados) + intento 1×33 con NCFModificado=E310000000073 (RC HERNANDEZ 130941361) **Rechazado código 615 "RNC del comprador no coincide"** — el RNCComprador del payload 33 era 131265863 (EMPRESA DISTRIBUIDORA) mientras el NCFModificado tenía RNC=130941361. Rechazo cascada borró 4/4 tipo 31 + 2/2 tipo 32≥250K. Se envió 2do 33 con NCFModificado=E310000000075 (FC-0007829, RNC 131265863 que sí coincide con el payload) — **Aceptado** (E330000000007). Portal final: 0/4 tipo 31, 0/2 tipo 32≥250K, **1/1 tipo 33**, 0/N resto. Hallazgo nuevo crítico: **código 615 aplica también a Notas de Débito** (antes solo documentado para 34), con mensaje diferente al del 34 ("RNC no coincide" en 33 vs "saldo disponible" en 34) — regla real: `RNCComprador` del 33/34 DEBE coincidir con el `RNCComprador` del `NCFModificado`. Falta rehacer 4×31 + 2×32≥250K + 2×34 + 2×41-47 + 4 RFCE. | 2026-09-26 |
+| 4 | Pruebas Simulación e-CF | 🔲 En curso — 16va corrida: rehizo 4×31 (E310000000077-080 FC-0007607/7766/7829/8076, Aceptados) + 2×32≥250K (E320000001014 CORTES 101001811 + E320000001015 RYLCO 131376292, Aceptados) + intento 1×34 con NCFModificado=E310000000079 (ciclo actual, RNC coincidente 131265863) — **Rechazado código 615 "saldo disponible"** (E340000000054), IDÉNTICO error a la 13va aunque el NCFModificado estaba recién emitido. Rechazo cascada borró TODO (perdidos 4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 acumulado). Portal final: 0/N en los 11 renglones. **Nuevo bloqueo abierto para el tipo 34** (ver "Bloqueos activos"). Los demás tipos (33 reproducible, 41-47, RFCE) NO están bloqueados. Falta rehacer 4×31 + 2×32≥250K + 1×33 + resolver bloqueo 34 + 2×41-47 + 4 RFCE. | 2026-09-26 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -73,6 +73,34 @@ Leyenda: ⬜ sin investigar · 🔲 en curso/parcial · ✅ completo · 🛑 blo
 ## Bloqueos activos (HOLD — requieren decisión humana, el runner NO debe
 
 reintentar solo)
+
+**HOLD ABIERTO — Fase 4 tipo 34 rechazo persistente con código 615 "saldo disponible" (16va corrida, 2026-09-26)**. La 16va corrida falsó definitivamente la hipótesis de la 13va corrida: el rechazo con código 615 y mensaje "El monto total de la nota de crédito no puede ser mayor al saldo disponible de la sumatoria de las operaciones relacionadas al comprobante referenciado" **NO se resuelve** usando un `NCFModificado` del ciclo actual del portal.
+
+Evidencia dura (16va corrida):
+- 4×31 (E310000000077-080) recién emitidos y Aceptados en el mismo ciclo (16:17 UTC-4).
+- 2×32≥250K (E320000001014-1015) Aceptados en el mismo ciclo (16:17-16:18 UTC-4).
+- 1×34 con `NCFModificado=E310000000079` (FC-0007829, emitido hace ~45 s en el mismo ciclo, `RNCComprador=131265863` coincidente, `MontoTotal` de la NC=5900 vs monto factura original ≈682709.10, `CodigoModificacion=1`, `FechaNCFModificado=20-11-2025`) → **Rechazado** con código 615 y el mismo mensaje literal de "saldo disponible" (E340000000054, 16:18:16 UTC-4).
+- Reset cascada: portal final 0/N en 11 renglones. Log del portal registra el rechazo a las 4:18:17 PM con el mensaje idéntico.
+
+Hipótesis descartadas por la evidencia de la 16va:
+- ~~NCFModificado fuera del ciclo actual~~ — E310000000079 estaba dentro del ciclo, recién emitido, y Aceptado, y aún así el 34 rechaza.
+- ~~RNC no coincide~~ — 131265863 sí coincide con el del NCFModificado (verificado en TFE_DOCUMENTO al emitir el 31 esta corrida).
+- ~~MontoTotal de la NC > saldo del NCFModificado~~ — la NC pide $5,900 y el NCFModificado tiene MontoTotal ~$682,709; el saldo real >> 5900. La DGII debe estar computando "saldo disponible = 0" server-side.
+
+Hipótesis remanentes (requieren investigación externa, NO más envíos a ciegas):
+1. La DGII no reconcilia saldos en tiempo real en `certecf` — necesita un batch nocturno para que un e-CF31 aparezca en el "saldo disponible" que consulta el validador del 34. **Comprobar** enviando un 34 al DÍA SIGUIENTE de la emisión del 31 referenciado (>=12 h de separación).
+2. Falta un envío intermedio en el flujo del 34 — quizás una Aprobación Comercial del 31 referenciado (paso separado del Servicio de Aprobación Comercial que se probó en Fase 3), o alguna acción en el portal.
+3. Existe un campo obligatorio de facto no documentado en el XSD ni en `Formato-e-CF-V1.0.pdf` (revisado en esta corrida: la sección "F. Información de Referencia" solo lista NCFModificado, RNCOtroContribuyente, FechaNCFModificado, CodigoModificacion, RazonModificacion — no hay `MontoNCFModificado` ni equivalente).
+4. En certecf, quizás las NC/ND se validan contra un catálogo específico del Set de Pruebas de la DGII y NO contra un e-CF31 emitido en el propio ciclo del contribuyente (patrón similar al Paso 2, donde el "conjunto de datos" era el Excel oficial). El texto del Paso 4 dice "datos de operaciones reales", pero el 34 puede seguir otra regla.
+
+**Runner NO debe reintentar 1×34 en Fase 4 hasta que este bloqueo se resuelva** — cada rechazo cuesta todos los aceptados acumulados. Sí puede seguir con los demás tipos del grupo Segundo/Primero (33 ya validado; 41-47 pendientes de primer contacto pero sin la restricción de "saldo").
+
+**Qué falta para desbloquear** (elegir una ruta):
+1. Consultar a soporte DGII (809-689-3444, Centro de Contacto) con el trackId `daeac04a-b4cd-4e27-89e4-a3d831513086` del rechazo E340000000054 — el usuario debe hacerlo, no el runner (correspondencia oficial, ver "Cuándo detenerse").
+2. Buscar en la Bandeja de Entrada del portal el `MensajeId` asociado (patrón previo: los detalles vienen ahí, no en `consultar_estado`).
+3. Reintentar en una corrida futura ≥24 h después de emitir un 31 real "de prueba" para verificar la hipótesis 1 (reconciliación batch). Costo: 1 secuencia 34 y todos los aceptados del ciclo. Solo hacerlo si el usuario aprueba y otros tipos ya están completos.
+
+Bloqueos previamente resueltos (histórico, no releer si no aplica): 10ma corrida cerró el bloqueo de la 7ma corrida (código 64 en 33) con `CodigoModificacion=3`.
 
 _Ninguno al 2026-09-25 (10ma corrida)._ El bloqueo de la 7ma corrida
 (código 64 vacío en tipo 33) quedó **RESUELTO** por la 10ma corrida:
@@ -1370,10 +1398,127 @@ Rango tipo 31 se está estrechando: quedan 100-77+1 = 24 secuencias antes de ten
 
 Agregar en `_gen_informacion_referencia` (o en un pre-check equivalente) validación defensiva: si `tipo_ecf in (33,34)` y `datos.NCFModificado` está presente, consultar TFE_DOCUMENTO por ese NCF y verificar que `datos.RNCComprador == doc.rnc_comprador` — si no coincide, levantar `ECFBuilderError` local. Previene quemar secuencias por el error 615 "RNC no coincide". Similar al fix de la 8va corrida para `CodigoModificacion` inconsistente.
 
+## Fase 4 — Hallazgos de la 16va corrida (2026-09-26) — CRÍTICO: bloqueo 34 código 615 confirmado independiente del ciclo
+
+Portal previo confirmado por Playwright: 0/4 tipo 31, 0/2 tipo 32≥250K, 1/1 tipo 33, 0/N resto (tras rechazo de la 15va). TFE_SECUENCIA previo confirmado por BD real: 31→77, 32→1014, 33→8, 34→54, 41-47→1. Probe DGII (`obtener_token`) OK, token len 343.
+
+### Éxitos (patrón conocido bajo riesgo)
+
+**4×31 vía `paso4-factura-real`** (mismas 4 facturas reales, patrón validado 6 veces):
+
+| # | Factura | e-NCF | trackId | Estado | fechaRecepcion |
+|---|---------|-------|---------|--------|-----------------|
+| 1 | FC-0007607 | E310000000077 | c808d8a6-cc10-4aa7-8430-58159ea1878f | Aceptado | 9/26/2026 4:17:01 PM |
+| 2 | FC-0007766 | E310000000078 | be65e076-adcf-481d-8fcf-c46959e5cd50 | Aceptado | 9/26/2026 4:17:13 PM |
+| 3 | FC-0007829 | E310000000079 | b4f91ea8-649f-4b3f-8f02-70aeb8b5ac51 | Aceptado | 9/26/2026 4:17:26 PM |
+| 4 | FC-0008076 | E310000000080 | 690e4cf3-1dee-412c-b990-2cc4eaeae016 | Aceptado | 9/26/2026 4:17:39 PM |
+
+**2×32≥250K vía `paso4-manual`** (RNCs ya probados, builder validado 5 veces):
+
+| # | e-NCF | trackId | Estado | Comprador | MontoTotal |
+|---|-------|---------|--------|-----------|-----------|
+| 1 | E320000001014 | 5311c443-7d5d-4cd1-95e9-94b91f551ca4 | Aceptado | CORTES HERMANOS 101001811 | 295000.00 |
+| 2 | E320000001015 | 752aeada-5bde-42f2-83d6-bd682e79fc52 | Aceptado | CONSORCIO RYLCO 131376292 | 306800.00 |
+
+Estado intermedio del portal (implícito de que no hubo rechazo entre los 6 primeros): 4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 (residual de la 15va).
+
+### Rechazo del 34 y hallazgo crítico
+
+Primer intento post-13va del 1×34 con `NCFModificado` **del ciclo actual** (E310000000079 = FC-0007829, recién emitido en esta corrida hace ~45 s) y `RNCComprador=131265863` **coincidente** con el del NCFModificado. Payload:
+
+```python
+{
+    'RNCEmisor': '130217432',
+    'RazonSocialEmisor': 'ABREGONZA COMERCIAL SRL',
+    'DireccionEmisor': 'AV LOPE DE VEGA #55, ENSANCHE NACO, SANTO DOMINGO',
+    'FechaEmision': '26-09-2026',
+    'IndicadorNotaCredito': 1,
+    'TipoIngresos': '01',
+    'TipoPago': 1,
+    'IndicadorMontoGravado': 0,
+    'RNCComprador': '131265863',
+    'RazonSocialComprador': 'EMPRESA DISTRIBUIDORA Y SERVICIO PAE SRL',
+    'MontoGravadoTotal': '5000.00', 'MontoGravadoI1': '5000.00',
+    'ITBIS1': '18', 'TotalITBIS': '900.00', 'TotalITBIS1': '900.00',
+    'MontoTotal': '5900.00',
+    'NCFModificado': 'E310000000079',
+    'FechaNCFModificado': '20-11-2025',  # fecha de la factura fisica FC-0007829
+    'CodigoModificacion': '1',
+    'RazonModificacion': 'Devolucion parcial factura referenciada E310000000079',
+    # linea 1: cantidad 1, precio 5000, item 5000
+}
+```
+
+`E340000000054` (trackId `daeac04a-b4cd-4e27-89e4-a3d831513086`, 4:18:16 PM UTC-4) **Rechazado con código 615**:
+
+```json
+{"codigo":"2","estado":"Rechazado","secuenciaUtilizada":true,
+ "mensajes":[{"valor":"El campo NCFModificado de la sección
+              InformacionReferencia no es válido. El monto total de la
+              nota de crédito no puede ser mayor al saldo disponible
+              de la sumatoria de las operaciones relacionadas al
+              comprobante referenciado.","codigo":615}]}
+```
+
+Mensaje IDÉNTICO al rechazo del 34 en la 13va corrida (que usó E310000000067, fuera del ciclo). Rechazo cascada borró TODO: 4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 recién acumulados. Portal final: 0/N en los 11 renglones. Log del portal a las 4:18:17 PM con el mismo mensaje literal.
+
+**Hipótesis 2 de la 13va corrida FALSADA**: la restricción "NCFModificado debe ser del ciclo actual del portal" no es correcta. E310000000079 estaba dentro del ciclo, fue Aceptado 45 segundos antes, y aún así el 34 rechaza con "saldo disponible". Ver "Bloqueos activos" para las hipótesis remanentes y la ruta de desbloqueo.
+
+Investigación del XSD y del PDF `Formato-e-CF-V1.0.pdf` (sección F. Información de Referencia, págs 55-56) hecha en esta corrida: la sección solo lista `NCFModificado`, `RNCOtroContribuyente`, `FechaNCFModificado`, `CodigoModificacion`, `RazonModificacion`. NO existe un campo tipo `MontoNCFModificado` para declarar el saldo — la validación de "saldo disponible" es server-side. `Descripcion-Tecnica-Servicios-DGII.pdf` (revisada con `grep -i saldo|615|referenciado`) no menciona código 615 ni la regla del "saldo disponible" — falta consultar catálogo oficial de códigos de respuesta o soporte DGII.
+
+### Estado real de TFE_SECUENCIA (después de esta corrida)
+
+| Tipo | prox_secuencia | Notas |
+|------|----------------|-------|
+| 31 | 81 → E310000000081 | 077-080 quemadas Aceptadas |
+| 32 | 1016 → E320000001016 | 1014-1015 quemadas Aceptadas |
+| 33 | 8 → E330000000008 | sin cambios (no se emitió tipo 33 esta corrida) |
+| 34 | 55 → E340000000055 | 054 quemada Rechazada |
+| 41-47 | 1 cada uno | sin cambios |
+
+Rango tipo 31 sigue estrechándose: 81 sobre 100 → quedan 20 secuencias antes de tener que ampliar rango (cada reset consume 4).
+
+### Próximo paso para la corrida siguiente (17va)
+
+**NO intentar 1×34 hasta desbloquear** (ver "Bloqueos activos"). Trabajo posible sin tocar el 34:
+
+1. **Rehacer 4×31** (E310000000081-084) — patrón bajo riesgo, builder validado 6 veces.
+2. **Rehacer 2×32≥250K** con RNCs conocidos (CORTES + RYLCO), E320000001016-1017.
+3. **Rehacer 1×33** con `NCFModificado` del ciclo actual + `RNCComprador` coincidente (patrón 15va corrida): usar E310000000083 (FC-0007829, RNC 131265863) → E330000000008.
+4. **1×41 (Compras)** — primer contacto real del builder-41 contra certecf. Requiere investigar payload mínimo del XSD `e-CF-41-v1.0.xsd`. `RNCEmisor` = proveedor real (consulta `TCXP_FACTURA`), `RNCComprador` = 130217432 (Abregonza). Escribir test XSD-gate antes de enviar. Cualquier campo faltante de-facto (mismo patrón que TipoIngresos en 34, MontoGravadoI1 en 31, etc.) puede reiniciar contadores — enviar UNO solo.
+5. Si el 41 va bien: 1×43, 1×44, 1×45, 1×46, 1×47 (una por corrida, o dos por corrida si se acepta el riesgo).
+6. RFCE (grupo Tercero) al final.
+
+Como aproximación conservadora, la 17va debería enfocarse solo en pasos 1-3 (rehacer patrón conocido) para no acumular otro rechazo antes de tener el bloqueo del 34 resuelto. Ir a un tipo nuevo (41) recién en la 18va si el usuario da luz verde o si el bloqueo del 34 se resuelve por otra vía.
+
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
 
+- **2026-09-26 20:11-20:22 UTC (16va corrida)** — Runner scheduled. Fase 4
+  — reenvío exitoso 4×31 (E310000000077-080, Aceptados) + 2×32≥250K
+  (E320000001014 CORTES + E320000001015 RYLCO, Aceptados) tras arrancar
+  en 1/1 tipo 33 + 0/N resto. Intento 1×34 con NCFModificado del ciclo
+  actual (E310000000079, RNC coincidente 131265863) → **Rechazado
+  código 615 "saldo disponible"** (E340000000054, 4:18:16 PM UTC-4).
+  Rechazo cascada borró TODO (4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo
+  33). Portal final: 0/N en los 11 renglones. **Hallazgo crítico**:
+  hipótesis 2 de la 13va corrida (NCFModificado del ciclo actual)
+  FALSADA — el 34 rechaza con "saldo disponible" incluso cuando el
+  NCFModificado se emitió Aceptado 45 s antes en el mismo ciclo.
+  Investigación XSD e-CF-34 + Formato-e-CF-V1.0.pdf (págs 55-56) +
+  Descripcion-Tecnica-Servicios-DGII.pdf hecha esta corrida: no existe
+  `MontoNCFModificado`, la validación es server-side y no está
+  documentada. **Nuevo bloqueo abierto** en "Bloqueos activos" con 3
+  hipótesis remanentes y ruta de desbloqueo (contactar soporte DGII con
+  trackId `daeac04a-b4cd-4e27-89e4-a3d831513086`). Costo: 4/4 tipo 31 +
+  2/2 tipo 32≥250K + 1/1 tipo 33 quemados/perdidos + 1 secuencia 34
+  quemada Rechazada. TFE_SECUENCIA post-corrida: 31→81, 32→1016, 33→8,
+  34→55, 41-47→1. Sin código nuevo esta corrida (solo scripts en /tmp/
+  del contenedor, no van al repo — `ecf_16_run.py`). Próximo paso
+  (17va): NO tocar 34 hasta desbloquear; rehacer 4×31 + 2×32≥250K +
+  1×33 (patrón conocido bajo riesgo); opcionalmente 1×41 con
+  investigación XSD previa. Commits: (ver commit de esta corrida).
 - **2026-09-26 16:11-16:23 UTC (15va corrida)** — Runner scheduled. Fase 4
   — reenvío 4×31 (E310000000073-076, Aceptados) + 2×32≥250K
   (E320000001012 CORTES HERMANOS 101001811 + E320000001013 RYLCO
