@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En curso — 10ma corrida validó empíricamente la hipótesis: 1×33 Aceptado (E330000000005, `CodigoModificacion=3`). Portal 1/1 tipo 33; falta rehacer 4×31, 2×32≥250K y el resto del grupo Segundo+41-47+RFCE. | 2026-09-25 |
+| 4 | Pruebas Simulación e-CF | 🔲 En curso — 11va corrida rehizo los 4×31 (E310000000065-068 Aceptados) desde las mismas 4 facturas reales vía `paso4-factura-real`. Portal: 4/4 tipo 31 + 1/1 tipo 33, sin nuevos reinicios. Falta 2×32≥250K, 2×34, 2×41-47 c/u y RFCE. | 2026-09-25 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -915,10 +915,76 @@ local, la aritmética de riesgo sigue favoreciendo la prudencia. La única
 excepción segura es reenviar los 4×31 en una sola corrida, porque el
 builder está validado (ya se hizo con éxito en las corridas 2 y 5).
 
+## Fase 4 — Hallazgos de la 11va corrida (2026-09-26) — 4×31 REHECHOS
+
+Con 1/1 tipo 33 asegurado por la 10ma corrida, tocaba rehacer los 4×31 que
+la 7ma corrida borró por rechazo cascada. Ruta de bajo riesgo: builder ya
+validado ampliamente en corridas 2 y 5. Se reenviaron las mismas 4 facturas
+reales de Abregonza (FC-0007607/7766/7829/8076) vía `paso4-factura-real`,
+autenticado como JCABREU con `Client.force_login`, uno a uno con abort-on-
+first-failure y 3s de pausa entre envíos.
+
+Probe DGII previo (`obtener_token('01','certecf',forzar=True)`): `OK_TOKEN_LEN=343`
+— infraestructura DGII operativa (misma normalización que la 10ma corrida).
+
+| # | Factura | e-NCF | trackId | Estado | fechaRecepcion |
+|---|---------|-------|---------|--------|-----------------|
+| 1 | FC-0007607 | E310000000065 | 90a86b80-353d-4c26-95db-0e7d4fcfc3f4 | **Aceptado** | 9/25/2026 8:18:07 PM |
+| 2 | FC-0007766 | E310000000066 | 6a635d97-0901-4d88-807e-970755e451cf | **Aceptado** | 9/25/2026 8:18:12 PM |
+| 3 | FC-0007829 | E310000000067 | c48df839-82c9-44bd-8cb4-d9848d8af006 | **Aceptado** | 9/25/2026 8:18:16 PM |
+| 4 | FC-0008076 | E310000000068 | b566ca09-9610-4256-8edc-94afac0135d9 | **Aceptado** | 9/25/2026 8:18:19 PM |
+
+Los 4 con `codigo:1, secuenciaUtilizada:true, mensajes:[{"valor":"","codigo":0}]`
+(el mensaje vacío con código 0 en Aceptado es normal — la anomalía es
+código 64 con valor vacío en Rechazado, ya analizado en la 7ma corrida).
+
+**Portal (Playwright, 2026-09-25 ~20:18 UTC / 16:18 UTC-4)**:
+- **4/4 Comprobantes tipo 31** ← restaurado
+- 0/2 tipo 32 >= 250Mil
+- 1/1 tipo 33
+- 0/N el resto (34, 41-47, RFCE)
+
+Log del portal SIN nuevos reinicios — el último sigue siendo el 25/09
+12:17:25 AM (7ma corrida). Sin código nuevo esta corrida, solo commit del
+plan maestro actualizado (scripts ad-hoc en `%TEMP%`, no van al repo).
+
+**Próximo paso para la corrida siguiente (12va)** — mismo patrón que la
+10ma: **1 tipo por corrida** con gate XSD-local previo. Orden sugerido:
+
+1. **2×32≥250Mil** vía `paso4-manual`, dos clientes CXC nuevos (evitar
+   RYLCO 131376292 de la 5ta y VALOIS 131175341 de la 6ta que ya fueron
+   usados; hay 20+ candidatos en la lista de Hallazgos 4ta corrida). Es
+   builder ya validado tres veces contra certecf, riesgo mínimo — se puede
+   hacer los 2 en la misma corrida con abort-on-first.
+2. **1×34 (Nota de Crédito)** vía `paso4-manual` — payload similar al 33
+   con `NCFModificado=E310000000067` (FC-0007829, monto grande, mucho
+   margen), `CodigoModificacion` coherente (por Formato-e-CF-V1.0.pdf, para
+   Nota de Crédito el código 1=Anula tiene sentido; validar antes de
+   enviar). Escribir test XSD-gate espejo del corrida8.
+3. **41-47 uno a uno**, cada uno con investigación del payload mínimo del
+   XSD respectivo — todos aún no probados contra certecf.
+
+Estado real de TFE_SECUENCIA (después de esta corrida, para orientar la
+próxima): 31 → siguiente E310000000069; 33 → siguiente E330000000006 (o
+lo que corresponda tras cualquier consumo intermedio); 32/34/41-47 sin
+cambios respecto de las notas previas.
+
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
 
+- **2026-09-25 20:11-20:20 UTC (11va corrida)** — Runner scheduled. Fase 4
+  — reenvío de 4×31 desde las mismas 4 facturas reales (FC-0007607/7766/
+  7829/8076) vía `paso4-factura-real`, patrón validado en corridas 2 y 5.
+  Probe `obtener_token('01','certecf',forzar=True)` OK (token len 343),
+  infraestructura DGII operativa. Los 4 envíos: **4/4 Aceptados**
+  (E310000000065-068). Portal Playwright confirma **4/4 tipo 31 + 1/1
+  tipo 33**, sin nuevos reinicios (último sigue en 25/09 12:17:25 AM).
+  Sin código nuevo — sólo commit del plan maestro. Bloqueos: ninguno.
+  Próximo paso (12va): 2×32≥250Mil vía `paso4-manual` con 2 clientes CXC
+  nuevos (builder validado 3 veces, se pueden hacer los 2 en la misma
+  corrida). Después 1×34, luego 41-47 uno a uno.
+  Commits: (ver commit de esta corrida).
 - **2026-09-25 20:12-20:20 UTC (10ma corrida)** — Runner scheduled.
   Objetivo: validar empíricamente la hipótesis de la 8va corrida contra
   certecf, ahora que DGII salió del outage OCSP/CRL de la 9na corrida.
