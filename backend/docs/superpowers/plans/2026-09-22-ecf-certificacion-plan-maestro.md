@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En curso — 11va corrida rehizo los 4×31 (E310000000065-068 Aceptados) desde las mismas 4 facturas reales vía `paso4-factura-real`. Portal: 4/4 tipo 31 + 1/1 tipo 33, sin nuevos reinicios. Falta 2×32≥250K, 2×34, 2×41-47 c/u y RFCE. | 2026-09-25 |
+| 4 | Pruebas Simulación e-CF | 🔲 En curso — 12va corrida cerró 2×32≥250K con clientes CXC nuevos (E&P SERVICIOS 101799463 → E320000001007; AQUAMAR 130299625 → E320000001008), ambos Aceptados. Portal: 4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33, sin nuevos reinicios (último sigue 25/09 12:17:25 AM). Falta 2×34, 2×41-47 c/u y 4×32 RFCE. | 2026-09-26 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -969,10 +969,91 @@ próxima): 31 → siguiente E310000000069; 33 → siguiente E330000000006 (o
 lo que corresponda tras cualquier consumo intermedio); 32/34/41-47 sin
 cambios respecto de las notas previas.
 
+## Fase 4 — Hallazgos de la 12va corrida (2026-09-26) — 2×32≥250K CERRADO
+
+Con 4/4 tipo 31 + 1/1 tipo 33 aseguradas por corridas 10 y 11, tocaba cerrar
+el renglón "tipo 32 >= 250Mil" (0/2 al arrancar). Ruta de bajo riesgo: builder
+`construir_ecf_generico(32,...)` ya validado tres veces contra `certecf`
+(corridas 5, 6 y hoy). Se agregaron dos payloads + tests XSD-gate espejo
+(`test_payload_corrida12_a_tipo_32_mayor_250k_valida_contra_xsd` y
+`_b_`) con clientes CXC distintos de los usados en corridas 5-6 para no
+duplicar RNCComprador:
+
+- Cliente #2 CXC: **E & P SERVICIOS INSTITUCIONALES** (RNC 101799463)
+- Cliente #3 CXC: **AQUAMAR** (RNC 130299625)
+
+Los payloads son idénticos a los de corridas 5-6 salvo por RNC/RazonSocial/
+monto (255000 y 265000 base, para tener MontoTotal distintos). 76/76 tests
+del módulo `test_ecf_builder_generico.py` pasan localmente en el contenedor
+de la VM.
+
+Probe DGII previo (`obtener_token('01','certecf',forzar=True)`):
+`OK_TOKEN_LEN=343` — infraestructura DGII operativa.
+
+Envíos vía `paso4-manual` autenticado como JCABREU con `Client.force_login`,
+abort-on-first-failure entre uno y otro:
+
+| # | e-NCF | trackId | Estado | Cliente comprador | fechaRecepcion |
+|---|-------|---------|--------|-------------------|-----------------|
+| 1 | E320000001007 | 11af573b-f012-4af9-bbc5-0341560e418d | **Aceptado** | E & P SERVICIOS INSTITUCIONALES (RNC 101799463) | 9/26/2026 12:16:42 AM |
+| 2 | E320000001008 | 4affc98f-6374-40c5-8393-03eb87188fe4 | **Aceptado** | AQUAMAR (RNC 130299625) | 9/26/2026 12:17:21 AM |
+
+Ambos con `codigo:1, secuenciaUtilizada:true, mensajes:[{"valor":"","codigo":0}]`
+(mensaje vacío con código 0 en Aceptado es normal — ya documentado en la 11va
+corrida).
+
+**Portal (Playwright, 2026-09-26 ~04:15 UTC / 12:15 AM UTC-4)**:
+- 4/4 Comprobantes tipo 31
+- **2/2 Comprobantes tipo 32 >= 250Mil** ← cerrado
+- 1/1 Comprobantes tipo 33
+- 0/2 el resto (34, 41-47, RFCE)
+
+Log del portal SIN nuevos reinicios — el último sigue siendo el 25/09
+12:17:25 AM (7ma corrida). El gate XSD-local previo a cada envío está
+funcionando como diseñado (4 envíos consecutivos Aceptados sin reinicios:
+corridas 10/11/12).
+
+**Estado real de TFE_SECUENCIA (después de esta corrida)**: 31 →
+E310000000069; 32 → E320000001009; 33 → E330000000006;
+34/41/43/44/45/46/47 sin cambios.
+
+**Próximo paso para la corrida siguiente (13va)** — quedan **8 tipos "de
+riesgo"** por probar contra certecf (34, 41, 43, 44, 45, 46, 47 y RFCE),
+cada uno primer contacto real del builder genérico para ese tipo. Orden
+sugerido conservador (1 tipo por corrida con gate XSD-local previo):
+
+1. **1×34 (Nota de Crédito)** — vía `paso4-manual`, `NCFModificado` de un
+   31 aceptado (recomendado E310000000067 = FC-0007829, monto grande, mucho
+   margen), `IndicadorNotaCredito=1`, `CodigoModificacion` coherente
+   (por Formato-e-CF-V1.0.pdf nota 80, para NC código 1=Anula tiene sentido
+   — ya validado en `test_construir_ecf_generico_tipo_34_codigo_modificacion_1_permitido`).
+   Escribir test XSD-gate espejo antes de enviar.
+2. **1×41 (Compras)** — sin NCFModificado. RNCEmisor = proveedor real (de
+   TCXP_FACTURA), RNCComprador = 130217432 (Abregonza, nosotros). Investigar
+   payload mínimo en el XSD e-CF-41-v1.0.xsd.
+3. **1×43-47 uno-a-uno**, cada uno con investigación previa del payload
+   mínimo del XSD.
+4. **RFCE (4×32<250Mil)** al final, luego los 4 e-CF32 correspondientes
+   por widget manual.
+
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
 
+- **2026-09-26 04:10-04:16 UTC (12va corrida)** — Runner scheduled. Fase 4
+  — 2×32≥250K con clientes CXC nuevos (E & P SERVICIOS INSTITUCIONALES
+  RNC 101799463; AQUAMAR RNC 130299625). Agregados 2 payloads + tests
+  XSD-gate espejo de corridas 5-6 (`test_payload_corrida12_a/b_tipo_32_...`),
+  76/76 tests del módulo `test_ecf_builder_generico.py` pasan localmente en
+  el contenedor. Probe `obtener_token('01','certecf',forzar=True)` OK (len
+  343). Envíos: **2/2 Aceptados** (E320000001007 12:16:42 AM UTC-4 +
+  E320000001008 12:17:21 AM UTC-4). Portal Playwright confirma **4/4 tipo
+  31 + 2/2 tipo 32≥250K + 1/1 tipo 33**, sin nuevos reinicios (último
+  sigue 25/09 12:17:25 AM). Sin bloqueos. Próximo paso (13va):
+  **1×34 Nota de Crédito** con NCFModificado=E310000000067, patrón
+  `paso4-manual` + gate XSD-local previo. Después 41-47 uno-a-uno, luego
+  RFCE.
+  Commits: (ver commit de esta corrida).
 - **2026-09-25 20:11-20:20 UTC (11va corrida)** — Runner scheduled. Fase 4
   — reenvío de 4×31 desde las mismas 4 facturas reales (FC-0007607/7766/
   7829/8076) vía `paso4-factura-real`, patrón validado en corridas 2 y 5.
