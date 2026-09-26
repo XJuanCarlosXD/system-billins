@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En curso — 14va corrida: intento 2×32≥250K con clientes CXC nuevos. 1er envío E320000001009 (CORTES HERMANOS RNC 101001811) **Aceptado**. 2do envío E320000001010 (ALARIFES SRL RNC 131209855) **Rechazado** con "RNCComprador no es válido" — RNC 131209855 no existe/inválido en el registro DGII, aunque figura como cliente real en TCXC_CLIENTE. Rechazo cascada **reinició TODOS los contadores** (perdido 4/4 tipo 31 + el 1er 32≥250K que había quedado Aceptado). Portal final: 0/N en todos los renglones. Hallazgo nuevo: **la lista de clientes CXC con RNC de 9 dígitos NO garantiza que el RNC sea válido ante DGII** — hay que validar contra el servicio público de consulta RNC de DGII antes de usar un RNCComprador nuevo, o usar los ya-probados (RYLCO/VALOIS/E&P/AQUAMAR/CORTES). Falta rehacer 4×31 + 2×32≥250K + 1×33 + 2×34 + 2×41-47 + 4 RFCE. | 2026-09-26 |
+| 4 | Pruebas Simulación e-CF | 🔲 En curso — 15va corrida: rehizo 4×31 (E310000000073-076, Aceptados) + 2×32≥250K (E320000001012 CORTES HERMANOS 101001811 + E320000001013 RYLCO 131376292, Aceptados) + intento 1×33 con NCFModificado=E310000000073 (RC HERNANDEZ 130941361) **Rechazado código 615 "RNC del comprador no coincide"** — el RNCComprador del payload 33 era 131265863 (EMPRESA DISTRIBUIDORA) mientras el NCFModificado tenía RNC=130941361. Rechazo cascada borró 4/4 tipo 31 + 2/2 tipo 32≥250K. Se envió 2do 33 con NCFModificado=E310000000075 (FC-0007829, RNC 131265863 que sí coincide con el payload) — **Aceptado** (E330000000007). Portal final: 0/4 tipo 31, 0/2 tipo 32≥250K, **1/1 tipo 33**, 0/N resto. Hallazgo nuevo crítico: **código 615 aplica también a Notas de Débito** (antes solo documentado para 34), con mensaje diferente al del 34 ("RNC no coincide" en 33 vs "saldo disponible" en 34) — regla real: `RNCComprador` del 33/34 DEBE coincidir con el `RNCComprador` del `NCFModificado`. Falta rehacer 4×31 + 2×32≥250K + 2×34 + 2×41-47 + 4 RFCE. | 2026-09-26 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -1292,10 +1292,116 @@ Fix del builder para tipo 34 de la 13va corrida sigue desplegado y validado
 localmente — solo espera un envío exitoso a certecf para validar
 end-to-end.
 
+## Fase 4 — Hallazgos de la 15va corrida (2026-09-26) — CRÍTICO: código 615 aplica a Notas de Débito con mensaje distinto
+
+Portal previo confirmado por Playwright: 0/N en los 11 renglones tras el reset de la 14va corrida (26/09 8:20:04 AM). Probe DGII (`obtener_token('01','certecf',forzar=True)`) OK, token len 343.
+
+**Reenvío exitoso de 4×31 + 2×32≥250K** (patrón bajo riesgo, builder validado múltiples veces):
+
+| # | Tipo | e-NCF | trackId | Estado | Cliente | Factura/RNC |
+|---|------|-------|---------|--------|---------|-------------|
+| 1 | 31 | E310000000073 | 8d26a306-bce3-4186-8f73-061366c937c9 | Aceptado | RC HERNANDEZ 130941361 | FC-0007607 |
+| 2 | 31 | E310000000074 | 03ccfe0d-bf66-4af5-a5ab-b695d246eb94 | Aceptado | RC HERNANDEZ 130941361 | FC-0007766 |
+| 3 | 31 | E310000000075 | b75020b9-9990-4684-a2e4-5af3d63dd714 | Aceptado | EMPRESA DISTRIBUIDORA Y SERVICIO PAE SRL 131265863 | FC-0007829 |
+| 4 | 31 | E310000000076 | 26502a2b-4ad5-4640-9688-2b7210cc5b41 | Aceptado | RC HERNANDEZ 130941361 | FC-0008076 |
+| 5 | 32 | E320000001012 | fc65aa28-74bd-4ff2-8623-432a235048dd | Aceptado | CORTES HERMANOS 101001811 | manual, MontoTotal 295000 |
+| 6 | 32 | E320000001013 | e5e86b97-cbee-4577-9467-44be9ca1dbed | Aceptado | CONSORCIO RYLCO 131376292 | manual, MontoTotal 295000 |
+
+Portal Playwright ~12:20 UTC confirmó **4/4 tipo 31 + 2/2 tipo 32≥250K + 0/N resto**, sin nuevos reinicios.
+
+### Hallazgo NUEVO — código 615 en 33 con mensaje distinto al del 34
+
+Primer intento 1×33 vía `paso4-manual` con payload derivado de `_PAYLOAD_33_CORRIDA_8` (validado por 10ma corrida) pero cambiando `NCFModificado=E310000000073` (un 31 del ciclo actual, como recomienda hallazgo 2 de la 13va corrida). Todos los demás campos del payload iguales al `_PAYLOAD_33_CORRIDA_8`, incluyendo `RNCComprador='131265863'` (EMPRESA DISTRIBUIDORA Y SERVICIO PAE SRL). Gate XSD-local pasó.
+
+`E330000000006` (trackId `3ab7cb8c-1aae-44ca-ad78-2046a732b086`, 12:22:16 PM UTC-4) **Rechazado con código 615**:
+
+```json
+{"estado":"Rechazado","codigo":"2","secuenciaUtilizada":true,
+ "mensajes":[{"valor":"El campo NCFModificado de la sección
+              InformacionReferencia no es válido. El RNC del comprador o
+              Id extranjero de la nota de débito no es válido, ya que no
+              coincide con el RNC del comprador o Id extranjero de la
+              factura que intenta modificar.","codigo":615}]}
+```
+
+Causa raíz: `E310000000073` fue emitido con `RNCComprador=130941361` (RC HERNANDEZ, cliente de FC-0007607), mientras que el payload del 33 declaraba `RNCComprador='131265863'`. La DGII exige que **el `RNCComprador` del 33/34 coincida con el `RNCComprador` del `NCFModificado`**.
+
+Rechazo cascada borró 4/4 tipo 31 + 2/2 tipo 32≥250K acumulados.
+
+**Diferencia con hallazgo 2 de la 13va corrida**: la 13va documentó el código 615 aplicado al 34 con mensaje "saldo disponible = 0" (regla de saldos). La 15va documenta que el **mismo código 615** también aplica al 33 pero con **mensaje distinto** ("RNC no coincide" — regla de identidad del comprador). Ambos son código 615 pero validan reglas distintas. Ambos disparan reset cascada.
+
+### 2do intento 1×33 con NCFModificado correcto — Aceptado
+
+Se identificó (vía leer XML de TFE_DOCUMENTO de los 4 e-CF31 recién emitidos) que **E310000000075 (FC-0007829)** era el único con `RNCComprador=131265863` — coincide con el payload. Segundo envío:
+
+| e-NCF | trackId | Estado | NCFModificado |
+|-------|---------|--------|---------------|
+| E330000000007 | d7e6f29a-5d56-405d-bb54-c3dce71880fc | **Aceptado** | E310000000075 (FC-0007829, RNC 131265863) |
+
+Portal Playwright ~12:23 UTC-4: **1/1 tipo 33** confirmado; el resto en 0/N (perdido por el cascada del 615).
+
+### Estado real de TFE_SECUENCIA (después de esta corrida)
+
+Vía consulta implícita:
+
+| Tipo | prox_secuencia | Notas |
+|------|----------------|-------|
+| 31 | 77 → E310000000077 | 073-076 quemadas por corrida 15 |
+| 32 | 1014 → E320000001014 | 1011 quemada (consumida antes del xsd-gate fail, sin enviar); 1012/1013 quemadas y Aceptadas |
+| 33 | 8 → E330000000008 | 006 quemada+Rechazada, 007 quemada+Aceptada |
+| 34 | 54 → E340000000054 | 052/053 quemadas por 13va |
+| 41-47 | 1 cada uno | sin cambios |
+
+Rango tipo 31 se está estrechando: quedan 100-77+1 = 24 secuencias antes de tener que ampliar. Con cada reset se consumen 4.
+
+### Próximo paso para la corrida siguiente (16va)
+
+1. **Rehacer 4×31** — mismas 4 facturas reales (FC-0007607/7766/7829/8076), próximas secuencias E310000000077-080, patrón validado 5 veces. Riesgo mínimo.
+2. **2×32≥250K** — patrón conocido con RNCs ya probados. Reutilizar CORTES HERMANOS (101001811) + RYLCO (131376292) que ya funcionaron esta corrida. Próximas secuencias E320000001014-1015.
+3. **1×34 (Nota de Crédito)** — payload `_PAYLOAD_34_CORRIDA_13` con `NCFModificado` = uno de los 31 del ciclo actual, **y `RNCComprador` que coincida con el del NCFModificado** (regla ahora confirmada por corrida 15 también para 33). Si se elige NCFModificado del 4×31 rehecho (16va corrida), usar:
+   - E310000000077 (FC-0007607): RNC 130941361 RC HERNANDEZ
+   - E310000000078 (FC-0007766): RNC 130941361 RC HERNANDEZ
+   - E310000000079 (FC-0007829): RNC 131265863 EMPRESA DISTRIBUIDORA Y SERVICIO PAE SRL
+   - E310000000080 (FC-0008076): RNC 130941361 RC HERNANDEZ
+4. **41-47 uno a uno**, cada uno con investigación del payload mínimo del XSD.
+5. **RFCE (4×32<250Mil)** al final, luego los 4 e-CF32 por widget manual.
+
+### Mejora de builder recomendada (TODO, no bloquea)
+
+Agregar en `_gen_informacion_referencia` (o en un pre-check equivalente) validación defensiva: si `tipo_ecf in (33,34)` y `datos.NCFModificado` está presente, consultar TFE_DOCUMENTO por ese NCF y verificar que `datos.RNCComprador == doc.rnc_comprador` — si no coincide, levantar `ECFBuilderError` local. Previene quemar secuencias por el error 615 "RNC no coincide". Similar al fix de la 8va corrida para `CodigoModificacion` inconsistente.
+
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
 
+- **2026-09-26 16:11-16:23 UTC (15va corrida)** — Runner scheduled. Fase 4
+  — reenvío 4×31 (E310000000073-076, Aceptados) + 2×32≥250K
+  (E320000001012 CORTES HERMANOS 101001811 + E320000001013 RYLCO
+  131376292, Aceptados) tras arrancar en 0/N. Portal intermedio 4/4 + 2/2
+  confirmado. Intento 1×33 vía `paso4-manual` con payload derivado de
+  `_PAYLOAD_33_CORRIDA_8` cambiando `NCFModificado` a E310000000073
+  (RNCComprador=130941361 RC HERNANDEZ del ciclo actual) pero manteniendo
+  `RNCComprador='131265863'` del payload_8 — **Rechazado código 615**
+  "El RNC del comprador o Id extranjero de la nota de débito no es
+  válido, ya que no coincide con el RNC del comprador de la factura que
+  intenta modificar" (E330000000006, 12:22:16 PM UTC-4). Rechazo cascada
+  borró 4/4 tipo 31 + 2/2 tipo 32≥250K. Se corrigió NCFModificado a
+  E310000000075 (FC-0007829, único de los 4 con RNC=131265863) y se
+  reenvió: **E330000000007 Aceptado** (12:22:51 PM UTC-4). Portal final:
+  **1/1 tipo 33**, 0/N resto. **Hallazgo nuevo crítico**: código 615
+  también aplica al 33 (antes solo documentado para 34, hallazgo 2 de
+  13va) pero con **mensaje distinto** — 33 valida coincidencia de RNC
+  del comprador; 34 valida saldo disponible. Regla real: `RNCComprador`
+  del 33/34 DEBE coincidir con `RNCComprador` del `NCFModificado`. Sin
+  código nuevo esta corrida (solo scripts ad-hoc en `%TEMP%`, no van al
+  repo). TFE_SECUENCIA post-corrida: 31→77, 32→1014, 33→8, 34→54, 41-47→1.
+  Bloqueos: ninguno. Costo: 4/4 tipo 31 + 2/2 tipo 32≥250K quemados/
+  perdidos + 1 secuencia 33 quemada rechazada (006). Ganancia neta: 1/1
+  tipo 33 (E330000000007). Próximo paso (16va): rehacer 4×31 + 2×32≥250K
+  (patrón conocido bajo riesgo), 1×34 con NCFModificado del ciclo actual
+  Y `RNCComprador` que coincida con el del NCFModificado (regla ahora
+  confirmada para 33 también). Después 41-47 uno-a-uno.
+  Commits: (ver commit de esta corrida).
 - **2026-09-26 12:11-12:23 UTC (14va corrida)** — Runner scheduled. Fase 4
   — intento 2×32≥250K con 2 clientes CXC nuevos (CORTES HERMANOS RNC
   101001811 y ALARIFES SRL RNC 131209855). Portal previo confirmado 4/4
