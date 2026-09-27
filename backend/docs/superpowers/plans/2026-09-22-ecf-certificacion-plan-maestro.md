@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En curso — 16va corrida: rehizo 4×31 (E310000000077-080 FC-0007607/7766/7829/8076, Aceptados) + 2×32≥250K (E320000001014 CORTES 101001811 + E320000001015 RYLCO 131376292, Aceptados) + intento 1×34 con NCFModificado=E310000000079 (ciclo actual, RNC coincidente 131265863) — **Rechazado código 615 "saldo disponible"** (E340000000054), IDÉNTICO error a la 13va aunque el NCFModificado estaba recién emitido. Rechazo cascada borró TODO (perdidos 4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 acumulado). Portal final: 0/N en los 11 renglones. **Nuevo bloqueo abierto para el tipo 34** (ver "Bloqueos activos"). Los demás tipos (33 reproducible, 41-47, RFCE) NO están bloqueados. Falta rehacer 4×31 + 2×32≥250K + 1×33 + resolver bloqueo 34 + 2×41-47 + 4 RFCE. | 2026-09-26 |
+| 4 | Pruebas Simulación e-CF | 🔲 En curso — 17va corrida: reconstruyó ciclo tras el reset de la 16va — 4×31 (E310000000081-084 FC-0007607/7766/7829/8076, Aceptados vía `paso4-factura-real`) + 2×32≥250K (E320000001016 CORTES 101001811 + E320000001017 RYLCO 131376292, Aceptados vía `paso4-manual`) + 1×33 (E330000000009, Aceptado vía `paso4-manual` con NCFModificado=E310000000083 FC-0007829 RNC 131265863 coincidente). Portal 4/4+2/2+1/1, 0/N resto, sin nuevos reinicios. Bloqueo del 34 (código 615 "saldo disponible") **sigue activo** — 17va no lo tocó. Falta resolver bloqueo 34 + 2×41-47 + 4 RFCE + 4 e-CF32 (widget manual grupo Cuarto). | 2026-09-27 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -1491,10 +1491,124 @@ Rango tipo 31 sigue estrechándose: 81 sobre 100 → quedan 20 secuencias antes 
 
 Como aproximación conservadora, la 17va debería enfocarse solo en pasos 1-3 (rehacer patrón conocido) para no acumular otro rechazo antes de tener el bloqueo del 34 resuelto. Ir a un tipo nuevo (41) recién en la 18va si el usuario da luz verde o si el bloqueo del 34 se resuelve por otra vía.
 
+## Fase 4 — Hallazgos de la 17va corrida (2026-09-27) — RECONSTRUCCIÓN LIMPIA POST-RESET
+
+Portal previo confirmado por Playwright: 0/N en los 11 renglones (tras el reset de la 16va corrida del 34, 26/09 4:18:17 PM). Probe DGII (`obtener_token('01','certecf',forzar=True)`) OK, token len 343. TFE_SECUENCIA previo: 31→81, 32→1016, 33→8, 34→55, 41-47→1 (alineado con lo esperado por la 16va).
+
+Corrida conservadora siguiendo los pasos 1-3 del "Próximo paso" de la 16va — **NO tocar 34 hasta desbloquear**. Se reconstruyó el ciclo desde 0 con patrones ya validados múltiples veces.
+
+### Éxitos (patrón conocido bajo riesgo)
+
+**4×31 vía `paso4-factura-real`** (mismas 4 facturas reales, patrón validado 7 veces):
+
+| # | Factura | e-NCF | trackId | Estado | fechaRecepcion |
+|---|---------|-------|---------|--------|-----------------|
+| 1 | FC-0007607 | E310000000081 | 6eb317b1-43f7-4b4b-b590-b6eb36a3fe27 | Aceptado | 9/26/2026 8:16:30 PM |
+| 2 | FC-0007766 | E310000000082 | 9158efbf-5dbc-4ff6-ab1f-3031c9e7d88d | Aceptado | 9/26/2026 8:16:41 PM |
+| 3 | FC-0007829 | E310000000083 | 1de39ff3-ca93-46f9-a97e-76d3eb0e63c0 | Aceptado | 9/26/2026 8:16:51 PM |
+| 4 | FC-0008076 | E310000000084 | 516551ab-a67b-4e4e-8057-1e31ab3587cc | Aceptado | 9/26/2026 8:17:02 PM |
+
+**2×32≥250K vía `paso4-manual`** (RNCs ya probados, builder validado 6 veces):
+
+| # | e-NCF | trackId | Estado | Comprador | MontoTotal |
+|---|-------|---------|--------|-----------|-----------|
+| 1 | E320000001016 | 79b64b34-ecfc-4552-822b-297057860557 | Aceptado | CORTES HERMANOS 101001811 | 295000.00 |
+| 2 | E320000001017 | 4322883a-38d9-476e-a52f-435447c97394 | Aceptado | CONSORCIO RYLCO 131376292 | 295000.00 |
+
+**1×33 vía `paso4-manual`** — `NCFModificado=E310000000083` (FC-0007829 emitido en esta misma corrida, RNC 131265863 coincidente con el del payload):
+
+| # | e-NCF | trackId | Estado | NCFModificado | CodigoModificacion |
+|---|-------|---------|--------|----------------|---------------------|
+| 1 | E330000000009 | 26225122-cc41-4441-9851-7f2e533c6cce | Aceptado | E310000000083 | 3 |
+
+**Portal (verificado por Playwright, 2026-09-27 ~00:18 UTC / 8:18 PM UTC-4 del 26/09)**:
+
+- **4/4 Comprobantes tipo 31** ✅
+- **2/2 Comprobantes tipo 32 >= 250Mil** ✅
+- **1/1 Comprobantes tipo 33** ✅
+- 0/2 tipo 34 (bloqueado, ver "Bloqueos activos")
+- 0/2 el resto (41-47, RFCE)
+
+Log del portal SIN nuevos reinicios — el último sigue siendo el 26/09 4:18:17 PM (16va corrida). Todos los envíos consecutivos de esta corrida Aceptados sin resets.
+
+### Hallazgos menores (no bloquean, TODO defensivo)
+
+1. **`paso4-manual` consume secuencia ANTES del gate XSD-local que pide `FechaVencimientoSecuencia`**. Primer intento del 33 esta corrida omitió `FechaVencimientoSecuencia` del payload (mi error de operación — el `_PAYLOAD_33_CORRIDA_8` sí lo tiene heredado del `_PAYLOAD_33_CORRIDA_7`, línea 1011 de `test_ecf_builder_generico.py`). La respuesta fue HTTP 400 con `"IdDoc/FechaVencimientoSecuencia es obligatorio (minOccurs=1) para TipoeCF 33 segun e-CF-33-v1.0.xsd"`. **PERO E330000000008 quedó quemada** — TFE_SECUENCIA avanzó de 8 a 9 antes de que el gate del builder rechazara el payload. Costo real: 1 secuencia 33 desperdiciada, sin envío a DGII (no cuenta como rechazo, portal no se reinició). TODO defensivo (no urgente): en `certificacion_paso4_manual_view` de `apps/fe/views.py`, mover el pre-check de campos mínimos del XSD ANTES de `fe_repo.consumir_siguiente_encf` (línea 565), de modo que un payload inválido no queme secuencia. Actualmente el orden es `consumir → construir_ecf_generico → falla`. Se puede resolver validando `datos` primero con un `_validar_payload_minimo(tipo_ecf, datos)` que no necesite el e-NCF.
+
+2. **`fe_repo.get_documento` devuelve `rnc_comprador: None`** para e-CFs enviados vía `paso4-factura-real` (verificado con E310000000083 esta corrida — el doc tiene todas las claves pero `rnc_comprador` es None). No afecta el envío en sí, pero la mejora del builder recomendada por la 15va corrida (validar coincidencia de RNCComprador entre 33/34 y su NCFModificado leyendo de TFE_DOCUMENTO) NO se puede implementar sobre TFE_DOCUMENTO en su estado actual — habría que arreglar antes el guardado en `save_documento_enviado` para que persista `rnc_comprador` cuando el flujo es `paso4-factura-real` (mismo campo que sí llena el `paso4-manual` desde `datos.RNCComprador`). Actualmente el operador tiene que leer el XML crudo del `xml_firmado` para descubrir el RNCComprador de un e-CF31 previo. Otro TODO no bloqueante.
+
+### Estado real de TFE_SECUENCIA (después de esta corrida)
+
+Vía consulta directa a `FAT.TFE_SECUENCIA`:
+
+| Tipo | prox_secuencia | Notas |
+|------|----------------|-------|
+| 31 | 85 → E310000000085 | 081-084 quemadas Aceptadas |
+| 32 | 1018 → E320000001018 | 1016-1017 quemadas Aceptadas |
+| 33 | 10 → E330000000010 | 008 quemada por HTTP 400 pre-envío; 009 quemada Aceptada |
+| 34 | 55 → E340000000055 | sin cambios (bloqueada) |
+| 41-47 | 1 cada uno | sin cambios |
+
+Rango tipo 31 se estrecha rápido: quedan 100-85+1 = 16 secuencias antes de tener que ampliar el rango (cada reset consume 4, ya van 6 resets con costo de tipo 31). Si sucede otro reset del ciclo, quedarían 12; si son dos, quedarían 8. TODO administrativo (no runner): revisar con el usuario si conviene ampliar el rango 31 (ej. hasta 500) en TFE_SECUENCIA antes de que se agote.
+
+### Próximo paso para la corrida siguiente (18va)
+
+**Bloqueo del 34 sigue activo** — hipótesis remanentes (ver "Bloqueos activos"):
+1. Consultar soporte DGII (809-689-3444) con trackId `daeac04a-b4cd-4e27-89e4-a3d831513086` — requiere acción del USUARIO, no del runner.
+2. Reconciliación batch nocturna: reintentar el 34 al día siguiente de emitir un 31 referenciado (>=12 h de separación). ⚠ Esto sí es hacer el runner — pero el costo de un rechazo es todos los aceptados. Solo hacerlo si el usuario da luz verde explícita.
+3. Bandeja de Entrada del portal — buscar el `MensajeId` del rechazo E340000000054 (log 26/09 4:18:17 PM) que puede tener más detalle que `consultar_estado`.
+
+**Trabajo posible sin tocar el 34 en la 18va**:
+
+Opción A (recomendada — 1 tipo nuevo por corrida): **1×41 (Compras)** primer contacto real del builder `construir_ecf_generico(41)` contra certecf. Necesita:
+- Elegir un proveedor real de `CXP.TCXP_FACTURA` con RNC válido (candidato natural: consultar top 10 proveedores más recientes con RNC de 9 dígitos numéricos).
+- `RNCEmisor` = RNC del proveedor (¡no el nuestro!, porque el e-CF41 documenta una COMPRA hecha por Abregonza).
+- `RNCComprador` = 130217432 (Abregonza).
+- Payload realista con montos, ITBIS, línea de item.
+- Escribir test XSD-gate `test_payload_corrida18_tipo_41_valida_contra_xsd` ANTES de enviar.
+- Riesgo: probable que aparezcan campos obligatorios de facto no documentados (mismo patrón histórico que 31/32/34). Cada rechazo pierde 4/4+2/2+1/1 acumulados. Si es la primera vez de un tipo, la aritmética favorece hacerlo justo ANTES de acumular más — pero el reset de 5 aceptados no es catastrófico si el runner puede rehacerlos rápido en la 19va con patrones ya conocidos.
+
+Opción B (más segura, cero riesgo): dejar el ciclo intacto en 4/4+2/2+1/1 y no enviar nada nuevo, esperando que el usuario decida sobre el 34. Solo tiene sentido si el bloqueo del 34 tiene ruta de resolución inminente por parte del usuario; de lo contrario es tiempo perdido.
+
+Recomendación: Opción A con 1×41. Si sale bien, 18va termina con 1/2 tipo 41 y ciclo intacto. Si sale mal, se pierden 4/4+2/2+1/1 pero se aprende un requisito real y la 19va reconstruye con patrón conocido — mismo ciclo que se viene ejecutando desde la 13va.
+
+Sin código nuevo esta corrida — solo scripts en `/tmp/` del contenedor (`ecf_17_probe.py`, `ecf_17_check.py`, `ecf_17_run31.py`, `ecf_17_run32.py`, `ecf_17_run33.py`, `ecf_17_run33b.py`, `ecf_17_check_venc.py`), no van al repo. Commit del plan maestro actualizado únicamente.
+
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
 
+- **2026-09-27 00:11-00:19 UTC (17va corrida)** — Runner scheduled. Fase 4
+  — reconstrucción limpia del ciclo tras el reset de la 16va corrida (34,
+  código 615). NO se tocó tipo 34 (bloqueo sigue activo). Portal previo
+  0/N. Probe DGII OK (token len 343). Envíos consecutivos con abort-on-
+  first: **4×31 Aceptados** (E310000000081-084 desde
+  FC-0007607/7766/7829/8076 vía `paso4-factura-real`, patrón validado 7
+  veces) + **2×32≥250K Aceptados** (E320000001016 CORTES 101001811 +
+  E320000001017 CONSORCIO RYLCO 131376292 vía `paso4-manual`, MontoTotal
+  295000 c/u, RNCs ya probados) + **1×33 Aceptado** (E330000000009 vía
+  `paso4-manual` con NCFModificado=E310000000083 FC-0007829 RNC 131265863
+  EMPRESA DISTRIBUIDORA PAE — coincidencia RNC comprador confirmada como
+  regla real por 15va). Portal final Playwright: **4/4 tipo 31 + 2/2 tipo
+  32≥250K + 1/1 tipo 33 + 0/N resto**, SIN nuevos reinicios (último sigue
+  siendo 26/09 4:18:17 PM). **Hallazgo operativo menor**: `paso4-manual`
+  consume secuencia ANTES del gate XSD-local, por lo que un payload sin
+  `FechaVencimientoSecuencia` (mi omisión inicial en 1er intento del 33)
+  quema secuencia con HTTP 400 sin llegar a DGII — E330000000008 quemada
+  así, sin envío ni reset. TODO defensivo documentado (mover pre-check
+  antes de `consumir_siguiente_encf` en `views.py`). También:
+  `fe_repo.get_documento` devuelve `rnc_comprador: None` en docs
+  enviados vía `paso4-factura-real` — impide implementar el guard de
+  coincidencia RNC recomendado por la 15va sin arreglar antes
+  `save_documento_enviado`. TFE_SECUENCIA post-corrida: 31→85, 32→1018,
+  33→10, 34→55 (bloqueada), 41-47→1. Rango tipo 31 se estrecha a 16
+  secuencias restantes. Sin código nuevo — solo scripts ad-hoc en /tmp/
+  del contenedor, no van al repo. Próximo paso (18va): 1×41 (Compras)
+  primer contacto de `construir_ecf_generico(41)` contra certecf, con
+  proveedor real de TCXP_FACTURA y test XSD-gate previo. Bloqueo 34
+  sigue esperando acción del usuario (soporte DGII con trackId
+  daeac04a-b4cd-4e27-89e4-a3d831513086).
+  Commits: (ver commit de esta corrida).
 - **2026-09-26 20:11-20:22 UTC (16va corrida)** — Runner scheduled. Fase 4
   — reenvío exitoso 4×31 (E310000000077-080, Aceptados) + 2×32≥250K
   (E320000001014 CORTES + E320000001015 RYLCO, Aceptados) tras arrancar
