@@ -1151,6 +1151,19 @@ def _gen_detalles_items(ecf, tipo_ecf: int, caps: dict, idx1_item: dict, idx2: d
                     "IndicadorAgenteRetencionoPercepcion es obligatorio "
                     f"(minOccurs=1) para este tipo; falta "
                     f"IndicadorAgenteRetencionoPercepcion[{n}] en 'datos'")
+            # Guard 19va corrida (2026-09-27): tipo 41 (Compras) exige
+            # MontoITBISRetenido de facto cuando IndicadorAgenteRetencionoPercepcion=1
+            # (Retencion), aunque el XSD lo marque minOccurs=0. Rechazo real
+            # con codigo 260 en la 18va corrida (E410000000001, trackId
+            # 00f0d6c2). Prevenir quemar mas secuencias 41.
+            if (tipo_ecf == 41 and str(ind_ret) == '1'
+                    and monto_itbis_ret is None):
+                raise ECFBuilderError(
+                    f"e-CF 41 Item[{n}]: Retencion/MontoITBISRetenido es "
+                    "obligatorio de facto ante DGII cuando "
+                    "IndicadorAgenteRetencionoPercepcion=1 (Retencion), "
+                    "aunque el XSD lo marque opcional; falta "
+                    f"MontoITBISRetenido[{n}] en 'datos'")
             if caps['item_retencion'] == 'mandatory_completo' and monto_isr_ret is None:
                 raise ECFBuilderError(
                     f"e-CF 47 Item[{n}]: Retencion/MontoISRRetenido es "

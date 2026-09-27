@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En curso — 18va corrida: primer contacto tipo 41 → **Rechazado código 260** "MontoITBISRetenido no es válido". Reset cascada borró 4/4+2/2+1/1 acumulados. Portal 0/N en los 11 renglones. Hallazgo NUEVO: MontoITBISRetenido obligatorio de facto en tipo 41 con IndicadorAgenteRetencionoPercepcion=1 (Retención), aunque XSD lo marque minOccurs=0. Bloqueo del 34 (código 615) sigue activo. Próxima corrida (19va): reconstruir ciclo (patrón conocido) + reintentar 1×41 con MontoITBISRetenido + TotalITBISRetenido y builder fix pendiente. | 2026-09-27 |
+| 4 | Pruebas Simulación e-CF | 🔲 En curso — 19va corrida: **PRIMER TIPO 41 ACEPTADO** por certecf con fix `MontoITBISRetenido[1]='900.00'` + `TotalITBISRetenido='900.00'`. Portal: 4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 + 1/2 tipo 41 + 0/N resto (34 bloqueado, 43-47/RFCE pendientes). Bloqueo del 34 (código 615) sigue activo. Próxima corrida (20va): 2do 1×41 (patrón validado), luego 1×43 primer contacto (Gastos Menores), 44-47 uno a uno. | 2026-09-27 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -1650,10 +1650,111 @@ Bloqueo del 34 (código 615 "saldo disponible") sigue activo — sin cambios en 
 
 Sin código nuevo desplegado esta corrida (solo test XSD-gate y comentario histórico). Fix del builder queda documentado como TODO obligatorio para la 19va antes de reintentar el 41.
 
+## Fase 4 — Hallazgos de la 19va corrida (2026-09-27) — PRIMER TIPO 41 ACEPTADO
+
+Portal previo Playwright: 0/N en los 11 renglones (tras reset de la 18va, 27/09 12:18:19 AM). TFE_SECUENCIA previo: 31→85, 32→1018, 33→10, 34→55, 41→2, 43-47→1. Probe DGII (`obtener_token`) OK, token len 343.
+
+### Fix del builder desplegado (TDD)
+
+`apps/fe/ecf_builder.py::_gen_detalles_items` — guard nuevo: si `tipo_ecf==41` AND `str(ind_ret)=='1'` (Retención) AND `monto_itbis_ret is None` → `ECFBuilderError` local. Tests:
+
+- `test_tipo_41_ind_retencion_1_sin_monto_itbis_retenido_lanza_error_corrida18` (defensivo, documenta el rechazo real de la 18va código 260)
+- `test_payload_corrida19_tipo_41_con_monto_itbis_retenido_valida_contra_xsd` (gate XSD-local con `_PAYLOAD_41_CORRIDA_19`, incluye `MontoITBISRetenido[1]='900.00'` + `TotalITBISRetenido='900.00'`)
+- `test_payload_corrida18_tipo_41_valida_contra_xsd` actualizado a `pytest.raises` (payload histórico ahora bloqueado por el guard, se conserva como documentación)
+- `_base_41()` fixture + `test_tipo_41_compras_valida_contra_xsd` actualizados con `MontoITBISRetenido[1]='18.00'`
+
+83/83 tests del módulo `test_ecf_builder_generico.py` + 228/228 del paquete `apps/fe/tests/` pasan localmente en el contenedor `facturation_backend` de la VM.
+
+### Ciclo completo Aceptado en un solo run (abort-on-first)
+
+Script `/tmp/ecf_19_run.py` autenticado como JCABREU con `Client.force_login`, 3s de pausa entre envíos, `consultar_estado` tras cada uno:
+
+| # | Tipo | e-NCF | trackId | Estado | fechaRecepcion |
+|---|------|-------|---------|--------|-----------------|
+| 1 | 31 | E310000000085 | 9abe4752-1a32-472b-b45f-bf3648408f3b | Aceptado | 9/27/2026 4:19:36 AM |
+| 2 | 31 | E310000000086 | 3f9009bc-ce05-4c1e-a824-ab786969f3b1 | Aceptado | 9/27/2026 4:19:40 AM |
+| 3 | 31 | E310000000087 | c3bda437-dc53-4c61-8212-5c7ab42b3216 | Aceptado | 9/27/2026 4:19:45 AM |
+| 4 | 31 | E310000000088 | 034e0c82-d6b5-4ee2-bc7f-1eb053c77bb9 | Aceptado | 9/27/2026 4:19:49 AM |
+| 5 | 32 | E320000001018 | 383a9159-dbba-4516-b6e7-012869be4f03 | Aceptado (CORTES 101001811, MT 295000) | 9/27/2026 4:19:54 AM |
+| 6 | 32 | E320000001019 | 95e6dea4-a94e-42aa-9688-dd08db52ef6a | Aceptado (RYLCO 131376292, MT 295000) | 9/27/2026 4:19:58 AM |
+| 7 | 33 | E330000000010 | fd1b81f2-86d5-40c5-80bc-2542bbad3f16 | Aceptado (NCFModificado=E310000000087 RNC 131265863 coincidente, CodMod=3) | 9/27/2026 4:20:03 AM |
+| 8 | 41 | E410000000002 | 4f62e8e7-c2f0-49f2-9f37-c507ecfe901e | **Aceptado** (INDUSTRIAS BISONO 101621516, MontoITBISRetenido 900.00, TotalITBISRetenido 900.00) | 9/27/2026 4:20:07 AM |
+
+**Portal (Playwright, 2026-09-27 ~04:20 UTC-4 / 08:18 UTC)**:
+- 4/4 Comprobantes tipo 31 ✅
+- 2/2 Comprobantes tipo 32 >= 250Mil ✅
+- 1/1 Comprobantes tipo 33 ✅
+- 0/2 tipo 34 (bloqueado, ver "Bloqueos activos")
+- **1/2 Comprobantes tipo 41** ✅ ← primer 41 aceptado por certecf en toda la certificación
+- 0/N el resto (43-47, RFCE)
+
+Log del portal SIN nuevos reinicios — el último sigue siendo el 27/09 12:18:19 AM (18va, rechazo del 41 sin `MontoITBISRetenido`). Fix del builder validado end-to-end contra certecf.
+
+### Hallazgo confirmado (patrón "XSD opcional / DGII exige" #7)
+
+Con base 5000 → ITBIS 900, retención al 100% → `MontoITBISRetenido='900.00'` en item + `TotalITBISRetenido='900.00'` en Totales. Ambos aceptados. Confirma la hipótesis de la 18va corrida: la DGII trata el `TotalITBISRetenido` como obligatorio de facto cuando hay retención por línea (mismo patrón histórico que `TotalITBIS`/`TotalITBIS1` en 31 — cuando hay breakdown por línea, DGII exige el total agregado).
+
+### Estado real de TFE_SECUENCIA (después de esta corrida)
+
+| Tipo | prox_secuencia | Notas |
+|------|----------------|-------|
+| 31 | 89 → E310000000089 | 085-088 quemadas Aceptadas |
+| 32 | 1020 → E320000001020 | 1018-1019 quemadas Aceptadas |
+| 33 | 11 → E330000000011 | 010 quemada Aceptada |
+| 34 | 55 → E340000000055 | sin cambios (bloqueada) |
+| 41 | 3 → E410000000003 | 002 quemada Aceptada |
+| 43-47 | 1 cada uno | sin cambios |
+
+Rango tipo 31 sigue estrechándose: 89 sobre 100 → quedan 12 secuencias. Si otro reset consume 4, quedarían 8. Sigue vigente el TODO administrativo: revisar con el usuario si conviene ampliar el rango 31 (ej. hasta 500) antes de que se agote.
+
+### Próximo paso para la corrida siguiente (20va)
+
+Con 1/2 tipo 41 asegurado y builder validado end-to-end, el patrón para el resto del grupo Primero (43-47) queda claro: enviar UNO por corrida con gate XSD-local previo, cubriendo cada campo obligatorio de facto que aparezca.
+
+Orden sugerido (menor a mayor riesgo, 1 tipo por corrida):
+
+1. **1×41 restante** (2/2) — patrón validado esta corrida, riesgo mínimo. Puede ir con OTRO proveedor real de CXP.TCXP_DPROVEEDOR o el mismo INDUSTRIAS BISONO con distinta línea. Se puede hacer solo esto en la 20va y avanzar a 2/2 tipo 41.
+2. **1×43 (Gastos Menores)** — primer contacto real del builder-43 contra certecf. Payload mínimo: sin RNCComprador (43 no tiene bloque Comprador), sin retención (`item_retencion='no'`), sin TipoIngresos. Ver `test_tipo_43_gastos_menores_valida_contra_xsd` como plantilla. Investigar campos obligatorios de facto — probable riesgo similar a 41 (cascada por primer contacto).
+3. **1×44 (Regímenes Especiales)** — con `TipoIngresos` obligatorio (caps `tipo_ingresos_mandatory=True`), `TipoPago` mandatory, `RazonSocialComprador` mandatory. Sin retención.
+4. **1×45 (Gubernamental)** — RNC+RazonSocial comprador mandatory, TipoIngresos mandatory, TipoPago mandatory. Sin retención.
+5. **1×46 (Exportaciones)** — RazonSocial comprador mandatory, con Transporte + PaisDestino. Sin RNC comprador. Sin retención.
+6. **1×47 (Pagos al Exterior)** — comprador reducido, PaisDestino, `item_retencion='mandatory_completo'` (exige MontoISRRetenido). Payload más complejo.
+7. **RFCE (4×32<250Mil)** al final (grupo Tercero), luego los 4 e-CF32 correspondientes por widget manual (grupo Cuarto).
+
+**Bloqueo del 34 sigue activo** — requiere acción del usuario (soporte DGII con trackId `daeac04a-b4cd-4e27-89e4-a3d831513086`). Runner NO debe reintentar 1×34 en la 20va+.
+
+Código nuevo desplegado esta corrida: `apps/fe/ecf_builder.py` (guard 41+MontoITBISRetenido) + `apps/fe/tests/test_ecf_builder_generico.py` (4 tests actualizados/nuevos, 1 fixture ajustada).
+
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
 
+- **2026-09-27 08:10-08:20 UTC (19va corrida)** — Runner scheduled. Fase 4
+  — **PRIMER TIPO 41 ACEPTADO** por certecf. Fix del builder desplegado
+  (`_gen_detalles_items`: `ECFBuilderError` si `tipo_ecf==41 && ind_ret==1
+  && MontoITBISRetenido is None`), con 4 tests actualizados/nuevos
+  (`test_tipo_41_ind_retencion_1_sin_monto_itbis_retenido_lanza_error_corrida18`,
+  `test_payload_corrida19_tipo_41_con_monto_itbis_retenido_valida_contra_xsd`,
+  `_PAYLOAD_41_CORRIDA_19` con `MontoITBISRetenido='900.00'` +
+  `TotalITBISRetenido='900.00'`; `_base_41` fixture + test histórico
+  del 41 con retención ahora requieren el monto). 83/83 tests módulo
+  + 228/228 paquete `apps/fe/tests/` pasan. Probe DGII OK (token len
+  343). Ciclo completo Aceptado con abort-on-first: **4×31 Aceptados**
+  (E310000000085-088 desde FC-0007607/7766/7829/8076 vía
+  `paso4-factura-real`) + **2×32≥250K Aceptados** (E320000001018 CORTES
+  101001811 + E320000001019 RYLCO 131376292, MontoTotal 295000 c/u) +
+  **1×33 Aceptado** (E330000000010 vía `paso4-manual`, NCFModificado=
+  E310000000087 FC-0007829 RNC 131265863 coincidente, CodigoModificacion
+  3) + **1×41 Aceptado** (E410000000002 INDUSTRIAS BISONO 101621516,
+  4:20:07 AM UTC-4). Portal Playwright confirma **4/4 tipo 31 + 2/2 tipo
+  32≥250K + 1/1 tipo 33 + 1/2 tipo 41 + 0/N resto**, sin nuevos reinicios
+  (último sigue siendo 27/09 12:18:19 AM). Bloqueo 34 sigue activo (sin
+  cambios, requiere acción del usuario). TFE_SECUENCIA post-corrida:
+  31→89, 32→1020, 33→11, 34→55, 41→3, 43-47→1. Rango tipo 31 se estrecha
+  a 12 secuencias restantes. Próximo paso (20va): 2do 1×41 (patrón
+  validado, ir a 2/2) o 1×43 primer contacto de builder-43 contra
+  certecf. Después 44-47 uno a uno, luego RFCE.
+  Commits: (ver commit de esta corrida).
 - **2026-09-27 04:10-04:19 UTC (18va corrida)** — Runner scheduled. Fase 4
   — primer contacto tipo 41 (Compras) con builder `construir_ecf_generico(41)`
   contra certecf. Portal previo 4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo

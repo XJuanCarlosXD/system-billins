@@ -364,6 +364,7 @@ def test_tipo_41_compras_valida_contra_xsd():
         'MontoTotal': '100.00',
         'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1,
         'IndicadorAgenteRetencionoPercepcion[1]': 1,
+        'MontoITBISRetenido[1]': '18.00',
         'NombreItem[1]': 'COMPRA ZZTEST', 'IndicadorBienoServicio[1]': 1,
         'CantidadItem[1]': '1.00', 'PrecioUnitarioItem[1]': '100.00',
         'MontoItem[1]': '100.00',
@@ -374,6 +375,27 @@ def test_tipo_41_compras_valida_contra_xsd():
     assert root.findtext('.//IdDoc/TipoeCF') == '41'
     assert root.find('.//IdDoc/TipoIngresos') is None
     assert root.findtext('.//DetallesItems/Item/Retencion/IndicadorAgenteRetencionoPercepcion') == '1'
+    assert root.findtext('.//DetallesItems/Item/Retencion/MontoITBISRetenido') == '18.00'
+
+
+def test_tipo_41_ind_retencion_1_sin_monto_itbis_retenido_lanza_error_corrida18():
+    """Guard 19va corrida: rechazo real de la 18va (E410000000001, codigo 260
+    "MontoITBISRetenido no es valido") confirmo que la DGII exige el monto de
+    ITBIS retenido en el item cuando IndicadorAgenteRetencionoPercepcion=1
+    (Retencion), aunque el XSD lo marque minOccurs=0. El builder ahora
+    levanta ECFBuilderError localmente para no quemar mas secuencias 41."""
+    datos = {
+        'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
+        'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
+        'FechaVencimientoSecuencia': '31-12-2028',
+        'RNCComprador': '101623232', 'RazonSocialComprador': 'PROVEEDOR ZZTEST',
+        'MontoTotal': '100.00', 'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1,
+        'IndicadorAgenteRetencionoPercepcion[1]': 1,
+        'NombreItem[1]': 'X', 'IndicadorBienoServicio[1]': 1, 'CantidadItem[1]': '1.00',
+        'PrecioUnitarioItem[1]': '100.00', 'MontoItem[1]': '100.00',
+    }
+    with pytest.raises(ecf_builder.ECFBuilderError, match='MontoITBISRetenido'):
+        ecf_builder.construir_ecf_generico(41, 'E410000000009', datos)
 
 
 def test_tipo_41_sin_indicador_agente_retencion_lanza_error():
@@ -441,17 +463,65 @@ _PAYLOAD_41_CORRIDA_18 = {
 
 
 def test_payload_corrida18_tipo_41_valida_contra_xsd():
+    """PAYLOAD HISTORICO: como paso el gate XSD-local antes del envio real
+    de la 18va corrida. Se conserva para trazabilidad pero YA NO se puede
+    construir con el builder tras el fix de la 19va (que exige
+    MontoITBISRetenido cuando ind_ret=1). Ver test siguiente para el fix."""
+    with pytest.raises(ecf_builder.ECFBuilderError, match='MontoITBISRetenido'):
+        ecf_builder.construir_ecf_generico(
+            41, 'E410000000001', _PAYLOAD_41_CORRIDA_18)
+
+
+# ------------------------------------------------------------------------
+# 19va corrida (2026-09-27) — payload tipo 41 corregido con el hallazgo
+# de la 18va: MontoITBISRetenido en item + TotalITBISRetenido en Totales
+# cuando IndicadorAgenteRetencionoPercepcion=1. Retencion del ITBIS al
+# 100% de la base gravada (Norma DGII: agente de retencion retiene todo
+# el ITBIS de compras a informales). ITBIS 18% sobre 5000 → 900 retenido.
+# ------------------------------------------------------------------------
+_PAYLOAD_41_CORRIDA_19 = {
+    'RNCEmisor': '130217432',
+    'RazonSocialEmisor': 'ABREGONZA COMERCIAL SRL',
+    'DireccionEmisor': 'AV LOPE DE VEGA #55, ENSANCHE NACO, SANTO DOMINGO',
+    'FechaEmision': '27-09-2026',
+    'FechaVencimientoSecuencia': '31-12-2028',
+    'IndicadorMontoGravado': 0,
+    'TipoPago': 1,
+    'RNCComprador': '101621516',
+    'RazonSocialComprador': 'INDUSTRIAS BISONO, SRL',
+    'MontoGravadoTotal': '5000.00',
+    'MontoGravadoI1': '5000.00',
+    'ITBIS1': '18',
+    'TotalITBIS': '900.00',
+    'TotalITBIS1': '900.00',
+    'TotalITBISRetenido': '900.00',
+    'MontoTotal': '5900.00',
+    'NumeroLinea[1]': 1,
+    'IndicadorFacturacion[1]': 1,
+    'IndicadorAgenteRetencionoPercepcion[1]': 1,
+    'MontoITBISRetenido[1]': '900.00',
+    'NombreItem[1]': 'Compra materia prima',
+    'IndicadorBienoServicio[1]': 1,
+    'CantidadItem[1]': '1.00',
+    'PrecioUnitarioItem[1]': '5000.00',
+    'MontoItem[1]': '5000.00',
+}
+
+
+def test_payload_corrida19_tipo_41_con_monto_itbis_retenido_valida_contra_xsd():
     xml_str = ecf_builder.construir_ecf_generico(
-        41, 'E410000000001', _PAYLOAD_41_CORRIDA_18)
+        41, 'E410000000002', _PAYLOAD_41_CORRIDA_19)
     _validar_estructura_contra_xsd(xml_str, 41)
     root = etree.fromstring(xml_str.encode('utf-8'))
     assert root.findtext('.//IdDoc/TipoeCF') == '41'
-    assert root.find('.//IdDoc/TipoIngresos') is None
     assert root.findtext('.//Emisor/RNCEmisor') == '130217432'
     assert root.findtext('.//Comprador/RNCComprador') == '101621516'
     assert (root.findtext(
         './/DetallesItems/Item/Retencion/IndicadorAgenteRetencionoPercepcion')
         == '1')
+    assert (root.findtext(
+        './/DetallesItems/Item/Retencion/MontoITBISRetenido') == '900.00')
+    assert root.findtext('.//Totales/TotalITBISRetenido') == '900.00'
     assert root.findtext('.//Totales/MontoTotal') == '5900.00'
 
 
@@ -621,6 +691,7 @@ def _base_41():
         'RNCComprador': '101623232', 'RazonSocialComprador': 'PROVEEDOR ZZTEST',
         'MontoTotal': '100.00', 'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1,
         'IndicadorAgenteRetencionoPercepcion[1]': 1,
+        'MontoITBISRetenido[1]': '18.00',
         'NombreItem[1]': 'X', 'IndicadorBienoServicio[1]': 1, 'CantidadItem[1]': '1.00',
         'PrecioUnitarioItem[1]': '100.00', 'MontoItem[1]': '100.00',
     }
