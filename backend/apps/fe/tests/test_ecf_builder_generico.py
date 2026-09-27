@@ -393,6 +393,68 @@ def test_tipo_41_sin_indicador_agente_retencion_lanza_error():
         ecf_builder.construir_ecf_generico(41, 'E410000000008', datos)
 
 
+# ------------------------------------------------------------------------
+# 18va corrida (2026-09-27) — primer contacto real de tipo 41 (Compras)
+# contra certecf. Gate XSD-local previo al envio a `paso4-manual`. Payload
+# usa proveedor real de CXP.TCXP_DPROVEEDOR (INDUSTRIAS BISONO SRL,
+# no_proveedor 000045, RNC 101621516). Abregonza (RNCEmisor=130217432)
+# emite el e-CF41 documentando la compra.
+#
+# **RECHAZADO por certecf** (E410000000001, trackId
+# 00f0d6c2-0eb3-4fb7-907f-309d21cac94e, 27/09 12:18:19 AM UTC-4) con
+# codigo 260 "El campo MontoITBISRetenido de la seccion DetallesItems de
+# la linea 1 no es valido". Reset cascada perdio 4/4 tipo 31 + 2/2 tipo
+# 32>=250K + 1/1 tipo 33. Hallazgo NUEVO: MontoITBISRetenido es
+# obligatorio de facto en tipo 41 cuando IndicadorAgenteRetencionoPercepcion=1
+# (Retencion), aunque el XSD lo marque minOccurs=0. Mismo patron ya visto
+# con TipoIngresos en 34 (13va), MontoGravadoI1 en 31 (1ra-2da), etc.
+#
+# El test SIGUE siendo verdadero: el payload PASA la validacion XSD-local
+# (por eso el gate fue verde). La falla es en validacion server-side de
+# DGII, no en XSD. Se conserva como documentacion historica del intento.
+# ------------------------------------------------------------------------
+_PAYLOAD_41_CORRIDA_18 = {
+    'RNCEmisor': '130217432',
+    'RazonSocialEmisor': 'ABREGONZA COMERCIAL SRL',
+    'DireccionEmisor': 'AV LOPE DE VEGA #55, ENSANCHE NACO, SANTO DOMINGO',
+    'FechaEmision': '27-09-2026',
+    'FechaVencimientoSecuencia': '31-12-2028',
+    'IndicadorMontoGravado': 0,
+    'TipoPago': 1,
+    'RNCComprador': '101621516',
+    'RazonSocialComprador': 'INDUSTRIAS BISONO, SRL',
+    'MontoGravadoTotal': '5000.00',
+    'MontoGravadoI1': '5000.00',
+    'ITBIS1': '18',
+    'TotalITBIS': '900.00',
+    'TotalITBIS1': '900.00',
+    'MontoTotal': '5900.00',
+    'NumeroLinea[1]': 1,
+    'IndicadorFacturacion[1]': 1,
+    'IndicadorAgenteRetencionoPercepcion[1]': 1,
+    'NombreItem[1]': 'Compra materia prima',
+    'IndicadorBienoServicio[1]': 1,
+    'CantidadItem[1]': '1.00',
+    'PrecioUnitarioItem[1]': '5000.00',
+    'MontoItem[1]': '5000.00',
+}
+
+
+def test_payload_corrida18_tipo_41_valida_contra_xsd():
+    xml_str = ecf_builder.construir_ecf_generico(
+        41, 'E410000000001', _PAYLOAD_41_CORRIDA_18)
+    _validar_estructura_contra_xsd(xml_str, 41)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.findtext('.//IdDoc/TipoeCF') == '41'
+    assert root.find('.//IdDoc/TipoIngresos') is None
+    assert root.findtext('.//Emisor/RNCEmisor') == '130217432'
+    assert root.findtext('.//Comprador/RNCComprador') == '101621516'
+    assert (root.findtext(
+        './/DetallesItems/Item/Retencion/IndicadorAgenteRetencionoPercepcion')
+        == '1')
+    assert root.findtext('.//Totales/MontoTotal') == '5900.00'
+
+
 def test_tipo_43_gastos_menores_valida_contra_xsd():
     datos = {
         'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',

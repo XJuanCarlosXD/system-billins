@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En curso — 17va corrida: reconstruyó ciclo tras el reset de la 16va — 4×31 (E310000000081-084 FC-0007607/7766/7829/8076, Aceptados vía `paso4-factura-real`) + 2×32≥250K (E320000001016 CORTES 101001811 + E320000001017 RYLCO 131376292, Aceptados vía `paso4-manual`) + 1×33 (E330000000009, Aceptado vía `paso4-manual` con NCFModificado=E310000000083 FC-0007829 RNC 131265863 coincidente). Portal 4/4+2/2+1/1, 0/N resto, sin nuevos reinicios. Bloqueo del 34 (código 615 "saldo disponible") **sigue activo** — 17va no lo tocó. Falta resolver bloqueo 34 + 2×41-47 + 4 RFCE + 4 e-CF32 (widget manual grupo Cuarto). | 2026-09-27 |
+| 4 | Pruebas Simulación e-CF | 🔲 En curso — 18va corrida: primer contacto tipo 41 → **Rechazado código 260** "MontoITBISRetenido no es válido". Reset cascada borró 4/4+2/2+1/1 acumulados. Portal 0/N en los 11 renglones. Hallazgo NUEVO: MontoITBISRetenido obligatorio de facto en tipo 41 con IndicadorAgenteRetencionoPercepcion=1 (Retención), aunque XSD lo marque minOccurs=0. Bloqueo del 34 (código 615) sigue activo. Próxima corrida (19va): reconstruir ciclo (patrón conocido) + reintentar 1×41 con MontoITBISRetenido + TotalITBISRetenido y builder fix pendiente. | 2026-09-27 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -1574,10 +1574,111 @@ Recomendación: Opción A con 1×41. Si sale bien, 18va termina con 1/2 tipo 41 
 
 Sin código nuevo esta corrida — solo scripts en `/tmp/` del contenedor (`ecf_17_probe.py`, `ecf_17_check.py`, `ecf_17_run31.py`, `ecf_17_run32.py`, `ecf_17_run33.py`, `ecf_17_run33b.py`, `ecf_17_check_venc.py`), no van al repo. Commit del plan maestro actualizado únicamente.
 
+## Fase 4 — Hallazgos de la 18va corrida (2026-09-27) — CRÍTICO: MontoITBISRetenido obligatorio de facto en tipo 41
+
+Portal previo Playwright: 4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 + 0/N resto (residual de la 17va). TFE_SECUENCIA previo: 31→85, 32→1018, 33→10, 34→55, **41-47→1** cada uno. Probe DGII OK (token len 343). Se eligió tipo 41 como próximo (opción A de la 17va), proveedor real INDUSTRIAS BISONO SRL (RNC 101621516, no_proveedor 000045, seleccionado de CXP.TCXP_DPROVEEDOR filtro RNC 9 dígitos + existe en TCXP_DOCUMENTO).
+
+Test XSD-gate agregado (`test_payload_corrida18_tipo_41_valida_contra_xsd`), 81/81 tests pasan localmente en el contenedor. Payload (`_PAYLOAD_41_CORRIDA_18` en `test_ecf_builder_generico.py`):
+
+```python
+{
+    'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA COMERCIAL SRL',
+    'DireccionEmisor': 'AV LOPE DE VEGA #55, ENSANCHE NACO, SANTO DOMINGO',
+    'FechaEmision': '27-09-2026', 'FechaVencimientoSecuencia': '31-12-2028',
+    'IndicadorMontoGravado': 0, 'TipoPago': 1,
+    'RNCComprador': '101621516', 'RazonSocialComprador': 'INDUSTRIAS BISONO, SRL',
+    'MontoGravadoTotal': '5000.00', 'MontoGravadoI1': '5000.00',
+    'ITBIS1': '18', 'TotalITBIS': '900.00', 'TotalITBIS1': '900.00',
+    'MontoTotal': '5900.00',
+    'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1,
+    'IndicadorAgenteRetencionoPercepcion[1]': 1,
+    'NombreItem[1]': 'Compra materia prima',
+    'IndicadorBienoServicio[1]': 1, 'CantidadItem[1]': '1.00',
+    'PrecioUnitarioItem[1]': '5000.00', 'MontoItem[1]': '5000.00',
+}
+```
+
+**E410000000001** (trackId `00f0d6c2-0eb3-4fb7-907f-309d21cac94e`, 27/09 12:18:19 AM UTC-4) **Rechazado**:
+
+```json
+{"codigo":"2","estado":"Rechazado","secuenciaUtilizada":true,
+ "mensajes":[{"valor":"El campo MontoITBISRetenido de la sección
+              DetallesItems de la línea 1 no es válido","codigo":260}]}
+```
+
+Rechazo cascada borró TODO (4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33). Portal Playwright post-corrida: 0/N en los 11 renglones. Log del portal a las 27/09 12:18:19 AM confirma el reset con el mismo mensaje literal.
+
+### Hallazgo NUEVO — MontoITBISRetenido obligatorio de facto en tipo 41
+
+Cuando `IndicadorAgenteRetencionoPercepcion=1` (Retención) en un item de tipo 41, DGII exige el `MontoITBISRetenido` en ese item, aunque el XSD lo marque `minOccurs=0` (línea 158 de `e-CF-41-v1.0.xsd`). Mismo patrón "XSD dice opcional, DGII exige" ya visto históricamente con `TipoIngresos` en 34 (13va), `IndicadorMontoGravado`/`FechaLimitePago`/`MontoGravadoI1` en 31 (1ra-2da). Sin confirmación empírica todavía, es MUY probable que `TotalITBISRetenido` a nivel Totales también sea obligatorio de facto (regla histórica: cuando hay breakdown por línea, DGII exige el total agregado — ver bug del 31 con `TotalITBIS1`/`TotalITBIS2`/`TotalITBIS3`).
+
+Con ITBIS 18% sobre base 5000 → ITBIS = 900. Retención estándar DGII para servicios/compras a proveedores informales por parte de agentes de retención es **100% del ITBIS** (Norma 02-05 y sucesoras) → `MontoITBISRetenido` = 900.00 (todo el ITBIS retenido).
+
+### Recomendación de fix para el builder (TODO — la 19va lo aplica)
+
+En `apps/fe/ecf_builder.py::_gen_detalles_items` (bloque item retencion, líneas ~1142-1166), agregar guard defensivo: si `tipo_ecf == 41` AND `ind_ret == 1` (Retención) AND `monto_itbis_ret is None` → levantar `ECFBuilderError` local antes de firmar/enviar. Test espejo del histórico `test_tipo_41_sin_indicador_agente_retencion_lanza_error`.
+
+Opcionalmente, agregar también un tercer modo de `caps['item_retencion']` (ej. `mandatory_indicador_y_itbis_si_retencion`) o simplemente incluir esta regla especial en el flujo actual (`mandatory_indicador`) — más simple y localizado.
+
+### Estado real de TFE_SECUENCIA (después de esta corrida)
+
+| Tipo | prox_secuencia | Notas |
+|------|----------------|-------|
+| 31 | 85 → E310000000085 | sin cambios |
+| 32 | 1018 → E320000001018 | sin cambios |
+| 33 | 10 → E330000000010 | sin cambios |
+| 34 | 55 → E340000000055 | sin cambios (bloqueada) |
+| 41 | 2 → E410000000002 | **001 quemada Rechazada** |
+| 43-47 | 1 cada uno | sin cambios |
+
+### Próximo paso para la corrida siguiente (19va)
+
+1. **Aplicar fix del builder** (`_gen_detalles_items`: forzar `MontoITBISRetenido` cuando `tipo_ecf==41` y `ind_ret==1`), con tests (`test_tipo_41_ind_retencion_1_sin_monto_itbis_retenido_lanza_error_corrida18`), deploy a la VM.
+2. **Rehacer 4×31** (E310000000085-088) — patrón validado 7 veces, riesgo mínimo.
+3. **Rehacer 2×32≥250K** — CORTES+RYLCO (E320000001018-1019), builder validado 6 veces.
+4. **Rehacer 1×33** — payload igual al de la 17va (`NCFModificado=E310000000087` = FC-0007829 nuevo, `RNCComprador=131265863` coincidente), próxima 33 → E330000000010.
+5. **Reintentar 1×41** con payload corregido:
+   - Agregar `MontoITBISRetenido[1]: '900.00'` al item
+   - Agregar `TotalITBISRetenido: '900.00'` a nivel Totales (defensivo, XSD línea 104 lo permite; muy probable de-facto obligatorio también)
+   - Todo lo demás igual al `_PAYLOAD_41_CORRIDA_18`
+   - Próxima secuencia 41 → E410000000002
+   - Gate XSD-local previo obligatorio
+
+Si el 19va falla en el 41 por `TotalITBISRetenido` u otro campo, ir de a uno — igual patrón que 1ra→2da→3ra que resolvieron los 3 bugs iniciales del 31.
+
+Bloqueo del 34 (código 615 "saldo disponible") sigue activo — sin cambios en esta corrida.
+
+Sin código nuevo desplegado esta corrida (solo test XSD-gate y comentario histórico). Fix del builder queda documentado como TODO obligatorio para la 19va antes de reintentar el 41.
+
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
 
+- **2026-09-27 04:10-04:19 UTC (18va corrida)** — Runner scheduled. Fase 4
+  — primer contacto tipo 41 (Compras) con builder `construir_ecf_generico(41)`
+  contra certecf. Portal previo 4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo
+  33 + 0/N resto. Proveedor real elegido: INDUSTRIAS BISONO SRL (RNC
+  101621516, no_proveedor 000045 CXP.TCXP_DPROVEEDOR). Test XSD-gate
+  `test_payload_corrida18_tipo_41_valida_contra_xsd` agregado, 81/81 tests
+  pasan en contenedor. Probe DGII OK (token len 343). **E410000000001**
+  (trackId `00f0d6c2-0eb3-4fb7-907f-309d21cac94e`, 12:18:19 AM UTC-4)
+  **Rechazado código 260** "El campo MontoITBISRetenido de la sección
+  DetallesItems de la línea 1 no es válido". Reset cascada borró
+  4/4+2/2+1/1 acumulados. Portal final: 0/N en los 11 renglones.
+  **Hallazgo NUEVO**: `MontoITBISRetenido` obligatorio de facto en tipo
+  41 cuando `IndicadorAgenteRetencionoPercepcion=1` (Retención), aunque
+  XSD lo marque `minOccurs=0`. Mismo patrón "XSD opcional / DGII exige"
+  ya visto históricamente. **Sin fix del builder aplicado esta corrida**
+  (budget) — dejado como TODO obligatorio para la 19va con guía exacta
+  (guard en `_gen_detalles_items`, forzar `MontoITBISRetenido` cuando
+  `tipo_ecf==41 && ind_ret==1`). Costo: 1 secuencia 41 quemada
+  Rechazada (001) + reset ciclo. Bloqueo 34 sigue activo. TFE_SECUENCIA
+  post-corrida: 31→85, 32→1018, 33→10, 34→55, 41→2, 43-47→1. Próximo
+  paso (19va): aplicar fix del builder + rehacer ciclo (4×31+2×32≥250K+
+  1×33) + reintentar 1×41 con `MontoITBISRetenido='900.00'` en item Y
+  `TotalITBISRetenido='900.00'` a nivel Totales (defensivo, probable
+  también de-facto obligatorio por patrón histórico de breakdown+total).
+  Commits: (ver commit de esta corrida).
 - **2026-09-27 00:11-00:19 UTC (17va corrida)** — Runner scheduled. Fase 4
   — reconstrucción limpia del ciclo tras el reset de la 16va corrida (34,
   código 615). NO se tocó tipo 34 (bloqueo sigue activo). Portal previo
