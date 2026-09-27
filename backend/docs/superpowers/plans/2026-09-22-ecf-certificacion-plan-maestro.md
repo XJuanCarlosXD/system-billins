@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En curso — 20va corrida: **2/2 tipo 41 completo** (E410000000003 Aceptado, INDUSTRIAS BISONO). Portal: 4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 + 2/2 tipo 41 + 0/N resto (34 bloqueado, 43-47/RFCE pendientes). Bloqueo del 34 (código 615) sigue activo. Próxima corrida (21va): 1×43 primer contacto (Gastos Menores) con gate XSD-local previo, luego 44-47 uno a uno, RFCE al final. | 2026-09-27 |
+| 4 | Pruebas Simulación e-CF | 🔲 En curso — 21va corrida: **primer 1/2 tipo 43 Aceptado** (E430000000004, "Agua potable oficina", IndicadorFacturacion=4 Exento + MontoExento=150). Portal: 0/N en los 11 renglones tras cascada doble (rechazos códigos 1209 y 244). Bloqueo 34 (código 615) sigue activo. Próxima (22va): rehacer ciclo 4×31+2×32≥250K+1×33+2×41+1×43 con builder ya validado; después 1×43 2do + 1×44 (Regímenes Especiales) primer contacto. | 2026-09-27 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -1787,6 +1787,46 @@ Con 2/2 tipo 41 asegurado, el siguiente tipo nuevo es el **1×43 (Gastos Menores
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
+
+- **2026-09-27 16:14-16:24 UTC (21va corrida)** — Runner scheduled. Fase 4
+  — **PRIMER TIPO 43 ACEPTADO** por certecf tras 3 rechazos de aprendizaje.
+  Portal previo Playwright: 4/4+2/2+1/1+2/2+0/N resto (residual 20va, sin
+  nuevos reinicios). TFE_SECUENCIA previo: 43→1. Probe DGII OK (token 343).
+  Test XSD-gate `test_payload_corrida21_tipo_43_valida_contra_xsd`
+  agregado, 84/84 tests módulo pasan. **3 rechazos consecutivos que
+  agotaron el ciclo acumulado** (perdidos 9/N aceptados de corridas 17-20):
+  (1) **E430000000001 código 1209** "secuencia ya utilizada" con
+  `secuenciaUtilizada:false` — E430000000001 estaba quemada en el lado
+  DGII (envío histórico no documentado, quizás Modo Test antes del inicio
+  formal de certificación); portal reiniciado en cascada.
+  (2) **E430000000002 código 244** "solo permiten indicador de facturación
+  exento" con `IndicadorFacturacion=2` — descubierto que el catálogo DGII
+  es 1=18%, 2=16%, 3=0%, **4=Exento** (usé 2 pensando que era exento; es
+  16% ITBIS). Para tipo 43 SOLO IndicadorFacturacion=4 es válido.
+  (3) **E430000000003 código 1960** "MontoExento de Totales no es válido"
+  con `IndicadorFacturacion=4` sin `MontoExento` — descubierto que cuando
+  hay línea exenta la DGII exige `MontoExento` en Totales aunque el XSD
+  linea 32 lo marque `minOccurs=0`. Patrón "XSD opcional / DGII exige" #8.
+  Fix payload: agregado `MontoExento: '150.00'` al mismo nivel de
+  MontoTotal. (4) **E430000000004 ACEPTADO** (trackId `4e8a93e0-1e4b-44a9-
+  8488-22b9f99cb636`, 12:23:00 PM UTC-4) con IndicadorFacturacion=4 +
+  MontoExento=150 + MontoTotal=150. Portal final Playwright (pre-último
+  envío exitoso, no re-verificado post-Aceptado por budget): 0/N tras los
+  cascadas. `_PAYLOAD_43_CORRIDA_21` en el test actualizado al payload
+  correcto final para trazabilidad. **TODO obligatorio para la 22va antes
+  de reintentar 43** (mismo patrón que 18va→19va con el fix del 41):
+  agregar guards defensivos en `apps/fe/ecf_builder.py` para tipo 43:
+  (a) si `tipo_ecf==43 && str(IndicadorFacturacion)!='4'` → `ECFBuilderError`;
+  (b) si `tipo_ecf==43 && MontoExento is None` → `ECFBuilderError`. Tests
+  espejo. Costo: 9/N acumulados perdidos + 3 secuencias 43 quemadas (001
+  pre-existente, 002/003 rechazadas). Ganancia neta: primer 43 Aceptado
+  + regla nueva confirmada + patrón XSD/DGII #8 documentado.
+  TFE_SECUENCIA post-corrida: 31→89, 32→1020, 33→11, 34→55, 41→4, 43→5,
+  44-47→1. Bloqueo 34 sigue activo. Próximo paso (22va): (1) desplegar
+  guards defensivos del builder 43; (2) rehacer 4×31+2×32≥250K+1×33+2×41+
+  1×43 con patrón validado (~5-6 min end-to-end, mínimo riesgo); (3)
+  2×43 2do envío y 1×44 primer contacto. Commit incluye: test XSD-gate
+  actualizado + plan maestro.
 
 - **2026-09-27 12:10-12:18 UTC (20va corrida)** — Runner scheduled. Fase 4
   — **2/2 tipo 41 completo**. Portal previo 4/4+2/2+1/1+1/2 (residual de

@@ -525,6 +525,52 @@ def test_payload_corrida19_tipo_41_con_monto_itbis_retenido_valida_contra_xsd():
     assert root.findtext('.//Totales/MontoTotal') == '5900.00'
 
 
+# ------------------------------------------------------------------------
+# 21va corrida (2026-09-27) -- primer contacto tipo 43 (Gastos Menores)
+# contra certecf. Payload final tras dos rechazos empiricos:
+#   1) IndicadorFacturacion=2 (=16% ITBIS, NO Exento) -> codigo 244 "solo
+#      permiten indicador de facturacion exento". Catalogo DGII: 1=18%,
+#      2=16%, 3=0%, 4=Exento. El unico permitido para 43 es 4.
+#   2) IndicadorFacturacion=4 sin MontoExento -> codigo 1960 "MontoExento
+#      de Totales no es valido". Patron "XSD opcional / DGII exige" #8
+#      (XSD linea 32 lo marca minOccurs=0, DGII lo exige cuando hay linea
+#      exenta).
+# Payload correcto: IndicadorFacturacion=4 + MontoExento=MontoItem exento
+# + MontoTotal. Aceptado E430000000004 (trackId 4e8a93e0-1e4b-44a9-8488-
+# 22b9f99cb636, 12:23:00 PM UTC-4). Ver plan maestro 21va corrida.
+# ------------------------------------------------------------------------
+_PAYLOAD_43_CORRIDA_21 = {
+    'RNCEmisor': '130217432',
+    'RazonSocialEmisor': 'ABREGONZA COMERCIAL SRL',
+    'DireccionEmisor': 'AV LOPE DE VEGA #55, ENSANCHE NACO, SANTO DOMINGO',
+    'FechaEmision': '27-09-2026',
+    'FechaVencimientoSecuencia': '31-12-2028',
+    'MontoExento': '150.00',
+    'MontoTotal': '150.00',
+    'NumeroLinea[1]': 1,
+    'IndicadorFacturacion[1]': 4,
+    'NombreItem[1]': 'Agua potable oficina',
+    'IndicadorBienoServicio[1]': 1,
+    'CantidadItem[1]': '3.00',
+    'PrecioUnitarioItem[1]': '50.00',
+    'MontoItem[1]': '150.00',
+}
+
+
+def test_payload_corrida21_tipo_43_valida_contra_xsd():
+    xml_str = ecf_builder.construir_ecf_generico(
+        43, 'E430000000004', _PAYLOAD_43_CORRIDA_21)
+    _validar_estructura_contra_xsd(xml_str, 43)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.findtext('.//IdDoc/TipoeCF') == '43'
+    assert root.findtext('.//Emisor/RNCEmisor') == '130217432'
+    assert root.find('.//Comprador') is None
+    assert root.find('.//DetallesItems/Item/Retencion') is None
+    assert root.findtext('.//DetallesItems/Item/IndicadorFacturacion') == '4'
+    assert root.findtext('.//Totales/MontoExento') == '150.00'
+    assert root.findtext('.//Totales/MontoTotal') == '150.00'
+
+
 def test_tipo_43_gastos_menores_valida_contra_xsd():
     datos = {
         'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
