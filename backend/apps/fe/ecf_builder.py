@@ -1050,6 +1050,16 @@ def _gen_totales(totales, tipo_ecf: int, caps: dict, simple: dict, idx1_header: 
         for campo in ('MontoGravadoTotal', 'MontoGravadoI1', 'MontoGravadoI2', 'MontoGravadoI3'):
             if simple.get(campo) is not None:
                 _sub(totales, campo, _valor_texto(simple[campo], monetario=True))
+    # Guard 22va corrida (2026-09-27): tipo 43 (Gastos Menores) siempre tiene
+    # lineas exentas (IndicadorFacturacion=4), asi que DGII exige MontoExento
+    # en Totales aunque el XSD linea 32 lo marque minOccurs=0. Rechazo real
+    # de la 21va (E430000000003, codigo 1960 "MontoExento de Totales no es
+    # valido") por omitirlo. Patron "XSD opcional / DGII exige" #8.
+    if tipo_ecf == 43 and simple.get('MontoExento') is None:
+        raise ECFBuilderError(
+            "e-CF 43 Totales/MontoExento es obligatorio de facto ante DGII "
+            "para Gastos Menores (todas las lineas van exentas); falta "
+            "MontoExento en 'datos'")
     if simple.get('MontoExento') is not None:
         _sub(totales, 'MontoExento', _valor_texto(simple['MontoExento'], monetario=True))
     if completo:
@@ -1138,6 +1148,16 @@ def _gen_detalles_items(ecf, tipo_ecf: int, caps: dict, idx1_item: dict, idx2: d
         if indicador_fact is None:
             raise ECFBuilderError(
                 f"Item[{n}] no tiene IndicadorFacturacion[{n}] (minOccurs=1)")
+        # Guard 22va corrida (2026-09-27): tipo 43 (Gastos Menores) SOLO
+        # permite IndicadorFacturacion=4 (Exento). Rechazo real de la 21va
+        # (E430000000002, codigo 244 "solo permiten indicador de facturacion
+        # exento") con IndicadorFacturacion=2. Catalogo DGII: 1=18%, 2=16%,
+        # 3=0%, 4=Exento. Prevenir quemar mas secuencias 43.
+        if tipo_ecf == 43 and str(indicador_fact) != '4':
+            raise ECFBuilderError(
+                f"e-CF 43 Item[{n}]: IndicadorFacturacion debe ser '4' "
+                "(Exento) para Gastos Menores; DGII rechaza cualquier otro "
+                f"valor con codigo 244 (recibido: {indicador_fact!r})")
         _sub(item, 'IndicadorFacturacion', _valor_texto(indicador_fact))
         if caps['item_retencion'] != 'no':
             ind_ret = idx1_item.get('IndicadorAgenteRetencionoPercepcion', {}).get(n)

@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En curso — 21va corrida: **primer 1/2 tipo 43 Aceptado** (E430000000004, "Agua potable oficina", IndicadorFacturacion=4 Exento + MontoExento=150). Portal: 0/N en los 11 renglones tras cascada doble (rechazos códigos 1209 y 244). Bloqueo 34 (código 615) sigue activo. Próxima (22va): rehacer ciclo 4×31+2×32≥250K+1×33+2×41+1×43 con builder ya validado; después 1×43 2do + 1×44 (Regímenes Especiales) primer contacto. | 2026-09-27 |
+| 4 | Pruebas Simulación e-CF | 🔲 En curso — 22va corrida: **guards defensivos tipo 43 desplegados** (IndicadorFacturacion=4 obligatorio + MontoExento obligatorio en Totales, previene rechazos códigos 244 y 1960). 1/4 tipo 31 rehecho (E310000000089 Aceptado). Portal: 1/4 tipo 31 + 1/2 tipo 43 (superviviente de la 21va) + 0/N resto. Bloqueo 34 (código 615) sigue activo. Próxima (23va): completar 3 remaining tipo 31 (FC-0007766/7829/8076) + 2×32≥250K + 1×33 + 2×41 + 1×43 2do; después 1×44 (Regímenes Especiales) primer contacto. | 2026-09-27 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -1828,6 +1828,53 @@ Agregar una línea por corrida, más reciente arriba:
   2×43 2do envío y 1×44 primer contacto. Commit incluye: test XSD-gate
   actualizado + plan maestro.
 
+- **2026-09-27 20:10-20:25 UTC (22va corrida)** — Runner scheduled. Fase 4
+  — **guards defensivos tipo 43 desplegados** + arranque de rehacer ciclo.
+  Portal previo (Playwright confirmado): 1/2 tipo 43 (E430000000004
+  superviviente de la 21va) + 0/N resto. TFE_SECUENCIA previo: 31→89,
+  32→1020, 33→11, 34→55, 41→4, 43→5, 44-47→1.
+
+  **Guards agregados a `apps/fe/ecf_builder.py`** (siguiendo TODO obligatorio
+  de la 21va corrida):
+  (a) `_gen_detalles_items`: si `tipo_ecf==43 && str(IndicadorFacturacion)!='4'`
+      → `ECFBuilderError`. Previene rechazo real código 244 "solo permiten
+      indicador de facturación exento" (E430000000002 en 21va).
+  (b) `_gen_totales`: si `tipo_ecf==43 && MontoExento is None` →
+      `ECFBuilderError`. Previene rechazo real código 1960 "MontoExento
+      de Totales no es válido" (E430000000003 en 21va). Patrón "XSD
+      opcional / DGII exige" #8.
+
+  Tests: 2 nuevos defensivos (`test_tipo_43_indicador_facturacion_distinto_de_4_lanza_error_corrida22`,
+  `test_tipo_43_sin_monto_exento_lanza_error_corrida22`), más
+  `test_tipo_43_gastos_menores_valida_contra_xsd` y
+  `test_tipo_43_ignora_rnc_comprador_no_existe_elemento_comprador` +
+  fixture `_base_43()` actualizados para satisfacer los nuevos guards
+  (IndicadorFacturacion=4 + MontoExento). 86/86 tests del módulo pasan en
+  contenedor `facturation_backend`. Probe DGII OK (autenticacion/semilla
+  HTTP 200 <100ms).
+
+  **Envío realizado**: 1×31 vía `paso4-factura-real` (FC-0007607) →
+  **E310000000089 Aceptado** (trackId `9f9b1130-a999-43f6-b6ec-aefaad43c4c0`,
+  fechaRecepcion 4:17:41 PM UTC-4, `codigo:1`, `secuenciaUtilizada:true`).
+  Portal esperado: 1/4 tipo 31 + 1/2 tipo 43 + 0/N resto.
+
+  **Sin cascada nueva** en esta corrida — el único envío fue Aceptado.
+  Bloqueo 34 sigue activo (sin cambios, requiere acción del usuario:
+  soporte DGII con trackId `daeac04a-b4cd-4e27-89e4-a3d831513086`).
+  TFE_SECUENCIA post-corrida: 31→90 (secuencia 89 consumida Aceptada),
+  32→1020, 33→11, 34→55, 41→4, 43→5, 44-47→1.
+
+  **Próximo paso (23va)**: completar los 3 tipo 31 restantes desde
+  FC-0007766/7829/8076 (patrón validado 8+ veces, mínimo riesgo, `paso4-
+  factura-real`) → luego 2×32≥250K (paso4-manual con RNCs ya probados:
+  CORTES 101001811 + RYLCO 131376292) → luego 1×33 (paso4-manual con
+  NCFModificado=E31 del ciclo actual + RNCComprador coincidente) → luego
+  2×41 (`_PAYLOAD_41_CORRIDA_19`, INDUSTRIAS BISONO) → luego 1×43 2do
+  (`_PAYLOAD_43_CORRIDA_21`) → 1×44 primer contacto (Regímenes Especiales,
+  requiere elegir RazonSocialComprador de zona franca real). Después
+  45/46/47 uno a uno y RFCE al final.
+
+  Commits: (ver commit de esta corrida).
 - **2026-09-27 12:10-12:18 UTC (20va corrida)** — Runner scheduled. Fase 4
   — **2/2 tipo 41 completo**. Portal previo 4/4+2/2+1/1+1/2 (residual de
   19va). Probe DGII OK (token len 343). TFE_SECUENCIA previo: 41→3, resto

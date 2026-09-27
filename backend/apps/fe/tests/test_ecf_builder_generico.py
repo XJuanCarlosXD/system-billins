@@ -572,12 +572,16 @@ def test_payload_corrida21_tipo_43_valida_contra_xsd():
 
 
 def test_tipo_43_gastos_menores_valida_contra_xsd():
+    """Guard 22va corrida: tipo 43 exige IndicadorFacturacion=4 (Exento) y
+    MontoExento en Totales, confirmado empiricamente en 21va contra
+    certecf."""
     datos = {
         'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
         'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
         'FechaVencimientoSecuencia': '31-12-2028',
+        'MontoExento': '500.00',
         'MontoTotal': '500.00',
-        'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1,
+        'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 4,
         'NombreItem[1]': 'GASTO MENOR ZZTEST', 'IndicadorBienoServicio[1]': 2,
         'CantidadItem[1]': '1.00', 'PrecioUnitarioItem[1]': '500.00',
         'MontoItem[1]': '500.00',
@@ -589,6 +593,47 @@ def test_tipo_43_gastos_menores_valida_contra_xsd():
     assert root.find('.//Comprador') is None
 
 
+def test_tipo_43_indicador_facturacion_distinto_de_4_lanza_error_corrida22():
+    """Guard 22va corrida: rechazo real de la 21va (E430000000002, codigo
+    244 "solo permiten indicador de facturacion exento") confirmo que DGII
+    solo acepta IndicadorFacturacion=4 (Exento) para tipo 43 (Gastos
+    Menores). El builder ahora bloquea localmente cualquier otro valor."""
+    for valor in (1, 2, 3, '1', '2', '3'):
+        datos = {
+            'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
+            'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
+            'FechaVencimientoSecuencia': '31-12-2028',
+            'MontoExento': '100.00',
+            'MontoTotal': '100.00',
+            'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': valor,
+            'NombreItem[1]': 'X', 'IndicadorBienoServicio[1]': 1,
+            'CantidadItem[1]': '1.00', 'PrecioUnitarioItem[1]': '100.00',
+            'MontoItem[1]': '100.00',
+        }
+        with pytest.raises(ecf_builder.ECFBuilderError,
+                           match='IndicadorFacturacion'):
+            ecf_builder.construir_ecf_generico(43, 'E430000000010', datos)
+
+
+def test_tipo_43_sin_monto_exento_lanza_error_corrida22():
+    """Guard 22va corrida: rechazo real de la 21va (E430000000003, codigo
+    1960 "MontoExento de Totales no es valido") confirmo que DGII exige
+    MontoExento en Totales para tipo 43 aunque el XSD lo marque
+    minOccurs=0. Patron 'XSD opcional / DGII exige' #8."""
+    datos = {
+        'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
+        'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
+        'FechaVencimientoSecuencia': '31-12-2028',
+        'MontoTotal': '100.00',
+        'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 4,
+        'NombreItem[1]': 'X', 'IndicadorBienoServicio[1]': 1,
+        'CantidadItem[1]': '1.00', 'PrecioUnitarioItem[1]': '100.00',
+        'MontoItem[1]': '100.00',
+    }
+    with pytest.raises(ecf_builder.ECFBuilderError, match='MontoExento'):
+        ecf_builder.construir_ecf_generico(43, 'E430000000011', datos)
+
+
 def test_tipo_43_ignora_rnc_comprador_no_existe_elemento_comprador():
     """e-CF-43-v1.0.xsd no tiene el elemento Comprador en absoluto -- aunque
     el operador pegue RNCComprador/RazonSocialComprador (por copiar
@@ -597,8 +642,10 @@ def test_tipo_43_ignora_rnc_comprador_no_existe_elemento_comprador():
         'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
         'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
         'FechaVencimientoSecuencia': '31-12-2028', 'RNCComprador': '101623232',
-        'RazonSocialComprador': 'NO DEBE APARECER', 'MontoTotal': '500.00',
-        'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1, 'NombreItem[1]': 'X',
+        'RazonSocialComprador': 'NO DEBE APARECER',
+        'MontoExento': '500.00',
+        'MontoTotal': '500.00',
+        'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 4, 'NombreItem[1]': 'X',
         'IndicadorBienoServicio[1]': 2, 'CantidadItem[1]': '1.00',
         'PrecioUnitarioItem[1]': '500.00', 'MontoItem[1]': '500.00',
     }
@@ -747,8 +794,10 @@ def _base_43():
     return {
         'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
         'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
-        'FechaVencimientoSecuencia': '31-12-2028', 'MontoTotal': '500.00',
-        'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1, 'NombreItem[1]': 'X',
+        'FechaVencimientoSecuencia': '31-12-2028',
+        'MontoExento': '500.00',
+        'MontoTotal': '500.00',
+        'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 4, 'NombreItem[1]': 'X',
         'IndicadorBienoServicio[1]': 2, 'CantidadItem[1]': '1.00',
         'PrecioUnitarioItem[1]': '500.00', 'MontoItem[1]': '500.00',
     }
