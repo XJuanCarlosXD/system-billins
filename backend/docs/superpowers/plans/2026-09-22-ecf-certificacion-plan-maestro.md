@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En curso — 19va corrida: **PRIMER TIPO 41 ACEPTADO** por certecf con fix `MontoITBISRetenido[1]='900.00'` + `TotalITBISRetenido='900.00'`. Portal: 4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 + 1/2 tipo 41 + 0/N resto (34 bloqueado, 43-47/RFCE pendientes). Bloqueo del 34 (código 615) sigue activo. Próxima corrida (20va): 2do 1×41 (patrón validado), luego 1×43 primer contacto (Gastos Menores), 44-47 uno a uno. | 2026-09-27 |
+| 4 | Pruebas Simulación e-CF | 🔲 En curso — 20va corrida: **2/2 tipo 41 completo** (E410000000003 Aceptado, INDUSTRIAS BISONO). Portal: 4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 + 2/2 tipo 41 + 0/N resto (34 bloqueado, 43-47/RFCE pendientes). Bloqueo del 34 (código 615) sigue activo. Próxima corrida (21va): 1×43 primer contacto (Gastos Menores) con gate XSD-local previo, luego 44-47 uno a uno, RFCE al final. | 2026-09-27 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -1725,10 +1725,83 @@ Orden sugerido (menor a mayor riesgo, 1 tipo por corrida):
 
 Código nuevo desplegado esta corrida: `apps/fe/ecf_builder.py` (guard 41+MontoITBISRetenido) + `apps/fe/tests/test_ecf_builder_generico.py` (4 tests actualizados/nuevos, 1 fixture ajustada).
 
+## Fase 4 — Hallazgos de la 20va corrida (2026-09-27) — 2/2 TIPO 41 COMPLETO
+
+Portal previo Playwright: 4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 + 1/2 tipo 41 + 0/N resto (residual de la 19va, sin nuevos reinicios — último sigue siendo 27/09 12:18:19 AM). TFE_SECUENCIA previo (`fe_repo.list_secuencias('01')`): 31→89, 32→1020, 33→11, 34→55, **41→3**, 43-47→1. Probe DGII (`obtener_token('01','certecf',forzar=True)`) OK, token len 343.
+
+Corrida conservadora — cerrar 2/2 tipo 41 con el patrón validado end-to-end por la 19va, SIN tocar tipo nuevo (43+) en la misma corrida para no arriesgar los 9 aceptados acumulados a un rechazo por campo de-facto desconocido de un primer contacto.
+
+### Éxito (patrón conocido)
+
+**1×41 vía `paso4-manual`** — payload igual al `_PAYLOAD_41_CORRIDA_19` con cambio cosmético `NombreItem[1]='Compra insumo industrial'` (para diferenciar de la 19va). Mismo proveedor INDUSTRIAS BISONO 101621516, mismos montos (base 5000, ITBIS 900, retención 900):
+
+| # | e-NCF | trackId | Estado | fechaRecepcion |
+|---|-------|---------|--------|-----------------|
+| 1 | E410000000003 | 46c44bf0-fc7b-42a9-b125-02d185cc9d7b | Aceptado | 9/27/2026 8:15:39 AM |
+
+**Portal (Playwright, 2026-09-27 ~08:15 UTC / 4:15 AM UTC-4)**:
+- 4/4 Comprobantes tipo 31 ✅
+- 2/2 Comprobantes tipo 32 >= 250Mil ✅
+- 1/1 Comprobantes tipo 33 ✅
+- 0/2 tipo 34 (bloqueado, ver "Bloqueos activos")
+- **2/2 Comprobantes tipo 41** ✅ ← completo
+- 0/2 el resto (43-47), 0/4 RFCE
+
+Log del portal SIN nuevos reinicios — el último sigue siendo el 27/09 12:18:19 AM (18va, rechazo del 41 sin `MontoITBISRetenido`). Ciclo intacto en 9/N aceptados acumulados.
+
+### Estado real de TFE_SECUENCIA (después de esta corrida)
+
+| Tipo | prox_secuencia | Notas |
+|------|----------------|-------|
+| 31 | 89 → E310000000089 | sin cambios |
+| 32 | 1020 → E320000001020 | sin cambios |
+| 33 | 11 → E330000000011 | sin cambios |
+| 34 | 55 → E340000000055 | sin cambios (bloqueada) |
+| 41 | 4 → E410000000004 | **003 quemada Aceptada** — 2/2 alcanzado |
+| 43-47 | 1 cada uno | sin cambios |
+
+Rango tipo 31 sigue en 12 secuencias restantes (89..100). Sin cambios respecto a la 19va.
+
+### Próximo paso para la corrida siguiente (21va)
+
+Con 2/2 tipo 41 asegurado, el siguiente tipo nuevo es el **1×43 (Gastos Menores)**, primer contacto real del builder-43 contra certecf. Es el punto de mayor riesgo del ciclo actual (podría reiniciar los 9/N acumulados si aparece un campo obligatorio de-facto no documentado en el XSD — patrón repetido en 31/32/34/41).
+
+**Pre-requisitos antes de enviar** (obligatorios, no negociables — cada rechazo cuesta el ciclo entero):
+
+1. Revisar `test_tipo_43_gastos_menores_valida_contra_xsd` en `apps/fe/tests/test_ecf_builder_generico.py` (línea ~528) como plantilla — pasa gate XSD-local pero NUNCA se envió a certecf.
+2. Escribir test XSD-gate `test_payload_corrida21_tipo_43_valida_contra_xsd` con `_PAYLOAD_43_CORRIDA_21` explícito (no reutilizar la fixture del test general — dejar el payload real congelado para trazabilidad, patrón 18va/19va con `_PAYLOAD_41_CORRIDA_18/19`).
+3. Estructura mínima del 43 (por definición: comprobante para gastos menores, sin identificar comprador):
+   - Sin `Comprador` (43 no tiene el bloque, ya confirmado por el test existente que hace `assert root.find('.//Comprador') is None`)
+   - Sin retención (`item_retencion='no'` en caps del builder-43)
+   - Sin TipoIngresos
+   - Con `RNCEmisor`, `FechaEmision`, `FechaVencimientoSecuencia`, `MontoTotal`, y una línea con `NombreItem`, `CantidadItem`, `PrecioUnitarioItem`, `MontoItem`
+4. Datos realistas de un gasto menor real de Abregonza (opcional pero recomendable — se puede usar un gasto genérico "MATERIALES DE OFICINA" o similar). No hay `TipoIngresos` ni `RNCComprador`, así que no hay riesgo de RNC inválido.
+5. Deploy si hay cambios de código. Si no hay cambios (solo payload manual), no hace falta pscp — el envío se hace vía `paso4-manual` con datos planos.
+
+**Opción B alternativa (menos ambiciosa)**: si la 21va es una corrida corta o el runner ya usó su budget, saltar a la investigación previa del 44/45/46/47 (documentar sus caps del builder y de-facto sospechosos) sin enviar nada. Menos riesgo, menos progreso.
+
+**Bloqueo del 34 sigue activo** — requiere acción del usuario (soporte DGII con trackId `daeac04a-b4cd-4e27-89e4-a3d831513086`). Runner NO debe reintentar 1×34.
+
+**Nota operativa 20va**: no hubo cambios de código esta corrida — solo script `/tmp/ecf_20_run41.py` con `Client.force_login` (mismo patrón que `ecf_19_run.py`), no va al repo. Commit solo del plan maestro.
+
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
 
+- **2026-09-27 12:10-12:18 UTC (20va corrida)** — Runner scheduled. Fase 4
+  — **2/2 tipo 41 completo**. Portal previo 4/4+2/2+1/1+1/2 (residual de
+  19va). Probe DGII OK (token len 343). TFE_SECUENCIA previo: 41→3, resto
+  sin cambios. **E410000000003** (trackId `46c44bf0-fc7b-42a9-b125-02d185cc9d7b`,
+  8:15:39 AM UTC-4) **Aceptado**, INDUSTRIAS BISONO 101621516, patrón
+  validado por 19va (`_PAYLOAD_41_CORRIDA_19` con `NombreItem` cosmético
+  distinto). Portal Playwright post-corrida: **4/4 tipo 31 + 2/2 tipo
+  32≥250K + 1/1 tipo 33 + 2/2 tipo 41 + 0/N resto**, sin nuevos reinicios
+  (último sigue 27/09 12:18:19 AM). Ciclo intacto en 9/N aceptados. Sin
+  código nuevo — solo script `/tmp/ecf_20_run41.py` (patrón `Client.force_login`,
+  no va al repo). Bloqueo 34 sigue activo. TFE_SECUENCIA post-corrida: 31→89,
+  32→1020, 33→11, 34→55, 41→4, 43-47→1. Próximo paso (21va): 1×43 primer
+  contacto (Gastos Menores) con gate XSD-local previo — punto de mayor
+  riesgo del ciclo actual. Commit: (ver commit de esta corrida).
 - **2026-09-27 08:10-08:20 UTC (19va corrida)** — Runner scheduled. Fase 4
   — **PRIMER TIPO 41 ACEPTADO** por certecf. Fix del builder desplegado
   (`_gen_detalles_items`: `ECFBuilderError` si `tipo_ecf==41 && ind_ret==1
