@@ -674,6 +674,49 @@ def test_tipo_44_regimenes_especiales_valida_contra_xsd():
     assert root.find('.//Comprador/RNCComprador') is None
 
 
+# Fase 4 25va corrida — payload congelado para primer contacto real tipo 44
+# contra certecf. Comprador ZONA FRANCA SAN ISIDRO S.A. es cliente real 641
+# de Abregonza (CXC.TCXC_CLIENTE, RNC 101506091, consulta directa en la 25va
+# corrida). Estrategia Exento (IndicadorFacturacion=4 + MontoExento) porque
+# la 21va corrida aprendió que DGII puede restringir IndicadorFacturacion en
+# ciertos tipos (43 solo aceptó =4, código 244); empezar con Exento minimiza
+# superficie de rechazo en un primer contacto. Si DGII lo rechaza con "solo
+# permiten X", switchear a IndicadorFacturacion=1 + breakdown ITBIS 18%
+# (MontoGravadoI1/ITBIS1/TotalITBIS/TotalITBIS1).
+_PAYLOAD_44_CORRIDA_25 = {
+    'RNCEmisor': '130217432',
+    'RazonSocialEmisor': 'ABREGONZA, SRL',
+    'DireccionEmisor': 'C/ HOSTOS #1, SANTO DOMINGO',
+    'FechaEmision': '28-09-2026',
+    'FechaVencimientoSecuencia': '31-12-2028',
+    'TipoIngresos': '01',
+    'TipoPago': 1,
+    'RazonSocialComprador': 'ZONA FRANCA SAN ISIDRO, S.A.',
+    'MontoExento': '5000.00',
+    'MontoTotal': '5000.00',
+    'NumeroLinea[1]': 1,
+    'IndicadorFacturacion[1]': 4,
+    'NombreItem[1]': 'MATERIAL INDUSTRIAL EXENTO',
+    'IndicadorBienoServicio[1]': 1,
+    'CantidadItem[1]': '1.00',
+    'PrecioUnitarioItem[1]': '5000.00',
+    'MontoItem[1]': '5000.00',
+}
+
+
+def test_payload_corrida25_tipo_44_valida_contra_xsd():
+    xml_str = ecf_builder.construir_ecf_generico(
+        44, 'E440000000001', dict(_PAYLOAD_44_CORRIDA_25))
+    _validar_estructura_contra_xsd(xml_str, 44)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.findtext('.//IdDoc/TipoeCF') == '44'
+    assert (root.findtext('.//Comprador/RazonSocialComprador')
+            == 'ZONA FRANCA SAN ISIDRO, S.A.')
+    assert root.find('.//Comprador/RNCComprador') is None
+    assert root.findtext('.//Totales/MontoExento') == '5000.00'
+    assert root.findtext('.//Totales/MontoTotal') == '5000.00'
+
+
 def test_tipo_45_gubernamental_valida_contra_xsd():
     datos = {
         'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
