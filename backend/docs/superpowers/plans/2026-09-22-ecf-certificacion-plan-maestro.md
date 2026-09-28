@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En curso — 22va corrida: **guards defensivos tipo 43 desplegados** (IndicadorFacturacion=4 obligatorio + MontoExento obligatorio en Totales, previene rechazos códigos 244 y 1960). 1/4 tipo 31 rehecho (E310000000089 Aceptado). Portal: 1/4 tipo 31 + 1/2 tipo 43 (superviviente de la 21va) + 0/N resto. Bloqueo 34 (código 615) sigue activo. Próxima (23va): completar 3 remaining tipo 31 (FC-0007766/7829/8076) + 2×32≥250K + 1×33 + 2×41 + 1×43 2do; después 1×44 (Regímenes Especiales) primer contacto. | 2026-09-27 |
+| 4 | Pruebas Simulación e-CF | 🔲 En curso — 23va corrida: **4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 + 2/2 tipo 41 + 2/2 tipo 43 + 0/N resto** (11/N aceptados post-corrida, portal Playwright confirmado). Nuevo hallazgo crítico: código 634 "FechaNCFModificado no coincide" — al referenciar un E31 emitido vía `paso4-factura-real`, `FechaNCFModificado` del 33/34 debe ser la `fecha` real de `TFAT_FACTURA` (papel), NO la fecha de envío al portal. FC-0007829 tiene `fecha='20-11-2025'`. Bloqueo 34 sigue activo. Próxima (24va): 1×44 primer contacto (Régimen Especial, requiere payload nuevo) + 1×45 primer contacto (Gubernamental); dejar 46/47 y RFCE para 25va+; considerar guard defensivo en `paso4-manual` que valide FechaNCFModificado contra TFE_DOCUMENTO propio. | 2026-09-27 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -1827,6 +1827,78 @@ Agregar una línea por corrida, más reciente arriba:
   1×43 con patrón validado (~5-6 min end-to-end, mínimo riesgo); (3)
   2×43 2do envío y 1×44 primer contacto. Commit incluye: test XSD-gate
   actualizado + plan maestro.
+
+- **2026-09-28 00:10-00:22 UTC (23va corrida)** — Runner scheduled. Fase 4
+  — **ciclo Primero+Segundo completo (11/N aceptados en portal)** tras 1
+  rechazo inicial de aprendizaje. Portal previo (Playwright): 1/4 tipo 31 +
+  1/2 tipo 43 + 0/N resto (residual de la 22va). TFE_SECUENCIA previo:
+  31→90, 32→1020, 33→11, 34→55, 41→4, 43→5, 44-47→1.
+
+  **Nuevo hallazgo crítico — código 634 "FechaNCFModificado no coincide con
+  la fecha de emisión de comprobante a modificar"**. Al emitir un e-CF31 vía
+  `paso4-factura-real` desde una factura de `TFAT_FACTURA`, el builder
+  `construir_ecf_31` toma la `fecha` REAL de la factura (papel), NO la fecha
+  del envío al portal. Un 33/34 que referencia ese e-CF por `NCFModificado`
+  DEBE usar como `FechaNCFModificado` esa misma fecha papel — no `today`.
+  FC-0007607 fecha=09-05-2025, FC-0007766=25-09-2025, FC-0007829=20-11-2025,
+  FC-0008076=09-06-2026 (confirmado por query directa a `FAT.TFAT_FACTURA`).
+  Perdida inicial: E330000000011 Rechazado con código 634 al usar
+  FechaNCFModificado='27-09-2026', cascada borró 3×31 (E310000000090-092) +
+  2×32≥250K (E320000001020-1021) que estaban Aceptados. Portal a 0/N.
+
+  **Reintento con fix aplicado** (`FechaNCFModificado='20-11-2025'` para el
+  33 que referencia E31 de FC-0007829): 9/9 Aceptados consecutivos +
+  posterior cierre 2/2:
+
+  | # | e-NCF | trackId | Estado | Notas |
+  |---|-------|---------|--------|-------|
+  | 1 | E310000000093 | e073ee8f-7d16-4967-bb35-080cff67a3a9 | Aceptado | FC-0007766 (2/4) |
+  | 2 | E310000000094 | 29b1d991-eea7-4d4c-8cd6-f8ab2e014f29 | Aceptado | FC-0007829 (3/4) → base del 33 |
+  | 3 | E310000000095 | 3d821298-ae2d-43fb-849d-f4544371c6cd | Aceptado | FC-0008076 (4/4) — pero luego cascada de rechazo intermedio, cierre con 096 |
+  | 4 | E320000001022 | fdc0b8c8-b0e6-4373-904d-3b6329439d59 | Aceptado | CORTES 101001811, MontoTotal 295K |
+  | 5 | E320000001023 | 65251a53-b50c-47fc-9865-7f99f6e06030 | Aceptado | RYLCO 131376292, MontoTotal 295K |
+  | 6 | E330000000012 | 74b14fc2-41b3-4003-94db-b788d43caf0b | Aceptado | NCFMod=E310000000094 PAE, FechaMod=20-11-2025, CodMod=3 |
+  | 7 | E410000000004 | 668c6528-a169-4ecd-a881-76374f0c7ae5 | Aceptado | INDUSTRIAS BISONO, retención 900 |
+  | 8 | E410000000005 | 865ddc50-8fe2-4b97-9cca-9546a25ea8da | Aceptado | INDUSTRIAS BISONO, ítem cosmético |
+  | 9 | E430000000005 | e4f0fbe1-6466-4f19-a780-1c5b877a04ee | Aceptado | Gastos Menores 2do — pero portal marcó 1/2 |
+  | 10| E310000000096 | 99c9fff7-ca44-486e-952f-2b9cae2dc791 | Aceptado | Cierre FC-0007607 (4/4) |
+  | 11| E430000000006 | 38c9d987-7642-4334-b6b3-82274d47ca40 | Aceptado | Cierre 2/2 tipo 43 |
+
+  Portal final Playwright: **4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 +
+  2/2 tipo 41 + 2/2 tipo 43 + 0/N resto**. Log último reinicio 27/09 8:19:02
+  PM (rechazo E330000000011).
+
+  **TODO obligatorio para la 24va corrida**: agregar guard defensivo en
+  `apps/fe/views.py:certificacion_paso4_manual_view` que, cuando
+  `tipo_ecf ∈ {33,34}` y `datos.NCFModificado` existe en `TFE_DOCUMENTO`
+  del propio no_cia, extraiga la `FechaEmision` real del XML enviado y
+  valide que `datos.FechaNCFModificado` coincida ANTES de consumir
+  secuencia. Previene el mismo error 634 en el futuro (cada uno cuesta
+  cascada completa). Costo si se hace inline: ~1h de código + tests
+  (patrón sub-plan `superpowers:writing-plans`).
+
+  TFE_SECUENCIA post-corrida: 31→97, 32→1024, 33→13, 34→55, 41→6, 43→7,
+  44-47→1 cada uno. Rango tipo 31 se estrecha a 4 secuencias restantes
+  (97..100) — ATENCIÓN: si hay otro reset+reenvío completo, quedan pocas
+  secuencias para tipo 31. Considerar ampliar `secuencia_hasta` de
+  `TFE_SECUENCIA` para tipo 31 antes de arriesgar otra cascada.
+
+  Bloqueo 34 sigue activo (código 615 saldo disponible, requiere soporte
+  DGII con trackId `daeac04a-b4cd-4e27-89e4-a3d831513086`).
+
+  **Próximo paso (24va)**: (a) opcional — desplegar guard defensivo del
+  `paso4-manual` para prevenir código 634 con TDD (sub-plan corto,
+  ~1-1.5h); (b) 1×44 primer contacto (Régimen Especial) — requiere
+  investigación previa de qué caps del builder aplican (retención? tipo
+  ingresos? RNC especial?), payload realista y test XSD-gate; (c) 1×45
+  primer contacto (Gubernamental) si el 44 sale limpio. NO abrir 46/47
+  ni RFCE aún — dejar como colchón para 25va+. Bloqueo 34 sigue esperando
+  acción humana.
+
+  Sin código nuevo esta corrida — solo scripts en `.tmp/`
+  (`ecf_23_run.py`, `ecf_23_cierre.py`), no van al repo. Commit solo del
+  plan maestro.
+  Commits: (ver commit de esta corrida).
 
 - **2026-09-27 20:10-20:25 UTC (22va corrida)** — Runner scheduled. Fase 4
   — **guards defensivos tipo 43 desplegados** + arranque de rehacer ciclo.
