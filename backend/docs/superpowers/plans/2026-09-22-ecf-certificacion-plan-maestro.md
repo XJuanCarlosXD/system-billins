@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En curso — 25va corrida: **11/N aceptados sin cambios** (4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 + 2/2 tipo 41 + 2/2 tipo 43 + 0/N resto, portal Playwright confirmado, último reinicio sigue siendo 27/09 8:19:02 PM). Sin envíos DGII esta corrida (usuario aún no amplió `secuencia_hasta` tipo 31 — sigue en 4 restantes 97..100). Trabajo libre de riesgo: **payload congelado `_PAYLOAD_44_CORRIDA_25`** para primer contacto tipo 44 (Régimen Especial) validado contra XSD real e-CF-44-v1.0.xsd + test XSD-gate `test_payload_corrida25_tipo_44_valida_contra_xsd` (87/87 módulo + 236/236 paquete `apps/fe/tests/`). Comprador ZONA FRANCA SAN ISIDRO S.A. (CXC 641 real de Abregonza, RNC 101506091), estrategia Exento (IndicadorFacturacion=4 + MontoExento) tras lección 21va (DGII restringe IndicadorFacturacion en algunos tipos). Bloqueo 34 (código 615) sigue activo. ⚠ Rango tipo 31 = 4 restantes (97..100) — TODO administrativo del usuario: `UPDATE FAT.TFE_SECUENCIA SET secuencia_hasta = 500 WHERE no_cia='01' AND tipo_ecf='31'` antes de que el runner arriesgue un primer contacto que pueda disparar cascada. Próxima (26va): si rango ampliado, enviar 1×44 con `_PAYLOAD_44_CORRIDA_25` vía paso4-manual; si no, congelar payloads 45/46/47 similares. | 2026-09-28 |
+| 4 | Pruebas Simulación e-CF | 🔲 En curso — 26va corrida: **11/N aceptados sin cambios** (portal Playwright confirmado, último reinicio sigue 27/09 8:19:02 PM). Sin envíos DGII (usuario aún no amplió `secuencia_hasta` tipo 31 — sigue en 4 restantes 97..100). Trabajo libre de riesgo: **payload congelado `_PAYLOAD_45_CORRIDA_26`** para primer contacto tipo 45 (Gubernamental) validado contra XSD real e-CF-45-v1.0.xsd + test XSD-gate `test_payload_corrida26_tipo_45_valida_contra_xsd` (88/88 módulo + 237/237 paquete `apps/fe/tests/`). Comprador CONSEJO NACIONAL DE ZONAS FRANCAS DE EXPORTACION (CXC 573 real de Abregonza, RNC 401501406 patrón institucional), estrategia ITBIS 18% con breakdown completo (MontoGravadoTotal/I1 + ITBIS1=18 + TotalITBIS/1=900 + MontoTotal=5900), TipoPago=1 (Contado). Ya congelado desde la 25va: `_PAYLOAD_44_CORRIDA_25` (ZONA FRANCA SAN ISIDRO, RNC 101506091, estrategia Exento). Bloqueo 34 (código 615) sigue activo. ⚠ Rango tipo 31 = 4 restantes (97..100) — TODO administrativo del usuario: `UPDATE FAT.TFE_SECUENCIA SET secuencia_hasta = 500 WHERE no_cia='01' AND tipo_ecf='31'` antes de arriesgar primer contacto. Próxima (27va): si rango ampliado, enviar 1×44 y luego 1×45 con payloads congelados; si no, congelar `_PAYLOAD_46_CORRIDA_27` (Exportaciones, comprador extranjero con PaisDestino). | 2026-09-28 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -1902,9 +1902,76 @@ Sin cambios (0 envíos DGII, 0 secuencias consumidas). Mismos valores que el pre
 
 Código nuevo desplegado esta corrida: `backend/apps/fe/tests/test_ecf_builder_generico.py` (+1 payload congelado, +1 test XSD-gate). Sin cambios de production code (`ecf_builder.py`, `views.py` intactos).
 
+## Fase 4 — Hallazgos de la 26va corrida (2026-09-28) — PAYLOAD 45 CONGELADO, SIN ENVÍOS DGII
+
+Portal previo (Playwright, `/certecf/portalcertificacion/Postulacion/PruebasSimulacion`, sesión 130217432 en curso): **4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 + 0/2 tipo 34 (bloqueada) + 2/2 tipo 41 + 2/2 tipo 43 + 0/2 resto (44/45/46/47) + 0/4 RFCE**. Último reinicio sigue siendo 27/09 8:19:02 PM (rechazo 634 de la 23va). Sin nuevos reinicios post-25va.
+
+TFE_SECUENCIA (`fe_repo.list_secuencias('01')` en contenedor): 31→97 (rango 1..**100**, **4 restantes**, sin cambios respecto a la 25va — usuario aún no ejecutó el UPDATE de `secuencia_hasta`), 32→1024, 33→13, 34→55 (bloqueada), 41→6, 43→7, 44-47→1.
+
+### Decisión de esta corrida (sin envíos a DGII)
+
+Idéntica al criterio de la 24va/25va: rango tipo 31 tan estrecho (97..100) → un rechazo cascada de un primer contacto tipo 45 consumiría exactamente esas 4 secuencias al reconstruir 4×31. Trabajo libre de riesgo: congelar el payload 45 y su test XSD-gate para que la 27va+ (o esta misma, si el usuario amplía el rango entre corridas) pueda enviar directo sin re-investigar.
+
+### Comprador real elegido para tipo 45
+
+`CXC.TCXC_CLIENTE` #573 CONSEJO NACIONAL DE ZONAS FRANCAS DE EXPORTACION, RNC 401501406 (patrón institucional 401xxx propio de organismos gubernamentales — descubierto por la 25va corrida al hacer la query LIKE '%ZONA%FRANCA%').
+
+### Payload congelado `_PAYLOAD_45_CORRIDA_26`
+
+En `backend/apps/fe/tests/test_ecf_builder_generico.py` (justo después de `test_payload_corrida25_tipo_44_valida_contra_xsd`):
+
+- Emisor real: RNC 130217432, RazonSocial "ABREGONZA, SRL", dirección "C/ HOSTOS #1, SANTO DOMINGO", FechaEmision `28-09-2026`, FechaVencimientoSecuencia `31-12-2028`.
+- `TipoIngresos='01'` (Ingresos por Operaciones), `TipoPago=1` (Contado — minimiza superficie al evitar FechaLimitePago obligatoria del crédito).
+- Comprador: `RNCComprador='401501406'`, `RazonSocialComprador='CONSEJO NACIONAL DE ZONAS FRANCAS DE EXPORTACION'`. `_TIPO_CAPS[45]['comprador']='rnc_razon_mandatory'` exige ambos.
+- Totales ITBIS 18% con breakdown completo (patrón validado por certecf en tipos 31/32): `MontoGravadoTotal='5000.00'`, `MontoGravadoI1='5000.00'`, `ITBIS1='18'`, `TotalITBIS='900.00'`, `TotalITBIS1='900.00'`, `MontoTotal='5900.00'`. Monto pequeño (5900) para no consumir "saldo disponible" hipotético si el 45 comparte la regla opaca del 34.
+- Línea única: `NumeroLinea=1`, `IndicadorFacturacion=1` (Gravado 18%), `NombreItem='SERVICIO PROFESIONAL GUBERNAMENTAL'`, `IndicadorBienoServicio=2` (Servicio), `CantidadItem=1.00`, `PrecioUnitarioItem=5000.00`, `MontoItem=5000.00`.
+
+### Test agregado
+
+`test_payload_corrida26_tipo_45_valida_contra_xsd` — valida el XML generado contra el XSD real `e-CF-45-v1.0.xsd`, verifica que `TipoeCF=45`, `RNCComprador=401501406`, `RazonSocialComprador` correcta, y todos los campos de Totales (MontoGravadoTotal, MontoGravadoI1, ITBIS1, TotalITBIS, TotalITBIS1, MontoTotal) con los valores esperados.
+
+**88/88 tests módulo `test_ecf_builder_generico.py`** + **237/237 paquete `apps/fe/tests/`** pasan en contenedor `facturation_backend` (bind mount VM). +1 test respecto a la 25va (236→237).
+
+### Plan operativo para la corrida siguiente (27va)
+
+1. **Precondición dura**: verificar que el usuario ejecutó el UPDATE de `secuencia_hasta` para tipo 31 (query `list_secuencias('01')`, buscar `tipo=31 hasta>=500`). Si sigue en 100, NO enviar tipo 44/45 — repetir el patrón de congelar payload tipo 46 (Exportaciones) con comprador extranjero + PaisDestino, o payload tipo 47 (Pagos al Exterior) con retención completa (`MontoISRRetenido`). Ver `_base_46()` / `_base_47()` como plantillas iniciales.
+2. Si rango ampliado (≥500): `POST /api/fe/certificacion/paso4-manual/` con `no_cia='01'`, `tipo_ecf=44`, `datos=_PAYLOAD_44_CORRIDA_25` PRIMERO (tipo 44 es más simple estructural: sin RNCComprador, sin ITBIS). Probe DGII previo (`obtener_token('01','certecf',forzar=True)`). `consultar_estado` inmediato, verificar portal. Si Aceptado, seguir con 1×45 `_PAYLOAD_45_CORRIDA_26` en la misma corrida (o siguiente si budget se agota).
+3. Si DGII rechaza 44 con "solo permiten indicador de facturación X", switchear payload a `IndicadorFacturacion=1` + full breakdown ITBIS 18% (patrón corrida 21va del tipo 43).
+4. Si DGII rechaza 45 por regla opaca (código 615 tipo saldo/RNC), documentar el mensaje literal y mantener bloqueo hasta investigación humana — 401501406 podría requerir tratamiento especial como RNC gubernamental.
+5. Bloqueo 34 sigue activo — runner NO debe reintentar 1×34 hasta que el usuario resuelva con soporte DGII (trackId `daeac04a-b4cd-4e27-89e4-a3d831513086`).
+
+### Estado TFE_SECUENCIA post-corrida
+
+Sin cambios (0 envíos DGII, 0 secuencias consumidas). Mismos valores que el preámbulo.
+
+Código nuevo desplegado esta corrida: `backend/apps/fe/tests/test_ecf_builder_generico.py` (+1 payload congelado `_PAYLOAD_45_CORRIDA_26`, +1 test XSD-gate `test_payload_corrida26_tipo_45_valida_contra_xsd`). Sin cambios de production code (`ecf_builder.py`, `views.py` intactos).
+
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
+
+- **2026-09-28 12:10-12:30 UTC (26va corrida)** — Runner scheduled. Fase 4 —
+  **payload congelado `_PAYLOAD_45_CORRIDA_26` para primer contacto tipo 45**
+  (Gubernamental) sin envíos a DGII. Portal previo Playwright: 4/4 tipo 31 +
+  2/2 tipo 32≥250K + 1/1 tipo 33 + 0/2 tipo 34 (bloqueada) + 2/2 tipo 41 +
+  2/2 tipo 43 + 0/2 resto (44-47) + 0/4 RFCE, último reinicio sigue 27/09
+  8:19:02 PM (sin nuevos post-25va). TFE_SECUENCIA sin cambios: 31→97 (rango
+  1..100, **4 restantes — usuario aún no amplió** `secuencia_hasta`), 32→1024,
+  33→13, 34→55, 41→6, 43→7, 44-47→1. Decisión (misma que 24va/25va): con rango
+  31 tan estrecho no arriesgar primer contacto tipo 44/45 — cascada agotaría
+  las 4 secuencias en la reconstrucción de 4×31. Trabajo libre de riesgo:
+  cliente real 573 CONSEJO NACIONAL DE ZONAS FRANCAS DE EXPORTACION (RNC
+  401501406) elegido para tipo 45; estrategia ITBIS 18% breakdown completo
+  (MontoGravadoTotal/I1=5000, ITBIS1=18, TotalITBIS/1=900, MontoTotal=5900),
+  TipoPago=1 (Contado, evita FechaLimitePago). Frozen `_PAYLOAD_45_CORRIDA_26`.
+  `test_payload_corrida26_tipo_45_valida_contra_xsd` agregado, **88/88 módulo +
+  237/237 paquete** `apps/fe/tests/` pasan en contenedor. Bloqueo 34 sigue
+  activo (requiere acción del usuario). Sin cambios de production code.
+  Próximo paso (27va): verificar si usuario amplió rango tipo 31; si sí,
+  enviar 1×44 `_PAYLOAD_44_CORRIDA_25` primero (más simple, sin RNCComprador
+  ni ITBIS) y luego 1×45 `_PAYLOAD_45_CORRIDA_26` en la misma corrida; si no,
+  repetir patrón congelando payload tipo 46 (Exportaciones) o 47 (Pagos al
+  Exterior). Commits: (ver commit de esta corrida).
 
 - **2026-09-28 08:10-08:35 UTC (25va corrida)** — Runner scheduled. Fase 4 —
   **payload congelado `_PAYLOAD_44_CORRIDA_25` para primer contacto tipo 44**

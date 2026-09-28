@@ -717,6 +717,60 @@ def test_payload_corrida25_tipo_44_valida_contra_xsd():
     assert root.findtext('.//Totales/MontoTotal') == '5000.00'
 
 
+# Payload congelado por la 26va corrida (2026-09-28) para el primer contacto real
+# de tipo 45 (Gubernamental) contra certecf. Comprador: cliente real de Abregonza
+# 573 CONSEJO NACIONAL DE ZONAS FRANCAS DE EXPORTACION (RNC 401501406, patron
+# 401xxx propio de instituciones gubernamentales). El tipo 45 exige RNC+Razon
+# del comprador (caps['comprador']='rnc_razon_mandatory') y totales completos.
+# Estrategia ITBIS 18% con breakdown completo (MontoGravadoTotal/MontoGravadoI1/
+# ITBIS1/TotalITBIS/TotalITBIS1) sugerida por la 25va corrida — patron ya
+# validado por certecf en tipos 31/32. TipoPago=1 (Contado) minimiza superficie
+# (evita FechaLimitePago obligatoria del crédito). Monto pequeño (5900 total)
+# para no consumir "saldo disponible" hipotetico si tipo 45 comparte la regla
+# opaca del 34 (bloqueo activo).
+_PAYLOAD_45_CORRIDA_26 = {
+    'RNCEmisor': '130217432',
+    'RazonSocialEmisor': 'ABREGONZA, SRL',
+    'DireccionEmisor': 'C/ HOSTOS #1, SANTO DOMINGO',
+    'FechaEmision': '28-09-2026',
+    'FechaVencimientoSecuencia': '31-12-2028',
+    'TipoIngresos': '01',
+    'TipoPago': 1,
+    'RNCComprador': '401501406',
+    'RazonSocialComprador': 'CONSEJO NACIONAL DE ZONAS FRANCAS DE EXPORTACION',
+    'MontoGravadoTotal': '5000.00',
+    'MontoGravadoI1': '5000.00',
+    'ITBIS1': '18',
+    'TotalITBIS': '900.00',
+    'TotalITBIS1': '900.00',
+    'MontoTotal': '5900.00',
+    'NumeroLinea[1]': 1,
+    'IndicadorFacturacion[1]': 1,
+    'NombreItem[1]': 'SERVICIO PROFESIONAL GUBERNAMENTAL',
+    'IndicadorBienoServicio[1]': 2,
+    'CantidadItem[1]': '1.00',
+    'PrecioUnitarioItem[1]': '5000.00',
+    'MontoItem[1]': '5000.00',
+}
+
+
+def test_payload_corrida26_tipo_45_valida_contra_xsd():
+    xml_str = ecf_builder.construir_ecf_generico(
+        45, 'E450000000001', dict(_PAYLOAD_45_CORRIDA_26))
+    _validar_estructura_contra_xsd(xml_str, 45)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.findtext('.//IdDoc/TipoeCF') == '45'
+    assert root.findtext('.//Comprador/RNCComprador') == '401501406'
+    assert (root.findtext('.//Comprador/RazonSocialComprador')
+            == 'CONSEJO NACIONAL DE ZONAS FRANCAS DE EXPORTACION')
+    assert root.findtext('.//Totales/MontoGravadoTotal') == '5000.00'
+    assert root.findtext('.//Totales/MontoGravadoI1') == '5000.00'
+    assert root.findtext('.//Totales/ITBIS1') == '18'
+    assert root.findtext('.//Totales/TotalITBIS') == '900.00'
+    assert root.findtext('.//Totales/TotalITBIS1') == '900.00'
+    assert root.findtext('.//Totales/MontoTotal') == '5900.00'
+
+
 def test_tipo_45_gubernamental_valida_contra_xsd():
     datos = {
         'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
