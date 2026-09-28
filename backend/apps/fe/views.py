@@ -561,6 +561,10 @@ def certificacion_paso4_manual_view(request):
         tipo_ecf = int(tipo_ecf_raw)
     except (TypeError, ValueError):
         return _err('tipo_ecf debe ser un entero del catalogo TipoeCF')
+    if tipo_ecf in (33, 34):
+        err = _validar_fecha_ncf_modificado_contra_documento(no_cia, datos)
+        if err is not None:
+            return _err(err)
     try:
         secuencia = fe_repo.consumir_siguiente_encf(no_cia, tipo_ecf)
     except ValueError as exc:
@@ -579,3 +583,39 @@ def certificacion_paso4_manual_view(request):
         resultado['xml_firmado'], json.dumps(resultado['respuesta_cruda']),
         es_prueba='S')
     return JsonResponse({'ok': True, 'encf': e_ncf, 'trackId': resultado['trackId']})
+
+
+_FECHA_EMISION_RE = re.compile(
+    r'<(?:\w+:)?FechaEmision>\s*([^<\s]+)\s*</(?:\w+:)?FechaEmision>')
+
+
+def _validar_fecha_ncf_modificado_contra_documento(no_cia: str,
+                                                    datos: dict) -> str | None:
+    """Guard defensivo: si el operador arma un 33/34 referenciando por
+    ``NCFModificado`` un e-CF propio ya emitido (existente en TFE_DOCUMENTO
+    del mismo no_cia), verifica que ``datos.FechaNCFModificado`` coincida
+    con la ``FechaEmision`` real del XML firmado de ese documento. Si no
+    coincide, la DGII rechaza con codigo 634 y reinicia todos los
+    contadores del ciclo -- previene esa clase de rechazo antes de
+    consumir secuencia. Si el NCFModificado no existe en TFE_DOCUMENTO
+    (referencia externa) o no hay FechaEmision extraible, deja pasar y
+    delega la validacion a la DGII.
+    """
+    ncf_mod = str(datos.get('NCFModificado') or '').strip()
+    fecha_declarada = str(datos.get('FechaNCFModificado') or '').strip()
+    if not ncf_mod or not fecha_declarada:
+        return None
+    doc = fe_repo.get_documento(no_cia, ncf_mod)
+    if not doc or not doc.get('xml_firmado'):
+        return None
+    match = _FECHA_EMISION_RE.search(doc['xml_firmado'])
+    if not match:
+        return None
+    fecha_real = match.group(1).strip()
+    if fecha_real == fecha_declarada:
+        return None
+    return (
+        f'FechaNCFModificado={fecha_declarada!r} no coincide con la '
+        f'FechaEmision real del NCFModificado {ncf_mod} (={fecha_real!r}). '
+        'La DGII rechaza con codigo 634 y reinicia todos los contadores '
+        'del ciclo -- corregir la fecha del payload antes de reenviar.')

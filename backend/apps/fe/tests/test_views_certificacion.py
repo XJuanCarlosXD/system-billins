@@ -366,3 +366,130 @@ def test_paso4_manual_sin_secuencia_configurada_da_400(cliente_autenticado, monk
         content_type='application/json')
     assert resp.status_code == 400
     assert 'secuencia' in resp.json()['detail'].lower()
+
+
+def test_paso4_manual_fecha_ncf_modificado_no_coincide_da_400_sin_consumir_secuencia(
+        cliente_autenticado, monkeypatch):
+    """Guard defensivo corrida 23va: si tipo_ecf in (33,34) y datos.NCFModificado
+    apunta a un TFE_DOCUMENTO propio, la datos.FechaNCFModificado DEBE coincidir
+    con la FechaEmision del XML firmado de ese documento. Si no, la DGII rechaza
+    con codigo 634 y reinicia todos los contadores del ciclo. El guard corta antes
+    de consumir secuencia."""
+    xml_del_31 = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<ECF><Encabezado><IdDoc><TipoeCF>31</TipoeCF>'
+        '<eNCF>E310000000079</eNCF><FechaVencimientoSecuencia>31-12-2028'
+        '</FechaVencimientoSecuencia></IdDoc><Emisor><RNCEmisor>130217432'
+        '</RNCEmisor><FechaEmision>20-11-2025</FechaEmision></Emisor>'
+        '</Encabezado></ECF>')
+    monkeypatch.setattr(fe_repo, 'get_documento',
+                        lambda no_cia, e_ncf: {'e_ncf': e_ncf,
+                                                'xml_firmado': xml_del_31})
+    consumido = []
+    monkeypatch.setattr(fe_repo, 'consumir_siguiente_encf',
+                        lambda no_cia, tipo: consumido.append(tipo) or {
+                            'e_ncf': 'E340000000099',
+                            'fecha_vencimiento_secuencia': None})
+
+    resp = cliente_autenticado.post(
+        '/api/fe/certificacion/paso4-manual/',
+        data=json.dumps({'no_cia': '01', 'tipo_ecf': 34,
+                          'datos': {'NCFModificado': 'E310000000079',
+                                    'FechaNCFModificado': '27-09-2026'}}),
+        content_type='application/json')
+
+    assert resp.status_code == 400
+    detail = resp.json()['detail'].lower()
+    assert 'fechancfmodificado' in detail or 'fecha' in detail
+    assert '20-11-2025' in resp.json()['detail']
+    assert consumido == []
+
+
+def test_paso4_manual_fecha_ncf_modificado_coincide_deja_pasar(
+        cliente_autenticado, monkeypatch):
+    """Cuando la FechaNCFModificado coincide con la FechaEmision del NCFModificado,
+    el guard NO bloquea y el flujo continua normal."""
+    xml_del_31 = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<ECF><Encabezado><Emisor><FechaEmision>20-11-2025</FechaEmision>'
+        '</Emisor></Encabezado></ECF>')
+    monkeypatch.setattr(fe_repo, 'get_documento',
+                        lambda no_cia, e_ncf: {'e_ncf': e_ncf,
+                                                'xml_firmado': xml_del_31})
+    monkeypatch.setattr(fe_repo, 'consumir_siguiente_encf',
+                        lambda no_cia, tipo: {'e_ncf': 'E330000000020',
+                                               'fecha_vencimiento_secuencia': None})
+    monkeypatch.setattr(ecf_builder, 'construir_ecf_generico',
+                        lambda tipo, encf, datos: '<ECF/>')
+    monkeypatch.setattr(dgii_client, 'enviar_ecf',
+                        lambda no_cia, ambiente, e_ncf, xml: {
+                            'trackId': 'TRK-33', 'xml_firmado': '<x/>',
+                            'respuesta_cruda': {}})
+    monkeypatch.setattr(fe_repo, 'save_documento_enviado',
+                        lambda *a, **k: None)
+
+    resp = cliente_autenticado.post(
+        '/api/fe/certificacion/paso4-manual/',
+        data=json.dumps({'no_cia': '01', 'tipo_ecf': 33,
+                          'datos': {'NCFModificado': 'E310000000079',
+                                    'FechaNCFModificado': '20-11-2025'}}),
+        content_type='application/json')
+    assert resp.status_code == 200
+    assert resp.json()['encf'] == 'E330000000020'
+
+
+def test_paso4_manual_ncf_modificado_no_existe_en_tfe_documento_no_bloquea(
+        cliente_autenticado, monkeypatch):
+    """Si el NCFModificado NO existe en TFE_DOCUMENTO del propio no_cia
+    (ej. fue emitido por otro sistema o esta corrupto), el guard no puede
+    validar y deja pasar -- la DGII decidira. NO consultar DGII desde el guard."""
+    monkeypatch.setattr(fe_repo, 'get_documento',
+                        lambda no_cia, e_ncf: None)
+    monkeypatch.setattr(fe_repo, 'consumir_siguiente_encf',
+                        lambda no_cia, tipo: {'e_ncf': 'E340000000099',
+                                               'fecha_vencimiento_secuencia': None})
+    monkeypatch.setattr(ecf_builder, 'construir_ecf_generico',
+                        lambda tipo, encf, datos: '<ECF/>')
+    monkeypatch.setattr(dgii_client, 'enviar_ecf',
+                        lambda no_cia, ambiente, e_ncf, xml: {
+                            'trackId': 'TRK', 'xml_firmado': '<x/>',
+                            'respuesta_cruda': {}})
+    monkeypatch.setattr(fe_repo, 'save_documento_enviado',
+                        lambda *a, **k: None)
+
+    resp = cliente_autenticado.post(
+        '/api/fe/certificacion/paso4-manual/',
+        data=json.dumps({'no_cia': '01', 'tipo_ecf': 34,
+                          'datos': {'NCFModificado': 'E310999999999',
+                                    'FechaNCFModificado': '27-09-2026'}}),
+        content_type='application/json')
+    assert resp.status_code == 200
+
+
+def test_paso4_manual_tipo_no_es_33_ni_34_no_valida_fecha_ncf(
+        cliente_autenticado, monkeypatch):
+    """El guard solo aplica a tipo_ecf in (33,34). Un 41/43/44 con
+    NCFModificado accidental en datos no debe consultar TFE_DOCUMENTO."""
+    consultado = []
+    monkeypatch.setattr(fe_repo, 'get_documento',
+                        lambda no_cia, e_ncf: consultado.append(e_ncf) or None)
+    monkeypatch.setattr(fe_repo, 'consumir_siguiente_encf',
+                        lambda no_cia, tipo: {'e_ncf': 'E410000000010',
+                                               'fecha_vencimiento_secuencia': None})
+    monkeypatch.setattr(ecf_builder, 'construir_ecf_generico',
+                        lambda tipo, encf, datos: '<ECF/>')
+    monkeypatch.setattr(dgii_client, 'enviar_ecf',
+                        lambda no_cia, ambiente, e_ncf, xml: {
+                            'trackId': 'TRK', 'xml_firmado': '<x/>',
+                            'respuesta_cruda': {}})
+    monkeypatch.setattr(fe_repo, 'save_documento_enviado',
+                        lambda *a, **k: None)
+
+    resp = cliente_autenticado.post(
+        '/api/fe/certificacion/paso4-manual/',
+        data=json.dumps({'no_cia': '01', 'tipo_ecf': 41,
+                          'datos': {'NCFModificado': 'E310000000079',
+                                    'FechaNCFModificado': '01-01-1999'}}),
+        content_type='application/json')
+    assert resp.status_code == 200
+    assert consultado == []

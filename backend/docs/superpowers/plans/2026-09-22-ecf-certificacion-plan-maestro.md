@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En curso — 23va corrida: **4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 + 2/2 tipo 41 + 2/2 tipo 43 + 0/N resto** (11/N aceptados post-corrida, portal Playwright confirmado). Nuevo hallazgo crítico: código 634 "FechaNCFModificado no coincide" — al referenciar un E31 emitido vía `paso4-factura-real`, `FechaNCFModificado` del 33/34 debe ser la `fecha` real de `TFAT_FACTURA` (papel), NO la fecha de envío al portal. FC-0007829 tiene `fecha='20-11-2025'`. Bloqueo 34 sigue activo. Próxima (24va): 1×44 primer contacto (Régimen Especial, requiere payload nuevo) + 1×45 primer contacto (Gubernamental); dejar 46/47 y RFCE para 25va+; considerar guard defensivo en `paso4-manual` que valide FechaNCFModificado contra TFE_DOCUMENTO propio. | 2026-09-27 |
+| 4 | Pruebas Simulación e-CF | 🔲 En curso — 24va corrida: **4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 + 2/2 tipo 41 + 2/2 tipo 43 + 0/N resto** (11/N aceptados, portal Playwright confirmado, sin nuevos reinicios). Guard defensivo desplegado en `apps/fe/views.py::_validar_fecha_ncf_modificado_contra_documento`: para `tipo_ecf∈{33,34}` con `NCFModificado` propio en TFE_DOCUMENTO, compara `datos.FechaNCFModificado` vs FechaEmision real del XML firmado y corta con HTTP 400 ANTES de `consumir_siguiente_encf`. Previene código 634 y su cascada. Smoke test real: contra E310000000096 (FechaEmision=09-05-2025) el guard bloquea correctamente `FechaNCFModificado='27-09-2026'` y deja pasar `'09-05-2025'`. 21/21 tests módulo `test_views_certificacion.py` + 235/235 paquete `apps/fe/tests/` pasan. Bloqueo 34 (código 615 saldo disponible) sigue activo — requiere acción humana (soporte DGII). Próxima (25va): 1×44 primer contacto (Régimen Especial) con XSD-gate + payload realista, o 1×45 primer contacto (Gubernamental). ⚠ Rango tipo 31 sólo tiene 4 secuencias restantes (97..100) — un rechazo cascada agota el margen. TODO administrativo (no runner): ampliar `secuencia_hasta` tipo 31 (ej. 500). | 2026-09-28 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -1784,9 +1784,98 @@ Con 2/2 tipo 41 asegurado, el siguiente tipo nuevo es el **1×43 (Gastos Menores
 
 **Nota operativa 20va**: no hubo cambios de código esta corrida — solo script `/tmp/ecf_20_run41.py` con `Client.force_login` (mismo patrón que `ecf_19_run.py`), no va al repo. Commit solo del plan maestro.
 
+## Fase 4 — Hallazgos de la 24va corrida (2026-09-28) — GUARD DEFENSIVO CÓDIGO 634 DESPLEGADO
+
+Portal previo (Playwright, `/certecf/portalcertificacion/Postulacion/PruebasSimulacion`): **4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 + 0/2 tipo 34 (bloqueada) + 2/2 tipo 41 + 2/2 tipo 43 + 0/2 resto (44/45/46/47) + 0/4 RFCE**. Último reinicio en el log del portal: 27/09 8:19:02 PM (rechazo del 634 en la 23va, ya corregido en el reintento exitoso). Sin nuevos reinicios post-23va.
+
+TFE_SECUENCIA previo (`fe_repo.list_secuencias('01')` en el contenedor):
+- 31: rango 1..**100**, prox 97 → sólo 4 secuencias disponibles antes de agotarse
+- 32: rango 1..50M, prox 1024
+- 33: rango 1..10M, prox 13
+- 34: rango 1..100, prox 55 (bloqueada por saldo)
+- 41: rango 1..10M, prox 6
+- 43: rango 1..10M, prox 7
+- 44/45/46/47: rango 1..10M cada uno, prox 1
+
+Decisión de esta corrida: NO enviar primer contacto de tipo 44/45 con el rango tipo 31 tan estrecho (un rechazo cascada consumiría exactamente 97-100 al reconstruir 4×31 y nos dejaría en 0 secuencias tipo 31). En su lugar, cerrar el TODO obligatorio abierto por la 23va: guard defensivo contra código 634 en `paso4-manual`. Cero riesgo al ciclo intacto, valor real (protege contra una clase entera de rechazos que pierden el ciclo entero).
+
+### Guard implementado (TDD)
+
+`apps/fe/views.py::_validar_fecha_ncf_modificado_contra_documento(no_cia, datos)`:
+- Se dispara SOLO si `tipo_ecf ∈ {33, 34}` (validado antes de `consumir_siguiente_encf`).
+- Se salta si `datos.NCFModificado` o `datos.FechaNCFModificado` faltan (caso no aplica).
+- Consulta `fe_repo.get_documento(no_cia, NCFModificado)`; si no existe en TFE_DOCUMENTO del propio no_cia (referencia externa o corrupta), deja pasar — delega a la DGII.
+- Extrae la `FechaEmision` real del `xml_firmado` con regex namespace-agnóstica.
+- Compara con `datos.FechaNCFModificado`; si difieren, retorna mensaje de error explícito (incluye la fecha real). La vista responde HTTP 400 con ese mensaje ANTES de consumir secuencia.
+
+Tests nuevos en `apps/fe/tests/test_views_certificacion.py`:
+- `test_paso4_manual_fecha_ncf_modificado_no_coincide_da_400_sin_consumir_secuencia` (fecha errónea → 400, secuencia intacta)
+- `test_paso4_manual_fecha_ncf_modificado_coincide_deja_pasar` (fecha correcta → 200, flujo normal)
+- `test_paso4_manual_ncf_modificado_no_existe_en_tfe_documento_no_bloquea` (referencia externa → 200, delega a DGII)
+- `test_paso4_manual_tipo_no_es_33_ni_34_no_valida_fecha_ncf` (41 con NCFModificado accidental → guard no dispara)
+
+21/21 tests módulo + **235/235 paquete `apps/fe/tests/`** pasan en el contenedor `facturation_backend` de la VM (bind mount `/home/jcabreu/facturation-system/backend → /app`, deploy = pscp al VM + docker cp al contenedor son equivalentes; verificado que el archivo persiste vía el bind).
+
+### Smoke test end-to-end contra Oracle real
+
+Vía `manage.py shell -c` con `_validar_fecha_ncf_modificado_contra_documento` directo:
+- E310000000096 (cierre de FC-0007607 en 23va corrida) tiene `FechaEmision=09-05-2025` en el XML firmado real (confirma la lección de la 23va: `paso4-factura-real` usa la fecha de `TFAT_FACTURA.fecha`, NO la fecha de envío al portal).
+- Guard con `FechaNCFModificado='27-09-2026'` → devuelve el mensaje de error esperado (contiene "no coincide" + "09-05-2025").
+- Guard con `FechaNCFModificado='09-05-2025'` → None (deja pasar).
+- Guard con NCF inexistente `E310999999999` → None (deja pasar, delega a DGII).
+- Guard con `datos={}` → None (no aplica).
+
+### Estado real de TFE_SECUENCIA (después de esta corrida)
+
+Sin envíos a DGII esta corrida — TFE_SECUENCIA inalterada respecto al preámbulo.
+
+### Próximo paso para la corrida siguiente (25va)
+
+1. **1×44 primer contacto (Régimen Especial)** vía `paso4-manual` con `construir_ecf_generico(44)`. Requiere investigación del XSD `e-CF-44-v1.0.xsd`: campos obligatorios de facto probables (`TipoIngresos`, `TipoPago`, `RazonSocialComprador`). Elegir comprador realista (empresa de zona franca / régimen especial de Abregonza o inventado realista si la BD no tiene). Escribir test XSD-gate previo (`test_payload_corrida25_tipo_44_valida_contra_xsd`). Enviar UNO solo con gate XSD-local + probe DGII previo.
+2. Si 44 sale bien: 1×45 (Gubernamental) — comprador de institución pública real (ejemplo del payload en el plan Fase 5). Después 46 (Exportaciones, con PaisDestino) y 47 (Pagos al Exterior, con retención completa).
+3. RFCE (grupo Tercero) al final.
+
+**Bloqueo 34** sigue activo — código 615 "saldo disponible". Requiere acción del usuario (soporte DGII 809-689-3444 con trackId `daeac04a-b4cd-4e27-89e4-a3d831513086`). Runner NO debe reintentar 1×34 en la 25va+.
+
+⚠ **Rango tipo 31 = 4 secuencias restantes** (97..100). Un rechazo cascada las agota. Antes de arriesgar un primer contacto (44/45/46/47) que pueda disparar reset, el usuario debería ampliar `secuencia_hasta` para tipo 31 (ej. a 500):
+
+```sql
+UPDATE FAT.TFE_SECUENCIA SET secuencia_hasta = 500
+ WHERE no_cia='01' AND tipo_ecf='31';
+COMMIT;
+```
+
+Es una operación no destructiva (sólo eleva el techo), pero afecta datos maestros y el plan la clasifica como TODO administrativo del usuario. Runner NO ejecuta este UPDATE por sí mismo.
+
+Código nuevo desplegado esta corrida: `apps/fe/views.py` (guard + regex + tests). Commit del código + plan maestro actualizado.
+
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
+
+- **2026-09-28 04:10-04:35 UTC (24va corrida)** — Runner scheduled. Fase 4
+  — **guard defensivo código 634 desplegado** (TDD, 235/235 tests). Portal
+  previo Playwright: 4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 + 0/2
+  tipo 34 (bloqueada) + 2/2 tipo 41 + 2/2 tipo 43 + 0/2 resto, sin nuevos
+  reinicios post-23va. TFE_SECUENCIA previo: 31→97 (¡sólo 4 restantes en
+  rango 1..100!), 32→1024, 33→13, 34→55, 41→6, 43→7, 44-47→1. Decisión
+  operativa: NO enviar primer contacto tipo 44/45 con el rango 31 tan
+  estrecho (rechazo cascada agotaría 97..100). En su lugar, cerrar el
+  TODO obligatorio de la 23va: `apps/fe/views.py::_validar_fecha_ncf_
+  modificado_contra_documento` para `tipo_ecf∈{33,34}` — extrae
+  FechaEmision del XML firmado del NCFModificado en TFE_DOCUMENTO propio
+  y compara con `datos.FechaNCFModificado`; si difiere corta con HTTP 400
+  ANTES de `consumir_siguiente_encf`. 4 tests nuevos
+  (`test_paso4_manual_fecha_ncf_modificado_*`), 21/21 módulo + 235/235
+  paquete `apps/fe/tests/` pasan en el contenedor. Smoke real end-to-end
+  contra E310000000096 (FechaEmision=09-05-2025 en XML): guard bloquea
+  fecha errónea correctamente y deja pasar la correcta. Bloqueo 34 sigue
+  activo (requiere acción del usuario). Sin envíos a DGII, TFE_SECUENCIA
+  inalterada. Próximo paso (25va): 1×44 primer contacto con XSD-gate;
+  usuario debería ampliar rango tipo 31 antes (UPDATE `secuencia_hasta`).
+  Detectado archivo `backend/apps/legacy/repositories/inv_repo.py` con
+  cambios no commiteados que no son de este runner — no tocados.
+  Commits: (ver commit de esta corrida).
 
 - **2026-09-27 16:14-16:24 UTC (21va corrida)** — Runner scheduled. Fase 4
   — **PRIMER TIPO 43 ACEPTADO** por certecf tras 3 rechazos de aprendizaje.
