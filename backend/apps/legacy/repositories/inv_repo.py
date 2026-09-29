@@ -3350,7 +3350,7 @@ def reversar_documento_inv(*, no_cia: str, punto: str, tipo_docu: str,
         cur.execute(
             "SELECT no_linea, almacen, no_produ, cantidad, precio, costo,"
             "       tipo_movi, tipo_transaccion, empaque, cpe, "
-            "       NVL(st_anulado,'N'), no_orden "
+            "       NVL(st_anulado,'N'), no_orden, NVL(servicio,'I') "
             "FROM INV.TINV_MOVIMIENTO "
             "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4 "
             "ORDER BY no_linea FOR UPDATE",
@@ -3369,7 +3369,7 @@ def reversar_documento_inv(*, no_cia: str, punto: str, tipo_docu: str,
         no_af = _next_inv_seq(cur, no_cia, punto, 'AF')
         lineas_por_orden: dict[str, list[dict]] = {}
         for r in rows:
-            no_linea, almacen_o, no_produ_o, cant, precio, costo, tm, tr, emp, cpe, _, no_orden_r = r
+            no_linea, almacen_o, no_produ_o, cant, precio, costo, tm, tr, emp, cpe, _, no_orden_r, servicio_o = r
             if no_orden_r and (tm or '').upper() == 'E':
                 lineas_por_orden.setdefault(str(no_orden_r), []).append(
                     {'no_produ': no_produ_o, 'cantidad': float(cant or 0)})
@@ -3382,11 +3382,16 @@ def reversar_documento_inv(*, no_cia: str, punto: str, tipo_docu: str,
                 cantidad=float(cant or 0), precio=float(precio or 0),
                 costo=float(costo or 0),
                 empaque=int(emp or 1), cpe=int(cpe or 1),
-                usuario=usuario, tipo_refe=tipo_docu, no_refe=no_docu)
-            _adjust_eproducto_stock(
-                cur, no_cia=no_cia, punto=punto, almacen=almacen_o,
-                no_produ=no_produ_o, tipo_movi=tipo_opuesto,
-                cantidad=float(cant or 0))
+                usuario=usuario, tipo_refe=tipo_docu, no_refe=no_docu,
+                servicio=servicio_o)
+            # Los servicios nunca tocan TINV_EPRODUCTO (ver
+            # create_movimiento_documento) -- reversar una linea de servicio
+            # no puede intentar descontar una existencia que nunca se creo.
+            if servicio_o != 'S':
+                _adjust_eproducto_stock(
+                    cur, no_cia=no_cia, punto=punto, almacen=almacen_o,
+                    no_produ=no_produ_o, tipo_movi=tipo_opuesto,
+                    cantidad=float(cant or 0))
         # El header (TINV_RME) nunca se marcaba -- solo las lineas
         # (TINV_MOVIMIENTO) quedaban st_anulado='S'. Resultado: Consulta de
         # Documentos seguia mostrando "Autorizado" para un documento ya
