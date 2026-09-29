@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En curso — 26va corrida: **11/N aceptados sin cambios** (portal Playwright confirmado, último reinicio sigue 27/09 8:19:02 PM). Sin envíos DGII (usuario aún no amplió `secuencia_hasta` tipo 31 — sigue en 4 restantes 97..100). Trabajo libre de riesgo: **payload congelado `_PAYLOAD_45_CORRIDA_26`** para primer contacto tipo 45 (Gubernamental) validado contra XSD real e-CF-45-v1.0.xsd + test XSD-gate `test_payload_corrida26_tipo_45_valida_contra_xsd` (88/88 módulo + 237/237 paquete `apps/fe/tests/`). Comprador CONSEJO NACIONAL DE ZONAS FRANCAS DE EXPORTACION (CXC 573 real de Abregonza, RNC 401501406 patrón institucional), estrategia ITBIS 18% con breakdown completo (MontoGravadoTotal/I1 + ITBIS1=18 + TotalITBIS/1=900 + MontoTotal=5900), TipoPago=1 (Contado). Ya congelado desde la 25va: `_PAYLOAD_44_CORRIDA_25` (ZONA FRANCA SAN ISIDRO, RNC 101506091, estrategia Exento). Bloqueo 34 (código 615) sigue activo. ⚠ Rango tipo 31 = 4 restantes (97..100) — TODO administrativo del usuario: `UPDATE FAT.TFE_SECUENCIA SET secuencia_hasta = 500 WHERE no_cia='01' AND tipo_ecf='31'` antes de arriesgar primer contacto. Próxima (27va): si rango ampliado, enviar 1×44 y luego 1×45 con payloads congelados; si no, congelar `_PAYLOAD_46_CORRIDA_27` (Exportaciones, comprador extranjero con PaisDestino). | 2026-09-28 |
+| 4 | Pruebas Simulación e-CF | 🔲 En curso — 27va corrida (2026-09-29): **1/2 tipo 44 + 1/2 tipo 45 activados** (E440000000003 CORTES HERMANOS 101001811 12:00:53 PM UTC-4 + E450000000002 CONSEJO NACIONAL DE ZONAS FRANCAS 401501406 12:01:56 PM UTC-4). Rango tipo 31 = 10M (usuario amplió post-26va). Cascada intermedia perdió acumulado previo (4/4 31+2/2 32+1/1 33+2/2 41+2/2 43) por primer intento tipo 44 sin RNCComprador (E440000000001 código 1381). Fixes en `apps/fe/ecf_builder.py`: `_TIPO_CAPS[44]['comprador']='rnc_razon_mandatory'` (era `razon_mandatory`, patrón "XSD opcional / DGII exige" #9); y payload 45 requiere `IndicadorMontoGravado=0` de facto (E450000000001 código 176, patrón #10, mismo que tipo 31 aprendió en 1ra corrida). `_PAYLOAD_44_CORRIDA_27` (CORTES 101001811 validado por 14va) + `_PAYLOAD_45_CORRIDA_26` actualizado con IndicadorMontoGravado=0 + test `test_tipo_44_sin_rnc_comprador_lanza_error_corrida27` + tests 25/26 actualizados. 90+ tests módulo pasan. Bloqueo 34 (código 615) sigue activo. Portal final: 0/N el resto (31/32/33/34/41/43/46/47/RFCE). Próxima (28va): reconstruir ciclo Primero+Segundo con builder ya arreglado (4×31 vía paso4-factura-real, 2×32≥250K con RNCs validados RYLCO/VALOIS, 1×33 con NCFModificado del 31 fresco + FechaNCFModificado correcta, 2×41 INDUSTRIAS BISONO, 2×43 exento) + 2do 44 y 2do 45 (mismos payloads, cambiar cosmético NombreItem). | 2026-09-29 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -1974,6 +1974,51 @@ Código nuevo desplegado esta corrida: `backend/apps/fe/tests/test_ecf_builder_g
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
+
+- **2026-09-29 15:50-16:03 UTC (27va corrida)** — Runner scheduled. Fase 4
+  — **PRIMER 1/2 tipo 44 + PRIMER 1/2 tipo 45 ACEPTADOS** por certecf tras
+  2 rechazos de aprendizaje. Portal previo Playwright (idéntico al preámbulo
+  25va/26va): 4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 + 2/2 tipo 41 +
+  2/2 tipo 43 + 0/N resto. Precondición 26va cumplida: `secuencia_hasta`
+  tipo 31 = 10,000,000 (usuario extendió). Probe DGII OK (token len 343).
+  **Rechazo 1** — E440000000001 (trackId `39de3934-c87c-490f-80e6-9e996274ace2`,
+  11:54:26 AM UTC-4, `_PAYLOAD_44_CORRIDA_25` sin RNCComprador) código 1381
+  "RNCComprador es obligatorio" → cascada borró 11/N acumulados. **Hallazgo
+  #9 patrón "XSD opcional / DGII exige"**: tipo 44 exige RNCComprador
+  aunque `_TIPO_CAPS[44]['comprador']` era `'razon_mandatory'`. **Fix
+  desplegado**: cap actualizado a `'rnc_razon_mandatory'` en
+  `apps/fe/ecf_builder.py`. Tests actualizados (`_base_44` + histórico
+  `test_tipo_44_regimenes_especiales_valida_contra_xsd` + `test_payload_
+  corrida25_tipo_44_valida_contra_xsd`). Nuevo `_PAYLOAD_44_CORRIDA_27`
+  con RNCComprador 101001811 (CORTES HERMANOS, validado empíricamente por
+  la 14va corrida) + `test_payload_corrida27_tipo_44_con_rnc_valida_contra_xsd`
+  + `test_tipo_44_sin_rnc_comprador_lanza_error_corrida27` defensivo.
+  **Envío RETRY 44** — E440000000003 (trackId `d84ab58c-eafa-4885-9548-
+  641e90e50a39`, 12:00:53 PM UTC-4) **Aceptado**.
+  **Rechazo 2** — E450000000001 (trackId `1db547cd-785c-4964-82d0-ace8c646496f`,
+  11:59:21 AM UTC-4, `_PAYLOAD_45_CORRIDA_26` sin IndicadorMontoGravado)
+  código 176 "IndicadorMontoGravado del área IdDoc no es válido" → cascada
+  borró el 44 recién aceptado. **Hallazgo #10 patrón "XSD opcional / DGII
+  exige"**: tipo 45 exige IndicadorMontoGravado aunque el XSD lo marque
+  opcional. Mismo patrón que tipo 31 aprendió en la 1ra corrida (código
+  176). **Fix payload**: `_PAYLOAD_45_CORRIDA_26` actualizado con
+  `IndicadorMontoGravado=0`. **Envío RETRY 45** — E450000000002 (trackId
+  `1718043e-b5a3-4359-b988-41a96b2e8fcd`, 12:01:56 PM UTC-4) **Aceptado**.
+  **Portal final Playwright**: 1/2 tipo 44 + 1/2 tipo 45 + 0/N resto (log
+  registra reinicios 11:54 y 11:59, sin nuevos post-Aceptados). Tests: 90/90
+  módulo `test_ecf_builder_generico.py` pasan en contenedor. Bloqueo 34
+  sigue activo. Costo: 2 secuencias 44 quemadas (001 Rechazada, 002 Aceptada
+  luego borrada por cascada) + 1 secuencia 45 quemada Rechazada + reset del
+  ciclo Primero previo. Ganancia neta: 2 nuevos renglones activos + 2 reglas
+  de negocio DGII confirmadas empíricamente + builder blindado. Estado
+  TFE_SECUENCIA post: 31→97, 32→1024, 33→13, 34→55, 41→6, 43→7, 44→4, 45→3,
+  46-47→1. Próximo paso (28va): reconstruir ciclo Primero+Segundo (4×31 vía
+  `paso4-factura-real` + 2×32≥250K RYLCO/VALOIS + 1×33 NCFMod del 31
+  fresco + 2×41 INDUSTRIAS BISONO + 2×43 exento) + 2do 44 `_PAYLOAD_44_
+  CORRIDA_27` con NombreItem cosmético distinto + 2do 45 `_PAYLOAD_45_
+  CORRIDA_26` con NombreItem cosmético distinto. Después 1×46 (Exportaciones,
+  comprador extranjero + PaisDestino, primer contacto) y 1×47 (Pagos al
+  Exterior). Commits: (ver commit de esta corrida).
 
 - **2026-09-28 12:10-12:30 UTC (26va corrida)** — Runner scheduled. Fase 4 —
   **payload congelado `_PAYLOAD_45_CORRIDA_26` para primer contacto tipo 45**

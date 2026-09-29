@@ -656,10 +656,15 @@ def test_tipo_43_ignora_rnc_comprador_no_existe_elemento_comprador():
 
 
 def test_tipo_44_regimenes_especiales_valida_contra_xsd():
+    # 27va corrida (2026-09-29): DGII exige RNCComprador para tipo 44 (código
+    # 1381 en primer contacto real E440000000001), aunque el XSD lo permita
+    # omitir. Cap actualizado a 'rnc_razon_mandatory' (patrón "XSD opcional /
+    # DGII exige" #9).
     datos = {
         'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
         'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
         'FechaVencimientoSecuencia': '31-12-2028', 'TipoIngresos': '01', 'TipoPago': 1,
+        'RNCComprador': '101999999',
         'RazonSocialComprador': 'ZONA FRANCA ZZTEST', 'MontoTotal': '1000.00',
         'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1,
         'NombreItem[1]': 'PRODUCTO ZZTEST', 'IndicadorBienoServicio[1]': 1,
@@ -670,8 +675,8 @@ def test_tipo_44_regimenes_especiales_valida_contra_xsd():
     _validar_estructura_contra_xsd(xml_str, 44)
     root = etree.fromstring(xml_str.encode('utf-8'))
     assert root.findtext('.//IdDoc/TipoeCF') == '44'
+    assert root.findtext('.//Comprador/RNCComprador') == '101999999'
     assert root.findtext('.//Comprador/RazonSocialComprador') == 'ZONA FRANCA ZZTEST'
-    assert root.find('.//Comprador/RNCComprador') is None
 
 
 # Fase 4 25va corrida — payload congelado para primer contacto real tipo 44
@@ -705,16 +710,73 @@ _PAYLOAD_44_CORRIDA_25 = {
 
 
 def test_payload_corrida25_tipo_44_valida_contra_xsd():
+    # 27va corrida (2026-09-29): DGII rechazó primer contacto E440000000001
+    # con código 1381 "RNCComprador es obligatorio" — cap actualizado a
+    # 'rnc_razon_mandatory'. El payload histórico de la 25va se conserva por
+    # trazabilidad pero se agrega RNCComprador para que el gate XSD pase.
+    payload = dict(_PAYLOAD_44_CORRIDA_25)
+    payload.setdefault('RNCComprador', '101001811')
     xml_str = ecf_builder.construir_ecf_generico(
-        44, 'E440000000001', dict(_PAYLOAD_44_CORRIDA_25))
+        44, 'E440000000001', payload)
     _validar_estructura_contra_xsd(xml_str, 44)
     root = etree.fromstring(xml_str.encode('utf-8'))
     assert root.findtext('.//IdDoc/TipoeCF') == '44'
-    assert (root.findtext('.//Comprador/RazonSocialComprador')
-            == 'ZONA FRANCA SAN ISIDRO, S.A.')
-    assert root.find('.//Comprador/RNCComprador') is None
     assert root.findtext('.//Totales/MontoExento') == '5000.00'
     assert root.findtext('.//Totales/MontoTotal') == '5000.00'
+
+
+# Fase 4 27va corrida (2026-09-29) — payload congelado para RETRY tipo 44 con
+# RNCComprador tras hallazgo empírico (código 1381 en primer contacto).
+# RNC 101001811 (CORTES HERMANOS) — YA validado como RNC real ante DGII por la
+# 14va corrida cuando fue Aceptado el tipo 32 con este mismo comprador. Uso
+# preferido sobre RNC de zona franca no validado (ZONA FRANCA SAN ISIDRO
+# 101506091 en CXC.TCXC_CLIENTE nunca ha sido probado contra DGII y la 14va
+# demostró que datos CXC no garantizan validez ante DGII). Estrategia mantiene
+# Exento (IndicadorFacturacion=4 + MontoExento) del payload 25va — la 21va
+# demostró que ese es un patrón conservador que funciona.
+_PAYLOAD_44_CORRIDA_27 = {
+    'RNCEmisor': '130217432',
+    'RazonSocialEmisor': 'ABREGONZA, SRL',
+    'DireccionEmisor': 'C/ HOSTOS #1, SANTO DOMINGO',
+    'FechaEmision': '29-09-2026',
+    'FechaVencimientoSecuencia': '31-12-2028',
+    'TipoIngresos': '01',
+    'TipoPago': 1,
+    'RNCComprador': '101001811',
+    'RazonSocialComprador': 'CORTES HERMANOS',
+    'MontoExento': '5000.00',
+    'MontoTotal': '5000.00',
+    'NumeroLinea[1]': 1,
+    'IndicadorFacturacion[1]': 4,
+    'NombreItem[1]': 'MATERIAL INDUSTRIAL EXENTO',
+    'IndicadorBienoServicio[1]': 1,
+    'CantidadItem[1]': '1.00',
+    'PrecioUnitarioItem[1]': '5000.00',
+    'MontoItem[1]': '5000.00',
+}
+
+
+def test_payload_corrida27_tipo_44_con_rnc_valida_contra_xsd():
+    xml_str = ecf_builder.construir_ecf_generico(
+        44, 'E440000000002', dict(_PAYLOAD_44_CORRIDA_27))
+    _validar_estructura_contra_xsd(xml_str, 44)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.findtext('.//IdDoc/TipoeCF') == '44'
+    assert root.findtext('.//Comprador/RNCComprador') == '101001811'
+    assert (root.findtext('.//Comprador/RazonSocialComprador')
+            == 'CORTES HERMANOS')
+    assert root.findtext('.//Totales/MontoExento') == '5000.00'
+    assert root.findtext('.//Totales/MontoTotal') == '5000.00'
+
+
+def test_tipo_44_sin_rnc_comprador_lanza_error_corrida27():
+    """27va corrida: guard defensivo — tipo 44 sin RNCComprador debe cortar
+    en el builder antes de firmar/enviar. Documenta el hallazgo empírico
+    (código 1381 DGII en primer contacto E440000000001)."""
+    datos = dict(_PAYLOAD_44_CORRIDA_27)
+    datos.pop('RNCComprador', None)
+    with pytest.raises(ecf_builder.ECFBuilderError):
+        ecf_builder.construir_ecf_generico(44, 'E440000000099', datos)
 
 
 # Payload congelado por la 26va corrida (2026-09-28) para el primer contacto real
@@ -736,6 +798,11 @@ _PAYLOAD_45_CORRIDA_26 = {
     'FechaVencimientoSecuencia': '31-12-2028',
     'TipoIngresos': '01',
     'TipoPago': 1,
+    # 27va corrida (2026-09-29): DGII rechazó E450000000001 con código 176
+    # "IndicadorMontoGravado del área IdDoc no es válido" — de facto obligatorio
+    # para tipo 45, aunque XSD lo marque opcional. Patrón "XSD opcional /
+    # DGII exige" #10, mismo que tipo 31 aprendió en la 1ra corrida.
+    'IndicadorMontoGravado': 0,
     'RNCComprador': '401501406',
     'RazonSocialComprador': 'CONSEJO NACIONAL DE ZONAS FRANCAS DE EXPORTACION',
     'MontoGravadoTotal': '5000.00',
@@ -905,6 +972,7 @@ def _base_44():
         'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',
         'DireccionEmisor': 'AV ZZTEST #1, SANTO DOMINGO', 'FechaEmision': '31-12-2028',
         'FechaVencimientoSecuencia': '31-12-2028', 'TipoIngresos': '01', 'TipoPago': 1,
+        'RNCComprador': '101999999',
         'RazonSocialComprador': 'ZONA FRANCA ZZTEST', 'MontoTotal': '1000.00',
         'NumeroLinea[1]': 1, 'IndicadorFacturacion[1]': 1,
         'NombreItem[1]': 'PRODUCTO ZZTEST', 'IndicadorBienoServicio[1]': 1,

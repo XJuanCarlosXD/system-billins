@@ -639,7 +639,7 @@ _TIPO_CAPS = {
              item_impuesto_adicional=False),
     44: dict(fecha_venc=True, ind_nota_credito=False, tipo_ingresos=True,
              tipo_ingresos_mandatory=True, tipo_pago_mandatory=True,
-             tabla_formas_pago=True, comprador='razon_mandatory',
+             tabla_formas_pago=True, comprador='rnc_razon_mandatory',
              item_retencion='no', totales_completo=True,
              info_referencia_mandatory=False, transporte=_TRANSPORTE_ESTANDAR,
              info_adicional=True, descuentos_o_recargos=True,
