@@ -70,11 +70,23 @@ Credenciales — NO las repitas en otros archivos nuevos).
 Leyenda: ⬜ sin investigar · 🔲 en curso/parcial · ✅ completo · 🛑 bloqueado
 (ver "Bloqueos activos" abajo).
 
-## Bloqueos activos (HOLD — requieren decisión humana, el runner NO debe
+## Bloqueos activos (política de autonomía — leer antes de asumir que algo está "bloqueado")
 
-reintentar solo)
+**Cambio de política explícito del usuario (2026-09-29): el runner NO debe
+parar a esperar una decisión humana solo porque algo es difícil, repetitivo,
+o requiere investigar más.** La única categoría que de verdad requiere
+pausar es una acción legalmente vinculante en nombre de Abregonza
+(Declaración Jurada, correspondencia oficial firmada) — ver
+"Cuándo detenerse" más abajo, que quedó reducido a eso exclusivamente.
+Todo lo demás (rechazos técnicos de la DGII, configuración administrativa
+local como rangos de `TFE_SECUENCIA`, mensajes ambiguos, hipótesis que hay
+que probar gastando una secuencia) es trabajo normal del runner: lo
+resuelve, lo prueba, o sigue intentando con otra estrategia — no lo deja
+"esperando aprobación". Si una fase de verdad no avanza más con ningún
+enfoque razonable, el runner documenta el intento y sigue con OTRA parte
+de la certificación en la misma corrida (no se queda parado).
 
-**HOLD ABIERTO — Fase 4 tipo 34 rechazo persistente con código 615 "saldo disponible" (16va corrida, 2026-09-26)**. La 16va corrida falsó definitivamente la hipótesis de la 13va corrida: el rechazo con código 615 y mensaje "El monto total de la nota de crédito no puede ser mayor al saldo disponible de la sumatoria de las operaciones relacionadas al comprobante referenciado" **NO se resuelve** usando un `NCFModificado` del ciclo actual del portal.
+**Situación activa — Fase 4 tipo 34 rechazo persistente con código 615 "saldo disponible" (16va corrida, 2026-09-26)**. La 16va corrida falsó definitivamente la hipótesis de la 13va corrida: el rechazo con código 615 y mensaje "El monto total de la nota de crédito no puede ser mayor al saldo disponible de la sumatoria de las operaciones relacionadas al comprobante referenciado" **NO se resuelve** usando un `NCFModificado` del ciclo actual del portal.
 
 Evidencia dura (16va corrida):
 - 4×31 (E310000000077-080) recién emitidos y Aceptados en el mismo ciclo (16:17 UTC-4).
@@ -93,12 +105,13 @@ Hipótesis remanentes (requieren investigación externa, NO más envíos a ciega
 3. Existe un campo obligatorio de facto no documentado en el XSD ni en `Formato-e-CF-V1.0.pdf` (revisado en esta corrida: la sección "F. Información de Referencia" solo lista NCFModificado, RNCOtroContribuyente, FechaNCFModificado, CodigoModificacion, RazonModificacion — no hay `MontoNCFModificado` ni equivalente).
 4. En certecf, quizás las NC/ND se validan contra un catálogo específico del Set de Pruebas de la DGII y NO contra un e-CF31 emitido en el propio ciclo del contribuyente (patrón similar al Paso 2, donde el "conjunto de datos" era el Excel oficial). El texto del Paso 4 dice "datos de operaciones reales", pero el 34 puede seguir otra regla.
 
-**Runner NO debe reintentar 1×34 en Fase 4 hasta que este bloqueo se resuelva** — cada rechazo cuesta todos los aceptados acumulados. Sí puede seguir con los demás tipos del grupo Segundo/Primero (33 ya validado; 41-47 pendientes de primer contacto pero sin la restricción de "saldo").
+**El runner PUEDE reintentar 1×34 cuando quiera probar una hipótesis nueva — no necesita aprobación previa.** Eso sí: hacerlo solo cuando el resto de tipos del ciclo actual ya estén completos o casi (para no arriesgar progreso grande en una apuesta), y siempre documentando la hipótesis probada y el resultado, para no repetir la misma exactamente.
 
-**Qué falta para desbloquear** (elegir una ruta):
-1. Consultar a soporte DGII (809-689-3444, Centro de Contacto) con el trackId `daeac04a-b4cd-4e27-89e4-a3d831513086` del rechazo E340000000054 — el usuario debe hacerlo, no el runner (correspondencia oficial, ver "Cuándo detenerse").
-2. Buscar en la Bandeja de Entrada del portal el `MensajeId` asociado (patrón previo: los detalles vienen ahí, no en `consultar_estado`).
-3. Reintentar en una corrida futura ≥24 h después de emitir un 31 real "de prueba" para verificar la hipótesis 1 (reconciliación batch). Costo: 1 secuencia 34 y todos los aceptados del ciclo. Solo hacerlo si el usuario aprueba y otros tipos ya están completos.
+**Rutas a intentar, en este orden (el runner las ejecuta solo, sin esperar a nadie)**:
+1. **Reintentar con ≥24h de separación** entre la emisión del 31 referenciado y el envío del 34 (hipótesis de reconciliación batch nocturna de la DGII — ya hay de sobra más de 24h desde los últimos 31 Aceptados, así que esta ruta ya está disponible para probarse en cualquier corrida siguiente).
+2. Revisar la Bandeja de Entrada del portal (`MensajeId` asociado al trackId `daeac04a-b4cd-4e27-89e4-a3d831513086` del rechazo E340000000054) por si trae más detalle que `consultar_estado`.
+3. Probar variantes de payload no exploradas todavía: `CodigoModificacion` distinto, incluir explícitamente un monto/referencia que hoy se omite, o un 34 contra un 31 con `MontoTotal` mucho más chico (más parecido al monto de la propia NC) por si el "saldo disponible" se calcula distinto de lo asumido.
+4. Solo como último recurso, si las rutas técnicas se agotan sin pistas nuevas: dejar un borrador de correo/consulta a soporte DGII (809-689-3444) listo en el plan maestro, pero **sin que eso bloquee el resto del trabajo** — el runner sigue avanzando 44/45/46/47/RFCE mientras tanto.
 
 Bloqueos previamente resueltos (histórico, no releer si no aplica): 10ma corrida cerró el bloqueo de la 7ma corrida (código 64 en 33) con `CodigoModificacion=3`.
 
@@ -198,11 +211,14 @@ todos los 11 renglones)**. Se conserva el detalle para trazabilidad:
    real en la que está la postulación 81443. Si el portal muestra una fase
    distinta a la tabla de arriba, la tabla está desactualizada — corregirla
    primero.
-3. Si hay algo en "Bloqueos activos": **no tocar esa fase**, revisar si el
-   bloqueo ya se resolvió (p.ej. el usuario dejó una nota, o pasó tiempo
-   suficiente para reintentar un paso con retraso de reconciliación
-   conocido) — si no, saltar a la fase completa siguiente o parar la
-   corrida documentando que sigue bloqueado.
+3. Si hay algo en "Bloqueos activos" (ahora "Situación activa", ya no
+   requiere aprobación humana): decidí vos mismo si esta corrida prueba una
+   ruta nueva para esa situación, o si avanza otra parte de la fase — nunca
+   "parar sin hacer nada" solo porque hay algo pendiente ahí. Configuración
+   administrativa local (rangos de secuencia, defaults, etc.) que bloquee
+   el avance: resolvela vos mismo (`UPDATE` directo vía `docker exec`,
+   documentado en el plan) sin pedir permiso — no es una decisión de
+   negocio, es mantenimiento técnico normal.
 4. Tomar **la fase actual según el portal** (no una fase futura) y avanzar
    **una unidad de trabajo razonable para ~3h de presupuesto** — no
    necesariamente la fase entera si es grande (p.ej. Fase 4 tiene 21+
@@ -242,35 +258,44 @@ todos los 11 renglones)**. Se conserva el detalle para trazabilidad:
    cambio junto con el código si lo hay.
 9. Escribir la línea de reporte y el log de corrida (ver abajo).
 
-## Cuándo detenerse y NO seguir solo (equivalente a HOLD)
+## Cuándo detenerse y NO seguir solo (MUY reducido — política 2026-09-29)
 
-**Distinción clave**: "nos falta construirlo" NO es un bloqueo (ver regla
-explícita arriba, en el paso 5 del protocolo) — se construye. Un bloqueo
-real es cuando ni construyendo se puede seguir porque falta un dato/
-decisión que solo la DGII o el usuario pueden dar:
+**El usuario fue explícito: el runner no necesita nada de él para avanzar
+esta certificación. No pares a "esperar decisión humana" salvo por esto,
+y solo esto:**
 
-- Un mensaje de la DGII no es literal/claro sobre qué hacer (como pasó
-  varias veces en el Paso 2: "reiniciadas", contador que no avanza, etc.)
-  y ya se intentó una lectura razonable sin éxito.
-- Hace falta enviar un correo o llamar a soporte DGII en nombre de
-  Abregonza — eso es correspondencia oficial, el usuario decide si se
-  envía, el runner solo puede DEJAR EL BORRADOR listo.
-- El REQUISITO en sí (no la capacidad técnica de cumplirlo) no está
-  confirmado y no hay forma de confirmarlo sin inventar (ejemplo ya
-  vivido: formato exacto del QR — ahí SÍ hay que investigar primero, no
-  construir a ciegas; pero una vez confirmado el formato, construir la
-  plantilla es trabajo normal de la corrida, no un bloqueo nuevo). Más
-  vale parar a confirmar el requisito que adivinarlo y que la DGII lo
-  rechace quemando secuencias reales.
-- Cualquier acción envía datos reales de Abregonza (facturas, montos,
-  RNC de clientes reales) a un ente externo de forma que no se pueda
-  deshacer — está permitido (es el propósito de este runner) pero el
-  runner debe verificar dos veces que el dato es correcto antes de
-  enviarlo, no hay "deshacer" con la DGII.
+- **Acciones legalmente vinculantes en nombre de Abregonza SRL** ante la
+  DGII: firmar/enviar una Declaración Jurada, o enviar correspondencia
+  oficial (correo, ticket de soporte) en nombre de la empresa. Esto sí
+  crea una obligación legal real que el usuario/Roberto deben asumir
+  conscientemente — el runner puede dejar el borrador listo, pero no lo
+  envía. Ni siquiera esto bloquea el resto del trabajo: seguí con
+  cualquier otra fase/tipo pendiente en la misma corrida.
 
-En cualquiera de estos casos: escribir el bloqueo en la sección "Bloqueos
-activos" arriba (fecha + descripción exacta + qué decisión falta) y parar la
-corrida limpia (sin dejar código a medias sin commitear).
+**Todo lo demás es trabajo normal, no un bloqueo — resolvelo vos mismo:**
+
+- Mensaje de la DGII poco claro → seguí investigando (Bandeja de Entrada,
+  PDFs oficiales, probar variantes), no esperes a que alguien te lo
+  traduzca.
+- Configuración administrativa local (rangos `TFE_SECUENCIA`, defaults,
+  etc.) → cambiala vos mismo vía `docker exec`, documentá el cambio.
+- Formato/requisito no confirmado (ej. QR de Fase 5) → investigalo con las
+  herramientas que tengas (leer PDFs, `poppler-utils`, probar en un
+  entorno de prueba) antes de construir a ciegas — pero la investigación
+  la hacés vos, no es un bloqueo para el usuario.
+- Rechazo técnico persistente de la DGII (ej. código 615 del tipo 34) →
+  seguí probando hipótesis distintas en corridas sucesivas, sin esperar
+  aprobación previa para gastar una secuencia de prueba.
+- Enviar datos reales de Abregonza a la DGII de forma irreversible → es
+  exactamente el propósito de este runner, adelante; solo verificá dos
+  veces que el dato es correcto antes de enviarlo (no hay "deshacer" con
+  la DGII, pero eso no es motivo para parar, es motivo para tener
+  cuidado).
+
+Si documentás un intento fallido en "Situación activa", seguí trabajando
+otra cosa en la MISMA corrida — nunca termines una corrida sin haber
+avanzado algo, salvo que literalmente todo lo pendiente dependa de la
+única categoría de arriba (legal).
 
 ## Fase 4 — Pruebas Simulación e-CF (LISTO PARA EJECUTAR, sin código nuevo)
 
