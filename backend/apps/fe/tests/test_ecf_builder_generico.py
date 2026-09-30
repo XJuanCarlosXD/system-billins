@@ -857,6 +857,64 @@ def test_tipo_45_gubernamental_valida_contra_xsd():
     assert root.findtext('.//Comprador/RNCComprador') == '401500001'
 
 
+_PAYLOAD_46_CORRIDA_31 = {
+    'RNCEmisor': '130217432',
+    'RazonSocialEmisor': 'ABREGONZA, SRL',
+    'DireccionEmisor': 'C/ HOSTOS #1, SANTO DOMINGO',
+    'FechaEmision': '30-09-2026',
+    'FechaVencimientoSecuencia': '31-12-2028',
+    'TipoIngresos': '01',
+    'TipoPago': 1,
+    # Tipo 46 (Exportaciones): comprador extranjero (RNCComprador NO aplica);
+    # se usa IdentificadorExtranjero + PaisComprador + PaisDestino en
+    # Transporte. cap['comprador']='razon_mandatory' — solo RazonSocial
+    # obligatorio.
+    'IdentificadorExtranjero': 'US-EIN-000000001',
+    'RazonSocialComprador': 'IMPORTADORA CARIBBEAN TRADING LLC',
+    'PaisComprador': 'ESTADOS UNIDOS',
+    'PaisDestino': 'ESTADOS UNIDOS',
+    # Exportaciones: ITBIS 0% (IndicadorFacturacion=3). El XSD de tipo 46
+    # solo define breakdown I3 en Totales (no I1/I2), consistente con la
+    # semantica "exportacion grava con 0%". Se emite el desglose completo
+    # I3 para dejar explicito el tratamiento fiscal aunque los montos sean 0.
+    'MontoGravadoTotal': '5000.00',
+    'MontoGravadoI3': '5000.00',
+    'ITBIS3': '0',
+    'TotalITBIS': '0.00',
+    'TotalITBIS3': '0.00',
+    'MontoTotal': '5000.00',
+    'NumeroLinea[1]': 1,
+    'IndicadorFacturacion[1]': 3,
+    'NombreItem[1]': 'PRODUCTO INDUSTRIAL PARA EXPORTACION',
+    'IndicadorBienoServicio[1]': 1,
+    'CantidadItem[1]': '1.00',
+    'PrecioUnitarioItem[1]': '5000.00',
+    'MontoItem[1]': '5000.00',
+}
+
+
+def test_payload_corrida31_tipo_46_valida_contra_xsd():
+    xml_str = ecf_builder.construir_ecf_generico(
+        46, 'E460000000001', dict(_PAYLOAD_46_CORRIDA_31))
+    _validar_estructura_contra_xsd(xml_str, 46)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.findtext('.//IdDoc/TipoeCF') == '46'
+    assert root.find('.//Comprador/RNCComprador') is None
+    assert (root.findtext('.//Comprador/IdentificadorExtranjero')
+            == 'US-EIN-000000001')
+    assert (root.findtext('.//Comprador/RazonSocialComprador')
+            == 'IMPORTADORA CARIBBEAN TRADING LLC')
+    assert root.findtext('.//Comprador/PaisComprador') == 'ESTADOS UNIDOS'
+    assert root.findtext('.//Transporte/PaisDestino') == 'ESTADOS UNIDOS'
+    assert root.findtext('.//Totales/MontoGravadoTotal') == '5000.00'
+    assert root.findtext('.//Totales/MontoGravadoI3') == '5000.00'
+    assert root.findtext('.//Totales/ITBIS3') == '0'
+    assert root.findtext('.//Totales/TotalITBIS') == '0.00'
+    assert root.findtext('.//Totales/TotalITBIS3') == '0.00'
+    assert root.findtext('.//Totales/MontoTotal') == '5000.00'
+    assert root.findtext('.//DetallesItems/Item/IndicadorFacturacion') == '3'
+
+
 def test_tipo_46_exportaciones_valida_contra_xsd():
     datos = {
         'RNCEmisor': '130217432', 'RazonSocialEmisor': 'ABREGONZA, SRL',

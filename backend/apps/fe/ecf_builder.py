@@ -993,6 +993,10 @@ def _gen_comprador(comprador, tipo_ecf: int, caps: dict, simple: dict) -> None:
         _sub(comprador, 'MunicipioComprador', _valor_texto(simple['MunicipioComprador']))
     if simple.get('ProvinciaComprador'):
         _sub(comprador, 'ProvinciaComprador', _valor_texto(simple['ProvinciaComprador']))
+    # PaisComprador es exclusivo del XSD de tipo 46 (Exportaciones) --
+    # comprador extranjero, ver e-CF-46-v1.0.xsd.
+    if tipo_ecf == 46 and simple.get('PaisComprador'):
+        _sub(comprador, 'PaisComprador', _valor_texto(simple['PaisComprador'])[:60])
     if tipo_ecf != 41 and simple.get('FechaEntrega'):
         _sub(comprador, 'FechaEntrega', _valor_texto(simple['FechaEntrega']))
     if tipo_ecf != 41 and simple.get('TelefonoAdicional'):
