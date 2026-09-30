@@ -1162,6 +1162,17 @@ def _gen_detalles_items(ecf, tipo_ecf: int, caps: dict, idx1_item: dict, idx2: d
                 f"e-CF 43 Item[{n}]: IndicadorFacturacion debe ser '4' "
                 "(Exento) para Gastos Menores; DGII rechaza cualquier otro "
                 f"valor con codigo 244 (recibido: {indicador_fact!r})")
+        # Guard 32va corrida (2026-09-30): tipo 47 (Pagos al Exterior) SOLO
+        # permite IndicadorFacturacion=4 (Exento). Rechazo real
+        # E470000000100 trackId 4bf8db2c codigo 244 con
+        # IndicadorFacturacion=0 (heredado del fixture _base_47 que solo
+        # validaba XSD, no la regla de negocio DGII). Mismo patron #14 que
+        # tipo 43 aprendio en 21va.
+        if tipo_ecf == 47 and str(indicador_fact) != '4':
+            raise ECFBuilderError(
+                f"e-CF 47 Item[{n}]: IndicadorFacturacion debe ser '4' "
+                "(Exento) para Pagos al Exterior; DGII rechaza cualquier "
+                f"otro valor con codigo 244 (recibido: {indicador_fact!r})")
         _sub(item, 'IndicadorFacturacion', _valor_texto(indicador_fact))
         if caps['item_retencion'] != 'no':
             ind_ret = idx1_item.get('IndicadorAgenteRetencionoPercepcion', {}).get(n)
