@@ -1897,3 +1897,53 @@ def test_payload_corrida14_b_tipo_32_mayor_250k_valida_contra_xsd():
     posiciones = [hijos.index(t) for t in orden_esperado]
     assert posiciones == sorted(posiciones), (
         f"Totales fuera de orden XSD: {hijos}")
+
+
+_PAYLOAD_47_CORRIDA_33 = {
+    'RNCEmisor': '130217432',
+    'RazonSocialEmisor': 'ABREGONZA, SRL',
+    'DireccionEmisor': 'AV LOPE DE VEGA #55, ENSANCHE NACO, SANTO DOMINGO',
+    'FechaEmision': '30-09-2026',
+    'FechaVencimientoSecuencia': '31-12-2028',
+    'IdentificadorExtranjero': 'US-EIN-000000047',
+    'RazonSocialComprador': 'SERVICIOS INTERNACIONALES CARIBBEAN LLC',
+    'PaisDestino': 'ESTADOS UNIDOS',
+    'MontoExento': '3000.00',
+    'TotalISRRetencion': '300.00',
+    'MontoTotal': '3000.00',
+    'NumeroLinea[1]': 1,
+    'IndicadorFacturacion[1]': 4,
+    'IndicadorAgenteRetencionoPercepcion[1]': 1,
+    'MontoISRRetenido[1]': '300.00',
+    'NombreItem[1]': 'SERVICIO PROFESIONAL EXTERIOR',
+    'IndicadorBienoServicio[1]': 2,
+    'CantidadItem[1]': '1.00',
+    'PrecioUnitarioItem[1]': '3000.00',
+    'MontoItem[1]': '3000.00',
+}
+
+
+def test_payload_corrida33_tipo_47_valida_contra_xsd():
+    """Gate XSD-local para el payload tipo 47 Aceptado en la 33va corrida
+    (E470000000102, trackId cc69b1f0-c386-4687-b15f-3771d1129413). Confirma
+    que el builder emite los 4 campos que DGII exige de facto para tipo 47
+    aunque el XSD los marque minOccurs=0: Comprador/IdentificadorExtranjero,
+    Transporte/PaisDestino, Totales/MontoExento y Totales/TotalISRRetencion
+    (patron "XSD opcional / DGII obligatorio", hallazgos #14 y #16).
+    Rechazos previos: E470000000100 con IndicadorFacturacion=0 -> codigo 244;
+    E470000000101 con TotalISRRetenido (nombre incorrecto) -> codigo 11170."""
+    xml_str = ecf_builder.construir_ecf_generico(
+        47, 'E470000000102', _PAYLOAD_47_CORRIDA_33)
+    _validar_estructura_contra_xsd(xml_str, 47)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.findtext('.//IdDoc/TipoeCF') == '47'
+    assert root.findtext('.//Emisor/RNCEmisor') == '130217432'
+    assert (root.findtext('.//Comprador/IdentificadorExtranjero')
+            == 'US-EIN-000000047')
+    assert root.findtext('.//Transporte/PaisDestino') == 'ESTADOS UNIDOS'
+    assert root.findtext('.//DetallesItems/Item/IndicadorFacturacion') == '4'
+    assert (root.findtext('.//DetallesItems/Item/Retencion/MontoISRRetenido')
+            == '300.00')
+    assert root.findtext('.//Totales/MontoExento') == '3000.00'
+    assert root.findtext('.//Totales/TotalISRRetencion') == '300.00'
+    assert root.findtext('.//Totales/MontoTotal') == '3000.00'
