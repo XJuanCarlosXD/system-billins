@@ -54,7 +54,7 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En curso — 28va corrida (2026-09-29 20:11-20:22 UTC): **4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 activados** (E310000000101-104 + E320000001026-1027 + E330000000014, fechaRecepcion 8:21:54-8:22:03 PM UTC-4). Primer intento del ciclo completo (11 envíos) llegó hasta 8 Aceptados (4×31 + 2×32≥250K + 1×33 + 1/2 tipo 41) antes de que **E410000000007 fuera Rechazado con código 1209 "Este número de secuencia ya ha sido utilizado"** (patrón #11 secuencia contaminada en DGII por envío histórico no registrado en TFE_SECUENCIA propio — mismo caso que E430000000001 en 21va). Cascada borró TODO (portal 0/N). Segunda vuelta reconstruyó 4×31 + 2×32≥250K + 1×33 (7/7 Aceptados) y paró antes de tocar 41/43/44/45 (rango contaminado necesita investigación específica antes de reintentar — cada rechazo destruye ciclo entero). Portal final: 7/N activos, log último reinicio 29/09 8:19:57 PM (rechazo E410000000007). Bloqueo 34 sigue activo (código 615). Próxima (29va): investigar cuál `prox_secuencia` de 41 salta a un valor libre en DGII (probar avanzando `prox=8→100` o similar); 1/2 tipo 44 + 1/2 tipo 45 previamente activos en 27va también fueron borrados por esta cascada — reintentarlos con `_PAYLOAD_44_CORRIDA_27` y `_PAYLOAD_45_CORRIDA_26` una vez que 41 esté resuelto. Anterior: 27va (2026-09-29): 1/2 tipo 44 + 1/2 tipo 45 activados (E440000000003 CORTES HERMANOS 101001811 12:00:53 PM UTC-4 + E450000000002 CONSEJO NACIONAL DE ZONAS FRANCAS 401501406 12:01:56 PM UTC-4). Rango tipo 31 = 10M (usuario amplió post-26va). Cascada intermedia perdió acumulado previo (4/4 31+2/2 32+1/1 33+2/2 41+2/2 43) por primer intento tipo 44 sin RNCComprador (E440000000001 código 1381). Fixes en `apps/fe/ecf_builder.py`: `_TIPO_CAPS[44]['comprador']='rnc_razon_mandatory'` (era `razon_mandatory`, patrón "XSD opcional / DGII exige" #9); y payload 45 requiere `IndicadorMontoGravado=0` de facto (E450000000001 código 176, patrón #10, mismo que tipo 31 aprendió en 1ra corrida). `_PAYLOAD_44_CORRIDA_27` (CORTES 101001811 validado por 14va) + `_PAYLOAD_45_CORRIDA_26` actualizado con IndicadorMontoGravado=0 + test `test_tipo_44_sin_rnc_comprador_lanza_error_corrida27` + tests 25/26 actualizados. 90+ tests módulo pasan. Bloqueo 34 (código 615) sigue activo. Portal final: 0/N el resto (31/32/33/34/41/43/46/47/RFCE). Próxima (28va): reconstruir ciclo Primero+Segundo con builder ya arreglado (4×31 vía paso4-factura-real, 2×32≥250K con RNCs validados RYLCO/VALOIS, 1×33 con NCFModificado del 31 fresco + FechaNCFModificado correcta, 2×41 INDUSTRIAS BISONO, 2×43 exento) + 2do 44 y 2do 45 (mismos payloads, cambiar cosmético NombreItem). | 2026-09-29 |
+| 4 | Pruebas Simulación e-CF | 🔲 En curso — 29va corrida (2026-09-30 04:11-04:25 UTC): **4/4 31 + 2/2 32≥250K + 1/1 33 + 2/2 41 + 1/2 44 + 2/2 45 activados** en portal (12 envíos Aceptados consecutivos, ganancia neta +3 renglones vs 28va). Hallazgo nuevo #12: **tipo 45 también sufre contaminación secuencia DGII** — E450000000003 Rechazada 1209 "secuencia ya utilizada" con `secuenciaUtilizada:false` (mismo patrón #11 de tipo 41 en 28va y tipo 43 en 21va). Estrategia validada empíricamente: `UPDATE TFE_SECUENCIA SET prox_secuencia=100` para el tipo contaminado desbloquea el rango DGII. **Confirmado con E450000000100 y E410000000100 Aceptados** (probes anti-contaminación). Sin código nuevo (fix administrativo puro). Bloqueo 34 sigue activo (código 615). Portal 29/30 12:24 AM UTC-4: 4/4 tipo 31 + 2/2 32≥250K + 1/1 33 + 2/2 41 + 1/2 44 + 2/2 45 + 0/N resto. TFE_SECUENCIA post: 31→109, 32→1030, 33→16, 34→55 (bloqueada), 41→102, 43→7 (posible contaminada), 44→6, 45→102, 46-47→1. Próxima (30va): (a) completar 2do 44 (secuencia 6 natural, payload validado hoy) → 2/2; (b) desbloquear 43 con `prox=100` (misma estrategia) → probar 2×43; (c) 1×46 primer contacto (Exportaciones, PaisDestino) + 1×47 (Pagos al Exterior); (d) grupo Tercero: 4×RFCE + 4×32 subida manual. Anterior: 28va (2026-09-29 20:11-20:22 UTC): **4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 activados** (E310000000101-104 + E320000001026-1027 + E330000000014, fechaRecepcion 8:21:54-8:22:03 PM UTC-4). Primer intento del ciclo completo (11 envíos) llegó hasta 8 Aceptados (4×31 + 2×32≥250K + 1×33 + 1/2 tipo 41) antes de que **E410000000007 fuera Rechazado con código 1209 "Este número de secuencia ya ha sido utilizado"** (patrón #11 secuencia contaminada en DGII por envío histórico no registrado en TFE_SECUENCIA propio — mismo caso que E430000000001 en 21va). Cascada borró TODO (portal 0/N). Segunda vuelta reconstruyó 4×31 + 2×32≥250K + 1×33 (7/7 Aceptados) y paró antes de tocar 41/43/44/45 (rango contaminado necesita investigación específica antes de reintentar — cada rechazo destruye ciclo entero). Portal final: 7/N activos, log último reinicio 29/09 8:19:57 PM (rechazo E410000000007). Bloqueo 34 sigue activo (código 615). Próxima (29va): investigar cuál `prox_secuencia` de 41 salta a un valor libre en DGII (probar avanzando `prox=8→100` o similar); 1/2 tipo 44 + 1/2 tipo 45 previamente activos en 27va también fueron borrados por esta cascada — reintentarlos con `_PAYLOAD_44_CORRIDA_27` y `_PAYLOAD_45_CORRIDA_26` una vez que 41 esté resuelto. Anterior: 27va (2026-09-29): 1/2 tipo 44 + 1/2 tipo 45 activados (E440000000003 CORTES HERMANOS 101001811 12:00:53 PM UTC-4 + E450000000002 CONSEJO NACIONAL DE ZONAS FRANCAS 401501406 12:01:56 PM UTC-4). Rango tipo 31 = 10M (usuario amplió post-26va). Cascada intermedia perdió acumulado previo (4/4 31+2/2 32+1/1 33+2/2 41+2/2 43) por primer intento tipo 44 sin RNCComprador (E440000000001 código 1381). Fixes en `apps/fe/ecf_builder.py`: `_TIPO_CAPS[44]['comprador']='rnc_razon_mandatory'` (era `razon_mandatory`, patrón "XSD opcional / DGII exige" #9); y payload 45 requiere `IndicadorMontoGravado=0` de facto (E450000000001 código 176, patrón #10, mismo que tipo 31 aprendió en 1ra corrida). `_PAYLOAD_44_CORRIDA_27` (CORTES 101001811 validado por 14va) + `_PAYLOAD_45_CORRIDA_26` actualizado con IndicadorMontoGravado=0 + test `test_tipo_44_sin_rnc_comprador_lanza_error_corrida27` + tests 25/26 actualizados. 90+ tests módulo pasan. Bloqueo 34 (código 615) sigue activo. Portal final: 0/N el resto (31/32/33/34/41/43/46/47/RFCE). Próxima (28va): reconstruir ciclo Primero+Segundo con builder ya arreglado (4×31 vía paso4-factura-real, 2×32≥250K con RNCs validados RYLCO/VALOIS, 1×33 con NCFModificado del 31 fresco + FechaNCFModificado correcta, 2×41 INDUSTRIAS BISONO, 2×43 exento) + 2do 44 y 2do 45 (mismos payloads, cambiar cosmético NombreItem). | 2026-09-29 |
 | 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
@@ -1974,6 +1974,65 @@ Código nuevo desplegado esta corrida: `backend/apps/fe/tests/test_ecf_builder_g
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
+
+- **2026-09-30 04:11-04:25 UTC (29va corrida)** — Runner scheduled. Fase 4.
+  Portal previo Playwright: 4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 +
+  0/N resto (residual 28va). TFE_SECUENCIA previo: 31→105, 32→1028, 33→15,
+  34→55 (bloqueada), 41→8 (contaminada DGII), 43→7, 44→4, 45→3, 46-47→1.
+  Probe DGII OK (token len 343). **Primer envío exploración 44+45**: 1×44
+  con `_PAYLOAD_44_CORRIDA_27` (NombreItem cosmético "INSUMO INDUSTRIAL
+  EXENTO") → **E440000000004 Aceptado** (12:16:06 AM UTC-4, trackId
+  `aa216c9d-b9fb-47e5-9020-0bb15de79987`). 1×45 con `_PAYLOAD_45_CORRIDA_26`
+  → **E450000000003 Rechazado código 1209** "secuencia ya utilizada" con
+  `secuenciaUtilizada:false` (12:16:37 AM UTC-4, trackId `22843a9d-87c6-4a3e-
+  a821-f32ef376321e`). Cascada borró todo (portal 0/N, incluyendo el 44
+  recién Aceptado). **Hallazgo #12 patrón "contaminación secuencia DGII"
+  extendido a tipo 45**: E450000000003 nunca consumida localmente (`prox=3`
+  intacto en TFE_SECUENCIA post-envío), pero DGII la marca como ya
+  utilizada por envío histórico no documentado (mismo patrón que
+  E430000000001 en 21va y E410000000007 en 28va — sub-serie contaminada por
+  envío pre-certificación no registrado en TFE_SECUENCIA propio).
+  **Estrategia validada empíricamente**: `UPDATE FAT.TFE_SECUENCIA SET
+  prox_secuencia=100 WHERE tipo_ecf IN ('41','45')` salta el rango
+  contaminado. **Segunda vuelta reconstrucción + probes** (12 envíos
+  consecutivos, todos Aceptados):
+  | # | e-NCF | trackId | fechaRecepcion | Notas |
+  |---|-------|---------|-----------------|-------|
+  | 1 | E310000000105 | f8187028-c6a9-4441-a712-b445cf6f7ced | 9/30/2026 12:21:54 AM | FC-0007607 |
+  | 2 | E310000000106 | cfd42545-a056-467f-b126-22fed0586538 | 9/30/2026 12:22:15 AM | FC-0007766 |
+  | 3 | E310000000107 | 1423c5d5-f0d5-4040-a67b-9fa7efa452d5 | 9/30/2026 12:22:34 AM | FC-0007829 (base 33) |
+  | 4 | E310000000108 | eb0b0895-3b28-4a74-b4f6-5fb31ddbc535 | 9/30/2026 12:22:54 AM | FC-0008076 |
+  | 5 | **E450000000100** | 80854f04-388b-472a-a0ed-44407bc6dddd | 9/30/2026 12:23:13 AM | **PROBE prox=100 → OK, hipótesis validada** |
+  | 6 | **E410000000100** | 25cd71e7-56ab-4f3c-b500-e714ddda2ea7 | 9/30/2026 12:23:30 AM | **PROBE prox=100 → OK, hipótesis validada** |
+  | 7 | E320000001028 | f5a243a6-b8d9-4f37-ae9c-61abc520634a | 9/30/2026 12:23:46 AM | CORTES 101001811 |
+  | 8 | E320000001029 | e5479575-507c-498c-b7c9-194e9bce6966 | 9/30/2026 12:24:06 AM | RYLCO 131376292 |
+  | 9 | E330000000015 | ed4f64e9-6208-43b1-9e90-7d5306505f3c | 9/30/2026 12:24:25 AM | NCFMod=E310000000107 FechaMod=20-11-2025 CodMod=3 |
+  | 10| E440000000005 | 1effca85-6dfe-4ffb-a93b-51d0a3e8caa7 | 9/30/2026 12:24:42 AM | 2do 44 |
+  | 11| E450000000101 | c7ebd0c4-9fc3-4129-b764-7633c8309826 | 9/30/2026 12:24:58 AM | 2do 45 (natural post-probe) |
+  | 12| E410000000101 | 3c4906ed-b539-4606-ab91-f024a7ae6ae4 | 9/30/2026 12:25:15 AM | 2do 41 (natural post-probe) |
+  Portal final Playwright post-corrida: **4/4 tipo 31 + 2/2 tipo 32≥250K +
+  1/1 tipo 33 + 2/2 tipo 41 + 1/2 tipo 44 + 2/2 tipo 45 + 0/N resto**
+  (nota: tipo 44 muestra 1/2 aunque envío consecutivo mostró 2 Aceptados —
+  E440000000004 pre-cascada NO cuenta post-reset, solo cuenta el
+  E440000000005 post-reset; discrepancia normal patrón "un aceptado pre-
+  reset no cuenta post-reset"). Log último reinicio 30/09 12:16:37 AM
+  (rechazo E450000000003), sin nuevos post-Aceptados. **Ganancia neta vs
+  28va (7 activos)**: +5 activos (12 renglones vs 7). Renglones nuevos
+  cerrados: 41, 45. TFE_SECUENCIA post: 31→109, 32→1030, 33→16, 34→55
+  (bloqueada), 41→102, 43→7 (posible contaminada), 44→6, 45→102, 46-47→1.
+  Bloqueo 34 sigue activo. Sin código nuevo (script `.tmp/ecf_29_full.py`
+  no va al repo). Fix administrativo: `UPDATE TFE_SECUENCIA prox=100` para
+  tipos 41 y 45 (documentado, no requiere código). **Próximo paso (30va)**:
+  (a) completar **2do 44** vía `paso4-manual` (E440000000006, siguiente
+  natural, `_PAYLOAD_44_CORRIDA_27` con NombreItem cosmético distinto de
+  hoy) → 2/2 44; (b) desbloquear **tipo 43**: `UPDATE TFE_SECUENCIA SET
+  prox_secuencia=100 WHERE tipo_ecf='43'` y enviar 2×43 con
+  `_PAYLOAD_43_CORRIDA_21` (Gastos Menores exento, MontoExento=150) → 2/2;
+  (c) 1×46 primer contacto (Exportaciones — comprador extranjero,
+  PaisDestino) — requiere investigación caps builder tipo 46; (d) 1×47
+  (Pagos al Exterior) similar; (e) grupo Tercero: RFCE 4×32<250Mil +
+  subida manual 4×32. No tocar 34 hasta que soporte DGII resuelva 615.
+  Commits: (ver commit de esta corrida).
 
 - **2026-09-29 20:11-20:22 UTC (28va corrida)** — Runner scheduled. Fase 4.
   Portal previo Playwright: 1/2 tipo 44 + 1/2 tipo 45 + 0/N resto (residual
