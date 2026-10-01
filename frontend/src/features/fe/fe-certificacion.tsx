@@ -6,7 +6,7 @@
 // -- es una acción de navegador en el sitio de la DGII, no un servicio
 // REST que se pueda automatizar desde aquí.
 import { useRef, useState } from 'react'
-import { CheckCircle2, Download, XCircle } from 'lucide-react'
+import { CheckCircle2, Download, FileText, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -131,6 +131,54 @@ function PasoUploadCard({
   )
 }
 
+function BotonRiPdf({ encf, noCia }: { encf: string; noCia: string }) {
+  const qs = new URLSearchParams({ no_cia: noCia, templateDraft: '1' }).toString()
+  const printUrl = `/print/ecf-representacion-impresa/${encodeURIComponent(encf)}?${qs}`
+  return (
+    <Button
+      size='sm'
+      variant='outline'
+      className='gap-1'
+      onClick={() => window.open(printUrl, '_blank', 'noopener,width=900,height=1100')}
+    >
+      <FileText className='h-3 w-3' /> RI PDF
+    </Button>
+  )
+}
+
+function ResultadoPaso4Mini({
+  encf,
+  trackId,
+  ok,
+  detail,
+  noCia,
+}: {
+  encf?: string
+  trackId?: string
+  ok: boolean
+  detail?: string
+  noCia: string
+}) {
+  if (!encf) return null
+  return (
+    <div className='flex flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-xs'>
+      {ok ? (
+        <Badge className='gap-1 bg-emerald-600'>
+          <CheckCircle2 className='h-3 w-3' /> Aceptado
+        </Badge>
+      ) : (
+        <Badge variant='destructive' className='gap-1'>
+          <XCircle className='h-3 w-3' /> Rechazado
+        </Badge>
+      )}
+      <span className='font-mono'>{encf}</span>
+      {trackId && <span className='text-muted-foreground'>trackId {trackId}</span>}
+      {!ok && detail && <span className='text-destructive'>{detail}</span>}
+      {ok && <BotonRiPdf encf={encf} noCia={noCia} />}
+    </div>
+  )
+}
+
 function Paso4Card({ noCia }: { noCia: string }) {
   const facturaReal = useEnviarPaso4FacturaReal(noCia)
   const manual = useEnviarPaso4Manual(noCia)
@@ -217,6 +265,15 @@ function Paso4Card({ noCia }: { noCia: string }) {
               {facturaReal.isPending ? 'Enviando…' : 'Enviar a la DGII'}
             </Button>
           </div>
+          {facturaReal.data && (
+            <ResultadoPaso4Mini
+              encf={facturaReal.data.encf}
+              trackId={facturaReal.data.trackId}
+              ok={facturaReal.data.ok}
+              detail={facturaReal.data.detail}
+              noCia={noCia}
+            />
+          )}
         </div>
 
         <div className='space-y-2 border-t pt-4'>
@@ -271,6 +328,15 @@ function Paso4Card({ noCia }: { noCia: string }) {
           >
             {manual.isPending ? 'Enviando…' : 'Enviar a la DGII'}
           </Button>
+          {manual.data && (
+            <ResultadoPaso4Mini
+              encf={manual.data.encf}
+              trackId={manual.data.trackId}
+              ok={manual.data.ok}
+              detail={manual.data.detail}
+              noCia={noCia}
+            />
+          )}
         </div>
       </CardContent>
     </Card>

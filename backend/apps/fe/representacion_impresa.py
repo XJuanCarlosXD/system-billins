@@ -83,6 +83,73 @@ def _parse_campos_ecf(xml_firmado: str) -> dict:
     }
 
 
+def extraer_resumen_para_ri(xml_firmado: str) -> dict:
+    """Lee del XML firmado los campos minimos para pintar la RI cuando no
+    hay factura FAT atras del e-CF (caso Set de Pruebas, o paso4 que no
+    guardo la referencia).
+
+    Retorna un dict con comprador (razon_social, rnc, direccion), totales
+    (subtotal, descuento, itbis, propina, total) y lineas (lista de items
+    del XML con descripcion/cantidad/precio/itbis/total). Todas las claves
+    siempre existen; los campos que no esten en el XML van vacios/en 0.
+    """
+    if isinstance(xml_firmado, str):
+        xml_bytes = xml_firmado.encode('utf-8')
+    else:
+        xml_bytes = xml_firmado
+    root = etree.fromstring(xml_bytes)
+
+    def _t(xpath: str) -> str:
+        return (_text_or_none(root, xpath) or '').strip()
+
+    def _f(xpath: str) -> float:
+        v = _t(xpath)
+        try:
+            return float(v) if v else 0.0
+        except ValueError:
+            return 0.0
+
+    comprador = {
+        'rnc': _t('Encabezado/Comprador/RNCComprador'),
+        'razon_social': _t('Encabezado/Comprador/RazonSocialComprador'),
+        'direccion': _t('Encabezado/Comprador/DireccionComprador'),
+        'identificador_extranjero': _t(
+            'Encabezado/Comprador/IdentificadorExtranjero'),
+    }
+    totales = {
+        'subtotal': _f('Encabezado/Totales/MontoGravadoTotal') or _f(
+            'Encabezado/Totales/MontoExento') or _f(
+            'Encabezado/Totales/MontoTotal'),
+        'descuento': _f('Encabezado/Totales/MontoDescuentoTotal'),
+        'itbis': _f('Encabezado/Totales/TotalITBIS'),
+        'propina': 0.0,
+        'total': _f('Encabezado/Totales/MontoTotal'),
+    }
+    lineas = []
+    for item in root.findall('DetallesItems/Item'):
+        def _it(path: str) -> str:
+            return (_text_or_none(item, path) or '').strip()
+
+        def _if(path: str) -> float:
+            v = _it(path)
+            try:
+                return float(v) if v else 0.0
+            except ValueError:
+                return 0.0
+
+        lineas.append({
+            'no_linea': _it('NumeroLinea'),
+            'codigo': _it('CodigoItem') or '',
+            'descripcion': _it('NombreItem') or '',
+            'cantidad': _if('CantidadItem'),
+            'precio': _if('PrecioUnitarioItem'),
+            'descuento': _if('DescuentoMonto'),
+            'itbis': _if('ITBISEspecifico'),
+            'total': _if('MontoItem'),
+        })
+    return {'comprador': comprador, 'totales': totales, 'lineas': lineas}
+
+
 def armar_qr_url(xml_firmado: str, ambiente: str = 'certecf') -> str:
     """Arma la URL del QR para la Representacion Impresa de un e-CF.
 

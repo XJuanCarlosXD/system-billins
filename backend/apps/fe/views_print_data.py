@@ -27,7 +27,7 @@ from apps.fat.views_print_data import (
     _numero_a_letras,
 )
 from apps.fe.ecf_builder import ECFBuilderError, derivar_codigo_seguridad
-from apps.fe.representacion_impresa import armar_qr_url
+from apps.fe.representacion_impresa import armar_qr_url, extraer_resumen_para_ri
 from apps.legacy.repositories import fat_repo, fe_repo
 from apps.legacy.repositories import cxc_repo
 
@@ -90,10 +90,14 @@ def fe_documento_ri_print_data(request, e_ncf: str):
     cia = _cia_payload(no_cia, request=request)
 
     if factura is None:
-        # Puede pasar en los e-CF del Paso 2/4 que se enviaron desde el Set
-        # de Pruebas de la DGII (payload sintetico, sin factura FAT real
-        # detras). La RI de esos NO se pide en la Fase 5, pero devolvemos
-        # un shape minimo utilizable igual.
+        # Sin factura FAT atras (e-CFs enviados por paso4-manual/paso4-rfce
+        # o del Set de Pruebas Paso 2). Parseamos el XML firmado para
+        # extraer comprador, totales y lineas -- la RI que resulta tiene
+        # TODO lo que la DGII espera ver en el PDF para la Fase 5, porque el
+        # XML firmado es la fuente de verdad fiscal.
+        resumen = extraer_resumen_para_ri(xml_firmado)
+        comp = resumen['comprador']
+        tot = resumen['totales']
         return JsonResponse({
             'cia': cia,
             'doc': {
@@ -104,16 +108,21 @@ def fe_documento_ri_print_data(request, e_ncf: str):
                 'anulada': False,
             },
             'cliente': {
-                'nombre': '', 'rnc': (doc_tfe.get('rnc_comprador') or '').strip(),
-                'direccion': '', 'telefono': '',
+                'nombre': comp.get('razon_social') or '',
+                'rnc': comp.get('rnc') or (
+                    doc_tfe.get('rnc_comprador') or '').strip(),
+                'direccion': comp.get('direccion') or '',
+                'telefono': '',
             },
-            'lineas': [],
+            'lineas': resumen['lineas'],
             'totales': {
-                'subtotal': _money(doc_tfe.get('monto_total')),
-                'descuento': 0, 'itbis': 0, 'propina': 0,
-                'total': _money(doc_tfe.get('monto_total')),
+                'subtotal': tot.get('subtotal') or 0,
+                'descuento': tot.get('descuento') or 0,
+                'itbis': tot.get('itbis') or 0,
+                'propina': 0,
+                'total': tot.get('total') or _money(doc_tfe.get('monto_total')),
                 'monto_letras': _numero_a_letras(
-                    _money(doc_tfe.get('monto_total'))),
+                    tot.get('total') or _money(doc_tfe.get('monto_total'))),
             },
             'ecf': {
                 'e_ncf': e_ncf,

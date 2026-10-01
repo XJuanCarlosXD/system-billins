@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 
 from apps.fe.ecf_builder import ECFBuilderError
-from apps.fe.representacion_impresa import armar_qr_url
+from apps.fe.representacion_impresa import armar_qr_url, extraer_resumen_para_ri
 
 
 def _xml_firmado(
@@ -159,3 +159,120 @@ def test_ambiente_no_soportado_lanza_valueerror():
     fallar explicito, no cambiar silenciosamente la URL."""
     with pytest.raises(ValueError):
         armar_qr_url(_xml_firmado(), ambiente='cert')
+
+
+# ---------------------------------------------------------------------------
+# extraer_resumen_para_ri -- usado por views_print_data en el fallback cuando
+# el e-CF se envio sin referencia FAT (paso4-manual/paso4-rfce, Set Pruebas).
+# ---------------------------------------------------------------------------
+
+def _xml_firmado_con_detalles(
+    *,
+    encf: str = 'E310000000121',
+    rnc_comprador: str = '131376292',
+    razon_social: str = 'CONSORCIO RYLCO Y ASOCIADOS',
+    direccion: str = 'C/ Rodrigo Objio #23',
+    monto_total: str = '295000.00',
+    monto_gravado: str = '250000.00',
+    total_itbis: str = '45000.00',
+    descuento: str = '0.00',
+) -> str:
+    comprador = (
+        f'<Comprador>'
+        f'<RNCComprador>{rnc_comprador}</RNCComprador>'
+        f'<RazonSocialComprador>{razon_social}</RazonSocialComprador>'
+        f'<DireccionComprador>{direccion}</DireccionComprador>'
+        f'</Comprador>'
+    )
+    return (
+        f'<?xml version="1.0" encoding="UTF-8"?>\n'
+        f'<ECF>'
+        f'  <Encabezado>'
+        f'    <IdDoc><TipoeCF>{encf[1:3]}</TipoeCF><eNCF>{encf}</eNCF></IdDoc>'
+        f'    <Emisor><RNCEmisor>130217432</RNCEmisor>'
+        f'      <FechaEmision>23-09-2026</FechaEmision></Emisor>'
+        f'    {comprador}'
+        f'    <Totales>'
+        f'      <MontoGravadoTotal>{monto_gravado}</MontoGravadoTotal>'
+        f'      <MontoDescuentoTotal>{descuento}</MontoDescuentoTotal>'
+        f'      <TotalITBIS>{total_itbis}</TotalITBIS>'
+        f'      <MontoTotal>{monto_total}</MontoTotal>'
+        f'    </Totales>'
+        f'  </Encabezado>'
+        f'  <DetallesItems>'
+        f'    <Item>'
+        f'      <NumeroLinea>1</NumeroLinea>'
+        f'      <NombreItem>Servicio profesional</NombreItem>'
+        f'      <CantidadItem>1</CantidadItem>'
+        f'      <PrecioUnitarioItem>250000.00</PrecioUnitarioItem>'
+        f'      <MontoItem>250000.00</MontoItem>'
+        f'    </Item>'
+        f'    <Item>'
+        f'      <NumeroLinea>2</NumeroLinea>'
+        f'      <NombreItem>Consultoria extra</NombreItem>'
+        f'      <CantidadItem>2</CantidadItem>'
+        f'      <PrecioUnitarioItem>25000.00</PrecioUnitarioItem>'
+        f'      <MontoItem>50000.00</MontoItem>'
+        f'    </Item>'
+        f'  </DetallesItems>'
+        f'  <FechaHoraFirma>23-09-2026 10:00:00</FechaHoraFirma>'
+        f'  <Signature xmlns="http://www.w3.org/2000/09/xmldsig#">'
+        f'    <SignedInfo/><SignatureValue>abc123==</SignatureValue>'
+        f'  </Signature>'
+        f'</ECF>'
+    )
+
+
+def test_extraer_resumen_lee_comprador_del_xml_firmado():
+    """La RI tiene que mostrar razon social, RNC y direccion del comprador
+    como salen firmados en el XML -- no de la BD CXC (que puede faltar)."""
+    resumen = extraer_resumen_para_ri(_xml_firmado_con_detalles())
+    assert resumen['comprador'] == {
+        'rnc': '131376292',
+        'razon_social': 'CONSORCIO RYLCO Y ASOCIADOS',
+        'direccion': 'C/ Rodrigo Objio #23',
+        'identificador_extranjero': '',
+    }
+
+
+def test_extraer_resumen_lee_totales_del_xml_firmado():
+    """subtotal/descuento/itbis/total vienen tal cual del bloque Totales."""
+    resumen = extraer_resumen_para_ri(_xml_firmado_con_detalles())
+    assert resumen['totales']['subtotal'] == 250000.00
+    assert resumen['totales']['descuento'] == 0.0
+    assert resumen['totales']['itbis'] == 45000.00
+    assert resumen['totales']['total'] == 295000.00
+
+
+def test_extraer_resumen_lee_lineas_del_xml_firmado():
+    """La RI muestra cada <Item> del XML firmado como una linea del PDF."""
+    resumen = extraer_resumen_para_ri(_xml_firmado_con_detalles())
+    assert len(resumen['lineas']) == 2
+    assert resumen['lineas'][0]['descripcion'] == 'Servicio profesional'
+    assert resumen['lineas'][0]['cantidad'] == 1.0
+    assert resumen['lineas'][0]['precio'] == 250000.00
+    assert resumen['lineas'][0]['total'] == 250000.00
+    assert resumen['lineas'][1]['descripcion'] == 'Consultoria extra'
+    assert resumen['lineas'][1]['cantidad'] == 2.0
+
+
+def test_extraer_resumen_consumidor_final_sin_comprador():
+    """Un RFCE a consumidor final sin RNC solo tiene totales y lineas; el
+    bloque comprador queda vacio pero las claves existen."""
+    xml = (
+        '<?xml version="1.0"?><RFCE><Encabezado>'
+        '<IdDoc><TipoeCF>32</TipoeCF><eNCF>E320000001038</eNCF></IdDoc>'
+        '<Emisor><RNCEmisor>130217432</RNCEmisor>'
+        '<FechaEmision>30-09-2026</FechaEmision></Emisor>'
+        '<Totales><MontoTotal>500.00</MontoTotal></Totales>'
+        '</Encabezado>'
+        '<FechaHoraFirma>30-09-2026 20:00:00</FechaHoraFirma>'
+        '<Signature xmlns="http://www.w3.org/2000/09/xmldsig#">'
+        '<SignedInfo/><SignatureValue>uFy/56==</SignatureValue>'
+        '</Signature></RFCE>'
+    )
+    resumen = extraer_resumen_para_ri(xml)
+    assert resumen['comprador']['rnc'] == ''
+    assert resumen['comprador']['razon_social'] == ''
+    assert resumen['totales']['total'] == 500.00
+    assert resumen['lineas'] == []
