@@ -23,6 +23,8 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
+from lxml import etree
+
 from apps.fe import crypto, dgii_client, ecf_builder, firma
 from apps.legacy.repositories import fe_repo
 
@@ -619,3 +621,137 @@ def _validar_fecha_ncf_modificado_contra_documento(no_cia: str,
         f'FechaEmision real del NCFModificado {ncf_mod} (={fecha_real!r}). '
         'La DGII rechaza con codigo 634 y reinicia todos los contadores '
         'del ciclo -- corregir la fecha del payload antes de reenviar.')
+
+
+# Campos planos (clave=valor) del RFCE que se extraen desde el e-CF32
+# firmado -- los nombres SON los mismos que acepta ``construir_rfce`` y que
+# emite ``construir_ecf_32`` en el XML (ver RFCE-32-v1.0.xsd + e-CF-32-v1.0.
+# xsd, encabezado identico en los subconjuntos que ambos comparten).
+_RFCE_SIMPLE_EN_ID_DOC = ('TipoIngresos', 'TipoPago')
+_RFCE_SIMPLE_EN_EMISOR = ('RNCEmisor', 'RazonSocialEmisor', 'FechaEmision')
+_RFCE_SIMPLE_EN_COMPRADOR = (
+    'RNCComprador', 'IdentificadorExtranjero', 'RazonSocialComprador')
+_RFCE_SIMPLE_EN_TOTALES = (
+    'MontoGravadoTotal', 'MontoGravadoI1', 'MontoGravadoI2', 'MontoGravadoI3',
+    'MontoExento', 'TotalITBIS', 'TotalITBIS1', 'TotalITBIS2', 'TotalITBIS3',
+    'MontoImpuestoAdicional', 'MontoTotal', 'MontoNoFacturable', 'MontoPeriodo')
+
+
+def _rfce_payload_desde_ecf32(xml_firmado_ecf32: str) -> dict:
+    """Deriva el payload "plano" (clave=valor con corchetes para los repetidos)
+    que ``ecf_builder.construir_rfce`` necesita, a partir del XML de un e-CF32
+    ya firmado (``_firmar_para_envio`` sobre el XML armado por
+    ``ecf_builder.construir_ecf_32``). El RFCE replica un subconjunto estricto
+    del encabezado del e-CF32 (ver ``RFCE-32-v1.0.xsd``) + el
+    ``CodigoSeguridadeCF`` derivado aparte -- en Fase 4 "Tercero" no tiene
+    sentido reconsultar TFAT_FACTURA porque los montos ya quedaron escritos
+    en el XML firmado por el builder de producción.
+    """
+    root = etree.fromstring(xml_firmado_ecf32.encode('utf-8'))
+    enc = root.find('Encabezado')
+    if enc is None:
+        return {}
+    datos: dict = {}
+    for subpath, campos in (
+        ('IdDoc', _RFCE_SIMPLE_EN_ID_DOC),
+        ('Emisor', _RFCE_SIMPLE_EN_EMISOR),
+        ('Comprador', _RFCE_SIMPLE_EN_COMPRADOR),
+        ('Totales', _RFCE_SIMPLE_EN_TOTALES),
+    ):
+        nodo = enc.find(subpath)
+        if nodo is None:
+            continue
+        for campo in campos:
+            hijo = nodo.find(campo)
+            if hijo is not None and hijo.text:
+                datos[campo] = hijo.text
+    id_doc = enc.find('IdDoc')
+    if id_doc is not None:
+        tabla = id_doc.find('TablaFormasPago')
+        if tabla is not None:
+            for i, fdp in enumerate(tabla.findall('FormaDePago'), start=1):
+                fp = fdp.find('FormaPago')
+                mp = fdp.find('MontoPago')
+                if fp is not None and fp.text:
+                    datos[f'FormaPago[{i}]'] = fp.text
+                if mp is not None and mp.text:
+                    datos[f'MontoPago[{i}]'] = mp.text
+    totales = enc.find('Totales')
+    if totales is not None:
+        grupo = totales.find('ImpuestosAdicionales')
+        if grupo is not None:
+            for i, item in enumerate(grupo.findall('ImpuestoAdicional'), start=1):
+                for campo in ('TipoImpuesto',
+                              'MontoImpuestoSelectivoConsumoEspecifico',
+                              'MontoImpuestoSelectivoConsumoAdvalorem'):
+                    hijo = item.find(campo)
+                    if hijo is not None and hijo.text:
+                        datos[f'{campo}[{i}]'] = hijo.text
+    return datos
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def certificacion_paso4_rfce_view(request):
+    """Paso 4 de certificacion DGII (grupo "Tercero", Facturas de Consumo
+    Electronica < RD$250,000): arma el e-CF32 completo desde una factura
+    REAL ya emitida en TFAT_FACTURA (mismo pipeline que
+    ``certificacion_paso4_factura_real_view`` -- consume secuencia REAL de
+    TFE_SECUENCIA), lo firma con la App Firma Digital, deriva
+    ``CodigoSeguridadeCF`` de SU FIRMA REAL (primeros 6 chars crudos del
+    SignatureValue), arma el RFCE desde el XML firmado, lo envia al servicio
+    de Recepcion RFCE de ``certecf`` (``fc.dgii.gov.do``), y devuelve el
+    XML e-CF32 YA FIRMADO para que el operador lo descargue y lo suba a mano
+    al widget "Facturas de consumo < 250Mil" del portal (paso "Cuarto" de la
+    postulacion -- no automatizable, es una accion de navegador).
+
+    A diferencia de ``certificacion_paso2_rfce_view`` (que lee las 4 filas
+    fijas del Set de Pruebas del Paso 2 desde un Excel), esta vista acepta
+    la clave real de una factura (``punto``, ``tipo_factura``, ``no_factura``)
+    y reusa el mismo builder de produccion que el resto del Paso 4 -- el
+    Set de Pruebas no aplica para esta fase.
+    """
+    no_cia = request.POST.get('no_cia')
+    punto = request.POST.get('punto')
+    tipo_factura = request.POST.get('tipo_factura')
+    no_factura = request.POST.get('no_factura')
+    if not no_cia:
+        return _err('no_cia requerido')
+    if not all([punto, tipo_factura, no_factura]):
+        return _err('punto, tipo_factura y no_factura son requeridos')
+    try:
+        xml_ecf32_sin_firmar = ecf_builder.construir_ecf_32(
+            no_cia, punto, tipo_factura, no_factura)
+    except ecf_builder.ECFBuilderError as exc:
+        return _err(str(exc))
+    m = re.search(r'<eNCF>([^<]+)</eNCF>', xml_ecf32_sin_firmar)
+    e_ncf = m.group(1) if m else None
+    try:
+        ecf32_firmado, rnc_emisor = dgii_client._firmar_para_envio(
+            no_cia, xml_ecf32_sin_firmar)
+        codigo_seguridad = ecf_builder.derivar_codigo_seguridad(ecf32_firmado)
+        rfce_datos = _rfce_payload_desde_ecf32(ecf32_firmado)
+        rfce_sin_firmar = ecf_builder.construir_rfce(
+            e_ncf, rfce_datos, codigo_seguridad)
+        resultado = dgii_client.enviar_rfce(
+            no_cia, _AMBIENTE_MODO_TEST, e_ncf, rfce_sin_firmar)
+    except (ecf_builder.ECFBuilderError, dgii_client.DgiiError) as exc:
+        return _err(str(exc), status=502)
+    # RFCE es sincrono -- la DGII no devuelve trackId. Se guarda e_ncf como
+    # "track" para mantener la columna NOT NULL de TFE_DOCUMENTO con un valor
+    # unico y trazable (consistente con el eNCF del documento).
+    fe_repo.save_documento_enviado(
+        no_cia, e_ncf, '32', e_ncf,
+        ecf32_firmado, json.dumps(resultado.get('respuesta_cruda', {})),
+        es_prueba='S')
+    return JsonResponse({
+        'ok': True,
+        'encf': e_ncf,
+        'estado_rfce': resultado.get('estado'),
+        'codigo_rfce': resultado.get('codigo'),
+        'mensajes_rfce': resultado.get('mensajes'),
+        'codigo_seguridad': codigo_seguridad,
+        'ecf32_firmado_xml': ecf32_firmado,
+        'nombre_archivo': f'{rnc_emisor}{e_ncf}.xml',
+    })

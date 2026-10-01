@@ -493,3 +493,169 @@ def test_paso4_manual_tipo_no_es_33_ni_34_no_valida_fecha_ncf(
         content_type='application/json')
     assert resp.status_code == 200
     assert consultado == []
+
+
+# ---------------------------------------------------------------------------
+# certificacion_paso4_rfce_view (grupo "Tercero" de la Fase 4 real:
+# Facturas de Consumo < RD$250K con datos reales de TFAT_FACTURA, NO el Set
+# de Pruebas del Paso 2 que ya cubre ``certificacion_paso2_rfce_view``).
+# ---------------------------------------------------------------------------
+
+def test_paso4_rfce_requiere_login(client, db):
+    resp = client.post('/api/fe/certificacion/paso4-rfce/', data={'no_cia': '01'})
+    assert resp.status_code in (302, 401, 403)
+
+
+def test_paso4_rfce_campos_requeridos(cliente_autenticado):
+    resp = cliente_autenticado.post(
+        '/api/fe/certificacion/paso4-rfce/',
+        data={'no_cia': '01'})
+    assert resp.status_code == 400
+    assert 'punto' in resp.json()['detail'].lower()
+
+
+def _ecf32_firmado_realista(e_ncf: str) -> str:
+    """XML e-CF32 firmado minimo que incluye los campos que
+    ``_rfce_payload_desde_ecf32`` espera encontrar en el encabezado,
+    mas un bloque ``<Signature>`` con ``<SignatureValue>`` para que
+    ``derivar_codigo_seguridad`` tenga de donde sacar los 6 chars."""
+    return (
+        '<?xml version="1.0" encoding="utf-8"?>'
+        '<ECF><Encabezado>'
+        '<IdDoc><TipoeCF>32</TipoeCF>'
+        f'<eNCF>{e_ncf}</eNCF>'
+        '<TipoIngresos>01</TipoIngresos>'
+        '<TipoPago>1</TipoPago>'
+        '</IdDoc>'
+        '<Emisor>'
+        '<RNCEmisor>130217432</RNCEmisor>'
+        '<RazonSocialEmisor>ABREGONZA, SRL</RazonSocialEmisor>'
+        '<FechaEmision>01-04-2020</FechaEmision>'
+        '</Emisor>'
+        '<Totales>'
+        '<MontoTotal>11918.00</MontoTotal>'
+        '</Totales>'
+        '</Encabezado>'
+        '<Signature><SignatureValue>ABC123XYZ==</SignatureValue></Signature>'
+        '</ECF>')
+
+
+def test_paso4_rfce_envia_y_devuelve_xml_firmado(cliente_autenticado, monkeypatch):
+    from apps.fe import views as fe_views
+
+    e_ncf = 'E320000001036'
+    # construir_ecf_32 consume secuencia real -> emite el XML con el eNCF
+    # asignado; monkeypatch devuelve un XML con el eNCF esperado.
+    monkeypatch.setattr(
+        ecf_builder, 'construir_ecf_32',
+        lambda no_cia, punto, tipo_factura, no_factura:
+            f'<ECF><Encabezado><IdDoc><eNCF>{e_ncf}</eNCF></IdDoc></Encabezado></ECF>')
+    monkeypatch.setattr(
+        dgii_client, '_firmar_para_envio',
+        lambda no_cia, xml: (_ecf32_firmado_realista(e_ncf), '130217432'))
+    monkeypatch.setattr(
+        ecf_builder, 'derivar_codigo_seguridad',
+        lambda xml_firmado: 'ABC123')
+    construido_rfce = {}
+
+    def fake_construir_rfce(encf_arg, datos_arg, codigo_seg_arg):
+        construido_rfce['encf'] = encf_arg
+        construido_rfce['datos'] = dict(datos_arg)
+        construido_rfce['codigo'] = codigo_seg_arg
+        return '<RFCE/>'
+
+    monkeypatch.setattr(ecf_builder, 'construir_rfce', fake_construir_rfce)
+    envios = []
+
+    def fake_enviar(no_cia, ambiente, encf_arg, xml_arg):
+        envios.append((ambiente, encf_arg))
+        return {'estado': 'Aceptado', 'codigo': 1, 'mensajes': None,
+                'encf': encf_arg, 'secuencia_utilizada': True,
+                'xml_firmado': '<RFCE firmado/>',
+                'respuesta_cruda': {'estado': 'Aceptado', 'encf': encf_arg}}
+
+    monkeypatch.setattr(dgii_client, 'enviar_rfce', fake_enviar)
+    monkeypatch.setattr(fe_repo, 'save_documento_enviado',
+                        lambda *a, **k: None)
+
+    resp = cliente_autenticado.post(
+        '/api/fe/certificacion/paso4-rfce/',
+        data={'no_cia': '01', 'punto': '01',
+              'tipo_factura': 'FT', 'no_factura': '7607'})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body['ok'] is True
+    assert body['encf'] == e_ncf
+    assert body['estado_rfce'] == 'Aceptado'
+    assert body['codigo_seguridad'] == 'ABC123'
+    assert body['nombre_archivo'] == f'130217432{e_ncf}.xml'
+    assert '<Signature>' in body['ecf32_firmado_xml']
+    assert envios == [('certecf', e_ncf)]
+    # el RFCE se construye con el eNCF correcto, el codigo derivado del e-CF32
+    # firmado, y SOLO los campos del encabezado del e-CF32 (los montos y el
+    # emisor/comprador se replican tal cual, no se reconsulta la factura).
+    assert construido_rfce['encf'] == e_ncf
+    assert construido_rfce['codigo'] == 'ABC123'
+    assert construido_rfce['datos'].get('RNCEmisor') == '130217432'
+    assert construido_rfce['datos'].get('MontoTotal') == '11918.00'
+    assert construido_rfce['datos'].get('TipoIngresos') == '01'
+
+
+def test_paso4_rfce_payload_desde_ecf32_extrae_campos_del_encabezado():
+    """Prueba directa de ``_rfce_payload_desde_ecf32``: solo campos del
+    encabezado llegan al payload del RFCE; la ``<Signature>`` y el
+    ``DetallesItems`` se ignoran por completo."""
+    from apps.fe.views import _rfce_payload_desde_ecf32
+
+    xml = (
+        '<ECF><Encabezado>'
+        '<IdDoc>'
+        '<TipoeCF>32</TipoeCF>'
+        '<eNCF>E320000000012</eNCF>'
+        '<TipoIngresos>01</TipoIngresos>'
+        '<TipoPago>2</TipoPago>'
+        '<TablaFormasPago>'
+        '<FormaDePago><FormaPago>1</FormaPago><MontoPago>5900.00</MontoPago></FormaDePago>'
+        '<FormaDePago><FormaPago>2</FormaPago><MontoPago>6018.00</MontoPago></FormaDePago>'
+        '</TablaFormasPago>'
+        '</IdDoc>'
+        '<Emisor>'
+        '<RNCEmisor>130217432</RNCEmisor>'
+        '<RazonSocialEmisor>ABREGONZA, SRL</RazonSocialEmisor>'
+        '<FechaEmision>01-04-2020</FechaEmision>'
+        '</Emisor>'
+        '<Comprador>'
+        '<RNCComprador>130941361</RNCComprador>'
+        '<RazonSocialComprador>RC HERNANDEZ</RazonSocialComprador>'
+        '</Comprador>'
+        '<Totales>'
+        '<MontoGravadoTotal>10100.00</MontoGravadoTotal>'
+        '<MontoGravadoI1>10100.00</MontoGravadoI1>'
+        '<TotalITBIS>1818.00</TotalITBIS>'
+        '<TotalITBIS1>1818.00</TotalITBIS1>'
+        '<MontoTotal>11918.00</MontoTotal>'
+        '</Totales>'
+        '</Encabezado>'
+        '<DetallesItems><Item><NumeroLinea>1</NumeroLinea></Item></DetallesItems>'
+        '<Signature><SignatureValue>XYZ</SignatureValue></Signature>'
+        '</ECF>')
+    datos = _rfce_payload_desde_ecf32(xml)
+    # Campos simples del encabezado
+    assert datos['TipoIngresos'] == '01'
+    assert datos['TipoPago'] == '2'
+    assert datos['RNCEmisor'] == '130217432'
+    assert datos['RazonSocialEmisor'] == 'ABREGONZA, SRL'
+    assert datos['FechaEmision'] == '01-04-2020'
+    assert datos['RNCComprador'] == '130941361'
+    assert datos['MontoGravadoTotal'] == '10100.00'
+    assert datos['MontoGravadoI1'] == '10100.00'
+    assert datos['TotalITBIS'] == '1818.00'
+    assert datos['MontoTotal'] == '11918.00'
+    # TablaFormasPago aplanada con corchetes (igual que construir_rfce espera)
+    assert datos['FormaPago[1]'] == '1'
+    assert datos['MontoPago[1]'] == '5900.00'
+    assert datos['FormaPago[2]'] == '2'
+    assert datos['MontoPago[2]'] == '6018.00'
+    # DetallesItems NO llega al RFCE
+    assert 'NumeroLinea' not in datos
+    assert 'DetallesItems' not in datos

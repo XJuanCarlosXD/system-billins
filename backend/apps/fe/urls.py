@@ -18,4 +18,5 @@ urlpatterns = [
     path('certificacion/paso3-aprobaciones/', views.certificacion_paso3_view),
     path('certificacion/paso4-factura-real/', views.certificacion_paso4_factura_real_view),
     path('certificacion/paso4-manual/', views.certificacion_paso4_manual_view),
+    path('certificacion/paso4-rfce/', views.certificacion_paso4_rfce_view),
 ]
