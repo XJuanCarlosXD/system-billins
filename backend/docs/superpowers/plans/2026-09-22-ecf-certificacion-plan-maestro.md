@@ -54,8 +54,8 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 1 | Registrado | ✅ Completo | 2026-08-31 |
 | 2 | Pruebas de Datos e-CF | ✅ Completo (21/21 + 4/4 + 4/4) | 2026-09-17 |
 | 3 | Pruebas de Datos Aprobación Comercial | ✅ Completo (11/11) | 2026-09-17 |
-| 4 | Pruebas Simulación e-CF | 🔲 En curso — **35va corrida (2026-10-01 ~04 UTC): 4/4 RFCE + 4/4 WIDGET "FACTURAS DE CONSUMO <250MIL" ACEPTADAS → GRUPO CUARTO CERRADO** (portal 22/N — solo falta 0/2 tipo 34 bloqueado 615). Envíos vía nuevo endpoint `paso4-rfce` (3 run): FC-0008182 MIGUEL ANGEL SOSA 1100 → E320000001037 Aceptado codigo=1; FC-0008173 ANFERNEE JOSE DOLORES 644.18 → E320000001038 Aceptado; FC-0008172 PABLO DE LUNA PEREZ 1300 → E320000001039 Aceptado. Luego subida manual de los 4 e-CF32 firmados (incluyendo E320000001036 de la 34va) al widget portal via Playwright → contador "Comprobantes Aceptados" 0→1→2→3→4. TFE_SECUENCIA post-35va: 31→121, 32→**1040**, 33→19, 34→55 (bloqueada 615), 41→108, 43→108, 44→13, 45→106, 46→7, 47→104. Fase 4 queda esencialmente COMPLETA salvo tipo 34 — próxima (36va): atacar bloqueo 34 con nueva hipótesis (reconciliación batch nocturna DGII: >24h desde los 31 del ciclo 33va a hoy ya se cumple; o probar `CodigoModificacion` distinto, `MontoTotal` NC más chico vs. 31). **34va corrida (2026-09-30 ~22 UTC): ENDPOINT `paso4-rfce` CONSTRUIDO + 1/4 RFCE ACEPTADO** (E320000001036 FC-0008184 JUAN HERRERA 500.00, estado=Aceptado codigo=1 primer envío real al servicio `fc.dgii.gov.do/certecf/recepcionfc`). Nueva vista `certificacion_paso4_rfce_view` en `apps/fe/views.py` + helper `_rfce_payload_desde_ecf32` (extrae campos del encabezado del e-CF32 firmado) + URL `/api/fe/certificacion/paso4-rfce/`. 3 tests nuevos en `test_views_certificacion.py` (login, campos requeridos, happy path con monkeypatch + helper extractor). **25/25 tests módulo pasan en contenedor**. Portal todavía a verificar — budget apretado esta corrida, no se ejecutó Playwright. Próxima (35va): verificar portal (1/4 RFCE visible), enviar 3 RFCE adicionales con otras B02<250Mil (candidatos: FT-0040907/0040921/0040915 cliente 142 CONSUMIDOR FINAL RNC 123456789 — probar 1 primero para ver si DGII acepta el RNC placeholder; si rechaza, usar más FC con no-RNC como FC-0008184). Luego subir manualmente los 4 e-CF32 firmados por el widget "Facturas de consumo < 250Mil" del portal (paso "Cuarto" no automatizable salvo via Playwright al widget). TFE_SECUENCIA post-34va: 32→1037 (1036 ya enviado Aceptado). **Anterior: 33va corrida (2026-09-30 20:11-20:27 UTC): 19/N ACTIVOS EN PORTAL (record absoluto)** — 4/4 31 + 2/2 32≥250K + 1/1 33 + 2/2 41 + 2/2 43 + 2/2 44 + 2/2 45 + 2/2 46 + **2/2 tipo 47** (primera vez). Solo faltan 0/2 tipo 34 (bloqueado 615) y 0/4 tipo 32 RFCE (grupo Tercero pendiente construcción de endpoint `paso4-rfce`). Hallazgo #16 nuevo: tipo 47 exige `TotalISRRetencion` en Totales (nombre XSD exacto — NO `TotalISRRetenido`, código 11170 cuando falta). Payload validado: `_PAYLOAD_47_CORRIDA_33` con `IndicadorFacturacion=4` + `MontoExento=MontoTotal` + `TotalISRRetencion` + `IdentificadorExtranjero` + `PaisDestino`. Envíos: E470000000101 Rechazado 11170 (payload con `TotalISRRetenido` sin d), E470000000102/103 Aceptados (2/2). Rebuild ciclo Primero+Segundo (17/17 Aceptados) siguió al 2/2 tipo 47. TFE_SECUENCIA post-33va: 31→121, 32→1036, 33→19, 34→55 (bloqueada), 41→108, 43→108, 44→13, 45→106, 46→7, 47→104. Test XSD-gate `test_payload_corrida33_tipo_47_valida_contra_xsd` agregado y pasa. Próxima (34va): construir endpoint `paso4-rfce` (falta capacidad real ZentoryERP: `paso2-rfce` existente filtra e-NCFs fijos del Paso 2, no acepta datos reales del Paso 4). Sub-plan con `writing-plans` + TDD. Después: 4 envíos RFCE + subida manual 4 e-CF32<250Mil por widget portal, cierre Fase 4 completa (excepto 34). Anterior: 32va corrida (2026-09-30 16:11-16:24 UTC): ciclo Primero+Segundo reconstruido 17/N (4/4 31 + 2/2 32≥250K + 1/1 33 + 2/2 41 + 2/2 43 + 2/2 44 + 2/2 45 + 2/2 46) + intento 1×47 con `IndicadorFacturacion=0` → **Rechazado código 244** "solo permiten indicador de facturación exento" (mismo patrón que tipo 43 en 21va, ahora hallazgo #14 patrón "XSD permite / DGII exige"). Cascada borró TODO tras E470000000100. Rebuild inmediato mismo run reconstruyó ciclo. **Fix desplegado en `apps/fe/ecf_builder.py::_gen_detalles_items`**: guard defensivo `if tipo_ecf==47 && str(IndicadorFacturacion)!='4' → ECFBuilderError`. Tests fixture `_base_47` + `test_tipo_47_pagos_al_exterior_valida_contra_xsd` + `test_tipo_47_sin_monto_isr_retenido_lanza_error` actualizados con `IndicadorFacturacion=4`. TFE_SECUENCIA post: 31→113, 32→1032, 33→17, 34→55 (bloqueada), 41→104, 43→104, 44→9, 45→104, 46→5, 47→101 (100 rechazada quemada). Próxima (33va): reintentar 1×47 con IndicadorFacturacion=4 (Exento) + MontoExento en Totales (patrón tipo 43); si sale limpio, cerrar 2×47 mismo run + grupo Tercero RFCE 4×32<250Mil + subida manual 4×32. Bloqueo 34 sigue activo (código 615). Anterior: 31va corrida (2026-09-30 12:11-12:24 UTC): **2/2 tipo 46 Aceptados** (E460000000001/002) + hallazgo #13 contaminación DGII tipo 47 (E470000000001 rechazado 1209) → cascada borró TODO. Portal post-cascada: 0/N (todos). Destrabo `UPDATE 47 prox=100` aplicado. Builder ahora emite `PaisComprador` para tipo 46 (fix real). Próxima (32va): reconstruir ciclo completo + 2×46 + probar 2×47 con prox=100. **30va previa (histórico)**: 15/N (4/4 31 + 2/2 32≥250K + 1/1 33 + 2/2 41 + 2/2 43 + 2/2 44 + 2/2 45 activados) 3 envíos consecutivos Aceptados sin cascada: (a) E440000000006 (CORTES 101001811, NombreItem "INSUMO EXENTO REGIMEN ESPECIAL", 4:15:42 AM UTC-4) → **2/2 tipo 44**; (b) tras `UPDATE FAT.TFE_SECUENCIA SET prox_secuencia=100 WHERE tipo_ecf='43'` (estrategia validada 4a vez), E430000000100 Aceptado (4:16:26 AM UTC-4) → 1/2; (c) E430000000101 Aceptado (4:16:31 AM UTC-4) → **2/2 tipo 43**. Sin código nuevo (payload `_PAYLOAD_44_CORRIDA_27` + patrón `_PAYLOAD_43_CORRIDA_21` ya validados). Bloqueo 34 sigue activo (código 615). TFE_SECUENCIA post: 31→109, 32→1030, 33→16, 34→55 (bloqueada), 41→102, 43→102, 44→7, 45→102, 46→1, 47→1. Restante para completar Fase 4: **0/2 tipo 34** (bloqueo saldo disponible), **0/2 tipo 46** (Exportaciones, primer contacto pendiente), **0/2 tipo 47** (Pagos al Exterior, primer contacto pendiente), **0/4 tipo 32 RFCE** (grupo Tercero). Próxima (31va): primer contacto tipo 46 con investigación previa del XSD `e-CF-46-v1.0.xsd` + Formato-e-CF-V1.0.pdf (sección Exportaciones: PaisDestino, TipoIngresos específico, campos de-facto obligatorios) + test XSD-gate previo. Si sale limpio, seguir con 47 mismo día. **NO tocar 34** — sigue bloqueo saldo disponible. Anterior: 29va corrida (2026-09-30 04:11-04:25 UTC): **4/4 31 + 2/2 32≥250K + 1/1 33 + 2/2 41 + 1/2 44 + 2/2 45 activados** en portal (12 envíos Aceptados consecutivos, ganancia neta +3 renglones vs 28va). Hallazgo nuevo #12: **tipo 45 también sufre contaminación secuencia DGII** — E450000000003 Rechazada 1209 "secuencia ya utilizada" con `secuenciaUtilizada:false` (mismo patrón #11 de tipo 41 en 28va y tipo 43 en 21va). Estrategia validada empíricamente: `UPDATE TFE_SECUENCIA SET prox_secuencia=100` para el tipo contaminado desbloquea el rango DGII. **Confirmado con E450000000100 y E410000000100 Aceptados** (probes anti-contaminación). Sin código nuevo (fix administrativo puro). Bloqueo 34 sigue activo (código 615). Portal 29/30 12:24 AM UTC-4: 4/4 tipo 31 + 2/2 32≥250K + 1/1 33 + 2/2 41 + 1/2 44 + 2/2 45 + 0/N resto. TFE_SECUENCIA post: 31→109, 32→1030, 33→16, 34→55 (bloqueada), 41→102, 43→7 (posible contaminada), 44→6, 45→102, 46-47→1. Próxima (30va): (a) completar 2do 44 (secuencia 6 natural, payload validado hoy) → 2/2; (b) desbloquear 43 con `prox=100` (misma estrategia) → probar 2×43; (c) 1×46 primer contacto (Exportaciones, PaisDestino) + 1×47 (Pagos al Exterior); (d) grupo Tercero: 4×RFCE + 4×32 subida manual. Anterior: 28va (2026-09-29 20:11-20:22 UTC): **4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 activados** (E310000000101-104 + E320000001026-1027 + E330000000014, fechaRecepcion 8:21:54-8:22:03 PM UTC-4). Primer intento del ciclo completo (11 envíos) llegó hasta 8 Aceptados (4×31 + 2×32≥250K + 1×33 + 1/2 tipo 41) antes de que **E410000000007 fuera Rechazado con código 1209 "Este número de secuencia ya ha sido utilizado"** (patrón #11 secuencia contaminada en DGII por envío histórico no registrado en TFE_SECUENCIA propio — mismo caso que E430000000001 en 21va). Cascada borró TODO (portal 0/N). Segunda vuelta reconstruyó 4×31 + 2×32≥250K + 1×33 (7/7 Aceptados) y paró antes de tocar 41/43/44/45 (rango contaminado necesita investigación específica antes de reintentar — cada rechazo destruye ciclo entero). Portal final: 7/N activos, log último reinicio 29/09 8:19:57 PM (rechazo E410000000007). Bloqueo 34 sigue activo (código 615). Próxima (29va): investigar cuál `prox_secuencia` de 41 salta a un valor libre en DGII (probar avanzando `prox=8→100` o similar); 1/2 tipo 44 + 1/2 tipo 45 previamente activos en 27va también fueron borrados por esta cascada — reintentarlos con `_PAYLOAD_44_CORRIDA_27` y `_PAYLOAD_45_CORRIDA_26` una vez que 41 esté resuelto. Anterior: 27va (2026-09-29): 1/2 tipo 44 + 1/2 tipo 45 activados (E440000000003 CORTES HERMANOS 101001811 12:00:53 PM UTC-4 + E450000000002 CONSEJO NACIONAL DE ZONAS FRANCAS 401501406 12:01:56 PM UTC-4). Rango tipo 31 = 10M (usuario amplió post-26va). Cascada intermedia perdió acumulado previo (4/4 31+2/2 32+1/1 33+2/2 41+2/2 43) por primer intento tipo 44 sin RNCComprador (E440000000001 código 1381). Fixes en `apps/fe/ecf_builder.py`: `_TIPO_CAPS[44]['comprador']='rnc_razon_mandatory'` (era `razon_mandatory`, patrón "XSD opcional / DGII exige" #9); y payload 45 requiere `IndicadorMontoGravado=0` de facto (E450000000001 código 176, patrón #10, mismo que tipo 31 aprendió en 1ra corrida). `_PAYLOAD_44_CORRIDA_27` (CORTES 101001811 validado por 14va) + `_PAYLOAD_45_CORRIDA_26` actualizado con IndicadorMontoGravado=0 + test `test_tipo_44_sin_rnc_comprador_lanza_error_corrida27` + tests 25/26 actualizados. 90+ tests módulo pasan. Bloqueo 34 (código 615) sigue activo. Portal final: 0/N el resto (31/32/33/34/41/43/46/47/RFCE). Próxima (28va): reconstruir ciclo Primero+Segundo con builder ya arreglado (4×31 vía paso4-factura-real, 2×32≥250K con RNCs validados RYLCO/VALOIS, 1×33 con NCFModificado del 31 fresco + FechaNCFModificado correcta, 2×41 INDUSTRIAS BISONO, 2×43 exento) + 2do 44 y 2do 45 (mismos payloads, cambiar cosmético NombreItem). | 2026-09-29 |
-| 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado parcialmente (falta formato QR) | 2026-09-17 |
+| 4 | Pruebas Simulación e-CF | 🔲 En curso — **36va corrida (2026-10-01 ~08 UTC): INVESTIGACIÓN SEGURA, 0 ENVÍOS, 22/N INTACTO**. Portal reconfirmado 22/N (4/4 31 + 2/2 32≥250K + 1/1 33 + 0/2 34 + 2/2 41 + 2/2 43 + 2/2 44 + 2/2 45 + 2/2 46 + 2/2 47 + 4/4 RFCE + 4/4 widget subida). Único faltante: 0/2 tipo 34 (bloqueo 615). Decisión racional: NO arriesgar un envío de 34 con hipótesis débil — cualquier rechazo arrastra 22/N. Investigación realizada esta corrida: (a) Bandeja de Entrada revisada (MensajeId=1593354 del rechazo 26/09 4:18:17 PM, único mensaje de tipo 34): texto literal IDÉNTICO al log del portal "El campo NCFModificado... El monto total de la nota de crédito no puede ser mayor al saldo disponible de la sumatoria de las **operaciones relacionadas** al comprobante referenciado" — NO agrega detalle extra; (b) frase "operaciones relacionadas" (plural) refuerza hipótesis #2 del plan: puede faltar paso intermedio ACECF del 31 antes del 34; (c) hipótesis #1 (>24h) sigue inmadura: los 31 del ciclo son del 30/09 ~16:22 UTC-4, 36va es ~04:12 UTC-4 del 01/10 = ~12h. Trabajo útil paralelo: **Fase 5 formato QR CONFIRMADO 2026-10-01** desde `Descripcion-Tecnica-Servicios-DGII.pdf` (líneas 758-834) — ver nueva sub-sección "Fase 5 — Formato QR confirmado 2026-10-01" abajo. **Próxima (37va)**: dos rutas razonables, elegir una según hora de corrida: (A) si estamos a >24h de los 31 (desde 2026-10-01 ~16:22 UTC-4 ≈ 20:22 UTC): probar hipótesis #1 reconciliación batch con 1×34 contra E310000000121 (31 del ciclo activo), payload idéntico al del 16va pero MontoTotal más chico ($100 = tope mínimo); (B) si estamos antes: avanzar Fase 5 construyendo plantilla `defaults/ecf-representacion-impresa.ts` (patrón `sigaft-pdf-simple-design` + bloque QRCode ya existente, formato URL confirmado abajo) — trabajo seguro, no toca certecf, prepara una fase futura. **Anterior**: 35va corrida (2026-10-01 ~04 UTC): 4/4 RFCE + 4/4 WIDGET "FACTURAS DE CONSUMO <250MIL" ACEPTADAS → GRUPO CUARTO CERRADO** (portal 22/N — solo falta 0/2 tipo 34 bloqueado 615). Envíos vía nuevo endpoint `paso4-rfce` (3 run): FC-0008182 MIGUEL ANGEL SOSA 1100 → E320000001037 Aceptado codigo=1; FC-0008173 ANFERNEE JOSE DOLORES 644.18 → E320000001038 Aceptado; FC-0008172 PABLO DE LUNA PEREZ 1300 → E320000001039 Aceptado. Luego subida manual de los 4 e-CF32 firmados (incluyendo E320000001036 de la 34va) al widget portal via Playwright → contador "Comprobantes Aceptados" 0→1→2→3→4. TFE_SECUENCIA post-35va: 31→121, 32→**1040**, 33→19, 34→55 (bloqueada 615), 41→108, 43→108, 44→13, 45→106, 46→7, 47→104. Fase 4 queda esencialmente COMPLETA salvo tipo 34 — próxima (36va): atacar bloqueo 34 con nueva hipótesis (reconciliación batch nocturna DGII: >24h desde los 31 del ciclo 33va a hoy ya se cumple; o probar `CodigoModificacion` distinto, `MontoTotal` NC más chico vs. 31). **34va corrida (2026-09-30 ~22 UTC): ENDPOINT `paso4-rfce` CONSTRUIDO + 1/4 RFCE ACEPTADO** (E320000001036 FC-0008184 JUAN HERRERA 500.00, estado=Aceptado codigo=1 primer envío real al servicio `fc.dgii.gov.do/certecf/recepcionfc`). Nueva vista `certificacion_paso4_rfce_view` en `apps/fe/views.py` + helper `_rfce_payload_desde_ecf32` (extrae campos del encabezado del e-CF32 firmado) + URL `/api/fe/certificacion/paso4-rfce/`. 3 tests nuevos en `test_views_certificacion.py` (login, campos requeridos, happy path con monkeypatch + helper extractor). **25/25 tests módulo pasan en contenedor**. Portal todavía a verificar — budget apretado esta corrida, no se ejecutó Playwright. Próxima (35va): verificar portal (1/4 RFCE visible), enviar 3 RFCE adicionales con otras B02<250Mil (candidatos: FT-0040907/0040921/0040915 cliente 142 CONSUMIDOR FINAL RNC 123456789 — probar 1 primero para ver si DGII acepta el RNC placeholder; si rechaza, usar más FC con no-RNC como FC-0008184). Luego subir manualmente los 4 e-CF32 firmados por el widget "Facturas de consumo < 250Mil" del portal (paso "Cuarto" no automatizable salvo via Playwright al widget). TFE_SECUENCIA post-34va: 32→1037 (1036 ya enviado Aceptado). **Anterior: 33va corrida (2026-09-30 20:11-20:27 UTC): 19/N ACTIVOS EN PORTAL (record absoluto)** — 4/4 31 + 2/2 32≥250K + 1/1 33 + 2/2 41 + 2/2 43 + 2/2 44 + 2/2 45 + 2/2 46 + **2/2 tipo 47** (primera vez). Solo faltan 0/2 tipo 34 (bloqueado 615) y 0/4 tipo 32 RFCE (grupo Tercero pendiente construcción de endpoint `paso4-rfce`). Hallazgo #16 nuevo: tipo 47 exige `TotalISRRetencion` en Totales (nombre XSD exacto — NO `TotalISRRetenido`, código 11170 cuando falta). Payload validado: `_PAYLOAD_47_CORRIDA_33` con `IndicadorFacturacion=4` + `MontoExento=MontoTotal` + `TotalISRRetencion` + `IdentificadorExtranjero` + `PaisDestino`. Envíos: E470000000101 Rechazado 11170 (payload con `TotalISRRetenido` sin d), E470000000102/103 Aceptados (2/2). Rebuild ciclo Primero+Segundo (17/17 Aceptados) siguió al 2/2 tipo 47. TFE_SECUENCIA post-33va: 31→121, 32→1036, 33→19, 34→55 (bloqueada), 41→108, 43→108, 44→13, 45→106, 46→7, 47→104. Test XSD-gate `test_payload_corrida33_tipo_47_valida_contra_xsd` agregado y pasa. Próxima (34va): construir endpoint `paso4-rfce` (falta capacidad real ZentoryERP: `paso2-rfce` existente filtra e-NCFs fijos del Paso 2, no acepta datos reales del Paso 4). Sub-plan con `writing-plans` + TDD. Después: 4 envíos RFCE + subida manual 4 e-CF32<250Mil por widget portal, cierre Fase 4 completa (excepto 34). Anterior: 32va corrida (2026-09-30 16:11-16:24 UTC): ciclo Primero+Segundo reconstruido 17/N (4/4 31 + 2/2 32≥250K + 1/1 33 + 2/2 41 + 2/2 43 + 2/2 44 + 2/2 45 + 2/2 46) + intento 1×47 con `IndicadorFacturacion=0` → **Rechazado código 244** "solo permiten indicador de facturación exento" (mismo patrón que tipo 43 en 21va, ahora hallazgo #14 patrón "XSD permite / DGII exige"). Cascada borró TODO tras E470000000100. Rebuild inmediato mismo run reconstruyó ciclo. **Fix desplegado en `apps/fe/ecf_builder.py::_gen_detalles_items`**: guard defensivo `if tipo_ecf==47 && str(IndicadorFacturacion)!='4' → ECFBuilderError`. Tests fixture `_base_47` + `test_tipo_47_pagos_al_exterior_valida_contra_xsd` + `test_tipo_47_sin_monto_isr_retenido_lanza_error` actualizados con `IndicadorFacturacion=4`. TFE_SECUENCIA post: 31→113, 32→1032, 33→17, 34→55 (bloqueada), 41→104, 43→104, 44→9, 45→104, 46→5, 47→101 (100 rechazada quemada). Próxima (33va): reintentar 1×47 con IndicadorFacturacion=4 (Exento) + MontoExento en Totales (patrón tipo 43); si sale limpio, cerrar 2×47 mismo run + grupo Tercero RFCE 4×32<250Mil + subida manual 4×32. Bloqueo 34 sigue activo (código 615). Anterior: 31va corrida (2026-09-30 12:11-12:24 UTC): **2/2 tipo 46 Aceptados** (E460000000001/002) + hallazgo #13 contaminación DGII tipo 47 (E470000000001 rechazado 1209) → cascada borró TODO. Portal post-cascada: 0/N (todos). Destrabo `UPDATE 47 prox=100` aplicado. Builder ahora emite `PaisComprador` para tipo 46 (fix real). Próxima (32va): reconstruir ciclo completo + 2×46 + probar 2×47 con prox=100. **30va previa (histórico)**: 15/N (4/4 31 + 2/2 32≥250K + 1/1 33 + 2/2 41 + 2/2 43 + 2/2 44 + 2/2 45 activados) 3 envíos consecutivos Aceptados sin cascada: (a) E440000000006 (CORTES 101001811, NombreItem "INSUMO EXENTO REGIMEN ESPECIAL", 4:15:42 AM UTC-4) → **2/2 tipo 44**; (b) tras `UPDATE FAT.TFE_SECUENCIA SET prox_secuencia=100 WHERE tipo_ecf='43'` (estrategia validada 4a vez), E430000000100 Aceptado (4:16:26 AM UTC-4) → 1/2; (c) E430000000101 Aceptado (4:16:31 AM UTC-4) → **2/2 tipo 43**. Sin código nuevo (payload `_PAYLOAD_44_CORRIDA_27` + patrón `_PAYLOAD_43_CORRIDA_21` ya validados). Bloqueo 34 sigue activo (código 615). TFE_SECUENCIA post: 31→109, 32→1030, 33→16, 34→55 (bloqueada), 41→102, 43→102, 44→7, 45→102, 46→1, 47→1. Restante para completar Fase 4: **0/2 tipo 34** (bloqueo saldo disponible), **0/2 tipo 46** (Exportaciones, primer contacto pendiente), **0/2 tipo 47** (Pagos al Exterior, primer contacto pendiente), **0/4 tipo 32 RFCE** (grupo Tercero). Próxima (31va): primer contacto tipo 46 con investigación previa del XSD `e-CF-46-v1.0.xsd` + Formato-e-CF-V1.0.pdf (sección Exportaciones: PaisDestino, TipoIngresos específico, campos de-facto obligatorios) + test XSD-gate previo. Si sale limpio, seguir con 47 mismo día. **NO tocar 34** — sigue bloqueo saldo disponible. Anterior: 29va corrida (2026-09-30 04:11-04:25 UTC): **4/4 31 + 2/2 32≥250K + 1/1 33 + 2/2 41 + 1/2 44 + 2/2 45 activados** en portal (12 envíos Aceptados consecutivos, ganancia neta +3 renglones vs 28va). Hallazgo nuevo #12: **tipo 45 también sufre contaminación secuencia DGII** — E450000000003 Rechazada 1209 "secuencia ya utilizada" con `secuenciaUtilizada:false` (mismo patrón #11 de tipo 41 en 28va y tipo 43 en 21va). Estrategia validada empíricamente: `UPDATE TFE_SECUENCIA SET prox_secuencia=100` para el tipo contaminado desbloquea el rango DGII. **Confirmado con E450000000100 y E410000000100 Aceptados** (probes anti-contaminación). Sin código nuevo (fix administrativo puro). Bloqueo 34 sigue activo (código 615). Portal 29/30 12:24 AM UTC-4: 4/4 tipo 31 + 2/2 32≥250K + 1/1 33 + 2/2 41 + 1/2 44 + 2/2 45 + 0/N resto. TFE_SECUENCIA post: 31→109, 32→1030, 33→16, 34→55 (bloqueada), 41→102, 43→7 (posible contaminada), 44→6, 45→102, 46-47→1. Próxima (30va): (a) completar 2do 44 (secuencia 6 natural, payload validado hoy) → 2/2; (b) desbloquear 43 con `prox=100` (misma estrategia) → probar 2×43; (c) 1×46 primer contacto (Exportaciones, PaisDestino) + 1×47 (Pagos al Exterior); (d) grupo Tercero: 4×RFCE + 4×32 subida manual. Anterior: 28va (2026-09-29 20:11-20:22 UTC): **4/4 tipo 31 + 2/2 tipo 32≥250K + 1/1 tipo 33 activados** (E310000000101-104 + E320000001026-1027 + E330000000014, fechaRecepcion 8:21:54-8:22:03 PM UTC-4). Primer intento del ciclo completo (11 envíos) llegó hasta 8 Aceptados (4×31 + 2×32≥250K + 1×33 + 1/2 tipo 41) antes de que **E410000000007 fuera Rechazado con código 1209 "Este número de secuencia ya ha sido utilizado"** (patrón #11 secuencia contaminada en DGII por envío histórico no registrado en TFE_SECUENCIA propio — mismo caso que E430000000001 en 21va). Cascada borró TODO (portal 0/N). Segunda vuelta reconstruyó 4×31 + 2×32≥250K + 1×33 (7/7 Aceptados) y paró antes de tocar 41/43/44/45 (rango contaminado necesita investigación específica antes de reintentar — cada rechazo destruye ciclo entero). Portal final: 7/N activos, log último reinicio 29/09 8:19:57 PM (rechazo E410000000007). Bloqueo 34 sigue activo (código 615). Próxima (29va): investigar cuál `prox_secuencia` de 41 salta a un valor libre en DGII (probar avanzando `prox=8→100` o similar); 1/2 tipo 44 + 1/2 tipo 45 previamente activos en 27va también fueron borrados por esta cascada — reintentarlos con `_PAYLOAD_44_CORRIDA_27` y `_PAYLOAD_45_CORRIDA_26` una vez que 41 esté resuelto. Anterior: 27va (2026-09-29): 1/2 tipo 44 + 1/2 tipo 45 activados (E440000000003 CORTES HERMANOS 101001811 12:00:53 PM UTC-4 + E450000000002 CONSEJO NACIONAL DE ZONAS FRANCAS 401501406 12:01:56 PM UTC-4). Rango tipo 31 = 10M (usuario amplió post-26va). Cascada intermedia perdió acumulado previo (4/4 31+2/2 32+1/1 33+2/2 41+2/2 43) por primer intento tipo 44 sin RNCComprador (E440000000001 código 1381). Fixes en `apps/fe/ecf_builder.py`: `_TIPO_CAPS[44]['comprador']='rnc_razon_mandatory'` (era `razon_mandatory`, patrón "XSD opcional / DGII exige" #9); y payload 45 requiere `IndicadorMontoGravado=0` de facto (E450000000001 código 176, patrón #10, mismo que tipo 31 aprendió en 1ra corrida). `_PAYLOAD_44_CORRIDA_27` (CORTES 101001811 validado por 14va) + `_PAYLOAD_45_CORRIDA_26` actualizado con IndicadorMontoGravado=0 + test `test_tipo_44_sin_rnc_comprador_lanza_error_corrida27` + tests 25/26 actualizados. 90+ tests módulo pasan. Bloqueo 34 (código 615) sigue activo. Portal final: 0/N el resto (31/32/33/34/41/43/46/47/RFCE). Próxima (28va): reconstruir ciclo Primero+Segundo con builder ya arreglado (4×31 vía paso4-factura-real, 2×32≥250K con RNCs validados RYLCO/VALOIS, 1×33 con NCFModificado del 31 fresco + FechaNCFModificado correcta, 2×41 INDUSTRIAS BISONO, 2×43 exento) + 2do 44 y 2do 45 (mismos payloads, cambiar cosmético NombreItem). | 2026-09-29 |
+| 5 | Pruebas Simulación Representación Impresa | 🔲 Investigado — **formato QR CONFIRMADO (36va corrida 2026-10-01)**; falta construir plantilla + endpoint | 2026-10-01 |
 | 6 | Validación Representación Impresa | ⬜ Sin investigar | — |
 | 7 | URL Servicios Prueba | ⬜ Sin investigar | — |
 | 8 | Inicio Prueba Recepción e-CF | ⬜ Sin investigar | — |
@@ -384,6 +384,114 @@ plantilla, el runner debe:
 
 **No adelantar esta fase sin haber completado la Fase 4** — el portal las
 pide en orden y probablemente no deje avanzar antes.
+
+### Formato QR confirmado 2026-10-01 (36va corrida)
+
+Fuente: `backend/docs/superpowers/reference/2026-08-31-set-pruebas-paso2/
+Descripcion-Tecnica-Servicios-DGII.pdf`, sección "Consulta timbre (QR)"
+(páginas 40-41) y "Consulta timbre FC (QR)" (páginas 42-43), extraído
+textual con `pdftotext -layout`.
+
+**Hay DOS URLs de QR distintas**, elegidas según el tipo de e-CF:
+
+1. **e-CF normales** (tipos 31, 32≥250K, 33, 34, 41, 43, 44, 45, 46, 47):
+   usar `consultatimbre`.
+2. **RFCE** (tipo 32 <250K, Resumen de Factura de Consumo Electrónica):
+   usar `consultatimbrefc`.
+
+**URL base por ambiente** (nuestro código ya tiene flag `_AMBIENTE` para
+elegir):
+
+| Ambiente | e-CF normales | RFCE |
+|----------|---------------|------|
+| TesteCF (pre-cert) | `https://ecf.dgii.gov.do/testecf/consultatimbre` | `https://fc.dgii.gov.do/testecf/consultatimbrefc` |
+| CerteCF (cert) | `https://ecf.dgii.gov.do/certecf/consultatimbre` | `https://fc.dgii.gov.do/certecf/consultatimbrefc` |
+| eCF (prod) | `https://ecf.dgii.gov.do/ecf/consultatimbre` | `https://fc.dgii.gov.do/ecf/consultatimbrefc` |
+
+**Query params para e-CF normales** (orden EXACTO del ejemplo oficial,
+todos en minúscula):
+1. `rncemisor` — RNC del contribuyente emisor (9 ó 11 dígitos)
+2. `rnccomprador` — RNC del comprador (si aplica; para consumidor final sin RNC se omite)
+3. `encf` — e-NCF **en minúsculas** (ej: `e310000000001`, NO `E310000000001`)
+4. `fechaemision` — formato `DD-MM-YYYY` (ej: `10-10-2020`)
+5. `montototal` — número con punto decimal, SIN separador de miles (ej: `02.11` o `682709.10`)
+6. `fechafirma` — formato `DD-MM-YYYY HH:MM:SS`, el espacio URL-encoded como `%20` (ej: `10-10-2020%2009:00:00`)
+7. `codigoseguridad` — ver abajo cómo se deriva
+
+**Ejemplo literal oficial del PDF** (línea 778 de la extracción):
+
+```
+https://ecf.dgii.gov.do/testecf/consultatimbre?rncemisor=130000001&rnccomprador=130000002&encf=e310000000001&fechaemision=10-10-2020&montototal=02.11&fechafirma=10-10-2020%2009:00:00&codigoseguridad=dcp79q
+```
+
+**Query params para RFCE** (orden EXACTO del ejemplo oficial, todos en
+minúscula):
+1. `rncemisor`
+2. `encf` — e-NCF en minúsculas
+3. `montototal`
+4. `codigoseguridad`
+
+**Ejemplo literal oficial del PDF** (línea 826 de la extracción):
+
+```
+https://fc.dgii.gov.do/testecf/consultatimbrefc?rncemisor=131880738&encf=e320000000064&montototal=6225.09&codigosegurida=uabnyh
+```
+
+(Nota: en el PDF el ejemplo tiene `codigosegurida` cortado con un line-break;
+la clave correcta es `codigoseguridad`, confirmado por el servicio del
+e-CF normal y por el campo del XSD.)
+
+**Cómo se deriva `codigoseguridad`** (sección Consulta de estado e-CF,
+línea 672 de `-layout`):
+
+> codigoSeguridad: extraído de los primeros seis (6) dígitos del hash
+> generado en el SignatureValue de la firma digital que viene en el tag
+> CodigoSeguridadeCF del resumen de factura.
+
+Es decir: `codigoseguridad` = los primeros 6 caracteres del hash del
+`<ds:SignatureValue>` del XML firmado. En nuestro backend eso ya está
+implementado para RFCE (`dgii_client.enviar_rfce` lo deriva y lo retorna
+como `codigo_seguridad`, p.ej. 34va corrida: `'uFy/56'`). Para
+representación impresa de e-CF normales hay que extraerlo del XML firmado
+que persiste `TFE_DOCUMENTO.xml_firmado_contenido` (columna existente).
+
+**Versión del QR**: Versión 8 (ver `https://www.qrcode.com/en/about/
+version.html`). Si usamos la lib `qrcode` del frontend (ya existe en
+`frontend/src/features/pdf/blocks/index.tsx` como `QRCode`), hay que
+asegurarse de que el nivel de corrección permita que la URL (>120 chars
+para e-CF normales) encaje en versión 8 — típicamente nivel L o M.
+
+**Pendiente de verificación empírica** (no bloquea construir la plantilla,
+pero chequear al final):
+- Si el `encf` ya firmado va con `E` mayúscula en el XML (como está en
+  nuestro XML firmado real: `E310000000121`) pero el PDF ejemplo tiene
+  `e310000000001` lowercase. Lo más seguro es escribir el QR con el `encf`
+  tal como aparece en el XML firmado (mayúscula) — si DGII espera lower,
+  normalizarlo con `.toLowerCase()` solo si rechaza. La URL es
+  case-insensitive para el host; los query params pueden importar.
+- Si `rnccomprador` se incluye cuando es vacío (consumidor final sin RNC),
+  o se omite por completo del query string. Lo más limpio: omitirlo si
+  no hay RNC capturado.
+
+**Siguiente paso para implementar Fase 5** (37va o posterior, usar
+`writing-plans` + TDD):
+1. Crear `frontend/src/features/pdf/defaults/ecf-representacion-impresa.ts`
+   (patrón `sigaft-pdf-simple-design`, bloque `QRCode` configurado con URL
+   derivada de los campos del print-data).
+2. Endpoint backend nuevo `GET /api/fe/documentos/<e_ncf>/representacion-
+   impresa/print-data/` que arme el JSON de impresión desde
+   `TFE_DOCUMENTO`, incluyendo:
+   - Todos los campos del Encabezado (coinciden con los del XML firmado).
+   - `codigo_seguridad` derivado de `TFE_DOCUMENTO.xml_firmado_contenido`
+     (extraer `<ds:SignatureValue>`, tomar los primeros 6 chars).
+   - URL del QR armada server-side según `TFE_CONFIG._AMBIENTE` ('certecf'
+     esta fase) y según sea e-CF normal o RFCE (basado en `tipo_ecf` y
+     `monto_total`<250K).
+3. Ruta frontend `/print/ecf-representacion-impresa/<e_ncf>` que renderice
+   la plantilla Puck con el print-data.
+4. Botón "Descargar RI" en la UI del Paso 4 del panel Certificación e-CF.
+5. Tests TDD: round-trip URL QR = exacto del PDF oficial dado datos
+   conocidos; QRCode block renderiza; CodigoSeguridad bien derivado.
 
 ## Fases 6 a 15 — sin investigar todavía
 
@@ -1974,6 +2082,61 @@ Código nuevo desplegado esta corrida: `backend/apps/fe/tests/test_ecf_builder_g
 ## Log de corridas
 
 Agregar una línea por corrida, más reciente arriba:
+
+- **2026-10-01 ~08 UTC (36va corrida)** — Runner scheduled. Fase 4 —
+  **INVESTIGACIÓN SEGURA, 0 ENVÍOS A DGII, 22/N INTACTO**. Portal pre-
+  corrida Playwright: 22/N confirmado (4/4 31 + 2/2 32≥250K + 1/1 33 +
+  0/2 34 + 2/2 41 + 2/2 43 + 2/2 44 + 2/2 45 + 2/2 46 + 2/2 47 + 4/4 RFCE +
+  4/4 widget subida). Único faltante Fase 4: 0/2 tipo 34 (bloqueo 615
+  "saldo disponible", activo desde 16va corrida). TFE_SECUENCIA sin
+  cambios: 31→121, 32→1040, 33→19, 34→55 (bloqueada), 41→108, 43→108,
+  44→13, 45→106, 46→7, 47→104. **Decisión racional**: NO arriesgar un
+  envío del 34 esta corrida — las dos hipótesis fuertes (reconciliación
+  >24h, catálogo oficial) requieren más tiempo o info externa, y
+  cualquier rechazo del 34 arrastra TODO el ciclo 22/N (12+ secuencias
+  perdidas, ~1h de reconstrucción). Hipótesis #1 (>24h desde los 31):
+  los 31 del ciclo activo son del 30/09 ~16:22 UTC-4, 36va es
+  ~04:12 UTC-4 del 01/10 ≈ 12h, aún NO llega a 24h. **Investigación
+  realizada**: (a) Bandeja de Entrada revisada vía Playwright — mensaje
+  MensajeId=1593354 del rechazo 34 original (26/09 4:18:17 PM, único
+  mensaje de tipo 34 en bandeja); texto literal del detalle es IDÉNTICO
+  al log del portal, NO agrega información nueva ("El campo NCFModificado...
+  El monto total de la nota de crédito no puede ser mayor al saldo
+  disponible de la sumatoria de las operaciones relacionadas al
+  comprobante referenciado"); (b) la frase "operaciones relacionadas"
+  (plural) refuerza hipótesis #2 del plan maestro (puede faltar
+  Aprobación Comercial del 31 antes de poder emitir 34 contra él), pero
+  esta hipótesis no se puede probar sin arriesgar el ciclo. **Trabajo
+  útil paralelo — Fase 5 formato QR CONFIRMADO**: extraído con `pdftotext
+  -layout` de `backend/docs/superpowers/reference/2026-08-31-set-pruebas-
+  paso2/Descripcion-Tecnica-Servicios-DGII.pdf` (líneas 758-834 de la
+  extracción), hay DOS URLs distintas de QR según tipo de e-CF (normal
+  usa `consultatimbre`, RFCE usa `consultatimbrefc`), 7 vs 4 params
+  concatenados en orden exacto, URL-encoded con `%20` para espacios en
+  `fechafirma`, encf en lowercase en el ejemplo oficial, `codigoseguridad`
+  = primeros 6 chars del hash de `<ds:SignatureValue>` del XML firmado,
+  QR versión 8. Nueva sub-sección "Formato QR confirmado 2026-10-01"
+  agregada bajo "Fase 5". Fase 5 queda "lista para construir" (no más
+  bloqueo de requisito no confirmado). **Sin código nuevo esta corrida**
+  — todos los cambios son del plan maestro. **Próximo paso (37va)**: dos
+  rutas razonables, elegir según hora de corrida:
+  - **Ruta A (si corrida ocurre a >20:22 UTC = >24h desde los 31)**:
+    probar hipótesis #1 reconciliación batch con 1×34 contra
+    `E310000000121` (último 31 Aceptado del ciclo), payload idéntico al
+    de 16va corrida pero con `MontoTotal` chico ($100), `CodigoModificacion=1`
+    como antes. Si Aceptado: cerrar 2/2 34 → Fase 4 completa. Si Rechazado
+    código 615 otra vez: hipótesis #1 falsada; evaluar hipótesis #2 (ACECF
+    previo) en 38va corrida y comer la cascada.
+  - **Ruta B (si corrida ocurre antes de >24h, o si usuario decide
+    priorizar trabajo seguro)**: avanzar Fase 5. Sub-plan con
+    `writing-plans` para implementar plantilla `defaults/ecf-
+    representacion-impresa.ts` (patrón `sigaft-pdf-simple-design` +
+    bloque `QRCode`), endpoint `GET /api/fe/documentos/<e_ncf>/
+    representacion-impresa/print-data/`, ruta frontend
+    `/print/ecf-representacion-impresa/<e_ncf>`, botón UI en panel
+    Certificación. Tests TDD: round-trip URL QR = exacto del ejemplo
+    oficial, CodigoSeguridad bien derivado del SignatureValue.
+  Commits: solo update del plan maestro, 0 código, 0 envíos DGII.
 
 - **2026-10-01 ~04 UTC (35va corrida)** — Runner scheduled. Fase 4 —
   **GRUPO CUARTO CERRADO: 4/4 RFCE + 4/4 WIDGET "FACTURAS DE CONSUMO
