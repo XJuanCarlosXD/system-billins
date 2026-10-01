@@ -30,6 +30,7 @@ import { listadoDepreciacionAcfDefault } from './defaults/listado-depreciacion-a
 import { valuacionAcfDefault } from './defaults/valuacion-acf'
 import { activosPorGrupoAcfDefault } from './defaults/activos-por-grupo-acf'
 import { activosPorDepartamentoAcfDefault } from './defaults/activos-por-departamento-acf'
+import { ecfRepresentacionImpresaDefault } from './defaults/ecf-representacion-impresa'
 
 const chcRepMovimientosDefault = reporteGenericoDefault('Movimiento de Cuenta Bancaria', [
   { campo: 'fecha', label: 'Fecha', align: 'left', format: 'date' },
@@ -451,6 +452,23 @@ const docVarsBase = [
 ]
 
 export const registry: Record<string, RegistryEntry> = {
+  // ── FE — Representación Impresa de un e-CF (Fase 5 certificación DGII) ─
+  'ecf-representacion-impresa': {
+    codigo: 'ecf-representacion-impresa',
+    modulo: 'FAT',
+    nombre: 'Representación Impresa e-CF',
+    familia: 'documento',
+    printDataPath: (id, qs) =>
+      `/fe/documentos/${encodeURIComponent(id)}/representacion-impresa/print-data/?${qs.toString()}`,
+    defaultTemplate: ecfRepresentacionImpresaDefault,
+    defaultPageSize: 'A4',
+    defaultPageOrientation: 'P',
+    variables: [
+      ...docVarsBase,
+      'ecf.e_ncf', 'ecf.tipo_ecf', 'ecf.ambiente', 'ecf.qr_url',
+      'ecf.codigo_seguridad', 'ecf.fecha_firma',
+    ],
+  },
   // ── FAT — documentos transaccionales ───────────────────────────────
   factura: {
     codigo: 'factura',

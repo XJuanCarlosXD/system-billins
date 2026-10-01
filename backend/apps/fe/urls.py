@@ -1,8 +1,10 @@
 from django.urls import path
 
-from apps.fe import views
+from apps.fe import views, views_print_data
 
 urlpatterns = [
+    path('documentos/<str:e_ncf>/representacion-impresa/print-data/',
+         views_print_data.fe_documento_ri_print_data),
     path('config/', views.config_view),
     path('config/certificado/', views.certificado_view),
     path('config/probar-conexion/', views.probar_conexion_view),
