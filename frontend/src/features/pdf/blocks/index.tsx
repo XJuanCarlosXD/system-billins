@@ -961,7 +961,7 @@ function QrBlock({ contenido, size, align }: QrProps) {
         canceled = true
       }
     }
-    QRCode.toDataURL(resolved, { width: size })
+    QRCode.toDataURL(resolved, { width: size * 4, margin: 2 })
       .then((url) => {
         if (!canceled) setDataUrl(url)
       })
