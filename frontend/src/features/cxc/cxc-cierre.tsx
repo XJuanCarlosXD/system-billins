@@ -207,7 +207,11 @@ export function CxcGenerarAsiento({ noCia, punto = '01' }: P) {
       mes_proceso: mesProceso!, ano_proceso: anoProceso!,
       cierre_fiscal: cierreFiscal,
     } as any),
-    onSuccess: () => toast.success(`Asiento generado para ${String(mesProceso).padStart(2, '0')}/${anoProceso}`),
+    onSuccess: () => toast.success(
+      `Asiento generado para ${String(mesProceso).padStart(2, '0')}/${anoProceso}. ` +
+      `Siguiente paso: ejecute el Cierre Mensual para avanzar el período al nuevo mes.`,
+      { duration: 8000 },
+    ),
     onError: (e: Error) => toast.error(e.message || 'Error al generar el asiento'),
   })
 
@@ -227,6 +231,8 @@ export function CxcGenerarAsiento({ noCia, punto = '01' }: P) {
               <CardTitle className="text-lg">Generar Asiento al Mayor</CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Marca todos los documentos del mes como contabilizados y los envía a Contabilidad.
+                Esta operación <b>no avanza el período</b>: para pasar al mes siguiente ejecute
+                después el <b>Cierre Mensual</b> (menú CxC &gt; Procesos &gt; Cierre).
               </p>
             </div>
             <PeriodoBadge noCia={noCia} punto={punto} />

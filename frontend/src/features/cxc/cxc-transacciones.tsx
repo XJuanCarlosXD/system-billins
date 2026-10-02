@@ -351,7 +351,12 @@ export function CxcTransacciones({ noCia, punto = '01', prefill }: P) {
     if (!cliente) return 'Seleccione un cliente'
     if (pideFormaPago && !formaPago)
       return 'Indique la forma de pago (cómo se recibió el dinero)'
-    if (fechaFueraDePeriodo) return `La fecha debe estar dentro del período activo (${periodoMesAno})`
+    if (fechaFueraDePeriodo) {
+      const [y, m] = fecha.split('-').map(Number)
+      const fechaMesAno = `${MESES[(m || 1) - 1]} ${y}`
+      return `El período activo de CxC es ${periodoMesAno} y la fecha del documento cae en ${fechaMesAno}. ` +
+             `Para registrar documentos del nuevo mes primero debe ejecutar el Cierre Mensual (menú CxC > Procesos > Cierre).`
+    }
     if (valorEfectivo <= 0) return 'Indique el valor del documento o aplique a alguna factura'
     for (const p of pendientes) {
       const key = `${p.tipo_doc}-${p.no_doc}`
@@ -490,8 +495,13 @@ export function CxcTransacciones({ noCia, punto = '01', prefill }: P) {
               <Label className="text-xs">Fecha *</Label>
               <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="h-9" />
               {fechaFueraDePeriodo && (
-                <p className="text-[11px] text-destructive flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" /> Fuera del período activo
+                <p className="text-[11px] text-destructive flex items-start gap-1">
+                  <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
+                  <span>
+                    Fuera del período activo ({periodoMesAno}). Ejecute el{' '}
+                    <b>Cierre Mensual de CxC</b> (menú CxC &gt; Procesos &gt; Cierre)
+                    antes de registrar documentos del nuevo mes.
+                  </span>
                 </p>
               )}
             </div>
