@@ -1786,6 +1786,74 @@ def test_payload_corrida13_tipo_34_nota_credito_valida_contra_xsd():
         f"Totales fuera de orden XSD: {hijos}")
 
 
+# ---------------------------------------------------------------------------
+# Hipotesis #5 para desbloqueo tipo 34 (46va corrida, 2026-10-03): el Set de
+# Pruebas oficial de la DGII para RNC 130217432 (archivo
+# ``set-pruebas-130217432.xlsx``, Paso 2 completado 2026-09-04) incluye DOS
+# casos tipo 34 y uno de ellos (fila 5 Excel, CasoPrueba
+# ``130217432E340000000001``) usa el patron:
+#   CodigoModificacion=2 (Corrige Texto) + MontoTotal=0 + MontoGravadoTotal=0.
+# Las 4 hipotesis previas (>24h / ACECF intermedio / campo oculto / ninguna
+# combinacion de CodigoModificacion 1 o 3) fueron falsificadas con rechazos
+# codigo 615. Esta hipotesis NUEVA viene directo del dato oficial de la DGII
+# y no se habia probado nunca. El XSD ``e-CF-34-v1.0.xsd`` permite
+# MontoTotal=0 (tipo ``Decimal18D1or2ValidationTypeMayorIgualCero``). El
+# patron del Set tambien marca ``IndicadorNotaCredito=0`` (consistente con
+# una correccion que no modifica saldo del comprador).
+_PAYLOAD_34_CORRIDA_46 = {
+    'RNCEmisor': '130217432',
+    'RazonSocialEmisor': 'ABREGONZA COMERCIAL SRL',
+    'DireccionEmisor': 'AV LOPE DE VEGA #55, ENSANCHE NACO, SANTO DOMINGO',
+    'FechaEmision': '03-10-2026',
+    'IndicadorNotaCredito': 0,
+    'TipoIngresos': '01',
+    'TipoPago': 1,
+    'IndicadorMontoGravado': 0,
+    'RNCComprador': '130941361',
+    'RazonSocialComprador': 'CORREGIDO POR TEXTO',
+    'MontoGravadoTotal': '0.00',
+    'MontoGravadoI1': '0.00',
+    'ITBIS1': '18',
+    'TotalITBIS': '0.00',
+    'TotalITBIS1': '0.00',
+    'MontoTotal': '0.00',
+    'NCFModificado': 'E310000000121',
+    'FechaNCFModificado': '09-05-2025',
+    'CodigoModificacion': '2',
+    'RazonModificacion': 'Correccion de texto sin modificacion de monto',
+    'NumeroLinea[1]': 1,
+    'IndicadorFacturacion[1]': 1,
+    'NombreItem[1]': 'Correccion texto FC origen',
+    'IndicadorBienoServicio[1]': 2,
+    'CantidadItem[1]': '1.00',
+    'PrecioUnitarioItem[1]': '0.00',
+    'MontoItem[1]': '0.00',
+}
+
+
+def test_payload_corrida46_tipo_34_cod_mod_2_monto_cero_valida_contra_xsd():
+    """Gate XSD-local para la hipotesis #5 del bloqueo tipo 34 (46va corrida).
+
+    Patron directo del Set de Pruebas oficial de la DGII (fila 5 Excel):
+    CodigoModificacion=2 + MontoTotal=0 + MontoGravadoTotal=0. Un rechazo
+    aqui borraria los 27/N del portal (Fase 4 ciclo activo), asi que el
+    gate XSD-local es obligatorio."""
+    xml_str = ecf_builder.construir_ecf_generico(
+        34, 'E340000000056', _PAYLOAD_34_CORRIDA_46)
+    _validar_estructura_contra_xsd(xml_str, 34)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.findtext('.//IdDoc/TipoeCF') == '34'
+    assert root.findtext('.//IdDoc/IndicadorNotaCredito') == '0'
+    assert root.findtext('.//IdDoc/TipoIngresos') == '01'
+    assert root.findtext('.//Totales/MontoGravadoTotal') == '0.00'
+    assert root.findtext('.//Totales/TotalITBIS') == '0.00'
+    assert root.findtext('.//Totales/MontoTotal') == '0.00'
+    assert root.findtext(
+        './/InformacionReferencia/CodigoModificacion') == '2'
+    assert root.findtext(
+        './/InformacionReferencia/NCFModificado') == 'E310000000121'
+
+
 # Payloads REALES para los 2x32>=250K de la 14va corrida (Fase 4, recuperar
 # 0/2 -> 2/2 tras el reset cascada de la 13va corrida). Estructura identica a
 # corridas 5/6/12 (builder validado 4 veces contra certecf). Se usan 2
