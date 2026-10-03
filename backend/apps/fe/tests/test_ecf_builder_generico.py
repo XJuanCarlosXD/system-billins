@@ -1854,6 +1854,34 @@ def test_payload_corrida46_tipo_34_cod_mod_2_monto_cero_valida_contra_xsd():
         './/InformacionReferencia/NCFModificado') == 'E310000000121'
 
 
+# Hipotesis #5 REFINADA tras 46va corrida (47va, 2026-10-03): el envio
+# E340000000056 con _PAYLOAD_34_CORRIDA_46 recibio rechazo codigo 156 "El
+# campo IndicadorNotaCredito del area IdDoc de la seccion Encabezado no es
+# valido" --- PRIMER rechazo tipo 34 que NO es codigo 615. Significa que el
+# patron MontoTotal=0+CodigoModificacion=2 SI paso la validacion de saldo
+# que trababa las 4 hipotesis previas. Unico cambio: IndicadorNotaCredito
+# 0 -> 1 (patron "Set permite / certecf exige" #18). Resto del payload es
+# bit-a-bit identico al _PAYLOAD_34_CORRIDA_46.
+_PAYLOAD_34_CORRIDA_47 = dict(_PAYLOAD_34_CORRIDA_46)
+_PAYLOAD_34_CORRIDA_47['IndicadorNotaCredito'] = 1
+
+
+def test_payload_corrida47_tipo_34_indicador_nota_credito_1_valida_contra_xsd():
+    """Gate XSD-local para la hipotesis #5 REFINADA del bloqueo tipo 34
+    (47va corrida). Unico cambio vs. 46va: IndicadorNotaCredito 0 -> 1."""
+    xml_str = ecf_builder.construir_ecf_generico(
+        34, 'E340000000057', _PAYLOAD_34_CORRIDA_47)
+    _validar_estructura_contra_xsd(xml_str, 34)
+    root = etree.fromstring(xml_str.encode('utf-8'))
+    assert root.findtext('.//IdDoc/TipoeCF') == '34'
+    assert root.findtext('.//IdDoc/IndicadorNotaCredito') == '1'
+    assert root.findtext('.//Totales/MontoTotal') == '0.00'
+    assert root.findtext(
+        './/InformacionReferencia/CodigoModificacion') == '2'
+    assert root.findtext(
+        './/InformacionReferencia/NCFModificado') == 'E310000000121'
+
+
 # Payloads REALES para los 2x32>=250K de la 14va corrida (Fase 4, recuperar
 # 0/2 -> 2/2 tras el reset cascada de la 13va corrida). Estructura identica a
 # corridas 5/6/12 (builder validado 4 veces contra certecf). Se usan 2
