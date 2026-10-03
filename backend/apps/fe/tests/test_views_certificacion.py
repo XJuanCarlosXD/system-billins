@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 
 import openpyxl
 import pytest
@@ -659,3 +660,137 @@ def test_paso4_rfce_payload_desde_ecf32_extrae_campos_del_encabezado():
     # DetallesItems NO llega al RFCE
     assert 'NumeroLinea' not in datos
     assert 'DetallesItems' not in datos
+
+
+# ---------------------------------------------------------------------------
+# certificacion/paso4-ecf-acecf -- envia una Aprobacion Comercial Aprobada
+# para un e-CF ya enviado y Aceptado en Fase 4 (hipotesis #2 del bloqueo
+# tipo 34 codigo 615 "saldo disponible").
+# ---------------------------------------------------------------------------
+
+def test_paso4_ecf_acecf_requiere_login(client, db):
+    resp = client.post(
+        '/api/fe/certificacion/paso4-ecf-acecf/',
+        data=json.dumps({'no_cia': '01', 'encf': 'E310000000121'}),
+        content_type='application/json')
+    assert resp.status_code in (302, 401, 403)
+
+
+def test_paso4_ecf_acecf_campos_requeridos(cliente_autenticado):
+    resp = cliente_autenticado.post(
+        '/api/fe/certificacion/paso4-ecf-acecf/',
+        data=json.dumps({'no_cia': '01'}),
+        content_type='application/json')
+    assert resp.status_code == 400
+    assert 'encf' in resp.json()['detail'].lower()
+
+
+def _ecf31_firmado_realista(e_ncf: str) -> str:
+    """XML e-CF31 firmado minimo que incluye los 5 campos del encabezado
+    que _acecf_row_desde_ecf_firmado necesita para armar la fila ACECF."""
+    return (
+        '<?xml version="1.0" encoding="utf-8"?>'
+        '<ECF><Encabezado>'
+        '<IdDoc><TipoeCF>31</TipoeCF>'
+        f'<eNCF>{e_ncf}</eNCF>'
+        '</IdDoc>'
+        '<Emisor>'
+        '<RNCEmisor>130217432</RNCEmisor>'
+        '<FechaEmision>09-05-2025</FechaEmision>'
+        '</Emisor>'
+        '<Comprador>'
+        '<RNCComprador>130941361</RNCComprador>'
+        '</Comprador>'
+        '<Totales>'
+        '<MontoTotal>460241.77</MontoTotal>'
+        '</Totales>'
+        '</Encabezado>'
+        '<Signature><SignatureValue>ABC123</SignatureValue></Signature>'
+        '</ECF>')
+
+
+def test_paso4_ecf_acecf_envia_aprobacion_desde_xml_firmado(
+        cliente_autenticado, monkeypatch):
+    e_ncf = 'E310000000121'
+    monkeypatch.setattr(
+        fe_repo, 'get_documento',
+        lambda no_cia, encf: {'xml_firmado': _ecf31_firmado_realista(encf)})
+    construido = {}
+
+    def fake_construir_acecf(row):
+        construido['row'] = dict(row)
+        return '<ACECF/>'
+
+    monkeypatch.setattr(ecf_builder, 'construir_acecf', fake_construir_acecf)
+    envios = []
+
+    def fake_enviar_acecf(no_cia, ambiente, encf_arg, rnc_comprador_arg,
+                          xml_arg):
+        envios.append((ambiente, encf_arg, rnc_comprador_arg))
+        return {'mensaje': 'Aprobacion comercial aprobada',
+                'estado': 'Aprobada', 'codigo': 1,
+                'xml_firmado': '<ACECF firmado/>',
+                'respuesta_cruda': {'estado': 'Aprobada'}}
+
+    monkeypatch.setattr(dgii_client, 'enviar_aprobacion_comercial',
+                        fake_enviar_acecf)
+    resp = cliente_autenticado.post(
+        '/api/fe/certificacion/paso4-ecf-acecf/',
+        data=json.dumps({'no_cia': '01', 'encf': e_ncf}),
+        content_type='application/json')
+    assert resp.status_code == 200, resp.content
+    body = resp.json()
+    assert body['ok'] is True
+    assert body['encf'] == e_ncf
+    assert body['estado'] == 'Aprobada'
+    assert body['codigo'] == 1
+    # fila ACECF derivada 1:1 del XML firmado
+    assert construido['row']['RNCEmisor'] == '130217432'
+    assert construido['row']['eNCF'] == e_ncf
+    assert construido['row']['FechaEmision'] == '09-05-2025'
+    assert construido['row']['MontoTotal'] == '460241.77'
+    assert construido['row']['RNCComprador'] == '130941361'
+    assert construido['row']['Estado'] == 1
+    assert construido['row']['Version'] == '1.0'
+    # FechaHoraAprobacionComercial se setea con la hora actual, formato DGII
+    assert re.match(r'\d{2}-\d{2}-\d{4} \d{2}:\d{2}:\d{2}',
+                    construido['row']['FechaHoraAprobacionComercial'])
+    # envio con RNCComprador del e-CF (NO RNCEmisor) -- nombre de archivo
+    # ACECF usa RNCComprador segun Descripcion-Tecnica-Servicios-DGII.pdf
+    assert envios == [('certecf', e_ncf, '130941361')]
+
+
+def test_paso4_ecf_acecf_rechaza_sin_rnc_comprador(cliente_autenticado,
+                                                      monkeypatch):
+    xml_sin_comprador = (
+        '<?xml version="1.0" encoding="utf-8"?>'
+        '<ECF><Encabezado>'
+        '<IdDoc><eNCF>E320000001001</eNCF></IdDoc>'
+        '<Emisor><RNCEmisor>130217432</RNCEmisor>'
+        '<FechaEmision>09-05-2025</FechaEmision></Emisor>'
+        '<Totales><MontoTotal>500.00</MontoTotal></Totales>'
+        '</Encabezado></ECF>')
+    monkeypatch.setattr(
+        fe_repo, 'get_documento',
+        lambda no_cia, encf: {'xml_firmado': xml_sin_comprador})
+    # no debe llegar a dgii_client
+    def must_not_call(*a, **k):
+        raise AssertionError('no debe llamarse al servicio DGII sin RNCComprador')
+    monkeypatch.setattr(dgii_client, 'enviar_aprobacion_comercial',
+                        must_not_call)
+    resp = cliente_autenticado.post(
+        '/api/fe/certificacion/paso4-ecf-acecf/',
+        data=json.dumps({'no_cia': '01', 'encf': 'E320000001001'}),
+        content_type='application/json')
+    assert resp.status_code == 400
+    assert 'RNCComprador' in resp.json()['detail']
+
+
+def test_paso4_ecf_acecf_404_si_documento_no_existe(cliente_autenticado,
+                                                       monkeypatch):
+    monkeypatch.setattr(fe_repo, 'get_documento', lambda no_cia, encf: None)
+    resp = cliente_autenticado.post(
+        '/api/fe/certificacion/paso4-ecf-acecf/',
+        data=json.dumps({'no_cia': '01', 'encf': 'E310000099999'}),
+        content_type='application/json')
+    assert resp.status_code == 404

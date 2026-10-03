@@ -25,6 +25,8 @@ from django.views.decorators.http import require_http_methods
 
 from lxml import etree
 
+from datetime import datetime
+
 from apps.fe import crypto, dgii_client, ecf_builder, firma
 from apps.legacy.repositories import fe_repo
 
@@ -754,4 +756,87 @@ def certificacion_paso4_rfce_view(request):
         'codigo_seguridad': codigo_seguridad,
         'ecf32_firmado_xml': ecf32_firmado,
         'nombre_archivo': f'{rnc_emisor}{e_ncf}.xml',
+    })
+
+
+def _acecf_row_desde_ecf_firmado(xml_firmado: str, estado: int = 1) -> dict:
+    """Deriva la fila ACECF (los 9 campos de ``construir_acecf``) a partir
+    del XML de un e-CF ya firmado y persistido en TFE_DOCUMENTO. Hecho para
+    la hipotesis #2 del bloqueo tipo 34: enviar una Aprobacion Comercial
+    Aprobada del e-CF31 referenciado antes de intentar el 34 contra el.
+    """
+    root = etree.fromstring(xml_firmado.encode('utf-8'))
+    def _t(xpath):
+        el = root.find(xpath)
+        return (el.text or '').strip() if el is not None and el.text else None
+    rnc_emisor = _t('Encabezado/Emisor/RNCEmisor')
+    encf = _t('Encabezado/IdDoc/eNCF')
+    fecha_emision = _t('Encabezado/Emisor/FechaEmision')
+    monto_total = _t('Encabezado/Totales/MontoTotal')
+    rnc_comprador = _t('Encabezado/Comprador/RNCComprador')
+    return {
+        'Version': '1.0',
+        'RNCEmisor': rnc_emisor,
+        'eNCF': encf,
+        'FechaEmision': fecha_emision,
+        'MontoTotal': monto_total,
+        'RNCComprador': rnc_comprador,
+        'Estado': int(estado),
+        'FechaHoraAprobacionComercial': datetime.now().strftime(
+            '%d-%m-%Y %H:%M:%S'),
+    }
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def certificacion_paso4_ecf_acecf_view(request):
+    """Paso 4 de certificacion DGII -- envia una Aprobacion Comercial
+    (ACECF) Aprobada para un e-CF ya enviado y Aceptado en Fase 4. Hipotesis
+    #2 del bloqueo tipo 34 (codigo 615 "saldo disponible"): la DGII podria
+    exigir que el e-CF31 referenciado por el 34 tenga una ACECF aprobada
+    antes de aceptar la nota de credito. Esta vista permite enviar esa
+    ACECF server-side a partir del XML_FIRMADO ya persistido, sin
+    reconstruir el e-CF.
+
+    Body JSON: ``{"no_cia": "01", "encf": "E310000000121"}``.
+    """
+    try:
+        body = json.loads(request.body or b'{}')
+    except json.JSONDecodeError:
+        return _err('JSON invalido')
+    no_cia = body.get('no_cia')
+    encf = body.get('encf')
+    if not no_cia:
+        return _err('no_cia requerido')
+    if not encf:
+        return _err('encf requerido')
+    doc = fe_repo.get_documento(no_cia, encf)
+    if not doc:
+        return _err(f'e-CF {encf} no encontrado en TFE_DOCUMENTO', status=404)
+    xml_firmado = doc.get('xml_firmado')
+    if not xml_firmado:
+        return _err(f'e-CF {encf} no tiene xml_firmado persistido')
+    try:
+        row = _acecf_row_desde_ecf_firmado(xml_firmado, estado=1)
+    except (etree.XMLSyntaxError, ValueError) as exc:
+        return _err(f'No se pudo parsear el XML firmado de {encf}: {exc}')
+    if not row['RNCComprador']:
+        return _err(
+            f'e-CF {encf} no tiene RNCComprador -- la DGII no acepta ACECF '
+            'para e-CF sin comprador identificado')
+    try:
+        xml_sin_firmar = ecf_builder.construir_acecf(row)
+        resultado = dgii_client.enviar_aprobacion_comercial(
+            no_cia, _AMBIENTE_MODO_TEST, encf, row['RNCComprador'],
+            xml_sin_firmar)
+    except (ecf_builder.ECFBuilderError, dgii_client.DgiiError) as exc:
+        return _err(str(exc), status=502)
+    return JsonResponse({
+        'ok': True,
+        'encf': encf,
+        'estado': resultado.get('estado'),
+        'codigo': resultado.get('codigo'),
+        'mensaje': resultado.get('mensaje'),
+        'respuesta_cruda': resultado.get('respuesta_cruda'),
     })
