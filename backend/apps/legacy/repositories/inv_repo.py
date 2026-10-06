@@ -3069,8 +3069,15 @@ def create_movimiento_documento(*, no_cia: str, punto: str, tipo_docu: str,
             elif tipo_docu == 'EC' and pct_itbis:
                 # Entrada de Compras: el %ITBIS se captura una vez en el
                 # encabezado (no por producto) y antes se perdia porque el
-                # payload nunca llegaba mas alla del frontend.
-                impuesto_linea = round(base_linea * float(pct_itbis) / 100, 2)
+                # payload nunca llegaba mas alla del frontend. Pero no todo
+                # producto lleva ITBIS (TINV_PRODUCTO.tiene_impuesto='N'):
+                # sin este chequeo se le suma ITBIS a lineas exentas (ticket
+                # ACLASE 2026-10-06, producto 00001939).
+                tiene_imp, _ = _producto_impuesto_info(cur, no_produ)
+                impuesto_linea = (
+                    round(base_linea * float(pct_itbis) / 100, 2)
+                    if tiene_imp == 'S' else 0.0
+                )
             else:
                 impuesto_linea = 0.0
             total_bruto += valor_linea
