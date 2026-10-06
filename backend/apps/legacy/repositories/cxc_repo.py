@@ -498,6 +498,13 @@ def save_cliente(d: dict):
     # dividen entre "123-45678-9" y "123456789" como si fueran distintos.
     rnc = re.sub(r'\D', '', d.get('rnc', '') or '')
     cedula = re.sub(r'\D', '', d.get('cedula', '') or '')
+    # El modal de creacion rapida (FAT nueva factura, CxC) solo tiene un
+    # input combinado "RNC / Cedula" y siempre manda el valor como 'rnc'.
+    # Una cedula (11 digitos, persona fisica) tecleada ahi fallaba la
+    # validacion de RNC (9 digitos) y el cliente no se podia grabar (ticket
+    # DABREU 2026-10-05: "RNC del cliente es su numero de cedula").
+    if rnc and not cedula and len(rnc) == 11:
+        cedula, rnc = rnc, ''
     # Validar longitudes contra los VARCHAR2 reales de CXC.TCXC_CLIENTE antes
     # de consumir la secuencia — así el usuario ve el campo exacto y no un ORA-12899.
     errores: list = []
