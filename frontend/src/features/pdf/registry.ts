@@ -71,9 +71,10 @@ const accListadoDocsDefault = reporteGenericoDefault('Listado de Documentos · C
   { campo: 'no_caja', label: 'Caja', align: 'left' },
   { campo: 'nombre_bene', label: 'Beneficiario', align: 'left' },
   { campo: 'desc_gasto', label: 'Tipo gasto', align: 'left' },
-  { campo: 'ncf', label: 'NCF', align: 'left' },
+  { campo: 'ncf_dgi', label: 'NCF', align: 'left' },
   { campo: 'rnc', label: 'RNC', align: 'left' },
-  { campo: 'valor', label: 'Valor', align: 'right', format: 'money' },
+  { campo: 'debito', label: 'Débito', align: 'right', format: 'money' },
+  { campo: 'credito', label: 'Crédito', align: 'right', format: 'money' },
   { campo: 'no_reposicion', label: 'Reposic.', align: 'left' },
   { campo: 'estado', label: 'Estado', align: 'left' },
 ])
@@ -1337,7 +1338,8 @@ export const registry: Record<string, RegistryEntry> = {
     variables: [
       'reporte.titulo', 'reporte.filtros',
       'filas[].no_docu', 'filas[].fecha', 'filas[].nombre_bene',
-      'filas[].desc_gasto', 'filas[].ncf', 'filas[].rnc', 'filas[].valor',
+      'filas[].desc_gasto', 'filas[].ncf_dgi', 'filas[].rnc',
+      'filas[].debito', 'filas[].credito',
       'filas[].no_reposicion', 'filas[].estado',
       'totales.cantidad', 'totales.activos', 'totales.anulados', 'totales.valor',
     ],

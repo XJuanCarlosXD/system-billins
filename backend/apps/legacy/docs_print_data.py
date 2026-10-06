@@ -1469,6 +1469,15 @@ def acc_listado_docs_print_data(request):
         is_anul = (r.get('anulado') or 'N') == 'S'
         if not is_anul:
             total_valor += val; total_impuesto += imp; activos += 1
+        # NCF completo (prefijo + numero, ej. "E310000000084") -- ver
+        # ticket MPILAR 2026-09-29 (ACC "REGISTRO ACC NO APARECE"): pedia
+        # "NCF registrado" en el listado, no el numero crudo sin prefijo.
+        # VALOR=DEBITO=CREDITO siempre en TACC_DOCUMENTO (partida doble de
+        # un egreso: se debita el gasto, se acredita la caja) -- se
+        # muestran ambas columnas explicitas como pidio el ticket.
+        _ncf_num = r.get('ncf')
+        _pos_ncf = (r.get('posiciones_fijas_ncf') or '').strip()
+        ncf_dgi = f"{_pos_ncf}{int(_ncf_num):08d}" if _ncf_num and _pos_ncf else (str(_ncf_num) if _ncf_num else '')
         filas.append({
             'no_docu': f"ACC-{(r.get('no_docu') or '').strip()}",
             'fecha': str(r.get('fecha') or '')[:10],
@@ -1478,8 +1487,11 @@ def acc_listado_docs_print_data(request):
             'tipo_gasto': r.get('tipo_gasto') or '',
             'desc_gasto': r.get('desc_gasto') or '',
             'ncf': r.get('ncf') or '',
+            'ncf_dgi': ncf_dgi,
             'rnc': r.get('rnc') or '',
             'valor': val,
+            'debito': val,
+            'credito': val,
             'impuesto': imp,
             'no_reposicion': (r.get('no_reposicion') or ''),
             'estado': 'Anulado' if is_anul else 'Activo',
