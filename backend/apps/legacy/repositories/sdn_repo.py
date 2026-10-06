@@ -1706,6 +1706,32 @@ def preview_solicitud_cheques(*, no_cia: str, punto: str, nomina: str) -> dict:
 
 # ---- Informe de Nómina (Fsdn207) --------------------------------------------
 
+def list_periodos_calculados(no_cia: str, punto: str, nomina: str) -> list[dict]:
+    """Periodos ya calculados (TSDN_AUDITORIA proceso='C') de una nomina, para
+    poblar el selector de periodo de los reportes historicos (Fsdn207/volante).
+
+    El periodo real es un contador secuencial por nomina (17, 18, 19...) que
+    NUNCA se reinicia cada mes (ver avanzar_periodo/_siguiente_periodo); un
+    selector fijo "P1/P2" no puede representarlo. Ticket MPILAR 2026-09-29:
+    "el calculo de nomina en el periodo #17 esta arrojando el total de la
+    2da quincena" — el selector fijo mandaba periodo=1 literal en vez del
+    numero real que la usuaria queria consultar.
+    """
+    # El mismo periodo pudo calcularse mas de una vez (reabrir + recalcular),
+    # y el numero de periodo se repite cada 24 (ano calendario) en el
+    # historico legado -- por eso DISTINCT y orden cronologico real por
+    # fecha, no por el numero de periodo solo.
+    return client.fetch_dicts(
+        "SELECT DISTINCT periodo, ano, mes, "
+        "TO_CHAR(fecha_nomina_i,'YYYY-MM-DD') AS fecha_inicial, "
+        "TO_CHAR(fecha_nomina_f,'YYYY-MM-DD') AS fecha_final "
+        "FROM SDN.TSDN_AUDITORIA "
+        "WHERE no_cia=:1 AND punto=:2 AND nomina=:3 AND proceso='C' "
+        "ORDER BY fecha_inicial DESC",
+        [no_cia, punto, (nomina or '').upper()],
+    )
+
+
 def rep_informe_nomina(*, no_cia: str, punto: str, nomina: str,
                        ano: int, mes: int, periodo: int = 1,
                        no_empleado: int | None = None,

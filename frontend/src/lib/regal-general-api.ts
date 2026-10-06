@@ -1860,6 +1860,12 @@ export const regalGeneralApi = {
     const qs = new URLSearchParams({ no_cia: p.no_cia, punto: p.punto, nomina: p.nomina }).toString()
     return request<any>(`/sdn/cheques/preview/?${qs}`)
   },
+  // Periodos ya calculados de una nomina (para el selector de periodo real,
+  // no el fijo P1/P2 — ver sdn_repo.list_periodos_calculados)
+  sdnPeriodosCalculados: (p: { no_cia: string; punto: string; nomina: string }) => {
+    const qs = new URLSearchParams({ no_cia: p.no_cia, punto: p.punto, nomina: p.nomina }).toString()
+    return request<{ results: Array<{ periodo: number; ano: number; mes: number; fecha_inicial: string; fecha_final: string }> }>(`/sdn/periodos-calculados/?${qs}`)
+  },
   // Informe de Nómina (Fsdn207)
   sdnRepInforme: (p: { no_cia: string; punto: string; nomina: string; ano: number; mes: number; periodo?: number; no_empleado?: number; no_gerencia?: string; no_area?: string; no_depto?: string }) => {
     const qs = new URLSearchParams({

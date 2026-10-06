@@ -56,6 +56,7 @@ urlpatterns = [
     # Solicitud de Cheques de Nómina (Fsdn409) — preview
     path('cheques/preview/', sdn_views.sdn_preview_cheques),
     # Informe de Nómina (Fsdn207)
+    path('periodos-calculados/', sdn_views.sdn_periodos_calculados),
     path('rep-informe/', sdn_views.sdn_rep_informe),
     # RNC Empleados (DGII)
     path('rep-rnc/', sdn_views.sdn_rep_empleados_rnc),

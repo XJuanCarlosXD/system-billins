@@ -528,6 +528,19 @@ def sdn_preview_cheques(request):
 @login_required
 @csrf_exempt
 @require_http_methods(['GET'])
+def sdn_periodos_calculados(request):
+    """GET /api/sdn/periodos-calculados/?no_cia=&punto=&nomina="""
+    rows = sdn_repo.list_periodos_calculados(
+        no_cia=request.GET.get('no_cia', ''),
+        punto=_norm_punto(request.GET.get('punto', '01')),
+        nomina=(request.GET.get('nomina') or '').upper(),
+    )
+    return JsonResponse({'results': rows})
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(['GET'])
 def sdn_rep_informe(request):
     try:
         out = sdn_repo.rep_informe_nomina(

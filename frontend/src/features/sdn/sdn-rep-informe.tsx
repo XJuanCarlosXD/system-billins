@@ -1,7 +1,7 @@
 // SDN — Informe de Nómina (Fsdn207).
 // Reporte agregado por empleado del período seleccionado, con filtros por
 // nómina / año / mes / período / gerencia / área / departamento / empleado.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/regal-general-api'
 import { useCompany } from '@/hooks/use-company'
@@ -20,27 +20,13 @@ import { toast } from 'sonner'
 const fmt = (n: number) =>
   Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-// Por defecto sugerimos el período inmediatamente anterior al actual: si hoy
-// estamos en la 2da quincena, mostramos la 1ra; si estamos en la 1ra del mes,
-// retrocedemos al mes anterior con su 2da quincena. Esto es lo que típicamente
-// el usuario quiere ver (la nómina ya cerrada).
-function periodoAnterior(d: Date) {
-  const ano0 = d.getFullYear()
-  const mes0 = d.getMonth() + 1
-  const dia0 = d.getDate()
-  if (dia0 > 15) return { ano: ano0, mes: mes0, periodo: 1 }
-  if (mes0 === 1) return { ano: ano0 - 1, mes: 12, periodo: 2 }
-  return { ano: ano0, mes: mes0 - 1, periodo: 2 }
-}
-
 export function SdnRepInforme() {
   const { selectedCompany, selectedPoint } = useCompany()
-  const def = periodoAnterior(new Date())
   const [f, setF] = useState({
     nomina: '',
-    ano: def.ano,
-    mes: def.mes,
-    periodo: def.periodo,
+    ano: new Date().getFullYear(),
+    mes: new Date().getMonth() + 1,
+    periodo: 0,
     no_gerencia: '',
     no_area: '',
     no_depto: '',
@@ -54,6 +40,28 @@ export function SdnRepInforme() {
     }),
     enabled: !!selectedCompany,
   })
+
+  // El período real es un contador secuencial por nómina (17, 18, 19...)
+  // que nunca se reinicia cada mes — un selector fijo "P1/P2" no puede
+  // representarlo (ticket MPILAR 2026-09-29: elegir "P1" mandaba periodo=1
+  // literal en vez del período real que quería consultar, mostrando datos
+  // de otro período/quincena). Se listan los períodos ya calculados de la
+  // nómina elegida y se sugiere el más reciente por defecto.
+  const periodos = useQuery({
+    queryKey: ['sdn-periodos-calc', selectedCompany, selectedPoint, f.nomina],
+    queryFn: () => api.sdnPeriodosCalculados({
+      no_cia: selectedCompany, punto: selectedPoint, nomina: f.nomina,
+    }),
+    enabled: !!selectedCompany && !!f.nomina,
+  })
+  const periodosData = periodos.data?.results || []
+  useEffect(() => {
+    if (periodosData.length && !periodosData.some((p) => p.periodo === f.periodo)) {
+      const ultimo = periodosData[0]
+      setF((prev) => ({ ...prev, periodo: ultimo.periodo, ano: ultimo.ano, mes: ultimo.mes }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [f.nomina, periodosData.length])
   const gerencias = useQuery({ queryKey: ['sdn-gerencias'], queryFn: () => api.sdnListGerencias() })
   const areas = useQuery({ queryKey: ['sdn-areas'], queryFn: () => api.sdnListAreas() })
   const deptos = useQuery({ queryKey: ['sdn-deptos'], queryFn: () => api.sdnListDeptos() })
@@ -131,24 +139,23 @@ export function SdnRepInforme() {
           </select>
         </div>
         <div>
-          <Label className="text-xs">Año</Label>
-          <Input className="h-9" type="number" value={f.ano}
-            onChange={(e) => setF({ ...f, ano: Number(e.target.value) })} />
-        </div>
-        <div>
-          <Label className="text-xs">Mes</Label>
-          <Input className="h-9" type="number" min={1} max={12} value={f.mes}
-            onChange={(e) => setF({ ...f, mes: Number(e.target.value) })} />
-        </div>
-        <div>
           <Label className="text-xs">Período</Label>
           <select
             className="border rounded px-2 py-2 text-sm h-9 w-full bg-background"
             value={f.periodo}
-            onChange={(e) => setF({ ...f, periodo: Number(e.target.value) })}
+            disabled={!f.nomina || periodos.isLoading}
+            onChange={(e) => {
+              const p = periodosData.find((x) => x.periodo === Number(e.target.value))
+              setF({ ...f, periodo: Number(e.target.value), ano: p?.ano ?? f.ano, mes: p?.mes ?? f.mes })
+            }}
           >
-            <option value={1}>P1</option>
-            <option value={2}>P2</option>
+            {!f.nomina && <option value={0}>— elija nómina —</option>}
+            {f.nomina && periodosData.length === 0 && <option value={0}>Sin períodos calculados</option>}
+            {periodosData.map((p) => (
+              <option key={p.periodo} value={p.periodo}>
+                P{p.periodo} — {p.fecha_inicial} al {p.fecha_final}
+              </option>
+            ))}
           </select>
         </div>
         <div>
@@ -198,7 +205,7 @@ export function SdnRepInforme() {
             ))}
           </select>
         </div>
-        <Button size="sm" onClick={() => run.mutate()} disabled={!f.nomina || run.isPending}>
+        <Button size="sm" onClick={() => run.mutate()} disabled={!f.nomina || !f.periodo || run.isPending}>
           <Search className="h-4 w-4 mr-1" />
           {run.isPending ? 'Generando…' : 'Generar'}
         </Button>
