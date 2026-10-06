@@ -36,6 +36,23 @@ from apps.legacy.repositories import cxc_repo
 # tiene que leerse de TFE_CONFIG.ambiente de la cia del documento.
 _AMBIENTE_RI = 'certecf'
 
+# Nombre oficial DGII de cada tipo de e-CF, segun Formato-e-CF-V1.0.pdf.
+# Se incluye en el payload para que la Representacion Impresa muestre el
+# tipo de comprobante electronico que emite (rechazo Fase 5 55va corrida:
+# "Debe indicar el tipo de comprobante electronico que emite").
+_TIPO_ECF_NOMBRE = {
+    '31': 'FACTURA DE CREDITO FISCAL ELECTRONICA',
+    '32': 'FACTURA DE CONSUMO ELECTRONICA',
+    '33': 'NOTA DE DEBITO ELECTRONICA',
+    '34': 'NOTA DE CREDITO ELECTRONICA',
+    '41': 'COMPRAS ELECTRONICAS',
+    '43': 'GASTOS MENORES ELECTRONICOS',
+    '44': 'REGIMENES ESPECIALES ELECTRONICOS',
+    '45': 'GUBERNAMENTAL ELECTRONICA',
+    '46': 'EXPORTACIONES ELECTRONICAS',
+    '47': 'PAGOS AL EXTERIOR ELECTRONICOS',
+}
+
 
 def _err(msg: str, status: int = 400) -> JsonResponse:
     return JsonResponse({'detail': str(msg)}, status=status)
@@ -127,6 +144,8 @@ def fe_documento_ri_print_data(request, e_ncf: str):
             'ecf': {
                 'e_ncf': e_ncf,
                 'tipo_ecf': (doc_tfe.get('tipo_ecf') or '').strip(),
+                'tipo_ecf_nombre': _TIPO_ECF_NOMBRE.get(
+                    (doc_tfe.get('tipo_ecf') or '').strip(), 'e-CF'),
                 'ambiente': _AMBIENTE_RI,
                 'qr_url': qr_url,
                 'codigo_seguridad': codigo_seguridad,
@@ -220,6 +239,8 @@ def fe_documento_ri_print_data(request, e_ncf: str):
         'ecf': {
             'e_ncf': e_ncf,
             'tipo_ecf': (doc_tfe.get('tipo_ecf') or '').strip(),
+            'tipo_ecf_nombre': _TIPO_ECF_NOMBRE.get(
+                (doc_tfe.get('tipo_ecf') or '').strip(), 'e-CF'),
             'ambiente': _AMBIENTE_RI,
             'qr_url': qr_url,
             'codigo_seguridad': codigo_seguridad,

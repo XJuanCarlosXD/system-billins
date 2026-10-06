@@ -3,11 +3,16 @@
 // `sigaft-pdf-simple-design`) y agrega el bloque QRCode alimentado por la
 // URL que arma server-side `apps/fe/representacion_impresa.armar_qr_url`.
 //
+// Layout fiscal exigido por DGII (rechazo Fase 5 55va corrida 2026-10-05):
+//   - El tipo de comprobante electronico (nombre + codigo) debe ir visible
+//     y claro en el encabezado.
+//   - El Codigo de Seguridad y la Fecha Hora Firma deben ir DEBAJO del QR.
+//
 // Datos esperados en el payload (ver endpoint
 // GET /api/fe/documentos/<e_ncf>/representacion-impresa/print-data/):
 //   { cia, doc, cliente, lineas, totales,
-//     ecf: { e_ncf, tipo_ecf, ambiente, qr_url, codigo_seguridad,
-//            fecha_firma } }
+//     ecf: { e_ncf, tipo_ecf, tipo_ecf_nombre, ambiente, qr_url,
+//            codigo_seguridad, fecha_firma } }
 export const ecfRepresentacionImpresaDefault: any = {
   content: [
     // ── Watermark ANULADA (si el e-CF original fue anulado)
@@ -19,7 +24,9 @@ export const ecfRepresentacionImpresaDefault: any = {
       },
     },
 
-    // ── 1. Encabezado: empresa izq + tipo e-CF + e-NCF + fecha + QR der
+    // ── 1. Encabezado: empresa izq + tipo e-CF (DGII) + e-NCF + fecha der
+    //    NO se muestra fecha-hora-firma aqui: DGII exige que vaya debajo
+    //    del QR, no en el encabezado.
     {
       type: 'TextoLibre',
       props: {
@@ -43,11 +50,11 @@ export const ecfRepresentacionImpresaDefault: any = {
       </table>
     </td>
     <td style="vertical-align:top;text-align:right">
-      <div style="font-size:12px;font-weight:bold">{{upper doc.tipo_label}}</div>
+      <div style="font-size:12px;font-weight:bold">{{ecf.tipo_ecf_nombre}}</div>
+      <div style="font-size:10px;font-weight:bold;margin-top:2px">Tipo e-CF {{ecf.tipo_ecf}}</div>
       <div style="font-size:9px;margin-top:4px"><b>e-NCF:</b> {{ecf.e_ncf}}</div>
       {{#if doc.numero_display}}<div style="font-size:9px"><b>Doc:</b> {{doc.numero_display}}</div>{{/if}}
       <div style="font-size:9px">Fecha {{formatDate doc.fecha}}</div>
-      {{#if ecf.fecha_firma}}<div style="font-size:8px;color:#666">Firma: {{ecf.fecha_firma}}</div>{{/if}}
     </td>
   </tr>
 </table>`,
@@ -149,42 +156,31 @@ export const ecfRepresentacionImpresaDefault: any = {
       },
     },
 
-    // ── 5. Bloque de validacion fiscal (QR + codigo seguridad + leyenda)
-    //      Lo que la DGII exige mostrar impreso en una RI (Formato-e-CF-
-    //      V1.0.pdf). El QR codifica la URL que arma el backend.
-    {
-      type: 'TextoLibre',
-      props: {
-        id: 'fiscal-leyenda',
-        html: `
-<div style="margin-top:14px;padding-top:6px;border-top:1px solid #333;font-size:8px;color:#444;text-align:center">
-  Representacion Impresa de la Factura Electronica.
-  Verifique la validez en <b>{{ecf.qr_url}}</b>
-</div>
-<table style="width:100%;margin-top:4px">
-  <tr>
-    <td style="vertical-align:top;width:50%;font-size:9px">
-      <div><b>e-NCF:</b> {{ecf.e_ncf}}</div>
-      <div><b>Tipo:</b> {{ecf.tipo_ecf}} ({{doc.tipo_label}})</div>
-      <div><b>Codigo Seguridad:</b> {{ecf.codigo_seguridad}}</div>
-      <div><b>Ambiente:</b> {{ecf.ambiente}}</div>
-      {{#if ecf.fecha_firma}}<div><b>Fecha Firma:</b> {{ecf.fecha_firma}}</div>{{/if}}
-    </td>
-    <td style="vertical-align:top;width:50%">
-    </td>
-  </tr>
-</table>`,
-        fontSize: 9, textAlign: 'left',
-      },
-    },
-
-    // QRCode: el bloque es dinamico y lee el contenido via Handlebars,
-    // asi que la URL confirmada por el backend viaja intacta. size 140 =
-    // version 8 aprox del QR (Descripcion-Tecnica-Servicios-DGII.pdf).
+    // ── 5a. QR centrado (version 8 aprox, size 160 CSS px). DGII exige
+    //      que el Codigo de Seguridad y la Fecha Hora Firma vayan DEBAJO.
     {
       type: 'QRCode',
       props: {
-        id: 'qr', contenido: '{{ecf.qr_url}}', size: 140, align: 'right',
+        id: 'qr', contenido: '{{ecf.qr_url}}', size: 160, align: 'center',
+      },
+    },
+
+    // ── 5b. Debajo del QR: Codigo de Seguridad + Fecha Hora Firma + e-NCF
+    //      + leyenda de validez. Centrado para que lea claro bajo el QR.
+    {
+      type: 'TextoLibre',
+      props: {
+        id: 'fiscal-bajo-qr',
+        html: `
+<div style="text-align:center;font-size:10px;margin-top:4px">
+  <div><b>Codigo de Seguridad:</b> {{ecf.codigo_seguridad}}</div>
+  <div><b>Fecha Hora Firma:</b> {{ecf.fecha_firma}}</div>
+</div>
+<div style="margin-top:8px;padding-top:4px;border-top:1px solid #333;font-size:8px;color:#444;text-align:center">
+  Representacion Impresa de la {{ecf.tipo_ecf_nombre}} (Tipo {{ecf.tipo_ecf}}).
+  Verifique la validez en <b>{{ecf.qr_url}}</b>
+</div>`,
+        fontSize: 9, textAlign: 'center',
       },
     },
   ],
