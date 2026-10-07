@@ -155,13 +155,21 @@ def armar_qr_url(xml_firmado: str, ambiente: str = 'certecf') -> str:
 
     - El tipo (ECF normal vs RFCE) se decide por el root del XML firmado y,
       para los tipo 32, por el ``MontoTotal`` leido del propio XML.
-    - El ``encf`` va en minusculas y la ``fechafirma`` lleva el espacio
-      URL-encoded como ``%20`` (ver ejemplo oficial en el PDF).
+    - El ``encf`` va **en MAYUSCULAS** (ej: ``E310000000137``). El ejemplo
+      oficial del PDF ``Descripcion-Tecnica-Servicios-DGII.pdf`` muestra el
+      e-NCF en minusculas, pero el servicio real ``.../consultatimbre`` de
+      la DGII (verificado 2026-10-07 contra certecf, testecf y la RFCE
+      ``/consultatimbrefc``) devuelve ``"No fue encontrada la factura
+      (e-CF)"`` cuando el encf va en minusculas y devuelve el documento
+      Aceptado solo cuando va en mayusculas. El rechazo DGII 55va de Fase
+      5 ``"Los QR no abren, verificar configuracion de la URL"`` se debe
+      exactamente a esto.
+    - ``fechafirma`` lleva el espacio URL-encoded como ``%20``.
     - ``rnccomprador`` se omite si el XML no lo trae (consumidor final sin
       RNC).
     """
     campos = _parse_campos_ecf(xml_firmado)
-    encf = (campos.get('encf') or '').lower()
+    encf = (campos.get('encf') or '').upper()
     if not encf:
         raise ECFBuilderError(
             "XML firmado no tiene <eNCF> -- no se puede armar el QR")

@@ -57,13 +57,19 @@ def _xml_firmado(
 
 def test_ecf_normal_arma_url_contra_consultatimbre_certecf():
     """Un e-CF31 (normal) va contra consultatimbre con los 7 query params
-    en el orden exacto del ejemplo oficial del PDF."""
+    en el orden exacto del ejemplo oficial del PDF.
+
+    OJO: el ``encf`` va en MAYUSCULAS aunque el PDF ejemplo lo muestre en
+    minusculas -- el servicio real de la DGII es case-sensitive y solo
+    devuelve el documento con mayusculas (ver fix 2026-10-07, hallazgo
+    #20 del rechazo Fase 5 55va).
+    """
     url = armar_qr_url(_xml_firmado(), ambiente='certecf')
     assert url == (
         'https://ecf.dgii.gov.do/certecf/consultatimbre'
         '?rncemisor=130217432'
         '&rnccomprador=131265863'
-        '&encf=e310000000001'
+        '&encf=E310000000001'
         '&fechaemision=10-10-2020'
         '&montototal=682709.10'
         '&fechafirma=10-10-2020%2009:00:00'
@@ -73,7 +79,10 @@ def test_ecf_normal_arma_url_contra_consultatimbre_certecf():
 
 def test_rfce_arma_url_contra_consultatimbrefc_certecf():
     """Un tipo 32 con MontoTotal<250K va contra consultatimbrefc, 4 params
-    en el orden exacto del ejemplo oficial del PDF."""
+    en el orden exacto del ejemplo oficial del PDF.
+
+    Mismo hallazgo que ECF normal: encf en MAYUSCULAS.
+    """
     xml = _xml_firmado(
         root_tag='RFCE', encf='E320000000064',
         rnc_emisor='131880738', rnc_comprador=None,
@@ -84,10 +93,26 @@ def test_rfce_arma_url_contra_consultatimbrefc_certecf():
     assert url == (
         'https://fc.dgii.gov.do/certecf/consultatimbrefc'
         '?rncemisor=131880738'
-        '&encf=e320000000064'
+        '&encf=E320000000064'
         '&montototal=6225.09'
         '&codigoseguridad=uabnyh'
     )
+
+
+def test_encf_siempre_en_mayusculas_regression_hallazgo_20():
+    """Regression: el XML firmado puede llevar el eNCF en cualquier case,
+    pero la URL del QR SIEMPRE lo emite en mayusculas. Si alguien revierte
+    a ``.lower()`` DGII vuelve a devolver "No fue encontrada la factura
+    (e-CF)" y Fase 5 vuelve a ser rechazada por "Los QR no abren,
+    verificar configuracion de la URL"."""
+    # case ya en mayusculas (patron de nuestro ecf_builder actual)
+    url_may = armar_qr_url(_xml_firmado(encf='E310000000137'), ambiente='certecf')
+    assert '&encf=E310000000137' in url_may
+    # case en minusculas (p.ej. de un parser externo) tambien debe salir
+    # en mayusculas tras armar_qr_url
+    url_min_in = armar_qr_url(
+        _xml_firmado(encf='e310000000137'), ambiente='certecf')
+    assert '&encf=E310000000137' in url_min_in
 
 
 def test_tipo_32_mayor_a_250k_va_por_consultatimbre_normal():
