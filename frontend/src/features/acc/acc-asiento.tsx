@@ -1,6 +1,6 @@
 // ACC — Asiento Contable de Caja Chica (Facc402).
 // Preview agrupado por cuenta + botón "Generar a contabilidad".
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from '@/lib/regal-general-api'
@@ -14,17 +14,42 @@ import { Card, CardContent } from '@/components/ui/card'
 import {
   Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { Search, CheckCircle2 } from 'lucide-react'
+import { Search, CheckCircle2, AlertTriangle } from 'lucide-react'
 
 const fmt = (n: any) =>
   Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+const MES_LABEL = ['',
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+]
+
 export function AccAsiento() {
   const qc = useQueryClient()
   const { selectedCompany, selectedPoint } = useCompany()
-  const hoy = new Date()
-  const [ano, setAno] = useState(hoy.getFullYear())
-  const [mes, setMes] = useState(hoy.getMonth() + 1)
+  // Período activo del punto (TACC_PUNTO.mes_proceso/ano_proceso).
+  // Es el único período que el cierre mensual puede cerrar.
+  const statusQ = useQuery({
+    queryKey: ['acc-cierre-status', selectedCompany, selectedPoint],
+    queryFn: () => api.accCierreStatus({ no_cia: selectedCompany, punto: selectedPoint }),
+    enabled: !!selectedCompany,
+  })
+  const puntoAct: any = statusQ.data?.punto
+  const anoAct = puntoAct ? Number(puntoAct.ano_proceso) : 0
+  const mesAct = puntoAct ? Number(puntoAct.mes_proceso) : 0
+
+  const [ano, setAno] = useState(0)
+  const [mes, setMes] = useState(0)
+  // Sync default una sola vez al llegar el punto activo. Si el usuario cambia
+  // mes/año a mano, respetamos su elección.
+  const syncedRef = useRef(false)
+  useEffect(() => {
+    if (!syncedRef.current && anoAct && mesAct) {
+      setAno(anoAct)
+      setMes(mesAct)
+      syncedRef.current = true
+    }
+  }, [anoAct, mesAct])
 
   const previewQ = useQuery({
     queryKey: ['acc-asiento-preview', selectedCompany, selectedPoint, ano, mes],
@@ -66,17 +91,23 @@ export function AccAsiento() {
       <div className="flex items-end gap-2 rounded border bg-muted/30 px-3 py-2">
         <div>
           <Label className="text-xs">Año</Label>
-          <Input type="number" className="w-28 h-9 tabular-nums" value={ano}
+          <Input type="number" className="w-28 h-9 tabular-nums" value={ano || ''}
             onChange={(e) => setAno(Number(e.target.value))} />
         </div>
         <div>
           <Label className="text-xs">Mes</Label>
-          <Input type="number" min={1} max={12} className="w-20 h-9 tabular-nums" value={mes}
+          <Input type="number" min={1} max={12} className="w-20 h-9 tabular-nums" value={mes || ''}
             onChange={(e) => setMes(Number(e.target.value))} />
         </div>
         <Button size="sm" variant="outline" onClick={() => previewQ.refetch()}>
           <Search className="h-4 w-4 mr-1" /> Calcular
         </Button>
+        {anoAct > 0 && mesAct > 0 && (ano !== anoAct || mes !== mesAct) && (
+          <Badge variant="outline" className="gap-1 border-amber-500 text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="h-3 w-3" />
+            Período activo del punto: {MES_LABEL[mesAct]} {anoAct}
+          </Badge>
+        )}
         <div className="ml-auto flex items-center gap-2">
           {data && data.cuadra && data.documentos > 0 && (
             <Badge variant="default">Cuadrado</Badge>
