@@ -23,15 +23,28 @@ from apps.fe.ecf_builder import ECFBuilderError, derivar_codigo_seguridad
 
 # Ambientes posibles del QR -- hoy toda la Fase 5 corre en certecf. Cuando
 # se habilite produccion habra que leer esto de TFE_CONFIG.ambiente.
+#
+# El path y los nombres de params van en CamelCase (ConsultaTimbre,
+# RncEmisor, ENCF, etc) por hallazgo #22 (2026-10-08, 65va corrida):
+# el rechazo DGII Fase 5 61va/62va trae el ejemplo literal
+# "https://ecf.dgii.gov.do/ecf/ConsultaTimbre?RncEmisor=XXX&..." y la
+# validacion exige ese formato exacto. Verificado empiricamente contra
+# los servicios reales de certecf: tanto path lowercase como CamelCase
+# aceptan y devuelven "Estado Aceptado", pero DGII validador de Fase 5
+# espera el formato CamelCase impreso en el QR. El path se mantiene en
+# certecf (no prod) porque es donde estan registrados los e-CFs de la
+# postulacion -- cambiar a /ecf/ (62va) era incorrecto: prod no reconoce
+# los e-CFs de certificacion y por eso DGII seguia rechazando con "QR
+# no abren".
 _URL_BASE_ECF = {
-    'testecf': 'https://ecf.dgii.gov.do/testecf/consultatimbre',
-    'certecf': 'https://ecf.dgii.gov.do/certecf/consultatimbre',
-    'ecf':     'https://ecf.dgii.gov.do/ecf/consultatimbre',
+    'testecf': 'https://ecf.dgii.gov.do/testecf/ConsultaTimbre',
+    'certecf': 'https://ecf.dgii.gov.do/certecf/ConsultaTimbre',
+    'ecf':     'https://ecf.dgii.gov.do/ecf/ConsultaTimbre',
 }
 _URL_BASE_RFCE = {
-    'testecf': 'https://fc.dgii.gov.do/testecf/consultatimbrefc',
-    'certecf': 'https://fc.dgii.gov.do/certecf/consultatimbrefc',
-    'ecf':     'https://fc.dgii.gov.do/ecf/consultatimbrefc',
+    'testecf': 'https://fc.dgii.gov.do/testecf/ConsultaTimbreFC',
+    'certecf': 'https://fc.dgii.gov.do/certecf/ConsultaTimbreFC',
+    'ecf':     'https://fc.dgii.gov.do/eCF/ConsultaTimbreFC',
 }
 
 _RFCE_MONTO_TOPE = 250_000.0  # tope DGII para que un tipo 32 vaya como RFCE
@@ -188,10 +201,10 @@ def armar_qr_url(xml_firmado: str, ambiente: str = 'certecf') -> str:
         if not base:
             raise ValueError(f"ambiente no soportado para QR: {ambiente!r}")
         qs = (
-            f"rncemisor={quote(rnc_emisor, safe='')}"
-            f"&encf={quote(encf, safe='')}"
-            f"&montototal={quote(monto_total, safe='')}"
-            f"&codigoseguridad={quote(codigo_seguridad, safe='')}"
+            f"RncEmisor={quote(rnc_emisor, safe='')}"
+            f"&ENCF={quote(encf, safe='')}"
+            f"&MontoTotal={quote(monto_total, safe='')}"
+            f"&CodigoSeguridad={quote(codigo_seguridad, safe='')}"
         )
         return f"{base}?{qs}"
 
@@ -202,15 +215,15 @@ def armar_qr_url(xml_firmado: str, ambiente: str = 'certecf') -> str:
     fecha_firma = campos.get('fecha_hora_firma') or ''
     rnc_comprador = campos.get('rnc_comprador') or ''
 
-    params = [f"rncemisor={quote(rnc_emisor, safe='')}"]
+    params = [f"RncEmisor={quote(rnc_emisor, safe='')}"]
     if rnc_comprador:
-        params.append(f"rnccomprador={quote(rnc_comprador, safe='')}")
-    params.append(f"encf={quote(encf, safe='')}")
-    params.append(f"fechaemision={quote(fecha_emision, safe='-')}")
-    params.append(f"montototal={quote(monto_total, safe='')}")
+        params.append(f"RncComprador={quote(rnc_comprador, safe='')}")
+    params.append(f"ENCF={quote(encf, safe='')}")
+    params.append(f"FechaEmision={quote(fecha_emision, safe='-')}")
+    params.append(f"MontoTotal={quote(monto_total, safe='')}")
     # El PDF oficial deja los ":" sin encodear en fechafirma pero sustituye
     # el espacio por %20 -- replicamos exacto.
     params.append(
-        f"fechafirma={quote(fecha_firma, safe='-:')}")
-    params.append(f"codigoseguridad={quote(codigo_seguridad, safe='')}")
+        f"FechaFirma={quote(fecha_firma, safe='-:')}")
+    params.append(f"CodigoSeguridad={quote(codigo_seguridad, safe='')}")
     return f"{base}?{'&'.join(params)}"

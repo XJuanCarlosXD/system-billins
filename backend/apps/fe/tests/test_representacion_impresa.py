@@ -56,32 +56,36 @@ def _xml_firmado(
 
 
 def test_ecf_normal_arma_url_contra_consultatimbre_certecf():
-    """Un e-CF31 (normal) va contra consultatimbre con los 7 query params
-    en el orden exacto del ejemplo oficial del PDF.
+    """Un e-CF31 (normal) va contra ConsultaTimbre con los 7 query params
+    en CamelCase. Path y nombres de params en CamelCase por hallazgo #22
+    (2026-10-08, 65va corrida): el rechazo DGII Fase 5 61va/62va trae el
+    ejemplo literal `.../ConsultaTimbre?RncEmisor=X&RncComprador=X&ENCF=X&
+    FechaEmision=X&MontoTotal=X&FechaFirma=X&CodigoSeguridad=X` y la
+    validacion exige ese formato. Verificado contra el servicio real de
+    certecf en vivo: devuelve "Estado Aceptado" para los e-CFs E310...137
+    y E320...1062 de Abregonza con los mismos params en CamelCase.
 
-    OJO: el ``encf`` va en MAYUSCULAS aunque el PDF ejemplo lo muestre en
-    minusculas -- el servicio real de la DGII es case-sensitive y solo
-    devuelve el documento con mayusculas (ver fix 2026-10-07, hallazgo
-    #20 del rechazo Fase 5 55va).
+    OJO: el ``encf`` va en MAYUSCULAS (hallazgo #20, 2026-10-07).
     """
     url = armar_qr_url(_xml_firmado(), ambiente='certecf')
     assert url == (
-        'https://ecf.dgii.gov.do/certecf/consultatimbre'
-        '?rncemisor=130217432'
-        '&rnccomprador=131265863'
-        '&encf=E310000000001'
-        '&fechaemision=10-10-2020'
-        '&montototal=682709.10'
-        '&fechafirma=10-10-2020%2009:00:00'
-        '&codigoseguridad=dcp79q'
+        'https://ecf.dgii.gov.do/certecf/ConsultaTimbre'
+        '?RncEmisor=130217432'
+        '&RncComprador=131265863'
+        '&ENCF=E310000000001'
+        '&FechaEmision=10-10-2020'
+        '&MontoTotal=682709.10'
+        '&FechaFirma=10-10-2020%2009:00:00'
+        '&CodigoSeguridad=dcp79q'
     )
 
 
 def test_rfce_arma_url_contra_consultatimbrefc_certecf():
-    """Un tipo 32 con MontoTotal<250K va contra consultatimbrefc, 4 params
-    en el orden exacto del ejemplo oficial del PDF.
+    """Un tipo 32 con MontoTotal<250K va contra ConsultaTimbreFC, 4 params
+    en CamelCase (hallazgo #22, 2026-10-08).
 
-    Mismo hallazgo que ECF normal: encf en MAYUSCULAS.
+    Mismo hallazgo que ECF normal: encf en MAYUSCULAS; path y params en
+    CamelCase.
     """
     xml = _xml_firmado(
         root_tag='RFCE', encf='E320000000064',
@@ -91,11 +95,11 @@ def test_rfce_arma_url_contra_consultatimbrefc_certecf():
     )
     url = armar_qr_url(xml, ambiente='certecf')
     assert url == (
-        'https://fc.dgii.gov.do/certecf/consultatimbrefc'
-        '?rncemisor=131880738'
-        '&encf=E320000000064'
-        '&montototal=6225.09'
-        '&codigoseguridad=uabnyh'
+        'https://fc.dgii.gov.do/certecf/ConsultaTimbreFC'
+        '?RncEmisor=131880738'
+        '&ENCF=E320000000064'
+        '&MontoTotal=6225.09'
+        '&CodigoSeguridad=uabnyh'
     )
 
 
@@ -107,26 +111,54 @@ def test_encf_siempre_en_mayusculas_regression_hallazgo_20():
     verificar configuracion de la URL"."""
     # case ya en mayusculas (patron de nuestro ecf_builder actual)
     url_may = armar_qr_url(_xml_firmado(encf='E310000000137'), ambiente='certecf')
-    assert '&encf=E310000000137' in url_may
+    assert '&ENCF=E310000000137' in url_may
     # case en minusculas (p.ej. de un parser externo) tambien debe salir
     # en mayusculas tras armar_qr_url
     url_min_in = armar_qr_url(
         _xml_firmado(encf='e310000000137'), ambiente='certecf')
-    assert '&encf=E310000000137' in url_min_in
+    assert '&ENCF=E310000000137' in url_min_in
+
+
+def test_params_en_camelcase_regression_hallazgo_22():
+    """Regression: el path y los nombres de params DEBEN ir en CamelCase
+    exactamente como aparecen en el ejemplo literal del rechazo DGII Fase 5
+    61va/62va (``/ConsultaTimbre?RncEmisor=&RncComprador=&ENCF=&
+    FechaEmision=&MontoTotal=&FechaFirma=&CodigoSeguridad=``). Si alguien
+    revierte a lowercase DGII vuelve a rechazar con "Los QR no abren,
+    verificar configuracion de la URL" (hallazgo #22, 2026-10-08, 65va)."""
+    url = armar_qr_url(_xml_firmado(), ambiente='certecf')
+    assert '/ConsultaTimbre?' in url
+    for key in ('RncEmisor=', 'RncComprador=', 'ENCF=', 'FechaEmision=',
+                'MontoTotal=', 'FechaFirma=', 'CodigoSeguridad='):
+        assert key in url, f"Falta param {key!r} en {url!r}"
+    # No debe quedar ninguno en lowercase
+    for key in ('rncemisor=', 'rnccomprador=', 'encf=', 'fechaemision=',
+                'montototal=', 'fechafirma=', 'codigoseguridad='):
+        assert key not in url, f"Param en lowercase (regresion!): {key!r}"
+    # RFCE tambien
+    xml_rfce = _xml_firmado(
+        root_tag='RFCE', encf='E320000000064',
+        rnc_emisor='131880738', rnc_comprador=None,
+        monto_total='6225.09',
+    )
+    url_rfce = armar_qr_url(xml_rfce, ambiente='certecf')
+    assert '/ConsultaTimbreFC?' in url_rfce
+    for key in ('RncEmisor=', 'ENCF=', 'MontoTotal=', 'CodigoSeguridad='):
+        assert key in url_rfce
 
 
 def test_tipo_32_mayor_a_250k_va_por_consultatimbre_normal():
     """Un tipo 32 con MontoTotal>=250K ya NO es RFCE, va por el servicio
-    e-CF normal (consultatimbre) con los 7 params. Esto refleja que la
+    e-CF normal (ConsultaTimbre) con los 7 params. Esto refleja que la
     DGII solo trata como RFCE las facturas de consumo <250K."""
     xml = _xml_firmado(
         encf='E320000001015', rnc_comprador='131265863',
         monto_total='299999.00',
     )
     url = armar_qr_url(xml, ambiente='certecf')
-    assert url.startswith('https://ecf.dgii.gov.do/certecf/consultatimbre?')
-    assert 'rnccomprador=131265863' in url
-    assert 'fechafirma=' in url  # presente -> es la rama ECF normal
+    assert url.startswith('https://ecf.dgii.gov.do/certecf/ConsultaTimbre?')
+    assert 'RncComprador=131265863' in url
+    assert 'FechaFirma=' in url  # presente -> es la rama ECF normal
 
 
 def test_consumidor_final_sin_rnc_omite_rnccomprador():
@@ -134,10 +166,10 @@ def test_consumidor_final_sin_rnc_omite_rnccomprador():
     normal omite el param -- no manda cadena vacia."""
     xml = _xml_firmado(rnc_comprador=None)
     url = armar_qr_url(xml, ambiente='certecf')
-    assert 'rnccomprador=' not in url
+    assert 'RncComprador=' not in url
     # Los otros 6 params siguen ahi:
-    for key in ('rncemisor=', 'encf=', 'fechaemision=', 'montototal=',
-                'fechafirma=', 'codigoseguridad='):
+    for key in ('RncEmisor=', 'ENCF=', 'FechaEmision=', 'MontoTotal=',
+                'FechaFirma=', 'CodigoSeguridad='):
         assert key in url
 
 

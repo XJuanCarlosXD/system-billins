@@ -32,17 +32,18 @@ from apps.legacy.repositories import fat_repo, fe_repo
 from apps.legacy.repositories import cxc_repo
 
 
-# El QR de la Representacion Impresa SIEMPRE apunta al ambiente de PRODUCCION
-# ('ecf'/'eCF') aunque el e-CF este emitido en certecf. El rechazo DGII de
-# Fase 5 (62va corrida, 2026-10-07) con observacion "Los QR no abren,
-# verificar configuracion de la URL" y ejemplos LITERALES en el log del
-# portal `https://ecf.dgii.gov.do/ecf/ConsultaTimbre?...` y
-# `https://fc.dgii.gov.do/eCF/ConsultaTimbreFC?...` indica que el validador
-# DGII de la RI exige formato URL de produccion, independientemente del
-# ambiente del emisor. El GET real contra prod devuelve "No fue encontrada"
-# para e-CFs certecf, pero el validador DGII parece parsear el URL del QR
-# y verificar FORMATO/dominio sin hacer GET.
-_AMBIENTE_RI = 'ecf'
+# El QR de la Representacion Impresa apunta al ambiente del emisor
+# ('certecf' durante la certificacion, 'ecf' una vez productivos) porque
+# el validador DGII de Fase 5 SI hace GET real del URL y espera ver
+# "Estado Aceptado" ("verificar que todas abran aceptados" literal del
+# mensaje de rechazo). En certecf nuestros e-CFs estan Aceptados; en
+# prod no existen -> prod devuelve "No fue encontrada" y DGII rechaza.
+# El 62va cambio esto a 'ecf' por una lectura equivocada del rechazo
+# (que la URL debia ser de prod) -- revertido en 65va. El formato del
+# path y params DEBE ser CamelCase (ConsultaTimbre?RncEmisor=...&ENCF=...)
+# porque el ejemplo literal de DGII en el rechazo lo exige asi; ver
+# representacion_impresa.py (_URL_BASE_ECF/_URL_BASE_RFCE).
+_AMBIENTE_RI = 'certecf'
 
 # Nombre oficial DGII de cada tipo de e-CF, segun Formato-e-CF-V1.0.pdf.
 # Se incluye en el payload para que la Representacion Impresa muestre el
