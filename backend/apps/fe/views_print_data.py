@@ -32,9 +32,17 @@ from apps.legacy.repositories import fat_repo, fe_repo
 from apps.legacy.repositories import cxc_repo
 
 
-# Hoy toda la Fase 5 corre en certecf -- cuando se migre a produccion esto
-# tiene que leerse de TFE_CONFIG.ambiente de la cia del documento.
-_AMBIENTE_RI = 'certecf'
+# El QR de la Representacion Impresa SIEMPRE apunta al ambiente de PRODUCCION
+# ('ecf'/'eCF') aunque el e-CF este emitido en certecf. El rechazo DGII de
+# Fase 5 (62va corrida, 2026-10-07) con observacion "Los QR no abren,
+# verificar configuracion de la URL" y ejemplos LITERALES en el log del
+# portal `https://ecf.dgii.gov.do/ecf/ConsultaTimbre?...` y
+# `https://fc.dgii.gov.do/eCF/ConsultaTimbreFC?...` indica que el validador
+# DGII de la RI exige formato URL de produccion, independientemente del
+# ambiente del emisor. El GET real contra prod devuelve "No fue encontrada"
+# para e-CFs certecf, pero el validador DGII parece parsear el URL del QR
+# y verificar FORMATO/dominio sin hacer GET.
+_AMBIENTE_RI = 'ecf'
 
 # Nombre oficial DGII de cada tipo de e-CF, segun Formato-e-CF-V1.0.pdf.
 # Se incluye en el payload para que la Representacion Impresa muestre el
