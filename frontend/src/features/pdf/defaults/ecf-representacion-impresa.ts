@@ -8,6 +8,14 @@
 //     y claro en el encabezado.
 //   - El Codigo de Seguridad y la Fecha Hora Firma deben ir DEBAJO del QR.
 //
+// Layout fiscal adicional (rechazo Fase 5 68va corrida 2026-10-08):
+//   - Fecha Vencimiento 31/12/2028 debe ir visible en TODOS los tipos de
+//     e-CF EXCEPTO en 32 y 34.
+//   - El QR URL se emite con triple-brace Handlebars ({{{ ... }}}) para
+//     que `=` y `&` NO se escapen como `&#x3D;` / `&amp;` dentro del QR
+//     (hallazgo DGII: "#x3D quite eso de la URL" — el escape por defecto
+//     corrompia el contenido del QR y por eso "los QR no abren").
+//
 // Datos esperados en el payload (ver endpoint
 // GET /api/fe/documentos/<e_ncf>/representacion-impresa/print-data/):
 //   { cia, doc, cliente, lineas, totales,
@@ -55,6 +63,7 @@ export const ecfRepresentacionImpresaDefault: any = {
       <div style="font-size:9px;margin-top:4px"><b>e-NCF:</b> {{ecf.e_ncf}}</div>
       {{#if doc.numero_display}}<div style="font-size:9px"><b>Doc:</b> {{doc.numero_display}}</div>{{/if}}
       <div style="font-size:9px">Fecha {{formatDate doc.fecha}}</div>
+      {{#unless (eq ecf.tipo_ecf "32")}}{{#unless (eq ecf.tipo_ecf "34")}}<div style="font-size:9px"><b>Fecha Vencimiento:</b> 31/12/2028</div>{{/unless}}{{/unless}}
     </td>
   </tr>
 </table>`,
@@ -161,7 +170,7 @@ export const ecfRepresentacionImpresaDefault: any = {
     {
       type: 'QRCode',
       props: {
-        id: 'qr', contenido: '{{ecf.qr_url}}', size: 160, align: 'center',
+        id: 'qr', contenido: '{{{ecf.qr_url}}}', size: 160, align: 'center',
       },
     },
 
@@ -178,7 +187,7 @@ export const ecfRepresentacionImpresaDefault: any = {
 </div>
 <div style="margin-top:8px;padding-top:4px;border-top:1px solid #333;font-size:8px;color:#444;text-align:center">
   Representacion Impresa de la {{ecf.tipo_ecf_nombre}} (Tipo {{ecf.tipo_ecf}}).
-  Verifique la validez en <b>{{ecf.qr_url}}</b>
+  Verifique la validez en <b>{{{ecf.qr_url}}}</b>
 </div>`,
         fontSize: 9, textAlign: 'center',
       },
