@@ -133,8 +133,8 @@ def validacioncertificado_view(request):
 @csrf_exempt
 @require_http_methods(['POST'])
 def recepcion_view(request):
-    rnc_emisor = _bearer_rnc(request)
-    if not rnc_emisor:
+    rnc_bearer = _bearer_rnc(request)
+    if not rnc_bearer:
         return _err('Token inválido, expirado o ausente', 401)
     archivo = _archivo(request)
     if not archivo:
@@ -145,6 +145,7 @@ def recepcion_view(request):
     except etree.XMLSyntaxError as exc:
         return _err(f'XML inválido: {exc}')
     e_ncf = _texto(root, 'eNCF') or archivo.name
+    rnc_emisor = _texto(root, 'RNCEmisor') or rnc_bearer
     rnc_comprador = _texto(root, 'RNCComprador')
     cfg = fe_repo.get_config_por_rnc(rnc_comprador) if rnc_comprador else None
     if not cfg:
@@ -154,14 +155,15 @@ def recepcion_view(request):
         no_cia=cfg['no_cia'], rnc_emisor=rnc_emisor, e_ncf=e_ncf,
         tipo='ECF', xml=xml_bytes.decode('utf-8', 'replace'),
         track_id=track_id)
+    print(f'[ARECF] recepcion ok rnc_emisor_ecf={rnc_emisor} rnc_bearer={rnc_bearer} rnc_comprador={rnc_comprador} eNCF={e_ncf}', flush=True)
     return _arecf_firmado(cfg['no_cia'], rnc_emisor, rnc_comprador, e_ncf)
 
 
 @csrf_exempt
 @require_http_methods(['POST'])
 def aprobacioncomercial_view(request):
-    rnc_emisor = _bearer_rnc(request)
-    if not rnc_emisor:
+    rnc_bearer = _bearer_rnc(request)
+    if not rnc_bearer:
         return _err('Token inválido, expirado o ausente', 401)
     archivo = _archivo(request)
     if not archivo:
@@ -172,13 +174,15 @@ def aprobacioncomercial_view(request):
     except etree.XMLSyntaxError as exc:
         return _err(f'XML inválido: {exc}')
     e_ncf = _texto(root, 'eNCF') or archivo.name
-    rnc_destino = _texto(root, 'RNCComprador') or _texto(root, 'RNCEmisor')
+    rnc_emisor_acecf = _texto(root, 'RNCEmisor') or rnc_bearer
+    rnc_destino = _texto(root, 'RNCComprador') or rnc_emisor_acecf
     cfg = fe_repo.get_config_por_rnc(rnc_destino) if rnc_destino else None
     if not cfg:
         return _err('No se pudo determinar la empresa destino', 404)
     track_id = uuid.uuid4().hex.upper()[:16]
     fe_repo.save_documento_recibido(
-        no_cia=cfg['no_cia'], rnc_emisor=rnc_emisor, e_ncf=e_ncf,
+        no_cia=cfg['no_cia'], rnc_emisor=rnc_emisor_acecf, e_ncf=e_ncf,
         tipo='ACECF', xml=xml_bytes.decode('utf-8', 'replace'),
         track_id=track_id)
-    return _arecf_firmado(cfg['no_cia'], rnc_emisor, rnc_destino, e_ncf)
+    print(f'[ARECF] aprobcom ok rnc_emisor_acecf={rnc_emisor_acecf} rnc_bearer={rnc_bearer} rnc_destino={rnc_destino} eNCF={e_ncf}', flush=True)
+    return _arecf_firmado(cfg['no_cia'], rnc_emisor_acecf, rnc_destino, e_ncf)
