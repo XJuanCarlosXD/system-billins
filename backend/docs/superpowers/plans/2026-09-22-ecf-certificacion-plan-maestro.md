@@ -62,10 +62,10 @@ Credenciales — NO las repitas en otros archivos nuevos).
 | 9 | Recepción e-CF | ✅ Completo — **76va corrida (2026-10-10 ~12:12 UTC): FASE 9 CERRADA**, portal avanzó a Fase 10 (`/Postulacion/ConfirmacionEnvioAC`). Confirmación visual Playwright. | 2026-10-10 |
 | 10 | Inicio Prueba Recepción Aprobación Comercial | ✅ Completo — **76va corrida (2026-10-10 ~12:17 UTC)**: botón "Enviar prueba de aprobaciones comerciales" clickeado post-fix PascalCase + routing ACECF; portal avanzó a Fase 11 ("Favor espere..."). | 2026-10-10 |
 | 11 | Recepción Aprobación Comercial | ✅ Completo — **76va corrida (2026-10-10 ~12:17-12:18 UTC)**: 11 ACECFs recibidos de DGII (bearer rnc 00199999996 cert PEDRO PEREZ, RNCEmisor=130217432 Abregonza, RNCComprador=131880681 contribuyente simulado DGII) para e-CFs E310000000001/7/10/34, E330000000001, E340000000001/13, E440000000010/13, E450000000003/7. Todos respondidos con ARECF firmado 200 OK. Portal avanzó directamente a Fase 12. | 2026-10-10 |
-| 12 | URL Servicios Producción | 🛑 **PAUSADO (acción legalmente vinculante)** — Portal pide 3 URLs (Autenticación/Recepción/AprobaciónComercial) para registrar en el directorio público DGII de PRODUCCIÓN que verán todos los contribuyentes. Click "Confirmar URLS" compromete la identidad productiva de Abregonza. Infraestructura actual (`chosen-variations-defense-carpet.trycloudflare.com`) es un quick tunnel efímero no apto para prod. Requiere decisión Roberto: (a) hostname productivo estable (CF Tunnel named, custom domain, VPS, etc.), (b) TLS válido, (c) uptime 24/7. **El runner NO clickea Confirmar URLS** — categoría "acción legalmente vinculante en nombre de Abregonza SRL". | 2026-10-10 |
-| 13 | Declaración Jurada | ⬜ Sin investigar | — |
-| 14 | Verificación Estatus | ⬜ Sin investigar | — |
-| 15 | Finalizado | ⬜ — | — |
+| 12 | URL Servicios Producción | 🛑 **PAUSADO (acción legalmente vinculante)** — Portal pide 3 URLs (Autenticación/Recepción/AprobaciónComercial) para el directorio público DGII (OFV). **Sub-plan de opciones de infraestructura escrito 77va**: `backend/docs/superpowers/plans/2026-10-10-ecf-fase12-infra-productiva.md` (recomienda Opción A — CF Named Tunnel + dominio .com.do). Portal verificado 77va: bandeja 89, 3 textboxes vacíos, log "No existen mensajes". **El runner NO clickea Confirmar URLS** — acción legalmente vinculante. | 2026-10-10 |
+| 13 | Declaración Jurada | ⬜ Documentada 77va — Portal genera XML (datos RNC + representante + condiciones) que debe ser firmado por el representante registrado (Roberto). **2da acción legalmente vinculante** — runner NO firma ni envía sin autorización explícita; sí puede descargar y guardar el borrador. | 2026-10-10 |
+| 14 | Verificación Estatus | ⬜ Documentada 77va — Probablemente paso administrativo de confirmación interna DGII post-DJ; sin código esperable. | 2026-10-10 |
+| 15 | Finalizado | ⬜ — Confirmación final + número de resolución Emisor Electrónico Certificado. | — |
 
 Leyenda: ⬜ sin investigar · 🔲 en curso/parcial · ✅ completo · 🛑 bloqueado
 (ver "Bloqueos activos" abajo).
@@ -510,6 +510,66 @@ Validación Representación Impresa, URL Servicios Prueba, Inicio Prueba
 Recepción e-CF, Recepción e-CF, Inicio Prueba Recepción Aprobación
 Comercial, Recepción Aprobación Comercial, URL Servicios Producción,
 Declaración Jurada, Verificación Estatus, Finalizado.
+
+### Fase 12 (URL Servicios Producción) — documentada 77va corrida 2026-10-10
+
+Sub-plan de opciones de infraestructura productiva en
+`backend/docs/superpowers/plans/2026-10-10-ecf-fase12-infra-productiva.md`.
+Recomendación del runner: Opción A (Cloudflare Named Tunnel + dominio
+`.com.do` custom) por costo bajo (~US$10-30/año) y por no requerir migrar
+Oracle. Decisión queda a Roberto. El runner NO clickea "Confirmar URLS"
+porque compromete identidad productiva de Abregonza en el directorio
+público DGII (OFV).
+
+### Fase 13 (Declaración Jurada) — documentada 77va corrida 2026-10-10
+
+Según documentación oficial DGII (`Proceso-Certificacion-para-ser-Emisor-Electronico.pdf`)
+y guías de proveedores PSFE (mseller/ecf.express), la Fase 13 funciona así:
+
+1. Portal muestra opción "Generar Archivo" → DGII genera un XML con datos
+   del RNC, representante registrado, y condiciones regulatorias aceptadas
+   bajo juramento (declara que la certificación se hizo íntegramente, sin
+   fraude ni irregularidades).
+2. El contribuyente descarga el XML y lo firma con el certificado digital
+   del **representante registrado** (en Abregonza: Roberto Abreu Espinal,
+   `roberto-abreu-espinal.p12`, clave `Ced00109276329` — ya cargado en
+   `TFE_CONFIG`). Se puede usar la "Firma Digital App" oficial de DGII o
+   el pipeline interno `apps/fe/firma.py::firmar_xml` (ya probado para
+   e-CFs outbound y ARECF/ACECF inbound).
+3. Portal muestra opción "Enviar Archivo" → sube el XML firmado; DGII
+   valida que la firma corresponda al representante registrado en el
+   formulario inicial (Fase 1).
+4. Si firma válida y contenido no modificado → portal avanza a Fase 14
+   (Verificación Estatus).
+
+**El runner NO clickea "Enviar Archivo" sin autorización explícita de
+Roberto** — es la segunda acción legalmente vinculante del flujo (la
+primera fue Fase 12). Es un juramento bajo pena de ley; firmar en nombre
+de Abregonza requiere consentimiento del representante.
+
+Lo que el runner SÍ puede hacer sin autorización:
+- Click "Generar Archivo" y descargar el XML para inspeccionar su contenido
+  (es un documento informativo que DGII expone; firmarlo no es parte del
+  descarga). Esto deja listo el borrador para Roberto.
+- Firmar el XML técnicamente (es un pipeline mecánico — `firmar_xml` ya
+  funciona) y dejarlo guardado en `.tmp/fase13-dj-firmada.xml` sin subirlo.
+  **Pero no se recomienda** porque la firma digital tiene efectos legales
+  per se (el XML firmado por Roberto es jurídicamente vinculante aunque
+  nunca se envíe, si queda en algún sistema puede ser usado como evidencia).
+  Mejor: dejar el XML sin firmar y que Roberto firme con la Firma Digital
+  App oficial de DGII cuando autorice el envío.
+
+### Fase 14 (Verificación Estatus) — sin investigar aún
+
+Según guías PSFE, probablemente es solo un paso de confirmación donde DGII
+revisa internamente la postulación y publica el estado "Emisor Electrónico
+Autorizado". Puede tomar días/semanas. Probablemente administrativo, sin
+código.
+
+### Fase 15 (Finalizado) — sin investigar aún
+
+Confirmación final + emisión del número de resolución oficial que autoriza
+a Abregonza como Emisor Electrónico Certificado.
 
 **Protocolo obligatorio la primera vez que el runner llegue a cada una**
 (mismo método que ya funcionó para investigar el Paso 4, ver
@@ -3712,3 +3772,5 @@ Agregar una línea por corrida, más reciente arriba:
 
 - **2026-10-10 04:12-04:17 UTC (75va corrida)** — Runner scheduled. **FASE 9 AVANCE: respuesta de recepción cambiada de JSON a ARECF firmado — nuevo rechazo esperable (el formato ARECF nunca se había probado) o éxito**. Portal pre-corrida en `/Postulacion/ConfirmacionEnvioEcf` (Fase 8 — DGII reseteó post-74va). Log Fase 9 confirmó 74va: `09/10/2026 8:30:32 PM UTC-4 "Data at the root level is invalid. Line 1, position 1."` → nuestro `recepcion_view` devolvía `JsonResponse({'trackId': ...})` que DGII parsea como XML y falla con error .NET clásico. **Fix 1 (JSON→XML genérico)**: `public_views.py::_xml_respuesta` → `<RespuestaRecepcion><trackId/><codigo/><estado/><mensaje/>` basado en Descripcion-Tecnica-Servicios-DGII pag 14. Deploy + click Fase 9 → NUEVO error 12:17:24 AM UTC-4: "The 'RespuestaRecepcion' element is not declared. La estructura del archivo XML no es válido, favor proveer un XML con una estructura válida, verificar el XSD correspondiente." → ese formato aplica para endpoints DGII-hosted, no para receptor terceo. **Fix 2 (ARECF firmado)**: WebSearch + WebFetch del PDF oficial "Formato Acuse de Recibo v1.0" (`dgii.gov.do/.../Formato%20Acuse%20de%20Recibo%20v%201.0.pdf`) → root correcto es `<ARECF><DetalleAcusedeRecibo><Version>1.0</Version><RNCEmisor/><RNCComprador/><eNCF/><Estado>0=Recibido/1=NoRecibido</Estado>[<CodigoMotivoNoRecibido>1-4</CodigoMotivoNoRecibido>]<FechaHoraAcuseRecibo>dd-MM-AAAA HH:mm:ss</FechaHoraAcuseRecibo></DetalleAcusedeRecibo><Signature/></ARECF>` + Signature XMLDSig obligatoria. Implementado `_arecf_firmado(no_cia, rnc_emisor, rnc_comprador, e_ncf, estado=0)` usa `firma.firmar_xml` (signxml, enveloped RSA-SHA256) + cert de TFE_CONFIG; aplicado a `recepcion_view` + `aprobacioncomercial_view`. Deploy pscp→docker cp→`docker restart facturation_backend` + click 3er "Enviar prueba de comprobantes" (~04:17 UTC). **Resultado pendiente de siguiente corrida** (no esperé respuesta de DGII en vivo por presupuesto). TFE_DOCUMENTO_RECIBIDO antes del fix: 4 filas ECF (2 smoke 74va + 2 recibidos de DGII pre-fix). Scripts no commiteados: ninguno. Commits: fix(ecf) Fase 9 ARECF firmado reemplaza JSON (hallazgo 75va). **Próxima (76va)**: (1) Playwright login + `/Postulacion` → ver si avanzó a Fase 10 (`/Postulacion/InicioPruebaRecepcionAprobacionComercial`) o si log muestra nuevo rechazo. (2) Si rechaza por firma: cambiar `firma.firmar_xml` por `firma.firmar_con_app_oficial` (Mono/App DGII, patrón ya probado para e-CF outbound). (3) Si rechaza por campos: ajustar formato fecha o namespace según detalle del mensaje. (4) Si avanzó: documentar Fase 9 cerrada; portal debería estar en Fase 10 esperando flujo similar (DGII envía ACECF a `/fe/aprobacioncomercial/api/ecf`, ya adaptado a ARECF también). (5) Verificar `FAT.TFE_DOCUMENTO_RECIBIDO` por conteo e-CFs tipo ECF nuevos. (6) Si Fase 10 avanza: ya solo quedan Fase 11-15 (Recepción ACECF, URLs Prod, DJ, Verif, Finalizado). **URL TUNNEL VIGENTE**: `chosen-variations-defense-carpet.trycloudflare.com` (NO reiniciar `cloudflared`). Logging temporal `[VALCERT]`+`[ARECF]` sigue activo, remover cuando Fases 9/10 estables.
 - **2026-10-10 12:12-12:18 UTC (76va corrida)** — Runner scheduled. 🎉🎉🎉 **TRES FASES CERRADAS EN UNA SOLA CORRIDA: 9, 10, 11.** Portal avanzó a Fase 12 "URL Servicios Producción" — pausado por acción legalmente vinculante. Pre-corrida: `git status` mostró 2 archivos modificados sin commit (`public_urls.py`, `public_views.py`) de una 76va previa que no commiteó (preservados y commiteados esta corrida). Portal arranca en Fase 10 `/Postulacion/ConfirmacionEnvioAC` — **Fase 9 ya había pasado post-75va** (ARECF firmado funcionó). Log Fase 10 pre-corrida: 4 `NotFound` entre 4:18-4:24 AM UTC-4 — DGII llama `/fe/autenticacion/api/validacionCertificado` **(PascalCase C)** y `/fe/aprobacioncomercial/api/ecf`, nuestros Django URL patterns eran case-sensitive solo con 'c' minúscula. **Fix 1 (PascalCase + trailing slash)**: 4 nuevos path() en `public_urls.py` para cubrir `validacionCertificado`, `validacionCertificado/`, `validacioncertificado/`, y los endpoints restantes con trailing slash — ya desplegado por la 76va previa, commiteado esta corrida. Click "Enviar prueba de aprobaciones comerciales" → nuevo error "NotFound /fe/aprobacioncomercial/api/ecf" a 8:15:53 AM UTC-4 = 12:15 UTC = momento del click. **Fix 2 (routing ACECF)**: inspección de log reveló `[ARECF] aprobcom 404` con `rnc_destino=131880681` (RNCComprador del ACECF = contribuyente simulado DGII, NO Abregonza). En ACECF, cuando DGII envía para un e-CF que NOSOTROS emitimos, Abregonza es el **RNCEmisor** del ACECF (no el RNCComprador). Cambio en `aprobacioncomercial_view::public_views.py`: lookup `get_config_por_rnc(rnc_emisor_acecf)` primero, luego fallback `rnc_comprador_acecf`. Deploy pscp→docker cp→`docker restart facturation_backend` (<10s) → 2do click "Enviar prueba": **11 ACECFs recibidos+respondidos 200 OK en ~15s** (eNCFs: E31×4, E33×1, E34×2, E44×2, E45×2, bearer `rnc=00199999996` cert PEDRO PEREZ DGII, RNCComprador=131880681). Portal avanzó directamente de Fase 10→11→12 (Playwright confirma `/Postulacion/FormularioServicioProduccion`). **Fase 12 PAUSADO**: 3 textboxes URL vacíos + botón "Confirmar URLS"; click compromete identidad productiva de Abregonza en directorio público DGII OFV. Infraestructura actual (trycloudflare quick tunnel) es efímera, no apta prod — requiere decisión Roberto sobre dominio productivo estable (CF Tunnel named, VPS, custom domain) + TLS válido + uptime 24/7. **Runner NO clickea Confirmar** (categoría acción legalmente vinculante). TFE_DOCUMENTO_RECIBIDO esperado: 11 ACECF nuevos tipo='ACECF' + los 2 ECF de 75va. Scripts no commiteados: ninguno. **URL TUNNEL VIGENTE**: `chosen-variations-defense-carpet.trycloudflare.com` (NO reiniciar `cloudflared`). Logging temporal `[VALCERT]`+`[ARECF]` sigue activo (dejar hasta prod URLs confirmadas, útil para auditoría). Commits: `0aa2caf` (fix PascalCase + ARECF RNCEmisor del XML, hallazgo 76va previa), más commit docs de esta corrida. **Próxima (77va)**: Pausar hasta que Roberto decida URLs productivas. Si decide: configurar infraestructura prod → setear 3 URLs en Fase 12 → Confirmar URLS → avanzar a Fase 13 (Declaración Jurada, 2da acción legalmente vinculante). Mientras tanto, el runner puede: (a) escribir sub-plan de infraestructura prod propuesta, (b) revisar y limpiar scripts suelto en /tmp/ del contenedor, (c) remover logging temporal una vez estable.
+
+- **2026-10-10 16:11-16:30 UTC (77va corrida)** — Runner scheduled. **Fase 12 sigue pausada por acción legalmente vinculante. Trabajo de la corrida: sub-plan de infraestructura productiva + investigación/documentación Fases 13-15 (sin ejecutar nada en el portal).** Portal Playwright login (sesión persistente): URL confirma `/Postulacion/FormularioServicioProduccion` (Fase 12 activo), bandeja = **89**, 3 textboxes URL vacíos (Autenticación/Recepción/AprobaciónComercial), log "No existen mensajes" — portal estable sin cambios desde 76va. **Entregables de esta corrida (sin código, sin envíos DGII)**: (1) `backend/docs/superpowers/plans/2026-10-10-ecf-fase12-infra-productiva.md` — sub-plan de 4 opciones de infraestructura productiva evaluadas (A: CF Named Tunnel + dominio custom, recomendada; B: VPS cloud; C: ngrok Pro; D: abrir 443 local, descartada). Incluye checklist operativo paso a paso para Opción A una vez Roberto decida, costos (~US$10-30/año para A, US$5-15/mes para B, US$20/mes para C), tradeoffs, y riesgos a tener presentes (downtime, rotación cert, cambio URLs post-confirmación, backup Oracle). (2) Documentación de Fase 13 (Declaración Jurada) en `## Fases 6 a 15` del plan maestro: según `Proceso-Certificacion-para-ser-Emisor-Electronico.pdf` oficial DGII + guías PSFE (mseller, ecf.express), es un XML generado por DGII que el representante registrado (Roberto Abreu Espinal) debe firmar con `.p12` oficial — **2da acción legalmente vinculante** del flujo, runner NO firma ni envía sin autorización. (3) Documentación de Fases 14-15 (confirmación administrativa interna DGII + emisión resolución Emisor Electrónico Certificado), probablemente sin código esperable. (4) Actualización tabla de estado Fases 13-15 (⬜ Sin investigar → ⬜ Documentada 77va). Sin código backend/frontend nuevo. Sin cambios TFE_SECUENCIA. Sin envíos DGII. **URL TUNNEL VIGENTE** sigue siendo `chosen-variations-defense-carpet.trycloudflare.com` (NO reiniciar `cloudflared`). Logging temporal `[VALCERT]`+`[ARECF]` sigue activo. Scripts no commiteados: ninguno nuevo esta corrida. Commits: docs(ecf) sub-plan Fase 12 infra prod + documentación Fases 13-15. **Próxima (78va)**: (a) si Roberto decidió URLs prod → ejecutar checklist operativo del sub-plan (comprar dominio, named tunnel, DNS, verificar externo, llenar Fase 12, Confirmar URLS, verificar avance a Fase 13); (b) si Roberto no respondió → **Opción productiva**: click "Generar Archivo" en el portal cuando Fase 13 abra (solo descarga el XML, sin firmar ni enviar) para capturar el contenido real y actualizar la documentación con el XML concreto; mientras tanto considerar housekeeping: remover logging `[VALCERT]`/`[ARECF]` (Fases 9-11 ya estables post-76va) + limpiar scripts huérfanos `.tmp/` del contenedor VM + limpiar los `frontend/repro*.mjs`, `_gen_*.mjs`, `_upload_*.mjs` del working tree que ya no sirven (56va/67va/68va eran one-shots). **No tocar** `_verify_qr_uppercase.mjs` ni `_render_one_ri.mjs` sin confirmar con el usuario (son helpers reutilizables).
