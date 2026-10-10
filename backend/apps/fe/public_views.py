@@ -162,6 +162,7 @@ def recepcion_view(request):
 @csrf_exempt
 @require_http_methods(['POST'])
 def aprobacioncomercial_view(request):
+    import time as _t
     rnc_bearer = _bearer_rnc(request)
     if not rnc_bearer:
         return _err('Token inválido, expirado o ausente', 401)
@@ -170,19 +171,29 @@ def aprobacioncomercial_view(request):
         return _err('Falta el archivo de aprobación comercial')
     xml_bytes = archivo.read()
     try:
+        with open(f'/tmp/acecf_{int(_t.time())}.xml', 'wb') as _f:
+            _f.write(xml_bytes)
+    except Exception:
+        pass
+    try:
         root = etree.fromstring(xml_bytes)
     except etree.XMLSyntaxError as exc:
         return _err(f'XML inválido: {exc}')
     e_ncf = _texto(root, 'eNCF') or archivo.name
-    rnc_emisor_acecf = _texto(root, 'RNCEmisor') or rnc_bearer
-    rnc_destino = _texto(root, 'RNCComprador') or rnc_emisor_acecf
-    cfg = fe_repo.get_config_por_rnc(rnc_destino) if rnc_destino else None
+    rnc_emisor_acecf = _texto(root, 'RNCEmisor')
+    rnc_comprador_acecf = _texto(root, 'RNCComprador')
+    # ACECF para un e-CF emitido por nosotros: RNCEmisor=nuestra empresa.
+    # Fallback (Fase 3 style, nosotros como comprador): RNCComprador.
+    cfg = (fe_repo.get_config_por_rnc(rnc_emisor_acecf) if rnc_emisor_acecf else None) \
+        or (fe_repo.get_config_por_rnc(rnc_comprador_acecf) if rnc_comprador_acecf else None)
     if not cfg:
+        print(f'[ARECF] aprobcom 404 rnc_emisor={rnc_emisor_acecf} rnc_comprador={rnc_comprador_acecf} rnc_bearer={rnc_bearer}', flush=True)
         return _err('No se pudo determinar la empresa destino', 404)
     track_id = uuid.uuid4().hex.upper()[:16]
     fe_repo.save_documento_recibido(
-        no_cia=cfg['no_cia'], rnc_emisor=rnc_emisor_acecf, e_ncf=e_ncf,
+        no_cia=cfg['no_cia'], rnc_emisor=rnc_emisor_acecf or rnc_bearer, e_ncf=e_ncf,
         tipo='ACECF', xml=xml_bytes.decode('utf-8', 'replace'),
         track_id=track_id)
-    print(f'[ARECF] aprobcom ok rnc_emisor_acecf={rnc_emisor_acecf} rnc_bearer={rnc_bearer} rnc_destino={rnc_destino} eNCF={e_ncf}', flush=True)
-    return _arecf_firmado(cfg['no_cia'], rnc_emisor_acecf, rnc_destino, e_ncf)
+    print(f'[ARECF] aprobcom ok rnc_emisor={rnc_emisor_acecf} rnc_comprador={rnc_comprador_acecf} rnc_bearer={rnc_bearer} eNCF={e_ncf}', flush=True)
+    return _arecf_firmado(cfg['no_cia'], rnc_emisor_acecf or rnc_bearer,
+                          rnc_comprador_acecf or rnc_bearer, e_ncf)
