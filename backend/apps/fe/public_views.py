@@ -20,7 +20,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from lxml import etree
 
-from apps.fe import firma, tokens
+from apps.fe import crypto, firma, tokens
 from apps.legacy.repositories import fe_repo
 
 _RNC_RE = re.compile(r'\d{9,11}')
@@ -28,6 +28,48 @@ _RNC_RE = re.compile(r'\d{9,11}')
 
 def _err(msg: str, status: int = 400) -> JsonResponse:
     return JsonResponse({'detail': str(msg)}, status=status)
+
+
+def _arecf_firmado(no_cia: str, rnc_emisor: str, rnc_comprador: str,
+                   e_ncf: str, estado: int = 0,
+                   codigo_motivo: int | None = None) -> HttpResponse:
+    """Acuse de Recibo (ARECF) firmado, formato oficial DGII v1.0.
+
+    Hallazgo 75va corrida (2026-10-10): la respuesta `<RespuestaRecepcion>`
+    de la "Descripcion-Tecnica-Servicios-DGII" es la que entrega la DGII
+    cuando ELLA es receptor (sus endpoints `/recepcion/api/ecf`); el
+    receptor terceo (nosotros) debe responder con `<ARECF>` según el
+    "Formato Acuse de Recibo v1.0" oficial (`DetalleAcusedeRecibo` +
+    Signature XMLDSig obligatoria). Root distinto, estructura distinta.
+    """
+    from datetime import datetime
+    from xml.sax.saxutils import escape
+    fecha = datetime.now().strftime('%d-%m-%Y %H:%M:%S')
+    motivo = (f'<CodigoMotivoNoRecibido>{codigo_motivo}</CodigoMotivoNoRecibido>'
+              if estado == 1 and codigo_motivo else '')
+    xml_str = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<ARECF>'
+        '<DetalleAcusedeRecibo>'
+        '<Version>1.0</Version>'
+        f'<RNCEmisor>{escape(rnc_emisor)}</RNCEmisor>'
+        f'<RNCComprador>{escape(rnc_comprador)}</RNCComprador>'
+        f'<eNCF>{escape(e_ncf)}</eNCF>'
+        f'<Estado>{estado}</Estado>'
+        f'{motivo}'
+        f'<FechaHoraAcuseRecibo>{fecha}</FechaHoraAcuseRecibo>'
+        '</DetalleAcusedeRecibo>'
+        '</ARECF>'
+    )
+    cert = fe_repo.get_certificado(no_cia)
+    if cert:
+        try:
+            p12_bytes, password_enc = cert
+            password = crypto.decrypt(password_enc)
+            xml_str = firma.firmar_xml(xml_str, p12_bytes, password)
+        except Exception as exc:
+            print(f'[ARECF] firma falló (sin firmar): {exc!r}', flush=True)
+    return HttpResponse(xml_str, content_type='text/xml; charset=utf-8')
 
 
 def _archivo(request):
@@ -112,7 +154,7 @@ def recepcion_view(request):
         no_cia=cfg['no_cia'], rnc_emisor=rnc_emisor, e_ncf=e_ncf,
         tipo='ECF', xml=xml_bytes.decode('utf-8', 'replace'),
         track_id=track_id)
-    return JsonResponse({'trackId': track_id})
+    return _arecf_firmado(cfg['no_cia'], rnc_emisor, rnc_comprador, e_ncf)
 
 
 @csrf_exempt
@@ -139,4 +181,4 @@ def aprobacioncomercial_view(request):
         no_cia=cfg['no_cia'], rnc_emisor=rnc_emisor, e_ncf=e_ncf,
         tipo='ACECF', xml=xml_bytes.decode('utf-8', 'replace'),
         track_id=track_id)
-    return JsonResponse({'trackId': track_id})
+    return _arecf_firmado(cfg['no_cia'], rnc_emisor, rnc_destino, e_ncf)
