@@ -116,23 +116,61 @@ def verificar_xml(xml_bytes: bytes) -> x509.Certificate:
     """Verifica una firma XMLDSig enveloped y devuelve el certificado firmante.
 
     Extrae el certificado embebido en la propia firma (KeyInfo/
-    X509Certificate) y lo pasa a signxml como ``x509_cert`` explícito: eso
-    valida la integridad criptográfica de la firma contra ESE certificado
-    exacto sin intentar construir una cadena de confianza (evita que
-    ``require_x509=True`` falle con "candidates exhausted": sin ca_pem_file
-    signxml intenta construir la cadena contra el almacén de CA del
-    sistema, que trae raíces antiguas que a veces disparan advertencias de
-    RFC 5280 ajenas al certificado que estamos validando. NO valida la
-    cadena contra la CA raíz de INDOTEL ni revocación (OCSP/CRL); endurecer
-    antes de que la
-    DGII pruebe de verdad los pasos 7-11 de la certificación.
+    X509Certificate) y valida la firma manualmente (c14n 1.0 inclusive +
+    RSA-SHA256) en vez de delegar a signxml, porque la canonicalización de
+    `lxml.etree.tostring(method='c14n')` sobre un subárbol inyecta
+    `xmlns=""` espurio en elementos hijos que heredan el namespace del
+    padre, lo que rompe el verify para firmas .NET-style de DGII donde
+    `Signature` declara xmlns default y los descendientes lo heredan sin
+    prefijo. NO valida la cadena contra la CA raíz de INDOTEL ni
+    revocación (OCSP/CRL); endurecer antes de pasar a producción.
     """
+    import re
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import padding
+
     root = etree.fromstring(xml_bytes)
     ns = {'ds': 'http://www.w3.org/2000/09/xmldsig#'}
+    sig = root.find('.//ds:Signature', ns)
+    if sig is None:
+        raise ValueError('El XML no contiene <Signature>')
     cert_els = root.findall('.//ds:X509Certificate', ns)
     if not cert_els or not (cert_els[0].text or '').strip():
         raise ValueError('La firma no incluye certificado (X509Certificate)')
     der = base64.b64decode(cert_els[0].text.strip())
     cert = x509.load_der_x509_certificate(der)
-    XMLVerifier().verify(root, x509_cert=cert)
+
+    sv_el = sig.find('ds:SignatureValue', ns)
+    if sv_el is None or not (sv_el.text or '').strip():
+        raise ValueError('La firma no incluye <SignatureValue>')
+    sig_bytes = base64.b64decode(sv_el.text.strip())
+
+    canon_full = etree.tostring(root, method='c14n', with_comments=False, exclusive=False)
+    m = re.search(rb'<SignedInfo(\s[^>]*)?>.*?</SignedInfo>', canon_full, re.DOTALL)
+    if m is None:
+        raise ValueError('No se pudo canonicalizar SignedInfo')
+    si_c14n = m.group(0)
+    xmldsig_ns = b'http://www.w3.org/2000/09/xmldsig#'
+    if b'xmlns=' not in si_c14n.split(b'>', 1)[0]:
+        si_c14n = si_c14n.replace(b'<SignedInfo', b'<SignedInfo xmlns="' + xmldsig_ns + b'"', 1)
+
+    cert.public_key().verify(
+        sig_bytes, si_c14n, padding.PKCS1v15(), hashes.SHA256())
+
+    ref = sig.find('ds:SignedInfo/ds:Reference', ns)
+    dv_el = ref.find('ds:DigestValue', ns) if ref is not None else None
+    if dv_el is None or not (dv_el.text or '').strip():
+        raise ValueError('La firma no incluye <DigestValue>')
+    expected_digest = base64.b64decode(dv_el.text.strip())
+
+    root_sin_sig = etree.fromstring(xml_bytes)
+    sig_rm = root_sin_sig.find('.//ds:Signature', ns)
+    sig_rm.getparent().remove(sig_rm)
+    data_c14n = etree.tostring(root_sin_sig, method='c14n', with_comments=False, exclusive=False)
+    h = hashes.Hash(hashes.SHA256())
+    h.update(data_c14n)
+    actual_digest = h.finalize()
+    if actual_digest != expected_digest:
+        raise ValueError('DigestValue no coincide con el c14n del documento')
+
     return cert

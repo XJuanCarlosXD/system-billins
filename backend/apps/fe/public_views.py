@@ -57,23 +57,35 @@ def semilla_view(request):
 @csrf_exempt
 @require_http_methods(['POST'])
 def validacioncertificado_view(request):
+    import traceback, time as _t
     archivo = _archivo(request)
     if not archivo:
+        print(f'[VALCERT] {_t.time()} sin archivo. files={list(request.FILES)} ct={request.content_type}', flush=True)
         return _err('Falta el archivo xml firmado')
     xml_bytes = archivo.read()
+    try:
+        with open(f'/tmp/valcert_{int(_t.time())}.xml', 'wb') as _f:
+            _f.write(xml_bytes)
+    except Exception:
+        pass
     try:
         root = etree.fromstring(xml_bytes)
         valor = _texto(root, 'valor')
         if not valor or not tokens.validar_semilla(valor):
+            print(f'[VALCERT] semilla inv: valor={valor!r} len_xml={len(xml_bytes)}', flush=True)
             return _err('Semilla inválida o expirada', 401)
         cert = firma.verificar_xml(xml_bytes)
     except Exception as exc:
+        print(f'[VALCERT] firma invalida exc={exc!r}\n{traceback.format_exc()}', flush=True)
         return _err(f'Firma inválida: {exc}', 401)
     subject = cert.subject.rfc4514_string()
     match = _RNC_RE.search(subject)
     rnc = match.group(0) if match else subject[:20]
     token, exp = tokens.emitir_token(rnc)
-    return JsonResponse({'token': token, 'expira': exp})
+    from datetime import datetime, timezone
+    exp_iso = datetime.fromtimestamp(exp, tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000')
+    print(f'[VALCERT] OK rnc={rnc} exp={exp_iso}', flush=True)
+    return JsonResponse({'token': token, 'expira': exp_iso, 'expiraEn': exp_iso, 'Token': token, 'Expira': exp_iso})
 
 
 @csrf_exempt
