@@ -63,12 +63,9 @@ def _arecf_firmado(no_cia: str, rnc_emisor: str, rnc_comprador: str,
     )
     cert = fe_repo.get_certificado(no_cia)
     if cert:
-        try:
-            p12_bytes, password_enc = cert
-            password = crypto.decrypt(password_enc)
-            xml_str = firma.firmar_xml(xml_str, p12_bytes, password)
-        except Exception as exc:
-            print(f'[ARECF] firma falló (sin firmar): {exc!r}', flush=True)
+        p12_bytes, password_enc = cert
+        password = crypto.decrypt(password_enc)
+        xml_str = firma.firmar_xml(xml_str, p12_bytes, password)
     return HttpResponse(xml_str, content_type='text/xml; charset=utf-8')
 
 
@@ -99,26 +96,17 @@ def semilla_view(request):
 @csrf_exempt
 @require_http_methods(['POST'])
 def validacioncertificado_view(request):
-    import traceback, time as _t
     archivo = _archivo(request)
     if not archivo:
-        print(f'[VALCERT] {_t.time()} sin archivo. files={list(request.FILES)} ct={request.content_type}', flush=True)
         return _err('Falta el archivo xml firmado')
     xml_bytes = archivo.read()
-    try:
-        with open(f'/tmp/valcert_{int(_t.time())}.xml', 'wb') as _f:
-            _f.write(xml_bytes)
-    except Exception:
-        pass
     try:
         root = etree.fromstring(xml_bytes)
         valor = _texto(root, 'valor')
         if not valor or not tokens.validar_semilla(valor):
-            print(f'[VALCERT] semilla inv: valor={valor!r} len_xml={len(xml_bytes)}', flush=True)
             return _err('Semilla inválida o expirada', 401)
         cert = firma.verificar_xml(xml_bytes)
     except Exception as exc:
-        print(f'[VALCERT] firma invalida exc={exc!r}\n{traceback.format_exc()}', flush=True)
         return _err(f'Firma inválida: {exc}', 401)
     subject = cert.subject.rfc4514_string()
     match = _RNC_RE.search(subject)
@@ -126,7 +114,6 @@ def validacioncertificado_view(request):
     token, exp = tokens.emitir_token(rnc)
     from datetime import datetime, timezone
     exp_iso = datetime.fromtimestamp(exp, tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000')
-    print(f'[VALCERT] OK rnc={rnc} exp={exp_iso}', flush=True)
     return JsonResponse({'token': token, 'expira': exp_iso, 'expiraEn': exp_iso, 'Token': token, 'Expira': exp_iso})
 
 
@@ -155,14 +142,12 @@ def recepcion_view(request):
         no_cia=cfg['no_cia'], rnc_emisor=rnc_emisor, e_ncf=e_ncf,
         tipo='ECF', xml=xml_bytes.decode('utf-8', 'replace'),
         track_id=track_id)
-    print(f'[ARECF] recepcion ok rnc_emisor_ecf={rnc_emisor} rnc_bearer={rnc_bearer} rnc_comprador={rnc_comprador} eNCF={e_ncf}', flush=True)
     return _arecf_firmado(cfg['no_cia'], rnc_emisor, rnc_comprador, e_ncf)
 
 
 @csrf_exempt
 @require_http_methods(['POST'])
 def aprobacioncomercial_view(request):
-    import time as _t
     rnc_bearer = _bearer_rnc(request)
     if not rnc_bearer:
         return _err('Token inválido, expirado o ausente', 401)
@@ -170,11 +155,6 @@ def aprobacioncomercial_view(request):
     if not archivo:
         return _err('Falta el archivo de aprobación comercial')
     xml_bytes = archivo.read()
-    try:
-        with open(f'/tmp/acecf_{int(_t.time())}.xml', 'wb') as _f:
-            _f.write(xml_bytes)
-    except Exception:
-        pass
     try:
         root = etree.fromstring(xml_bytes)
     except etree.XMLSyntaxError as exc:
@@ -187,13 +167,11 @@ def aprobacioncomercial_view(request):
     cfg = (fe_repo.get_config_por_rnc(rnc_emisor_acecf) if rnc_emisor_acecf else None) \
         or (fe_repo.get_config_por_rnc(rnc_comprador_acecf) if rnc_comprador_acecf else None)
     if not cfg:
-        print(f'[ARECF] aprobcom 404 rnc_emisor={rnc_emisor_acecf} rnc_comprador={rnc_comprador_acecf} rnc_bearer={rnc_bearer}', flush=True)
         return _err('No se pudo determinar la empresa destino', 404)
     track_id = uuid.uuid4().hex.upper()[:16]
     fe_repo.save_documento_recibido(
         no_cia=cfg['no_cia'], rnc_emisor=rnc_emisor_acecf or rnc_bearer, e_ncf=e_ncf,
         tipo='ACECF', xml=xml_bytes.decode('utf-8', 'replace'),
         track_id=track_id)
-    print(f'[ARECF] aprobcom ok rnc_emisor={rnc_emisor_acecf} rnc_comprador={rnc_comprador_acecf} rnc_bearer={rnc_bearer} eNCF={e_ncf}', flush=True)
     return _arecf_firmado(cfg['no_cia'], rnc_emisor_acecf or rnc_bearer,
                           rnc_comprador_acecf or rnc_bearer, e_ncf)
