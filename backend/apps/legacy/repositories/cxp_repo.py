@@ -2448,15 +2448,26 @@ def aplicar_movimiento(no_cia, punto, tipo_docu, no_docu, aplicaciones):
                 continue
             tipo_ref = (ap.get('tipo_docu') or ap.get('tipo_refe') or '').strip()
             no_ref   = str(ap.get('no_docu') or ap.get('no_refe') or '').strip()
-            ref_rows = client.fetch_dicts(
+            # SELECT FOR UPDATE con el MISMO cursor que hace el UPDATE -- sin
+            # esto, dos aplicaciones concurrentes contra el mismo documento de
+            # credito (ej. dos ND distintas aplicadas casi al mismo tiempo)
+            # pueden leer el mismo saldo_cr "viejo" y la ultima en comitear
+            # pisa la reduccion de la primera, dejando una ND con su
+            # REFEDOCU correcto pero el saldo del documento referenciado sin
+            # bajar (mismo patron que la carrera de TCXP_SECUENCIA, ver
+            # memoria project_cxc_ri_race_condition_20260908; encontrado en
+            # produccion 2026-10-09 vs ND-1195/FT-933 y ND-2189+2190/FP-8616).
+            cur.execute(
                 "SELECT NVL(saldo,0) AS saldo, tipo_movi, "
                 "       NVL(pago_bloqueado,'N') AS pago_bloqueado "
                 "FROM CXP.TCXP_DOCUMENTO "
-                "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4",
+                "WHERE no_cia=:1 AND punto=:2 AND tipo_docu=:3 AND no_docu=:4 "
+                "FOR UPDATE",
                 [no_cia, punto, tipo_ref, no_ref])
-            if not ref_rows:
+            ref_row = cur.fetchone()
+            if not ref_row:
                 raise ValueError(f'Factura {tipo_ref}-{no_ref} no encontrada')
-            ref = ref_rows[0]
+            ref = {'saldo': ref_row[0], 'tipo_movi': ref_row[1], 'pago_bloqueado': ref_row[2]}
             if (ref['tipo_movi'] or '').upper() != 'C':
                 raise ValueError(
                     f'{tipo_ref}-{no_ref} no es un crédito pendiente de pago')
