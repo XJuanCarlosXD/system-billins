@@ -102,3 +102,68 @@ def test_verificar_rechaza_e_cf_dgii_adulterado():
 def test_verificar_acecf_entrante_firmado_por_dgii_sin_prefijo_ds():
     xml_bytes = (FIXTURES_DIR / 'fixture_abregonza_arecf_firmado.xml').read_bytes()
     firma.verificar_xml(xml_bytes)
+
+
+# ---------- round-trip firmar_xml → verificar_xml ----------
+
+
+def _generar_p12_autofirmado(subject_cn='TEST ABREGONZA RUNNER',
+                              password='pwd1234'):
+    """Genera un certificado + clave RSA-2048 self-signed y lo serializa
+    como PKCS#12. Pensado para tests que necesitan ejercitar firmar_xml
+    sin depender del cert productivo de Abregonza.
+    """
+    from datetime import datetime, timedelta, timezone
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.hazmat.primitives.serialization import pkcs12
+    from cryptography.x509.oid import NameOID
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    subject = issuer = x509.Name([
+        x509.NameAttribute(NameOID.COMMON_NAME, subject_cn),
+    ])
+    now = datetime.now(timezone.utc)
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - timedelta(minutes=5))
+        .not_valid_after(now + timedelta(days=365))
+        .sign(key, hashes.SHA256())
+    )
+    p12 = pkcs12.serialize_key_and_certificates(
+        name=subject_cn.encode(),
+        key=key,
+        cert=cert,
+        cas=None,
+        encryption_algorithm=serialization.BestAvailableEncryption(
+            password.encode()),
+    )
+    return p12, password
+
+
+# Import x509 at module scope para que el helper lo tenga disponible.
+from cryptography import x509  # noqa: E402
+
+
+def test_round_trip_firmar_y_verificar():
+    """firmar_xml produce XMLDSig con prefijo ds: (signxml default).
+    verificar_xml debe aceptar ese prefijo — hoy no lo hace (regex
+    SignedInfo busca ``<SignedInfo`` sin prefijo). Red de seguridad para
+    cuando se necesite verificar un XML que firmamos nosotros mismos
+    (p.ej. Fase 13 Declaración Jurada o ARECF/ACECF salientes).
+    """
+    p12, password = _generar_p12_autofirmado(subject_cn='TEST ROUND-TRIP 80va')
+    xml_sin_firmar = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<DocumentoTest><Dato>hola mundo</Dato></DocumentoTest>'
+    )
+
+    xml_firmado = firma.firmar_xml(xml_sin_firmar, p12, password)
+
+    cert = firma.verificar_xml(xml_firmado.encode('utf-8'))
+
+    assert 'TEST ROUND-TRIP 80va' in cert.subject.rfc4514_string()

@@ -146,13 +146,33 @@ def verificar_xml(xml_bytes: bytes) -> x509.Certificate:
     sig_bytes = base64.b64decode(sv_el.text.strip())
 
     canon_full = etree.tostring(root, method='c14n', with_comments=False, exclusive=False)
-    m = re.search(rb'<SignedInfo(\s[^>]*)?>.*?</SignedInfo>', canon_full, re.DOTALL)
+    # Acepta <SignedInfo> sin prefijo (firmas .NET-style de la DGII) o con
+    # prefijo (p.ej. <ds:SignedInfo>, que signxml produce por default). Si
+    # el prefijo heredaba su xmlns de un ancestro, hay que re-inyectarlo acá
+    # porque la c14n inclusiva sobre el documento completo no lo repite en
+    # el elemento interno (el namespace ya está en scope arriba).
+    m = re.search(
+        rb'<(?:(?P<p>[A-Za-z_][\w.-]*):)?SignedInfo(\s[^>]*)?>.*?'
+        rb'</(?:(?P=p):)?SignedInfo>',
+        canon_full, re.DOTALL)
     if m is None:
         raise ValueError('No se pudo canonicalizar SignedInfo')
     si_c14n = m.group(0)
     xmldsig_ns = b'http://www.w3.org/2000/09/xmldsig#'
-    if b'xmlns=' not in si_c14n.split(b'>', 1)[0]:
-        si_c14n = si_c14n.replace(b'<SignedInfo', b'<SignedInfo xmlns="' + xmldsig_ns + b'"', 1)
+    prefix = m.group('p')
+    header = si_c14n.split(b'>', 1)[0]
+    if prefix:
+        xmlns_attr = b'xmlns:' + prefix + b'='
+        if xmlns_attr not in header:
+            inject = b' ' + xmlns_attr + b'"' + xmldsig_ns + b'"'
+            si_c14n = si_c14n.replace(
+                b'<' + prefix + b':SignedInfo',
+                b'<' + prefix + b':SignedInfo' + inject, 1)
+    else:
+        if b'xmlns=' not in header:
+            si_c14n = si_c14n.replace(
+                b'<SignedInfo',
+                b'<SignedInfo xmlns="' + xmldsig_ns + b'"', 1)
 
     cert.public_key().verify(
         sig_bytes, si_c14n, padding.PKCS1v15(), hashes.SHA256())
