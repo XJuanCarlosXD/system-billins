@@ -1,0 +1,75 @@
+   Modelos Ilustrativos de
+Representación Impresa (RI)
+
+   Facturación Electrónica
+                       Contenidos
+
+1Modelos ilustrativos de Factura de Crédito Fiscal Electrónica.................... 3
+  1.1 Modelo ilustrativo con totales al final de la factura ..............................3
+  1.2 Modelo ilustrativo incluyendo el ITBIS en el campo `Valor' del detalle de
+  bienes o servicios .....................................................................................4
+  1.3 Modelo ilustrativo incluyendo el ITBIS en el campo `Valor' y totales en
+  la parte del detalle de bienes o servicios ...................................................5
+  1.4 Modelo ilustrativo de e-FCF para Impuesto Selectivo al Consumo.........6
+  1.5 Modelo ilustrativo de la Nota de Débito Electrónica .............................7
+  1.6 Modelo ilustrativo de la Nota de Crédito Electrónica ............................8
+  1.7 Modelo ilustrativo incluyendo Paginación (e-CF con dos páginas).........9
+
+2 Modelos ilustrativos de Facturas sin valor fiscal. .........................................11
+  2.1 Modelo ilustrativo de la Factura de Consumo Electrónica con monto
+  total igual o mayor a DOP 250 mil ........................................................11
+  2.2 Modelo ilustrativo de la Factura de Consumo Electrónica con monto
+  total menor a DOP$ 250 mil ...................................................................12
+  2.3 Modelo ilustrativo de la Factura de Consumo Electrónica con monto
+  menor a DOP$250 mil, realizado a través de Papel Continuo ...................13
+
+3 Representación Impresa generada en modalidad de Envío Diferido.....14
+  3.1 e-CF en Envío Diferido .............................................................................. 14
+  3.2 Documento en modalidad Envío Diferido cuando no se puede generar
+  el e-CF .............................................................................................................. 15
+
+4 Modelo ilustrativo de la factura emitida en Modalidad de Contingencia.
+      16
+
+  4.1 Falta de conectividad general (modo Offline/Intermitencia) ...............16
+  4.2 Cuando no sea posible la emisión del e-CF (Incapacidad Técnica) ......17
+1. Modelos ilustrativos de Factura de Crédito Fiscal Electrónica
+      1.1 Modelo ilustrativo con totales al final de la factura1
+
+         1 El monto del campo `Valor' del detalle de bienes o servicios, no incluye impuestos (precio x cantidad).
+1.2 Modelo ilustrativo incluyendo el ITBIS en el campo `Valor' del detalle de
+bienes o servicios
+1.3 Modelo ilustrativo incluyendo el ITBIS en el campo `Valor' y totales en la
+     parte del detalle de bienes o servicios
+1.4 Modelo ilustrativo de e-FCF para Impuesto Selectivo al Consumo
+1.5 Modelo ilustrativo de la Nota de Débito Electrónica
+1.6 Modelo ilustrativo de la Nota de Crédito Electrónica
+1.7 Modelo ilustrativo incluyendo Paginación (e-CF con dos páginas)
+        Página 1:
+Página 2:
+2 Modelos ilustrativos de Facturas sin valor fiscal.
+
+        2.1 Modelo ilustrativo de la Factura de Consumo Electrónica con
+        monto total igual o mayor a DOP 250 mil
+2.2 Modelo ilustrativo de la Factura de Consumo Electrónica con monto total
+menor a DOP$ 250 mil
+2.3 Modelo ilustrativo de la Factura de Consumo Electrónica con
+monto menor a DOP$250 mil, realizado a través de Papel Continuo
+3 Representación Impresa generada en modalidad de Envío Diferido
+3.1 e-CF en Envío Diferido
+3.2 Documento en modalidad Envío Diferido cuando no se puede generar el
+e-CF2
+
+2 (Enlace consulta proveedor electrónico) esta ruta deberá ser generada por el emisor electrónico, donde el receptor
+podrá después consultar su e-CF.
+    4 Modelo ilustrativo de la factura emitida en Modalidad de
+         Contingencia.
+
+4.1 Falta de conectividad general (modo Offline/Intermitencia)
+4.2 "Cuando no sea posible la emisión del e-CF (Incapacidad Técnica)3", debe
+contemplarse un formato de comprobante fiscal no electrónico, en este caso,
+tipo B.
+
+3 El emisor deberá disponer de secuencias de Comprobantes Fiscales No Electrónicos y entregarlas al receptor no
+electrónico.
+

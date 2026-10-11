@@ -194,9 +194,15 @@ retirar.
    reintenta por horas, pero cada hora que la VM esté caída es un e-CF que
    no se registra en Abregonza en tiempo real.
 2. **Rotación de certificado**: el certificado digital Roberto Abreu
-   Espinal (`roberto-abreu-espinal.p12`) tiene fecha de expiración. Si
-   vence antes de la próxima renovación, Fases 9/11 fallan en producción
-   también. Programar recordatorio ~30 días antes del vencimiento.
+   Espinal (`roberto-abreu-espinal.p12`) vence **2027-08-31 18:24:10 UTC**
+   (verificado 81va corrida 2026-10-11 vía `openssl pkcs12 -legacy`,
+   subject `CN=ROBERTO ABREU ESPINAL, serialNumber=IDCDO-00109276329`).
+   Si vence antes de renovarlo, Fases 9/11 productivas fallan al firmar
+   ARECF (y Fase 2 de FE outbound al firmar e-CFs). Programar
+   recordatorio para **2027-07-31** (30 días antes) y renovarlo con el
+   proveedor VIAFIRMA / entidad acreditada DGII; una vez emitido el nuevo
+   `.p12`, actualizar `TFE_CONFIG.certificado_contenido` +
+   `password_enc` vía la UI de Configuración → Facturación Electrónica.
 3. **Cambio de URLs**: una vez enviadas a DGII, cambiar las URLs requiere
    trámite formal (ticket soporte DGII 809-689-3444). Elegir hostname que
    NO cambie en 2+ años.
