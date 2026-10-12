@@ -1,3 +1,8 @@
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-30 5 * * * root cd /app && python manage.py scrape_licitaciones >> /app/data/lic-cron.log 2>&1
+# Pausado 2026-10-11 a pedido del usuario: el portal comunidad.comprasdominicana.gob.do
+# viene fallando con ERR_CERT_DATE_INVALID (certificado SSL vencido del lado del
+# gobierno) y las corridas previas tampoco encontraban oportunidades nuevas, solo
+# gastaban llamadas de analisis IA en documentos sin texto extraible. Descomentar
+# cuando el portal vuelva a responder.
+#30 5 * * * root cd /app && python manage.py scrape_licitaciones >> /app/data/lic-cron.log 2>&1
 
