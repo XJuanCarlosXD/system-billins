@@ -91,15 +91,13 @@ def test_verificar_rechaza_e_cf_dgii_adulterado():
 # ---------- limitación conocida ----------
 
 
-@pytest.mark.xfail(
-    reason="verificar_xml no maneja la herencia de xmlns default dentro "
-    "del subárbol de la firma cuando <Signature xmlns=\"xmldsig#\"> no "
-    "declara prefijo ds: (fixture ACECF 76va). No bloquea Fase 11 porque "
-    "la función solo se usa en validacioncertificado_view donde la DGII "
-    "firma con prefijo ds:. TODO: generalizar canon de SignedInfo.",
-    strict=True,
-)
 def test_verificar_acecf_entrante_firmado_por_dgii_sin_prefijo_ds():
+    """Caso del fixture ACECF 76va: `<Signature>` lleva xmlns default
+    `xmldsig#` y arrastra `xmlns:xsd` + `xmlns:xsi` desde el ancestro del
+    sobre. La c14n inclusiva de lxml sobre el documento completo heredaba
+    esos namespaces dentro de `<SignedInfo>`, pero DGII los firmó sin esa
+    herencia (equivalente a serializar SignedInfo como fragmento aislado).
+    `verificar_xml` reparsea SignedInfo aislado antes de canonicalizar."""
     xml_bytes = (FIXTURES_DIR / 'fixture_abregonza_arecf_firmado.xml').read_bytes()
     firma.verificar_xml(xml_bytes)
 
