@@ -122,6 +122,8 @@ CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS + [
     'https://*.netlify.app',
     'https://grupo-abregonza.hopto.org:8443',
+    'https://api.zentoryerp.com',
+    'https://zentoryerp.com',
 ]
 
 # Backend detras de Caddy/proxy HTTPS publico (PUBLIC_HTTPS=1):
