@@ -496,13 +496,15 @@ def rep_resumen_empleados(no_cia: str) -> dict:
 # ---- Definición de Nóminas (write) ----
 def get_nomina(no_cia: str, punto: str, nomina: str) -> dict | None:
     rows = client.fetch_dicts(
-        "SELECT no_cia, punto, nomina, descripcion, forma_pago, "
-        "       fecha_inicial, fecha_final, cuenta_contable, cuenta_bancaria, "
-        "       mes_proceso, ano_proceso, mes_cierre, periodo, "
-        "       calculo_nomina, estado, regalia_por_pagar, gasto_regalia, "
-        "       factor_calculo_diario, factor_calculo_horas, metodo_pago, tipo_moneda "
-        "  FROM SDN.TSDN_NOMINA "
-        " WHERE no_cia=:1 AND punto=:2 AND nomina=:3",
+        "SELECT n.no_cia, n.punto, n.nomina, n.descripcion, n.forma_pago, "
+        "       n.fecha_inicial, n.fecha_final, n.cuenta_contable, n.cuenta_bancaria, "
+        "       n.mes_proceso, n.ano_proceso, n.mes_cierre, n.periodo, "
+        "       n.calculo_nomina, n.estado, n.regalia_por_pagar, n.gasto_regalia, "
+        "       n.factor_calculo_diario, n.factor_calculo_horas, n.metodo_pago, n.tipo_moneda, "
+        "       c.descripcion AS cia_descripcion, c.razon_social AS cia_razon_social "
+        "  FROM SDN.TSDN_NOMINA n "
+        "  LEFT JOIN FAT.TFAT_CIAS c ON c.no_cia = n.no_cia "
+        " WHERE n.no_cia=:1 AND n.punto=:2 AND n.nomina=:3",
         [no_cia, punto, nomina],
     )
     return rows[0] if rows else None
@@ -994,12 +996,34 @@ def _lineas_asiento_cierre(no_cia: str, punto: str, nomina: str, cab: dict) -> d
         else:
             r['credito'] = round(r['credito'] + d['monto'], 2)
 
+    # Fetch account descriptions for resumen_cuentas
+    cuentas_en_resumen = list(resumen.keys())
+    cuentas_desc = {}
+    if cuentas_en_resumen:
+        placeholders = ','.join([':' + str(i+1) for i in range(len(cuentas_en_resumen))])
+        rows = client.fetch_dicts(
+            f"SELECT cuenta, nombre AS descripcion FROM CNT.TCNT_CATALOGO WHERE cuenta IN ({placeholders})",
+            cuentas_en_resumen,
+        )
+        for r in rows:
+            cuentas_desc[r['cuenta']] = r.get('descripcion') or ''
+
     total_debito = round(sum(r['debito'] for r in resumen.values()), 2)
     total_credito = round(sum(r['credito'] for r in resumen.values()), 2)
 
+    resumen_cuentas = []
+    for r in sorted(resumen.values(), key=lambda x: x['cuenta']):
+        cuenta = r['cuenta']
+        resumen_cuentas.append({
+            'cuenta': cuenta,
+            'descripcion': cuentas_desc.get(cuenta, ''),
+            'debito': r['debito'],
+            'credito': r['credito'],
+        })
+
     return {
         'detalle': detalle,
-        'resumen_cuentas': sorted(resumen.values(), key=lambda r: r['cuenta']),
+        'resumen_cuentas': resumen_cuentas,
         'total_debito': total_debito,
         'total_credito': total_credito,
         'cuadra': abs(total_debito - total_credito) < 0.01,
@@ -1182,18 +1206,20 @@ def volante_nomina(no_cia: str, punto: str, nomina: str) -> dict:
          'ano': ano, 'mes': mes, 'periodo': periodo},
     )
     detalle: list[dict] = []
-    sum_salario = sum_ingresos = sum_deduc = sum_neto = 0.0
+    sum_salario = sum_ingresos = sum_deduc = sum_neto = sum_salario_quincena = 0.0
     for r in rows:
         salario = float(r.get('salario_mensual') or 0)
         ingresos = float(r.get('total_ingresos') or 0)
         deduc = float(r.get('total_deducciones') or 0)
-        bruto = ingresos if ingresos > 0 else salario * fraccion_periodo
+        salario_quincena = round(salario * fraccion_periodo, 2)
+        bruto = ingresos if ingresos > 0 else salario_quincena
         neto = bruto - deduc
         detalle.append({
             'no_empleado': int(r['no_empleado']),
             'nombre_empleado': r.get('nombre_empleado') or '',
             'cedula': r.get('cedula') or '',
             'salario_mensual': salario,
+            'salario_quincena': salario_quincena,
             'total_ingresos': ingresos,
             'total_deducciones': deduc,
             'bruto': bruto,
@@ -1203,11 +1229,14 @@ def volante_nomina(no_cia: str, punto: str, nomina: str) -> dict:
         sum_ingresos += ingresos
         sum_deduc += deduc
         sum_neto += neto
+        sum_salario_quincena += salario_quincena
 
     return {
         'cabecera': {
             'no_cia': no_cia, 'punto': punto, 'nomina': nomina,
             'descripcion': cabecera.get('descripcion'),
+            'cia_descripcion': cabecera.get('cia_descripcion'),
+            'cia_razon_social': cabecera.get('cia_razon_social'),
             'ano_proceso': ano, 'mes_proceso': mes, 'periodo': periodo,
             'fecha_inicial': cabecera.get('fecha_inicial'),
             'fecha_final': cabecera.get('fecha_final'),
@@ -1220,6 +1249,7 @@ def volante_nomina(no_cia: str, punto: str, nomina: str) -> dict:
         'totales': {
             'empleados': len(detalle),
             'salario': sum_salario,
+            'salario_quincena': sum_salario_quincena,
             'ingresos': sum_ingresos,
             'deducciones': sum_deduc,
             'neto': sum_neto,
@@ -1758,14 +1788,16 @@ def rep_informe_nomina(*, no_cia: str, punto: str, nomina: str,
     fraccion_periodo = _fraccion_salario_periodo(cab)
     rows = client.fetch_dicts(sql, params)
     detalle = []
-    tot_sal = tot_ing = tot_ded = tot_neto = 0.0
+    tot_sal = tot_ing = tot_ded = tot_neto = tot_sal_quincena = 0.0
     for r in rows:
         sal = float(r.get('salario_mensual') or 0)
         ing = float(r.get('total_ingresos') or 0)
         ded = float(r.get('total_deducciones') or 0)
-        bruto = ing if ing > 0 else sal * fraccion_periodo
+        salario_quincena = round(sal * fraccion_periodo, 2)
+        bruto = ing if ing > 0 else salario_quincena
         neto = bruto - ded
         tot_sal += sal; tot_ing += ing; tot_ded += ded; tot_neto += neto
+        tot_sal_quincena += salario_quincena
         detalle.append({
             'no_empleado': int(r['no_empleado']),
             'nombre_empleado': r.get('nombre_empleado') or '',
@@ -1774,6 +1806,7 @@ def rep_informe_nomina(*, no_cia: str, punto: str, nomina: str,
             'no_area': r.get('no_area') or '',
             'no_depto': r.get('no_depto') or '',
             'salario_mensual': sal,
+            'salario_quincena': salario_quincena,
             'total_ingresos': ing,
             'total_deducciones': ded,
             'bruto': bruto,
@@ -1784,6 +1817,8 @@ def rep_informe_nomina(*, no_cia: str, punto: str, nomina: str,
         'cabecera': {
             'no_cia': no_cia, 'punto': punto, 'nomina': params['nomina'],
             'descripcion': cab.get('descripcion'),
+            'cia_descripcion': cab.get('cia_descripcion'),
+            'cia_razon_social': cab.get('cia_razon_social'),
             'ano_proceso': int(ano), 'mes_proceso': int(mes), 'periodo': int(periodo),
             'estado': cab.get('estado'),
             'calculo_nomina': cab.get('calculo_nomina'),
@@ -1792,6 +1827,7 @@ def rep_informe_nomina(*, no_cia: str, punto: str, nomina: str,
         'totales': {
             'empleados': len(detalle),
             'salario': tot_sal,
+            'salario_quincena': tot_sal_quincena,
             'ingresos': tot_ing,
             'deducciones': tot_ded,
             'neto': tot_neto,

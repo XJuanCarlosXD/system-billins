@@ -13,7 +13,7 @@ import {
 import {
   Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { FileSpreadsheet, Search, Printer } from 'lucide-react'
+import { FileSpreadsheet, Search, Printer, Building2 } from 'lucide-react'
 
 const fmt = (n: any) =>
   Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -28,6 +28,8 @@ type Nomina = {
   mes_proceso: number; ano_proceso: number; periodo?: number
   calculo_nomina: string; estado: string; tipo_moneda?: string
   cuenta_contable: string
+  cia_descripcion?: string
+  cia_razon_social?: string
 }
 
 export function SdnVolante() {
@@ -131,6 +133,11 @@ export function SdnVolante() {
 
           {nomina && (
             <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm flex flex-wrap gap-x-6 gap-y-1">
+              <span className="flex items-center gap-1">
+                <Building2 className="h-3.5 w-3.5" />
+                <span className="text-muted-foreground">Empresa: </span>
+                {nomina.cia_razon_social || nomina.cia_descripcion || selectedCompany}
+              </span>
               <span>
                 <span className="text-muted-foreground">Período: </span>
                 <span className="tabular-nums">
@@ -166,6 +173,7 @@ export function SdnVolante() {
                 <TableHead>Empleado</TableHead>
                 <TableHead className="w-32">Cédula</TableHead>
                 <TableHead className="w-32 text-right">Salario base</TableHead>
+                <TableHead className="w-32 text-right">Salario quincena</TableHead>
                 <TableHead className="w-32 text-right">Ingresos</TableHead>
                 <TableHead className="w-32 text-right">Deducciones</TableHead>
                 <TableHead className="w-32 text-right">Neto</TableHead>
@@ -174,11 +182,11 @@ export function SdnVolante() {
             </TableHeader>
             <TableBody>
               {volanteQ.isLoading ? (
-                <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                   Cargando volante…
                 </TableCell></TableRow>
               ) : empleados.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                   {busqueda
                     ? 'Sin empleados que coincidan con la búsqueda.'
                     : 'Sin empleados activos en esta nómina.'}
@@ -193,6 +201,7 @@ export function SdnVolante() {
                       <TableCell>{e.nombre_empleado}</TableCell>
                       <TableCell className="font-mono text-xs">{e.cedula}</TableCell>
                       <TableCell className="text-right tabular-nums">{fmt(e.salario_mensual)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{fmt(e.salario_quincena || 0)}</TableCell>
                       <TableCell className="text-right tabular-nums">{fmt(e.total_ingresos)}</TableCell>
                       <TableCell className="text-right tabular-nums">{fmt(e.total_deducciones)}</TableCell>
                       <TableCell className={`text-right tabular-nums font-medium ${isNeg ? 'text-destructive' : ''}`}>
@@ -226,6 +235,9 @@ export function SdnVolante() {
                   </TableCell>
                   <TableCell className="text-right tabular-nums font-medium">
                     {moneda} {fmt(totales.salario)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums font-medium">
+                    {moneda} {fmt(totales.salario_quincena || 0)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums font-medium">
                     {moneda} {fmt(totales.ingresos)}

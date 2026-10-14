@@ -20,7 +20,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { Lock, Printer, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { Lock, Printer, ShieldCheck, TriangleAlert, Building2 } from 'lucide-react'
 
 const fmt = (n: any) =>
   Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -31,6 +31,8 @@ type Nomina = {
   forma_pago: string; fecha_inicial?: string; fecha_final?: string
   mes_proceso: number; ano_proceso: number; periodo?: number
   calculo_nomina: string; estado: string; cuenta_contable: string
+  cia_descripcion?: string
+  cia_razon_social?: string
 }
 
 export function SdnCierre() {
@@ -116,6 +118,11 @@ export function SdnCierre() {
 
           {nomina && (
             <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm flex flex-wrap gap-x-6 gap-y-1">
+              <span className="flex items-center gap-1">
+                <Building2 className="h-3.5 w-3.5" />
+                <span className="text-muted-foreground">Empresa: </span>
+                {nomina.cia_razon_social || nomina.cia_descripcion || selectedCompany}
+              </span>
               <span><span className="text-muted-foreground">Período actual: </span>
                 {fmtDate(nomina.fecha_inicial)} → {fmtDate(nomina.fecha_final)}
                 {nomina.periodo ? ` (#${nomina.periodo})` : ''}
@@ -164,6 +171,7 @@ export function SdnCierre() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Cuenta</TableHead>
+                      <TableHead>Descripción</TableHead>
                       <TableHead className="text-right">Débito</TableHead>
                       <TableHead className="text-right">Crédito</TableHead>
                     </TableRow>
@@ -172,6 +180,9 @@ export function SdnCierre() {
                     {asiento.resumen_cuentas.map((r: any) => (
                       <TableRow key={r.cuenta}>
                         <TableCell className="font-mono">{r.cuenta}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground max-w-[250px] truncate" title={r.descripcion || ''}>
+                          {r.descripcion || ''}
+                        </TableCell>
                         <TableCell className="text-right font-mono tabular-nums">
                           {r.debito ? fmt(r.debito) : ''}
                         </TableCell>
@@ -182,6 +193,7 @@ export function SdnCierre() {
                     ))}
                     <TableRow className="font-semibold">
                       <TableCell>Total</TableCell>
+                      <TableCell />
                       <TableCell className="text-right font-mono tabular-nums">{fmt(asiento.total_debito)}</TableCell>
                       <TableCell className="text-right font-mono tabular-nums">{fmt(asiento.total_credito)}</TableCell>
                     </TableRow>
@@ -234,7 +246,11 @@ export function SdnCierre() {
           <CardContent className="space-y-3">
             <div className="hidden print:block text-center mb-4">
               <h2 className="text-lg font-semibold">Cierre de Nómina</h2>
-              <p className="text-sm">{nomina?.descripcion} — Cía {selectedCompany} / Punto {selectedPoint}</p>
+              <p className="text-sm">
+                {resultado.nomina?.descripcion || nomina?.descripcion} —{' '}
+                {resultado.nomina?.cia_razon_social || resultado.nomina?.cia_descripcion || nomina?.cia_razon_social || nomina?.cia_descripcion || selectedCompany}
+                {' '}/ Punto {selectedPoint}
+              </p>
             </div>
             <div className="rounded border bg-muted/40 px-3 py-2 text-sm">
               Período cerrado:{' '}
@@ -246,6 +262,7 @@ export function SdnCierre() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Cuenta</TableHead>
+                    <TableHead>Descripción</TableHead>
                     <TableHead className="text-right">Débito</TableHead>
                     <TableHead className="text-right">Crédito</TableHead>
                   </TableRow>
@@ -254,6 +271,9 @@ export function SdnCierre() {
                   {resultado.asiento.resumen_cuentas.map((r: any) => (
                     <TableRow key={r.cuenta}>
                       <TableCell className="font-mono">{r.cuenta}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-[250px] truncate" title={r.descripcion || ''}>
+                        {r.descripcion || ''}
+                      </TableCell>
                       <TableCell className="text-right font-mono tabular-nums">
                         {r.debito ? fmt(r.debito) : ''}
                       </TableCell>
@@ -264,6 +284,7 @@ export function SdnCierre() {
                   ))}
                   <TableRow className="font-semibold">
                     <TableCell>Total</TableCell>
+                    <TableCell />
                     <TableCell className="text-right font-mono tabular-nums">{fmt(resultado.asiento.total_debito)}</TableCell>
                     <TableCell className="text-right font-mono tabular-nums">{fmt(resultado.asiento.total_credito)}</TableCell>
                   </TableRow>
@@ -287,6 +308,11 @@ export function SdnCierre() {
           {nomina && asiento && siguiente && (
             <div className="space-y-3 text-sm">
               <div className="rounded border bg-muted/40 p-3">
+                <div className="flex items-center gap-1 mb-2">
+                  <Building2 className="h-3.5 w-3.5" />
+                  <span className="text-muted-foreground">Empresa: </span>
+                  {nomina.cia_razon_social || nomina.cia_descripcion || selectedCompany}
+                </div>
                 Se generará el asiento contable del período{' '}
                 <b>{fmtDate(nomina.fecha_inicial)} → {fmtDate(nomina.fecha_final)}</b>{' '}
                 (total RD$ {fmt(asiento.total_debito)}) y la nómina quedará lista para

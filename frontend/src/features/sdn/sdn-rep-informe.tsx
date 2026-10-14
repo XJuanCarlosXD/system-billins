@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { Search, FileDown, Printer } from 'lucide-react'
+import { Search, FileDown, Printer, Building2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 const fmt = (n: number) =>
@@ -76,7 +76,7 @@ export function SdnRepInforme() {
   const exportCsv = () => {
     if (!data) return
     const headers = ['Empleado', 'Nombre', 'Cedula', 'Gerencia', 'Area', 'Depto',
-      'Salario', 'Ingresos', 'Deducciones', 'Bruto', 'Neto']
+      'Salario base', 'Salario quincena', 'Ingresos', 'Deducciones', 'Bruto', 'Neto']
     const esc = (v: any) => {
       const s = String(v ?? '')
       return s.includes(',') || s.includes('"') || s.includes('\n')
@@ -84,7 +84,7 @@ export function SdnRepInforme() {
     }
     const rows = filas.map((r) => [r.no_empleado, r.nombre_empleado, r.cedula,
       r.no_gerencia, r.no_area, r.no_depto,
-      r.salario_mensual, r.total_ingresos, r.total_deducciones, r.bruto, r.neto])
+      r.salario_mensual, r.salario_quincena || 0, r.total_ingresos, r.total_deducciones, r.bruto, r.neto])
     const csv = [headers, ...rows].map((row) => row.map(esc).join(',')).join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
     const a = document.createElement('a')
@@ -113,6 +113,15 @@ export function SdnRepInforme() {
           <i className="mx-1">Fsdn207</i> · tablas <code>TSDN_MOVIMIENTO</code> + <code>TSDN_EMPLEADO</code>.
         </p>
       </div>
+      {data && data.cabecera && (
+        <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm flex items-center gap-4">
+          <span className="flex items-center gap-1">
+            <Building2 className="h-3.5 w-3.5" />
+            <span className="text-muted-foreground">Empresa: </span>
+            {data.cabecera.cia_razon_social || data.cabecera.cia_descripcion || selectedCompany}
+          </span>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-6 items-end gap-3 rounded border bg-muted/30 p-3">
         <div className="col-span-2">
@@ -226,7 +235,7 @@ export function SdnRepInforme() {
       </div>
 
       {data && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Empleados</CardTitle></CardHeader>
             <CardContent className="text-xl font-semibold">{data.totales.empleados}</CardContent>
@@ -234,6 +243,10 @@ export function SdnRepInforme() {
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Salario base</CardTitle></CardHeader>
             <CardContent className="text-xl font-semibold">RD$ {fmt(data.totales.salario)}</CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Salario quincena</CardTitle></CardHeader>
+            <CardContent className="text-xl font-semibold">RD$ {fmt(data.totales.salario_quincena || 0)}</CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Ingresos</CardTitle></CardHeader>
@@ -261,7 +274,8 @@ export function SdnRepInforme() {
                 <TableHead className="w-16">Ger.</TableHead>
                 <TableHead className="w-16">Área</TableHead>
                 <TableHead className="w-16">Depto.</TableHead>
-                <TableHead className="text-right">Salario</TableHead>
+                <TableHead className="text-right">Salario base</TableHead>
+                <TableHead className="text-right">Salario quincena</TableHead>
                 <TableHead className="text-right">Ingresos</TableHead>
                 <TableHead className="text-right">Deducciones</TableHead>
                 <TableHead className="text-right">Bruto</TableHead>
@@ -278,6 +292,7 @@ export function SdnRepInforme() {
                   <TableCell className="text-xs">{r.no_area}</TableCell>
                   <TableCell className="text-xs">{r.no_depto}</TableCell>
                   <TableCell className="text-right font-mono tabular-nums">{fmt(r.salario_mensual)}</TableCell>
+                  <TableCell className="text-right font-mono tabular-nums">{fmt(r.salario_quincena || 0)}</TableCell>
                   <TableCell className="text-right font-mono tabular-nums">{fmt(r.total_ingresos)}</TableCell>
                   <TableCell className="text-right font-mono tabular-nums">{fmt(r.total_deducciones)}</TableCell>
                   <TableCell className="text-right font-mono tabular-nums">{fmt(r.bruto)}</TableCell>
@@ -286,7 +301,7 @@ export function SdnRepInforme() {
               ))}
               {filas.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center text-muted-foreground py-6">
+                  <TableCell colSpan={12} className="text-center text-muted-foreground py-6">
                     Sin empleados que cumplan los filtros.
                   </TableCell>
                 </TableRow>
