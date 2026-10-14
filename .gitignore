@@ -58,3 +58,13 @@ Thumbs.db
 
 # Claude Code worktrees (agent-managed isolated workspaces)
 .claude/worktrees/
+.worktrees/
+
+# Scratch and tool state (per-session, not shared)
+.tmp/
+frontend/.tmp/
+.playwright-mcp/
+
+# One-shot runner probe scripts (ad-hoc; delete after use)
+frontend/_poll_*.mjs
+frontend/_probe_*.mjs

@@ -1,0 +1,1658 @@
+ÍNDICE.
+
+Bitácora ......................................................................................................3
+Propósito ....................................................................................................6
+Lenguaje Estándar de Comunicación...........................................................6
+Descripción de Ambientes ..........................................................................6
+Descripción de Servicios .............................................................................8
+
+  Autenticación..................................................................................................................... 8
+  Recepción de e-CF ........................................................................................................... 12
+  Recepción de resumen factura de consumo electrónica (RFCE)..................................... 15
+  Consulta de Resumen de Factura de Consumo Electrónica (RFCE) ................................ 19
+  Consulta de resultado e-CF.............................................................................................. 22
+  Consulta de estado e-CF .................................................................................................. 26
+  Consulta de trackId e-CF.................................................................................................. 29
+  Recepción de aprobación comercial ............................................................................... 31
+  Anulación de e-NCF ......................................................................................................... 34
+  Consulta Directorio de Servicios...................................................................................... 37
+  Consulta timbre (QR) ....................................................................................................... 40
+  Consulta timbre FC (QR) .................................................................................................. 42
+  Comunicación Emisor-Receptor ...................................................................................... 44
+
+Recomendaciones ..................................................................................... 46
+
+                                                       2
+Bitácora
+
+Actualizaciones al 02-01-2026
+ 1) Se actualizó la fecha de vencimiento de las secuencias habilitadas a los contribuyentes
+      para fines de prueba en el ambiente de precertificación.
+ 2) Se agrega la disponibilidad del servicio ConsultaRFCE en el ambiente de certificación y
+      precertificación.
+ 3) Se agrega la disponibilidad del servicio ConsultaTimbreFC en el ambiente de
+      certificación.
+ 4) Se segrega en dos documentos la Descripción Técnica de Facturación Electrónica:
+          a. Descripción Técnica Servicios DGII
+          b. Descripción Técnica Servicios Emisores Electrónicos
+
+Actualizaciones al 03-04-2025
+      1) Se agregó la URL del servicio de Recepción de Facturas de Consumo (FC) para el
+      ambiente de certificación ya que se encuentra disponible.
+      2) Se agregaron nuevos caracteres de escape de restricciones de Contenido y/o
+      Caracteres en los XML.
+
+Actualizaciones al 12-06-2023
+    1) Se agregó un nuevo servicio de consulta de Resúmenes de factura que permite
+         consultar dado un RNC, ENCF y Código de seguridad un comprobante en particular
+         para ver el estado de este.
+
+Actualizaciones al 18-05-2023
+  1) Se agregó un nuevo endpoint al servicio de consulta directorio que permite filtrar por
+       un RNC en particular.
+  2) Se agregaron descripciones de los parámetros de salida de todos los servicios de
+       Impuestos Internos.
+  3) Se agregaron nuevos puntos a los requerimientos generales del estándar de
+       comunicación emisor - receptor.
+       - Servicios no sensitivos a mayúsculas y minúsculas.
+       - Uso de puertos de red tradicionales.
+  4) Se incluyeron dos parámetros "encf" y "secuenciaUtilizada" a la respuesta del servicio
+       de Recepción del resumen de factura de consumo electrónica para retroalimentar
+       cuando el número de comprobante fiscal electrónico (eNCF) puede ser reutilizado.
+  5) Se incluyó el estado de disponibilidad de los servicios del ambiente de precertificación
+
+                                                       3
+  6) Se agregó una referencia al formato de fecha universal que debe ser utilizado en los
+       parámetros de fecha expedición y expiración del token retornado por el servicio de
+       autenticación.
+
+Actualizaciones al 18-04-2022
+ 1) Se incluyeron dos parámetros a la respuesta del servicio de Consulta Resultado para
+      retroalimentar cuando el número del comprobante fiscal electrónico (eNCF) puede ser
+      reutilizado.
+ 2) Se especifica el estándar para el formato de codificación de caracteres.
+ 3) Se especifica el estándar para el nombre de archivo de todos los formatos.
+ 4) Se actualiza el periodo de vigencia de los envíos realizados en el ambiente de
+      precertificación.
+
+Actualizaciones al 28-12-2021
+ 5) Se actualizó la fecha de vencimiento de las secuencias habilitadas a los contribuyentes
+      para fines de prueba en el ambiente de precertificación.
+
+Actualizaciones al 01-03-2021
+  1) Se agregaron dos nuevos endpoint al servicio de Emisor/Receptor del ambiente de
+      pruebas para recibir aprobaciones comerciales y autenticarse.
+  2) Se modificó la descripción del servicio de consulta directorio para destacar la
+       funcionalidad de este según el ambiente de interacción.
+
+Actualizaciones al 28-12-2020
+ 1) Se modificó el nombre de la subsección `Restricciones de caracteres' a `Restricciones
+      de contenido y/o caracteres' y se agregó en la misma él no incluir tags vacíos en los
+      XML.
+  2) Se quitaron las URL del servicio de anulación rangos, consulta estado, consulta
+       trackids y consulta directorio para el ambiente de certificación conforme a que en el
+       mismo aún no se encuentran disponibles para el público.
+  3) Se completó la URL del servicio de Emisor Receptor del ambiente de pruebas,
+       agregando al final de esta los recursos `/help/index.html'.
+
+Actualizaciones al 02-10-2020
+ 3) Se agregó a modo referencia una barra inclinada al final de la URL del swagger del
+      servicio de Recepción de Facturas de Consumo (FC).
+
+ 4) Se quitó la URL del servicio de Recepción de Facturas de Consumo (FC) para el
+      ambiente de certificación conforme a que el mismo aún no se encuentra disponible
+      para el público.
+
+                                                       4
+ 5) Se especificó tanto en la descripción del servicio de recepción como en el estándar de
+      facturación electrónica, el formato que debe ser utilizado para el nombre de los
+      archivos (XML).
+
+ 6) Se agregaron puntos a tomar en cuenta con respecto al firmado de eCF en los
+      requerimientos generales, así como recomendaciones a fines.
+
+ 7) Se le agregó el parámetro de la URL de autenticación al servicio de Envío de
+      comprobantes en pre-certificación.
+
+ 8) Se agregó un cuadro con las restricciones de caracteres con respecto al código de
+      seguridad de los QR conforme al uso apropiado para una composición de una URL.
+
+ 9) Se agrego el nuevo servicio de Emisor-Receptor con la descripción y estructura de los
+      siguientes endpoint para su interacción:
+
+           · EmisionComprobantes
+           · Consulta de acuse de recibo
+           · RecepcioneCF
+
+ 10) Se agrego a las URL base la estructura del dominio de los resúmenes de factura de
+      consumo electrónica.
+
+Actualizaciones al 30-04-2020
+    1) Se modifican las URL del servicio de recepción del resumen de factura de consumo
+         electrónica y el servicio de consulta timbre de dichas facturas de consumo
+         electrónica conforme a un cambio de dominio.
+
+Actualizaciones al 22-04-2020
+    1) Se agregó referencia a informaciones importantes del ambiente de pre-certificación
+         en el acápite de descripción de ambientes.
+
+    2) Se agregó la descripción y estructura del nuevo servicio de consulta trackids al
+         acápite de descripción de servicios web.
+
+                                                       5
+Propósito
+
+El presente documento tiene por objetivo describir los aspectos técnicos que
+conforman el sistema fiscal de facturación electrónica de la Dirección General de
+Impuestos Internos (DGII), tales como el lenguaje de comunicación, ambientes y
+servicios web existentes.
+
+Lenguaje Estándar de Comunicación
+
+Para el intercambio de información, se tiene establecido el lenguaje extensible de
+marcas (XML), un estándar que a través de servicios permite el intercambio de
+información entre plataformas heterogéneas.
+
+Para cada operación que se estará realizando en Facturación Electrónica, la autoridad
+tributaria dispone de un formato preestablecido que describe los datos y validaciones
+que estas operaciones contemplan, adicional a un XSD a modo de referencia estructural
+de dichos XML.
+
+Cada formato cuenta con un tag (etiqueta) por el cual se le reconoce, detallado a
+continuación:
+
+                 Formato XML           Etiqueta madre (Obligatoria)
+Formato e-CF                                         ECF
+Formato Aprobación Comercial
+Formato Acuse de Recibo                            ACECF
+Formato Anulación de Secuencias e-NCF              ARECF
+Formato de Resumen Factura de Consumo              ANECF
+(32 < 250,000.00)
+                                                    RFCE
+
+Descripción de Ambientes
+
+En Facturación Electrónica, un ambiente es un entorno que permite a los
+contribuyentes interactuar con los servicios de la Autoridad Tributaria en un contexto
+particular, contándose actualmente con los siguientes:
+
+                                                       6
+· Pre-Certificación: publica los servicios a efectos de que los contribuyentes
+    puedan realizar pruebas de adecuación e integración de sus sistemas,
+    almacenando los envíos por un periodo de 60 días.
+
+    Todo contribuyente habilitado en este ambiente dispone por tipo de
+    comprobante de un rango de secuencias de 1 a 10,000,000, a excepción de las
+    facturas de consumo electrónicas (32) que disponen de un rango de 1 a
+    50,000,000.
+
+    La fecha de vencimiento de estas secuencias corresponde al 31-12-2028, a
+    excepción de las facturas de consumo electrónicas (32) y las notas de crédito
+    electrónica (34) que no llevan fecha de vencimiento de secuencia.
+
+· Certificación: ambiente que tiene por objetivo validar capacidades por parte del
+    sistema del contribuyente previo a su incorporación productiva al sistema fiscal
+    de facturación electrónica, debiendo para ello agotar un conjunto de pruebas
+    que requieren el uso de los servicios web.
+
+· Producción: ambiente productivo donde toda operación de envío tiene validez
+    fiscal.
+
+Pre-Certificación
+  Ambientes
+
+Producción  Certificación
+
+Ilustración de ambientes.
+
+En cada URL base de los diferentes ambientes se puede encontrar el documento
+Swagger (OpenAPI) el cual especifica la lista de recursos disponibles en el API REST y las
+operaciones (Métodos) a los que se puede invocar en cada uno de ellos, con sus
+parámetros y posibles respuestas.
+
+A continuación, podrán identificar la estructura definida para la comunicación o
+invocación de los servicios de facturación electrónica según el ambiente:
+
+                                                       7
+Descripción de Servicios
+
+       Conjunto de protocolos y estándares que en este caso mediante el uso del lenguaje
+       extensible de marcas (XML) y arquitectura API REST, permiten el intercambio de datos
+       entre los softwares de facturación heterogéneos de los contribuyentes y la autoridad
+       tributaria a través de un entorno definido como {Ambiente}, encontrándose en
+       facturación electrónica los siguientes:
+
+     Autenticación
+
+       Servicio web responsable de generar una sesión para el contribuyente, validando su
+       identidad mediante el uso de un certificado digital sobre un archivo (Semilla) que
+       obtendrá de una petición y el cual, deberá enviar firmado para recibir un token con una
+       duración determinada (1 hora por el momento).
+
+                                                               8
+Con la entrega de dicho token el contribuyente podrá utilizar los restantes servicios de
+facturación electrónica, especificándolo como header de autorización de los requests
+(Authorization: Bearer {token}).
+
+URLs del servicio
+
+ · TesteCF: Ambiente de pre-certificación:
+      https://ecf.dgii.gov.do/testecf/autenticacion
+
+ · CerteCF: Ambiente de certificación:
+      https://ecf.dgii.gov.do/certecf/autenticacion
+
+ · eCF: Ambiente de producción:
+      https://ecf.dgii.gov.do/ecf/autenticacion
+
+Métodos y parámetros
+
+Dentro de la URL, se encontrarán los siguientes dos (2) recursos (Endpoint):
+                              OBTENER ARCHIVO: SEMILLA
+
+                                                       9
+DESCRIPCION    Retorna el archivo semilla (en formato XML) que permitirá
+               obtener el token.
+  MÉTODO
+  RECURSO      GET
+ (ENDPOINT)
+REQUEST URL    /api/autenticacion/semilla
+
+               https://ecf.dgii.gov.do/{ambiente}/autenticacion/api/autenti
+               cacion/semilla
+               curl -X 'GET' \
+
+ EJEMPLO CURL  'https://ecf.dgii.gov.do/testecf/autenticacion/api/autenticaci
+    ENTRADA    on/semilla' \
+                -H 'accept: */*' \
+      SALIDA   Parámetros de entrada
+               N/A
+  DESCRIPCION  Respuesta en formato XML
+PARAMETROS DE
+                            <?xml version="1.0" encoding="utf-8"?>
+      SALIDA                <SemillaModel
+                           xmlns:xsi="http://www.w3.org/2001/XMLSchema-
+                           instance"
+                           xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+                           <valor>0000000-0000-0000-0000-
+                           000000000000</valor>
+                            <fecha>2019-03-13T14:33:32.8617792-
+                           04:00</fecha>
+                            </SemillaModel>
+                   - Valor: valor de la semilla, secuencia de caracteres
+                        encriptados.
+                   - Fecha: fecha y hora en la cual se generó el archivo
+                        semilla.
+
+               VALIDACIÓN DE ARCHIVO: VALIDAR SEMILLA
+
+DESCRIPCION    Permite el envío del archivo (Semilla) firmado y retorna un
+               objeto que contiene un string (token) asociado a una fecha
+               de emisión y una fecha de expiración del token recibido.
+
+MÉTODO         POST
+
+                     10
+  RECURSO     /api/autenticacion/validarsemilla
+ (ENDPOINT)
+              https://ecf.dgii.gov.do/{ambiente}/autenticacion/api/autent
+REQUEST URL   icacion/validarsemilla
+              curl -X 'POST' \
+
+EJEMPLO CURL  'https://ecf.dgii.gov.do/testecf/autenticacion/api/autenticac
+              ion/validarsemilla' \
+
+               -H 'accept: application/json' \
+
+              -H 'Content-Type: multipart/form-data' \
+
+              -F 'xml=@response_1659304894166.xml;type=text/xml'
+
+ENTRADA       Parámetros de entrada
+              xml*
+
+              Respuesta en formato JSON
+                             {
+                               "token": "string",
+
+FORMATOS                       "expira": " yyyy-MM-ddTHH:mm:ssZ ",
+  SALIDA
+                               "expedido": " yyyy-MM-ddTHH:mm:ssZ"
+
+                             }
+              Respuesta en formato XML
+
+                         <?xml version="1.0" encoding="UTF-8"?>
+
+                                     <RespuestaAutenticacion>
+                                              <token>string</token>
+
+              <expira>yyyy-MM-ddTHH:mm:ssZ </expira>
+              <expedido>yyyy-MM-ddTHH:mm:ssZ </expedido>
+
+                                   </RespuestaAutenticacion>
+
+              11
+  DESCRIPCION  - Token: valor emitido por Impuestos Internos como
+PARAMETROS DE      llave de seguridad para utilizar los servicios de
+                   Facturación Electrónica.
+      SALIDA
+               - Expira: fecha y hora en la cual expira el token recibido.
+               - Expedido: fecha y hora en la cual se recibió el token.
+
+Ver RCF 6750 (https://tools.ietf.org/html/rfc6750) para más información sobre la autenticación
+por tokens.
+
+  Recepción de e-CF
+
+   Servicio web responsable de recibir un e-CF tentativo (XML firmado digitalmente) y un
+   token asociado a una sesión válida y en respuesta retornar un objeto que contiene un
+   string denominado TrackId a modo de acuse de recibo, con el cual, el contribuyente
+   podrá consultar el estado de su validación.
+
+   La recepción del TrackId y haber recibido un estado de validación satisfactorio, habilita
+   al emisor al envío del e-CF al receptor y en caso de que este no sea electrónico, la
+   entrega de la correspondiente representación impresa.
+
+   Las Facturas de Consumo Electrónicas con un monto inferior a los RD$250,000.00 no
+   serán recibidas por este servicio, se deberá remitir un resumen de este al servicio
+   recepción de resumen factura de consumo e-CF.
+
+  Adicionalmente, los archivos XML que representan los e-CF deberán seguir el siguiente
+  estándar de nombre para tener una mejor gestión de estos:
+
+  · Formato: RNC+e-NCF.
+  · Ejemplo: "101672919E3100000001.xml"
+
+               12
+URLs del servicio
+
+ · TesteCF: Ambiente de pre-certificación:
+      https://ecf.dgii.gov.do/testecf/recepcion
+
+· CerteCF: Ambiente de certificación:
+    https://ecf.dgii.gov.do/certecf/recepcion
+
+· eCF: Ambiente de producción:
+    https://ecf.dgii.gov.do/ecf/recepcion
+
+Métodos y parámetros
+
+  MÉTODO    POST
+            /api/facturaselectronicas
+ RECURSO
+(ENDPOINT)
+
+                      https://ecf.dgii.gov.do/{ambiente}/recepcion/api/facturasele
+REQUEST URL
+
+                      ctronicas
+
+                      13
+              curl -X 'POST' \
+
+EJEMPLO CURL  'https://ecf.dgii.gov.do/testecf/recepcion/api/facturaselectr
+   ENTRADA    onicas' \
+               -H 'accept: application/json' \
+               -H 'Authorization: bearer
+              eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZ
+              W1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5
+              L2NsYWltcy9uYW1lIjoiMDAxOTk5OTk5OTYiLCJqdGkiOiI2Mzh
+              jZDdjNS0xY2NlLTQyMmUtYjNkMC0wMGQ4MTczMzYxNWUi
+              LCJuYmYiOjE2NTkzMDY5NzIsImV4cCI6MTY1OTMxMDU3Mi
+              wiaXNzIjoiREdJSS5GRSIsImF1ZCI6IlVTVUFSSU9TLkRHSUkuRk
+              UifQ.4qk1-0iqWkXcBC-n_JTEYoeniie90-ZnXSc8ya1l8Yw' \
+               -H 'Content-Type: multipart/form-data' \
+               -F 'xml=@response_1659304894166.xml;type=text/xml'
+              Parámetros de entrada
+              xml*
+
+              Respuesta en formato JSON
+                     {
+                      "trackId": "string",
+
+FORMATOS       "error": "string",
+  SALIDA       "mensaje": "string"
+              }
+
+                                14
+               Respuesta en formato XML
+
+               <?xml version="1.0" encoding="UTF-8"?>
+
+               <RespuestaRecepcion>
+
+               <trackId>string</trackId>
+
+               <error>string</error>
+
+               <mensaje>string</mensaje>
+
+               </RespuestaRecepcion>
+
+  DESCRIPCION  - Trackid: número único generado por Impuestos Internos
+PARAMETROS DE      a un e-CF recibido.
+
+      SALIDA   - Error: motivo del mensaje de error recibido (Si aplica).
+               - Mensaje: mensaje asociado a un error recibido al
+
+                   intentar enviar un e-CF (Si aplica).
+
+Recepción de resumen factura de consumo electrónica (RFCE)
+
+Servicio web responsable de recibir un resumen que contiene las informaciones
+principales del e-CF correspondiente a Facturas de Consumo Electrónicas con un monto
+inferior a los RD$250,000.00 (XML firmado digitalmente) y un token asociado a una
+sesión válida y en respuesta retornar Aceptado en caso de recepción y procesamiento
+exitoso, Aceptado condicional de encontrarse que no cumplió en algún punto pero que
+no ameritó el rechazo de este o de lo contrario Rechazado.
+
+A pesar de que estaremos recibiendo un resumen, el contribuyente deberá conservar
+el e-CF extendido correspondiente a la Factura de Consumo Electrónica para futuros
+procesos en que se ameriten.
+
+Los e-CF correspondientes a Factura de Consumo Electrónica con un monto superior o
+igual a los RD$250,000.00 deben ser remitidas en su totalidad (todas las informaciones
+correspondientes a este e-CF) por el servicio de Recepción de e-CF.
+
+               15
+Adicionalmente, los archivos XML que representan los e-CF y sus RFCE deberán seguir
+el siguiente estándar de nombre para tener una mejor gestión de estos:
+· Formato: RNC+e-NCF.
+· Ejemplo: "101672919E3200000001.xml"
+
+URLs del servicio
+
+ · TesteCF: Ambiente de pre-certificación:
+      https://fc.dgii.gov.do/testecf/recepcionfc/
+
+· CerteCF: Ambiente de certificación:
+    https://fc.dgii.gov.do/Certecf/recepcionfc/
+
+ · eCF: Ambiente de producción:
+      https://fc.dgii.gov.do/ecf/recepcionfc/
+
+Métodos y parámetros
+
+  MÉTODO     POST
+  RECURSO    /api/recepcion/ecf
+ (ENDPOINT)  https://fc.dgii.gov.do/{ambiente}/recepcionfc/api/recepcion/ecf
+
+REQUEST URL
+
+             16
+EJEMPLO CURL  curl -X POST
+   ENTRADA    "https://fc.dgii.gov.do/testecf/recepcionfc/api/recepcion/ecf"
+              -H "accept: application/json"
+  FORMATOS    -H "Authorization: bearer
+    SALIDA    eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1h
+              cy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWl
+              tcy9uYW1lIjoiMDAxOTk5OTk5OTYiLCJqdGkiOiI2MzhjZDdjNS0xY2
+              NlLTQyMmUtYjNkMC0wMGQ4MTczMzYxNWUiLCJuYmYiOjE2NT
+              kzMDY5NzIsImV4cCI6MTY1OTMxMDU3MiwiaXNzIjoiREdJSS5GRS
+              IsImF1ZCI6IlVTVUFSSU9TLkRHSUkuRkUifQ.4qk1-0iqWkXcBC-
+              n_JTEYoeniie90-ZnXSc8ya1l8Yw"
+              -H "Content-Type: multipart/form-data"
+              -F
+              "xml=@response_1659306932058_180702.xml;type=text/xml"
+              Parámetros de entrada
+              xml*
+              Respuesta en formato JSON
+
+                     {
+                       "codigo": 1,
+                       "estado": "string",
+                       "mensajes": [
+                        {
+
+                         "codigo": "string",
+                         "valor": "string"
+                        }
+                       ],
+                       "encf": "string",
+                       "secuenciaUtilizada": true
+                     }
+              Respuesta en formato XML
+
+              <?xml version="1.0" encoding="UTF-8"?>
+              <Respuesta>
+              <codigo>1</codigo>
+              <estado>string</estado>
+              <mensajes>
+
+                       <codigo>string</codigo>
+                       <valor>string</valor>
+              </mensajes>
+
+                                17
+  DESCRIPCION   <encf>string</encf>
+PARAMETROS DE   <secuenciaUtilizada>true</secuenciaUtilizada>
+                </Respuesta>
+      SALIDA   - Código: código asociado al estado de validación del
+
+                   resumen de factura de consumo recibido.
+               - estado: estado de validación otorgado por Impuestos
+
+                   Internos al resumen de factura de consumo recibido.
+               - mensajes: mensajes y códigos asociados al estado de
+
+                   validación del resumen de factura de consumo
+                   recibido.
+               - encf: número de secuencia utilizada por el
+                   contribuyente en el resumen de factura de consumo.
+               - secuenciaUtilizada: permite dar a conocer si el
+                   número de secuencia que fue recibido por
+                   Impuestos Internos puede reutilizarse en otro
+                   Resumen de Factura de Consumo en el escenario de
+                   que el resultado de la validación haya sido
+                   "Rechazado" por los siguientes motivos:
+
+                      · Certificado y/o firma inválida.
+                      · Estructura del comprobante (XML) no es
+
+                          válida.
+                      · Firmante del comprobante fiscal electrónico
+
+                          no corresponde a un delegado autorizado
+                          para hacer transacciones para el RNC Emisor.
+                      · El e-NCF no está autorizado para el RNC
+                          Emisor del comprobante fiscal electrónico.
+                      · El e-NCF autorizado se encuentra vencido a la
+                          fecha de envío del comprobante fiscal
+                          electrónico.
+                      · El RNC Emisor del comprobante no
+                          corresponde a un emisor electrónico.
+                      · El RNC Emisor no existe.
+                      · El RNC Emisor no se encuentra activo.
+
+                 Posibles valores del parámetro:
+
+               18
+                                       · True = No puede reutilizarse la secuencia.
+                                       · False = Puede reutilizarse la secuencia.
+
+Consulta de Resumen de Factura de Consumo Electrónica (RFCE)
+
+Servicio web responsable de responder la validez o estado de un resumen de factura
+de consumo inferior a los RD$250,000.00, a través de la presentación del RNC emisor,
+e-NCF, el código de seguridad y un token asociado a una sesión válida, y en respuesta
+retornar Aceptado en caso de recepción y procesamiento exitoso, Aceptado
+condicional de encontrarse que no cumplió en algún punto pero que no ameritó el
+rechazo de este o de lo contrario Rechazado.
+
+URL del servicio
+
+ · TesteCF: Ambiente de pre-certificación:
+                                                      19
+    https://fc.dgii.gov.do/testecf/consultarfce
+· CerteCF: Ambiente de certificación:
+
+    https://fc.dgii.gov.do/certecf/consultarfce
+· eCF: Ambiente de producción:
+
+    https://fc.dgii.gov.do/ecf/consultarfce
+
+Métodos y parámetros
+
+MÉTODO        GET
+
+  RECURSO     /api/Consultas/Consulta
+ (ENDPOINT)
+              https://fc.dgii.gov.do/ecf/consultarfce/api/Consultas/Consul
+REQUEST URL   ta?RNC_Emisor=111111111&ENCF=E320000000000&Cod_S
+              eguridad_eCF=XXXXXX
+              curl -X 'GET' \
+
+EJEMPLO CURL  'https://fc.dgii.gov.do/ecf/consultarfce/api/Consultas/Consu
+   ENTRADA    lta?RNC_Emisor=111111111&ENCF=
+              E320000000000&Cod_Seguridad_eCF=XXXXXX' \
+
+                -H 'accept: application/json' \
+
+                -H 'Authorization: bearer
+              eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZ
+              W1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR
+              5L2NsYWltcy9uYW1lIjoiMDAxOTk5OTk5OTYiLCJqdGkiOiJmN
+              mM1MmIzZi1iM2I4LTQzMTEtYmIxZC01ZjhiMjE1NGI1MjEiLC
+              JuYmYiOjE2ODU5NzY5NjEsImV4cCI6MTY4NTk4MDU2MSwia
+              XNzIjoiREdJSS5GRSIsImF1ZCI6IlVTVUFSSU9TLkRHSUkuRkUif
+              Q.atKesEcKiSJ_JOCKMD1HsafV6qDxxeEdhSjWLKdotjg'
+
+              Parámetros de entrada
+              RncEmisor *
+
+              ENCF *
+
+              CodigoSeguridad *
+
+                      20
+                 Respuesta en formato JSON
+
+                 {
+
+                    "rnc": "string",
+
+                    "encf": "string",
+
+                    "secuenciaUtilizada": true,
+
+                    "codigo": "string",
+
+FORMATOS SALIDA     "estado": "string",
+                    "mensajes": [
+
+                       {
+
+                          "valor": "string",
+
+                          "codigo": 0
+
+                       }
+
+                    ]
+
+                 }
+
+                 - Código: código asociado al estado de validación del e-CF
+
+                 recibido.
+
+                 - Estado: estado de validación otorgado por Impuestos
+
+                 Internos al e-CF recibido.
+
+DESCRIPCION      - RncEmisor: número de registro nacional del
+PARAMETROS           contribuyente que envió el e-CF.
+
+  DE SALIDA      - NcfElectronico: número de secuencia utilizada por el
+                     contribuyente en el e-NCF.
+
+                 - codigoSeguridad: extraído de los primeros seis (6) dígitos
+
+                 del hash generado en el SignatureValue de la firma digital
+
+                 que viene en el tag CodigoSeguridadeCF del resumen de
+
+                 factura.
+
+ESTADOS SALIDA   · No encontrado (0): implica que no se encontró el
+                     comprobante en los registros, pudiendo deberse a que
+                     aún no haya sido reportado.
+
+                 · Aceptado (1): implica que el e-CF generado por el emisor
+                     fue aceptado y tiene validez fiscal.
+
+                 · Rechazado (2): corresponde a la nulidad del comprobante
+                     generado por el emisor.
+
+                 Nota: en adición a los estados anteriores, temporalmente el servicio
+                 permite visualizar comprobantes cuyo estado es `Aceptado condicional'
+                 exclusivamente para Facturas de Consumo Electrónicas con un monto
+                 inferior a los RD$250,000.00.
+
+                            21
+Consulta de resultado e-CF
+
+Servicio web responsable de retornar el estado de procesamiento o validez del e-CF
+tentativo enviado exclusivamente mediante el servicio web de recepción de e-CF, a
+través de la presentación de un TrackId y un token asociado a una sesión válida.
+
+URLs del servicio
+
+ · TesteCF: Ambiente de pre-certificación:
+      https://ecf.dgii.gov.do/testecf/consultaresultado
+
+ · CerteCF: Ambiente de certificación:
+      https://ecf.dgii.gov.do/certecf/consultaresultado
+
+ · eCF: Ambiente de producción:
+      https://ecf.dgii.gov.do/ecf/consultaresultado
+
+Métodos y parámetros
+
+ MÉTODO     GET
+            /api/consultas/estado
+ RECURSO
+(ENDPOINT)
+
+                      22
+REQUEST URL https://ecf.dgii.gov.do/{ambiente}/consultaresultado/api/consu
+                      ltas/estado?trackid={trackid}
+
+              curl -X 'GET' \
+
+EJEMPLO CURL  'https://ecf.dgii.gov.do/testecf/consultaresultado/api/consultas/esta
+   ENTRADA    do?trackid=ddddd' \
+               -H 'accept: application/json' \
+               -H 'Authorization: bearer
+              eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy5
+              4biLCJqdGkiOiI0wMGQ4MTczMzYxNWUiLCJuYmYiOjE2NTkzMD-
+              ZnXSc8ya1l8Yw'
+              Parámetros de entrada
+
+              TrackId*
+
+FORMATOS      Respuesta en formato JSON
+  SALIDA              {
+                       "trackId": "string",
+                       "codigo": 0,
+                      "estado": "string",
+                      "rnc": "string",
+                      "eNCF": "string",
+                      "secuenciaUtilizada": true,
+                      "fechaRecepcion": "string",
+                      "mensajes": [
+                        {
+                         "valor": "string",
+                         "codigo": 0
+                        }
+                      ]
+                     }
+
+                               23
+  DESCRIPCION  Respuesta en formato XML
+PARAMETROS DE  <?xml version="1.0" encoding="UTF-8"?>
+               <RespuestaConsultaTrackId>
+      SALIDA
+                        <trackId>string</trackId>
+                                 <codigo>0</codigo >
+
+                        <estado>string</estado>
+                        <rnc>string</rnc>
+                        <encf>string</ encf >
+                        < secuenciaUtilizada>true</ secuenciaUtilizada>
+                        <fechaRecepcion>string</fechaRecepcion>
+                        <mensajes>
+
+                                 <valor>string</valor>
+                                 <codigo>0</codigo>
+                        </mensajes>
+               </RespuestaConsultaTrackId>
+                   - trackId: número único generado por Impuestos Internos a un
+                       e-CF recibido.
+                   - Código: código asociado al estado de validación del e-CF
+                       recibido.
+                   - Estado: estado de validación otorgado por Impuestos
+                       Internos al e-CF recibido.
+                   - Rnc: número de registro nacional del contribuyente que envió
+                       el e-CF.
+                   - eNCF: número de secuencia utilizada por el contribuyente en
+                       el e-CF.
+                   - fechaRecepcion: fecha en la cual Impuestos Internos recibió el
+                       e-CF.
+                   - mensajes: mensaje asociado al estado de validación del e-CF
+                       recibido.
+                   - secuenciaUtilizada permite dar a conocer si el número de
+                       secuencia que fue recibido por Impuestos Internos puede
+                       reutilizarse en otro Comprobante Fiscal Electrónico (e-CF) en
+                       el escenario de que el resultado de la validación haya sido
+                       "Rechazado" por los siguientes motivos:
+
+               · Certificado y/o firma inválida.
+               · Estructura del comprobante (XML) no es válida.
+
+               24
+ESTADOS         · Firmante del comprobante fiscal electrónico no
+ SALIDA             corresponde a un delegado autorizado para hacer
+                    transacciones para el RNC Emisor.
+
+                · El e-NCF no está autorizado para el RNC Emisor del
+                    comprobante fiscal electrónico.
+
+                · El e-NCF autorizado se encuentra vencido a la
+                    fecha de envío del comprobante fiscal electrónico.
+
+                · El RNC Emisor del comprobante no corresponde a
+                    un emisor electrónico.
+
+                · El RNC Emisor no existe.
+                · El RNC Emisor no se encuentra activo.
+
+             Posibles valores del parámetro:
+                · True = No puede reutilizarse la secuencia.
+                · False = Puede reutilizarse la secuencia.
+
+         · No encontrado (0): implica que no se encontró el trackid en
+             los registros.
+
+         · Aceptado (1): implica la validez del e-CF.
+
+         · Rechazado (2): implica la nulidad del comprobante para fines
+             tributario debido a que en algún punto no cumplió.
+
+         · En Proceso (3): corresponde a que el comprobante aún no ha
+             sido validado y por ende se debe esperar un tiempo prudencial
+             antes de volver a consultar.
+
+             El promedio estimado de validación es de 200 ms.
+
+         · Aceptado Condicional (4): corresponde a que el comprobante
+             no cumplió en algún punto pero que no amerito el rechazo de
+             este y por ende implica la validez del e-CF.
+
+         25
+Consulta de estado e-CF
+
+Servicio web responsable de responder la validez o estado de un e-CF a un receptor o
+incluso a un emisor, a través de la presentación del RNC emisor, e-NCF y dos campos
+condicionales a la vigencia del comprobante, RNC Comprador y el código de seguridad.
+Para realizar las consultas de los datos previamente descritos, se requiere que el
+usuario autenticado se encuentre delegado para el emisor o para el receptor.
+A través de este servicio también pueden ser consultados los e-CF remitidos por el
+servicio de recepción de resumen factura de consumo inferiores a los RD$250,000.00.
+
+URLs del servicio
+
+ · TesteCF: Ambiente de pre-certificación:
+      https://ecf.dgii.gov.do/testecf/consultaestado
+
+ · eCF: Ambiente de producción:
+      https://ecf.dgii.gov.do/ecf/consultaestado
+
+                                                      26
+Métodos y parámetros
+
+MÉTODO GET
+
+  RECURSO     /api/consultas/estado
+ (ENDPOINT)
+              https://ecf.dgii.gov.do/{ambiente}/consultaestado/api/consul
+REQUEST URL   ta
+              s/estado?rncemisor={rncemisor}&ncfelectronico={ncfelectro
+              nico}&rnccomprador={rnccomprador}&codigoseguridad={co
+              digoseguridad}
+
+              curl -X 'GET' \
+
+EJEMPLO CURL  'https://ecf.dgii.gov.do/testecf/consultaestado/api/consultas
+              /estado?rncemisor=131880738&ncfelectronico=e310000000
+              0&rnccomprador=131880738&codigoseguridad=884848448'
+              \
+
+              -H 'accept: application/json' \
+
+               -H 'Authorization: bearer
+              eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZ
+              W1jNkMC0wMGQ4MTczMzYxNWUiLCJuYmYiOjya1l8Yw'
+
+              Parámetros de entrada
+              RncEmisor *
+
+ENTRADA       NcfElectronico *
+              RncComprador
+
+              CodigoSeguridad
+
+FORMATOS      Respuesta en formato JSON
+  SALIDA                {
+                      "codigo": 0,
+                      "estado": "string",
+                      "rncEmisor": "string",
+                      "ncfElectronico": "string",
+                      "montoTotal": 0,
+                      "totalITBIS": 0,
+
+                                27
+DESCRIPCIO          "fechaEmision": "string",
+      N             "fechaFirma": "string",
+                    "rncComprador": "string",
+PARAMETR            "codigoSeguridad": "string",
+   OS DE            "idExtranjero": "string"
+  SALIDA            }
+            Respuesta en formato XML
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <RespuestaConsultaEstado>
+
+                              <codigo>0</codigo >
+                     <estado>string </estado>
+
+                              <rncEmisor>string</rncEmisor>
+                     <ncfElectronico>string</ncfElectronico>
+                     <montoTotal>0</montoTotal>
+                     <totalITBIS>0</totalITBIS>
+                     <fechaEmision>string</fechaEmision>
+                     <fechaFirma>string</fechaFirma>
+                     <rncComprador>string</rncComprador>
+                     <codigoSeguridad>string</codigoSeguridad>
+                     <idExtranjero>string</idExtranjero>
+                    </RespuestaConsultaEstado>
+                - Código: código asociado al estado de validación del e-CF
+                     recibido.
+                - Estado: estado de validación otorgado por Impuestos
+                     Internos al e-CF recibido.
+                - RncEmisor: número de registro nacional del contribuyente
+                     que envió el e-CF.
+                - NcfElectronico: número de secuencia utilizada por el
+                     contribuyente en el e-CF.
+                - MontoTotal: extraído del e-CF recibido.
+                - totalITBIS: extraído del e-CF recibido.
+                - fechaEmision: extraído del e-CF recibido.
+                - fechaFirma: extraído del e-CF recibido.
+                - rncComprador: extraído del e-CF recibido (Si aplica).
+                - codigoSeguridad: extraído de los primeros seis (6) dígitos
+                     del hash generado en el SignatureValue de la firma digital
+                     del e-CF recibido.
+                - idExtranjero: extraído del e-CF recibido (Si aplica).
+
+            28
+ESTADOS  · No encontrado (0): implica que no se encontró el
+ SALIDA      comprobante en los registros, pudiendo deberse a que aún
+             no haya sido reportado.
+
+         · Aceptado (1): implica que el e-CF generado por el emisor
+             fue aceptado y tiene validez fiscal.
+
+         · Rechazado (2): corresponde a la nulidad del comprobante
+             generado por el emisor.
+
+         Nota: en adición a los estados anteriores, el servicio permite visualizar
+         comprobantes cuyo estado es `Aceptado condicional' exclusivamente
+         para Facturas de Consumo Electrónicas con un monto inferior a los
+         RD$250,000.00.
+
+Consulta de trackId e-CF
+
+Servicio web responsable de retornar un listado de respuestas (Trackids) de un número
+de comprobante fiscal electrónico (e-NCF) que haya sido recibido por DGII, a través de la
+presentación del RNC Emisor, el e-NCF a consultar y un token asociado a una sesión
+válida.
+
+Se pueden obtener múltiples TrackIds cuando se remiten varios e-CF con el mismo
+número de comprobante fiscal (e-NCF) asociados al mismo RNC.
+
+Para poder realizar la consulta satisfactoriamente, se requiere que el usuario
+autenticado se encuentre delegado para el emisor, de lo contrario, no podrá obtener los
+datos.
+
+         Consulta Trackids (Parámetros de entrada)
+
+                                                       ConsultaTrackIds
+
+              Retorna trackids y estado de estos
+
+                               29
+URLs del servicio
+
+ · TesteCF: Ambiente de pre-certificación:
+      https://ecf.dgii.gov.do/testecf/consultatrackids
+
+· eCF: Ambiente de producción:
+    https://ecf.dgii.gov.do/ecf/consultatrackids
+
+Métodos y parámetros
+
+  MÉTODO      GET
+  RECURSO
+ (ENDPOINT)   /api/trackids/consulta
+
+REQUEST URL   https://ecf.dgii.gov.do/{ambiente}/consultatrackids/api/
+              trackids/consulta?rncemisor=xxxxxxxxx&encf=xxxxxxxxxxxx
+
+              curl -X 'GET' \
+
+EJEMPLO       'https://ecf.dgii.gov.do/testecf/consultatrackids/api/trackids/consulta
+  CURL        ?rncemisor=xxxxxxxxx&encf=xxxxxxxxxxxxx' \
+               -H 'accept: application/json' \
+ENTRADA        -H 'Authorization: bearer
+              eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1jNkMC
+              0wMGQ4MTczMzYxNWUiLCJuYmYiOjya1l8Yw'
+              Parámetros de entrada
+              RncEmisor*
+
+              Encf*
+
+VALIDACIONES  · El campo RNC Emisor es requerido.
+              · El campo ENCF es requerido.
+              · La longitud del RNC Emisor es inválida.
+              · La longitud del ENCF es inválida.
+              · El ENCF es inválido.
+              · El RNC del token no está autorizado a consultar el trackid de
+
+                  este e-NCF, favor verificar que se encuentre delegado por el
+                  emisor y volver a intentarlo.
+
+FORMATOS      Respuesta en formato JSON
+  SALIDA             {
+                      "trackId": "string",
+                      "estado": "string",
+
+                               30
+DESCRIPCION          "fechaRecepcion": "string"
+PARAMETROS          }
+             Respuesta en formato XML
+  DE SALIDA  <?xml version="1.0" encoding="UTF-8"?>
+
+                     <TrackingDetalle>
+                      <trackId>string</trackId>
+                      <estado>string</estado>
+                      <fechaRecepcion>string</fechaRecepcion>
+             </TrackingDetalle>
+                 - trackId: número único generado por Impuestos Internos al e-CF
+                     recibido.
+                 - estado: estado de validación otorgado por Impuestos Internos
+                     al e-CF recibido.
+                 - fechaRecepcion: fecha en la cual Impuestos Internos recibió el
+                     e-CF.
+
+ESTADOS      · No encontrado: implica que no se encontró el e-CF en los
+ SALIDA          registros.
+
+             · Aceptado: implica la validez del e-CF.
+
+             · Rechazado: implica la nulidad del comprobante para fines
+                 tributario debido a que en algún punto no cumplió.
+
+             · Aceptado Condicional: corresponde a que el comprobante no
+                 cumplió en algún punto, pero no amerito el rechazo de este y
+                 por ende implica la validez del e-CF.
+
+             · En proceso: corresponde a que el comprobante aún no ha sido
+                 validado y por ende se debe esperar un tiempo prudencial antes
+                 de volver a consultar.
+
+             · El promedio estimado de validación es de 200 ms.
+
+Recepción de aprobación comercial
+
+Servicio web responsable de recibir aprobaciones comerciales emitidas por
+contribuyentes receptores, la cual consiste en la conformidad con una transacción
+
+                                                      31
+llevada a cabo entre dos contribuyentes y de la cual se recibió un comprobante
+electrónico de un emisor.
+
+URLs del servicio
+
+ · TesteCF: Ambiente de pre-certificación:
+      https://ecf.dgii.gov.do/testecf/aprobacioncomercial
+
+ · CerteCF: Ambiente de certificación:
+      https://ecf.dgii.gov.do/certecf/aprobacioncomercial
+
+ · eCF: Ambiente de producción:
+      https://ecf.dgii.gov.do/ecf/aprobacioncomercial
+
+Métodos y parámetros
+
+  MÉTODO      POST
+  RECURSO
+ (ENDPOINT)   /api/aprobacioncomercial
+
+REQUEST URL   https://ecf.dgii.gov.do/{ambiente}/aprobacioncomercial/api/apr
+              obacioncomercial
+               curl -X 'POST' \
+
+EJEMPLO CURL  'https://ecf.dgii.gov.do/testecf/aprobacioncomercial/api/aproba
+              cioncomercial' \
+
+               -H 'accept: application/json' \
+
+               -H 'Authorization: bearer
+              eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZ4cCI
+              6MTY1OTMxMDU3MiwiXcnXSc8ya1l8Yw' \
+
+                      32
+   ENTRADA     -H 'Content-Type: multipart/form-data' \
+VALIDACIONES   -F
+              'xml=@response_1659306932058_180702.xml;type=text/xml'
+              Parámetros de entrada
+
+              xml*
+                  · "Archivo no válido"
+
+                  · "Tipo de archivo no válido, favor proveer un XML
+                  · "La estructura del archivo XML no es válido, favor
+
+                       proveer un XML con una estructura válida,
+                       verificar el XSD correspondiente"
+
+                  · "La estructura del archivo XML no es válido, favor
+                       proveer un XML con una estructura válida,
+                       verificar el XSD correspondiente. {mensaje
+                       validación XSD}
+
+                  · "La firma del XML no es válida"
+
+                  · "El RNC del certificado no está delegado para
+                       realizar transacciones para el RNC: {rncEmisor}".
+
+                  · "Factura no encontrada para esta Aprobación
+                       comercial."
+
+                  · " Aprobación Comercial no es requerida para
+                       este tipo de e-CF"
+
+                  · " Aprobación Comercial no es requerida para el
+                       e-CF Referenciado"
+
+                  · "No se encuentra un e-CF válido para esta
+                       aprobación comercial"
+
+                  · "No fue posible procesar la Aprobación
+                       comercial. Favor intentar nuevamente"
+
+FORMATOS      Respuesta en formato JSON
+  SALIDA               {
+                        "mensaje": [
+                          "string"
+                        ],
+                        "estado": "string",
+                        "codigo": "string"
+                       }
+
+              Respuesta en formato XML
+              <?xml version="1.0" encoding="UTF-8"?>
+
+              33
+DESCRIPCIO   <RespuestaAprobacionComercial
+      N                                             >
+
+PARAMETR     <mensaje>string</mensaje>
+   OS DE     <estado>string</estado>
+  SALIDA     <codigo>string</codigo>
+             </RespuestaAprobacionComercial>
+    ESTADOS
+     SALIDA     - mensaje: mensaje asociado al estado de validación de la
+                    aprobación comercial recibida.
+
+                - estado: estado de validación otorgado por Impuestos
+                    Internos a la aprobación comercial recibida.
+
+                - código: código asociado al estado de validación de la
+                    aprobación comercial recibida.
+
+                 · Aprobación comercial aprobada (1): implica que la
+                      aceptación comercial del e-CF fue validado.
+
+                 · Aprobación comercial rechazada (2): corresponde a que la
+                      factura no fue encontrada o que por alguna razón la
+                      aprobación comercial no pudo ser llevada a cabo
+                      satisfactoriamente.
+
+Anulación de e-NCF
+
+Servicio web responsable de recibir y anular los rangos de secuencias no utilizados (e-
+NCF) a través de un XML de solicitud que contiene el código de comprobante
+electrónico, una serie de rangos, desde y hasta, así como un token asociado a una sesión
+válida.
+
+En el caso de las Facturas de Consumo Electrónicas, se validará que no haya sido
+utilizada para ninguna de las vías existentes con montos superior o inferior a los
+RD$250,000.00, rechazándose la operación para aquellas que en efecto hayan sido
+utilizadas y no pudiéndose utilizar posteriormente secuencias que si hayan podido ser
+anuladas.
+
+             34
+URLs del servicio
+
+ · TesteCF: Ambiente de pre-certificación:
+     https://ecf.dgii.gov.do/testecf/anulacionrangos
+
+ · eCF: Ambiente de producción:
+     https://ecf.dgii.gov.do/ecf/anulacionrangos
+
+Métodos y parámetros
+
+  MÉTODO      POST
+  RECURSO
+ (ENDPOINT)   /api/operaciones/anularrango
+
+REQUEST URL   https://ecf.dgii.gov.do/{ambiente}/anulacionrangos/api/operaciones/
+              anularrango
+               curl -X 'POST' \
+
+EJEMPLO CURL  'https://ecf.dgii.gov.do/testecf/anulacionrangos/api/Operaciones/Anu
+              larRango' \
+               -H 'accept: application/json' \
+               -H 'Authorization: bearer
+              eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vy50-
+              ZnXSc8ya1l8Yw' \
+               -H 'Content-Type: multipart/form-data' \
+
+                                        35
+   ENTRADA     -F 'xml=@response_1659306932058_180702.xml;type=text/xml'
+VALIDACIONES  Parámetros de entrada
+              xml*
+  FORMATOS
+    SALIDA        · "Tipo de archivo no valido, favor proveer un XML"
+                  · "La firma del documento no es válida"
+                  · "El tipo de comprobante no es válido"
+                  · "El valor del campoSecuenciaeNCFDesde es mayor al del
+
+                       campo SecuenciaeNCFHasta"
+                  · "Las secuencias que está intentando anular han sido
+
+                       utilizadas"
+                  · "Las secuencias fueron anuladas correctamente. Con
+
+                       excepción de las secuencias del detalle"
+                  · "El campo NoLinea no es válido, no cumple orden
+
+                       secuencial."
+                  · "No fue posible anular las siguientes secuencias"
+                  · "El RNC del certificado no está delegado para realizar
+
+                       transacciones para el RNC"
+              Respuesta en formato JSON
+
+                       {
+                        "rnc": "string",
+                        "codigo": "string",
+                        "nombre": "string",
+                        "mensajes": [
+                          "string"
+                        ]
+                       }
+              Respuesta en formato XML
+                     <?xml version="1.0" encoding="UTF-8"?>
+
+                     <RespuestaAnulacionRango>
+
+                     <rnc>string</rnc>
+
+                     <codigo>string</codigo>
+
+                     <nombre>string</nombre>
+
+                     <mensajes>string</mensajes>
+
+                     </RespuestaAnulacionRango>
+
+              36
+DESCRIPCION  - rnc: número de registro nacional del contribuyente que envió
+PARAMETROS       la anulación.
+
+  DE SALIDA  - codigo: código asociado al
+                 resultado de la validación de la
+                 anulación.
+
+             - Nombre: motivo del mensaje de
+                 validación de la anulación recibida.
+
+             - Mensajes: mensaje asociado al resultado de la
+                 validación de la anulación recibida.
+
+Consulta Directorio de Servicios
+
+Servicios web rresponsable de retornar en el ambiente productivo los contribuyentes
+electrónicos autorizados y las URLs de sus servicios de recepción de eCF, aprobación
+comercial y autenticación (Opcional).
+
+En el caso de este servicio en el ambiente de pre-certificación, se retornarán las URLs de
+prueba del servicio de emisor receptor habilitado por DGII para simular ser otro
+contribuyente, permitiendo autenticarse, recibir y enviar comprobantes y/o aprobaciones
+comerciales.
+
+             37
+URLs del servicio
+
+  · TesteCF: Ambiente de pre-certificación:
+      https://ecf.dgii.gov.do/testecf/consultadirectorio
+
+  · eCF: Ambiente de producción:
+      https://ecf.dgii.gov.do/ecf/consultadirectorio
+
+Métodos y parámetros
+
+Dentro de la URL, se encontrarán los siguientes dos (2) recursos (Endpoint):
+
+DESCRIPCION                  LISTADO DIRECTORIO
+             Retorna un listado de todos los contribuyentes electrónicos
+  MÉTODO     autorizados y las URLs de sus servicios de recepción de eCF,
+  RECURSO    aprobación comercial y autenticación (Opcional).
+ (ENDPOINT)  GET
+REQUEST URL
+             /api/consultas/listado
+
+             https://ecf.dgii.gov.do/{ambiente}/consultadirectorio/api/consulta
+             s/listado
+              curl -X 'GET' \
+
+             'https://ecf.dgii.gov.do/testecf/consultadirectorio/api/Consultas/Li
+
+EJEMPLO CURL stado' \
+
+             -H 'accept: application/json' \
+
+             -H 'Authorization: bearer
+
+             eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodH1h54bWxzb21l8Yw'
+
+ENTRADA      Parámetros de entrada
+             N/A
+
+             Respuesta en formato JSON
+
+             [
+
+                {
+
+FORMATOS               "nombre": "string",
+  SALIDA               "rnc": "string",
+                       "urlRecepcion": "string",
+
+                       "urlAceptacion": "string"
+
+                       "urlOpcional": "string"
+
+                }
+
+                                    38
+              ]
+
+             - Nombre: razón social del contribuyente.
+             - rnc: número de registro nacional del contribuyente.
+             - urlRecepcion: host del servicio de recepción del
+
+                 contribuyente.
+             - urlAceptacion host del servicio de aprobación comercial del
+
+                 contribuyente.
+             - urlOpcional: host del servicio de autenticación del
+
+                 contribuyente, en caso de utilizarse.
+
+DESCRIPCION                  DIRECTORIO POR RNC
+             Retorna las URLs de los servicios de recepción de eCF, aprobación
+  MÉTODO     comercial y autenticación (Opcional) de un contribuyente en
+  RECURSO    particular, siempre y cuando este autorizado como electrónico.
+ (ENDPOINT)  GET
+REQUEST URL
+             /api/consultas/obtenerdirectorioporrnc
+
+             https://ecf.dgii.gov.do/{ambiente}/consultadirectorio/api/consulta
+             s/obtenerdirectorioporrnc
+              curl -X 'GET' \
+
+             'https://ecf.dgii.gov.do/testecf/consultadirectorio/api/consultas/o
+
+EJEMPLO CURL btenerdirectorioporrnc?RNC=xxxxxxxxx' \
+
+             -H 'accept: application/json' \
+
+             -H 'Authorization: bearer
+
+             eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodH1h54bWxzb21l8Yw'
+
+ENTRADA      Parámetros de entrada
+             RNC*
+
+             Respuesta en formato JSON
+
+             [
+
+                {
+
+FORMATOS           "nombre": "string",
+  SALIDA           "rnc": "string",
+                   "urlRecepcion": "string",
+
+                   "urlAceptacion": "string"
+
+                   "urlOpcional": "string"
+
+                }
+
+                                    39
+             ]
+
+            - Nombre: razón social del contribuyente.
+            - rnc: número de registro nacional del contribuyente.
+            - urlRecepcion: host del servicio de recepción del
+
+                contribuyente.
+            - urlAceptacion host del servicio de aprobación comercial del
+
+                contribuyente.
+            - urlOpcional: host del servicio de autenticación del
+
+                contribuyente, en caso de utilizarse.
+
+Consulta timbre (QR)
+
+Responsable de responder la validez de un e-CF remitido exclusivamente por el servicio
+web de Recepción de e-CF, a partir de los datos incluidos en el timbre de su
+representación impresa (RI).
+
+URLs del servicio
+
+ · TesteCF: Ambiente de pre-certificación:
+      https://ecf.dgii.gov.do/testecf/consultatimbre
+
+ · CerteCF: Ambiente de certificación:
+      https://ecf.dgii.gov.do/certecf/consultatimbre
+
+ · eCF: Ambiente de producción:
+      https://ecf.dgii.gov.do/ecf/consultatimbre
+
+Parámetros, respuesta y otros datos
+
+PARÁMETROS  Parámetros para concatenar:
+
+                 o RncEmisor
+                 o RncComprador
+                 o ENCF
+                 o FechaEmision
+                 o MontoTotal
+                 o FechaFirma
+                 o CodigoSeguridad
+
+            40
+                Ejemplo URL construida (Dirección de Host + Parámetros):
+
+EJEMPLO         https://ecf.dgii.gov.do/testecf/consultatimbre?rncemisor=1300000
+                01&rnccomprador=130000002&encf=e310000000001&fechaemisi
+                on=10-10-2020&montototal=02.11&fechafirma=10-10-
+                2020%2009:00:00&codigoseguridad=dcp79q
+
+                Esta URL es la que se espera al leer el QR de la RI de un e-CF.
+
+VERSIÓN         Se utilizará la versión 8 de código QR para la representación
+ SALIDA
+                impresa: https://www.qrcode.com/en/about/version.html.
+
+                    o RNC Emisor
+                    o Razón social emisor
+                    o RNC Comprador
+                    o Razón social comprador
+                    o e-NCF
+                    o Fecha de Emisión
+                    o Total de ITBIS
+                    o Monto Total
+                    o Estado
+
+  DESCRIPCION   - RNC Emisor: número de registro nacional del contribuyente
+PARAMETROS DE       que emitió el e-CF.
+
+      SALIDA    - Razón social emisor: razón social del contribuyente que
+                    emitió el e-CF.
+
+                - RNC Comprador: extraído del e-CF recibido (Si aplica).
+                - Razón social comprador: extraído del e-CF recibido (Si aplica).
+                - e-NCF: número de secuencia utilizada por el contribuyente,
+
+                    extraído del e-CF.
+                - Fecha de Emisión: extraído del e-CF.
+                - Total de ITBIS: extraído del e-CF.
+                - Monto Total: extraído del e-CF.
+                - Estado: estado de validación otorgado por Impuestos
+
+                    Internos al e-CF recibido.
+
+ESTADOS SALIDA  · No fue encontrada la factura (e-CF): corresponde a que el e-
+                    CF no se encontró en la base de datos de la DGII.
+
+                41
+                           · Aceptado: implica la validez del e-CF de la RI, incluyendo el
+                               aceptado condicional que corresponde a que no cumplió en
+                               algún punto pero que no amerita el rechazo de este.
+
+                           · Rechazado: corresponde a que el e-CF de la RI le fue
+                               rechazado al emisor.
+
+Consulta timbre FC (QR)
+
+Responsable de responder la validez de un Resumen de Factura de Consumo Electrónica
+remitido exclusivamente por el servicio web de Recepción RFCE, con un monto inferior
+a los RD$250,000.00 a partir de los datos incluidos en el timbre de su representación
+impresa (RI).
+
+URLs del servicio
+
+ · TesteCF: Ambiente de pre-certificación:
+      https://fc.dgii.gov.do/testecf/consultatimbrefc
+
+ · CerteCF: Ambiente de certificación:
+      https://fc.dgii.gov.do/certecf/consultatimbrefc
+
+ · eCF: Ambiente de producción:
+      https://fc.dgii.gov.do/ecf/consultatimbrefc
+
+Parámetros, respuesta y otros datos
+
+PARÁMETROS  Parámetros para concatenar
+
+                 o RNCEmisor
+                 o e-NCF
+                 o MontoTotal
+                 o CódigoSeguridad
+
+            42
+                Ejemplo URL construida (Dirección de Host + Parámetros):
+
+EJEMPLO         https://fc.dgii.gov.do/testecf/consultatimbrefc?rncemisor=131880
+                738&encf=e320000000064&montototal=6225.09&codigosegurida
+                d=uabnyh
+
+                Esta URL es la que se espera al leer el QR de la RI de un RFCE.
+
+     VERSIÓN    Se utilizará la versión 8 de código QR para la representación
+      SALIDA    impresa: https://www.qrcode.com/en/about/version.html.
+
+  DESCRIPCION       o RNC Emisor
+PARAMETROS DE       o Razón Social
+                    o e-NCF
+      SALIDA        o Estado
+                   - RNC Emisor: número de registro nacional del
+
+                        contribuyente que emitió el resumen de factura de
+                        consumo.
+                   - Razón Social: razón social del contribuyente que emitió
+                        el resumen de factura de consumo.
+                   - e-NCF: número de secuencia utilizada por el
+                        contribuyente, extraído del resumen de factura de
+                        consumo.
+                   - Estado: estado de validación otorgado por Impuestos
+                        Internos al resumen de factura de consumo recibido.
+
+ESTADOS SALIDA  · No fue encontrada la factura (e-CF): corresponde a que el e-
+                    CF no se encontró en la base de datos de la DGII.
+
+                · Aceptado: implica la validez del e-CF de la RI, incluyendo el
+                    aceptado condicional que corresponde a que no cumplió en
+                    algún punto pero que no amerita el rechazo de este.
+
+                · Rechazado: corresponde a que el e-CF de la RI le fue
+                    rechazado al emisor.
+
+                43
+Comunicación Emisor-Receptor
+
+Servicio web responsable de simular ser un contribuyente y a partir de esto permitir a otros
+contribuyentes interactuar entre si a modo de establecer comunicación como debe ser
+realizado en el ambiente productivo.
+
+  URL del servicio
+
+    · TesteCF: Ambiente de pre-certificación:
+         https://ecf.dgii.gov.do/testecf/emisorreceptor
+
+Endpoints, Métodos y parámetros
+
+Dentro de la URL, se encontrarán los siguientes recursos (Endpoint):
+
+             AUTENTICACIÓN: SEMILLA
+
+DESCRIPCION  Retorna un archivo semilla (en formato XML) que deberá ser firmado
+  MÉTODO     para obtener un token mediante el método POST.
+  RECURSO
+             GET
+ (ENDPOINT)
+REQUEST URL  /fe/autenticacion/api/semilla
+
+    SALIDA   https://ecf.dgii.gov.do/testecf/emisorreceptor/fe/autenticacion/api
+             /semilla
+
+             Respuesta en formato XML
+             <?xml version="1.0" encoding="utf-8"?>
+             <SemillaModel xmlns:xsi="http://www.w3.org/2001/XMLSchema-
+             instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+             <valor>0000000-0000-0000-0000-000000000000</valor>
+             <fecha>2019-03-13T14:33:32.8617792-04:00</fecha>
+             </SemillaModel>
+
+             44
+              AUTENTICACIÓN: VALIDACION CERTIFICADO
+
+DESCRIPCION   Permite el envío del archivo (Semilla) firmado y retorna un objeto que
+              contiene un string de autenticación (token) asociado a una fecha de
+  MÉTODO      emisión y una fecha de expiración.
+  RECURSO     POST
+(ENDPOINT)
+              /fe/autenticacion/api/validacioncertificado
+
+REQUEST URL   https://ecf.dgii.gov.do/testecf/emisorreceptor/fe/autenticacion/api/
+VALIDACIONES  validacioncertificado
+
+                  - Estructura del XML válida (No alterada).
+                  - Formato de archivo válido.
+                  - Parámetro de entrada requerido haya sido completado.
+                  - RNC del token autorizado.
+
+ENTRADA       Parámetro
+              xml*
+
+SALIDA        Respuesta en formato JSON
+              {
+               "token": "string",
+               "expira": "2022-07-19T19:14:48.237Z",
+               "expedido": "2022-07-19T19:14:48.237Z"
+              }
+              Respuesta en formato XML
+              <?xml version="1.0" encoding="UTF-8"?>
+              <RespuestaAutenticacion>
+
+                       <token>string</token>
+                       <expira>2022-07-19T19:15:06.893Z</expira>
+                       <expedido>2022-07-19T19:15:06.893Z</expedido>
+              </RespuestaAutenticacion>
+
+Ver RCF 6750 (https://tools.ietf.org/html/rfc6750) para más información sobre la
+autenticación por tokens.
+
+                         45
+Recomendaciones
+
+ 1) A la hora de enviar e-CF o aprobación comercial a la autoridad tributaria u otro
+      contribuyente, siempre verificar que las URL se encuentren correctas, para evitar
+      inconvenientes de recepción.
+
+ 2) A la hora de enviar a la autoridad tributaria comprobantes tipo 32, tener en cuenta
+      que existen dos servicios de recepción según el monto de la factura, especificados
+      con más detalle en el apartado descripción de servicios (Recepción de e-CF y
+      Recepción RFCE).
+
+ 3) A la hora de realizar la representación impresa de los e-CF, tener en cuenta que
+      existen dos consultas timbre (QR) con variación de uso para los tipos 32
+      especificado con más detalle en el apartado descripción de servicios (Consulta
+      timbre y Consulta timbre FC).
+
+ 4) A la hora de consultar el estado de validación de un e-CF a través del servicio de
+      Consulta estado, debe siempre confirmar que haya sido autorizado previamente
+      como delegado por el emisor o receptor.
+
+ 5) Familiarizarse con las validaciones de los formatos (XML) para todas las
+      operaciones.
+
+                                                      46
+
