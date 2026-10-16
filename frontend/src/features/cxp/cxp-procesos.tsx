@@ -1541,6 +1541,33 @@ export function CxpEntradaDocumentos({
               </p>
             ) : (
               <>
+                {(() => {
+                  // Totalizador en vivo: mientras el operador escribe los
+                  // montos a aplicar contra cada factura, suma lo que va
+                  // y lo contrasta con el total del documento (ND) -- asi
+                  // puede verificar antes de guardar que no deja saldo a
+                  // favor o que, al contrario, no se pasa.
+                  const totalAplicarPreview = Object.values(montosPreview).reduce(
+                    (a, v) => a + (Number(v) || 0), 0,
+                  )
+                  const restante = totalDocumento - totalAplicarPreview
+                  return (
+                    <div className='flex flex-wrap items-center gap-x-4 gap-y-1 rounded border bg-muted/40 px-3 py-2 text-sm'>
+                      <span>
+                        Total del documento:{' '}
+                        <b className='font-mono tabular-nums'>RD$ {fmt(totalDocumento)}</b>
+                      </span>
+                      <span>
+                        A aplicar:{' '}
+                        <b className='font-mono tabular-nums'>RD$ {fmt(totalAplicarPreview)}</b>
+                      </span>
+                      <span className={restante < -0.005 ? 'text-destructive' : ''}>
+                        Restante (saldo a favor):{' '}
+                        <b className='font-mono tabular-nums'>RD$ {fmt(restante)}</b>
+                      </span>
+                    </div>
+                  )
+                })()}
                 {(pendientesPreview.data?.pendientes || []).length > 5 && (
                   <div className='space-y-1'>
                     <Label className='text-xs text-muted-foreground'>Buscar por número</Label>
@@ -1789,6 +1816,9 @@ function AplicarDocRecienCreado({
             <div className='flex flex-wrap items-center gap-x-4 gap-y-1 rounded border bg-muted/40 px-3 py-2 text-sm'>
               <span>Disponible: <b className='font-mono tabular-nums'>RD$ {fmt(disponible)}</b></span>
               <span>A aplicar: <b className='font-mono tabular-nums'>RD$ {fmt(totalAplicar)}</b></span>
+              <span className={disponible - totalAplicar < -0.005 ? 'text-destructive' : ''}>
+                Restante: <b className='font-mono tabular-nums'>RD$ {fmt(disponible - totalAplicar)}</b>
+              </span>
             </div>
             {pendientes.length > 5 && (
               <div className='space-y-1'>
