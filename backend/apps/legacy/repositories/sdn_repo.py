@@ -395,6 +395,65 @@ def crear_empleado(data: dict, usuario: str) -> dict:
     return get_empleado(no_cia, no_empleado)
 
 
+_EMPLEADO_EDITABLE_STR = [
+    'nombre', 'apellido', 'apodo', 'cedula', 'pais', 'ciudad', 'barrio', 'direccion',
+    'email1', 'telefono1', 'celular', 'centro_trabajo', 'no_profesion', 'no_puesto',
+    'no_gerencia', 'no_area', 'no_depto', 'no_tipo', 'empleado_fijo', 'estado_civil', 'sexo',
+    'tipo_cuenta_banco', 'cuenta_banco',
+]
+
+
+def _fecha_iso(v) -> str | None:
+    if v is None:
+        return None
+    if hasattr(v, 'isoformat'):
+        return v.isoformat()[:10]
+    return str(v)[:10]
+
+
+def actualizar_empleado(no_cia: str, no_empleado: int, data: dict) -> dict:
+    """Edita datos de un empleado existente (Mantenimiento de Empleados).
+
+    No permite cambiar no_cia/no_empleado (claves) ni punto/nomina — mover un
+    empleado de nómina es una operación distinta que afecta cálculos en curso
+    y queda fuera de esta edición simple de datos personales/laborales.
+    """
+    cur = get_empleado(no_cia, no_empleado)
+    if not cur:
+        raise ValueError('el empleado no existe')
+
+    valores = {campo: (data[campo] if campo in data else cur.get(campo))
+               for campo in _EMPLEADO_EDITABLE_STR}
+    fecha_ingreso = data.get('fecha_ingreso', _fecha_iso(cur.get('fecha_ingreso')))
+    fecha_nacimiento = data.get('fecha_nacimiento', _fecha_iso(cur.get('fecha_nacimiento')))
+    salario_mensual = float(data.get('salario_mensual', cur.get('salario_mensual') or 0) or 0)
+
+    if not (valores['nombre'] and valores['apellido'] and valores['cedula']):
+        raise ValueError('nombre, apellido y cédula son obligatorios')
+
+    client.execute(
+        "UPDATE SDN.TSDN_EMPLEADO SET "
+        " nombre=:1, apellido=:2, apodo=:3, cedula=:4, pais=:5, ciudad=:6, barrio=:7, direccion=:8, "
+        " email1=:9, telefono1=:10, celular=:11, centro_trabajo=:12, no_profesion=:13, no_puesto=:14, "
+        " no_gerencia=:15, no_area=:16, no_depto=:17, no_tipo=:18, empleado_fijo=:19, estado_civil=:20, "
+        " sexo=:21, tipo_cuenta_banco=:22, cuenta_banco=:23, salario_mensual=:24, "
+        " fecha_ingreso=CASE WHEN :25 IS NULL THEN NULL ELSE TO_DATE(:25,'YYYY-MM-DD') END, "
+        " fecha_nacimiento=CASE WHEN :26 IS NULL THEN NULL ELSE TO_DATE(:26,'YYYY-MM-DD') END "
+        "WHERE no_cia=:27 AND no_empleado=:28",
+        client.nbinds(
+            valores['nombre'][:25], valores['apellido'][:25], valores['apodo'], valores['cedula'][:13],
+            valores['pais'], valores['ciudad'], valores['barrio'],
+            valores['direccion'][:60] if valores['direccion'] else None,
+            valores['email1'], valores['telefono1'], valores['celular'], valores['centro_trabajo'],
+            valores['no_profesion'], valores['no_puesto'], valores['no_gerencia'], valores['no_area'],
+            valores['no_depto'], valores['no_tipo'], valores['empleado_fijo'], valores['estado_civil'],
+            valores['sexo'], valores['tipo_cuenta_banco'], valores['cuenta_banco'], salario_mensual,
+            fecha_ingreso, fecha_nacimiento, no_cia, int(no_empleado),
+        ),
+    )
+    return get_empleado(no_cia, no_empleado)
+
+
 def dar_baja_empleado(no_cia: str, no_empleado: int, fecha_egreso: str | None) -> dict:
     if not fecha_egreso:
         raise ValueError('fecha_egreso es requerida')
@@ -501,7 +560,7 @@ def get_nomina(no_cia: str, punto: str, nomina: str) -> dict | None:
         "       n.mes_proceso, n.ano_proceso, n.mes_cierre, n.periodo, "
         "       n.calculo_nomina, n.estado, n.regalia_por_pagar, n.gasto_regalia, "
         "       n.factor_calculo_diario, n.factor_calculo_horas, n.metodo_pago, n.tipo_moneda, "
-        "       c.descripcion AS cia_descripcion, c.razon_social AS cia_razon_social "
+        "       c.descripcion AS cia_descripcion, c.descripcion AS cia_razon_social "
         "  FROM SDN.TSDN_NOMINA n "
         "  LEFT JOIN FAT.TFAT_CIAS c ON c.no_cia = n.no_cia "
         " WHERE n.no_cia=:1 AND n.punto=:2 AND n.nomina=:3",
@@ -650,6 +709,17 @@ def calcular_nomina(no_cia: str, punto: str, nomina: str, usuario: str) -> dict:
     un empleado ya tiene el movimiento (por ejemplo alguien la registro a
     mano, o cambio de salario y se recalculo antes), no se duplica.
     Ingresos/otros conceptos por linea siguen pendientes (Fsdn202/Fsdn203).
+
+    IMPORTANTE: Las deducciones automáticas (AFP/SFS) solo se aplican en la
+    segunda quincena (día 16-30/31 del período). Antes esto se detectaba
+    comparando el campo PERIODO contra el literal 2 -- pero PERIODO es un
+    contador que nunca para de subir (1, 2, 3, ... 19, 20, ...), no un
+    indicador de primera/segunda quincena, así que esa comparación solo era
+    cierta la segunda vez que se calculaba la nómina en toda su historia y
+    nunca más -- las deducciones automáticas llevaban mucho tiempo sin
+    aplicarse en producción. La quincena real se determina por el día de
+    FECHA_INICIAL (1 = primera, 16 = segunda), igual que ya hace
+    _siguiente_periodo() para calcular el próximo período.
     """
     cur = get_nomina(no_cia, punto, nomina)
     if not cur:
@@ -663,18 +733,32 @@ def calcular_nomina(no_cia: str, punto: str, nomina: str, usuario: str) -> dict:
     mes = int(cur['mes_proceso'])
     periodo = int(cur.get('periodo') or 1)
     deducciones_auto = []
-    for no_ded in _DEDUCCIONES_AUTOMATICAS:
-        try:
-            r = aplicar_deduccion_masiva(
-                no_cia=no_cia, punto=punto, nomina=nomina,
-                ano=ano, mes=mes, periodo=periodo,
-                no_deduccion=no_ded, usuario=usuario)
-            deducciones_auto.append({'no_deduccion': no_ded, 'aplicados': r['cantidad'],
-                                      'total_monto': r['total_monto']})
-        except Exception as exc:
-            # No bloquea el calculo si una deduccion no aplica (ej. catalogo
-            # inactivo en alguna compania) -- se reporta, no se detiene.
-            deducciones_auto.append({'no_deduccion': no_ded, 'error': str(exc)})
+
+    fecha_inicial = cur.get('fecha_inicial')
+    dia_inicio = fecha_inicial.day if hasattr(fecha_inicial, 'day') else int(str(fecha_inicial)[8:10])
+    forma_pago = (cur.get('forma_pago') or '').upper()
+    # Nóminas mensuales ('M') no se dividen en quincenas: siempre aplican.
+    es_segunda_quincena = forma_pago != 'Q' or dia_inicio >= 16
+
+    # Solo aplicar deducciones automáticas (AFP/SFS) en la segunda quincena
+    if es_segunda_quincena:
+        for no_ded in _DEDUCCIONES_AUTOMATICAS:
+            try:
+                r = aplicar_deduccion_masiva(
+                    no_cia=no_cia, punto=punto, nomina=nomina,
+                    ano=ano, mes=mes, periodo=periodo,
+                    no_deduccion=no_ded, usuario=usuario)
+                deducciones_auto.append({'no_deduccion': no_ded, 'aplicados': r['cantidad'],
+                                          'total_monto': r['total_monto']})
+            except Exception as exc:
+                # No bloquea el calculo si una deduccion no aplica (ej. catalogo
+                # inactivo en alguna compania) -- se reporta, no se detiene.
+                deducciones_auto.append({'no_deduccion': no_ded, 'error': str(exc)})
+    else:
+        # Primera quincena: registrar que no se aplicaron deducciones automáticas
+        for no_ded in _DEDUCCIONES_AUTOMATICAS:
+            deducciones_auto.append({'no_deduccion': no_ded, 'aplicados': 0,
+                                      'total_monto': 0.0, 'nota': 'No aplica en primera quincena'})
 
     client.execute(
         "UPDATE SDN.TSDN_NOMINA SET calculo_nomina='S' "

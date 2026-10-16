@@ -169,6 +169,20 @@ def sdn_empleado_catalogos(request):
 
 @login_required
 @csrf_exempt
+@require_http_methods(['POST', 'PUT'])
+def sdn_empleado_actualizar(request, no_cia, no_empleado):
+    data = json.loads(request.body or '{}')
+    try:
+        row = sdn_repo.actualizar_empleado(no_cia, no_empleado, data)
+        return JsonResponse(row)
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@csrf_exempt
 @require_http_methods(['POST'])
 def sdn_empleado_baja(request, no_cia, no_empleado):
     data = json.loads(request.body or '{}')

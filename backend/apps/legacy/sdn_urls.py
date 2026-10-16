@@ -30,6 +30,7 @@ urlpatterns = [
     path('empleados/', sdn_views.sdn_empleados),
     path('empleados/catalogos/', sdn_views.sdn_empleado_catalogos),
     path('empleados/<str:no_cia>/<int:no_empleado>/', sdn_views.sdn_empleado),
+    path('empleados/<str:no_cia>/<int:no_empleado>/actualizar/', sdn_views.sdn_empleado_actualizar),
     path('empleados/<str:no_cia>/<int:no_empleado>/baja/', sdn_views.sdn_empleado_baja),
     path('empleados/<str:no_cia>/<int:no_empleado>/reactivar/', sdn_views.sdn_empleado_reactivar),
     path('nominas/', sdn_views.sdn_nominas),

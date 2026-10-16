@@ -371,26 +371,192 @@ export function SdnEmpleados() {
   )
 }
 
+const EMPLEADO_EDIT_FIELDS = [
+  'nombre', 'apellido', 'apodo', 'cedula', 'sexo', 'estado_civil', 'fecha_nacimiento',
+  'pais', 'ciudad', 'barrio', 'direccion', 'email1', 'telefono1', 'celular',
+  'centro_trabajo', 'no_gerencia', 'no_area', 'no_depto', 'no_profesion', 'no_puesto',
+  'no_tipo', 'empleado_fijo', 'tipo_cuenta_banco', 'cuenta_banco', 'salario_mensual',
+] as const
+
 function SdnEmpleadoDetalle({ noCia, noEmpleado }: { noCia: string; noEmpleado: number }) {
+  const qc = useQueryClient()
   const q = useQuery({ queryKey: ['sdn-emp', noCia, noEmpleado], queryFn: () => api.sdnGetEmpleado(noCia, noEmpleado) })
-  if (q.isLoading) return <div className="text-muted-foreground">Cargando…</div>
-  if (!q.data) return null
+  const catQ = useQuery({ queryKey: ['sdn-cat-empleado', noCia], queryFn: () => api.sdnCatalogosEmpleado(noCia) })
+  const ciudadesQ = useQuery({ queryKey: ['cxc-ciudades', noCia], queryFn: () => api.cxcListCiudades(noCia) })
+  const barriosQ = useQuery({ queryKey: ['cxc-barrios', noCia], queryFn: () => api.cxcListBarrios(noCia) })
+  const [editando, setEditando] = useState(false)
+  const [form, setForm] = useState<Record<string, any>>({})
+
   const d: any = q.data
-  const field = (l: string, v: any) => <div><span className="text-muted-foreground">{l}:</span> {v ?? '—'}</div>
+  const cat = catQ.data || {}
+  const barriosDeCiudad = useMemo(
+    () => (barriosQ.data || []).filter((b: any) => b.ciudad === form.ciudad),
+    [barriosQ.data, form.ciudad],
+  )
+
+  const guardar = useMutation({
+    mutationFn: () => api.sdnActualizarEmpleado(noCia, noEmpleado, {
+      ...form,
+      salario_mensual: form.salario_mensual === '' ? 0 : Number(form.salario_mensual),
+    }),
+    onSuccess: () => {
+      toast.success('Empleado actualizado')
+      qc.invalidateQueries({ queryKey: ['sdn-emp', noCia, noEmpleado] })
+      qc.invalidateQueries({ queryKey: ['sdn-empleados'] })
+      setEditando(false)
+    },
+    onError: (e: any) => toast.error(e?.detail?.error || e?.message || 'No se pudo actualizar el empleado'),
+  })
+
+  if (q.isLoading) return <div className="text-muted-foreground">Cargando…</div>
+  if (!d) return null
+
+  const abrirEdicion = () => {
+    const init: Record<string, any> = {}
+    for (const campo of EMPLEADO_EDIT_FIELDS) init[campo] = d[campo] ?? ''
+    init.fecha_nacimiento = fmtDate(d.fecha_nacimiento)
+    setForm(init)
+    setEditando(true)
+  }
+
+  if (!editando) {
+    const field = (l: string, v: any) => <div><span className="text-muted-foreground">{l}:</span> {v ?? '—'}</div>
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          {field('Cédula', d.cedula)}
+          {field('Nómina', d.nomina)}
+          {field('Centro Trabajo', d.centro_trabajo)}
+          {field('Estado civil', d.estado_civil)}
+          {field('Fecha ingreso', fmtDate(d.fecha_ingreso))}
+          {field('Fecha egreso', fmtDate(d.fecha_egreso))}
+          {field('Fecha nacim.', fmtDate(d.fecha_nacimiento))}
+          {field('Fijo', d.empleado_fijo)}
+          {field('Email', d.email1)}
+          {field('Teléfono', d.telefono1 || d.telefono)}
+          {field('Ciudad', d.ciudad)}
+          {field('Dirección', d.direccion)}
+          {field('Salario mensual', d.salario_mensual)}
+        </div>
+        <div className="flex justify-end">
+          <Button size="sm" onClick={abrirEdicion}>Editar información</Button>
+        </div>
+      </div>
+    )
+  }
+
+  const set = (campo: string) => (e: any) => setForm({ ...form, [campo]: e.target.value })
+
   return (
-    <div className="grid grid-cols-2 gap-3 text-sm">
-      {field('Cédula', d.cedula)}
-      {field('Nómina', d.nomina)}
-      {field('Centro Trabajo', d.centro_trabajo)}
-      {field('Estado civil', d.estado_civil)}
-      {field('Fecha ingreso', fmtDate(d.fecha_ingreso))}
-      {field('Fecha egreso', fmtDate(d.fecha_egreso))}
-      {field('Fecha nacim.', fmtDate(d.fecha_nacimiento))}
-      {field('Fijo', d.empleado_fijo)}
-      {field('Email', d.email1)}
-      {field('Teléfono', d.telefono1 || d.telefono)}
-      {field('Ciudad', d.ciudad)}
-      {field('Dirección', d.direccion)}
+    <div className="space-y-4 text-sm">
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground mb-2">DATOS PERSONALES</p>
+        <div className="grid grid-cols-2 gap-2">
+          <div><Label className="text-xs">Nombre</Label><Input value={form.nombre} maxLength={25} onChange={set('nombre')} /></div>
+          <div><Label className="text-xs">Apellido</Label><Input value={form.apellido} maxLength={25} onChange={set('apellido')} /></div>
+          <div><Label className="text-xs">Cédula</Label><Input value={form.cedula} maxLength={13} onChange={set('cedula')} /></div>
+          <div><Label className="text-xs">Apodo</Label><Input value={form.apodo} maxLength={30} onChange={set('apodo')} /></div>
+          <div><Label className="text-xs">Sexo</Label>
+            <select className="border rounded px-3 py-2 text-sm h-9 w-full bg-background" value={form.sexo} onChange={set('sexo')}>
+              <option value="M">Masculino</option><option value="F">Femenino</option>
+            </select></div>
+          <div><Label className="text-xs">Estado civil</Label>
+            <select className="border rounded px-3 py-2 text-sm h-9 w-full bg-background" value={form.estado_civil} onChange={set('estado_civil')}>
+              <option value="C">Casado(a)</option><option value="S">Soltero(a)</option><option value="L">Unión libre</option>
+            </select></div>
+          <div><Label className="text-xs">Fecha nacimiento</Label>
+            <Input type="date" className="h-9" value={form.fecha_nacimiento} onChange={set('fecha_nacimiento')} /></div>
+          <div><Label className="text-xs">Empleado fijo</Label>
+            <select className="border rounded px-3 py-2 text-sm h-9 w-full bg-background" value={form.empleado_fijo} onChange={set('empleado_fijo')}>
+              <option value="S">Sí</option><option value="N">No</option>
+            </select></div>
+        </div>
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground mb-2">UBICACIÓN Y CONTACTO</p>
+        <div className="grid grid-cols-2 gap-2">
+          <div><Label className="text-xs">País</Label>
+            <select className="border rounded px-3 py-2 text-sm h-9 w-full bg-background" value={form.pais} onChange={set('pais')}>
+              {(cat.paises || []).map((p: any) => <option key={p.no_pais} value={p.no_pais}>{p.descripcion}</option>)}
+            </select></div>
+          <div><Label className="text-xs">Ciudad</Label>
+            <select className="border rounded px-3 py-2 text-sm h-9 w-full bg-background" value={form.ciudad}
+              onChange={(e) => setForm({ ...form, ciudad: e.target.value, barrio: '' })}>
+              <option value="">— seleccione —</option>
+              {(ciudadesQ.data || []).map((c: any) => <option key={c.ciudad} value={c.ciudad}>{c.descripcion}</option>)}
+            </select></div>
+          <div><Label className="text-xs">Sector/Barrio</Label>
+            <select className="border rounded px-3 py-2 text-sm h-9 w-full bg-background" value={form.barrio}
+              disabled={!form.ciudad} onChange={set('barrio')}>
+              <option value="">— seleccione —</option>
+              {barriosDeCiudad.map((b: any) => <option key={b.barrio} value={b.barrio}>{b.descripcion}</option>)}
+            </select></div>
+          <div><Label className="text-xs">Dirección</Label><Input value={form.direccion} maxLength={60} onChange={set('direccion')} /></div>
+          <div><Label className="text-xs">Email</Label><Input type="email" value={form.email1} onChange={set('email1')} /></div>
+          <div><Label className="text-xs">Celular</Label><Input value={form.celular} onChange={set('celular')} /></div>
+          <div><Label className="text-xs">Teléfono</Label><Input value={form.telefono1} onChange={set('telefono1')} /></div>
+        </div>
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground mb-2">DATOS LABORALES</p>
+        <div className="grid grid-cols-2 gap-2">
+          <div><Label className="text-xs">Centro de trabajo</Label>
+            <select className="border rounded px-3 py-2 text-sm h-9 w-full bg-background" value={form.centro_trabajo} onChange={set('centro_trabajo')}>
+              <option value="">— seleccione —</option>
+              {(cat.centros_trabajo || []).map((c: any) => <option key={c.no_centro} value={c.no_centro}>{c.descripcion}</option>)}
+            </select></div>
+          <div className="col-span-2"><Label className="text-xs">Gerencia / Área / Depto</Label>
+            <select className="border rounded px-3 py-2 text-sm h-9 w-full bg-background"
+              value={form.no_gerencia && form.no_area && form.no_depto ? `${form.no_gerencia}|${form.no_area}|${form.no_depto}` : ''}
+              onChange={(e) => {
+                const [g, a, dep] = e.target.value.split('|')
+                setForm({ ...form, no_gerencia: g || '', no_area: a || '', no_depto: dep || '' })
+              }}>
+              <option value="">— seleccione —</option>
+              {(cat.deptos || []).map((dp: any) => (
+                <option key={`${dp.no_gerencia}|${dp.no_area}|${dp.no_depto}`} value={`${dp.no_gerencia}|${dp.no_area}|${dp.no_depto}`}>
+                  {dp.descripcion}
+                </option>
+              ))}
+            </select></div>
+          <div><Label className="text-xs">Puesto</Label>
+            <select className="border rounded px-3 py-2 text-sm h-9 w-full bg-background" value={form.no_puesto} onChange={set('no_puesto')}>
+              <option value="">— seleccione —</option>
+              {(cat.puestos || []).map((p: any) => <option key={p.no_puesto} value={p.no_puesto}>{p.descripcion}</option>)}
+            </select></div>
+          <div><Label className="text-xs">Tipo de empleado</Label>
+            <select className="border rounded px-3 py-2 text-sm h-9 w-full bg-background" value={form.no_tipo} onChange={set('no_tipo')}>
+              <option value="">— seleccione —</option>
+              {(cat.tipos_empleado || []).map((t: any) => <option key={t.no_tipo} value={t.no_tipo}>{t.descripcion}</option>)}
+            </select></div>
+          <div><Label className="text-xs">Profesión</Label>
+            <select className="border rounded px-3 py-2 text-sm h-9 w-full bg-background" value={form.no_profesion} onChange={set('no_profesion')}>
+              {(cat.profesiones || []).map((p: any) => <option key={p.no_profesion} value={p.no_profesion}>{p.descripcion}</option>)}
+            </select></div>
+          <div><Label className="text-xs">Salario mensual (RD$)</Label>
+            <Input type="number" step="0.01" value={form.salario_mensual} onChange={set('salario_mensual')} /></div>
+        </div>
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground mb-2">DATOS BANCARIOS</p>
+        <div className="grid grid-cols-2 gap-2">
+          <div><Label className="text-xs">Tipo de cuenta</Label>
+            <select className="border rounded px-3 py-2 text-sm h-9 w-full bg-background" value={form.tipo_cuenta_banco} onChange={set('tipo_cuenta_banco')}>
+              <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option>
+            </select></div>
+          <div><Label className="text-xs">No. cuenta</Label><Input value={form.cuenta_banco} maxLength={26} onChange={set('cuenta_banco')} /></div>
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" size="sm" onClick={() => setEditando(false)} disabled={guardar.isPending}>Cancelar</Button>
+        <Button size="sm" onClick={() => guardar.mutate()} disabled={!form.nombre || !form.apellido || !form.cedula || guardar.isPending}>
+          {guardar.isPending ? 'Guardando…' : 'Guardar cambios'}
+        </Button>
+      </div>
     </div>
   )
 }

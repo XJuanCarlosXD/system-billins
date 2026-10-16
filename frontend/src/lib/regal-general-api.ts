@@ -1788,6 +1788,10 @@ export const regalGeneralApi = {
     request<any>(`/sdn/empleados/catalogos/?no_cia=${noCia}`),
   sdnCrearEmpleado: (data: Record<string, unknown>) =>
     request<any>('/sdn/empleados/', { method: 'POST', body: JSON.stringify(data) }),
+  sdnActualizarEmpleado: (noCia: string, noEmpleado: number, data: Record<string, unknown>) =>
+    request<any>(`/sdn/empleados/${noCia}/${noEmpleado}/actualizar/`, {
+      method: 'POST', body: JSON.stringify(data),
+    }),
   sdnDarBajaEmpleado: (noCia: string, noEmpleado: number, fechaEgreso: string) =>
     request<any>(`/sdn/empleados/${noCia}/${noEmpleado}/baja/`, {
       method: 'POST', body: JSON.stringify({ fecha_egreso: fechaEgreso }),
