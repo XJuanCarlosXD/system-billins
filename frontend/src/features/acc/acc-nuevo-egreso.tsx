@@ -247,11 +247,13 @@ export function AccNuevoEgreso({ editNoDocu }: { editNoDocu?: string } = {}) {
   const [tipoGastoDgii, setTipoGastoDgii] = useState('')
   const [fechaVenceNcf, setFechaVenceNcf] = useState('')
 
+  // Caja Chica solo paga en EFECTIVO (forma_pago=1): el catálogo DGII marca
+  // 4 "COMPRA A CREDITO" como por_defecto global, pero para egresos de caja
+  // chica siempre es efectivo -- se fija aqui y se bloquea el Select.
   useEffect(() => {
-    if (formaPago || !formasPagoQ.data?.length) return
-    const def = formasPagoQ.data.find((f) => f.por_defecto === 'S') || formasPagoQ.data[0]
-    if (def) setFormaPago(String(def.forma_pago))
-  }, [formasPagoQ.data]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (formaPago) return
+    setFormaPago('1')
+  }, [formaPago])
 
   const ncfRequiereDgii = !!ncf.trim()
 
@@ -297,14 +299,22 @@ export function AccNuevoEgreso({ editNoDocu }: { editNoDocu?: string } = {}) {
   // forzaba la cuenta de crédito, así que nada aquí queda bloqueado.
   const [lineas, setLineas] = useState<LineaContable[]>([filaVacia()])
   const [lineasTocadas, setLineasTocadas] = useState(false)
+  // Precargar la linea de credito en cuanto haya caja seleccionada (su
+  // cuenta ya es "Caja Chica por Pagar", p.ej. 2104-06): asi el operador ve
+  // la contrapartida de una vez y solo digita la(s) linea(s) de debito.
+  // La de debito se sugiere cuando elige tipo de gasto; la de ITBIS cuando
+  // hay impuesto. Nada queda bloqueado -- la grilla sigue editable.
   useEffect(() => {
-    if (lineasTocadas || !gastoSel || !cajaSel) return
-    const sugeridas: LineaContable[] = [{
-      cuenta: gastoSel.cuenta || '',
-      centroCosto: gastoSel.centro_costo || '0000000000',
-      debito: valor || '',
-      credito: '',
-    }]
+    if (lineasTocadas) return
+    const sugeridas: LineaContable[] = []
+    if (gastoSel) {
+      sugeridas.push({
+        cuenta: gastoSel.cuenta || '',
+        centroCosto: gastoSel.centro_costo || '0000000000',
+        debito: valor || '',
+        credito: '',
+      })
+    }
     if (impuestoNum > 0 && cuentaItbisQ.data?.cuenta) {
       sugeridas.push({
         cuenta: cuentaItbisQ.data.cuenta,
@@ -313,12 +323,15 @@ export function AccNuevoEgreso({ editNoDocu }: { editNoDocu?: string } = {}) {
         credito: '',
       })
     }
-    sugeridas.push({
-      cuenta: cajaSel.cuenta,
-      centroCosto: '0000000000',
-      debito: '',
-      credito: String(total),
-    })
+    if (cajaSel) {
+      sugeridas.push({
+        cuenta: cajaSel.cuenta,
+        centroCosto: '0000000000',
+        debito: '',
+        credito: total > 0 ? String(total) : '',
+      })
+    }
+    if (sugeridas.length === 0) return
     setLineas(sugeridas)
   }, [gastoSel?.cuenta, gastoSel?.centro_costo, cajaSel?.cuenta, valor, impuesto, cuentaItbisQ.data?.cuenta, lineasTocadas]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -555,7 +568,7 @@ export function AccNuevoEgreso({ editNoDocu }: { editNoDocu?: string } = {}) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Forma de Pago</Label>
-              <Select value={formaPago} onValueChange={setFormaPago}>
+              <Select value={formaPago} onValueChange={setFormaPago} disabled>
                 <SelectTrigger className="h-9"><SelectValue placeholder="Selecciona…" /></SelectTrigger>
                 <SelectContent>
                   {(formasPagoQ.data || []).map((f) => (
