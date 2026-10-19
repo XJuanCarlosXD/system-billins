@@ -171,7 +171,8 @@ def list_documentos(no_cia: str, punto: str | None = None,
         "       b.nombre nombre_bene, d.tipo_gasto, t.descripcion desc_gasto, "
         "       d.no_reposicion, d.fecha, d.anulado, d.valor, d.debito, d.credito, "
         "       d.usuario, d.moneda, d.no_formulario, d.cuenta, "
-        "       d.st_generado_cnt, d.detalle, d.impuesto, d.ncf, d.rnc "
+        "       d.st_generado_cnt, d.detalle, d.impuesto, d.ncf, d.rnc, "
+        "       d.posiciones_fijas_ncf "
         "  FROM ACC.TACC_DOCUMENTO d "
         "  LEFT JOIN ACC.TACC_BENEFICIARIO b ON b.no_bene = d.no_bene "
         "  LEFT JOIN ACC.TACC_TGASTOS t ON t.tipo_gasto = d.tipo_gasto "
@@ -792,6 +793,49 @@ def next_no_reposicion(no_cia: str, punto: str) -> str:
     return str(prox).zfill(8)
 
 
+def _asignar_b13(no_cia: str, punto: str, no_caja: str, docs: list) -> dict:
+    """Self-issued B13 (gastos menores) for the expenses without supplier NCF.
+
+    Legacy Facc204 behaviour: each reposition gets ONE comprobante from the
+    caja's NCF series (TACC_CAJA_CHICA.codigo_ncf, GM-001 = B13) covering the
+    sum of its documents that have no supplier NCF (e.g. repo 73 = B13-1301
+    for 34,249.99). Lock + advance PROX_NCF in a single transaction.
+    """
+    binds = ','.join(f':{i + 3}' for i in range(len(docs)))
+    row = client.fetch_one(
+        "SELECT NVL(SUM(valor),0) FROM ACC.TACC_DOCUMENTO "
+        f" WHERE no_cia=:1 AND punto=:2 AND no_docu IN ({binds}) "
+        "   AND TRIM(ncf) IS NULL",
+        [no_cia, punto, *docs],
+    )
+    base = round(float(row[0] or 0), 2) if row else 0.0
+    caja = get_caja_chica(no_cia, punto, no_caja) or {}
+    if base <= 0 or not caja.get('codigo_ncf'):
+        return {}
+    with client.cursor() as cur:
+        cur.execute(
+            "SELECT prox_ncf, ncf_final, posiciones_fijas FROM CNT.TCNT_NCF "
+            " WHERE no_localidad=:1 AND codigo_ncf=:2 FOR UPDATE",
+            [no_cia, caja['codigo_ncf']],
+        )
+        rng = cur.fetchone()
+        if not rng:
+            raise ValueError(f"No existe el rango NCF {caja['codigo_ncf']} de la caja")
+        prox, final, posiciones = rng
+        if final is not None and int(prox) > int(final):
+            raise ValueError(f'Rango NCF {posiciones} agotado — solicite nuevos comprobantes a la DGII')
+        cur.execute(
+            "UPDATE CNT.TCNT_NCF SET prox_ncf = prox_ncf + 1 "
+            " WHERE no_localidad=:1 AND codigo_ncf=:2",
+            [no_cia, caja['codigo_ncf']],
+        )
+        cur.connection.commit()
+    return {
+        'posiciones_fijas_ncf': posiciones, 'ncf': int(prox), 'valor_ncf': base,
+        'tipo_gasto_dgii': '02', 'valor_bienes': base,
+    }
+
+
 def crear_reposicion(no_cia: str, punto: str, data: dict, usuario: str) -> str:
     """Crea reposición y vincula los documentos seleccionados.
 
@@ -803,6 +847,9 @@ def crear_reposicion(no_cia: str, punto: str, data: dict, usuario: str) -> str:
     no_rep = next_no_reposicion(no_cia, punto)
     fecha = data.get('fecha') or date.today().isoformat()
     docs = data.get('docs') or []
+    data = dict(data)
+    if not data.get('ncf') and docs:
+        data.update(_asignar_b13(no_cia, punto, data['no_caja'], docs))
 
     client.execute(
         "INSERT INTO ACC.TACC_REPOSICION ("

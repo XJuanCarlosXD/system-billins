@@ -293,6 +293,10 @@ export function AccReposicion() {
                 <Label className="text-xs">NCF (proveedor)</Label>
                 <Input className="h-9 font-mono" value={ncf} onChange={(e) => setNcf(e.target.value)}
                   placeholder="B01..." />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Déjalo vacío (junto con Valor NCF y Posiciones): el NCF B13
+                  (gastos menores) se asigna solo al guardar.
+                </p>
               </div>
               <div>
                 <Label className="text-xs">Valor NCF</Label>

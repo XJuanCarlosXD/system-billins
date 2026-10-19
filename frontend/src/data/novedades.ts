@@ -58,6 +58,14 @@ export type Novedad = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-10-19',
+    tipo: 'correccion',
+    modulo: 'Contabilidad',
+    titulo: 'Caja Chica: la forma de pago ya no se cambia sola a "Crédito" después de guardar un egreso',
+    descripcion:
+      'En Nuevo Egreso de Caja Chica, tras guardar un egreso el formulario volvía a quedar en "COMPRA A CREDITO" (que es el por defecto del catálogo DGII) hasta que se refrescaba la página. Ahora el formulario queda fijo en Efectivo, que es lo que corresponde a Caja Chica. Además, en Reposición agregamos un aviso bajo el campo NCF (proveedor): si lo dejas vacío (junto con Valor NCF y Posiciones) el sistema asigna solo el NCF B13 de gastos menores al guardar.',
+  },
+  {
     fecha: '2026-09-21',
     tipo: 'nuevo',
     modulo: 'General',

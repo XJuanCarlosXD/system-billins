@@ -384,8 +384,8 @@ export function AccNuevoEgreso({ editNoDocu }: { editNoDocu?: string } = {}) {
     setBeneficiario(null); setTipoGasto(''); setValor('');
     setImpuesto(''); setEditandoItbis(false); setNcf(''); setRnc(''); setDetalle('')
     setNoFormulario(''); setTipoGastoDgii(''); setFechaVenceNcf('')
-    const def = formasPagoQ.data?.find((f) => f.por_defecto === 'S') || formasPagoQ.data?.[0]
-    setFormaPago(def ? String(def.forma_pago) : '')
+    // Caja Chica siempre paga en efectivo (forma_pago=1); ver useEffect ~L253.
+    setFormaPago('1')
     setFecha(new Date().toISOString().slice(0, 10))
     setLineas([filaVacia()]); setLineasTocadas(false)
   }
