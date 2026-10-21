@@ -58,6 +58,15 @@ export type Novedad = {
  */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: '2026-10-21',
+    tipo: 'correccion',
+    modulo: 'Nómina',
+    titulo: 'Cierre de Nómina: la provisión de regalía pascual vuelve a aparecer en el asiento',
+    descripcion:
+      'Si una nómina tenía un empleado con un ingreso manual de "Salario", el cierre dejaba el asiento con solo dos líneas (Sueldos / Nómina por pagar) y olvidaba la línea de regalía pascual (1/12 del sueldo contra Provisión Regalía Pascual). Ahora el sistema consulta directamente el catálogo de ingresos para saber qué cuenta para regalía, así que el cierre genera siempre las cuatro líneas: Sueldos, Nómina por pagar, Regalía Pascual (gasto) y Provisión Regalía Pascual (pasivo). Los nuevos ingresos manuales también heredan automáticamente si cuentan para regalía/bonificación según su catálogo.',
+    commit: '0641138',
+  },
+  {
     fecha: '2026-10-19',
     tipo: 'correccion',
     modulo: 'Contabilidad',
