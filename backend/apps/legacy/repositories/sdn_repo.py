@@ -1036,16 +1036,23 @@ def _lineas_asiento_cierre(no_cia: str, punto: str, nomina: str, cab: dict) -> d
         _add(emp, cuenta_nomina, 'C', 'E', 'A', bruto)
 
     # Provision de regalia por empleado: 1/12 de sus ingresos validos para
-    # regalia en el periodo (TSDN_MOVIMIENTO.VALIDO_REGALIA='S'), mas el
-    # salario base derivado arriba (valido para regalia por defecto -- ley
-    # 16-92 RD, el sueldo siempre cuenta para regalia salvo excepcion).
+    # regalia en el periodo, mas el salario base derivado arriba (valido
+    # para regalia por defecto -- ley 16-92 RD, el sueldo siempre cuenta
+    # para regalia salvo excepcion). El flag maestro es TSDN_INGRESOS.
+    # valido_regalia (p.ej. no_ingreso='01' SALARIO lo tiene en 'S'); los
+    # movimientos manuales historicamente han entrado con el flag en 'N'
+    # porque crear_movimiento_manual no lo heredaba del catalogo (caso real
+    # D CLASE periodo 10/2026 #19: salario manual con valido_regalia='N'
+    # cerro sin provision). Por eso el JOIN manda sobre el flag del movto.
     base_regalia_dict: dict[int, float] = {}
     for r in client.fetch_dicts(
-        "SELECT no_empleado, NVL(SUM(monto_transaccion),0) AS monto "
-        "  FROM SDN.TSDN_MOVIMIENTO "
-        " WHERE no_cia=:1 AND punto=:2 AND nomina=:3 AND ano=:4 AND mes=:5 "
-        "   AND periodo=:6 AND tipo_transaccion='I' AND valido_regalia='S' "
-        " GROUP BY no_empleado",
+        "SELECT m.no_empleado, NVL(SUM(m.monto_transaccion),0) AS monto "
+        "  FROM SDN.TSDN_MOVIMIENTO m "
+        "  JOIN SDN.TSDN_INGRESOS i ON i.no_ingreso = m.no_transaccion "
+        " WHERE m.no_cia=:1 AND m.punto=:2 AND m.nomina=:3 "
+        "   AND m.ano=:4 AND m.mes=:5 AND m.periodo=:6 "
+        "   AND m.tipo_transaccion='I' AND i.valido_regalia='S' "
+        " GROUP BY m.no_empleado",
         [no_cia, punto, nomina, ano, mes, periodo],
     ):
         base_regalia_dict[int(r['no_empleado'])] = float(r['monto'] or 0)
@@ -1433,6 +1440,20 @@ def crear_movimiento_manual(*, no_cia: str, punto: str, nomina: str,
     )
     linea = int(row[0]) if row else 1
 
+    # Flags valido_regalia / valido_bonificacion vienen del catalogo
+    # (TSDN_INGRESOS para 'I', TSDN_DEDUCCIONES no los usa). Antes esto
+    # estaba hardcoded a 'N' y el salario manual quedaba fuera de la
+    # provision de regalia en el asiento de cierre.
+    v_regalia, v_bonif = 'N', 'N'
+    if tt == 'I':
+        ing = client.fetch_one(
+            "SELECT NVL(valido_regalia,'N'), NVL(valido_bonificacion,'N') "
+            "  FROM SDN.TSDN_INGRESOS WHERE no_ingreso=:1",
+            [nt],
+        )
+        if ing:
+            v_regalia, v_bonif = ing[0] or 'N', ing[1] or 'N'
+
     client.execute(
         "INSERT INTO SDN.TSDN_MOVIMIENTO ("
         " no_cia, punto, ano, mes, nomina, periodo, no_empleado, "
@@ -1444,11 +1465,12 @@ def crear_movimiento_manual(*, no_cia: str, punto: str, nomina: str,
         " :1, :2, :3, :4, :5, :6, :7, "
         " :8, :9, 'M', :10, "
         " SYSDATE, :11, :12, "
-        " 'N', 'N', 0, "
-        " :13, 'N', :14"
+        " :13, :14, 0, "
+        " :15, 'N', :16"
         ")",
         [no_cia, punto, int(ano), int(mes), nomina, int(periodo), int(no_empleado),
          nt, tt, clase_transaccion, float(monto), salario,
+         v_regalia, v_bonif,
          empleado_patrono, linea],
     )
     # Reabrir cálculo si estaba cerrado
