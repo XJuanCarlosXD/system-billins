@@ -3,16 +3,13 @@ from datetime import datetime
 from .. import client
 
 
-def _norm_fecha_ncf(valor):
+def _norm_fecha(valor, label='fecha'):
     """Valida/normaliza una fecha 'YYYY-MM-DD' (o None) antes de pasarla a
-    TO_DATE(:x,'YYYY-MM-DD'). El <input type="date"> del modal de
-    Mantenimiento NCF manda un string ISO plano; bindearlo directo contra
-    una columna DATE sin TO_DATE() dependia de que NLS_DATE_FORMAT de la
-    sesion Oracle coincidiera con 'YYYY-MM-DD' -- no coincide, asi que
-    cualquier actualizacion con fecha_vencimiento revienta con ORA-01858/
-    ORA-01861 y el endpoint lo devuelve como 400 Bad Request generico
-    aunque los datos del modal sean correctos (reporte de soporte
-    2026-09-08)."""
+    TO_DATE(:x,'YYYY-MM-DD'). El <input type="date"> manda un string ISO
+    plano; bindearlo directo contra una columna DATE sin TO_DATE() depende
+    de que NLS_DATE_FORMAT de la sesion Oracle coincida con 'YYYY-MM-DD'
+    -- no coincide, asi que cualquier insert/update revienta con
+    ORA-01861 (reporte NCF 2026-09-08, reporte asientos CNT 2026-10-21)."""
     s = (str(valor or '')).strip()
     if not s:
         return None
@@ -20,9 +17,13 @@ def _norm_fecha_ncf(valor):
         d = datetime.strptime(s[:10], '%Y-%m-%d').date()
     except ValueError:
         raise ValueError(
-            f'La fecha de vencimiento "{s}" no es válida. Use el formato '
+            f'La {label} "{s}" no es válida. Use el formato '
             f'de fecha del calendario (día/mes/año).')
     return d.strftime('%Y-%m-%d')
+
+
+def _norm_fecha_ncf(valor):
+    return _norm_fecha(valor, label='fecha de vencimiento')
 
 
 def get_config(no_cia: str):
@@ -350,27 +351,45 @@ def create_asiento(usuario, no_cia, punto, ano, mes, fecha, detalle, lineas, afe
     total_c = sum(float(l.get('monto', 0)) for l in lineas if l.get('tipo_movi') == 'C')
     if abs(total_d - total_c) > 0.001:
         raise ValueError(f"Asiento no cuadra: debitos={total_d} creditos={total_c}")
+    fecha_iso = _norm_fecha(fecha, label='fecha del asiento')
+    if not fecha_iso:
+        raise ValueError('La fecha del asiento es obligatoria.')
+    # TCNT_ASIENTO.AUXILIAR es NOT NULL en legado y clasifica el origen
+    # del asiento (A=CxC, B=CxP, C=caja, D=diario, E=nómina, J=journal
+    # manual, Z=otros). El endpoint /api/cnt/asientos/ es asiento manual
+    # digitado desde CNT, por eso siempre 'J' (igual que Fcnt203).
+    auxiliar = 'J'
     with client.connection() as conn:
         cur = conn.cursor()
+        cur.execute(
+            "SELECT NVL(tasa_us,0) FROM CNT.TCNT_CIAS WHERE no_cia=:1",
+            [no_cia]
+        )
+        row = cur.fetchone()
+        tasa_us = float(row[0]) if row else 0
         no_asiento = _get_next_asiento_no(cur, no_cia, punto, int(ano), int(mes))
         cur.execute(
             """INSERT INTO CNT.TCNT_ASIENTO
                (no_cia,punto,ano,mes,no_asiento,fecha,detalle,
-                autorizado,actualizado,debitos,creditos,st_anulado,afecta_us)
-               VALUES (:1,:2,:3,:4,:5,:6,:7,'N','N',:8,:9,'N',:10)""",
-            [no_cia, punto, int(ano), int(mes), no_asiento, fecha, detalle,
-             total_d, total_c, afecta_us]
+                autorizado,actualizado,auxiliar,debitos,creditos,
+                tasa_us,st_anulado,afecta_us)
+               VALUES (:1,:2,:3,:4,:5,TO_DATE(:6,'YYYY-MM-DD'),:7,
+                       'N','N',:8,:9,:10,:11,'N',:12)""",
+            [no_cia, punto, int(ano), int(mes), no_asiento, fecha_iso, detalle,
+             auxiliar, total_d, total_c, tasa_us, afecta_us]
         )
         for i, linea in enumerate(lineas, 1):
+            centro_costo = str(linea.get('centro_costo') or '0000000000')
             cur.execute(
                 """INSERT INTO CNT.TCNT_ASIENTOL
                    (no_cia,punto,ano,mes,no_asiento,no_linea,cuenta,
-                    centro_costo,tipo_movi,monto,monto_us)
-                   VALUES (:1,:2,:3,:4,:5,:6,:7,:8,:9,:10,:11)""",
+                    centro_costo,tipo_movi,auxiliar,monto,monto_us)
+                   VALUES (:1,:2,:3,:4,:5,:6,:7,:8,:9,:10,:11,:12)""",
                 [no_cia, punto, int(ano), int(mes), no_asiento, i,
                  linea['cuenta'],
-                 linea.get('centro_costo', ''),
+                 centro_costo,
                  linea['tipo_movi'],
+                 auxiliar,
                  float(linea['monto']),
                  float(linea.get('monto_us', 0))]
             )
@@ -401,9 +420,13 @@ def _update_hcuenta(cur, no_cia, punto, cuenta, ano, mes, tipo_movi, monto):
     else:
         d = monto if tipo_movi == 'D' else 0
         c = monto if tipo_movi == 'C' else 0
+        # saldo_mes_ant/saldo_mes_ant_us/debitos_us/creditos_us son
+        # NOT NULL en legado -- al abrir un periodo nuevo arrancan en 0.
         cur.execute(
-            """INSERT INTO CNT.TCNT_HCUENTA (no_cia,punto,cuenta,ano,mes,debitos,creditos)
-               VALUES (:1,:2,:3,:4,:5,:6,:7)""",
+            """INSERT INTO CNT.TCNT_HCUENTA
+               (no_cia,punto,cuenta,ano,mes,saldo_mes_ant,
+                debitos,creditos,saldo_mes_ant_us,debitos_us,creditos_us)
+               VALUES (:1,:2,:3,:4,:5,0,:6,:7,0,0,0)""",
             [no_cia, punto, cuenta, ano, mes, d, c]
         )
 
@@ -441,21 +464,27 @@ def actualizar_asiento(no_cia, punto, ano, mes, no_asiento, usuario):
         if act == 'S':
             raise ValueError("Asiento ya fue actualizado")
         lines = cur.execute(
-            """SELECT cuenta, centro_costo, tipo_movi, monto FROM CNT.TCNT_ASIENTOL
+            """SELECT no_linea, cuenta, centro_costo, tipo_movi, monto, monto_us, auxiliar
+               FROM CNT.TCNT_ASIENTOL
                WHERE no_cia=:1 AND punto=:2 AND ano=:3 AND mes=:4 AND no_asiento=:5""",
             [no_cia, punto, int(ano), int(mes), int(no_asiento)]
         ).fetchall()
         for linea in lines:
-            cuenta, centro, tipo_movi, monto = linea
+            no_linea, cuenta, centro, tipo_movi, monto, monto_us, auxiliar = linea
             _update_hcuenta(cur, no_cia, punto, cuenta, int(ano), int(mes), tipo_movi, float(monto))
+            # TCNT_MOVIMIENTO: auxiliar/no_linea/monto_us/tasa_us son NOT NULL;
+            # fecha/tasa_us salen del asiento cabecera (SELECT). Nota:
+            # TCNT_ASIENTO no tiene columna cuenta -- se pasa por bind.
             cur.execute(
                 """INSERT INTO CNT.TCNT_MOVIMIENTO
-                   (no_cia,punto,ano,mes,no_asiento,cuenta,centro_costo,tipo_movi,monto,fecha)
-                   SELECT no_cia,punto,ano,mes,:1,cuenta,:2,:3,:4,fecha
+                   (no_cia,punto,ano,mes,no_asiento,no_linea,cuenta,centro_costo,
+                    tipo_movi,auxiliar,monto,monto_us,fecha,tasa_us)
+                   SELECT no_cia,punto,ano,mes,:1,:2,:3,:4,:5,:6,:7,:8,fecha,tasa_us
                    FROM CNT.TCNT_ASIENTO
-                   WHERE no_cia=:5 AND punto=:6 AND ano=:7 AND mes=:8 AND no_asiento=:1""",
+                   WHERE no_cia=:9 AND punto=:10 AND ano=:11 AND mes=:12 AND no_asiento=:1""",
                 client.nbinds(
-                    int(no_asiento), centro, tipo_movi, float(monto),
+                    int(no_asiento), int(no_linea), cuenta, centro, tipo_movi, auxiliar,
+                    float(monto), float(monto_us or 0),
                     no_cia, punto, int(ano), int(mes))
             )
         cur.execute(

@@ -60,6 +60,14 @@ export const NOVEDADES: Novedad[] = [
   {
     fecha: '2026-10-21',
     tipo: 'correccion',
+    modulo: 'Contabilidad',
+    titulo: 'Asiento manual: ya se puede guardar y actualizar al mayor desde la pantalla',
+    descripcion:
+      'Al dar "Guardar" en un asiento manual, el sistema devolvía un error de fecha (ORA-01861) y nada quedaba grabado — bloqueaba el flujo completo en Contabilidad. Se corrigió la fecha, se añadieron los campos requeridos por el legado (clasificador del asiento, tasa US, centro de costo) y las inserciones a Histórico de Cuentas y Movimientos. Ahora el asiento se graba, se autoriza y se actualiza al mayor sin tocar más que los botones de la pantalla.',
+  },
+  {
+    fecha: '2026-10-21',
+    tipo: 'correccion',
     modulo: 'Nómina',
     titulo: 'Cierre de Nómina: la provisión de regalía pascual vuelve a aparecer en el asiento',
     descripcion:
