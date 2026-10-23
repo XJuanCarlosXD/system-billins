@@ -113,7 +113,10 @@ Las secuencias en `FAT.TFE_SECUENCIA` (NO_CIA='01') son las que la DGII aprobó 
 | `backend/apps/fe/tests/test_emision.py` | **CREAR** | Tests del orquestador |
 | `backend/apps/fe/tests/test_ecf_builder_cxp.py` | **CREAR** | Tests builders CxP |
 | `backend/apps/fe/tests/test_ecf_builder_cxc.py` | **CREAR** | Tests builders CxC |
-| `frontend/src/features/fe/fe-tutorial-dialog.tsx` | **CREAR** | Componente tutorial reutilizable |
+| `frontend/src/features/fe/fe-tutorial-dialog.tsx` | **CREAR** | Dialog tutorial con voz (Web Speech API) + avatar SVG animado |
+| `frontend/src/features/fe/fe-tutorial-avatar.tsx` | **CREAR** | Avatar SVG con boca animada sync voz |
+| `frontend/src/features/fe/fe-tutorial-voice.ts` | **CREAR** | Hook `useTTS()` — Web Speech API gratis, sin API key |
+| `frontend/src/features/fe/fe-tutorial-button.tsx` | **CREAR** | Botón "Tutorial e-CF" siempre visible + auto-open primera vez |
 | `frontend/src/features/fe/fe-ayuda-contenido.ts` | Modificar | Contenido tutorial por módulo (FAT/CxP/CxC/ACC/INV) |
 | `frontend/src/features/fat/facturas.tsx` | Modificar | Tutorial + badge e-CF |
 | `frontend/src/features/cxp/cxp-documentos.tsx` | Modificar | Tutorial + badge e-CF |
@@ -720,25 +723,114 @@ git commit -m "feat(acc): emitir e-CF tipo 43 automáticamente en egresos caja c
 
 ---
 
-### Task 10: Componente tutorial reutilizable (frontend)
+### Task 10: Componente tutorial reutilizable con voz y avatar (frontend)
 
 **Files:**
-- Create: `frontend/src/features/fe/fe-tutorial-dialog.tsx`
+- Create: `frontend/src/features/fe/fe-tutorial-dialog.tsx` — dialog principal con pasos, voz y avatar
+- Create: `frontend/src/features/fe/fe-tutorial-avatar.tsx` — avatar animado que "habla"
+- Create: `frontend/src/features/fe/fe-tutorial-voice.ts` — hook `useTTS()` con Web Speech API
+- Create: `frontend/src/features/fe/fe-tutorial-button.tsx` — botón flotante "Ver tutorial e-CF"
 - Modify: `frontend/src/features/fe/fe-ayuda-contenido.ts`
 
-Dialog reutilizable que se muestra UNA vez por módulo cuando el usuario entra a una vista que genera e-CF por primera vez.
+**Diseño:**
+- **Voz:** Web Speech API (`window.speechSynthesis`) — gratis, nativo del navegador, sin API key. Voz español-MX/ES preferida. Fallback silencioso si el navegador no soporta TTS.
+- **Avatar:** SVG animado estilo "asistente" — cara redonda con boca que se sincroniza con la voz (clase CSS `speaking` toggle). No requiere librería externa.
+- **Botón persistente:** Cada vista con e-CF tiene un botón "Tutorial e-CF" siempre visible (no solo la primera vez). Click → abre el dialog.
+- **Skip:** Botón "Saltar" visible en todo momento. También se puede cerrar el dialog con X. La voz se detiene al saltar.
+- **Primera vez:** Se abre automáticamente la primera vez que el usuario entra a la vista con e-CF activo (localStorage). Las siguientes veces solo se muestra el botón.
 
-- [ ] **Step 1: Crear componente**
+- [ ] **Step 1: Crear hook `useTTS()`**
+
+```typescript
+// frontend/src/features/fe/fe-tutorial-voice.ts
+import { useCallback, useRef } from 'react'
+
+export function useTTS() {
+  const utterRef = useRef<SpeechSynthesisUtterance | null>(null)
+
+  const speak = useCallback((text: string, onEnd?: () => void) => {
+    try {
+      if (!window.speechSynthesis) return
+      stop()
+      const utter = new SpeechSynthesisUtterance(text)
+      utter.lang = 'es-MX'
+      utter.rate = 0.95
+      utter.pitch = 1.0
+      // Preferir voz española si existe
+      const voices = window.speechSynthesis.getVoices()
+      const esVoice = voices.find(v => v.lang.startsWith('es'))
+      if (esVoice) utter.voice = esVoice
+      if (onEnd) utter.onend = onEnd
+      utterRef.current = utter
+      window.speechSynthesis.speak(utter)
+    } catch {}
+  }, [])
+
+  const stop = useCallback(() => {
+    try {
+      window.speechSynthesis?.cancel()
+      utterRef.current = null
+    } catch {}
+  }, [])
+
+  const isSpeaking = useCallback(() => {
+    try { return window.speechSynthesis?.speaking ?? false } catch { return false }
+  }, [])
+
+  return { speak, stop, isSpeaking }
+}
+```
+
+- [ ] **Step 2: Crear avatar SVG animado**
+
+```tsx
+// frontend/src/features/fe/fe-tutorial-avatar.tsx
+import { cn } from '@/lib/utils'
+
+interface Props { speaking: boolean; className?: string }
+
+export function FeTutorialAvatar({ speaking, className }: Props) {
+  return (
+    <div className={cn('relative w-16 h-16 flex-shrink-0', className)}>
+      <svg viewBox='0 0 64 64' className='w-full h-full'>
+        {/* Cara */}
+        <circle cx='32' cy='32' r='28' fill='#818CF8' />
+        {/* Ojos */}
+        <circle cx='22' cy='26' r='3' fill='white' />
+        <circle cx='42' cy='26' r='3' fill='white' />
+        <circle cx='22' cy='26' r='1.5' fill='#1E1B4B' />
+        <circle cx='42' cy='26' r='1.5' fill='#1E1B4B' />
+        {/* Boca — animada si speaking */}
+        {speaking ? (
+          <ellipse cx='32' cy='42' rx='6' ry='4' fill='white'>
+            <animate attributeName='ry' values='4;2;4' dur='0.4s' repeatCount='indefinite' />
+          </ellipse>
+        ) : (
+          <path d='M24 40 Q32 48 40 40' stroke='white' strokeWidth='2' fill='none' />
+        )}
+        {/* Headset */}
+        <path d='M12 28 Q12 12 32 12 Q52 12 52 28' stroke='#4338CA' strokeWidth='3' fill='none' />
+        <rect x='8' y='24' width='6' height='10' rx='2' fill='#4338CA' />
+        <rect x='50' y='24' width='6' height='10' rx='2' fill='#4338CA' />
+      </svg>
+    </div>
+  )
+}
+```
+
+- [ ] **Step 3: Crear dialog principal con voz + avatar + skip**
 
 ```tsx
 // frontend/src/features/fe/fe-tutorial-dialog.tsx
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { FeTutorialAvatar } from './fe-tutorial-avatar'
+import { useTTS } from './fe-tutorial-voice'
 
-interface TutorialPaso {
+export interface TutorialPaso {
   titulo: string
   descripcion: string
   icono: string
@@ -749,51 +841,149 @@ interface Props {
   titulo: string
   pasos: TutorialPaso[]
   feActivo: boolean
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
-export function FeTutorialDialog({ moduloKey, titulo, pasos, feActivo }: Props) {
-  const storageKey = `fe-tutorial-visto-${moduloKey}`
-  const [open, setOpen] = useState(false)
+export function FeTutorialDialog({ moduloKey, titulo, pasos, feActivo, open, onOpenChange }: Props) {
+  const [pasoActual, setPasoActual] = useState(0)
+  const [speaking, setSpeaking] = useState(false)
+  const { speak, stop } = useTTS()
+
+  const paso = pasos[pasoActual]
+
+  const leerPaso = useCallback((p: TutorialPaso) => {
+    setSpeaking(true)
+    speak(`${p.titulo}. ${p.descripcion}`, () => setSpeaking(false))
+  }, [speak])
 
   useEffect(() => {
-    if (!feActivo) return
-    try {
-      if (!localStorage.getItem(storageKey)) {
-        setOpen(true)
-      }
-    } catch {}
-  }, [feActivo, storageKey])
+    if (open && paso) leerPaso(paso)
+    return () => { stop(); setSpeaking(false) }
+  }, [open, pasoActual])
 
-  const cerrar = () => {
-    setOpen(false)
-    try { localStorage.setItem(storageKey, '1') } catch {}
+  const siguiente = () => {
+    if (pasoActual < pasos.length - 1) {
+      setPasoActual(pasoActual + 1)
+    } else {
+      cerrar()
+    }
   }
 
+  const anterior = () => {
+    if (pasoActual > 0) setPasoActual(pasoActual - 1)
+  }
+
+  const cerrar = () => {
+    stop()
+    setSpeaking(false)
+    setPasoActual(0)
+    onOpenChange(false)
+    try { localStorage.setItem(`fe-tutorial-visto-${moduloKey}`, '1') } catch {}
+  }
+
+  if (!feActivo || !paso) return null
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) cerrar() }}>
       <DialogContent className='sm:max-w-lg'>
         <DialogHeader>
-          <DialogTitle>{titulo}</DialogTitle>
+          <DialogTitle className='flex items-center gap-2'>
+            <FeTutorialAvatar speaking={speaking} className='w-10 h-10' />
+            {titulo}
+          </DialogTitle>
         </DialogHeader>
-        <div className='space-y-3 py-2'>
-          <p className='text-muted-foreground text-sm'>
-            La facturación electrónica está activa. Esto es lo que cambia en este módulo:
-          </p>
-          {pasos.map((p, i) => (
-            <div key={i} className='flex gap-3 rounded-lg border p-3'>
-              <span className='text-2xl' aria-hidden>{p.icono}</span>
-              <div>
-                <p className='text-sm font-medium'>{p.titulo}</p>
-                <p className='text-muted-foreground text-xs'>{p.descripcion}</p>
-              </div>
-            </div>
+
+        {/* Progress dots */}
+        <div className='flex justify-center gap-1.5'>
+          {pasos.map((_, i) => (
+            <div key={i} className={`w-2 h-2 rounded-full transition-colors ${
+              i === pasoActual ? 'bg-primary' : 'bg-muted'
+            }`} />
           ))}
         </div>
-        <DialogFooter>
-          <Button onClick={cerrar}>Entendido</Button>
+
+        {/* Paso actual */}
+        <div className='flex gap-4 rounded-lg border p-4 min-h-[120px]'>
+          <span className='text-3xl' aria-hidden>{paso.icono}</span>
+          <div>
+            <p className='font-medium'>{paso.titulo}</p>
+            <p className='text-muted-foreground text-sm mt-1'>{paso.descripcion}</p>
+          </div>
+        </div>
+
+        <p className='text-muted-foreground text-xs text-center'>
+          Paso {pasoActual + 1} de {pasos.length}
+        </p>
+
+        <DialogFooter className='flex justify-between sm:justify-between'>
+          <Button variant='ghost' onClick={cerrar}>Saltar</Button>
+          <div className='flex gap-2'>
+            {pasoActual > 0 && (
+              <Button variant='outline' onClick={anterior}>Anterior</Button>
+            )}
+            <Button onClick={siguiente}>
+              {pasoActual < pasos.length - 1 ? 'Siguiente' : 'Entendido'}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+```
+
+- [ ] **Step 4: Crear botón flotante reutilizable**
+
+```tsx
+// frontend/src/features/fe/fe-tutorial-button.tsx
+import { useState, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
+import { FeTutorialDialog, type TutorialPaso } from './fe-tutorial-dialog'
+
+interface Props {
+  moduloKey: string
+  titulo: string
+  pasos: TutorialPaso[]
+  feActivo: boolean
+}
+
+export function FeTutorialButton({ moduloKey, titulo, pasos, feActivo }: Props) {
+  const [open, setOpen] = useState(false)
+
+  // Auto-open la primera vez
+  useEffect(() => {
+    if (!feActivo) return
+    try {
+      if (!localStorage.getItem(`fe-tutorial-visto-${moduloKey}`)) {
+        setOpen(true)
+      }
+    } catch {}
+  }, [feActivo, moduloKey])
+
+  if (!feActivo) return null
+
+  return (
+    <>
+      <Button
+        variant='outline'
+        size='sm'
+        onClick={() => setOpen(true)}
+        className='gap-1.5'
+      >
+        <span aria-hidden>🎓</span>
+        Tutorial e-CF
+      </Button>
+
+      <FeTutorialDialog
+        moduloKey={moduloKey}
+        titulo={titulo}
+        pasos={pasos}
+        feActivo={feActivo}
+        open={open}
+        onOpenChange={setOpen}
+      />
+    </>
   )
 }
 ```
@@ -902,25 +1092,27 @@ git commit -m "feat(fe): componente tutorial reutilizable + contenido para 5 mó
 **Files:**
 - Modify: `frontend/src/features/fat/facturas.tsx`
 
-- [ ] **Step 1: Agregar hook para verificar si e-CF está activo**
+- [ ] **Step 1: Agregar botón tutorial + hook e-CF**
 
 ```tsx
 import { useFeConfig } from '@/features/fe/api'
-import { FeTutorialDialog } from '@/features/fe/fe-tutorial-dialog'
+import { FeTutorialButton } from '@/features/fe/fe-tutorial-button'
 import { FE_TUTORIAL_FAT } from '@/features/fe/fe-ayuda-contenido'
 
 // Dentro del componente:
 const { data: feData } = useFeConfig(noCia)
 const feActivo = feData?.config?.activo === 'S'
 
-// En el JSX, al final:
-<FeTutorialDialog
+// En el header de la vista, junto a los otros botones:
+<FeTutorialButton
   moduloKey='fat'
   titulo='Facturación Electrónica en Ventas'
   pasos={FE_TUTORIAL_FAT}
   feActivo={feActivo}
 />
 ```
+
+El botón "Tutorial e-CF" aparece siempre que e-CF esté activo. La primera vez se abre automáticamente con voz. Las siguientes veces el usuario lo abre manualmente.
 
 - [ ] **Step 2: Agregar badge de estado e-CF en la lista de facturas**
 
@@ -929,7 +1121,7 @@ Cuando una factura tiene e-NCF asignado, mostrar un badge verde "e-CF" al lado d
 - [ ] **Step 3: Commit**
 
 ```bash
-git commit -m "feat(fat): tutorial e-CF + badge estado en lista facturas"
+git commit -m "feat(fat): botón tutorial e-CF con voz/avatar + badge estado"
 ```
 
 ---
@@ -942,12 +1134,12 @@ git commit -m "feat(fat): tutorial e-CF + badge estado en lista facturas"
 - Modify: `frontend/src/features/acc/acc-egresos.tsx` (o equivalente)
 - Modify: `frontend/src/features/inv/inv-devoluciones.tsx` (o equivalente)
 
-Mismo patrón que Task 11, usando `FE_TUTORIAL_CXP`, `FE_TUTORIAL_CXC`, `FE_TUTORIAL_ACC` y `FE_TUTORIAL_INV`.
+Mismo patrón que Task 11: agregar `<FeTutorialButton>` en el header de cada vista. Cada módulo tiene su array de pasos con voz + avatar. El botón "Tutorial e-CF" queda siempre visible para que el usuario lo consulte cuando quiera.
 
-- [ ] **Step 1-3: CxP** — tutorial + badge
-- [ ] **Step 4-6: CxC** — tutorial + badge + indicador de referencia e-NCF
-- [ ] **Step 7-8: ACC** — tutorial en egresos caja chica
-- [ ] **Step 9-10: INV** — tutorial en devoluciones (informativo: el e-CF lo maneja CxC)
+- [ ] **Step 1-3: CxP** — `FeTutorialButton` con `FE_TUTORIAL_CXP` + badge e-CF
+- [ ] **Step 4-6: CxC** — `FeTutorialButton` con `FE_TUTORIAL_CXC` + badge + indicador referencia e-NCF
+- [ ] **Step 7-8: ACC** — `FeTutorialButton` con `FE_TUTORIAL_ACC` en egresos caja chica
+- [ ] **Step 9-10: INV** — `FeTutorialButton` con `FE_TUTORIAL_INV` en devoluciones
 - [ ] **Step 11: Commit**
 
 ```bash
