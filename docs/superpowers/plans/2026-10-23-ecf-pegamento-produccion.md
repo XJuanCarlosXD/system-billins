@@ -10,6 +10,29 @@
 
 ---
 
+## Progreso (2026-10-23)
+
+| Task | Estado | Commit | Nota |
+|------|--------|--------|------|
+| 1. fe_repo fallback cia 01 | ✅ | 6977b68 | Falta test unitario |
+| 2. Orquestador emision.py | ✅ | 0c12c58 | Falta tests TDD |
+| 3. Hook FAT | ✅ | 2d57d18 | Falta smoke E2E en VM |
+| 4. Builder CxP (41/43/47) | ✅ | 8432b11 | Falta tests TDD |
+| 5. Builder CxC (33/34) | ✅ | 8432b11 | Falta tests TDD |
+| 6. Builder ACC (43) | ✅ | 8432b11 | Falta test TDD |
+| 7. Hook CxP | ✅ | 3513615 | Falta smoke E2E |
+| 8. Hook CxC ND/NC | ✅ | e6dc6d1 | Falta smoke E2E |
+| 9. Hook ACC egresos | ✅ | a665e29 | Falta smoke E2E |
+| 10. Tutorial dialog + voz + avatar | ⏳ | — | Pendiente |
+| 11. Tutorial en FAT | ⏳ | — | Pendiente |
+| 12. Tutorial en CxP/CxC/ACC/INV | ⏳ | — | Pendiente |
+| 13. Tools chatbot e-CF | ⏳ | — | Pendiente |
+| 14. Deploy VM + Netlify + E2E | ⏳ | — | Pendiente |
+
+**Backend 9/9 integrado.** Tests y verificación E2E quedan como follow-up antes del deploy final (Task 14). Frontend y chatbot pendientes.
+
+---
+
 ## Análisis de los 12 módulos — dónde aplica e-CF
 
 | Módulo | ¿Usa NCF? | Tipos e-CF | Integración requerida | Notas |
@@ -149,13 +172,15 @@ with client.cursor() as cur:
 \""
 ```
 
-- [ ] **Step 2: Decidir estrategia**
+- [x] **Step 2: Decidir estrategia**
 
 Si Abregonza (03) factura pero la config e-CF está en 01:
 - **Opción A (recomendada):** `fe_repo.get_config()` busca primero en la cia pedida y si no existe, cae a '01' como default del grupo (un RNC, una config e-CF).
 - **Opción B:** Clonar la fila de TFE_CONFIG para cia 03 y las secuencias.
 
-- [ ] **Step 3: Implementar el fallback en `fe_repo.get_config()`**
+**Decisión:** Opción A implementada (`_resolve_fe_cia`).
+
+- [x] **Step 3: Implementar el fallback en `fe_repo.get_config()`**
 
 ```python
 def get_config(no_cia: str) -> dict | None:
@@ -180,7 +205,7 @@ def test_get_config_fallback_a_cia_01(mock_cursor):
     ...
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit** — `6977b68`
 
 ```bash
 git commit -m "fix(fe): fallback TFE_CONFIG a cia 01 para grupo multi-empresa"
@@ -261,7 +286,7 @@ def test_rfce_tipo_32_menor_250k():
 pytest backend/apps/fe/tests/test_emision.py -v
 ```
 
-- [ ] **Step 3: Implementar `emision.py`**
+- [x] **Step 3: Implementar `emision.py`**
 
 ```python
 # backend/apps/fe/emision.py
@@ -432,7 +457,7 @@ def _extraer_encf(xml: str) -> str:
 
 - [ ] **Step 4: Correr test, verificar que pasa**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit** — `0c12c58`
 
 ```bash
 git commit -m "feat(fe): orquestador emision.py con soporte RFCE y multi-módulo"
@@ -447,13 +472,15 @@ git commit -m "feat(fe): orquestador emision.py con soporte RFCE y multi-módulo
 
 El hook va DESPUÉS del `cur.connection.commit()` de `create_factura`, en la capa de views. No dentro de `create_factura` — así el e-CF no se mete dentro de la transacción.
 
-- [ ] **Step 1: Identificar dónde se llama `create_factura` en views**
+- [x] **Step 1: Identificar dónde se llama `create_factura` en views**
 
 ```bash
 grep -rn 'create_factura' backend/apps/fat/
 ```
 
-- [ ] **Step 2: Agregar hook post-creación en la view**
+Ubicación: `backend/apps/fat/views.py` → `FatFacturasView.post` (línea ~222).
+
+- [x] **Step 2: Agregar hook post-creación en la view**
 
 ```python
 # Después de result = fat_repo.create_factura(...)
@@ -469,7 +496,7 @@ if ecf_result:
 
 - [ ] **Step 3: Test E2E con empresa de prueba**
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit** — `2d57d18`
 
 ```bash
 git commit -m "feat(fat): emitir e-CF automáticamente al crear factura"
@@ -504,7 +531,7 @@ def test_construir_ecf_47_pago_exterior():
     ...
 ```
 
-- [ ] **Step 2: Implementar `construir_ecf_cxp()`**
+- [x] **Step 2: Implementar `construir_ecf_cxp()`**
 
 ```python
 def construir_ecf_cxp(tipo_ecf: int, no_cia: str, punto: str,
@@ -531,7 +558,7 @@ def construir_ecf_cxp(tipo_ecf: int, no_cia: str, punto: str,
 
 - [ ] **Step 3: Correr tests**
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit** — `8432b11` (bundle CxP/CxC/ACC)
 
 ```bash
 git commit -m "feat(fe): builders e-CF para CxP (tipos 41/43/47)"
@@ -563,7 +590,7 @@ def test_nd_sin_factura_original_lanza_error():
     ...
 ```
 
-- [ ] **Step 2: Implementar `construir_ecf_cxc()`**
+- [x] **Step 2: Implementar `construir_ecf_cxc()`**
 
 ```python
 def construir_ecf_cxc(tipo_ecf: int, no_cia: str, punto: str,
@@ -592,7 +619,7 @@ def construir_ecf_cxc(tipo_ecf: int, no_cia: str, punto: str,
 
 - [ ] **Step 3: Correr tests**
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit** — `8432b11` (bundle CxP/CxC/ACC)
 
 ```bash
 git commit -m "feat(fe): builders e-CF para CxC (tipos 33/34) con eNCFReferencia"
@@ -615,7 +642,7 @@ def test_construir_ecf_acc_egreso_gastos_menores():
     ...
 ```
 
-- [ ] **Step 2: Implementar `construir_ecf_acc()`**
+- [x] **Step 2: Implementar `construir_ecf_acc()`**
 
 ```python
 def construir_ecf_acc(no_cia: str, punto: str, tipo_docu: str, no_docu: str) -> str:
@@ -629,7 +656,7 @@ def construir_ecf_acc(no_cia: str, punto: str, tipo_docu: str, no_docu: str) -> 
     return _envolver_ecf(43, encabezado, _items_acc(doc), _totales_acc(doc))
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit** — `8432b11` (bundle CxP/CxC/ACC)
 
 ```bash
 git commit -m "feat(fe): builder e-CF tipo 43 para egresos ACC (caja chica)"
@@ -655,10 +682,10 @@ if ecf_result:
     result['ecf'] = ecf_result
 ```
 
-- [ ] **Step 1: Identificar endpoint en views**
-- [ ] **Step 2: Agregar hook**
+- [x] **Step 1: Identificar endpoint en views** — `cxp_views.py::cxp_entrada_documentos`
+- [x] **Step 2: Agregar hook**
 - [ ] **Step 3: Test**
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit** — `3513615`
 
 ```bash
 git commit -m "feat(cxp): emitir e-CF automáticamente al entrar documento"
@@ -671,8 +698,8 @@ git commit -m "feat(cxp): emitir e-CF automáticamente al entrar documento"
 **Files:**
 - Modify: `backend/apps/cxc/views.py`
 
-- [ ] **Step 1: Identificar endpoint de entrada ND/NC en CxC**
-- [ ] **Step 2: Agregar hook con validación de referencia e-NCF**
+- [x] **Step 1: Identificar endpoint de entrada ND/NC en CxC** — `cxc_views.py::CxcDocumentosView.post`
+- [x] **Step 2: Agregar hook con validación de referencia e-NCF**
 
 ```python
 ecf_result = emitir_ecf_si_activo(
@@ -685,7 +712,7 @@ if ecf_result:
 ```
 
 - [ ] **Step 3: Test**
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit** — `e6dc6d1`
 
 ```bash
 git commit -m "feat(cxc): emitir e-CF automáticamente en ND/NC"
@@ -700,8 +727,8 @@ git commit -m "feat(cxc): emitir e-CF automáticamente en ND/NC"
 
 Solo egresos que tienen NCF (posiciones_fijas_ncf no vacío) generan e-CF tipo 43.
 
-- [ ] **Step 1: Identificar endpoint de egreso en ACC**
-- [ ] **Step 2: Agregar hook**
+- [x] **Step 1: Identificar endpoint de egreso en ACC** — `acc_views.py::acc_documento_crear`
+- [x] **Step 2: Agregar hook**
 
 ```python
 if result.get('posiciones_fijas_ncf'):
@@ -715,7 +742,7 @@ if result.get('posiciones_fijas_ncf'):
 ```
 
 - [ ] **Step 3: Test**
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit** — `a665e29`
 
 ```bash
 git commit -m "feat(acc): emitir e-CF tipo 43 automáticamente en egresos caja chica"
