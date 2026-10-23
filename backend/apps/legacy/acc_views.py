@@ -116,7 +116,24 @@ def acc_documento_crear(request):
         )
     except ValueError as e:
         return JsonResponse({'error': str(e)}, status=400)
-    return JsonResponse({'no_docu': no_docu}, status=201)
+    resp = {'no_docu': no_docu}
+    # e-CF automatico tipo 43 (Gastos Menores) solo si el egreso trae NCF
+    ncf_raw = (data.get('ncf') or '').strip()
+    if ncf_raw:
+        try:
+            from apps.fe.emision import emitir_ecf_si_activo
+            ecf = emitir_ecf_si_activo(
+                no_cia=str(data.get('no_cia', '')).strip(),
+                punto=_norm_punto(data.get('punto', '01')),
+                modulo='ACC',
+                tipo_docu='EG',
+                no_docu=str(no_docu),
+            )
+            if ecf:
+                resp['ecf'] = ecf
+        except Exception:
+            pass
+    return JsonResponse(resp, status=201)
 
 
 @login_required
