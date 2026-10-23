@@ -5,6 +5,22 @@ from datetime import datetime
 
 from .. import client
 
+# Grupo Abregonza: todas las empresas comparten un solo RNC (130217432) y
+# una sola config e-CF en TFE_CONFIG con NO_CIA='01'. Los módulos de negocio
+# (FAT/CxP/CxC) usan NO_CIA='03' para Abregonza SRL. Este helper resuelve
+# la cia de FE real para que los callers no tengan que saber del mapeo.
+_FE_CIA_DEFAULT = '01'
+
+
+def _resolve_fe_cia(no_cia: str) -> str:
+    """Devuelve no_cia si tiene TFE_CONFIG propia, o '01' como default del grupo."""
+    if no_cia == _FE_CIA_DEFAULT:
+        return no_cia
+    rows = client.fetch_dicts(
+        "SELECT 1 FROM FAT.TFE_CONFIG WHERE no_cia = :1", [no_cia])
+    return no_cia if rows else _FE_CIA_DEFAULT
+
+
 CONFIG_COLS = (
     "no_cia, ambiente, rnc_emisor, razon_social, nombre_comercial, "
     "direccion_emisor, municipio, provincia, cert_subject, cert_vence, "
@@ -13,11 +29,12 @@ CONFIG_COLS = (
 
 
 def get_config(no_cia: str) -> dict | None:
+    cia = _resolve_fe_cia(no_cia)
     rows = client.fetch_dicts(
         f"SELECT {CONFIG_COLS}, "
         "CASE WHEN certificado_p12 IS NULL THEN 'N' ELSE 'S' END tiene_cert "
         "FROM FAT.TFE_CONFIG WHERE no_cia = :1",
-        [no_cia],
+        [cia],
     )
     if not rows:
         return None
@@ -70,10 +87,11 @@ def save_certificado(no_cia: str, p12_bytes: bytes, password_enc: str,
 
 def get_certificado(no_cia: str) -> tuple[bytes, str] | None:
     """Devuelve (p12_bytes, password_enc) o None."""
+    cia = _resolve_fe_cia(no_cia)
     with client.cursor() as cur:
         cur.execute(
             "SELECT certificado_p12, cert_password_enc "
-            "FROM FAT.TFE_CONFIG WHERE no_cia=:1", [no_cia])
+            "FROM FAT.TFE_CONFIG WHERE no_cia=:1", [cia])
         row = cur.fetchone()
         if not row or row[0] is None:
             return None
@@ -85,12 +103,13 @@ def get_certificado(no_cia: str) -> tuple[bytes, str] | None:
 
 
 def list_secuencias(no_cia: str) -> list[dict]:
+    cia = _resolve_fe_cia(no_cia)
     rows = client.fetch_dicts(
         "SELECT no_cia, tipo_ecf, secuencia_desde, secuencia_hasta, "
         "prox_secuencia, fecha_vence, activa "
         "FROM FAT.TFE_SECUENCIA WHERE no_cia=:1 "
         "ORDER BY tipo_ecf, secuencia_desde",
-        [no_cia],
+        [cia],
     )
     for r in rows:
         if r.get('fecha_vence'):
@@ -147,6 +166,7 @@ def consumir_siguiente_encf(no_cia: str, tipo_ecf: int) -> dict:
     Lanza ValueError si no hay secuencia configurada/activa/disponible.
     """
     tipo = int(tipo_ecf)
+    cia = _resolve_fe_cia(no_cia)
     with client.cursor() as cur:
         cur.execute(
             "SELECT secuencia_desde, secuencia_hasta, prox_secuencia, fecha_vence "
@@ -154,7 +174,7 @@ def consumir_siguiente_encf(no_cia: str, tipo_ecf: int) -> dict:
             "WHERE no_cia=:1 AND tipo_ecf=:2 AND NVL(activa,'S')='S' "
             "  AND prox_secuencia <= secuencia_hasta "
             "ORDER BY secuencia_desde FOR UPDATE",
-            [no_cia, tipo])
+            [cia, tipo])
         row = cur.fetchone()
         if not row:
             raise ValueError(
@@ -165,7 +185,7 @@ def consumir_siguiente_encf(no_cia: str, tipo_ecf: int) -> dict:
         cur.execute(
             "UPDATE FAT.TFE_SECUENCIA SET prox_secuencia=:1 "
             "WHERE no_cia=:2 AND tipo_ecf=:3 AND secuencia_desde=:4",
-            [prox + 1, no_cia, tipo, secuencia_desde])
+            [prox + 1, cia, tipo, secuencia_desde])
         cur.connection.commit()
     return {
         'e_ncf': f"E{tipo:02d}{prox:010d}",
@@ -196,25 +216,27 @@ def save_documento_recibido(no_cia: str, rnc_emisor: str, e_ncf: str | None,
 
 
 def get_token(no_cia: str, ambiente: str) -> str | None:
+    cia = _resolve_fe_cia(no_cia)
     rows = client.fetch_dicts(
         "SELECT token FROM FAT.TFE_TOKEN "
         "WHERE no_cia=:1 AND ambiente=:2 AND expira > SYSDATE + (5/1440)",
-        [no_cia, ambiente],
+        [cia, ambiente],
     )
     return rows[0]['token'] if rows else None
 
 
 def save_token(no_cia: str, ambiente: str, token: str,
                expira: datetime) -> None:
+    cia = _resolve_fe_cia(no_cia)
     expira_naive = expira.replace(tzinfo=None) if expira.tzinfo else expira
     with client.cursor() as cur:
         cur.execute(
             "DELETE FROM FAT.TFE_TOKEN WHERE no_cia=:1 AND ambiente=:2",
-            [no_cia, ambiente])
+            [cia, ambiente])
         cur.execute(
             "INSERT INTO FAT.TFE_TOKEN (no_cia, ambiente, token, expira) "
             "VALUES (:1, :2, :3, :4)",
-            [no_cia, ambiente, token, expira_naive],
+            [cia, ambiente, token, expira_naive],
         )
         cur.connection.commit()
 
