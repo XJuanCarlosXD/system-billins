@@ -50,6 +50,7 @@ import {
   useSaveFeSecuencia,
   useUploadCertificado,
 } from '@/features/fe/api'
+import { FE_TUTORIAL_PASOS } from '@/features/fe/fe-ayuda-contenido'
 import { FeAyuda } from '@/features/fe/fe-ayuda'
 import { FeCertificacion } from '@/features/fe/fe-certificacion'
 import { FeDocumentos } from '@/features/fe/fe-documentos'
@@ -98,6 +99,23 @@ export function UnifiedFacturacionElectronica() {
 
   const [certFile, setCertFile] = useState<File | null>(null)
   const [certPass, setCertPass] = useState('')
+  const [tutorialOpen, setTutorialOpen] = useState(false)
+  const [tutorialPaso, setTutorialPaso] = useState(0)
+
+  const activarConTutorial = (activar: boolean) => {
+    if (activar) {
+      setTutorialPaso(0)
+      setTutorialOpen(true)
+    } else {
+      setForm((f) => ({ ...f, activo: 'N' }))
+    }
+  }
+
+  const confirmarActivacion = () => {
+    setTutorialOpen(false)
+    setForm((f) => ({ ...f, activo: 'S' }))
+    toast.success('Emisión electrónica activada')
+  }
 
   const guardar = () => {
     if (!form.rnc_emisor.trim() || !form.razon_social.trim()) {
@@ -197,9 +215,7 @@ export function UnifiedFacturacionElectronica() {
             <Switch
               id='fe-activo'
               checked={form.activo === 'S'}
-              onCheckedChange={(v) =>
-                setForm({ ...form, activo: v ? 'S' : 'N' })
-              }
+              onCheckedChange={activarConTutorial}
             />
             <Label htmlFor='fe-activo'>Emisión electrónica activa</Label>
           </div>
@@ -388,6 +404,57 @@ export function UnifiedFacturacionElectronica() {
       <TabsContent value='ayuda' className='pt-4'>
         <FeAyuda />
       </TabsContent>
+
+      {/* Tutorial al activar facturación electrónica */}
+      <Dialog open={tutorialOpen} onOpenChange={setTutorialOpen}>
+        <DialogContent className='sm:max-w-lg'>
+          <DialogHeader>
+            <DialogTitle>Activar Facturación Electrónica</DialogTitle>
+          </DialogHeader>
+          <div className='space-y-4 py-2'>
+            <p className='text-muted-foreground text-sm'>
+              Antes de activar la emisión electrónica, verifica que estos pasos
+              estén cubiertos:
+            </p>
+            <div className='space-y-3'>
+              {FE_TUTORIAL_PASOS.map((paso, i) => (
+                <div
+                  key={i}
+                  className={`flex gap-3 rounded-lg border p-3 transition-colors ${
+                    i === tutorialPaso
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border'
+                  }`}
+                  role='button'
+                  tabIndex={0}
+                  onClick={() => setTutorialPaso(i)}
+                  onKeyDown={(e) =>
+                    e.key === 'Enter' && setTutorialPaso(i)
+                  }
+                >
+                  <span className='text-2xl' aria-hidden>
+                    {paso.icono}
+                  </span>
+                  <div className='min-w-0'>
+                    <p className='text-sm font-medium'>{paso.titulo}</p>
+                    <p className='text-muted-foreground text-xs'>
+                      {paso.descripcion}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter className='gap-2 sm:gap-0'>
+            <Button variant='outline' onClick={() => setTutorialOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={confirmarActivacion}>
+              Entendido, activar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Tabs>
   )
 }

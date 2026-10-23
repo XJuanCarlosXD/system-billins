@@ -9,66 +9,99 @@ export const FE_AYUDA_MARKDOWN = `
 La DGII exige que ciertas empresas emitan sus facturas en un formato
 digital especial llamado **e-CF** (Comprobante Fiscal Electrónico), en
 vez del NCF de papel de siempre. ZentoryERP ya sabe generar, firmar y
-enviar estos comprobantes a la DGII.
+enviar estos comprobantes a la DGII de forma automática.
 
-## Antes de poder facturar electrónicamente: la Certificación
+## ¿Cómo activar la facturación electrónica?
 
-Antes de emitir e-CF reales, la DGII exige pasar por un proceso de
-**Certificación** — un examen técnico donde la empresa demuestra que su
-sistema (ZentoryERP) puede generar y enviar comprobantes de prueba
-correctamente. Esto se hace UNA SOLA VEZ por empresa, no por cada factura.
+1. Ve a **Configuración → Facturación Electrónica → tab "Configuración"**.
+2. Verifica que el estado diga **"Certificado"** y el ambiente sea
+   **"Producción (eCF)"**.
+3. Activa el switch **"Emisión electrónica activa"**.
+4. ¡Listo! A partir de ahora, cada factura que generes en ZentoryERP
+   se enviará automáticamente a la DGII como e-CF.
 
-### Pasos de la Certificación (resumen)
+## ¿Qué pasa cuando facturo?
 
-1. **Postulación**: solicitud formal ante la DGII (ya hecha para
-   Abregonza, solicitud núm. 81443).
-2. **Paso 2 — Pruebas de Datos e-CF**: la DGII entrega un archivo Excel
-   con 21 facturas de prueba + 4 resúmenes. Se suben desde
-   *Configuración → Facturación Electrónica → Certificación e-CF*.
-3. **Paso 3 — Aprobaciones Comerciales**: la DGII genera 11 "aprobaciones"
-   simuladas que hay que reenviarle. Mismo panel.
-4. **Pasos 4 en adelante**: pruebas con datos reales de la empresa,
-   representación impresa (PDF) con código QR, y activación final en
-   producción. (Pendiente de completar — ver estado real en el Portal de
-   Certificación de la DGII.)
+Cuando creas una factura normalmente en ZentoryERP (módulo FAT):
 
-**Importante**: estos pasos los ejecuta alguien del equipo técnico UNA
-VEZ. Un usuario normal de facturación no necesita tocar la pantalla de
-Certificación.
+1. ZentoryERP genera el XML del e-CF con los datos de la factura.
+2. Lo firma digitalmente con el certificado de la empresa.
+3. Lo envía a la DGII y recibe un estado: **Aceptado**, **Rechazado**
+   o **En proceso**.
+4. El número e-NCF (ej. E310000000001) queda asignado a la factura.
 
-## Configurar la empresa (una vez, antes de facturar)
+**No tienes que hacer nada diferente** — el proceso es transparente.
+Solo verás el e-NCF en vez del NCF tradicional.
 
-*Configuración → Facturación Electrónica → tab "Configuración"*:
+## Tipos de comprobantes electrónicos
 
-1. Cargar el **certificado digital** (.p12) de la persona autorizada como
-   Administrador de e-CF ante la DGII, junto con su clave.
-2. Verificar los datos del **Emisor** (RNC, razón social, dirección) —
-   deben coincidir EXACTO con lo que la DGII tiene registrado.
-3. Elegir el **ambiente**: mientras se está certificando, usar
-   *Certificación (CerteCF)*. Solo cuando la DGII confirme la
-   certificación completa, cambiar a *Producción (eCF)*.
-4. Botón **"Probar conexión con la DGII"** — confirma que el certificado
-   funciona antes de intentar facturar.
+| Tipo | Código | Uso |
+|------|--------|-----|
+| Factura de Crédito Fiscal | 31 | Ventas a empresas con RNC |
+| Factura de Consumo | 32 | Ventas a consumidores finales |
+| Nota de Débito | 33 | Aumentar el monto de una factura |
+| Nota de Crédito | 34 | Descuentos o devoluciones |
+| Compras | 41 | Comprobante de compras |
+| Gastos Menores | 43 | Gastos sin comprobante del proveedor |
+
+## Secuencias e-NCF
+
+Las secuencias e-NCF son rangos de números que la DGII autoriza a la
+empresa para emitir comprobantes. Se solicitan en la **Oficina Virtual
+(OFV)** de la DGII y se registran en el tab **"Secuencias e-NCF"**.
+
+Cuando una secuencia está por agotarse (quedan pocas), ZentoryERP
+te avisará para que solicites más en la OFV.
 
 ## Revisar comprobantes enviados
 
-*Configuración → Facturación Electrónica → tab "Comprobante Electrónico"*
-muestra todos los e-CF enviados: estado (Aceptado / Rechazado / En
-proceso), fecha, y permite:
+En el tab **"Comprobante Electrónico"** puedes ver todos los e-CF
+enviados: estado, fecha, e-NCF, y acciones disponibles:
+
 - **Consultar estado**: le pregunta a la DGII si ya procesó el documento.
 - **Reenviar**: solo aparece si el estado es "Rechazado" — corrige el
-  problema y reintenta.
+  problema y reintenta con un nuevo e-NCF.
 
 ## ¿Qué hacer si algo falla?
 
-- **"Rechazado" con un motivo de RNC/dato inválido**: revisar que el dato
-  del comprador (RNC, razón social) esté correcto en la factura de
-  origen.
-- **Error de conexión/certificado**: usar "Probar conexión con la DGII"
-  en la pantalla de Configuración para diagnosticar.
-- Para cualquier duda sobre el estado de la Certificación (no de una
-  factura real), contactar al equipo técnico — el estado real y
-  actualizado vive en el propio Portal de Certificación de la DGII
-  (\`ecf.dgii.gov.do/certecf/portalcertificacion\`), no solo en
-  ZentoryERP.
+- **"Rechazado" con motivo de RNC/dato inválido**: revisa que los datos
+  del comprador (RNC, razón social) estén correctos en la factura.
+- **Error de conexión/certificado**: usa "Probar conexión con la DGII"
+  en el tab de Configuración.
+- **Certificado próximo a vencer**: renovarlo con la misma certificadora
+  (INDOTEL) y subirlo nuevamente en Configuración.
+- Para cualquier duda, contacta al equipo técnico.
 `.trim()
+
+export const FE_TUTORIAL_PASOS = [
+  {
+    titulo: 'Verificar configuración',
+    descripcion:
+      'Asegúrate de que el RNC, razón social y dirección del emisor coincidan con los registrados en la DGII. El ambiente debe estar en "Producción (eCF)" y el estado en "Certificado".',
+    icono: '⚙️',
+  },
+  {
+    titulo: 'Certificado digital vigente',
+    descripcion:
+      'El certificado digital (.p12) debe estar cargado y vigente. Puedes verificar la fecha de vencimiento y probar la conexión con la DGII desde esta misma pantalla.',
+    icono: '🔐',
+  },
+  {
+    titulo: 'Secuencias e-NCF',
+    descripcion:
+      'Registra los rangos de e-NCF autorizados por la DGII (se solicitan en la Oficina Virtual). Sin secuencias disponibles, no se pueden emitir comprobantes electrónicos.',
+    icono: '🔢',
+  },
+  {
+    titulo: 'Facturar normalmente',
+    descripcion:
+      'Con la emisión activa, cada factura que generes en ZentoryERP se enviará automáticamente a la DGII. No necesitas hacer nada diferente — el e-NCF se asigna solo.',
+    icono: '📄',
+  },
+  {
+    titulo: 'Revisar envíos',
+    descripcion:
+      'En el tab "Comprobante Electrónico" puedes ver el estado de cada e-CF enviado (Aceptado, Rechazado, En proceso) y reenviar los rechazados después de corregir el problema.',
+    icono: '✅',
+  },
+]
