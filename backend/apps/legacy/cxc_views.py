@@ -376,7 +376,23 @@ class CxcDocumentosView(APIView):
         try:
             payload = {**request.data, "usuario": request.user.username}
             no_doc = repo.save_documento(payload)
-            return Response({"ok": True, "no_doc": no_doc})
+            resp = {"ok": True, "no_doc": no_doc}
+            # e-CF automatico post-commit — ND(33)/NC(34) con referencia e-NCF
+            try:
+                from apps.fe.emision import emitir_ecf_si_activo
+                ecf = emitir_ecf_si_activo(
+                    no_cia=str(payload.get("no_cia", "")).strip(),
+                    punto=str(payload.get("punto", "01")).strip(),
+                    modulo="CXC",
+                    tipo_docu=str(payload.get("tipo_doc", "")).strip(),
+                    no_docu=str(no_doc),
+                    no_cliente=str(payload.get("no_cliente", "")).strip(),
+                )
+                if ecf:
+                    resp["ecf"] = ecf
+            except Exception:
+                pass
+            return Response(resp)
         except Exception as e:
             return Response({"error": str(e)}, status=400)
 
