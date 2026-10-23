@@ -1730,3 +1730,212 @@ def construir_acecf(row: dict) -> str:
         _sub(det, 'DetalleMotivoRechazo', row['DetalleMotivoRechazo'])
     _sub(det, 'FechaHoraAprobacionComercial', row['FechaHoraAprobacionComercial'])
     return etree.tostring(acecf, xml_declaration=True, encoding='utf-8').decode('utf-8')
+
+
+# ---------------------------------------------------------------------------
+# Builders de producción para CxP (41/43/47), CxC (33/34) y ACC (43)
+#
+# Mapean datos reales de TCXP_DOCUMENTO / TCXC_DOCUMENTO / TACC_EGRESO al
+# dict plano que construir_ecf_generico() ya sabe convertir en XML válido
+# para los 10 tipos — reutilizando toda la lógica de XML building probada
+# contra el Set de Pruebas DGII en vez de duplicarla.
+# ---------------------------------------------------------------------------
+
+
+def _datos_emisor_planos(no_cia: str) -> dict:
+    """Datos del emisor desde TFE_CONFIG como dict plano para el builder."""
+    cfg = fe_repo.get_config(no_cia)
+    if not cfg or not (cfg.get('rnc_emisor') or '').strip():
+        raise ECFBuilderError(
+            f"La compañía {no_cia} no tiene TFE_CONFIG configurado")
+    return {
+        'RNCEmisor': cfg['rnc_emisor'],
+        'RazonSocialEmisor': cfg.get('razon_social', ''),
+        'NombreComercial': cfg.get('nombre_comercial', ''),
+        'DireccionEmisor': cfg.get('direccion_emisor', ''),
+        'Municipio': cfg.get('municipio', ''),
+        'Provincia': cfg.get('provincia', ''),
+    }
+
+
+def construir_ecf_cxp(tipo_ecf: int, no_cia: str, punto: str,
+                       tipo_docu: str, no_docu: str) -> str:
+    """Builder de producción para CxP: tipos 41 (Compras), 43 (Gastos
+    Menores), 47 (Pago al Exterior). Consume e-NCF real."""
+    from apps.legacy.repositories import cxp_repo
+
+    doc = cxp_repo.get_documento(no_cia, punto, tipo_docu, no_docu)
+    if not doc:
+        raise ECFBuilderError(
+            f"No existe el documento CxP {tipo_docu}-{no_docu} "
+            f"(cia {no_cia}, punto {punto})")
+
+    secuencia = fe_repo.consumir_siguiente_encf(no_cia, tipo_ecf)
+    e_ncf = secuencia['e_ncf']
+    fecha_vence_sec = secuencia['fecha_vencimiento_secuencia']
+
+    datos = _datos_emisor_planos(no_cia)
+    datos['FechaEmision'] = doc.get('fecha', '')
+    datos['IndicadorMontoGravado'] = '0'
+
+    if fecha_vence_sec:
+        datos['FechaVencimientoSecuencia'] = _fmt_fecha(fecha_vence_sec)
+
+    valor = Decimal(str(doc.get('valor_original') or 0))
+    impuesto = Decimal(str(doc.get('impuesto') or 0))
+    neto = valor - impuesto
+
+    # Tipo 41: Comprador es la propia empresa (emisor = comprador)
+    if tipo_ecf == 41:
+        datos['RNCComprador'] = datos['RNCEmisor']
+        datos['RazonSocialComprador'] = datos['RazonSocialEmisor']
+        datos['TipoPago'] = '1'  # Contado por defecto
+        # Retención: indicador obligatorio en tipo 41
+        itbis_ret = Decimal(str(doc.get('itbis_retenido') or 0))
+        isr_ret = Decimal(str(doc.get('isr_retenido') or 0))
+        datos['IndicadorAgenteRetencionoPercepcion'] = (
+            '1' if (itbis_ret > 0 or isr_ret > 0) else '0')
+        if itbis_ret > 0:
+            datos['MontoITBISRetenido'] = _fmt_monto(itbis_ret)
+        if isr_ret > 0:
+            datos['MontoISRRetenido'] = _fmt_monto(isr_ret)
+
+    # Tipo 43: Gastos Menores — sin comprador, totales reducidos
+    elif tipo_ecf == 43:
+        datos['MontoExento'] = _fmt_monto(neto)
+
+    # Tipo 47: Pago al Exterior — comprador reducido
+    elif tipo_ecf == 47:
+        datos['RazonSocialComprador'] = doc.get('nombre_proveedor', '')
+        isr_ret = Decimal(str(doc.get('isr_retenido') or 0))
+        datos['IndicadorAgenteRetencionoPercepcion'] = (
+            '1' if isr_ret > 0 else '0')
+        if isr_ret > 0:
+            datos['MontoISRRetenido'] = _fmt_monto(isr_ret)
+
+    # Totales comunes
+    if tipo_ecf in (43, 47):
+        datos['MontoExento'] = _fmt_monto(neto)
+        datos['MontoTotal'] = _fmt_monto(valor)
+    else:
+        if impuesto > 0:
+            datos['MontoGravadoTotal'] = _fmt_monto(neto)
+            datos['TotalITBIS'] = _fmt_monto(impuesto)
+            datos['MontoGravadoI1'] = _fmt_monto(neto)
+            datos['TotalITBIS1'] = _fmt_monto(impuesto)
+        else:
+            datos['MontoExento'] = _fmt_monto(neto)
+        datos['MontoTotal'] = _fmt_monto(valor)
+
+    # Línea única simplificada (el detalle real CxP es contable, no de items)
+    datos['NumeroLinea[1]'] = '1'
+    datos['NombreItem[1]'] = (doc.get('detalle') or tipo_docu)[:80]
+    datos['IndicadorFacturacion[1]'] = '1' if impuesto > 0 else '3'
+    datos['CantidadItem[1]'] = '1'
+    datos['PrecioUnitarioItem[1]'] = _fmt_monto(neto)
+    datos['MontoItem[1]'] = _fmt_monto(neto)
+
+    return construir_ecf_generico(tipo_ecf, e_ncf, datos)
+
+
+def construir_ecf_cxc(tipo_ecf: int, no_cia: str, punto: str,
+                       tipo_docu: str, no_docu: str) -> str:
+    """Builder de producción para CxC: tipos 33 (ND) y 34 (NC).
+    Requieren InformacionReferencia al e-NCF original (minOccurs=1)."""
+    from apps.legacy.repositories import cxc_repo
+
+    doc = cxc_repo.get_documento(no_cia, punto, tipo_docu, no_docu)
+    if not doc:
+        raise ECFBuilderError(
+            f"No existe el documento CxC {tipo_docu}-{no_docu} "
+            f"(cia {no_cia}, punto {punto})")
+
+    secuencia = fe_repo.consumir_siguiente_encf(no_cia, tipo_ecf)
+    e_ncf = secuencia['e_ncf']
+    fecha_vence_sec = secuencia['fecha_vencimiento_secuencia']
+
+    datos = _datos_emisor_planos(no_cia)
+    datos['FechaEmision'] = doc.get('fecha', '')
+    datos['IndicadorMontoGravado'] = '0'
+    datos['TipoPago'] = '1'
+
+    if fecha_vence_sec and tipo_ecf == 33:
+        datos['FechaVencimientoSecuencia'] = _fmt_fecha(fecha_vence_sec)
+
+    if tipo_ecf == 34:
+        datos['IndicadorNotaCredito'] = '1'
+
+    # Comprador (cliente)
+    rnc_cliente = (doc.get('rnc') or doc.get('cedula') or '').strip()
+    if rnc_cliente:
+        datos['RNCComprador'] = rnc_cliente
+    datos['RazonSocialComprador'] = doc.get('nombre_cliente', '')
+
+    valor = Decimal(str(doc.get('valor_original') or doc.get('debito') or 0))
+    impuesto = Decimal(str(doc.get('impuesto') or 0))
+    neto = valor - impuesto
+
+    if impuesto > 0:
+        datos['MontoGravadoTotal'] = _fmt_monto(neto)
+        datos['TotalITBIS'] = _fmt_monto(impuesto)
+        datos['MontoGravadoI1'] = _fmt_monto(neto)
+        datos['TotalITBIS1'] = _fmt_monto(impuesto)
+    else:
+        datos['MontoExento'] = _fmt_monto(neto)
+    datos['MontoTotal'] = _fmt_monto(valor)
+
+    # InformacionReferencia OBLIGATORIA para 33/34
+    ncf_original = (doc.get('ncf_referencia') or doc.get('ncf_r')
+                    or doc.get('ncf') or '')
+    fecha_ncf_original = doc.get('fecha_ncf_r') or doc.get('fecha', '')
+    if not ncf_original:
+        raise ECFBuilderError(
+            f"ND/NC {tipo_docu}-{no_docu} no tiene referencia al NCF "
+            "original — obligatorio para e-CF tipos 33/34 (DGII)")
+    datos['NCFModificado'] = ncf_original
+    datos['FechaNCFModificado'] = str(fecha_ncf_original)[:10]
+    datos['CodigoModificacion'] = '1' if tipo_ecf == 33 else '2'
+
+    # Línea única
+    datos['NumeroLinea[1]'] = '1'
+    datos['NombreItem[1]'] = (doc.get('detalle') or f'{"Nota de Débito" if tipo_ecf == 33 else "Nota de Crédito"}')[:80]
+    datos['IndicadorFacturacion[1]'] = '1' if impuesto > 0 else '3'
+    datos['CantidadItem[1]'] = '1'
+    datos['PrecioUnitarioItem[1]'] = _fmt_monto(neto)
+    datos['MontoItem[1]'] = _fmt_monto(neto)
+
+    return construir_ecf_generico(tipo_ecf, e_ncf, datos)
+
+
+def construir_ecf_acc(tipo_ecf: int, no_cia: str, punto: str,
+                       tipo_docu: str, no_docu: str) -> str:
+    """Builder de producción para ACC (Caja Chica): tipo 43 Gastos Menores."""
+    from apps.legacy.repositories import acc_repo
+
+    doc = acc_repo.get_documento(no_cia, punto, no_docu)
+    if not doc:
+        raise ECFBuilderError(
+            f"No existe el documento ACC {no_docu} (cia {no_cia}, punto {punto})")
+
+    secuencia = fe_repo.consumir_siguiente_encf(no_cia, 43)
+    e_ncf = secuencia['e_ncf']
+    fecha_vence_sec = secuencia['fecha_vencimiento_secuencia']
+
+    datos = _datos_emisor_planos(no_cia)
+    datos['FechaEmision'] = doc.get('fecha', '')
+
+    if fecha_vence_sec:
+        datos['FechaVencimientoSecuencia'] = _fmt_fecha(fecha_vence_sec)
+
+    valor = Decimal(str(doc.get('total') or doc.get('valor') or 0))
+    datos['MontoExento'] = _fmt_monto(valor)
+    datos['MontoTotal'] = _fmt_monto(valor)
+
+    datos['NumeroLinea[1]'] = '1'
+    datos['NombreItem[1]'] = (doc.get('detalle') or doc.get('concepto') or 'Gasto menor')[:80]
+    datos['IndicadorFacturacion[1]'] = '3'
+    datos['CantidadItem[1]'] = '1'
+    datos['PrecioUnitarioItem[1]'] = _fmt_monto(valor)
+    datos['MontoItem[1]'] = _fmt_monto(valor)
+
+    return construir_ecf_generico(43, e_ncf, datos)
