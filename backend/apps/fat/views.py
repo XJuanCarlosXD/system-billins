@@ -222,6 +222,18 @@ class FatFacturasView(APIView):
                 nombre_cliente_factura=str(request.data.get('nombre_cliente_factura', '')).strip(),
                 rnc_factura=str(request.data.get('rnc_factura', '')).strip(),
                 no_cotizacion=str(request.data.get('no_cotizacion', '')).strip())
+            # e-CF automático post-commit (nunca falla la factura)
+            try:
+                from apps.fe.emision import emitir_ecf_si_activo
+                ecf = emitir_ecf_si_activo(
+                    no_cia=str(no_cia).strip(), punto=str(punto).strip(),
+                    modulo='FAT', tipo_docu=res.get('tipo_factura', ''),
+                    no_docu=str(res.get('no_factura', '')),
+                )
+                if ecf:
+                    res['ecf'] = ecf
+            except Exception:
+                pass
             return Response(res, status=201)
         except ValueError as e:
             return Response({'detail': str(e)}, status=400)
