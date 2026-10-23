@@ -497,7 +497,21 @@ def cxp_entrada_documentos(request):
         data['usuario'] = (getattr(request.user, 'username', '') or 'API').upper()
     try:
         no_docu = cxp_repo.entrada_documento(data)
-        return JsonResponse({'ok': True, 'no_docu': no_docu}, status=201)
+        resp = {'ok': True, 'no_docu': no_docu}
+        try:
+            from apps.fe.emision import emitir_ecf_si_activo
+            ecf = emitir_ecf_si_activo(
+                no_cia=str(data.get('no_cia', '')).strip(),
+                punto=str(data.get('punto', '01')).strip(),
+                modulo='CXP',
+                tipo_docu=str(data.get('tipo_docu', '')).strip(),
+                no_docu=str(no_docu),
+            )
+            if ecf:
+                resp['ecf'] = ecf
+        except Exception:
+            pass
+        return JsonResponse(resp, status=201)
     except cxp_repo.PeriodoFuturoEncolado as enc:
         # No es error: el documento pertenece a un mes aun no abierto en CxP.
         # Queda en cola y se materializa al abrir ese periodo.
