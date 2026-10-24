@@ -17,9 +17,9 @@
 | 1. fe_repo fallback cia 01 | ✅ | 6977b68 | Tests: `test_fe_repo_fallback.py` (6 casos) |
 | 2. Orquestador emision.py | ✅ | 0c12c58 | Tests: `test_emision.py` (22 casos, RFCE + resiliencia) |
 | 3. Hook FAT | ✅ | 2d57d18 | Falta smoke E2E en VM |
-| 4. Builder CxP (41/43/47) | ✅ | 8432b11 | Falta tests TDD |
-| 5. Builder CxC (33/34) | ✅ | 8432b11 | Falta tests TDD |
-| 6. Builder ACC (43) | ✅ | 8432b11 | Falta test TDD |
+| 4. Builder CxP (41/43/47) | ✅ | 8432b11 | Tests: `test_ecf_builder_cxp.py` (8 casos) |
+| 5. Builder CxC (33/34) | ✅ | 8432b11 | Tests: `test_ecf_builder_cxc.py` (7 casos, inc. NCFReferencia obligatorio) |
+| 6. Builder ACC (43) | ✅ | 8432b11 | Tests: `test_ecf_builder_acc.py` (6 casos) |
 | 7. Hook CxP | ✅ | 3513615 | Falta smoke E2E |
 | 8. Hook CxC ND/NC | ✅ | e6dc6d1 | Falta smoke E2E |
 | 9. Hook ACC egresos | ✅ | a665e29 | Falta smoke E2E |
@@ -518,21 +518,7 @@ Los builders de CxP leen de `TCXP_DOCUMENTO`+`TCXP_DCDOCU`. Cada tipo tiene camp
 - **43 (Gastos Menores):** Sin RNC proveedor, monto ≤ RD$50,000, descripción del gasto
 - **47 (Pagos al Exterior):** Datos del beneficiario extranjero (nombre, país, tipo doc)
 
-- [ ] **Step 1: Escribir test**
-
-```python
-def test_construir_ecf_41_desde_cxp():
-    """FP en CxP genera XML tipo 41 con datos del proveedor y NCF."""
-    ...
-
-def test_construir_ecf_43_gastos_menores():
-    """Gasto menor genera XML tipo 43 sin RNC proveedor, monto <= 50K."""
-    ...
-
-def test_construir_ecf_47_pago_exterior():
-    """Pago al exterior genera XML tipo 47 con datos beneficiario."""
-    ...
-```
+- [x] **Step 1: Escribir test** — `test_ecf_builder_cxp.py` (8 tests, pasan): tipo 41 con/sin retención, totales con/sin ITBIS, tipo 43 sin comprador, tipo 47 con nombre proveedor extranjero, consume e-NCF del tipo correcto.
 
 - [x] **Step 2: Implementar `construir_ecf_cxp()`**
 
@@ -559,7 +545,7 @@ def construir_ecf_cxp(tipo_ecf: int, no_cia: str, punto: str,
     return _envolver_ecf(tipo_ecf, encabezado, items_xml, totales)
 ```
 
-- [ ] **Step 3: Correr tests**
+- [x] **Step 3: Correr tests** — `8 passed` para CxP.
 
 - [x] **Step 4: Commit** — `8432b11` (bundle CxP/CxC/ACC)
 
@@ -577,21 +563,7 @@ git commit -m "feat(fe): builders e-CF para CxP (tipos 41/43/47)"
 
 **DGII REGLA CRÍTICA:** ND (33) y NC (34) DEBEN incluir `<eNCFReferencia>` con el e-NCF de la factura que modifican. Sin esta referencia → rechazo.
 
-- [ ] **Step 1: Escribir test**
-
-```python
-def test_construir_ecf_33_nd_con_referencia():
-    """ND genera XML tipo 33 con eNCFReferencia de la factura original."""
-    ...
-
-def test_construir_ecf_34_nc_con_referencia():
-    """NC genera XML tipo 34 con eNCFReferencia de la factura original."""
-    ...
-
-def test_nd_sin_factura_original_lanza_error():
-    """Si no se encuentra el e-NCF original, no se puede generar el e-CF."""
-    ...
-```
+- [x] **Step 1: Escribir test** — `test_ecf_builder_cxc.py` (7 tests, pasan): ND tipo 33 con CodigoModificacion=1, NC tipo 34 con IndicadorNotaCredito=1 y CodigoModificacion=2, falla sin ncf_referencia (DGII minOccurs=1), toma `ncf_r` como fallback, FechaVencimientoSecuencia sólo en ND.
 
 - [x] **Step 2: Implementar `construir_ecf_cxc()`**
 
@@ -620,7 +592,7 @@ def construir_ecf_cxc(tipo_ecf: int, no_cia: str, punto: str,
     return _envolver_ecf(tipo_ecf, encabezado, items_xml, totales)
 ```
 
-- [ ] **Step 3: Correr tests**
+- [x] **Step 3: Correr tests** — `7 passed` para CxC.
 
 - [x] **Step 4: Commit** — `8432b11` (bundle CxP/CxC/ACC)
 
@@ -637,13 +609,7 @@ git commit -m "feat(fe): builders e-CF para CxC (tipos 33/34) con eNCFReferencia
 
 ACC genera egresos de caja chica que incluyen NCF y aparecen en el 606 vía `_rows_acc_606()`. Los gastos menores de caja chica son tipo 43 ante la DGII.
 
-- [ ] **Step 1: Escribir test**
-
-```python
-def test_construir_ecf_acc_egreso_gastos_menores():
-    """Egreso ACC con NCF genera XML tipo 43 (Gastos Menores)."""
-    ...
-```
+- [x] **Step 1: Escribir test** — `test_ecf_builder_acc.py` (6 tests, pasan): tipo 43 con totales simplificados (sin ITBIS), fallback valor/total, fallback detalle/concepto/"Gasto menor", FechaVencimientoSecuencia.
 
 - [x] **Step 2: Implementar `construir_ecf_acc()`**
 
