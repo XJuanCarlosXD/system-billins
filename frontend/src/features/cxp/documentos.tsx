@@ -11,6 +11,9 @@ import { downloadCsv } from '@/lib/csv-utils'
 import { cn } from '@/lib/utils'
 import { HIGHLIGHT_ROW_CLASS } from '@/lib/sidebar-badges'
 import { useDocHighlightCount } from '@/hooks/use-sidebar-badges'
+import { useFeConfig } from '@/features/fe/api'
+import { FeTutorialButton } from '@/features/fe/fe-tutorial-button'
+import { FE_TUTORIAL_CXP } from '@/features/fe/fe-ayuda-contenido'
 import { TIPO_DOC, fmt, fmtDate, cxpDocKey, useCxpDocumentoDetalle, CxpDocumentoDetalleContent } from './cxp-documento-panel'
 
 interface Documento {
@@ -47,6 +50,8 @@ function diasVencidos(fechaVence: string): number | null {
 
 export function CxpDocumentos() {
   const { selectedCompany: noCia, selectedPoint: punto } = useCompany()
+  const { data: feData } = useFeConfig(noCia)
+  const feActivo = feData?.config?.activo === 'S'
   const [noProveedor, setNoProveedor] = useState('')
   const [tipo, setTipo] = useState('')
   const [noDoc, setNoDoc] = useState('')
@@ -164,7 +169,15 @@ export function CxpDocumentos() {
             <option value="">Todos</option>
           </select>
         </div>
-        <Button variant="outline" size="sm" onClick={exportExcel}>Excel</Button>
+        <div className="flex items-center gap-2">
+          <FeTutorialButton
+            moduloKey="cxp"
+            titulo="e-CF en Cuentas por Pagar"
+            pasos={FE_TUTORIAL_CXP}
+            feActivo={feActivo}
+          />
+          <Button variant="outline" size="sm" onClick={exportExcel}>Excel</Button>
+        </div>
       </div>
 
       {status === 'A' && (

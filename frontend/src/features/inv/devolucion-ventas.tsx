@@ -36,6 +36,9 @@ import {
 } from '@/components/ui/tooltip'
 import { EntityPickerModal } from '@/components/shared/entity-picker-modal'
 import { empaqueLabel } from '@/features/fat/utils/empaque-label'
+import { useFeConfig } from '@/features/fe/api'
+import { FeTutorialButton } from '@/features/fe/fe-tutorial-button'
+import { FE_TUTORIAL_INV } from '@/features/fe/fe-ayuda-contenido'
 import { BuscarDocumentoModal } from './components/buscar-documento-modal'
 
 const API_BASE =
@@ -116,6 +119,8 @@ async function apiFetch<T>(path: string): Promise<T> {
 }
 
 export function DevolucionVentas({ noCia, punto }: Props) {
+  const { data: feData } = useFeConfig(noCia)
+  const feActivo = feData?.config?.activo === 'S'
   // Cabecera
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
   const [almacenHeader, setAlmacenHeader] = useState('')
@@ -480,12 +485,20 @@ export function DevolucionVentas({ noCia, punto }: Props) {
   return (
     <TooltipProvider>
       <section className='space-y-6'>
-        <div>
-          <h2 className='text-lg font-semibold'>Devolución sobre Ventas</h2>
-          <p className='text-sm text-muted-foreground'>
-            FINV209 — Devolución de mercancía de clientes (afecta factura
-            original)
-          </p>
+        <div className='flex items-start justify-between gap-3 flex-wrap'>
+          <div>
+            <h2 className='text-lg font-semibold'>Devolución sobre Ventas</h2>
+            <p className='text-sm text-muted-foreground'>
+              FINV209 — Devolución de mercancía de clientes (afecta factura
+              original)
+            </p>
+          </div>
+          <FeTutorialButton
+            moduloKey='inv'
+            titulo='e-CF en Devoluciones de Inventario'
+            pasos={FE_TUTORIAL_INV}
+            feActivo={feActivo}
+          />
         </div>
 
         {/* Factura original */}

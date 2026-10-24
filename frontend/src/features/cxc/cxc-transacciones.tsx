@@ -29,6 +29,9 @@ import {
 import { regalGeneralApi } from '@/lib/regal-general-api'
 import { ClientePicker } from '@/components/cxc/cliente-picker'
 import { logErrorAutomatico } from '@/lib/report-error'
+import { useFeConfig } from '@/features/fe/api'
+import { FeTutorialButton } from '@/features/fe/fe-tutorial-button'
+import { FE_TUTORIAL_CXC } from '@/features/fe/fe-ayuda-contenido'
 
 interface P {
   noCia: string
@@ -71,6 +74,8 @@ const TIPO_MOVI_LABEL = (v: string) => (v || '').toUpperCase() === 'C' ? 'Crédi
 export function CxcTransacciones({ noCia, punto = '01', prefill }: P) {
   const qc = useQueryClient()
   const today = new Date().toISOString().slice(0, 10)
+  const { data: feData } = useFeConfig(noCia)
+  const feActivo = feData?.config?.activo === 'S'
 
   // ── Datos ──────────────────────────────────────────────────────────
   const tdocusQ = useQuery({
@@ -437,6 +442,12 @@ export function CxcTransacciones({ noCia, punto = '01', prefill }: P) {
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              <FeTutorialButton
+                moduloKey="cxc"
+                titulo="e-CF en Cuentas por Cobrar"
+                pasos={FE_TUTORIAL_CXC}
+                feActivo={feActivo}
+              />
               {prefill && (
                 <Badge className="bg-blue-600 text-xs">
                   Prellenado desde Vista de Cajero: {prefill.tipoRef}-{prefill.noRef}

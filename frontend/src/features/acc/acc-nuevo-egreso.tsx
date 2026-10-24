@@ -24,6 +24,9 @@ import {
   filaVacia,
   type LineaContable,
 } from '@/components/shared/movimiento-contable-grid'
+import { useFeConfig } from '@/features/fe/api'
+import { FeTutorialButton } from '@/features/fe/fe-tutorial-button'
+import { FE_TUTORIAL_ACC } from '@/features/fe/fe-ayuda-contenido'
 
 const fmt = (n: any) =>
   Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -191,6 +194,8 @@ export function AccNuevoEgreso({ editNoDocu }: { editNoDocu?: string } = {}) {
   const navigate = useNavigate()
   const { selectedCompany, selectedPoint } = useCompany()
   const modoEdicion = !!editNoDocu
+  const { data: feData } = useFeConfig(selectedCompany)
+  const feActivo = feData?.config?.activo === 'S'
 
   const cajasQ = useQuery({
     queryKey: ['acc-cajas-egreso', selectedCompany, selectedPoint],
@@ -444,10 +449,20 @@ export function AccNuevoEgreso({ editNoDocu }: { editNoDocu?: string } = {}) {
 
   return (
     <div className="space-y-4" ref={formRef}>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h3 className="text-base font-semibold">
+            {modoEdicion ? `Editar Egreso ACC-${editNoDocu}` : 'Nuevo Egreso de Caja Chica'}
+          </h3>
+        </div>
+        <FeTutorialButton
+          moduloKey="acc"
+          titulo="e-CF en Caja Chica"
+          pasos={FE_TUTORIAL_ACC}
+          feActivo={feActivo}
+        />
+      </div>
       <div>
-        <h3 className="text-base font-semibold">
-          {modoEdicion ? `Editar Egreso ACC-${editNoDocu}` : 'Nuevo Egreso de Caja Chica'}
-        </h3>
         <p className="text-sm text-muted-foreground">
           {modoEdicion
             ? 'Corrige el egreso sin generar uno nuevo -- se guarda en el mismo número de documento, no se salta la secuencia.'
