@@ -35,6 +35,9 @@ import { BuscarProductoModal } from './components/buscar-producto-modal'
 import { MissingProductsSheet } from './components/missing-products-sheet'
 import { empaqueLabel } from './utils/empaque-label'
 import { CrearClienteModal } from '@/components/cxc/crear-cliente-modal'
+import { useFeConfig } from '@/features/fe/api'
+import { FeTutorialButton } from '@/features/fe/fe-tutorial-button'
+import { GUIA_FAT_NUEVA_FACTURA } from '@/features/fe/fe-guia-pasos'
 
 interface Props {
   noCia: string
@@ -76,6 +79,7 @@ interface NcfInfo {
   disponibles: number
   low_stock: boolean
   critical: boolean
+  es_electronico?: boolean
 }
 
 interface ProximoNcf {
@@ -151,8 +155,13 @@ const fmtN = (n: number) =>
     maximumFractionDigits: 2,
   })
 
-const formatNcf = (info: NcfInfo) =>
-  `${info.codigo_ncf}-${String(info.prox_ncf).padStart(8, '0')}`
+const formatNcf = (info: NcfInfo) => {
+  if (info.es_electronico) {
+    const prefijo = info.posiciones_fijas || info.codigo_ncf
+    return `${prefijo}${String(info.prox_ncf).padStart(10, '0')}`
+  }
+  return `${info.codigo_ncf}-${String(info.prox_ncf).padStart(8, '0')}`
+}
 
 const esContadoLabel = (desc: string) => /contado|cash|efectivo/i.test(desc)
 const esEfectivoLabel = (desc: string) => /efectivo|cash/i.test(desc)
@@ -169,6 +178,8 @@ export function NuevaFactura({ noCia, punto, cotizacionInicial }: Props) {
   const navigate = useNavigate()
   const { toast } = useToast()
   const { hasDocType } = useAccess()
+  const { data: feData } = useFeConfig(noCia)
+  const feActivo = feData?.config?.activo === 'S'
 
   // Catalog
   const [tiposDoc, setTiposDoc] = useState<TipoDoc[]>([])
@@ -1129,13 +1140,23 @@ export function NuevaFactura({ noCia, punto, cotizacionInicial }: Props) {
       <div className='flex flex-wrap items-center justify-between gap-2'>
         <h1 className='text-xl font-bold'>Nueva Factura</h1>
         <div className='flex gap-2'>
+          <FeTutorialButton
+            moduloKey='fat-nueva'
+            pasos={GUIA_FAT_NUEVA_FACTURA}
+            feActivo={feActivo}
+          />
           <Button
             variant='outline'
             onClick={() => navigate({ to: '/fat/facturas' as never })}
           >
             Cancelar
           </Button>
-          <Button onClick={guardar} disabled={guardando} className='min-w-32'>
+          <Button
+            onClick={guardar}
+            disabled={guardando}
+            className='min-w-32'
+            data-tour='guardar'
+          >
             {guardando ? 'Guardando...' : 'Guardar Factura'}
           </Button>
         </div>
@@ -1160,7 +1181,7 @@ export function NuevaFactura({ noCia, punto, cotizacionInicial }: Props) {
               placeholder='No. cotización o conduce'
             />
           </div>
-          <div className='col-span-2 space-y-1'>
+          <div className='col-span-2 space-y-1' data-tour='tipo-documento'>
             <Label>
               Tipo Documento <span className='text-red-500'>*</span>
             </Label>
@@ -1273,7 +1294,7 @@ export function NuevaFactura({ noCia, punto, cotizacionInicial }: Props) {
       </div>
 
       {/* ── Section 2: Client ── */}
-      <div className='space-y-3 rounded-lg border bg-background p-4'>
+      <div className='space-y-3 rounded-lg border bg-background p-4' data-tour='cliente'>
         <p className='text-xs font-semibold tracking-wider text-gray-400 uppercase'>
           Cliente{' '}
           <span className='font-normal text-red-500 normal-case'>
@@ -1373,7 +1394,7 @@ export function NuevaFactura({ noCia, punto, cotizacionInicial }: Props) {
                   </span>
                 </div>
               )}
-              <div className='shrink-0'>
+              <div className='shrink-0' data-tour='comprobante'>
                 <span className='block text-xs font-medium text-emerald-600'>
                   Comprobante
                 </span>
@@ -1381,21 +1402,34 @@ export function NuevaFactura({ noCia, punto, cotizacionInicial }: Props) {
                   className='h-7 rounded border border-emerald-300 bg-white px-1 font-mono text-sm font-semibold text-emerald-900'
                   value={codigoNcfOverride || codigoNcfDeCliente}
                   onChange={(e) => setCodigoNcfOverride(e.target.value)}
-                  title='Comprobante fiscal a emitir. Con RNC solo Credito Fiscal (B01), Regimenes Especiales (B14) o Gubernamental (B15); sin RNC solo Consumo (B02).'
+                  title='Comprobante fiscal a emitir. Con e-CF activo se prioriza el e-NCF; los NCF de papel (B01/B02/...) quedan como fallback.'
                 >
                   {!codigoNcfDeCliente && <option value=''>-- Por tipo documento --</option>}
                   {ncfRangesFiltrados.map((n) => (
                     <option key={n.codigo_ncf} value={n.codigo_ncf}>
+                      {n.es_electronico ? '⚡ ' : ''}
                       {n.codigo_ncf} - {n.posiciones_fijas || n.tipo_ncf_fiscal}
                       {n.descripcion ? ` - ${n.descripcion}` : ''}
                     </option>
                   ))}
                 </select>
+                {feActivo &&
+                  ncfRangesFiltrados.length > 0 &&
+                  !ncfRangesFiltrados.some((n) => n.es_electronico) && (
+                    <p className='mt-1 text-xs text-amber-600'>
+                      ⚠ No hay comprobantes electrónicos disponibles. Verifique
+                      la configuración con el administrador.
+                    </p>
+                  )}
               </div>
               {proximoNcf && (
                 <div className='shrink-0'>
                   <span className='block text-xs font-medium text-emerald-600'>
-                    Proximo NCF
+                    {ncfRangesFiltrados.find(
+                      (n) => n.codigo_ncf === (codigoNcfOverride || codigoNcfDeCliente),
+                    )?.es_electronico
+                      ? 'Proximo e-NCF'
+                      : 'Proximo NCF'}
                   </span>
                   <span
                     className={`font-mono font-bold ${proximoNcf.agotado ? 'text-red-600' : 'text-emerald-800'}`}
