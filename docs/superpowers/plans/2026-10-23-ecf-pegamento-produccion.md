@@ -27,7 +27,7 @@
 | 11. Tutorial en FAT | ✅ | c9b3142 | Botón + badge e-CF en facturas |
 | 12. Tutorial en CxP/CxC/ACC/INV | ✅ | 79c3b95 | 4 vistas con FeTutorialButton |
 | 13. Tools chatbot e-CF | ✅ | d65fd79 | tools/fe.py + skill consultar-ecf + hook en facturar/SKILL.md |
-| 14. Deploy VM + Netlify + E2E | ⏳ | — | Pendiente |
+| 14. Deploy VM + Netlify + E2E | 🟡 | d65fd79 | Backend deployado y verificado; Netlify auto desde main. Falta E2E manual + activar `activo='S'` en TFE_CONFIG |
 
 **Backend 9/9 integrado.** Tests y verificación E2E quedan como follow-up antes del deploy final (Task 14). Frontend y chatbot pendientes.
 
@@ -1384,16 +1384,36 @@ git commit -m "feat(asistente): tools y skills del chatbot para e-CF"
 **Files:**
 - Ninguno nuevo — deploy y verificación
 
-- [ ] **Step 1: Deploy backend a VM**
+- [x] **Step 1: Deploy backend a VM** (ejecutado 2026-10-24)
 
-```bash
-# Copiar archivos nuevos/modificados
-pscp -hostkey "SHA256:..." -pw "Temp1234!" backend/apps/fe/emision.py jcabreu@10.0.0.99:/tmp/
-pscp ... backend/apps/asistente/tools/fe.py jcabreu@10.0.0.99:/tmp/
-# docker cp + restart
+Archivos subidos a `~/facturation-system/` en la VM:
+
+```
+backend/apps/fe/emision.py            (nuevo — orquestador con RFCE)
+backend/apps/fe/ecf_builder.py        (builders CxP/CxC/ACC)
+backend/apps/legacy/repositories/fe_repo.py   (_resolve_fe_cia)
+backend/apps/legacy/repositories/{cxp,cxc,acc,fat}_repo.py
+backend/apps/legacy/{cxp,cxc,acc}_views.py    (hooks post-commit)
+backend/apps/fat/views.py                     (hook post-commit)
+backend/apps/asistente/apps.py                (import tools.fe)
+backend/apps/asistente/tools/fe.py            (3 tools chatbot)
+backend/apps/asistente/skills/facturar/SKILL.md
+backend/apps/asistente/skills/consultar-ecf/SKILL.md  (nuevo)
 ```
 
-- [ ] **Step 2: Push frontend a main (Netlify)**
+Verificado desde la VM (django shell):
+
+```
+emision.UMBRAL_RFCE = 250000
+emision.emitir_ecf_si_activo: True
+fe_repo._resolve_fe_cia: True
+ecf_builder.{construir_ecf_cxp, construir_ecf_cxc, construir_ecf_acc}: True
+fe tools: fe_consultar_estado, fe_estado_config, fe_listar_documentos
+```
+
+Smoke `fe._fe_estado_config(no_cia='03')` → `activo=False, ambiente=ecf, rnc=130217432, 10 secuencias`. El fallback de cia 01 → 03 funciona en vivo contra Oracle.
+
+- [x] **Step 2: Push frontend a main (Netlify)** — Netlify auto-deploya desde main en cada push; los commits 3b7acb0 / c9b3142 / 79c3b95 ya quedaron publicados en https://abregonza.netlify.app.
 
 - [ ] **Step 3: Test E2E completo**
 
