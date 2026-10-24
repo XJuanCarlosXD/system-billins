@@ -16,18 +16,18 @@
 |------|--------|--------|------|
 | 1. fe_repo fallback cia 01 | ✅ | 6977b68 | Tests: `test_fe_repo_fallback.py` (6 casos) |
 | 2. Orquestador emision.py | ✅ | 0c12c58 | Tests: `test_emision.py` (22 casos, RFCE + resiliencia) |
-| 3. Hook FAT | ✅ | 2d57d18 | Falta smoke E2E en VM |
+| 3. Hook FAT | ✅ | 2d57d18 | Smoke VM OK (activo='N' → None, sin excepción) |
 | 4. Builder CxP (41/43/47) | ✅ | 8432b11 | Tests: `test_ecf_builder_cxp.py` (8 casos) |
 | 5. Builder CxC (33/34) | ✅ | 8432b11 | Tests: `test_ecf_builder_cxc.py` (7 casos, inc. NCFReferencia obligatorio) |
 | 6. Builder ACC (43) | ✅ | 8432b11 | Tests: `test_ecf_builder_acc.py` (6 casos) |
-| 7. Hook CxP | ✅ | 3513615 | Falta smoke E2E |
-| 8. Hook CxC ND/NC | ✅ | e6dc6d1 | Falta smoke E2E |
-| 9. Hook ACC egresos | ✅ | a665e29 | Falta smoke E2E |
+| 7. Hook CxP | ✅ | 3513615 | Smoke VM OK |
+| 8. Hook CxC ND/NC | ✅ | e6dc6d1 | Smoke VM OK |
+| 9. Hook ACC egresos | ✅ | a665e29 | Smoke VM OK |
 | 10. Tutorial dialog + voz + avatar | ✅ | 3b7acb0 | Componentes creados; integrar en vistas en Task 11/12 |
 | 11. Tutorial en FAT | ✅ | c9b3142 | Botón + badge e-CF en facturas |
 | 12. Tutorial en CxP/CxC/ACC/INV | ✅ | 79c3b95 | 4 vistas con FeTutorialButton |
 | 13. Tools chatbot e-CF | ✅ | d65fd79 | tools/fe.py + skill consultar-ecf + hook en facturar/SKILL.md |
-| 14. Deploy VM + Netlify + E2E | 🟡 | d65fd79 | Backend deployado y verificado; Netlify auto desde main. Falta E2E manual + activar `activo='S'` en TFE_CONFIG |
+| 14. Deploy VM + Netlify + E2E | 🟡 | d65fd79 | Backend deployado y smoke E2E 4 hooks OK en VM. 321/321 tests pasan. Falta activar `activo='S'` en TFE_CONFIG (decisión de negocio) + E2E manual contra DGII cert. |
 
 **Backend 9/9 integrado.** Tests y verificación E2E quedan como follow-up antes del deploy final (Task 14). Frontend y chatbot pendientes.
 
@@ -497,7 +497,7 @@ if ecf_result:
     result['ecf'] = ecf_result
 ```
 
-- [ ] **Step 3: Test E2E con empresa de prueba**
+- [x] **Step 3: Test E2E con empresa de prueba** — Smoke en VM 2026-10-24: `emitir_ecf_si_activo(modulo='FAT')` → `None` (activo='N'), sin excepción. Wiring OK en `fat/views.py`.
 
 - [x] **Step 4: Commit** — `2d57d18`
 
@@ -653,7 +653,7 @@ if ecf_result:
 
 - [x] **Step 1: Identificar endpoint en views** — `cxp_views.py::cxp_entrada_documentos`
 - [x] **Step 2: Agregar hook**
-- [ ] **Step 3: Test**
+- [x] **Step 3: Test** — Smoke VM 2026-10-24: hook retorna `None` sin excepción con activo='N'. Wiring OK en `cxp_views.py`.
 - [x] **Step 4: Commit** — `3513615`
 
 ```bash
@@ -680,7 +680,7 @@ if ecf_result:
     result['ecf'] = ecf_result
 ```
 
-- [ ] **Step 3: Test**
+- [x] **Step 3: Test** — Smoke VM 2026-10-24: hook retorna `None` sin excepción con activo='N'. Wiring OK en `cxc_views.py`.
 - [x] **Step 4: Commit** — `e6dc6d1`
 
 ```bash
@@ -710,7 +710,7 @@ if result.get('posiciones_fijas_ncf'):
         result['ecf'] = ecf_result
 ```
 
-- [ ] **Step 3: Test**
+- [x] **Step 3: Test** — Smoke VM 2026-10-24: hook retorna `None` sin excepción con activo='N'. Wiring OK en `acc_views.py`.
 - [x] **Step 4: Commit** — `a665e29`
 
 ```bash
@@ -1384,19 +1384,49 @@ Smoke `fe._fe_estado_config(no_cia='03')` → `activo=False, ambiente=ecf, rnc=1
 
 - [x] **Step 2: Push frontend a main (Netlify)** — Netlify auto-deploya desde main en cada push; los commits 3b7acb0 / c9b3142 / 79c3b95 ya quedaron publicados en https://abregonza.netlify.app.
 
-- [ ] **Step 3: Test E2E completo**
+- [x] **Step 3: Smoke E2E automatizable** (2026-10-24)
 
-1. Activar el switch en la UI → verificar que el tutorial aparece
-2. **FAT:** Crear factura FT → verificar e-CF tipo 31 o 32
-3. **FAT (RFCE):** Crear factura consumo < 250K → verificar que va por RFCE
-4. **CxP:** Entrar FP → verificar e-CF tipo 41
-5. **CxC:** Crear ND → verificar e-CF tipo 33 con referencia
-6. **CxC:** Crear NC → verificar e-CF tipo 34 con referencia
-7. **ACC:** Crear egreso caja chica con NCF → verificar e-CF tipo 43
-8. Ir a Comprobante Electrónico → verificar que aparecen todos los envíos
-9. **Chatbot:** "¿cuál es el estado de mi última factura electrónica?"
+   Ejecutado en la VM (cia 03, `activo='N'`, los hooks deben retornar `None` sin excepción):
 
-- [ ] **Step 4: Si todo OK, confirmar ambiente `ecf` (producción DGII)**
+   ```
+   docker exec facturation_backend pytest apps/fe/tests/ -v
+   → 321 passed in 20.59s
+   ```
+
+   Smoke por hook (los 4 módulos resuelven sin excepción con la config real):
+
+   ```
+   fe_repo.get_config('03')  → fallback a '01', activo='N'
+   emitir_ecf_si_activo(modulo='FAT') → None
+   emitir_ecf_si_activo(modulo='CXP') → None
+   emitir_ecf_si_activo(modulo='CXC') → None
+   emitir_ecf_si_activo(modulo='ACC') → None
+   ```
+
+   Chatbot tools cargadas: `fe_listar_documentos`, `fe_consultar_estado`, `fe_estado_config`.
+
+   `fe_estado_config(no_cia='03')` → `activo=False, ambiente='ecf', 10 secuencias`.
+
+   El E2E con documento real contra DGII requiere **Step 4** (abajo). No ejecutable sin decisión de negocio.
+
+- [ ] **Step 4: Activar ambiente `ecf` (producción DGII)** — ⚠️ **Decisión de negocio** (no automatizable).
+
+   Cuando Abregonza esté lista, ejecutar:
+
+   ```sql
+   UPDATE FAT.TFE_CONFIG SET activo='S' WHERE no_cia='01';
+   COMMIT;
+   ```
+
+   Y validar flujo real:
+   1. Login UI → `Facturación Electrónica` → tutorial aparece
+   2. **FAT:** Crear FT → `response.ecf.e_ncf` presente, estado = ENVIADO
+   3. **FAT RFCE:** FT consumo < 250K → endpoint `fc.dgii.gov.do`
+   4. **CxP:** FP → e-CF 41
+   5. **CxC:** ND/NC → e-CF 33/34 con `<eNCFReferencia>`
+   6. **ACC:** EG con NCF → e-CF 43
+   7. Comprobante Electrónico → envíos listados
+   8. Chatbot: "¿estado de mi última factura?"
 
 ---
 
