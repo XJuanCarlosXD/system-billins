@@ -24,8 +24,8 @@
 | 8. Hook CxC ND/NC | ✅ | e6dc6d1 | Falta smoke E2E |
 | 9. Hook ACC egresos | ✅ | a665e29 | Falta smoke E2E |
 | 10. Tutorial dialog + voz + avatar | ✅ | 3b7acb0 | Componentes creados; integrar en vistas en Task 11/12 |
-| 11. Tutorial en FAT | ⏳ | — | Pendiente |
-| 12. Tutorial en CxP/CxC/ACC/INV | ⏳ | — | Pendiente |
+| 11. Tutorial en FAT | ✅ | c9b3142 | Botón + badge e-CF en facturas |
+| 12. Tutorial en CxP/CxC/ACC/INV | ✅ | 79c3b95 | 4 vistas con FeTutorialButton |
 | 13. Tools chatbot e-CF | ⏳ | — | Pendiente |
 | 14. Deploy VM + Netlify + E2E | ⏳ | — | Pendiente |
 
@@ -1119,7 +1119,7 @@ git commit -m "feat(fe): componente tutorial reutilizable + contenido para 5 mó
 **Files:**
 - Modify: `frontend/src/features/fat/facturas.tsx`
 
-- [ ] **Step 1: Agregar botón tutorial + hook e-CF**
+- [x] **Step 1: Agregar botón tutorial + hook e-CF**
 
 ```tsx
 import { useFeConfig } from '@/features/fe/api'
@@ -1141,11 +1141,11 @@ const feActivo = feData?.config?.activo === 'S'
 
 El botón "Tutorial e-CF" aparece siempre que e-CF esté activo. La primera vez se abre automáticamente con voz. Las siguientes veces el usuario lo abre manualmente.
 
-- [ ] **Step 2: Agregar badge de estado e-CF en la lista de facturas**
+- [x] **Step 2: Agregar badge de estado e-CF en la lista de facturas**
 
 Cuando una factura tiene e-NCF asignado, mostrar un badge verde "e-CF" al lado del número.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit** — `c9b3142`
 
 ```bash
 git commit -m "feat(fat): botón tutorial e-CF con voz/avatar + badge estado"
@@ -1163,11 +1163,11 @@ git commit -m "feat(fat): botón tutorial e-CF con voz/avatar + badge estado"
 
 Mismo patrón que Task 11: agregar `<FeTutorialButton>` en el header de cada vista. Cada módulo tiene su array de pasos con voz + avatar. El botón "Tutorial e-CF" queda siempre visible para que el usuario lo consulte cuando quiera.
 
-- [ ] **Step 1-3: CxP** — `FeTutorialButton` con `FE_TUTORIAL_CXP` + badge e-CF
-- [ ] **Step 4-6: CxC** — `FeTutorialButton` con `FE_TUTORIAL_CXC` + badge + indicador referencia e-NCF
-- [ ] **Step 7-8: ACC** — `FeTutorialButton` con `FE_TUTORIAL_ACC` en egresos caja chica
-- [ ] **Step 9-10: INV** — `FeTutorialButton` con `FE_TUTORIAL_INV` en devoluciones
-- [ ] **Step 11: Commit**
+- [x] **Step 1-3: CxP** — `FeTutorialButton` con `FE_TUTORIAL_CXP` en `cxp/documentos.tsx`
+- [x] **Step 4-6: CxC** — `FeTutorialButton` con `FE_TUTORIAL_CXC` en `cxc-transacciones.tsx` (entrada ND/NC)
+- [x] **Step 7-8: ACC** — `FeTutorialButton` con `FE_TUTORIAL_ACC` en `acc-nuevo-egreso.tsx`
+- [x] **Step 9-10: INV** — `FeTutorialButton` con `FE_TUTORIAL_INV` en `devolucion-ventas.tsx`
+- [x] **Step 11: Commit** — `79c3b95`
 
 ```bash
 git commit -m "feat: tutoriales e-CF en CxP, CxC, ACC e INV"
