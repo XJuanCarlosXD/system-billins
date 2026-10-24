@@ -26,7 +26,7 @@
 | 10. Tutorial dialog + voz + avatar | ✅ | 3b7acb0 | Componentes creados; integrar en vistas en Task 11/12 |
 | 11. Tutorial en FAT | ✅ | c9b3142 | Botón + badge e-CF en facturas |
 | 12. Tutorial en CxP/CxC/ACC/INV | ✅ | 79c3b95 | 4 vistas con FeTutorialButton |
-| 13. Tools chatbot e-CF | ✅ | pendiente | tools/fe.py + skill consultar-ecf + hook en facturar/SKILL.md |
+| 13. Tools chatbot e-CF | ✅ | d65fd79 | tools/fe.py + skill consultar-ecf + hook en facturar/SKILL.md |
 | 14. Deploy VM + Netlify + E2E | ⏳ | — | Pendiente |
 
 **Backend 9/9 integrado.** Tests y verificación E2E quedan como follow-up antes del deploy final (Task 14). Frontend y chatbot pendientes.
