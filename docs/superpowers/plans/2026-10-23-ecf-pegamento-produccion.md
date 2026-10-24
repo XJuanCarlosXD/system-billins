@@ -23,7 +23,7 @@
 | 7. Hook CxP | ✅ | 3513615 | Falta smoke E2E |
 | 8. Hook CxC ND/NC | ✅ | e6dc6d1 | Falta smoke E2E |
 | 9. Hook ACC egresos | ✅ | a665e29 | Falta smoke E2E |
-| 10. Tutorial dialog + voz + avatar | ✅ | (pendiente push) | Componentes creados; integrar en vistas en Task 11/12 |
+| 10. Tutorial dialog + voz + avatar | ✅ | 3b7acb0 | Componentes creados; integrar en vistas en Task 11/12 |
 | 11. Tutorial en FAT | ⏳ | — | Pendiente |
 | 12. Tutorial en CxP/CxC/ACC/INV | ⏳ | — | Pendiente |
 | 13. Tools chatbot e-CF | ⏳ | — | Pendiente |
