@@ -2,11 +2,71 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Corregir el pegamento e-CF: (1) reemplazar el modal genérico por un panel guiado paso a paso que señale elementos reales de la UI con spotlight/tooltip, (2) agregar e-NCF al selector de comprobante cuando e-CF está activo, (3) mostrar e-NCF en los PDFs impresos, (4) eliminar Web Speech API y usar síntesis de voz de calidad en español o eliminar voz. Todo en las vistas de ENTRADA de documento (nueva-factura, entrada CxP, entrada CxC, egreso ACC).
+**Goal:** Corregir el pegamento e-CF: (1) reemplazar el modal genérico por un panel guiado paso a paso que señale elementos reales de la UI con spotlight/tooltip, (2) agregar e-NCF al selector de comprobante cuando e-CF está activo, (3) mostrar e-NCF en los PDFs impresos, (4) eliminar Web Speech API. Todo en las vistas de ENTRADA de documento (nueva-factura, entrada CxP, entrada CxC, egreso ACC).
 
 **Architecture:** El tutorial deja de ser un Dialog modal genérico y se convierte en un panel lateral/overlay tipo "tour guiado" que usa `data-tour-step` attributes en los elementos reales de la UI + un overlay con spotlight (rectángulo recortado) y tooltip posicionado junto al elemento señalado. Sin librería externa — componente propio `FeGuiaInteractiva` con CSS clip-path para spotlight. El selector de NCF consulta `TFE_SECUENCIA` cuando e-CF está activo. Los prints buscan el e-NCF en `TFE_DOCUMENTO`.
 
 **Tech Stack:** React + shadcn/ui + TanStack Query / Python 3.12 / Django / Oracle
+
+---
+
+## Principios UX obligatorios (aplicar en CADA tarea)
+
+Cada tarea DEBE seguir estos principios. El runner verifica cada uno en el paso de testing.
+
+### 1. Feedback inmediato al usuario
+- Toda acción del usuario debe tener respuesta visual en < 200ms (loading spinner, skeleton, transición)
+- Errores deben mostrarse en contexto (inline, no alert/console), con mensaje claro EN ESPAÑOL que diga QUÉ pasó y QUÉ hacer
+- Estados vacíos deben tener mensaje informativo, nunca una lista vacía sin explicación
+
+### 2. Accesibilidad y legibilidad
+- Contraste suficiente (texto sobre fondo oscuro del spotlight debe ser legible)
+- Tooltips del tour nunca deben salirse de la pantalla (clamp a viewport)
+- Botones con `aria-label` cuando solo tienen ícono
+- Focus trap dentro del tour: Tab/Shift+Tab deben ciclar dentro del tooltip, no ir al fondo
+
+### 3. Responsive y mobile-first
+- Tour y selector deben funcionar en viewport ≥ 375px (móvil)
+- Tooltip se posiciona abajo en móvil si no cabe a los lados
+- Selector de comprobante no debe truncar el texto del e-NCF en pantalla pequeña
+
+### 4. Consistencia con el diseño existente
+- Colores, tipografía y spacing de shadcn/ui — NO inventar estilos nuevos
+- Botón "Guía e-CF" con el mismo estilo que otros botones de acción en el header
+- Iconos de lucide-react consistentes con el resto de la app
+
+### 5. No sorpresas
+- El tour NO bloquea la pantalla si el usuario hace clic fuera — se cierra
+- El tour se puede cerrar con Escape
+- "No volver a mostrar" se respeta (localStorage) pero hay botón siempre visible para reabrir
+- El selector de e-NCF NO quita los NCF papel si el usuario los necesita como fallback
+
+### 6. Lenguaje claro en español dominicano
+- "Guardar" no "Submit", "Siguiente" no "Next", "Comprobante" no "Voucher"
+- Explicaciones en lenguaje de negocio: "Crédito Fiscal" no "tipo 31"
+- Sin jerga técnica en lo que ve el usuario (e-NCF está bien porque es término DGII oficial)
+
+---
+
+## Testing obligatorio por tarea
+
+**CADA tarea DEBE incluir estos pasos de testing antes del commit final:**
+
+1. **`tsc -b --noEmit`** — cero errores de tipos (frontend)
+2. **Test visual con Playwright** — navegar a la vista afectada, tomar screenshot, verificar que:
+   - El componente se renderiza correctamente
+   - No hay errores en consola (console.error)
+   - Los elementos interactivos responden (click, hover)
+3. **Test de flujo completo** — simular el camino del usuario:
+   - Abrir la vista → tour aparece automáticamente (primera vez) → navegar pasos → cerrar
+   - Reabrir con el botón "Guía e-CF" → funciona
+   - Selector muestra e-NCF si aplica
+4. **Test de edge cases:**
+   - ¿Qué pasa si el elemento del tour no existe? (el tour debe saltar ese paso, no crashear)
+   - ¿Qué pasa en móvil? (tooltip debe caber en pantalla)
+   - ¿Qué pasa si e-CF no está activo? (botón no aparece, selector muestra NCF papel normal)
+   - ¿Qué pasa con ventana redimensionada? (spotlight se recalcula)
+5. **Screenshot final** — evidencia visual enviada con `SendUserFile` al completar cada tarea
 
 ---
 
@@ -308,17 +368,100 @@ export function FeGuiaInteractiva({ pasos, open, onClose, moduloKey }: Props) {
 }
 ```
 
-- [ ] **Step 3: Correr `tsc -b` para verificar tipos**
+- [ ] **Step 3: UX — agregar manejo de Escape, focus trap y viewport clamping**
+
+En `fe-guia-interactiva.tsx`, agregar:
+
+```tsx
+// Cerrar con Escape
+useEffect(() => {
+  if (!open) return
+  const handleKey = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') cerrar()
+  }
+  window.addEventListener('keydown', handleKey)
+  return () => window.removeEventListener('keydown', handleKey)
+}, [open])
+
+// Viewport clamping: el tooltip nunca se sale de la pantalla
+const clampToViewport = (style: React.CSSProperties): React.CSSProperties => {
+  const s = { ...style }
+  const W = window.innerWidth, H = window.innerHeight, TW = 320, TH = 200
+  if (typeof s.left === 'number' && s.left + TW > W - 16) s.left = W - TW - 16
+  if (typeof s.top === 'number' && s.top + TH > H - 16) s.top = H - TH - 16
+  if (typeof s.left === 'number' && s.left < 16) s.left = 16
+  if (typeof s.top === 'number' && s.top < 16) s.top = 16
+  return s
+}
+// Aplicar: style={clampToViewport(tooltipStyle)}
+
+// Focus trap: auto-focus "Siguiente" al cambiar paso
+useEffect(() => {
+  if (open) tooltipRef.current?.querySelector<HTMLButtonElement>('button:last-child')?.focus()
+}, [open, paso])
+```
+
+Cuando el selector del paso no encuentra el elemento (`rect === null`), mostrar el tooltip centrado con un mensaje: "Este paso no aplica a tu formulario actual" y botón "Siguiente" — NO crashear ni quedarse en blanco.
+
+```tsx
+// Fallback cuando el elemento no existe en la página
+if (!rect) {
+  return createPortal(
+    <div className='fixed inset-0 z-[9999] flex items-center justify-center bg-black/40'>
+      <div className='w-80 rounded-xl border bg-background p-4 shadow-2xl'>
+        <div className='mb-3 flex items-start gap-3'>
+          <FeTutorialAvatar speaking={false} className='h-10 w-10 flex-shrink-0' />
+          <div>
+            <p className='font-semibold'>{current.titulo}</p>
+            <p className='text-muted-foreground mt-1 text-sm'>
+              Este paso no aplica a tu formulario actual. Puedes continuar.
+            </p>
+          </div>
+        </div>
+        <div className='flex justify-end gap-2'>
+          <Button variant='ghost' size='sm' onClick={cerrar}>Saltar</Button>
+          <Button size='sm' onClick={siguiente}>Siguiente</Button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+```
+
+- [ ] **Step 4: UX — animación suave entre pasos**
+
+```tsx
+// Transición suave del spotlight al cambiar de paso
+// Ya tenemos transition-all duration-300 en el backdrop
+// Agregar al tooltip:
+className='absolute z-[10000] w-80 rounded-xl border bg-background p-4 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200'
+```
+
+- [ ] **Step 5: Correr `tsc -b` para verificar tipos — 0 errores**
 
 ```bash
 cd frontend && npx tsc -b --noEmit 2>&1 | head -20
 ```
 
-- [ ] **Step 4: Commit**
+Esperado: 0 errores. Si hay errores, corregir ANTES de continuar.
+
+- [ ] **Step 6: Test visual con Playwright**
+
+```
+1. Navegar a /fat/nueva-factura (login JCABREU/jc192003)
+2. Verificar que el componente FeGuiaInteractiva se puede importar sin error
+3. Verificar consola: 0 errores de import/runtime
+4. Tomar screenshot
+```
+
+Este test es básico porque el componente aún no está integrado — la integración completa se testea en Task 4.
+
+- [ ] **Step 7: Commit**
 
 ```bash
 git add frontend/src/features/fe/fe-guia-interactiva.tsx frontend/src/features/fe/fe-guia-pasos.ts
-git commit -m "feat(fe): componente tour guiado con spotlight — reemplaza modal genérico"
+git commit -m "feat(fe): componente tour guiado con spotlight, Escape, focus trap, viewport clamp"
 ```
 
 ---
@@ -401,7 +544,23 @@ grep -rn 'fe-tutorial-dialog\|fe-tutorial-voice\|FeTutorialDialog\|useTTS' front
 
 Limpiar cada import encontrado.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Verificar `tsc -b` — 0 errores tras borrar archivos**
+
+```bash
+cd frontend && npx tsc -b --noEmit 2>&1 | head -20
+```
+
+Si hay errores por imports huérfanos, corregir todos ANTES de continuar.
+
+- [ ] **Step 5: Test visual — verificar que la app carga sin crash**
+
+```
+1. Navegar a /fat/facturas (consulta) — verificar que ya NO aparece el botón Tutorial e-CF
+2. Navegar a /fat/nueva-factura — verificar que la página carga sin errores en consola
+3. Screenshot de ambas vistas
+```
+
+- [ ] **Step 6: Commit**
 
 ```bash
 git commit -m "feat(fe): reescribir tutorial como tour guiado, eliminar modal y voz"
@@ -469,13 +628,51 @@ if cfg and cfg.get('activo') == 'S':
     ncf_ranges = encf_ranges + ncf_ranges
 ```
 
-- [ ] **Step 3: Test — verificar que `/fat/ncf/` devuelve e-NCF**
+- [ ] **Step 3: UX — orden lógico y labels claros en el response**
 
-```bash
-curl -s "https://grupo-abregonza.hopto.org:8443/api/fat/ncf/?no_cia=01&punto=01" | python -m json.tool | head -30
+Los e-NCF devueltos deben tener:
+- `descripcion` en español de negocio ("CREDITO FISCAL", no "tipo 31")
+- `es_electronico: true` para que el frontend pueda distinguirlos visualmente
+- Orden: e-NCF primero (son los que el usuario debería usar), papel después como fallback
+- Si no hay secuencias e-NCF configuradas para un tipo, NO mostrar esa opción vacía
+
+```python
+# Filtrar secuencias sin rango disponible
+if s['prox_secuencia'] > s['secuencia_hasta']:
+    continue  # rango agotado, no mostrar
 ```
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Deploy backend a VM y test del endpoint**
+
+```bash
+# Copiar fe_repo.py y views.py a la VM
+pscp -hostkey "SHA256:..." -pw "Temp1234!" backend/apps/legacy/repositories/fe_repo.py jcabreu@10.0.0.99:/tmp/
+pscp -hostkey "SHA256:..." -pw "Temp1234!" backend/apps/fat/views.py jcabreu@10.0.0.99:/tmp/
+# docker cp + restart
+```
+
+- [ ] **Step 5: Test — verificar respuesta del endpoint**
+
+```bash
+curl -s "https://grupo-abregonza.hopto.org:8443/api/fat/ncf/?no_cia=01&punto=01" | python -m json.tool
+```
+
+Verificar:
+1. Los e-NCF aparecen PRIMERO en la lista con `es_electronico: true`
+2. Los NCF papel aparecen DESPUÉS con `es_electronico: false`
+3. Cada e-NCF tiene `descripcion` legible ("CREDITO FISCAL", etc.)
+4. `prox_ncf` y `ncf_final` son números coherentes (prox < final)
+5. Si e-CF NO está activo en otra cía, esa cía devuelve solo NCF papel (test con `no_cia=02`)
+
+- [ ] **Step 6: Test edge case — empresa sin e-CF activo**
+
+```bash
+curl -s "https://grupo-abregonza.hopto.org:8443/api/fat/ncf/?no_cia=03&punto=01" | python -m json.tool | head -10
+```
+
+Esperado: solo NCF papel, ningún `es_electronico: true`. Si cía 03 usa fallback a cía 01, verificar que el fallback es correcto.
+
+- [ ] **Step 7: Commit**
 
 ```bash
 git commit -m "feat(fat): endpoint NCF devuelve e-NCF de TFE_SECUENCIA cuando e-CF activo"
@@ -557,7 +754,68 @@ const feActivo = feData?.config?.activo === 'S'
 
 Eliminar el import y uso de `FeTutorialButton` de `facturas.tsx` — el tutorial pertenece en las vistas de entrada.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: UX — indicador visual claro para e-NCF vs papel**
+
+En el selector de comprobante, los e-NCF deben ser visualmente distinguibles:
+- Prefijo `⚡` para electrónicos en el `<option>`
+- El texto "Próximo NCF" cambia a "Próximo e-NCF" cuando es electrónico
+- Color verde en el badge de próximo si es electrónico, gris si es papel
+- Si no hay e-NCF disponibles (rango agotado), mostrar aviso inline: "No hay comprobantes electrónicos disponibles. Contacte al administrador."
+
+```tsx
+{!ncfRangesFiltrados.some(n => n.es_electronico) && feActivo && (
+  <p className='text-sm text-amber-600 mt-1'>
+    ⚠ No hay comprobantes electrónicos disponibles. Verifique la configuración con el administrador.
+  </p>
+)}
+```
+
+- [ ] **Step 6: `tsc -b` — 0 errores**
+
+```bash
+cd frontend && npx tsc -b --noEmit 2>&1 | head -20
+```
+
+- [ ] **Step 7: Test visual con Playwright — flujo completo nueva-factura**
+
+```
+1. Login en https://abregonza.netlify.app (JCABREU/jc192003)
+2. Navegar a /fat/nueva-factura
+3. Verificar: tour se abre automáticamente (primera vez)
+4. Verificar: spotlight señala "Tipo de documento" con tooltip legible
+5. Click "Siguiente" → spotlight se mueve a "Cliente"
+6. Click "Siguiente" → spotlight se mueve a "Comprobante" — el selector es visible
+7. Click "Siguiente" → spotlight se mueve a "Guardar Factura"
+8. Click "Listo" → tour se cierra
+9. Verificar: el selector Comprobante muestra ⚡ E31, ⚡ E32 ANTES de los NCF papel
+10. Verificar: "Próximo e-NCF: E310000000141" (formato correcto 13 chars)
+11. Recargar página → tour NO reaparece (localStorage)
+12. Click botón "Guía e-CF" → tour reaparece
+13. Presionar Escape → tour se cierra
+14. Verificar: 0 errores en consola
+15. Screenshot de: tour paso 1, tour paso 3 (comprobante), selector e-NCF expandido
+```
+
+- [ ] **Step 8: Test responsive — viewport 375px**
+
+```
+1. Resize browser a 375x812 (iPhone SE)
+2. Navegar a /fat/nueva-factura
+3. Abrir tour → tooltip debe caber sin scrollbar horizontal
+4. Selector comprobante → texto e-NCF no truncado
+5. Screenshot mobile
+```
+
+- [ ] **Step 9: Test edge case — e-CF inactivo**
+
+```
+1. (Si es posible testear con otra cía donde e-CF no está activo)
+2. Verificar: botón "Guía e-CF" NO aparece
+3. Verificar: selector muestra solo NCF papel (B01, B02, etc.)
+4. Verificar: no hay errores en consola
+```
+
+- [ ] **Step 10: Commit**
 
 ```bash
 git commit -m "feat(fat): selector e-NCF + tour guiado en nueva-factura"
@@ -618,7 +876,55 @@ grep -rn 'FeTutorialButton' frontend/src/features/cxp/ frontend/src/features/cxc
 
 Eliminar de las vistas de consulta, dejar solo en las de entrada.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: `tsc -b` — 0 errores**
+
+```bash
+cd frontend && npx tsc -b --noEmit 2>&1 | head -20
+```
+
+- [ ] **Step 6: Test visual con Playwright — CxP entrada**
+
+```
+1. Navegar a la vista de entrada de documento CxP
+2. Verificar: tour se abre automáticamente (primera vez)
+3. Verificar: spotlight señala "Tipo de documento" → "NCF del proveedor" → "Guardar"
+4. Cada tooltip tiene texto en español de negocio claro
+5. Click fuera del tour → se cierra
+6. Botón "Guía e-CF" visible para reabrir
+7. Screenshot: tour paso 1 CxP
+```
+
+- [ ] **Step 7: Test visual con Playwright — CxC entrada ND/NC**
+
+```
+1. Navegar a la vista de entrada CxC (ND/NC)
+2. Verificar: tour se abre automáticamente
+3. Verificar: pasos "Nota de Débito/Crédito" → "Factura que modifica" → "Guardar"
+4. Si un paso señala un elemento que no existe (ej. "factura-ref" cuando no hay ese campo visible),
+   debe mostrar el fallback "Este paso no aplica" con botón Siguiente — NO crashear
+5. Screenshot: tour CxC
+```
+
+- [ ] **Step 8: Test visual con Playwright — ACC egreso**
+
+```
+1. Navegar a /acc/nuevo-egreso
+2. Verificar: tour se abre automáticamente
+3. Verificar: pasos "Comprobante de gasto" → "Guardar"
+4. Screenshot: tour ACC
+```
+
+- [ ] **Step 9: Test — cada tour es independiente (localStorage por módulo)**
+
+```
+1. Completar tour en CxP (cierra y marca visto)
+2. Ir a CxC → tour debe aparecer (es módulo diferente, key diferente)
+3. Ir a ACC → tour debe aparecer
+4. Volver a CxP → tour NO reaparece (ya visto)
+5. Verificar localStorage keys: fe-guia-visto-cxp-entrada, fe-guia-visto-cxc-entrada, fe-guia-visto-acc-egreso
+```
+
+- [ ] **Step 10: Commit**
 
 ```bash
 git commit -m "feat: tour guiado e-CF en vistas de entrada CxP, CxC, ACC"
@@ -675,7 +981,54 @@ Mismo patrón: buscar e-NCF en TFE_DOCUMENTO antes de usar ncf_dgi del documento
 curl -s "https://grupo-abregonza.hopto.org:8443/api/fat/print/data/?no_cia=01&punto=01&tipo=FT&no=41233" | python -c "import json,sys; d=json.load(sys.stdin); print(d.get('ncf_dgi'))"
 ```
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: UX — el PDF debe ser legible y claro**
+
+Cuando el PDF muestra e-NCF:
+- El label debe decir "e-NCF:" (no "NCF DGI:") para que el usuario sepa que es electrónico
+- Formato completo: `E310000000141` — 13 caracteres, sin espacios ni guiones
+- Si el documento NO tiene e-NCF en TFE_DOCUMENTO, mostrar el NCF papel normal — NUNCA dejar el campo vacío
+- Si el documento fue RECHAZADO por DGII, mostrar el NCF papel como fallback (el WHERE ya filtra `estado != 'RECHAZADO'`)
+
+- [ ] **Step 6: Deploy backend a VM**
+
+```bash
+pscp -hostkey "SHA256:..." -pw "Temp1234!" backend/apps/legacy/repositories/fe_repo.py jcabreu@10.0.0.99:/tmp/
+pscp -hostkey "SHA256:..." -pw "Temp1234!" backend/apps/fat/views_print_data.py jcabreu@10.0.0.99:/tmp/
+# docker cp + restart
+```
+
+- [ ] **Step 7: Test — reimprimir factura con e-CF**
+
+```bash
+# Buscar una factura que tenga registro en TFE_DOCUMENTO
+curl -s "https://grupo-abregonza.hopto.org:8443/api/fat/print/data/?no_cia=01&punto=01&tipo=FT&no=41233" | python -c "import json,sys; d=json.load(sys.stdin); print('NCF:', d.get('ncf_dgi'))"
+```
+
+Verificar:
+1. Si la factura tiene e-NCF → print data muestra `E31...` (13 chars)
+2. Si la factura NO tiene e-NCF → print data muestra NCF papel `B02...` (11 chars)
+3. El campo nunca es vacío o null
+
+- [ ] **Step 8: Test visual — abrir el PDF en el navegador**
+
+```
+1. Navegar a /fat/facturas (consulta)
+2. Buscar una factura reciente
+3. Click "Imprimir" → PDF se abre
+4. Verificar: el NCF en el PDF es correcto (e-NCF si existe, papel si no)
+5. Verificar: el label dice "e-NCF:" o "NCF:" según corresponda
+6. Screenshot del PDF
+```
+
+- [ ] **Step 9: Test edge case — factura antigua sin e-CF**
+
+```
+1. Reimprimir una factura anterior a la activación de e-CF
+2. Verificar: muestra NCF papel normal — no se rompe
+3. No hay error 500 ni campo vacío
+```
+
+- [ ] **Step 10: Commit**
 
 ```bash
 git commit -m "feat(print): mostrar e-NCF en PDFs si existe en TFE_DOCUMENTO"
@@ -683,49 +1036,112 @@ git commit -m "feat(print): mostrar e-NCF en PDFs si existe en TFE_DOCUMENTO"
 
 ---
 
-### Task 7: Deploy a VM + Netlify y test E2E visual
+### Task 7: Test E2E integral — verificación cruzada completa
 
 **Files:**
-- Ninguno nuevo — deploy y verificación
+- Ninguno nuevo — verificación integral de todo
 
-- [ ] **Step 1: Deploy backend a VM**
+Este es el test definitivo. Todos los componentes ya fueron deployados individualmente en sus tareas. Aquí se hace la verificación cruzada completa.
 
-Archivos modificados:
-- `backend/apps/legacy/repositories/fe_repo.py`
-- `backend/apps/fat/views.py`
-- `backend/apps/fat/views_print_data.py`
-- `backend/apps/legacy/docs_print_data.py`
-
-```bash
-pscp -hostkey "SHA256:ds2PzCSg6+BrqLex5a74SVS681czz+P3+l6lKPuuztc" -pw "Temp1234!" <archivos> jcabreu@10.0.0.99:/tmp/
-# docker cp + restart
-```
-
-- [ ] **Step 2: Push frontend a main (Netlify)**
+- [ ] **Step 1: Push frontend a main (Netlify) si no se hizo antes**
 
 ```bash
 git push origin main
 ```
 
-- [ ] **Step 3: Verificar E2E en el navegador**
+- [ ] **Step 2: Esperar deploy Netlify**
 
-1. Ir a `/fat/nueva-factura` → debe aparecer el tour guiado automáticamente
-2. El tour debe señalar con spotlight el Tipo Documento → Cliente → Comprobante → Guardar
-3. El selector Comprobante debe mostrar `⚡ E31 - CREDITO FISCAL`
-4. El "Proximo NCF" debe mostrar `E310000000141` (no `B0200043422`)
-5. Botón "Guía e-CF" siempre visible para reabrir el tour
-6. No hay voz robótica
-7. Ir a CxP entrada → tour con sus pasos
-8. Reimprimir una factura → PDF muestra e-NCF
-9. Probar skip en cualquier momento
+```bash
+curl -s "https://api.netlify.com/api/v1/sites/abregonza.netlify.app/deploys" | python -c "import json,sys; d=json.load(sys.stdin); print(d[0]['state'], d[0]['created_at'])"
+```
 
-- [ ] **Step 4: Screenshot de cada vista para verificación**
+Esperado: `ready` con timestamp reciente.
 
-Tomar screenshot de:
-- Tour paso 1 en nueva-factura (spotlight sobre Tipo Documento)
-- Tour paso 3 (spotlight sobre Comprobante con e-NCF visible)
-- CxP entrada con tour
-- PDF de factura con e-NCF
+- [ ] **Step 3: Test E2E — flujo completo FAT (usuario nuevo)**
+
+```
+CASO: Usuario nuevo entra por primera vez a crear una factura electrónica
+
+1. Limpiar localStorage (o usar incógnito)
+2. Login → /fat/nueva-factura
+3. ✓ Tour se abre automáticamente con spotlight sobre "Tipo de documento"
+4. ✓ Tooltip legible, en español, con avatar — texto explica en lenguaje de negocio
+5. ✓ "Siguiente" → spotlight se mueve suavemente a "Cliente"
+6. ✓ "Siguiente" → spotlight en "Comprobante" — el selector es visible debajo
+7. ✓ "Siguiente" → spotlight en "Guardar Factura"
+8. ✓ "Listo" → tour se cierra
+9. ✓ Botón "Guía e-CF" visible en el header
+10. ✓ Click "Guía e-CF" → tour reaparece
+11. ✓ Escape → tour se cierra
+12. ✓ Click fuera del backdrop → tour se cierra
+13. ✓ Selector Comprobante muestra: ⚡ E31 - CREDITO FISCAL primero
+14. ✓ "Próximo e-NCF: E310000000141" (13 chars, formato correcto)
+15. ✓ NCF papel (B02, etc.) aparece después como fallback
+16. ✓ 0 errores en consola
+```
+
+- [ ] **Step 4: Test E2E — flujos CxP, CxC, ACC**
+
+```
+CxP:
+1. Navegar a entrada documento CxP
+2. ✓ Tour se abre (primer uso en CxP — key independiente)
+3. ✓ Pasos: Tipo documento → NCF proveedor → Guardar
+4. ✓ Textos en español de negocio claro
+
+CxC:
+1. Navegar a entrada ND/NC
+2. ✓ Tour funciona con sus pasos específicos
+3. ✓ Si un paso no tiene elemento visible → fallback "Este paso no aplica" (no crash)
+
+ACC:
+1. Navegar a /acc/nuevo-egreso
+2. ✓ Tour funciona: Comprobante de gasto → Guardar
+```
+
+- [ ] **Step 5: Test E2E — PDF con e-NCF**
+
+```
+1. Ir a /fat/facturas (consulta)
+2. Buscar factura con e-CF → Imprimir → ✓ PDF muestra e-NCF (E31...)
+3. Buscar factura antigua sin e-CF → Imprimir → ✓ PDF muestra NCF papel normal
+4. ✓ Ningún PDF tiene campo NCF vacío
+```
+
+- [ ] **Step 6: Test responsive — móvil 375px**
+
+```
+1. Resize browser a 375x812 (iPhone SE)
+2. /fat/nueva-factura → tour funciona
+3. ✓ Tooltip no se sale de la pantalla (viewport clamping)
+4. ✓ Selector comprobante legible sin scroll horizontal
+5. ✓ Botón "Guía e-CF" accesible
+```
+
+- [ ] **Step 7: Test de regresión — nada se rompió**
+
+```
+1. ✓ Consulta de facturas carga normalmente
+2. ✓ Sidebar navega correctamente
+3. ✓ Otras vistas (INV, SDN, etc.) cargan sin error
+4. ✓ No hay errores 500 en el backend
+```
+
+- [ ] **Step 8: Screenshots finales — evidencia visual**
+
+Tomar y enviar con `SendUserFile`:
+1. Tour paso 1 en nueva-factura (spotlight sobre Tipo Documento)
+2. Tour paso 3 (spotlight sobre Comprobante con e-NCF visible)
+3. Selector e-NCF expandido mostrando ⚡ E31, ⚡ E32, B02...
+4. "Próximo e-NCF: E310000000141"
+5. CxP entrada con tour
+6. ACC egreso con tour
+7. PDF con e-NCF
+8. Vista mobile 375px con tour
+
+- [ ] **Step 9: Marcar plan como COMPLETADO**
+
+Actualizar este archivo: cambiar todos los `- [ ]` a `- [x]` para los pasos completados.
 
 ---
 
@@ -737,5 +1153,5 @@ Task 1 (componente tour) → Task 2 (reescribir button, borrar obsoletos)
   → Task 5 (tour en CxP/CxC/ACC)
 Task 3 (e-NCF backend endpoint) → Task 4 (frontend lo consume)
 Task 6 (e-NCF en prints) — independiente del tour
-Task 7 (deploy + E2E) — después de todos
+Task 7 (test E2E integral) — después de todos
 ```
