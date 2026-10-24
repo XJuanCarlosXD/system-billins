@@ -18,3 +18,4 @@ class AsistenteConfig(AppConfig):
         from apps.asistente.tools import cxp       # noqa: F401
         from apps.asistente.tools import cnt_inv   # noqa: F401
         from apps.asistente.tools import chc       # noqa: F401
+        from apps.asistente.tools import fe        # noqa: F401

@@ -3,7 +3,7 @@ name: facturar
 description: Crear una factura de venta nueva en FAT (NCF B01-B15).
 when_to_use: ["hacer una factura", "facturar a {cliente}", "nueva venta", "crear factura"]
 modules_required: [FAT]
-tools_used: [fat_buscar_cliente, fat_proximo_ncf, fat_buscar_producto, fat_crear_factura]
+tools_used: [fat_buscar_cliente, fat_proximo_ncf, fat_buscar_producto, fat_crear_factura, fe_consultar_estado, fe_estado_config]
 estimated_steps: 4-7
 ---
 
@@ -69,3 +69,14 @@ Este es un **write** — el frontend pedirá segundo clic de confirmación.
 - Nunca asumas no_cia/punto: si el usuario tiene varios, pregunta.
 - Si falla un permiso (`FORBIDDEN_CIA`, `FORBIDDEN_DOC`), explica qué permiso falta. No intentes rodear.
 - Si el usuario cambia de opinión a mitad, descarta el draft sin tocar Oracle.
+
+## 8. Comprobante electrónico (si aplica)
+
+Si la respuesta de `fat_crear_factura` incluye `ecf`:
+- Informa al usuario: "Se generó el e-CF {ecf.e_ncf} y se envió a la DGII (track {ecf.track_id})."
+- Si el usuario pregunta por el estado real en la DGII: usa `fe_consultar_estado(no_cia, e_ncf)`.
+
+Si la respuesta NO incluye `ecf` y el usuario pregunta por facturación electrónica:
+- Usa `fe_estado_config(no_cia)` para verificar si está activa.
+- Si no está activa, explica: "La emisión electrónica no está activa para esta empresa. Se puede activar en Configuración → Facturación Electrónica."
+- Si está activa pero no hay secuencias disponibles del tipo correspondiente, avisa al usuario — se requiere pedir nuevo rango a la DGII.

@@ -26,7 +26,7 @@
 | 10. Tutorial dialog + voz + avatar | ✅ | 3b7acb0 | Componentes creados; integrar en vistas en Task 11/12 |
 | 11. Tutorial en FAT | ✅ | c9b3142 | Botón + badge e-CF en facturas |
 | 12. Tutorial en CxP/CxC/ACC/INV | ✅ | 79c3b95 | 4 vistas con FeTutorialButton |
-| 13. Tools chatbot e-CF | ⏳ | — | Pendiente |
+| 13. Tools chatbot e-CF | ✅ | pendiente | tools/fe.py + skill consultar-ecf + hook en facturar/SKILL.md |
 | 14. Deploy VM + Netlify + E2E | ⏳ | — | Pendiente |
 
 **Backend 9/9 integrado.** Tests y verificación E2E quedan como follow-up antes del deploy final (Task 14). Frontend y chatbot pendientes.
@@ -1184,7 +1184,7 @@ git commit -m "feat: tutoriales e-CF en CxP, CxC, ACC e INV"
 
 El chatbot necesita poder: consultar el estado de un e-CF, listar los últimos envíos, reenviar un rechazado, y explicar qué hacer cuando algo falla.
 
-- [ ] **Step 1: Crear `tools/fe.py`**
+- [x] **Step 1: Crear `tools/fe.py`**
 
 ```python
 # backend/apps/asistente/tools/fe.py
@@ -1300,7 +1300,7 @@ register_tool(ToolSpec(
 ))
 ```
 
-- [ ] **Step 2: Actualizar skill de facturar**
+- [x] **Step 2: Actualizar skill de facturar**
 
 Agregar al final de `backend/apps/asistente/skills/facturar/SKILL.md`:
 
@@ -1316,7 +1316,7 @@ Si la respuesta NO incluye `ecf` pero el usuario pregunta por facturación elect
 - Si no está activa, explica: "La emisión electrónica no está activa. Se puede activar en Configuración → Facturación Electrónica."
 ```
 
-- [ ] **Step 3: Crear skill `consultar-ecf`**
+- [x] **Step 3: Crear skill `consultar-ecf`**
 
 ```markdown
 ---
@@ -1362,24 +1362,16 @@ estimated_steps: 2-4
 | Certificado vencido | .p12 expiró | Renovar con certificadora INDOTEL |
 ```
 
-- [ ] **Step 4: Registrar import**
+- [x] **Step 4: Registrar import** — en `apps/asistente/apps.py::ready()` (donde viven los otros imports side-effect).
 
-```python
-# En backend/apps/asistente/tools/__init__.py
-from apps.asistente.tools import fe  # noqa: F401
+- [x] **Step 5: Verificación de registro** — ejecutado en VM:
+
+```
+docker exec facturation_backend python manage.py shell -c "from apps.asistente.tools import fe; from apps.asistente.tools.registry import REGISTRY; print([k for k in REGISTRY if k.startswith('fe_')])"
+# → ['fe_listar_documentos', 'fe_consultar_estado', 'fe_estado_config']
 ```
 
-- [ ] **Step 5: Test**
-
-```python
-def test_fe_tools_registered():
-    from apps.asistente.tools.registry import REGISTRY
-    assert 'fe_listar_documentos' in REGISTRY
-    assert 'fe_consultar_estado' in REGISTRY
-    assert 'fe_estado_config' in REGISTRY
-```
-
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git commit -m "feat(asistente): tools y skills del chatbot para e-CF"
