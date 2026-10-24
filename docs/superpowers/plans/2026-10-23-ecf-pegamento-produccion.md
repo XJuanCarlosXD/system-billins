@@ -14,8 +14,8 @@
 
 | Task | Estado | Commit | Nota |
 |------|--------|--------|------|
-| 1. fe_repo fallback cia 01 | ✅ | 6977b68 | Falta test unitario |
-| 2. Orquestador emision.py | ✅ | 0c12c58 | Falta tests TDD |
+| 1. fe_repo fallback cia 01 | ✅ | 6977b68 | Tests: `test_fe_repo_fallback.py` (6 casos) |
+| 2. Orquestador emision.py | ✅ | 0c12c58 | Tests: `test_emision.py` (22 casos, RFCE + resiliencia) |
 | 3. Hook FAT | ✅ | 2d57d18 | Falta smoke E2E en VM |
 | 4. Builder CxP (41/43/47) | ✅ | 8432b11 | Falta tests TDD |
 | 5. Builder CxC (33/34) | ✅ | 8432b11 | Falta tests TDD |
@@ -197,12 +197,15 @@ def get_config(no_cia: str) -> dict | None:
 
 Aplicar el mismo patrón a `list_secuencias()` y `consumir_siguiente_encf()`.
 
-- [ ] **Step 4: Test**
+- [x] **Step 4: Test** — `backend/apps/fe/tests/test_fe_repo_fallback.py` (6 tests, pasan en VM):
 
-```python
-def test_get_config_fallback_a_cia_01(mock_cursor):
-    """Si no_cia='03' no tiene config, devuelve la de '01'."""
-    ...
+```
+test_resolve_fe_cia_devuelve_01_sin_tocar_db
+test_resolve_fe_cia_03_sin_config_cae_a_01
+test_resolve_fe_cia_03_con_config_propia_devuelve_03
+test_get_config_usa_fallback_cuando_cia_no_tiene_fila
+test_get_config_devuelve_none_si_ni_la_01_tiene_fila
+test_list_secuencias_tambien_cae_a_01
 ```
 
 - [x] **Step 5: Commit** — `6977b68`
@@ -221,7 +224,7 @@ git commit -m "fix(fe): fallback TFE_CONFIG a cia 01 para grupo multi-empresa"
 
 Este módulo es el "pegamento" que se llama desde cualquier punto de integración. Incluye lógica de RFCE para tipo 32 < 250K.
 
-- [ ] **Step 1: Escribir el test**
+- [x] **Step 1: Escribir el test** — `backend/apps/fe/tests/test_emision.py` (22 tests, pasan en VM). Cubre: no-op cases, flujo FAT 31/32, RFCE con umbral exacto, mapeo B01..B16, delegación CxP/CxC/ACC, resiliencia (excepciones nunca se propagan).
 
 ```python
 # backend/apps/fe/tests/test_emision.py
@@ -280,7 +283,7 @@ def test_rfce_tipo_32_menor_250k():
         mock_dgii.enviar_ecf.assert_not_called()
 ```
 
-- [ ] **Step 2: Correr test, verificar que falla**
+- [x] **Step 2: Correr test, verificar que falla** — N/A: la implementación ya existía; los tests se escribieron después para cubrir contratos (`28 passed in 0.38s` incluyendo Task 1).
 
 ```bash
 pytest backend/apps/fe/tests/test_emision.py -v
@@ -455,7 +458,7 @@ def _extraer_encf(xml: str) -> str:
     return m.group(1)
 ```
 
-- [ ] **Step 4: Correr test, verificar que pasa**
+- [x] **Step 4: Correr test, verificar que pasa** — `28 passed in 0.38s` en VM (`docker exec facturation_backend pytest apps/fe/tests/test_emision.py apps/fe/tests/test_fe_repo_fallback.py -v`).
 
 - [x] **Step 5: Commit** — `0c12c58`
 
