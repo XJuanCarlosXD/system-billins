@@ -117,6 +117,57 @@ def list_secuencias(no_cia: str) -> list[dict]:
     return rows
 
 
+def list_secuencias_como_ncf(no_cia: str) -> list[dict]:
+    """Devuelve las secuencias e-NCF formateadas como ncf_ranges para que el
+    selector de Comprobante del front pueda mostrarlas junto con los NCF de
+    papel. Solo rangos activos y con prox_secuencia <= secuencia_hasta."""
+    desc_map = {
+        '31': 'CREDITO FISCAL ELECTRONICO',
+        '32': 'CONSUMO ELECTRONICO',
+        '33': 'NOTA DEBITO ELECTRONICA',
+        '34': 'NOTA CREDITO ELECTRONICA',
+        '41': 'COMPRAS ELECTRONICAS',
+        '43': 'GASTOS MENORES ELECTRONICO',
+        '44': 'REGIMEN ESPECIAL ELECTRONICO',
+        '45': 'GUBERNAMENTAL ELECTRONICO',
+        '46': 'EXPORTACION ELECTRONICO',
+        '47': 'PAGO EXTERIOR ELECTRONICO',
+    }
+    secs = list_secuencias(no_cia)
+    result = []
+    for s in secs:
+        if str(s.get('activa') or 'S') != 'S':
+            continue
+        try:
+            prox = int(s['prox_secuencia'])
+            hasta = int(s['secuencia_hasta'])
+        except (TypeError, ValueError):
+            continue
+        if prox > hasta:
+            continue
+        tipo = str(s['tipo_ecf']).zfill(2)
+        prefijo = f'E{tipo}'
+        result.append({
+            'no_cia': no_cia,
+            'punto': '',
+            'codigo_ncf': prefijo,
+            'posiciones_fijas': prefijo,
+            'tipo_ncf_fiscal': f'e-CF {tipo}',
+            'descripcion': desc_map.get(tipo, f'e-CF tipo {tipo}'),
+            'prox_ncf': prox,
+            'ncf_inicial': int(s['secuencia_desde']),
+            'ncf_final': hasta,
+            'ncf_manual': False,
+            'ncf_opcional': False,
+            'cant_min_ncf': 0,
+            'disponibles': max(0, hasta - prox + 1),
+            'low_stock': False,
+            'critical': False,
+            'es_electronico': True,
+        })
+    return result
+
+
 def upsert_secuencia(no_cia: str, s: dict) -> None:
     with client.cursor() as cur:
         cur.execute(

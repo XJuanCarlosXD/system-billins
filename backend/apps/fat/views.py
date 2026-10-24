@@ -7,7 +7,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.legacy.repositories import companies_repo, fat_repo, permissions_repo
+from apps.legacy.repositories import (
+    companies_repo, fat_repo, fe_repo, permissions_repo,
+)
 
 
 def _ano_mes_to_range(ano: str, mes: str) -> tuple[str, str]:
@@ -51,8 +53,19 @@ class FatNCFListView(APIView):
             return forbidden
         rangos = fat_repo.list_ncf_ranges(no_cia, punto)
         tipos = fat_repo.list_document_types(no_cia)
+        papel = [{**r.to_dict(), 'es_electronico': False} for r in rangos]
+
+        # Si e-CF está activo, los e-NCF van PRIMERO (el usuario debe
+        # usarlos). Los NCF de papel quedan como fallback debajo.
+        cfg = fe_repo.get_config(no_cia)
+        if cfg and cfg.get('activo') == 'S':
+            encf_ranges = fe_repo.list_secuencias_como_ncf(no_cia)
+            ncf_ranges = encf_ranges + papel
+        else:
+            ncf_ranges = papel
+
         return Response({'no_cia': no_cia, 'punto': punto, 'usuario': request.user.username,
-                         'ncf_ranges': [r.to_dict() for r in rangos],
+                         'ncf_ranges': ncf_ranges,
                          'document_types': [t.to_dict() for t in tipos]})
 
     def post(self, request):
