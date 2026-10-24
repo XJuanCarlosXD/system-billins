@@ -48,6 +48,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { useFeConfig } from '@/features/fe/api'
+import { FeTutorialButton } from '@/features/fe/fe-tutorial-button'
+import { FE_TUTORIAL_FAT } from '@/features/fe/fe-ayuda-contenido'
 import { buildReportMeta, downloadCsv, fmtN, printFacturas } from './fat-export'
 
 interface Props {
@@ -132,6 +135,8 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
   const currentUser = useCurrentUsername()
   const [rows, setRows] = useState<Factura[]>([])
   const newHl = useDocHighlightCount('fat')
+  const { data: feData } = useFeConfig(noCia)
+  const feActivo = feData?.config?.activo === 'S'
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const [page, setPage] = useState(1)
@@ -328,6 +333,12 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
           </p>
         </div>
         <div className='flex flex-wrap gap-2'>
+          <FeTutorialButton
+            moduloKey='fat'
+            titulo='Facturación Electrónica en Ventas'
+            pasos={FE_TUTORIAL_FAT}
+            feActivo={feActivo}
+          />
           <Button variant='outline' size='sm' onClick={exportPdf}>
             <Printer className='mr-2 h-4 w-4' /> PDF
           </Button>
@@ -504,7 +515,18 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
                   </Badge>
                 </TableCell>
                 <TableCell className='text-right font-mono'>
-                  {row.ncf_dgi || (row.ncf ?? '—')}
+                  <span className='inline-flex items-center justify-end gap-1'>
+                    {row.ncf_dgi || (row.ncf ?? '—')}
+                    {(row.ncf_dgi ?? '').startsWith('E') && (
+                      <Badge
+                        variant='outline'
+                        className='h-4 border-emerald-300 bg-emerald-50 px-1 text-[10px] font-semibold text-emerald-700'
+                        title='Comprobante Fiscal Electrónico enviado a la DGII'
+                      >
+                        e-CF
+                      </Badge>
+                    )}
+                  </span>
                 </TableCell>
                 <TableCell>
                   <Button
@@ -572,10 +594,21 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
                   {ESTADO_BADGE[selected.estado]?.label ?? selected.estado}
                 </Badge>
                 {(selected.ncf_dgi || selected.codigo_ncf) && (
-                  <span className='rounded border border-blue-100 bg-blue-50 px-2 py-1 font-mono text-xs text-gray-600'>
-                    NCF:{' '}
-                    {selected.ncf_dgi ||
-                      `${selected.codigo_ncf} ${selected.ncf ?? ''}`}
+                  <span className='inline-flex items-center gap-1 rounded border border-blue-100 bg-blue-50 px-2 py-1 font-mono text-xs text-gray-600'>
+                    <span>
+                      NCF:{' '}
+                      {selected.ncf_dgi ||
+                        `${selected.codigo_ncf} ${selected.ncf ?? ''}`}
+                    </span>
+                    {(selected.ncf_dgi ?? '').startsWith('E') && (
+                      <Badge
+                        variant='outline'
+                        className='h-4 border-emerald-300 bg-emerald-50 px-1 text-[10px] font-semibold text-emerald-700'
+                        title='Comprobante Fiscal Electrónico enviado a la DGII'
+                      >
+                        e-CF
+                      </Badge>
+                    )}
                   </span>
                 )}
                 <span className='text-xs text-gray-500'>
