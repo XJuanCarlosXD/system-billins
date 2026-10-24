@@ -23,7 +23,7 @@
 | 7. Hook CxP | ✅ | 3513615 | Falta smoke E2E |
 | 8. Hook CxC ND/NC | ✅ | e6dc6d1 | Falta smoke E2E |
 | 9. Hook ACC egresos | ✅ | a665e29 | Falta smoke E2E |
-| 10. Tutorial dialog + voz + avatar | ⏳ | — | Pendiente |
+| 10. Tutorial dialog + voz + avatar | ✅ | (pendiente push) | Componentes creados; integrar en vistas en Task 11/12 |
 | 11. Tutorial en FAT | ⏳ | — | Pendiente |
 | 12. Tutorial en CxP/CxC/ACC/INV | ⏳ | — | Pendiente |
 | 13. Tools chatbot e-CF | ⏳ | — | Pendiente |
@@ -766,7 +766,7 @@ git commit -m "feat(acc): emitir e-CF tipo 43 automáticamente en egresos caja c
 - **Skip:** Botón "Saltar" visible en todo momento. También se puede cerrar el dialog con X. La voz se detiene al saltar.
 - **Primera vez:** Se abre automáticamente la primera vez que el usuario entra a la vista con e-CF activo (localStorage). Las siguientes veces solo se muestra el botón.
 
-- [ ] **Step 1: Crear hook `useTTS()`**
+- [x] **Step 1: Crear hook `useTTS()`**
 
 ```typescript
 // frontend/src/features/fe/fe-tutorial-voice.ts
@@ -808,7 +808,7 @@ export function useTTS() {
 }
 ```
 
-- [ ] **Step 2: Crear avatar SVG animado**
+- [x] **Step 2: Crear avatar SVG animado**
 
 ```tsx
 // frontend/src/features/fe/fe-tutorial-avatar.tsx
@@ -845,7 +845,7 @@ export function FeTutorialAvatar({ speaking, className }: Props) {
 }
 ```
 
-- [ ] **Step 3: Crear dialog principal con voz + avatar + skip**
+- [x] **Step 3: Crear dialog principal con voz + avatar + skip**
 
 ```tsx
 // frontend/src/features/fe/fe-tutorial-dialog.tsx
@@ -960,7 +960,7 @@ export function FeTutorialDialog({ moduloKey, titulo, pasos, feActivo, open, onO
 }
 ```
 
-- [ ] **Step 4: Crear botón flotante reutilizable**
+- [x] **Step 4: Crear botón flotante reutilizable**
 
 ```tsx
 // frontend/src/features/fe/fe-tutorial-button.tsx
@@ -1015,7 +1015,7 @@ export function FeTutorialButton({ moduloKey, titulo, pasos, feActivo }: Props) 
 }
 ```
 
-- [ ] **Step 2: Agregar contenido por módulo en `fe-ayuda-contenido.ts`**
+- [x] **Step 5: Agregar contenido por módulo en `fe-ayuda-contenido.ts`**
 
 ```typescript
 // === TUTORIALES POR MÓDULO ===
@@ -1106,7 +1106,7 @@ export const FE_TUTORIAL_INV = [
 ]
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 6: Commit** — tutorial-voice/avatar/dialog/button + contenido FAT/CxP/CxC/ACC/INV
 
 ```bash
 git commit -m "feat(fe): componente tutorial reutilizable + contenido para 5 módulos"
