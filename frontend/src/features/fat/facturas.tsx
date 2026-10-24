@@ -48,9 +48,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { useFeConfig } from '@/features/fe/api'
-import { FeTutorialButton } from '@/features/fe/fe-tutorial-button'
-import { FE_TUTORIAL_FAT } from '@/features/fe/fe-ayuda-contenido'
 import { buildReportMeta, downloadCsv, fmtN, printFacturas } from './fat-export'
 
 interface Props {
@@ -135,8 +132,6 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
   const currentUser = useCurrentUsername()
   const [rows, setRows] = useState<Factura[]>([])
   const newHl = useDocHighlightCount('fat')
-  const { data: feData } = useFeConfig(noCia)
-  const feActivo = feData?.config?.activo === 'S'
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const [page, setPage] = useState(1)
@@ -333,12 +328,6 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
           </p>
         </div>
         <div className='flex flex-wrap gap-2'>
-          <FeTutorialButton
-            moduloKey='fat'
-            titulo='Facturación Electrónica en Ventas'
-            pasos={FE_TUTORIAL_FAT}
-            feActivo={feActivo}
-          />
           <Button variant='outline' size='sm' onClick={exportPdf}>
             <Printer className='mr-2 h-4 w-4' /> PDF
           </Button>

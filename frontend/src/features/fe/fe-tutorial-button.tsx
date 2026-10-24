@@ -1,24 +1,24 @@
 import { useEffect, useState } from 'react'
 import { GraduationCap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { FeTutorialDialog, type TutorialPaso } from './fe-tutorial-dialog'
+import { FeGuiaInteractiva } from './fe-guia-interactiva'
+import type { GuiaPaso } from './fe-guia-pasos'
 
 interface Props {
   moduloKey: string
-  titulo: string
-  pasos: TutorialPaso[]
+  pasos: GuiaPaso[]
   feActivo: boolean
 }
 
-export function FeTutorialButton({ moduloKey, titulo, pasos, feActivo }: Props) {
+export function FeTutorialButton({ moduloKey, pasos, feActivo }: Props) {
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
     if (!feActivo) return
     try {
-      const key = `fe-tutorial-visto-${moduloKey}`
+      const key = `fe-guia-visto-${moduloKey}`
       if (!localStorage.getItem(key)) {
-        const timer = setTimeout(() => setOpen(true), 400)
+        const timer = setTimeout(() => setOpen(true), 800)
         return () => clearTimeout(timer)
       }
     } catch {
@@ -35,19 +35,18 @@ export function FeTutorialButton({ moduloKey, titulo, pasos, feActivo }: Props) 
         size='sm'
         onClick={() => setOpen(true)}
         className='gap-1.5'
-        title='Ver tutorial de facturación electrónica'
+        aria-label='Ver guía paso a paso de facturación electrónica'
+        title='Ver guía paso a paso de facturación electrónica'
       >
         <GraduationCap className='h-4 w-4' />
-        Tutorial e-CF
+        Guía e-CF
       </Button>
 
-      <FeTutorialDialog
+      <FeGuiaInteractiva
         moduloKey={moduloKey}
-        titulo={titulo}
         pasos={pasos}
-        feActivo={feActivo}
         open={open}
-        onOpenChange={setOpen}
+        onClose={() => setOpen(false)}
       />
     </>
   )

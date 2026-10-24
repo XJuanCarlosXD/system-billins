@@ -25,8 +25,6 @@ import {
   type LineaContable,
 } from '@/components/shared/movimiento-contable-grid'
 import { useFeConfig } from '@/features/fe/api'
-import { FeTutorialButton } from '@/features/fe/fe-tutorial-button'
-import { FE_TUTORIAL_ACC } from '@/features/fe/fe-ayuda-contenido'
 
 const fmt = (n: any) =>
   Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -455,12 +453,6 @@ export function AccNuevoEgreso({ editNoDocu }: { editNoDocu?: string } = {}) {
             {modoEdicion ? `Editar Egreso ACC-${editNoDocu}` : 'Nuevo Egreso de Caja Chica'}
           </h3>
         </div>
-        <FeTutorialButton
-          moduloKey="acc"
-          titulo="e-CF en Caja Chica"
-          pasos={FE_TUTORIAL_ACC}
-          feActivo={feActivo}
-        />
       </div>
       <div>
         <p className="text-sm text-muted-foreground">

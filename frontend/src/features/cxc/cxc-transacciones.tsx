@@ -30,8 +30,6 @@ import { regalGeneralApi } from '@/lib/regal-general-api'
 import { ClientePicker } from '@/components/cxc/cliente-picker'
 import { logErrorAutomatico } from '@/lib/report-error'
 import { useFeConfig } from '@/features/fe/api'
-import { FeTutorialButton } from '@/features/fe/fe-tutorial-button'
-import { FE_TUTORIAL_CXC } from '@/features/fe/fe-ayuda-contenido'
 
 interface P {
   noCia: string
@@ -442,12 +440,6 @@ export function CxcTransacciones({ noCia, punto = '01', prefill }: P) {
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <FeTutorialButton
-                moduloKey="cxc"
-                titulo="e-CF en Cuentas por Cobrar"
-                pasos={FE_TUTORIAL_CXC}
-                feActivo={feActivo}
-              />
               {prefill && (
                 <Badge className="bg-blue-600 text-xs">
                   Prellenado desde Vista de Cajero: {prefill.tipoRef}-{prefill.noRef}
