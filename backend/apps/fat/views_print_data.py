@@ -141,6 +141,21 @@ def fat_factura_print_data(request, tipo: str, no_factura: str):
                        factura.get('tipo_ncf_fiscal') or '').strip().upper()
     ncf_descripcion = NCF_DESCRIPCION.get(tipo_ncf_fiscal, '')
 
+    # Si el documento fue enviado a DGII (e-CF), muestra el e-NCF en lugar del
+    # NCF papel. Fallback silencioso al NCF papel si TFE_DOCUMENTO no tiene
+    # registro aceptado para este documento (ej. factura antes de activar e-CF
+    # o rechazo de DGII).
+    try:
+        from apps.legacy.repositories import fe_repo
+        _e_ncf = fe_repo.get_encf_por_documento(
+            no_cia, punto, tipo_s, (factura.get('no_factura') or '').strip())
+        if _e_ncf:
+            factura['ncf_dgi'] = _e_ncf
+            tipo_ncf_fiscal = _e_ncf[:3].upper()
+            ncf_descripcion = NCF_DESCRIPCION.get(tipo_ncf_fiscal, ncf_descripcion)
+    except Exception:
+        pass
+
     # Resolver tipo_label desde TFAT_TDOCU para soportar cualquier tipo de
     # documento (FT, FC, NC, ND, DV, AF, etc.). Si no se encuentra, fallback
     # a la lista por defecto y por último al código en uppercase.

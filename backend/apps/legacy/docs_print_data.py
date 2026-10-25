@@ -244,6 +244,20 @@ def cxc_documento_print_data(request, no_docu: str):
     except Exception:
         monto_letras = ''
 
+    # Si el documento tiene e-CF enviado a DGII, muestra el e-NCF.
+    _ncf_dgi_cxc = (
+        f"{(doc_full.get('posiciones_fijas_ncf') or '').strip()}{int(doc_full['ncf']):08d}"
+        if doc_full.get('posiciones_fijas_ncf') and doc_full.get('ncf') else
+        ((doc_full.get('ncf') or '').strip() if isinstance(doc_full.get('ncf'), str) else str(doc_full.get('ncf') or ''))
+    )
+    try:
+        from apps.legacy.repositories import fe_repo
+        _e_ncf_cxc = fe_repo.get_encf_por_documento(
+            no_cia, punto, tipo_s, (doc_full.get('no_doc') or '').strip())
+        if _e_ncf_cxc:
+            _ncf_dgi_cxc = _e_ncf_cxc
+    except Exception:
+        pass
     doc = {
         'tipo': tipo_s,
         'tipo_label': tipo_label,
@@ -254,11 +268,7 @@ def cxc_documento_print_data(request, no_docu: str):
         'numero_display': f"{tipo_s}-{(doc_full.get('no_doc') or '').strip()}",
         'fecha': str(doc_full.get('fecha') or '')[:10],
         'ncf': doc_full.get('ncf'),
-        'ncf_dgi': (
-            f"{(doc_full.get('posiciones_fijas_ncf') or '').strip()}{int(doc_full['ncf']):08d}"
-            if doc_full.get('posiciones_fijas_ncf') and doc_full.get('ncf') else
-            ((doc_full.get('ncf') or '').strip() if isinstance(doc_full.get('ncf'), str) else str(doc_full.get('ncf') or ''))
-        ),
+        'ncf_dgi': _ncf_dgi_cxc,
         'tipo_ncf': '', 'tipo_ncf_label': '',
         'estado': doc_full.get('estado') or '',
         'anulada': (doc_full.get('estado') or 'A') == 'R',
@@ -421,6 +431,19 @@ def cxp_documento_print_data(request, tipo_docu: str, no_docu: str):
     total_padded = total_str.rjust(20, '*')
 
     no_docu_str = (doc_full.get('no_docu') or '').strip()
+    # Si el documento tiene e-CF enviado a DGII, muestra el e-NCF (E31...)
+    # en lugar del NCF papel. Fallback silencioso al NCF papel.
+    _ncf_dgi_resuelto = doc_full.get('ncf_dgi') or _compose_ncf_dgi(
+        doc_full.get('posiciones_fijas_ncf'), doc_full.get('ncf')
+    )
+    try:
+        from apps.legacy.repositories import fe_repo
+        _e_ncf_cxp = fe_repo.get_encf_por_documento(
+            no_cia, punto, tipo_s, no_docu_str)
+        if _e_ncf_cxp:
+            _ncf_dgi_resuelto = _e_ncf_cxp
+    except Exception:
+        pass
     doc = {
         'tipo': tipo_s,
         'tipo_label': tipo_label,
@@ -430,9 +453,7 @@ def cxp_documento_print_data(request, tipo_docu: str, no_docu: str):
         'fecha_larga': fecha_larga,
         'fecha_vence': str(doc_full.get('fecha_vence') or '')[:10] if doc_full.get('fecha_vence') else '',
         'ncf': doc_full.get('ncf'),
-        'ncf_dgi': doc_full.get('ncf_dgi') or _compose_ncf_dgi(
-            doc_full.get('posiciones_fijas_ncf'), doc_full.get('ncf')
-        ),
+        'ncf_dgi': _ncf_dgi_resuelto,
         'estado': doc_full.get('status') or '',
         'anulada': (doc_full.get('status') or 'A') in ('R', 'X'),
         'tipo_movi': tipo_movi,

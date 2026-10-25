@@ -380,6 +380,30 @@ def get_documento(no_cia: str, e_ncf: str) -> dict | None:
     return doc
 
 
+def get_encf_por_documento(no_cia: str, punto: str, tipo_docu: str, no_docu: str) -> str | None:
+    """Busca el e-NCF de un documento ya enviado en TFE_DOCUMENTO.
+
+    Usado por los endpoints print-data para mostrar el e-NCF (si el
+    documento tuvo e-CF firmado y aceptado) en lugar del NCF papel. Si
+    el documento fue RECHAZADO por DGII o nunca se envió, devuelve
+    None y el llamador cae al NCF papel.
+
+    Nota: TFE_DOCUMENTO se poblada con (NO_CIA, PUNTO, TIPO_DOCU,
+    NO_DOCU) desde el flujo de facturación -- ese cuarteto es la
+    referencia al documento de negocio. El NO_CIA guardado es el de
+    FE (TFE_CONFIG), por eso resolvemos con _resolve_fe_cia.
+    """
+    cia_fe = _resolve_fe_cia(no_cia)
+    rows = client.fetch_dicts(
+        "SELECT e_ncf FROM FAT.TFE_DOCUMENTO "
+        "WHERE no_cia = :1 AND punto = :2 AND tipo_docu = :3 AND no_docu = :4 "
+        "AND NVL(estado, 'ENVIADO') <> 'RECHAZADO' "
+        "ORDER BY fecha_firma DESC NULLS LAST FETCH FIRST 1 ROWS ONLY",
+        [cia_fe, punto, tipo_docu, no_docu],
+    )
+    return rows[0]['e_ncf'] if rows and rows[0].get('e_ncf') else None
+
+
 def actualizar_estado_documento(no_cia: str, e_ncf: str, estado: str,
                                 respuesta: str | None = None) -> None:
     """Actualiza ESTADO (y opcionalmente RESPUESTA_DGII) de un documento ya
