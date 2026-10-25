@@ -25,6 +25,8 @@ import {
   type LineaContable,
 } from '@/components/shared/movimiento-contable-grid'
 import { useFeConfig } from '@/features/fe/api'
+import { FeTutorialButton } from '@/features/fe/fe-tutorial-button'
+import { GUIA_ACC_EGRESO } from '@/features/fe/fe-guia-pasos'
 
 const fmt = (n: any) =>
   Number(n || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -453,6 +455,11 @@ export function AccNuevoEgreso({ editNoDocu }: { editNoDocu?: string } = {}) {
             {modoEdicion ? `Editar Egreso ACC-${editNoDocu}` : 'Nuevo Egreso de Caja Chica'}
           </h3>
         </div>
+        <FeTutorialButton
+          moduloKey='acc-egreso'
+          pasos={GUIA_ACC_EGRESO}
+          feActivo={feActivo}
+        />
       </div>
       <div>
         <p className="text-sm text-muted-foreground">
@@ -555,7 +562,7 @@ export function AccNuevoEgreso({ editNoDocu }: { editNoDocu?: string } = {}) {
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="space-y-1">
+            <div className="space-y-1" data-tour='comprobante'>
               <Label className="text-xs">NCF (B01–B15)</Label>
               <Input value={ncf} onChange={(e) => setNcf(e.target.value.toUpperCase())}
                      placeholder="Ej. B0100001234" className="h-9 font-mono" />
@@ -623,7 +630,8 @@ export function AccNuevoEgreso({ editNoDocu }: { editNoDocu?: string } = {}) {
               {modoEdicion ? 'Cancelar' : 'Limpiar'}
             </Button>
             <Button type="button" onClick={() => crear.mutate()}
-                    disabled={!puedeGuardar || crear.isPending}>
+                    disabled={!puedeGuardar || crear.isPending}
+                    data-tour='guardar'>
               <Save className="h-4 w-4 mr-1" />
               {crear.isPending ? 'Guardando…' : modoEdicion ? 'Guardar cambios' : 'Registrar egreso'}
             </Button>

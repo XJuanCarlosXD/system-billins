@@ -30,6 +30,8 @@ import { regalGeneralApi } from '@/lib/regal-general-api'
 import { ClientePicker } from '@/components/cxc/cliente-picker'
 import { logErrorAutomatico } from '@/lib/report-error'
 import { useFeConfig } from '@/features/fe/api'
+import { FeTutorialButton } from '@/features/fe/fe-tutorial-button'
+import { GUIA_CXC_ENTRADA } from '@/features/fe/fe-guia-pasos'
 
 interface P {
   noCia: string
@@ -461,13 +463,18 @@ export function CxcTransacciones({ noCia, punto = '01', prefill }: P) {
                   Imprimir {tipoDoc}-{ultimoNoDoc}
                 </Button>
               )}
+              <FeTutorialButton
+                moduloKey='cxc-entrada'
+                pasos={GUIA_CXC_ENTRADA}
+                feActivo={feActivo}
+              />
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Fila 1: Tipo Docu + Fecha + Plazo */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <div className="space-y-1.5 sm:col-span-2">
+            <div className="space-y-1.5 sm:col-span-2" data-tour='tipo-docu'>
               <Label className="text-xs">Tipo de Documento *</Label>
               <Select value={tipoDoc} onValueChange={setTipoDoc}>
                 <SelectTrigger className="h-9">
@@ -596,7 +603,7 @@ export function CxcTransacciones({ noCia, punto = '01', prefill }: P) {
       </Card>
 
       {/* Tabla "Documentos Afectados" */}
-      <Card>
+      <Card data-tour='factura-ref'>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
@@ -810,7 +817,8 @@ export function CxcTransacciones({ noCia, punto = '01', prefill }: P) {
         )}
         <Button onClick={() => grabarMut.mutate()}
                 disabled={!!validacion || grabarMut.isPending}
-                size="lg" className="gap-2 min-w-[200px]">
+                size="lg" className="gap-2 min-w-[200px]"
+                data-tour='guardar'>
           <Save className="h-4 w-4" />
           {grabarMut.isPending ? 'Grabando…' : 'Grabar Documento'}
         </Button>

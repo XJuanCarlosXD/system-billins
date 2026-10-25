@@ -55,6 +55,9 @@ import {
   filaVacia,
   type LineaContable,
 } from '@/components/shared/movimiento-contable-grid'
+import { useFeConfig } from '@/features/fe/api'
+import { FeTutorialButton } from '@/features/fe/fe-tutorial-button'
+import { GUIA_CXP_ENTRADA } from '@/features/fe/fe-guia-pasos'
 
 interface P {
   noCia: string
@@ -391,6 +394,8 @@ export function CxpEntradaDocumentos({
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { hasDocType, defaultDocType } = useAccess()
+  const { data: feData } = useFeConfig(noCia)
+  const feActivo = feData?.config?.activo === 'S'
   const [tiposDocu, setTiposDocu] = useState<any[]>([])
   const [tipoDocu, setTipoDocu] = useState('')
   const [siguiente, setSiguiente] = useState('')
@@ -1153,13 +1158,20 @@ export function CxpEntradaDocumentos({
 
   return (
     <div className='space-y-4 p-6'>
-      <h1 className='text-2xl font-semibold'>
-        {modoEdicionCola
-          ? `Editando en cola — ${tipoDocu} #${editColaId}`
-          : modoEdicion
-          ? `Editando ${tipoDocu}-${siguiente}`
-          : 'FCXP201 — Entrada de Documentos DR/CR'}
-      </h1>
+      <div className='flex items-start justify-between gap-3 flex-wrap'>
+        <h1 className='text-2xl font-semibold'>
+          {modoEdicionCola
+            ? `Editando en cola — ${tipoDocu} #${editColaId}`
+            : modoEdicion
+            ? `Editando ${tipoDocu}-${siguiente}`
+            : 'FCXP201 — Entrada de Documentos DR/CR'}
+        </h1>
+        <FeTutorialButton
+          moduloKey='cxp-entrada'
+          pasos={GUIA_CXP_ENTRADA}
+          feActivo={feActivo}
+        />
+      </div>
       {modoEdicionCola ? (
         <p className='text-sm text-muted-foreground'>
           Documento aún no generado: su período contable no está abierto en CxP y quedó en la
@@ -1175,7 +1187,7 @@ export function CxpEntradaDocumentos({
       )}
       <Card>
         <CardContent className='grid grid-cols-1 gap-3 pt-6 md:grid-cols-3'>
-          <div className='min-w-0 space-y-1'>
+          <div className='min-w-0 space-y-1' data-tour='tipo-docu'>
             <Label className='text-xs'>Tipo Documento *</Label>
             <Select value={tipoDocu} onValueChange={setTipoDocu} disabled={modoEdicion}>
               <SelectTrigger className='h-10 w-full'>
@@ -1226,7 +1238,7 @@ export function CxpEntradaDocumentos({
               className='h-10 font-mono'
             />
           </div>
-          <div className='min-w-0 space-y-1'>
+          <div className='min-w-0 space-y-1' data-tour='ncf-proveedor'>
             <Label className='text-xs flex items-center justify-between'>
               <span>NCF</span>
               {ncfInfo?.codigo_ncf && (
@@ -1689,7 +1701,7 @@ export function CxpEntradaDocumentos({
             Cancelar
           </Button>
         )}
-        <Button onClick={onSave} disabled={saving}>
+        <Button onClick={onSave} disabled={saving} data-tour='guardar'>
           <Save className='mr-2 h-4 w-4' />{' '}
           {saving ? 'Guardando…' : modoEdicion ? 'Guardar Cambios' : 'Guardar Documento'}
         </Button>
