@@ -1939,3 +1939,63 @@ def construir_ecf_acc(tipo_ecf: int, no_cia: str, punto: str,
     datos['MontoItem[1]'] = _fmt_monto(valor)
 
     return construir_ecf_generico(43, e_ncf, datos)
+
+
+def construir_ecf_anulacion_fat(no_cia: str, punto: str,
+                                tipo_factura: str, no_factura: str,
+                                encf_original: str) -> str:
+    """Builder E34 (Nota de Crédito) para anulación de factura FAT.
+
+    Se invoca DESPUÉS de que anular_factura() ya marcó st_anulado='S'.
+    Lee la factura (incluyendo anulada) para obtener montos y cliente,
+    y emite un E34 con IndicadorNotaCredito=1, CodigoModificacion=1
+    referenciando el e-NCF original."""
+    from apps.legacy.repositories import fat_repo as _fr
+
+    fac = _fr.get_factura(no_cia, punto, tipo_factura, no_factura)
+    if not fac:
+        raise ECFBuilderError(
+            f"No existe la factura {tipo_factura}-{no_factura} "
+            f"(cia {no_cia}, punto {punto})")
+
+    secuencia = fe_repo.consumir_siguiente_encf(no_cia, 34)
+    e_ncf = secuencia['e_ncf']
+
+    datos = _datos_emisor_planos(no_cia)
+    datos['FechaEmision'] = str(fac.get('fecha', ''))[:10]
+    datos['IndicadorMontoGravado'] = '0'
+    datos['TipoPago'] = '1'
+    datos['IndicadorNotaCredito'] = '1'
+
+    rnc = (fac.get('rnc_factura') or '').strip()
+    if rnc:
+        datos['RNCComprador'] = rnc
+    datos['RazonSocialComprador'] = (
+        fac.get('nombre_cliente_factura') or fac.get('nombre_cliente') or '')
+
+    valor = Decimal(str(fac.get('total_neto') or 0))
+    impuesto = Decimal(str(fac.get('impuesto') or 0))
+    neto = valor - impuesto
+
+    if impuesto > 0:
+        datos['MontoGravadoTotal'] = _fmt_monto(neto)
+        datos['TotalITBIS'] = _fmt_monto(impuesto)
+        datos['MontoGravadoI1'] = _fmt_monto(neto)
+        datos['TotalITBIS1'] = _fmt_monto(impuesto)
+    else:
+        datos['MontoExento'] = _fmt_monto(neto)
+    datos['MontoTotal'] = _fmt_monto(valor)
+
+    # Referencia al e-NCF original que se anula
+    datos['NCFModificado'] = encf_original
+    datos['FechaNCFModificado'] = str(fac.get('fecha', ''))[:10]
+    datos['CodigoModificacion'] = '1'  # 1 = Anular
+
+    datos['NumeroLinea[1]'] = '1'
+    datos['NombreItem[1]'] = f'Anulación {tipo_factura}-{no_factura}'[:80]
+    datos['IndicadorFacturacion[1]'] = '1' if impuesto > 0 else '3'
+    datos['CantidadItem[1]'] = '1'
+    datos['PrecioUnitarioItem[1]'] = _fmt_monto(neto)
+    datos['MontoItem[1]'] = _fmt_monto(neto)
+
+    return construir_ecf_generico(34, e_ncf, datos)

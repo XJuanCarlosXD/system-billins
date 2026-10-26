@@ -1170,7 +1170,7 @@ export const regalGeneralApi = {
     }),
 
   fatAnularFactura: (data: { no_cia: string; punto?: string; tipo_factura: string; no_factura: string; usuario?: string; motivo?: string; liberar_ncf?: boolean; tipo_anula_dgii?: string }) =>
-    request<{ no_factura: string; tipo_factura: string; anulado: boolean; motivo: string }>('/fat/facturas/anular/', {
+    request<{ no_factura: string; tipo_factura: string; anulado: boolean; motivo: string; ecf_anulacion?: { e_ncf: string; track_id: string } }>('/fat/facturas/anular/', {
       method: 'POST', body: JSON.stringify(data),
     }),
 

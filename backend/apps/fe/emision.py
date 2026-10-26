@@ -184,6 +184,75 @@ def _es_rfce(no_cia: str, punto: str, tipo_docu: str, no_docu: str) -> bool:
     return monto < UMBRAL_RFCE
 
 
+def emitir_anulacion_ecf(
+    *,
+    no_cia: str,
+    punto: str,
+    tipo_factura: str,
+    no_factura: str,
+) -> dict | None:
+    """Emite un E34 (NC) de anulación para una factura FAT que ya tiene e-NCF.
+
+    Se llama DESPUÉS de anular_factura(). Busca el e-NCF original en
+    TFE_DOCUMENTO; si no existe (factura sin e-CF), retorna None.
+    Nunca lanza excepción — errores se loguean y generan ticket.
+    """
+    try:
+        cfg = fe_repo.get_config(no_cia)
+        if not cfg or cfg.get('activo') != 'S':
+            return None
+
+        encf_original = fe_repo.get_encf_por_documento(
+            no_cia, punto, tipo_factura, no_factura)
+        if not encf_original:
+            return None
+
+        ambiente = cfg.get('ambiente', 'ecf')
+
+        from apps.fe import ecf_builder, dgii_client
+
+        xml_sin_firmar = ecf_builder.construir_ecf_anulacion_fat(
+            no_cia, punto, tipo_factura, no_factura, encf_original)
+
+        e_ncf = _extraer_encf(xml_sin_firmar)
+
+        resultado = dgii_client.enviar_ecf(
+            no_cia, ambiente, e_ncf, xml_sin_firmar)
+        track_id = resultado['trackId']
+
+        fe_repo.save_documento_enviado(
+            no_cia=no_cia,
+            e_ncf=e_ncf,
+            tipo_ecf='34',
+            track_id=track_id,
+            xml_firmado=resultado.get('xml_firmado', ''),
+            respuesta=str(resultado.get('respuesta_cruda', '')),
+        )
+
+        log.info("e-CF anulación emitida: FAT %s/%s → %s (ref %s, track %s)",
+                 tipo_factura, no_factura, e_ncf, encf_original, track_id)
+
+        return {
+            'e_ncf': e_ncf,
+            'e_ncf_original': encf_original,
+            'track_id': track_id,
+            'estado': 'ENVIADO',
+        }
+
+    except Exception:
+        log.exception("Error emitiendo e-CF anulación para FAT %s/%s cia %s",
+                      tipo_factura, no_factura, no_cia)
+        try:
+            from apps.reportes.auto_ticket import log_error_ticket
+            log_error_ticket(
+                f"e-CF anulación falló: FAT {tipo_factura}/{no_factura} cia {no_cia}",
+                modulo='FE',
+            )
+        except Exception:
+            pass
+        return None
+
+
 def _extraer_encf(xml: str) -> str:
     m = re.search(r'<eNCF>([^<]+)</eNCF>', xml)
     if not m:

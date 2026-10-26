@@ -3139,7 +3139,19 @@ def anular_factura(no_cia, punto, tipo_factura, no_factura, usuario, motivo="", 
             tipo_documento=tf, no_documento=nf, accion="ANULAR", motivo=motivo,
         )
         cur.connection.commit()
-    return {"no_factura": nf, "tipo_factura": tf, "anulado": True, "motivo": motivo, "libero_ncf": liberar_ncf}
+    result = {"no_factura": nf, "tipo_factura": tf, "anulado": True,
+              "motivo": motivo, "libero_ncf": liberar_ncf}
+    # E34 automático: si la factura tenía e-NCF, emitir NC de anulación ante DGII
+    try:
+        from apps.fe.emision import emitir_anulacion_ecf
+        ecf = emitir_anulacion_ecf(
+            no_cia=no_cia, punto=punto,
+            tipo_factura=tf, no_factura=nf)
+        if ecf:
+            result['ecf_anulacion'] = ecf
+    except Exception:
+        pass
+    return result
 
 
 def list_motivos_anulacion_dgii() -> list[dict]:

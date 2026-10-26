@@ -19,6 +19,7 @@ import { regalGeneralApi } from '@/lib/regal-general-api'
 import { cn } from '@/lib/utils'
 import { HIGHLIGHT_ROW_CLASS } from '@/lib/sidebar-badges'
 import { useCurrentUsername } from '@/hooks/use-me'
+import { useToast } from '@/hooks/use-toast'
 import { useDocHighlightCount } from '@/hooks/use-sidebar-badges'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -130,6 +131,7 @@ const ESTADO_ICON: Record<string, typeof CheckCircle2> = {
 
 export function Facturas({ noCia, punto, mes, ano }: Props) {
   const currentUser = useCurrentUsername()
+  const { toast } = useToast()
   const [rows, setRows] = useState<Factura[]>([])
   const newHl = useDocHighlightCount('fat')
   const [total, setTotal] = useState(0)
@@ -209,7 +211,7 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
     setAnulando(true)
     setAnularError('')
     try {
-      await regalGeneralApi.fatAnularFactura({
+      const res = await regalGeneralApi.fatAnularFactura({
         no_cia: noCia,
         punto,
         tipo_factura: selected.tipo_factura,
@@ -220,6 +222,9 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
       setAnularOpen(false)
       setSelected((s) => (s ? { ...s, st_anulado: 'S', estado: 'C' } : s))
       load(page)
+      if (res?.ecf_anulacion?.e_ncf) {
+        toast({ title: 'NC electrónica enviada a DGII', description: res.ecf_anulacion.e_ncf })
+      }
     } catch (e: any) {
       const msg = e?.body?.detail ?? e?.message ?? 'Error al anular'
       setAnularError(typeof msg === 'string' ? msg : JSON.stringify(msg))
@@ -805,6 +810,11 @@ export function Facturas({ noCia, punto, mes, ano }: Props) {
               </strong>
               . Esta acción no se puede deshacer.
             </p>
+            {(selected?.ncf_dgi ?? '').startsWith('E') && (
+              <p className='text-xs text-amber-600 dark:text-amber-400'>
+                ⚡ Esta factura tiene e-NCF ({selected?.ncf_dgi}). Se enviará una Nota de Crédito electrónica (E34) a la DGII automáticamente.
+              </p>
+            )}
             <div className='space-y-1'>
               <Label className='text-xs'>
                 Motivo <span className='text-destructive'>*</span>
