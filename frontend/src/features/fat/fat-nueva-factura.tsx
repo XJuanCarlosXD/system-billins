@@ -236,6 +236,7 @@ export function NuevaFactura({ noCia, punto, cotizacionInicial }: Props) {
   const ncfRangesFiltrados = useMemo(() => {
     const permitidos = rnc.trim() ? ['B01', 'B02', 'B14', 'B15'] : ['B02']
     return ncfRanges.filter((n) =>
+      n.es_electronico ||
       permitidos.includes((n.posiciones_fijas || n.tipo_ncf_fiscal || '').toUpperCase())
     )
   }, [ncfRanges, rnc])
