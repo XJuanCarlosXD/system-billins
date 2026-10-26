@@ -373,7 +373,15 @@ class NcfListView(APIView):
         no_cia, punto = _get_ctx(request)
         if not no_cia:
             return Response({'error': 'no_cia requerido'}, status=400)
-        return Response(cnt_repo.list_ncf(no_cia))
+        papel = cnt_repo.list_ncf(no_cia)
+        from apps.legacy.repositories import fe_repo
+        cfg = fe_repo.get_config(no_cia)
+        if cfg and cfg.get('activo') == 'S' and cfg.get('no_cia') == no_cia:
+            for r in papel:
+                r['es_electronico'] = False
+            encf = fe_repo.list_secuencias_como_ncf(no_cia)
+            return Response(encf + papel)
+        return Response(papel)
 
     def post(self, request):
         no_cia, punto = _get_ctx(request)

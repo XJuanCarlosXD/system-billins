@@ -155,6 +155,13 @@ const fmtN = (n: number) =>
     maximumFractionDigits: 2,
   })
 
+const NCF_PAPEL_A_ELECTRONICO: Record<string, string> = {
+  'B01': 'E31', 'FT-001': 'E31',
+  'B02': 'E32', 'FT-002': 'E32', 'FC-001': 'E32',
+  'B14': 'E44', 'FT-014': 'E44',
+  'B15': 'E45', 'FT-015': 'E45',
+}
+
 const formatNcf = (info: NcfInfo) => {
   if (info.es_electronico) {
     const prefijo = info.posiciones_fijas || info.codigo_ncf
@@ -235,7 +242,7 @@ export function NuevaFactura({ noCia, punto, cotizacionInicial }: Props) {
   // sea B02, y ocultarlo cuando hay RNC dejaba el selector sin esa opcion.
   const ncfRangesFiltrados = useMemo(() => {
     const permitidos = rnc.trim() ? ['B01', 'B02', 'B14', 'B15'] : ['B02']
-    const ecfFat = ['E31', 'E32']
+    const ecfFat = ['E31', 'E32', 'E44', 'E45']
     return ncfRanges.filter((n) => {
       if (n.es_electronico) {
         const pos = (n.posiciones_fijas || '').toUpperCase()
@@ -687,11 +694,19 @@ export function NuevaFactura({ noCia, punto, cotizacionInicial }: Props) {
       return
     }
     // El campo codigo_ncf viene en el objeto cliente (fatListClientes lo incluye)
-    const codigoNcf = (clienteSeleccionado as any).codigo_ncf as
-      | string
-      | undefined
-    setCodigoNcfDeCliente(codigoNcf || '')
-  }, [clienteSeleccionado])
+    let codigoNcf = ((clienteSeleccionado as any).codigo_ncf as string | undefined) || ''
+    // Auto-mapeo papel→electrónico cuando e-CF está activo
+    if (feActivo && codigoNcf) {
+      const eqElectronico = NCF_PAPEL_A_ELECTRONICO[codigoNcf.toUpperCase()]
+      if (eqElectronico) {
+        const existeEnRangos = ncfRanges.some(
+          (n) => n.es_electronico && (n.posiciones_fijas || '').toUpperCase() === eqElectronico,
+        )
+        if (existeEnRangos) codigoNcf = eqElectronico
+      }
+    }
+    setCodigoNcfDeCliente(codigoNcf)
+  }, [clienteSeleccionado, feActivo, ncfRanges])
 
   // Previsualiza el proximo NCF de la serie efectiva (override manual si el
   // usuario eligio uno, si no la del cliente).

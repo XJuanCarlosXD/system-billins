@@ -131,7 +131,9 @@ export function NcfContabilidad({ noCia, punto, mes, ano }: Props) {
         <TableBody>
           {pagedRows.map((row) => (
             <TableRow key={row.codigo_ncf}>
-              <TableCell className='font-mono'>{row.codigo_ncf}</TableCell>
+              <TableCell className='font-mono'>
+                {row.es_electronico ? '⚡ ' : ''}{row.codigo_ncf}
+              </TableCell>
               <TableCell className='font-mono font-semibold'>{row.posiciones_fijas || '—'}</TableCell>
               <TableCell className='text-xs text-muted-foreground'>{row.descripcion || ''}</TableCell>
               <TableCell className='text-right font-mono'>{row.ncf_inicial}</TableCell>
@@ -153,9 +155,13 @@ export function NcfContabilidad({ noCia, punto, mes, ano }: Props) {
                 )}
               </TableCell>
               <TableCell className='text-right'>
-                <Button variant='ghost' size='icon' className='h-8 w-8' onClick={() => setEdit(row)}>
-                  <Pencil className='h-4 w-4' />
-                </Button>
+                {row.es_electronico ? (
+                  <span className='text-xs text-muted-foreground' title='Administrar desde Configuración e-CF'>e-CF</span>
+                ) : (
+                  <Button variant='ghost' size='icon' className='h-8 w-8' onClick={() => setEdit(row)}>
+                    <Pencil className='h-4 w-4' />
+                  </Button>
+                )}
               </TableCell>
             </TableRow>
           ))}

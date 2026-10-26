@@ -425,6 +425,7 @@ export function CrearClienteModal({
                     <SelectContent>
                       {ncfOptions.map((n: any) => (
                         <SelectItem key={n.codigo_ncf} value={n.codigo_ncf}>
+                          {n.es_electronico ? '⚡ ' : ''}
                           {n.codigo_ncf} - {n.posiciones_fijas || n.tipo_ncf_fiscal || ''}
                           {n.descripcion ? ` - ${n.descripcion}` : ''}
                         </SelectItem>
