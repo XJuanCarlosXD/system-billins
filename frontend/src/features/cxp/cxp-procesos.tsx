@@ -395,7 +395,7 @@ export function CxpEntradaDocumentos({
   const qc = useQueryClient()
   const { hasDocType, defaultDocType } = useAccess()
   const { data: feData } = useFeConfig(noCia)
-  const feActivo = feData?.config?.activo === 'S'
+  const feActivo = feData?.config?.activo === 'S' && feData?.config?.no_cia === noCia
   const [tiposDocu, setTiposDocu] = useState<any[]>([])
   const [tipoDocu, setTipoDocu] = useState('')
   const [siguiente, setSiguiente] = useState('')

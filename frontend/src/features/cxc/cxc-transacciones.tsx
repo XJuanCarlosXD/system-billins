@@ -75,7 +75,7 @@ export function CxcTransacciones({ noCia, punto = '01', prefill }: P) {
   const qc = useQueryClient()
   const today = new Date().toISOString().slice(0, 10)
   const { data: feData } = useFeConfig(noCia)
-  const feActivo = feData?.config?.activo === 'S'
+  const feActivo = feData?.config?.activo === 'S' && feData?.config?.no_cia === noCia
 
   // ── Datos ──────────────────────────────────────────────────────────
   const tdocusQ = useQuery({

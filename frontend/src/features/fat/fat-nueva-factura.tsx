@@ -179,7 +179,7 @@ export function NuevaFactura({ noCia, punto, cotizacionInicial }: Props) {
   const { toast } = useToast()
   const { hasDocType } = useAccess()
   const { data: feData } = useFeConfig(noCia)
-  const feActivo = feData?.config?.activo === 'S'
+  const feActivo = feData?.config?.activo === 'S' && feData?.config?.no_cia === noCia
 
   // Catalog
   const [tiposDoc, setTiposDoc] = useState<TipoDoc[]>([])
@@ -235,10 +235,14 @@ export function NuevaFactura({ noCia, punto, cotizacionInicial }: Props) {
   // sea B02, y ocultarlo cuando hay RNC dejaba el selector sin esa opcion.
   const ncfRangesFiltrados = useMemo(() => {
     const permitidos = rnc.trim() ? ['B01', 'B02', 'B14', 'B15'] : ['B02']
-    return ncfRanges.filter((n) =>
-      n.es_electronico ||
-      permitidos.includes((n.posiciones_fijas || n.tipo_ncf_fiscal || '').toUpperCase())
-    )
+    const ecfFat = ['E31', 'E32']
+    return ncfRanges.filter((n) => {
+      if (n.es_electronico) {
+        const pos = (n.posiciones_fijas || '').toUpperCase()
+        return ecfFat.includes(pos)
+      }
+      return permitidos.includes((n.posiciones_fijas || n.tipo_ncf_fiscal || '').toUpperCase())
+    })
   }, [ncfRanges, rnc])
   // Si el comprobante actual (del cliente o el override) deja de ser valido
   // porque el RNC se agrego/quito, saltar al primer comprobante permitido en

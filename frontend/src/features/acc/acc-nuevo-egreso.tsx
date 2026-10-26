@@ -195,7 +195,7 @@ export function AccNuevoEgreso({ editNoDocu }: { editNoDocu?: string } = {}) {
   const { selectedCompany, selectedPoint } = useCompany()
   const modoEdicion = !!editNoDocu
   const { data: feData } = useFeConfig(selectedCompany)
-  const feActivo = feData?.config?.activo === 'S'
+  const feActivo = feData?.config?.activo === 'S' && feData?.config?.no_cia === selectedCompany
 
   const cajasQ = useQuery({
     queryKey: ['acc-cajas-egreso', selectedCompany, selectedPoint],

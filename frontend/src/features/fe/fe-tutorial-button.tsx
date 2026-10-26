@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { GraduationCap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { FeGuiaInteractiva } from './fe-guia-interactiva'
@@ -12,12 +12,14 @@ interface Props {
 
 export function FeTutorialButton({ moduloKey, pasos, feActivo }: Props) {
   const [open, setOpen] = useState(false)
+  const autoOpenedRef = useRef(false)
 
   useEffect(() => {
-    if (!feActivo) return
+    if (!feActivo || autoOpenedRef.current) return
     try {
       const key = `fe-guia-visto-${moduloKey}`
       if (!localStorage.getItem(key)) {
+        autoOpenedRef.current = true
         const timer = setTimeout(() => setOpen(true), 800)
         return () => clearTimeout(timer)
       }
