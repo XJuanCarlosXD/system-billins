@@ -31,6 +31,17 @@ NCF_DESCRIPCION = {
     'B13': 'Gastos Menores',
     'B14': 'Regímenes Especiales',
     'B15': 'Gubernamental',
+    # e-NCF (comprobantes electrónicos)
+    'E31': 'Factura de Crédito Fiscal Electrónica',
+    'E32': 'Factura de Consumo Electrónica',
+    'E33': 'Nota de Débito Electrónica',
+    'E34': 'Nota de Crédito Electrónica',
+    'E41': 'Compras Electrónicas',
+    'E43': 'Gastos Menores Electrónicos',
+    'E44': 'Regímenes Especiales Electrónicos',
+    'E45': 'Gubernamental Electrónica',
+    'E46': 'Exportaciones Electrónicas',
+    'E47': 'Pagos al Exterior Electrónicos',
 }
 
 

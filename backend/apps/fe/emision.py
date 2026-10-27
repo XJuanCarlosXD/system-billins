@@ -98,6 +98,9 @@ def emitir_ecf_si_activo(
             track_id=track_id,
             xml_firmado=resultado.get('xml_firmado', ''),
             respuesta=str(resultado.get('respuesta_cruda', '')),
+            punto=punto,
+            tipo_docu=tipo_docu,
+            no_docu=no_docu,
         )
 
         log.info("e-CF emitido: %s %s/%s → %s (track %s)",
@@ -227,6 +230,9 @@ def emitir_anulacion_ecf(
             track_id=track_id,
             xml_firmado=resultado.get('xml_firmado', ''),
             respuesta=str(resultado.get('respuesta_cruda', '')),
+            punto=punto,
+            tipo_docu=tipo_factura,
+            no_docu=no_factura,
         )
 
         log.info("e-CF anulación emitida: FAT %s/%s → %s (ref %s, track %s)",

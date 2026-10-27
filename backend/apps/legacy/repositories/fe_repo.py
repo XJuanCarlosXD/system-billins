@@ -305,7 +305,9 @@ DOCUMENTO_LIST_COLS = (
 
 def save_documento_enviado(no_cia: str, e_ncf: str, tipo_ecf: str,
                            track_id: str, xml_firmado: str, respuesta: str,
-                           es_prueba: str = 'N') -> None:
+                           es_prueba: str = 'N',
+                           punto: str = '', tipo_docu: str = '',
+                           no_docu: str = '') -> None:
     """Registra en la bitácora TFE_DOCUMENTO un e-CF ya firmado y enviado.
 
     MERGE (mismo patrón que ``upsert_config``/``upsert_secuencia``): la
@@ -315,11 +317,9 @@ def save_documento_enviado(no_cia: str, e_ncf: str, tipo_ecf: str,
     respuesta e incrementa INTENTOS en vez de duplicar la fila -- coherente
     con la PK real (NO_CIA, E_NCF).
 
-    ``es_prueba='S'`` marca los envíos hechos contra el Set de Pruebas de
-    certificación DGII (ver 2026-08-31-fe-documento-es-prueba.sql) para que
-    puedan excluirse de reportes/consultas de producción real; el llamador
-    (flujo de certificación, Task 5) es quien decide el valor -- por
-    defecto 'N' para no romper el flujo real de facturación ya desplegado.
+    ``punto``/``tipo_docu``/``no_docu`` vinculan el e-CF al documento de
+    negocio origen — sin estos, ``get_encf_por_documento`` no encuentra el
+    e-NCF para mostrarlo en el print.
     """
     with client.cursor() as cur:
         cur.execute(
@@ -328,15 +328,20 @@ def save_documento_enviado(no_cia: str, e_ncf: str, tipo_ecf: str,
             "ON (t.no_cia = s.no_cia AND t.e_ncf = s.e_ncf) "
             "WHEN MATCHED THEN UPDATE SET tipo_ecf=:b3, track_id=:b4, "
             " xml_firmado=:b5, respuesta_dgii=:b6, es_prueba=:b7, "
+            " punto=NVL(:b8, punto), tipo_docu=NVL(:b9, tipo_docu), "
+            " no_docu=NVL(:b10, no_docu), "
             " estado='ENVIADO', fecha_firma=SYSDATE, "
             " intentos=NVL(intentos,0)+1, fecha_actualiza=SYSDATE "
             "WHEN NOT MATCHED THEN INSERT "
             " (no_cia, e_ncf, tipo_ecf, track_id, xml_firmado, "
-            "  respuesta_dgii, es_prueba, estado, fecha_firma, intentos) "
-            " VALUES (:b1, :b2, :b3, :b4, :b5, :b6, :b7, 'ENVIADO', "
-            "  SYSDATE, 1)",
+            "  respuesta_dgii, es_prueba, punto, tipo_docu, no_docu, "
+            "  estado, fecha_firma, intentos) "
+            " VALUES (:b1, :b2, :b3, :b4, :b5, :b6, :b7, "
+            "  :b8, :b9, :b10, 'ENVIADO', SYSDATE, 1)",
             {'b1': no_cia, 'b2': e_ncf, 'b3': tipo_ecf, 'b4': track_id,
-             'b5': xml_firmado, 'b6': respuesta, 'b7': es_prueba},
+             'b5': xml_firmado, 'b6': respuesta, 'b7': es_prueba,
+             'b8': punto or None, 'b9': tipo_docu or None,
+             'b10': no_docu or None},
         )
         cur.connection.commit()
 
