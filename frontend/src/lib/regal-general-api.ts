@@ -1625,10 +1625,8 @@ export const regalGeneralApi = {
   },
   accAplicarCierre: (data: { no_cia: string; punto: string }) =>
     request<{ cerrado: string; nuevo_periodo: string }>('/acc/cierre/aplicar/', { method: 'POST', body: JSON.stringify(data) }),
-  accListTiposGasto: () => request<any[]>('/acc/tipos-gasto/'),
   accSaveTipoGasto: (data: Record<string, unknown>) =>
     request<{ tipo_gasto: string }>('/acc/tipos-gasto/save/', { method: 'POST', body: JSON.stringify(data) }),
-  accListTiposBene: () => request<any[]>('/acc/tipos-bene/'),
   accSaveTipoBene: (data: Record<string, unknown>) =>
     request<{ tipo_bene: string }>('/acc/tipos-bene/save/', { method: 'POST', body: JSON.stringify(data) }),
   accSaveBeneficiario: (data: Record<string, unknown>) =>
