@@ -43,7 +43,7 @@ from apps.legacy.repositories import cxc_repo
 # path y params DEBE ser CamelCase (ConsultaTimbre?RncEmisor=...&ENCF=...)
 # porque el ejemplo literal de DGII en el rechazo lo exige asi; ver
 # representacion_impresa.py (_URL_BASE_ECF/_URL_BASE_RFCE).
-_AMBIENTE_RI = 'certecf'
+_AMBIENTE_RI_DEFAULT = 'ecf'
 
 # Nombre oficial DGII de cada tipo de e-CF, segun Formato-e-CF-V1.0.pdf.
 # Se incluye en el payload para que la Representacion Impresa muestre el
@@ -88,11 +88,11 @@ def fe_documento_ri_print_data(request, e_ncf: str):
             'se envio o fue borrado despues del envio (no se puede generar RI)',
             status=400)
 
-    # Campos fiscales que van al QR -- SIEMPRE desde el XML firmado (fuente
-    # de verdad: lo que la DGII tiene). codigo_seguridad en TFE_DOCUMENTO se
-    # llena hoy solo para RFCE; para e-CF normal se deriva aqui.
+    cfg = fe_repo.get_config(no_cia)
+    ambiente_ri = (cfg or {}).get('ambiente') or _AMBIENTE_RI_DEFAULT
+
     try:
-        qr_url = armar_qr_url(xml_firmado, ambiente=_AMBIENTE_RI)
+        qr_url = armar_qr_url(xml_firmado, ambiente=ambiente_ri)
         codigo_seguridad = (
             doc_tfe.get('codigo_seguridad') or ''
         ).strip() or derivar_codigo_seguridad(xml_firmado)
@@ -155,7 +155,7 @@ def fe_documento_ri_print_data(request, e_ncf: str):
                 'tipo_ecf': (doc_tfe.get('tipo_ecf') or '').strip(),
                 'tipo_ecf_nombre': _TIPO_ECF_NOMBRE.get(
                     (doc_tfe.get('tipo_ecf') or '').strip(), 'e-CF'),
-                'ambiente': _AMBIENTE_RI,
+                'ambiente': ambiente_ri,
                 'qr_url': qr_url,
                 'codigo_seguridad': codigo_seguridad,
                 'fecha_firma': (doc_tfe.get('fecha_firma') or ''),
@@ -250,7 +250,7 @@ def fe_documento_ri_print_data(request, e_ncf: str):
             'tipo_ecf': (doc_tfe.get('tipo_ecf') or '').strip(),
             'tipo_ecf_nombre': _TIPO_ECF_NOMBRE.get(
                 (doc_tfe.get('tipo_ecf') or '').strip(), 'e-CF'),
-            'ambiente': _AMBIENTE_RI,
+            'ambiente': ambiente_ri,
             'qr_url': qr_url,
             'codigo_seguridad': codigo_seguridad,
             'fecha_firma': (doc_tfe.get('fecha_firma') or ''),
