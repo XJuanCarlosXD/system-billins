@@ -16,6 +16,16 @@ def _norm_punto(p):
         return p
 
 
+def _valid_date(s):
+    if not s:
+        return True
+    try:
+        datetime.datetime.strptime(s, '%Y-%m-%d')
+        return True
+    except ValueError:
+        return False
+
+
 @login_required
 @csrf_exempt
 @require_http_methods(['GET', 'POST'])
@@ -279,6 +289,10 @@ def cxp_movimientos_proveedor(request, no):
     punto  = _norm_punto(request.GET.get('punto', '01'))
     desde  = request.GET.get('desde', '')
     hasta  = request.GET.get('hasta', '')
+    if not _valid_date(desde) or not _valid_date(hasta):
+        return JsonResponse(
+            {'error': 'Fecha inválida: use formato AAAA-MM-DD (ej: 2026-01-31).'},
+            status=400)
     rows = cxp_repo.list_movimientos_proveedor(no_cia, punto, no, desde, hasta)
     return JsonResponse(rows, safe=False)
 
