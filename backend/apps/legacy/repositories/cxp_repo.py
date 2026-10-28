@@ -593,6 +593,40 @@ def list_formas_pago():
         "FROM CXP.TCXP_FORMA_PAGO_DGII ORDER BY forma_pago", [])
 
 
+def _resolve_bproveedor_codigo_ncf_sibling(no_cia, no_proveedor):
+    """Si el proveedor NO tiene codigo_ncf configurado en esta cia pero SI lo
+    tiene en OTRA cia (con serie B11, "Proveedores Informales"), devuelve
+    el codigo_ncf propio de ESTA cia cuya POSICIONES_FIJAS tambien es B11.
+
+    Regla reportada por MPILAR 2026-10-28 (reporte 2d7feeeb): los proveedores
+    informales son los mismos en ABREGONZA / RC / D'CLASE, por lo que si uno
+    aparece como B11 en una empresa, debe aparecer automaticamente como B11
+    en las demas, usando la serie B11 propia de cada empresa (TCNT_NCF.
+    no_localidad). Si la cia actual no tiene su propia serie B11 (ej. cias
+    sin flujo de informales), devuelve None y el proveedor queda formal.
+    """
+    sibling_rows = client.fetch_dicts(
+        "SELECT 1 FROM CXP.TCXP_BPROVEEDOR bp "
+        "JOIN CNT.TCNT_NCF n ON n.no_localidad = bp.no_cia "
+        "  AND n.codigo_ncf = bp.codigo_ncf "
+        "WHERE bp.no_proveedor = :1 AND bp.no_cia <> :2 "
+        "  AND bp.codigo_ncf IS NOT NULL "
+        "  AND UPPER(NVL(n.posiciones_fijas,'')) = 'B11' "
+        "  AND ROWNUM = 1",
+        [no_proveedor, no_cia])
+    if not sibling_rows:
+        return None
+    own_rows = client.fetch_dicts(
+        "SELECT codigo_ncf FROM CNT.TCNT_NCF "
+        "WHERE no_localidad = :1 "
+        "  AND UPPER(NVL(posiciones_fijas,'')) = 'B11' "
+        "  AND ROWNUM = 1",
+        [no_cia])
+    if not own_rows:
+        return None
+    return (own_rows[0].get('codigo_ncf') or '').strip() or None
+
+
 def get_proveedor_ncf_info(no_cia, punto, no_proveedor):
     """Devuelve la configuracion NCF asignada al proveedor para (cia, punto).
 
@@ -600,6 +634,11 @@ def get_proveedor_ncf_info(no_cia, punto, no_proveedor):
     digita el NCF que viene en la factura). Si esta lleno (PI-001, etc.)
     → proveedor informal: el sistema toma POSICIONES_FIJAS (B11) y
     PROX_NCF de CNT.TCNT_NCF y los pre-llena en el form.
+
+    Fallback cross-cia (ver _resolve_bproveedor_codigo_ncf_sibling): si en
+    ESTA cia esta vacio pero en otra cia el proveedor es informal (B11),
+    se usa la serie B11 propia de ESTA cia -- un proveedor informal lo es
+    en las tres empresas por regla de negocio.
     """
     rows = client.fetch_dicts(
         "SELECT bp.codigo_ncf, n.posiciones_fijas, n.prox_ncf, "
@@ -609,12 +648,20 @@ def get_proveedor_ncf_info(no_cia, punto, no_proveedor):
         "LEFT JOIN CNT.TCNT_NCF n ON n.codigo_ncf = bp.codigo_ncf "
         "WHERE bp.no_cia=:1 AND bp.punto=:2 AND bp.no_proveedor=:3",
         [no_cia, punto, no_proveedor])
-    if not rows:
+    direct = rows[0] if rows else None
+    if direct and direct.get('codigo_ncf'):
+        return direct
+    fallback_codigo = _resolve_bproveedor_codigo_ncf_sibling(no_cia, no_proveedor)
+    if not fallback_codigo:
         return {"codigo_ncf": None}
-    r = rows[0]
-    if not r.get('codigo_ncf'):
+    ncf_rows = client.fetch_dicts(
+        "SELECT codigo_ncf, posiciones_fijas, prox_ncf, ncf_inicial, "
+        "ncf_final, descripcion, ncf_manual, ncf_opcional "
+        "FROM CNT.TCNT_NCF WHERE no_localidad=:1 AND codigo_ncf=:2",
+        [no_cia, fallback_codigo])
+    if not ncf_rows:
         return {"codigo_ncf": None}
-    return r
+    return ncf_rows[0]
 
 
 def get_proveedor_cuenta(no_cia, punto, no_proveedor):
@@ -1937,6 +1984,15 @@ def entrada_documento(d, _skip_periodo_gate: bool = False):
             _codigo_ncf_bp = (
                 (_bp_row[0] or '').strip().upper() if _bp_row and _bp_row[0] else None
             )
+            if not _codigo_ncf_bp:
+                # Fallback cross-cia: si el proveedor es informal (B11) en otra
+                # cia, usamos la serie B11 propia de ESTA cia. Mismo criterio
+                # que get_proveedor_ncf_info usa para el pre-fill del form, asi
+                # el save honra lo que el form mostro al operador.
+                _sibling_codigo = _resolve_bproveedor_codigo_ncf_sibling(
+                    no_cia, no_proveedor)
+                if _sibling_codigo:
+                    _codigo_ncf_bp = _sibling_codigo.upper()
             if _codigo_ncf_bp:
                 _ncf_row = cur.execute(
                     "SELECT prox_ncf, ncf_final, posiciones_fijas FROM CNT.TCNT_NCF "
