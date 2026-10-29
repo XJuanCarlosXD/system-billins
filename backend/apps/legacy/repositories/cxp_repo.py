@@ -1976,23 +1976,34 @@ def entrada_documento(d, _skip_periodo_gate: bool = False):
             # UPDATE, salta numeros ya usados por CUALQUIER proveedor (la
             # serie es de la compania, no de un proveedor en particular) y
             # deja PROX_NCF apuntando al siguiente disponible.
+            #
+            # Solo aplica a documentos de CREDITO (FP/FT = compra fiscal). Las
+            # Notas de Debito/Ajuste (tipo_movi='D': ND/AD/BD) son
+            # correcciones internas que reducen lo que debemos al proveedor y
+            # NO emiten Comprobante de Compras B11 (reporte MPILAR 2026-10-29:
+            # "cuando hacemos ND no debe traer NCF por defecto"). Si el
+            # operador quiere emitir una ND electronica con NCF propio B04,
+            # debe digitarlo a mano, no auto-asignarse.
             _codigo_ncf_informal = None
-            _bp_row = cur.execute(
-                "SELECT codigo_ncf FROM CXP.TCXP_BPROVEEDOR "
-                "WHERE no_cia=:1 AND punto=:2 AND no_proveedor=:3",
-                [no_cia, punto, no_proveedor]).fetchone()
-            _codigo_ncf_bp = (
-                (_bp_row[0] or '').strip().upper() if _bp_row and _bp_row[0] else None
-            )
-            if not _codigo_ncf_bp:
-                # Fallback cross-cia: si el proveedor es informal (B11) en otra
-                # cia, usamos la serie B11 propia de ESTA cia. Mismo criterio
-                # que get_proveedor_ncf_info usa para el pre-fill del form, asi
-                # el save honra lo que el form mostro al operador.
-                _sibling_codigo = _resolve_bproveedor_codigo_ncf_sibling(
-                    no_cia, no_proveedor)
-                if _sibling_codigo:
-                    _codigo_ncf_bp = _sibling_codigo.upper()
+            if tipo_movi != 'D':
+                _bp_row = cur.execute(
+                    "SELECT codigo_ncf FROM CXP.TCXP_BPROVEEDOR "
+                    "WHERE no_cia=:1 AND punto=:2 AND no_proveedor=:3",
+                    [no_cia, punto, no_proveedor]).fetchone()
+                _codigo_ncf_bp = (
+                    (_bp_row[0] or '').strip().upper() if _bp_row and _bp_row[0] else None
+                )
+                if not _codigo_ncf_bp:
+                    # Fallback cross-cia: si el proveedor es informal (B11) en otra
+                    # cia, usamos la serie B11 propia de ESTA cia. Mismo criterio
+                    # que get_proveedor_ncf_info usa para el pre-fill del form, asi
+                    # el save honra lo que el form mostro al operador.
+                    _sibling_codigo = _resolve_bproveedor_codigo_ncf_sibling(
+                        no_cia, no_proveedor)
+                    if _sibling_codigo:
+                        _codigo_ncf_bp = _sibling_codigo.upper()
+            else:
+                _codigo_ncf_bp = None
             if _codigo_ncf_bp:
                 _ncf_row = cur.execute(
                     "SELECT prox_ncf, ncf_final, posiciones_fijas FROM CNT.TCNT_NCF "
@@ -2016,6 +2027,14 @@ def entrada_documento(d, _skip_periodo_gate: bool = False):
                             f"La serie NCF {_pos_ncf} ({_codigo_ncf_bp}) esta agotada.")
                     _ncf_num = _ncf_val
                     _codigo_ncf_informal = _codigo_ncf_bp
+
+            # Un documento sin numero de NCF no debe quedar con una serie
+            # (posiciones_fijas) huerfana: eso ensucia los reportes DGII y es
+            # como quedaba una ND cuando el frontend viejo pre-llenaba
+            # tipo_ncf='B11' pero el operador borraba el numero. Si no hay
+            # numero, limpia tambien la serie.
+            if _ncf_num is None:
+                _pos_ncf = None
 
             # Validar duplicado ANTES de reservar no_docu para no dejar huecos
             # en TCXP_SECUENCIA cuando el operador reintenta con el mismo NCF.

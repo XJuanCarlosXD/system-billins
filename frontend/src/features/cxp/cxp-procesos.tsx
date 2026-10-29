@@ -787,6 +787,12 @@ export function CxpEntradaDocumentos({
     prox_ncf?: number
     descripcion?: string
   } | null>(null)
+  // tipo_movi del tipo_docu seleccionado ('D' = ND/AD/BD = ajuste de debito;
+  // 'C' = FP/FT/NC/AC = compra o credito). Se recalcula abajo tambien
+  // (esDocDebito) para usarse en varias partes del form, pero el useEffect de
+  // NCF corre antes de esa linea asi que lo derivamos aqui.
+  const _tipoMoviActualNcf = (tiposDocu.find((t: any) => (t.codigo ?? t.tipo_docu) === tipoDocu)?.tipo_movi || '')
+    .toString().toUpperCase()
   useEffect(() => {
     if (!proveedor?.no_proveedor || !punto) { setNcfInfo(null); return }
     api.cxpGetProveedorNcfInfo(proveedor.no_proveedor, noCia, punto)
@@ -795,6 +801,15 @@ export function CxpEntradaDocumentos({
         // En modo edicion el NCF ya cargado es el real del documento -- no
         // pisarlo con el "proximo NCF a autoasignar" de un documento nuevo.
         if ((editTipo && editNoDocu) || editColaId) return
+        // Notas de Debito/Ajuste (tipo_movi='D': ND/AD/BD) NO llevan B11
+        // auto-asignado: son correcciones internas que reducen lo que
+        // debemos al proveedor, no compras fiscales (reporte MPILAR
+        // 2026-10-29). Si el operador cambia a un tipo de debito despues
+        // de haber elegido proveedor, ademas limpia el NCF ya pre-llenado.
+        if (_tipoMoviActualNcf === 'D') {
+          setForm((f) => ({ ...f, ncf: '', tipo_ncf: '' }))
+          return
+        }
         if (r?.codigo_ncf && r?.prox_ncf != null) {
           // Pre-fill NCF (numero) y tipo_ncf (posiciones_fijas, p.ej. B11)
           const _pos = (r.posiciones_fijas || '').toUpperCase()
@@ -806,7 +821,7 @@ export function CxpEntradaDocumentos({
         }
       })
       .catch(() => setNcfInfo(null))
-  }, [proveedor?.no_proveedor, noCia, punto, editTipo, editNoDocu, editColaId])
+  }, [proveedor?.no_proveedor, noCia, punto, editTipo, editNoDocu, editColaId, _tipoMoviActualNcf])
 
   // Auto-calcula el ITBIS desde el valor de bienes + valor del servicio
   // (sin ITBIS):
