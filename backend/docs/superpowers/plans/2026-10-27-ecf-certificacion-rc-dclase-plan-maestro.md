@@ -181,7 +181,7 @@ la misma ventana de 5 minutos para evitar confusión en los logs.
 
 | # | Fase | Estado | Última actualización |
 |---|------|--------|----------------------|
-| 1 | Registrado | ⬜ Pendiente | — |
+| 1 | Registrado | 🛑 Bloqueado — OFV solicitud error 903/904 | 2026-10-30 |
 | 2 | Pruebas de Datos e-CF | ⬜ Pendiente | — |
 | 3 | Pruebas de Datos Aprobación Comercial | ⬜ Pendiente | — |
 | 4 | Pruebas Simulación e-CF | ⬜ Pendiente | — |
@@ -201,7 +201,7 @@ la misma ventana de 5 minutos para evitar confusión en los logs.
 
 | # | Fase | Estado | Última actualización |
 |---|------|--------|----------------------|
-| 1 | Registrado | ⬜ Pendiente | — |
+| 1 | Registrado | 🛑 Bloqueado — OFV solicitud error 905 | 2026-10-30 |
 | 2 | Pruebas de Datos e-CF | ⬜ Pendiente | — |
 | 3 | Pruebas de Datos Aprobación Comercial | ⬜ Pendiente | — |
 | 4 | Pruebas Simulación e-CF | ⬜ Pendiente | — |
@@ -221,8 +221,49 @@ Leyenda: ⬜ sin iniciar · 🔲 en curso/parcial · ✅ completo · 🛑 bloque
 
 ## Bloqueos activos
 
-*(Ninguno al inicio — actualizar aquí cualquier bloqueo nuevo con fecha,
-descripción exacta y qué falta.)*
+### 2026-10-30: OFV "Solicitud para ser Emisor Electrónico" error sistemático
+
+**Afecta**: AMBAS empresas (RC Hernandez y D Clase)
+
+**Descripción**: El formulario "Solicitud para ser Emisor Electrónico" en la OFV
+DGII (`dgii.gov.do/OFV/FacturaElectronica/FE_Facturador_Electronico.aspx`) falla
+con errores internos del servidor al hacer click en "Siguiente" después de
+seleccionar representante:
+- RC Hernandez con representante CESAR HERNANDEZ JORGE → Suceso 903
+- RC Hernandez con representante ROBERT MIGUEL MUSTAFA ARACENA → Suceso 904
+- D Clase con representante JOSE ALEJANDRO ABREU ESPINAL → Suceso 905
+
+**Confirmado que NO es un problema de credenciales OFV**: ambas empresas logran
+login exitoso en la OFV. RC Hernandez RNC 130941361 / clave ADRIAN361 funciona.
+D Clase RNC 131287379 / clave JA131287379 funciona.
+
+**Confirmado que NO tienen cuenta en certecf**: tanto "Restablecer contraseña"
+como "¿No recibiste como crear tus accesos?" fallan con "Favor validar los datos
+del usuario" para ambos RNC en el portal certecf.
+
+**Confirmado que el buzón OFV no contiene instrucciones de acceso**: RC Hernandez
+tiene 73 mensajes sin leer, ninguno contiene instrucciones de creación de acceso
+certecf (búsqueda por "certificacion" y "acceso" = 0 resultados).
+
+**Para desbloquear** (siguiente corrida debe intentar en este orden):
+1. Reintentar el formulario OFV (puede ser error temporal del servidor DGII)
+2. Si persiste, contactar DGII: facturacionelectronica@dgii.gov.do explicando
+   que la solicitud para ser Emisor Electrónico falla con errores 903-905 para
+   RNC 130941361 y 131287379
+3. Probar via chatbot DIGI en el portal certecf
+4. Si nada funciona, escalar al usuario para gestión presencial en DGII
+
+### Pre-requisitos BD completados (2026-10-30)
+
+TFE_CONFIG y TFE_SECUENCIA ya existían para ambas empresas (creados hoy):
+- TFE_CONFIG: ambiente=certecf, .p12 cargado, cert válido hasta 2027-08-31
+- TFE_CONFIG ACTIVO cambiado de 'N' a 'S' para ambas empresas
+- TFE_SECUENCIA: 10 tipos (31-47) para ambas, inicio en 100
+- NOTA: cía 02 ya tiene 2 docs en TFE_DOCUMENTO (E310000000100, E310000000101)
+  estado ENVIADO — enviados vía API antes de tener portal; no cuentan para
+  certificación sin postulación activa
+- NOTA: MUNICIPIO y PROVINCIA son NULL (columnas VARCHAR2(6), formato código;
+  cía 01 también los tiene NULL → no son requeridos para firma e-CF)
 
 ## Protocolo de cada corrida
 
@@ -371,13 +412,23 @@ el throughput esperado es 3-5× más rápido.
 
 ## Log de corridas
 
-*(Agregar entrada por cada corrida del runner, formato:)*
-```
-### Corrida N — YYYY-MM-DD HH:MM UTC
-- Empresa: RC Hernandez / D Clase / ambas
-- Fase trabajada: N
-- Acción: <qué se hizo concretamente>
-- Estado final: <resumen>
-- Commits: <hashes o "ninguno">
-- Próximo paso: <qué debe hacer la siguiente corrida>
-```
+### Corrida 1 — 2026-10-30 22:50 UTC
+- Empresa: ambas
+- Fase trabajada: Pre-requisitos + Fase 1 (intento)
+- Acción:
+  - Confirmó TFE_CONFIG para cía 02/03 ya existe con .p12, ambiente certecf
+  - Activó TFE_CONFIG (ACTIVO 'N'→'S') para ambas empresas
+  - Confirmó TFE_SECUENCIA para 10 tipos, inicio 100, para ambas
+  - Encontró 2 docs ya enviados para cía 02 (E310000000100/101, estado ENVIADO)
+  - Intentó login certecf portal con 130941361/ADRIAN361 → "credenciales no válidas"
+  - Confirmó que ni "Restablecer contraseña" ni "ReEnviar accesos" reconocen el RNC
+  - Login OFV exitoso para ambas empresas (RC Hernandez y D Clase)
+  - Intentó "Solicitud para ser Emisor Electrónico" en OFV para ambas empresas
+  - RC Hernandez: error 903 (con CESAR HERNANDEZ) y 904 (con ROBERT MUSTAFA)
+  - D Clase: error 905 (con JOSE ALEJANDRO ABREU ESPINAL)
+  - Revisó buzón OFV de RC Hernandez (73 msgs) — sin instrucciones certecf
+  - Documentó bloqueo completo en este plan
+- Estado final: 🛑 BLOQUEADO — no se puede crear cuenta certecf para ninguna empresa
+- Commits: pendiente (este update del plan)
+- Próximo paso: reintentar formulario OFV (puede ser error temporal); si persiste,
+  contactar facturacionelectronica@dgii.gov.do; probar chatbot DIGI
