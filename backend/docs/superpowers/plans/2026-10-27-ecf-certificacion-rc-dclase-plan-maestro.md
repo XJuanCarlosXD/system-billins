@@ -313,15 +313,18 @@ al RNC" para RC Hernandez que incluye:
   Una vez aprobada por DGII, Roberto será Representante Legal → su .p12
   coincidirá → Phase 1 se desbloquea inmediatamente.
 
-**Opción A-bis (ALTERNATIVA más ligera)**: Si los documentos de Opción A
-  tardan demasiado, cancelar ("Rechazar Cambios") la solicitud 957459 y
-  crear una NUEVA Actualización al RNC con SOLO sección XI "Usuario
-  Administrador eCF" (agregar a Roberto con su cédula). Esto podría requerir
-  MENOS documentos (solo poder de representación + cédula, sin Acta de
-  Asamblea ni cambio de socios). **VERIFICAR** con la DGII que el "Usuario
-  Administrador eCF" sea suficiente para que el .p12 coincida en la
-  postulación certecf. Riesgo: puede que certecf solo acepte REPRESENTANTE,
-  no delegado, para Phase 1.
+~~**Opción A-bis (ALTERNATIVA más ligera)**: DESCARTADA en corrida 4.~~
+  Se probó: cancelar solicitud 957459, crear nueva con SOLO sección XI.
+  Resultado: el formulario Actualización al RNC de DGII tiene validaciones
+  pre-existentes que OBLIGAN a corregir TODOS los problemas del RNC antes
+  de enviar CUALQUIER cambio. Requisitos no-bypasseables:
+  - Acciones/aportes de MUSTAFA y CESAR no cuadran (pre-existente)
+  - SRL necesita 1 Gerente o miembro consejo administración (pre-existente)
+  - Beneficiario Final obligatorio (pre-existente)
+  - Responsable cumplimiento obligaciones (pre-existente)
+  - 13 campos obligatorios vacíos (pre-existente)
+  - Documentos: factura servicio, Registro Mercantil, cédula Roberto
+  **No es posible hacer una Actualización "parcial" al RNC.**
 
 **Opción B**: Obtener certificados digitales (.p12) para los representantes
   actuales: ROBERT MIGUEL MUSTAFA ARACENA para RC Hernandez (cédula
@@ -339,7 +342,9 @@ al RNC" para RC Hernandez que incluye:
 - Solicitud 102301 de RC Hernandez activa en el portal ✅
 - Software y URLs configurados en la postulación ✅
 - Pipeline de firma (firmar_con_app_oficial) funciona para cía 02 ✅
-- Solicitud OFV 957459 (Actualización RNC) parcialmente llenada ✅
+- ~~Solicitud OFV 957459 (Actualización RNC) parcialmente llenada~~ **CANCELADA en corrida 4**
+  (957459 rechazada; el formulario auto-recreado también fue rechazado tras confirmar
+  que Opción A-bis no es viable)
 
 ### Pre-requisitos BD completados (2026-10-30)
 
@@ -590,3 +595,52 @@ el throughput esperado es 3-5× más rápido.
   activo 2026-10-31. Recomendación: completar solicitud OFV 957459 (Opción A) o
   evaluar Opción A-bis (solo sección XI). El runner no puede avanzar sin que
   Roberto sea reconocido en el RNC de al menos una empresa.
+
+### Corrida 4 — 2026-10-31 19:00 UTC
+- Empresa: RC Hernandez (investigación + intento de desbloqueo)
+- Fase trabajada: Fase 1 — intento de Opción A-bis (Actualización al RNC solo Sección XI)
+- Acción:
+  - Login OFV RC Hernandez → verificó "Estatus de Solicitudes": solicitud 957459
+    NO aparece (es un formulario en curso, no una solicitud enviada)
+  - Navegó a "Actualización al RNC" → confirmó solicitud 957459 sigue idéntica
+    (mismos requisitos pendientes que corrida 3, sin progreso externo)
+  - **Intento 1**: Agregar Roberto como Usuario Admin eCF en Sección XI DENTRO
+    de solicitud 957459 → funciona (Roberto agregado y guardado en tabla), PERO
+    los requisitos de Secciones VII (socios) y X (representante) siguen bloqueando
+    el envío total del formulario
+  - **Intento 2**: Eliminar socios Roberto y Dannery de Sección VII para reducir
+    requisitos → empeoró la situación (ahora SRL necesita mínimo 2 socios y
+    aportes deben sumar $100,000)
+  - **Decisión**: Rechazar solicitud 957459 completa para probar Opción A-bis
+    (crear nueva Actualización con SOLO Sección XI)
+  - **Hallazgo crítico**: Al rechazar 957459, DGII auto-crea un nuevo formulario
+    (código "0") con datos originales del RNC. Este formulario tiene MISMOS
+    problemas pre-existentes:
+    - Acciones MUSTAFA y CESAR no corresponden con aportes
+    - Falta Gerente/miembro consejo administración
+    - Falta Beneficiario Final
+    - Falta responsable cumplimiento obligaciones
+    - 5 campos obligatorios vacíos (sube a 13 al agregar Sección XI)
+    - Documentos: factura servicio + Registro Mercantil + cédula Roberto
+  - **Conclusión**: La OFV de DGII NO permite Actualizaciones al RNC parciales.
+    TODOS los problemas pre-existentes deben corregirse antes de enviar
+    CUALQUIER cambio. Opción A-bis es INVIABLE.
+  - Rechazó el formulario auto-creado (código "0") para limpiar
+- Estado final: 🛑 BLOQUEADO — misma causa (.p12 ≠ representante RNC). Opciones
+  actualizadas: A-bis descartada, quedan A (con documentos legales) y B (.p12 nuevo)
+- Commits: 1 (actualización plan maestro con hallazgos corrida 4)
+- Próximo paso: REQUIERE ACCIÓN DEL USUARIO:
+  - **Opción A (recomendada)**: Crear NUEVA solicitud de Actualización al RNC
+    corrigiendo TODOS los problemas pre-existentes + agregando Roberto. Requiere:
+    (1) Corregir acciones/aportes de MUSTAFA y CESAR para que cuadren
+    (2) Agregar Gerente y Beneficiario Final
+    (3) Seleccionar responsable cumplimiento
+    (4) Completar 13+ campos vacíos
+    (5) Subir: factura electricidad, Registro Mercantil, cédula Roberto
+    (6) Aceptar DJ y enviar
+    Nota: solicitud 957459 ya NO existe — hay que empezar de cero
+  - **Opción B**: Obtener .p12 para ROBERT MIGUEL MUSTAFA ARACENA (RC Hernandez)
+    o JOSE ALEJANDRO ABREU ESPINAL (D Clase). Compra en entidad certificadora
+    INDOTEL (~$5-10K DOP, 1-2 semanas)
+  - **Opción C**: Contactar facturacionelectronica@dgii.gov.do explicando la
+    situación y pidiendo orientación
