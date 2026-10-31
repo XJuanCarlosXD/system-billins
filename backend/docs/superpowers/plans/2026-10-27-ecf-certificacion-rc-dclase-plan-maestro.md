@@ -644,3 +644,41 @@ el throughput esperado es 3-5× más rápido.
     INDOTEL (~$5-10K DOP, 1-2 semanas)
   - **Opción C**: Contactar facturacionelectronica@dgii.gov.do explicando la
     situación y pidiendo orientación
+
+### Corrida 5 — 2026-10-31 23:00 UTC
+- Empresa: RC Hernandez (verificación de estado)
+- Fase trabajada: Fase 1 — verificación de bloqueo, exploración de alternativas
+- Acción:
+  - Login OFV RC Hernandez → verificó Socios/Accionistas: SIN CAMBIOS.
+    Roberto Abreu Espinal sigue SIN aparecer en el RNC. Mismos 4 registros
+    que corrida 3 (MUSTAFA rep+socio, CESAR socio, LIDIA y ALEXANDER inactivos)
+  - Buzón OFV: 72 mensajes sin leer, todos genéricos (último 20-Oct-2026).
+    Ningún mensaje nuevo relacionado con certecf o actualización al RNC
+  - Login certecf RC Hernandez → solicitud 102301 sigue en Fase 1 "Registrado"
+    con representante CESAR HERNANDEZ JORGE. Único log: rechazo del XML de
+    corrida 2 (firma no coincide con representante)
+  - Inbox certecf: solo 1 mensaje (el rechazo). Sin novedades de DGII
+  - Consultó chatbot DIGI-DGII en portal certecf (2 preguntas):
+    1. Preguntó sobre cancelar solicitud 102301 y crear nueva con MUSTAFA →
+       chatbot entró en flujo "consultar estatus", no pudo encontrar solicitud,
+       recomendó contactar soporte de emisores electrónicos
+    2. Preguntó directamente sobre procedimiento para cancelar postulación →
+       chatbot repitió flujo "consultar estatus", no respondió la pregunta
+  - OFV "Solicitud para ser Emisor Electrónico" → redirige vía SSO al portal
+    certecf existente (no permite crear solicitud adicional)
+  - Verificó backend: `_resolve_fe_cia()` en fe_repo.py funciona correctamente
+    para no_cia='02'/'03' — TFE_CONFIG existe y está activa para ambas
+  - **Conclusión**: Sin cambio externo desde corrida 4. El bloqueo requiere
+    acción humana (opciones A, B o C documentadas arriba). El runner no puede
+    avanzar hasta que Roberto figure en el RNC o se obtenga un .p12 para el
+    representante actual
+- Estado final: 🛑 BLOQUEADO — misma causa (.p12 ≠ representante RNC), sin cambios
+- Commits: 1 (actualización plan maestro con log corrida 5)
+- Próximo paso: REQUIERE ACCIÓN DEL USUARIO. Resumen de opciones:
+  - **Opción A (recomendada, ~1-2 semanas)**: Completar Actualización al RNC para
+    agregar Roberto como representante. Requiere documentos legales (ver detalle arriba)
+  - **Opción B (~1-2 semanas, ~$5-10K DOP)**: Comprar .p12 para ROBERT MUSTAFA
+    (RC Hernandez) o JOSE ALEJANDRO ABREU ESPINAL (D Clase)
+  - **Opción C (inmediata)**: Escribir a facturacionelectronica@dgii.gov.do
+    explicando la situación y pidiendo orientación. El runner puede preparar
+    el borrador del email si el usuario lo solicita
