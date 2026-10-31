@@ -16,7 +16,7 @@ ya se hizo.
 | Razón social | RC HERNANDEZ SRL | D CLASE J A SRL |
 | Representante legal | Roberto Abreu Espinal (001-0092763-29) | Roberto Abreu Espinal (001-0092763-29) |
 | DGII OFV | Sin tarjeta de coordenadas | Sin tarjeta de coordenadas |
-| Solicitud certecf | *(pendiente — se crea en Fase 1)* | *(pendiente — se crea en Fase 1)* |
+| Solicitud certecf | **102301** (creada 2026-10-31, cuenta certecf: 130941361/Adrian361) | *(pendiente — NO crear hasta resolver bloqueo .p12)* |
 
 Portal de Certificación e-CF: `https://ecf.dgii.gov.do/certecf/portalcertificacion`.
 Credenciales DGII: ver `reference_accesos_portales_gubernamentales_abregonza.md`
@@ -181,7 +181,7 @@ la misma ventana de 5 minutos para evitar confusión en los logs.
 
 | # | Fase | Estado | Última actualización |
 |---|------|--------|----------------------|
-| 1 | Registrado | 🛑 Bloqueado — OFV solicitud error 903/904 | 2026-10-30 |
+| 1 | Registrado | 🛑 Bloqueado — .p12 no coincide con representante DGII | 2026-10-31 |
 | 2 | Pruebas de Datos e-CF | ⬜ Pendiente | — |
 | 3 | Pruebas de Datos Aprobación Comercial | ⬜ Pendiente | — |
 | 4 | Pruebas Simulación e-CF | ⬜ Pendiente | — |
@@ -201,7 +201,7 @@ la misma ventana de 5 minutos para evitar confusión en los logs.
 
 | # | Fase | Estado | Última actualización |
 |---|------|--------|----------------------|
-| 1 | Registrado | 🛑 Bloqueado — OFV solicitud error 905 | 2026-10-30 |
+| 1 | Registrado | 🛑 Bloqueado — .p12 no coincide con representante DGII | 2026-10-31 |
 | 2 | Pruebas de Datos e-CF | ⬜ Pendiente | — |
 | 3 | Pruebas de Datos Aprobación Comercial | ⬜ Pendiente | — |
 | 4 | Pruebas Simulación e-CF | ⬜ Pendiente | — |
@@ -221,37 +221,60 @@ Leyenda: ⬜ sin iniciar · 🔲 en curso/parcial · ✅ completo · 🛑 bloque
 
 ## Bloqueos activos
 
-### 2026-10-30: OFV "Solicitud para ser Emisor Electrónico" error sistemático
+### ~~2026-10-30: OFV "Solicitud para ser Emisor Electrónico" error sistemático~~ RESUELTO 2026-10-31
+
+Los errores 903/904/905 eran temporales del servidor DGII. La corrida 2
+(2026-10-31) reintentó el formulario y funcionó sin cambios. RC Hernandez
+solicitud 102301 creada exitosamente. D Clase pendiente de crear (ver
+bloqueo activo abajo).
+
+### 2026-10-31: .p12 de Roberto NO coincide con representantes DGII de ambas empresas
 
 **Afecta**: AMBAS empresas (RC Hernandez y D Clase)
 
-**Descripción**: El formulario "Solicitud para ser Emisor Electrónico" en la OFV
-DGII (`dgii.gov.do/OFV/FacturaElectronica/FE_Facturador_Electronico.aspx`) falla
-con errores internos del servidor al hacer click en "Siguiente" después de
-seleccionar representante:
-- RC Hernandez con representante CESAR HERNANDEZ JORGE → Suceso 903
-- RC Hernandez con representante ROBERT MIGUEL MUSTAFA ARACENA → Suceso 904
-- D Clase con representante JOSE ALEJANDRO ABREU ESPINAL → Suceso 905
+**Descripción**: El portal certecf valida que la firma digital del XML de
+postulación corresponda al representante registrado en la solicitud. El único
+.p12 disponible es el de Roberto Abreu Espinal (cédula 00109276329), pero
+Roberto NO aparece como representante/socio en el RNC de ninguna de las dos
+empresas ante la DGII:
 
-**Confirmado que NO es un problema de credenciales OFV**: ambas empresas logran
-login exitoso en la OFV. RC Hernandez RNC 130941361 / clave ADRIAN361 funciona.
-D Clase RNC 131287379 / clave JA131287379 funciona.
+- **RC Hernandez** (130941361): representantes disponibles son CESAR HERNANDEZ
+  JORGE (cédula 00117141333) y ROBERT MIGUEL MUSTAFA ARACENA. Roberto Abreu
+  Espinal NO está en la lista.
+- **D Clase** (131287379): único representante disponible es JOSE ALEJANDRO
+  ABREU ESPINAL. Roberto Abreu Espinal NO está en la lista.
 
-**Confirmado que NO tienen cuenta en certecf**: tanto "Restablecer contraseña"
-como "¿No recibiste como crear tus accesos?" fallan con "Favor validar los datos
-del usuario" para ambos RNC en el portal certecf.
+**Error exacto al subir XML firmado**: "La firma utilizada en el XML del formulario
+de postulación no corresponde con el representante registrado, favor verificar y
+volver a intentarlo."
 
-**Confirmado que el buzón OFV no contiene instrucciones de acceso**: RC Hernandez
-tiene 73 mensajes sin leer, ninguno contiene instrucciones de creación de acceso
-certecf (búsqueda por "certificacion" y "acceso" = 0 resultados).
+**RC Hernandez**: solicitud 102301 creada con representante CESAR HERNANDEZ JORGE,
+cuenta certecf creada (usuario 130941361 / clave Adrian361), portal accesible y
+en Fase 1 "Registrado". Software y URLs ya configurados (ZentoryERP 1.0,
+grupo-abregonza.hopto.org:8443). XML generado y firmado con .p12 de Roberto
+pero rechazado por no coincidir con CESAR HERNANDEZ.
 
-**Para desbloquear** (siguiente corrida debe intentar en este orden):
-1. Reintentar el formulario OFV (puede ser error temporal del servidor DGII)
-2. Si persiste, contactar DGII: facturacionelectronica@dgii.gov.do explicando
-   que la solicitud para ser Emisor Electrónico falla con errores 903-905 para
-   RNC 130941361 y 131287379
-3. Probar via chatbot DIGI en el portal certecf
-4. Si nada funciona, escalar al usuario para gestión presencial en DGII
+**D Clase**: solicitud OFV AÚN NO CREADA (se detuvo al confirmar el mismo
+problema de representante). No se creó cuenta certecf.
+
+**Para desbloquear** (REQUIERE ACCIÓN DEL USUARIO — no es resoluble por el runner):
+1. **Opción A (preferida)**: Agregar a Roberto Abreu Espinal como
+   socio/representante de ambas empresas vía "Actualización al RNC" en la OFV
+   DGII. Esto es una acción administrativa/legal que requiere documentación
+   corporativa (acta de asamblea, etc.).
+2. **Opción B**: Obtener certificados digitales (.p12) para los representantes
+   actuales de cada empresa (CESAR HERNANDEZ para RC, JOSE ALEJANDRO para D
+   Clase). Requiere compra en entidad certificadora aprobada por INDOTEL.
+3. **Opción C**: Si Roberto ya es representante legal (según escrituras) pero
+   no aparece en el RNC, verificar con la DGII si los datos del RNC están
+   desactualizados y solicitar actualización.
+
+**Estado de lo ya completado** (no se pierde):
+- TFE_CONFIG + TFE_SECUENCIA para ambas empresas ✅
+- Cuenta certecf de RC Hernandez creada y funcional ✅
+- Solicitud 102301 de RC Hernandez activa en el portal ✅
+- Software y URLs configurados en la postulación ✅
+- Pipeline de firma (firmar_con_app_oficial) funciona para cía 02 ✅
 
 ### Pre-requisitos BD completados (2026-10-30)
 
@@ -290,7 +313,10 @@ TFE_CONFIG y TFE_SECUENCIA ya existían para ambas empresas (creados hoy):
 3. Completar formulario de solicitud:
    - Verificar que los datos precargados (RNC, razón social, dirección)
      son correctos
-   - Representante legal: Roberto Abreu Espinal, cédula 00109276329
+   - Representante legal: debe coincidir con el .p12 disponible. Roberto
+     Abreu Espinal (cédula 00109276329) es el dueño del .p12, pero NO
+     aparece en el dropdown de representantes de RC ni D Clase. Ver
+     bloqueo activo 2026-10-31 para opciones de resolución.
    - Software: ZentoryERP (nombre del producto, NO SIGAF/SIGAFT)
 4. Registrar el número de solicitud en este documento
 5. La DGII genera un Set de Pruebas (Excel) — descargarlo y guardarlo en
@@ -432,3 +458,33 @@ el throughput esperado es 3-5× más rápido.
 - Commits: pendiente (este update del plan)
 - Próximo paso: reintentar formulario OFV (puede ser error temporal); si persiste,
   contactar facturacionelectronica@dgii.gov.do; probar chatbot DIGI
+
+### Corrida 2 — 2026-10-31 11:00 UTC
+- Empresa: ambas (RC Hernandez primario, D Clase verificación)
+- Fase trabajada: Fase 1 — Registro
+- Acción:
+  - Reintentó formulario OFV "Solicitud para ser Emisor Electrónico" para RC
+    Hernandez con representante CESAR HERNANDEZ JORGE → **ÉXITO** (error 903
+    del 2026-10-30 era temporal)
+  - Solicitud RC Hernandez: **núm. 102301** creada exitosamente
+  - Navegó al buzón OFV → mensaje "CREACION DE USUARIO CERTIFICACION" recibido
+    con enlace de registro certecf
+  - Creó cuenta certecf para RC Hernandez: usuario 130941361 / clave Adrian361
+    (ADRIAN361 no cumplía requisito de minúscula del portal)
+  - Login certecf exitoso → Fase 1 "Registrado" visible
+  - Configuró software: ZentoryERP 1.0, tipo PROPIO
+  - Configuró URLs: grupo-abregonza.hopto.org:8443 (recepción, ACECF, auth)
+  - Generó XML de postulación (202610310324988.xml)
+  - Firmó XML con firmar_con_app_oficial() vía Docker (cía 02, .p12 Roberto)
+  - Subió XML firmado → **RECHAZADO**: "La firma utilizada en el XML del
+    formulario de postulación no corresponde con el representante registrado"
+  - Causa: .p12 es de Roberto Abreu Espinal pero representante registrado es
+    CESAR HERNANDEZ JORGE (Roberto NO está en dropdown de representantes)
+  - Verificó D Clase: único representante es JOSE ALEJANDRO ABREU ESPINAL
+    (tampoco Roberto) → mismo problema → NO creó solicitud D Clase
+  - Documentó bloqueo en plan maestro
+- Estado final: 🛑 BLOQUEADO — .p12 no coincide con representantes de ninguna empresa
+- Commits: 1 (actualización plan maestro)
+- Próximo paso: REQUIERE ACCIÓN DEL USUARIO — agregar Roberto como representante
+  en el RNC de ambas empresas (opción A), u obtener .p12 para representantes
+  existentes (opción B). Ver bloqueo activo 2026-10-31 para detalles.
