@@ -257,17 +257,81 @@ pero rechazado por no coincidir con CESAR HERNANDEZ.
 **D Clase**: solicitud OFV AÚN NO CREADA (se detuvo al confirmar el mismo
 problema de representante). No se creó cuenta certecf.
 
+#### Hallazgos de corrida 3 (2026-10-31 15:00 UTC) — investigación profunda
+
+**Socios/Accionistas actuales de RC Hernandez** (verificado en OFV):
+| Cédula | Nombre | Tipo Relación | Desde | Hasta |
+|--------|--------|---------------|-------|-------|
+| 001-0009281-6 | ROBERT MIGUEL MUSTAFA ARACENA | REPRESENTANTE + SOCIO | 28/09/2012 | activo |
+| 001-1714133-3 | CESAR HERNANDEZ JORGE | SOCIO | 28/09/2012 | activo |
+| 001-0981058-0 | LIDIA GONZALEZ | SOCIO | 28/09/2012 | 05/05/2015 |
+| 001-1803614-4 | ALEXANDER JONATHAN CLASE SEVERINO | SOCIO | 28/09/2012 | 05/05/2015 |
+
+Nota: CESAR HERNANDEZ es SOCIO, no REPRESENTANTE. El único REPRESENTANTE
+es ROBERT MIGUEL MUSTAFA ARACENA. Roberto Abreu Espinal NO aparece en
+ninguna relación.
+
+**Actualización al RNC ya en curso (solicitud OFV 957459)**:
+Alguien (presumiblemente el usuario) ya inició un formulario de "Actualización
+al RNC" para RC Hernandez que incluye:
+- **Sección X**: Cambio de Representante Legal de MUSTAFA → ROBERTO ABREU ESPINAL
+  (datos ya llenados: cédula 00109276329, dirección Naco, email robertoespinal72@gmail.com)
+- **Sección VII**: Roberto y Dannery Michelle Abreu González como nuevos socios
+- **Sección XI (Usuario Administrador eCF)**: VACÍA — nadie registrado aún
+
+**Requisitos pendientes del formulario 957459** (no se puede enviar sin estos):
+- 3 campos obligatorios vacíos
+- "Las Acciones del socio ROBERTO ABREU ESPINAL no se corresponden con el aporte realizado"
+- "Las Acciones del socio DANNERY MICHELLE ABREU GONZALEZ no se corresponden con el aporte realizado"
+- "La SRL debe tener 1 Gerente o 1 miembro del consejo de la administración"
+- "Obligatorio completar al menos un Beneficiario Final (control accionario o efectivo)"
+- **Documentos pendientes**: Factura electricidad, Registro Mercantil,
+  Comunicación de poder de representación, Cédula de Roberto (00109276329),
+  Acta de Asamblea con aprobación de los cambios
+
+**Chatbot DIGI-DGII (consultado en esta corrida) confirma**:
+1. NO es posible cambiar el representante directamente en la solicitud certecf;
+   primero debe actualizarse en el RNC
+2. SÍ es posible designar un "delegado autorizado" / "firmante de e-CF" sin
+   cambiar el representante legal, PERO el delegado DEBE figurar en los datos
+   básicos del RNC bajo una relación permitida (apoderado, usuario administrador
+   de e-CF, firmante de e-CF, etc.)
+3. El menú "Delegaciones de e-CF" en la OFV es solo para POST-certificación
+   (asignar roles después de ser emisor aprobado), NO aplica para Phase 1
+4. Para Phase 1, el firmante del XML DEBE estar en el RNC bajo alguna relación
+
 **Para desbloquear** (REQUIERE ACCIÓN DEL USUARIO — no es resoluble por el runner):
-1. **Opción A (preferida)**: Agregar a Roberto Abreu Espinal como
-   socio/representante de ambas empresas vía "Actualización al RNC" en la OFV
-   DGII. Esto es una acción administrativa/legal que requiere documentación
-   corporativa (acta de asamblea, etc.).
-2. **Opción B**: Obtener certificados digitales (.p12) para los representantes
-   actuales de cada empresa (CESAR HERNANDEZ para RC, JOSE ALEJANDRO para D
-   Clase). Requiere compra en entidad certificadora aprobada por INDOTEL.
-3. **Opción C**: Si Roberto ya es representante legal (según escrituras) pero
-   no aparece en el RNC, verificar con la DGII si los datos del RNC están
-   desactualizados y solicitar actualización.
+
+**Opción A (MÁS RÁPIDA — recomendada)**: Completar la solicitud OFV 957459
+  de "Actualización al RNC" que ya está en curso. Solo necesita:
+  1. Corregir montos de acciones/aportes de Roberto y Dannery Michelle
+  2. Agregar 1 Gerente o miembro del consejo de administración
+  3. Completar al menos 1 Beneficiario Final
+  4. Subir documentos: Acta de Asamblea, Registro Mercantil, factura
+     electricidad, poder de representación, cédula de Roberto
+  5. Aceptar términos y confirmar (Declaración Jurada)
+  Una vez aprobada por DGII, Roberto será Representante Legal → su .p12
+  coincidirá → Phase 1 se desbloquea inmediatamente.
+
+**Opción A-bis (ALTERNATIVA más ligera)**: Si los documentos de Opción A
+  tardan demasiado, cancelar ("Rechazar Cambios") la solicitud 957459 y
+  crear una NUEVA Actualización al RNC con SOLO sección XI "Usuario
+  Administrador eCF" (agregar a Roberto con su cédula). Esto podría requerir
+  MENOS documentos (solo poder de representación + cédula, sin Acta de
+  Asamblea ni cambio de socios). **VERIFICAR** con la DGII que el "Usuario
+  Administrador eCF" sea suficiente para que el .p12 coincida en la
+  postulación certecf. Riesgo: puede que certecf solo acepte REPRESENTANTE,
+  no delegado, para Phase 1.
+
+**Opción B**: Obtener certificados digitales (.p12) para los representantes
+  actuales: ROBERT MIGUEL MUSTAFA ARACENA para RC Hernandez (cédula
+  001-0009281-6), JOSE ALEJANDRO ABREU ESPINAL para D Clase. Requiere
+  compra en entidad certificadora aprobada por INDOTEL (~$5,000-10,000 DOP
+  cada uno, ~1-2 semanas de trámite).
+
+**Opción C**: Contactar facturacionelectronica@dgii.gov.do para solicitar
+  orientación sobre el caso específico (empresa con .p12 del dueño real
+  que no aparece en el RNC). Pueden indicar un camino más corto.
 
 **Estado de lo ya completado** (no se pierde):
 - TFE_CONFIG + TFE_SECUENCIA para ambas empresas ✅
@@ -275,6 +339,7 @@ problema de representante). No se creó cuenta certecf.
 - Solicitud 102301 de RC Hernandez activa en el portal ✅
 - Software y URLs configurados en la postulación ✅
 - Pipeline de firma (firmar_con_app_oficial) funciona para cía 02 ✅
+- Solicitud OFV 957459 (Actualización RNC) parcialmente llenada ✅
 
 ### Pre-requisitos BD completados (2026-10-30)
 
@@ -488,3 +553,40 @@ el throughput esperado es 3-5× más rápido.
 - Próximo paso: REQUIERE ACCIÓN DEL USUARIO — agregar Roberto como representante
   en el RNC de ambas empresas (opción A), u obtener .p12 para representantes
   existentes (opción B). Ver bloqueo activo 2026-10-31 para detalles.
+
+### Corrida 3 — 2026-10-31 15:00 UTC
+- Empresa: ambas (investigación, no avance directo)
+- Fase trabajada: Fase 1 — investigación de alternativas al bloqueo .p12
+- Acción:
+  - Login OFV RC Hernandez → consultó Socios/Accionistas del RNC:
+    - ROBERT MIGUEL MUSTAFA ARACENA = único REPRESENTANTE (activo desde 2012)
+    - CESAR HERNANDEZ JORGE = SOCIO (no representante)
+    - Roberto Abreu Espinal NO aparece en ninguna relación
+  - Descubrió formulario "Actualización al RNC" (solicitud OFV **957459**) YA EN CURSO:
+    - Alguien cambió Sección X (Representante Legal): MUSTAFA → ROBERTO ABREU ESPINAL
+    - Socios nuevos: Roberto y Dannery Michelle Abreu González
+    - Sección XI (Usuario Administrador eCF): VACÍA
+    - Bloqueado por: acciones no cuadran, falta Gerente, falta Beneficiario Final
+    - Documentos pendientes: Acta de Asamblea, Registro Mercantil, factura
+      electricidad, poder representación, cédula Roberto
+  - Login certecf RC Hernandez → confirmó solicitud 102301 sigue en Fase 1
+    con representante CESAR HERNANDEZ JORGE (campos disabled, no se puede cambiar)
+  - Inbox certecf: solo el rechazo del XML de corrida 2 (sin novedades)
+  - Consultó chatbot DIGI-DGII (3 preguntas, respuestas detalladas):
+    - Confirmó: NO se puede cambiar representante en solicitud certecf sin RNC update
+    - Confirmó: SÍ es posible designar delegado/firmante sin cambiar representante
+      legal, PERO debe figurar en datos básicos del RNC bajo relación permitida
+    - Confirmó: "Delegaciones de e-CF" en OFV es POST-certificación, no aplica para Phase 1
+    - Para Phase 1, el firmante del XML DEBE estar en el RNC
+  - Verificó que OFV NO tiene opción "Delegaciones de e-CF" (solo aparece post-cert)
+  - Documentó Opción A-bis: cancelar solicitud 957459, crear nueva con SOLO
+    sección XI (Usuario Administrador eCF = Roberto). Menos documentos, pero
+    riesgo de que certecf solo acepte REPRESENTANTE en Phase 1
+  - Actualizó sección de bloqueo activo con hallazgos completos y opciones refinadas
+- Estado final: 🛑 BLOQUEADO — misma causa (.p12 ≠ representante RNC), ahora con
+  mejor entendimiento de las opciones y formulario OFV 957459 identificado
+- Commits: 1 (actualización plan maestro con hallazgos corrida 3)
+- Próximo paso: REQUIERE ACCIÓN DEL USUARIO — ver opciones refinadas en bloqueo
+  activo 2026-10-31. Recomendación: completar solicitud OFV 957459 (Opción A) o
+  evaluar Opción A-bis (solo sección XI). El runner no puede avanzar sin que
+  Roberto sea reconocido en el RNC de al menos una empresa.
