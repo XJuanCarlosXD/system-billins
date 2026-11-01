@@ -302,16 +302,70 @@ al RNC" para RC Hernandez que incluye:
 
 **Para desbloquear** (REQUIERE ACCIÓN DEL USUARIO — no es resoluble por el runner):
 
-**Opción A (MÁS RÁPIDA — recomendada)**: Completar la solicitud OFV 957459
-  de "Actualización al RNC" que ya está en curso. Solo necesita:
-  1. Corregir montos de acciones/aportes de Roberto y Dannery Michelle
-  2. Agregar 1 Gerente o miembro del consejo de administración
-  3. Completar al menos 1 Beneficiario Final
-  4. Subir documentos: Acta de Asamblea, Registro Mercantil, factura
-     electricidad, poder de representación, cédula de Roberto
-  5. Aceptar términos y confirmar (Declaración Jurada)
-  Una vez aprobada por DGII, Roberto será Representante Legal → su .p12
-  coincidirá → Phase 1 se desbloquea inmediatamente.
+**Opción D (NUEVA — MÁS RÁPIDA Y SIMPLE — recomendada desde corrida 6)**:
+  Solicitar inclusión de Roberto como "Usuario Administrador de e-CF" vía
+  carta presencial en DGII o email a facturacionelectronica@dgii.gov.do.
+  Descubierto en corrida 6 gracias a FAQ oficial CA5145 de DGII.
+
+  **Ventaja sobre Opción A**: NO requiere la Actualización al RNC online
+  (que obliga a corregir TODOS los problemas pre-existentes). Es un trámite
+  separado, más ligero, que solo necesita:
+
+  1. **Carta firmada y sellada** por alguien que figure en el RNC con relación
+     permitida (Representante, Socio, Administrador, Accionista, etc.):
+     - RC Hernandez: ROBERT MIGUEL MUSTAFA ARACENA (Representante+Socio)
+     - D Clase: JOSE ALEJANDRO ABREU ESPINAL (Representante)
+  2. **Registro Mercantil actualizado** de la empresa
+  3. **Copia cédula de Roberto Abreu Espinal** (ambos lados)
+
+  **Entrega**: En ventanilla del CAP Sede Central DGII, O escaneado por
+  email a facturacionelectronica@dgii.gov.do.
+
+  **Tiempo**: ~3 días laborables. **Costo**: Gratis.
+
+  **Base legal**: Norma General 01-20, Art. 3, literal k.
+
+  **Flujo completo para RC Hernandez**:
+  1. MUSTAFA firma la carta → entregar/enviar a DGII (3 días)
+  2. DGII registra a Roberto como Usuario Admin e-CF de RC Hernandez
+  3. Cancelar solicitud 102301 (que tiene a CESAR como representante)
+  4. Crear NUEVA solicitud con Roberto como representante
+  5. Roberto firma XML de postulación con su .p12 → Phase 1 completa
+
+  **Flujo para D Clase**:
+  1. JOSE ALEJANDRO firma la carta → entregar/enviar a DGII (3 días)
+  2. DGII registra a Roberto como Usuario Admin e-CF de D Clase
+  3. Crear solicitud certecf con Roberto como representante
+  4. Roberto firma XML → Phase 1 completa
+
+  **Condición importante** (de CA5145): "Si el designado no figura en
+  ninguna relación del contribuyente, la solicitud de inclusión debe
+  realizarse PREVIO a la solicitud de autorización como emisor."
+  → Para RC Hernandez (ya tiene solicitud 102301): hay que cancelarla
+  primero, o pedir orientación a DGII sobre cómo proceder.
+  → Para D Clase (sin solicitud aún): hacer la carta ANTES de crear la
+  solicitud certecf.
+
+  **Riesgo**: Un hilo de DGII (mayo 2025) indica que el Admin e-CF "debe
+  formar parte de la composición accionaria de la empresa." Roberto NO es
+  accionista de ninguna de las dos empresas. DGII podría rechazar la carta
+  por este motivo. Sin embargo, otro hilo oficial (CA5145) NO exige
+  composición accionaria para el designado — solo para el firmante de la
+  carta. **Recomendación**: enviar la carta y ver si DGII la acepta; si no,
+  DGII indicará qué falta.
+
+  **Plantillas listas** (creadas en corrida 6):
+  - `backend/docs/superpowers/reference/carta-admin-ecf-rc-hernandez.md`
+  - `backend/docs/superpowers/reference/carta-admin-ecf-dclase.md`
+  - `backend/docs/superpowers/reference/email-dgii-solicitud-admin-ecf.md`
+
+**Opción A (~1-2 semanas, más compleja)**: Completar Actualización al RNC
+  online para agregar Roberto como Representante Legal. Requiere corregir
+  TODOS los problemas pre-existentes del RNC (ver detalles en corridas 3-4):
+  acciones/aportes, Gerente, Beneficiario Final, responsable cumplimiento,
+  13+ campos obligatorios, y documentos legales (Acta de Asamblea, Registro
+  Mercantil, factura electricidad, poder de representación, cédula Roberto).
+  Solicitud OFV 957459 fue cancelada en corrida 4 — hay que empezar de cero.
 
 ~~**Opción A-bis (ALTERNATIVA más ligera)**: DESCARTADA en corrida 4.~~
   Se probó: cancelar solicitud 957459, crear nueva con SOLO sección XI.
@@ -682,3 +736,49 @@ el throughput esperado es 3-5× más rápido.
   - **Opción C (inmediata)**: Escribir a facturacionelectronica@dgii.gov.do
     explicando la situación y pidiendo orientación. El runner puede preparar
     el borrador del email si el usuario lo solicita
+  - **Opción D (NUEVA, recomendada)**: Solicitar inclusión de Roberto como
+    "Usuario Administrador de e-CF" vía carta a DGII (presencial o email).
+    ~3 días laborables, gratis. Plantillas listas en el repo. Ver detalle
+    completo en sección de bloqueo activo arriba.
+
+### Corrida 6 — 2026-10-31 ~UTC (hora real de ejecución)
+- Empresa: ambas (investigación — Playwright no disponible esta sesión)
+- Fase trabajada: Fase 1 — investigación de nueva vía de desbloqueo
+- Acción:
+  - Playwright MCP no conectó (CONNECT_TIMEOUT) → no se pudo navegar portal
+  - **Investigación web DGII** (hallazgo clave):
+    - Encontró FAQ oficial CA5145 de DGII: "¿Qué debo hacer para solicitar
+      la inclusión o cambio del Usuario Administrador de e-CF?"
+    - Proceso específico y SEPARADO de la Actualización al RNC online
+    - Requiere solo: carta firmada por alguien en el RNC + Registro Mercantil
+      + cédula del designado
+    - Puede enviarse escaneado a facturacionelectronica@dgii.gov.do
+    - Tiempo de respuesta: 3 días laborables. Gratis
+    - Base legal: Norma General 01-20, Art. 3, literal k
+  - Consultó 5 hilos oficiales de ayuda.dgii.gov.do sobre delegados e-CF:
+    - Confirmado: el Admin e-CF no necesita ser representante legal
+    - Confirmado: el Firmante e-CF no necesita figurar como representante
+    - Nota: un hilo dice que Admin debe ser de "composición accionaria" pero
+      el FAQ CA5145 no exige esto del designado (solo del firmante de la carta)
+  - **Creó plantillas listas para usar** (3 archivos nuevos):
+    - `backend/docs/superpowers/reference/carta-admin-ecf-rc-hernandez.md`
+      (carta para que MUSTAFA firme, designando a Roberto)
+    - `backend/docs/superpowers/reference/carta-admin-ecf-dclase.md`
+      (carta para que JOSE ALEJANDRO firme, designando a Roberto)
+    - `backend/docs/superpowers/reference/email-dgii-solicitud-admin-ecf.md`
+      (email cover para facturacionelectronica@dgii.gov.do, ambas empresas)
+  - Actualizó plan maestro con Opción D como nueva recomendación
+- Estado final: 🛑 BLOQUEADO — misma causa raíz (.p12 ≠ representante RNC),
+  pero ahora con una NUEVA VÍA DE DESBLOQUEO significativamente más simple
+  (Opción D: carta a DGII, ~3 días laborables, sin costo, sin Actualización
+  al RNC completa)
+- Commits: 1 (plantillas + actualización plan maestro)
+- Próximo paso: REQUIERE ACCIÓN DEL USUARIO:
+  1. **Opción D (RECOMENDADA, ~3 días)**: Imprimir las cartas, hacer firmar
+     por MUSTAFA (RC Hernandez) y JOSE ALEJANDRO (D Clase), sellar, escanear,
+     y enviar a facturacionelectronica@dgii.gov.do con los documentos adjuntos.
+     Las plantillas están listas en el repo.
+  2. Si DGII rechaza (ej. porque Roberto no es accionista): evaluar opciones
+     A o B como fallback.
+  3. Si el usuario prefiere NO esperar: Opción B (comprar .p12 para MUSTAFA)
+     es la vía más segura pero más costosa (~$5-10K DOP, 1-2 semanas)
