@@ -346,13 +346,31 @@ al RNC" para RC Hernandez que incluye:
   → Para D Clase (sin solicitud aún): hacer la carta ANTES de crear la
   solicitud certecf.
 
-  **Riesgo**: Un hilo de DGII (mayo 2025) indica que el Admin e-CF "debe
-  formar parte de la composición accionaria de la empresa." Roberto NO es
-  accionista de ninguna de las dos empresas. DGII podría rechazar la carta
-  por este motivo. Sin embargo, otro hilo oficial (CA5145) NO exige
-  composición accionaria para el designado — solo para el firmante de la
-  carta. **Recomendación**: enviar la carta y ver si DGII la acepta; si no,
-  DGII indicará qué falta.
+  **Riesgo RESUELTO (corrida 8)**: Un hilo de DGII (mayo 2025) indicaba que
+  el Admin e-CF "debe formar parte de la composición accionaria", pero el
+  instructivo oficial "Solicitud Usuario Administrador de e-CF" (mayo 2026,
+  descargado de dgii.gov.do) confirma que:
+  - El designado NO necesita ser accionista — solo necesita figurar en el
+    RNC con UNA de 16 relaciones permitidas (ver lista abajo)
+  - Si la persona NO figura en el RNC, la carta presencial LO AGREGA con
+    la relación "Usuario Administrador de e-CF" (relación #15 de la lista)
+  - Quien FIRMA la carta sí debe tener relación en el RNC (cualquiera de
+    las 16: Representante, Socio, Contador, Administrador, Apoderado, etc.)
+  - Registro Mercantil es "preferible" (no obligatorio)
+  - La solicitud de Admin e-CF "debe ser realizada PREVIO a la Solicitud de
+    Autorización para ser Emisor Electrónico" → RC Hernandez necesita cancelar
+    solicitud 102301 ANTES (o después de que DGII procese la carta)
+
+  **16 relaciones permitidas**: Representante, Socio, Contador, Socio
+  Domiciliado en el Exterior, Administrador, Apoderado, Accionista,
+  Responsable por la Solicitud, Miembro, Gestor Fiduciario, Benef Final
+  Ctrl Efectivo, Benef Final Ctrl Accionario, Beneficiario Final, Socio
+  Gestor, Usuario Administrador de e-CF, Firmante de e-CF
+
+  **Vía virtual alternativa** (instructivo): La designación también puede
+  hacerse vía OFV > Actualización al RNC, PERO ya sabemos que esa vía
+  tiene validaciones pre-existentes bloqueantes (corrida 4). La vía
+  presencial (CAP Sede Central o administraciones locales) es la correcta.
 
   **Plantillas listas** (creadas en corrida 6):
   - `backend/docs/superpowers/reference/carta-admin-ecf-rc-hernandez.md`
@@ -839,3 +857,66 @@ el throughput esperado es 3-5× más rápido.
      requisitos adicionales no cubiertos por las plantillas existentes.
   3. Una vez DGII confirme la inclusión de Roberto: el runner cancela solicitud
      102301 (botón ya localizado) y crea nueva solicitud con Roberto.
+
+### Corrida 8 — 2026-11-01 ~11:00 UTC
+- Empresa: RC Hernandez (verificación + investigación documental)
+- Fase trabajada: Fase 1 — verificación de estado + lectura del instructivo oficial DGII
+- Acción:
+  - Login OFV RC Hernandez → Socios/Accionistas: **SIN CAMBIOS** (mismos 4+1
+    registros). Roberto Abreu Espinal sigue SIN figurar en el RNC. El usuario
+    NO ha iniciado ningún trámite nuevo (Estatus de Solicitudes sin cambios,
+    última solicitud sigue siendo de 9/23/2025).
+  - Login certecf RC Hernandez (vía SSO desde OFV) → solicitud 102301 sigue
+    en Fase 1 "Registrado". Único log: rechazo firma del 31/10/2026. Sin
+    mensajes nuevos en inbox.
+  - **HALLAZGO CLAVE**: Descargó y leyó COMPLETO el instructivo oficial DGII
+    "Solicitud Usuario Administrador de e-CF" (mayo 2026, 5 páginas, PDF
+    desde dgii.gov.do/cicloContribuyente/facturacion/.../documentacionSobreE-CF.aspx).
+    Hallazgos:
+    1. **Dos vías**: Presencial (CAP Sede Central o administraciones locales)
+       o Virtual (OFV > Actualización al RNC). La virtual ya sabemos que está
+       bloqueada por validaciones pre-existentes (corrida 4).
+    2. **Requisitos presenciales confirmados**:
+       - Carta firmada, timbrada y sellada (Personas Jurídicas)
+       - Quien FIRMA debe figurar en RNC con ≥1 de 16 relaciones permitidas
+       - Si el designado NO figura en el RNC: la carta lo agrega con relación
+         "Usuario Administrador de e-CF" (relación #15)
+       - Registro Mercantil actualizado: "preferible" (NO obligatorio)
+    3. **16 relaciones permitidas** (lista completa): Representante, Socio,
+       Contador, Socio Domiciliado Exterior, Administrador, Apoderado,
+       Accionista, Responsable Solicitud, Miembro, Gestor Fiduciario, Benef
+       Final Ctrl Efectivo, Benef Final Ctrl Accionario, Beneficiario Final,
+       Socio Gestor, Usuario Admin e-CF, Firmante e-CF
+    4. **Requisito de orden**: "La solicitud de inclusión del Usuario Admin
+       de e-CF debe ser realizada PREVIO a la Solicitud de Autorización para
+       ser Emisor Electrónico" → para RC Hernandez, hay que cancelar solicitud
+       102301 PRIMERO (o después de que DGII procese la carta, crear nueva)
+    5. **Riesgo de no-accionista ELIMINADO**: el instructivo oficial NO exige
+       que el designado sea accionista — solo que figure con alguna relación.
+       La carta presencial crea la relación "Usuario Admin e-CF".
+    6. **Para cambio de Admin e-CF**: notificar a facturacionelectronica@dgii.gov.do
+       especificando nombre y cédula de ambos (entrante y saliente)
+    7. **El Admin designado debe**: tener RNC actualizado, clave OFV, y
+       certificado digital (.p12) de entidad autorizada INDOTEL (Viafirma,
+       Digifirma o Novofirma). Roberto ya tiene todo esto ✅
+  - Guardó el PDF del instructivo en el repo como referencia
+  - Actualizó la sección de Opción D en el plan con los hallazgos del instructivo
+- Estado final: 🛑 BLOQUEADO — misma causa raíz (.p12 ≠ representante RNC).
+  Sin cambio externo. Pero ahora con CERTEZA TOTAL del proceso basada en el
+  instructivo oficial (no solo hilos de ayuda). El riesgo de rechazo por
+  "no ser accionista" queda eliminado.
+- Commits: 1 (actualización plan maestro con hallazgos corrida 8)
+- Próximo paso: REQUIERE ACCIÓN DEL USUARIO:
+  1. **Opción D (CONFIRMADA como correcta por instructivo oficial)**:
+     - RC Hernandez: MUSTAFA firma carta → depositar en CAP DGII o enviar
+       escaneada a facturacionelectronica@dgii.gov.do → DGII agrega Roberto
+       como "Usuario Administrador de e-CF" (~3 días laborables)
+     - D Clase: JOSE ALEJANDRO firma carta → mismo proceso
+     - Plantillas listas: `carta-admin-ecf-rc-hernandez.md`, `carta-admin-ecf-dclase.md`
+     - Registro Mercantil: "preferible" según instructivo (no obligatorio),
+       pero recomendable incluirlo
+  2. **Secuencia post-aprobación DGII** (el runner lo hará automáticamente):
+     a. Cancelar solicitud 102301 de RC Hernandez (botón ya localizado)
+     b. Crear NUEVA solicitud con Roberto como representante
+     c. Firmar XML con .p12 → Phase 1 completa
+     d. Proceder con Phase 2 (Set de Pruebas)
