@@ -782,3 +782,60 @@ el throughput esperado es 3-5× más rápido.
      A o B como fallback.
   3. Si el usuario prefiere NO esperar: Opción B (comprar .p12 para MUSTAFA)
      es la vía más segura pero más costosa (~$5-10K DOP, 1-2 semanas)
+
+### Corrida 7 — 2026-11-01 ~07:00 UTC
+- Empresa: RC Hernandez (verificación de estado + investigación)
+- Fase trabajada: Fase 1 — verificación de bloqueo, descubrimientos nuevos
+- Acción:
+  - Login certecf RC Hernandez → solicitud 102301 sigue en Fase 1 "Registrado".
+    Único log: rechazo de firma del 31/10/2026. Sin mensajes nuevos en inbox.
+  - Login OFV RC Hernandez → consultó Socios/Accionistas: **SIN CAMBIOS**.
+    Mismos 4+1 registros: MUSTAFA (Rep+Socio), CESAR (Socio), LIDIA y
+    ALEXANDER (inactivos). Roberto Abreu Espinal sigue SIN aparecer en el RNC.
+  - Consultó "Estatus de Solicitudes" en OFV: 11 solicitudes históricas, NINGUNA
+    nueva relacionada con Admin e-CF o Actualización al RNC. Más reciente es
+    de 9/23/2025 (Copia de Actas RNC — Completada). El usuario NO ha iniciado
+    ningún trámite desde las corridas anteriores.
+  - "Solicitar Tramites" en OFV: dropdown no incluye opción de Admin e-CF
+    (solo Hidrocarburos, NCF, Consulta Técnica, Alcohol, Zonas Francas, ITBIS/ISC).
+  - **NUEVO HALLAZGO 1**: Botón "Cancelar Postulación" encontrado en el panel
+    "Flujo certificación" del certecf portal. Confirmado VISIBLE y clickeable.
+    NO se hizo clic (acción irreversible, prematura). Esto confirma que cuando
+    Roberto sea agregado al RNC, podemos cancelar solicitud 102301 y crear una
+    nueva con Roberto como representante directamente desde el portal.
+  - **NUEVO HALLAZGO 2**: Investigación web encontró documento oficial DGII
+    "Solicitud Usuario Administrador de e-CF" (PDF, mayo 2026) en la página
+    de documentación de e-CF. No se pudo leer el contenido (PDF binario), pero
+    su existencia confirma que el proceso tiene instructivo formal publicado.
+    URL: dgii.gov.do/.../Solicitud%20Usuario%20Administrador%20de%20e-CF.pdf
+  - **NUEVO HALLAZGO 3**: Hilo ayuda.dgii.gov.do (abril 2026, "Representante
+    de la empresa no registrado como socio"): DGII confirma que el Admin e-CF
+    NO necesita ser socio, pero SÍ debe estar registrado en el RNC como usuario
+    administrador de e-CF mediante una "actualización de datos".
+  - **NUEVO HALLAZGO 4**: Hilo ayuda.dgii.gov.do (mayo 2025, "Asignación de
+    usuario administrador y firmante de e-CF"): DGII dice que para delegar,
+    la persona debe "aparecer como representante en los datos registrados de
+    la empresa". Roles se asignan vía OFV post-certificación.
+  - **Resumen del proceso confirmado** (consolidado de corridas 3-7):
+    1. Agregar Roberto al RNC de la empresa (vía carta presencial Opción D,
+       o actualización completa Opción A)
+    2. Cancelar solicitud 102301 en certecf (botón "Cancelar Postulación")
+    3. Crear NUEVA solicitud seleccionando Roberto como representante
+    4. Firmar XML con .p12 de Roberto → Phase 1 completa
+  - Verificó que Opción D (carta a facturacionelectronica@dgii.gov.do) sigue
+    siendo la vía más rápida (~3 días laborables), pero depende de acción humana
+    (firmas físicas de MUSTAFA para RC, JOSE ALEJANDRO para D Clase).
+- Estado final: 🛑 BLOQUEADO — misma causa raíz (.p12 ≠ representante RNC),
+  sin cambio externo. Nuevos hallazgos confirman el proceso pero no desbloquean.
+- Commits: 1 (actualización plan maestro con hallazgos corrida 7)
+- Próximo paso: REQUIERE ACCIÓN DEL USUARIO:
+  1. **Opción D (RECOMENDADA, ~3 días)**: Imprimir cartas (plantillas en repo),
+     hacer firmar por MUSTAFA (RC) y JOSE ALEJANDRO (D Clase), escanear,
+     enviar a facturacionelectronica@dgii.gov.do con Registro Mercantil y
+     cédula de Roberto. Plantillas: `carta-admin-ecf-rc-hernandez.md`,
+     `carta-admin-ecf-dclase.md`, `email-dgii-solicitud-admin-ecf.md`.
+  2. **Alternativa**: Descargar el instructivo oficial PDF desde la página de
+     documentación e-CF de DGII y verificar si hay formulario específico o
+     requisitos adicionales no cubiertos por las plantillas existentes.
+  3. Una vez DGII confirme la inclusión de Roberto: el runner cancela solicitud
+     102301 (botón ya localizado) y crea nueva solicitud con Roberto.
