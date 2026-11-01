@@ -318,8 +318,13 @@ al RNC" para RC Hernandez que incluye:
   2. **Registro Mercantil actualizado** de la empresa
   3. **Copia cédula de Roberto Abreu Espinal** (ambos lados)
 
-  **Entrega**: En ventanilla del CAP Sede Central DGII, O escaneado por
-  email a facturacionelectronica@dgii.gov.do.
+  **Entrega**: En ventanilla del CAP Sede Central DGII O en el área de
+  información de cualquier Administración Local. **NOTA (corrida 9)**: el
+  chatbot DIGI-DGII indica que el email a facturacionelectronica@dgii.gov.do
+  "es válido solo para notificar CAMBIOS, no para la inclusión INICIAL".
+  La vía presencial es la más segura para inclusión inicial. Se puede
+  intentar email como primera opción (sin costo adicional), pero estar
+  preparado para ir presencial si lo rechazan.
 
   **Tiempo**: ~3 días laborables. **Costo**: Gratis.
 
@@ -920,3 +925,56 @@ el throughput esperado es 3-5× más rápido.
      b. Crear NUEVA solicitud con Roberto como representante
      c. Firmar XML con .p12 → Phase 1 completa
      d. Proceder con Phase 2 (Set de Pruebas)
+
+### Corrida 9 — 2026-11-01 ~15:00 UTC
+- Empresa: RC Hernandez (verificación de estado)
+- Fase trabajada: Fase 1 — verificación de bloqueo, clarificación del proceso
+- Acción:
+  - Login OFV RC Hernandez → Socios/Accionistas: **SIN CAMBIOS**. Mismos 5
+    registros exactos (MUSTAFA Rep+Socio, CESAR Socio, LIDIA y ALEXANDER
+    inactivos). Roberto Abreu Espinal sigue SIN figurar en el RNC.
+  - Buzón OFV: 72 mensajes sin leer (sin cambios desde corrida 7). Mensaje
+    más reciente: 20-Oct-2026 (genérico). Ningún mensaje nuevo de Admin e-CF.
+  - Login certecf RC Hernandez → solicitud 102301 sigue en Fase 1 "Registrado"
+    con representante CESAR HERNANDEZ JORGE. Único log: rechazo firma del
+    31/10/2026. 1 mensaje en inbox (el mismo rechazo). Sin novedades.
+  - **HALLAZGO NUEVO (chatbot DIGI-DGII)**: Consultó específicamente sobre
+    la inclusión inicial de Admin e-CF por vía electrónica. Respuesta:
+    - **Presencial**: CAP sede central O "área de información de las
+      Administraciones Locales" — AMBAS opciones son válidas
+    - **Email a facturacionelectronica@dgii.gov.do**: "El envío de documentos
+      escaneados por email es válido solo para notificar CAMBIOS, no para la
+      inclusión INICIAL del usuario administrador"
+    - **Electrónica vía OFV**: Posible vía Actualización al RNC, pero ya
+      confirmamos que está bloqueada por validaciones pre-existentes (corrida 4)
+    - **No existe formulario en línea específico** para este trámite
+    - Tiempo: 3 días laborables. Costo: Gratuito.
+  - **IMPACTO**: La plantilla de email (`email-dgii-solicitud-admin-ecf.md`)
+    puede NO funcionar para la inclusión inicial. La vía segura es PRESENCIAL
+    en un CAP (sede central o administración local). Sin embargo, el instructivo
+    oficial (corrida 8) no hace esta distinción explícitamente — el chatbot
+    podría estar siendo más restrictivo que la norma real. Recomendación:
+    intentar vía email primero (costo cero, no se pierde nada), y si rechazan,
+    ir presencial.
+  - El usuario NO ha iniciado ningún trámite nuevo desde las corridas anteriores
+    (verificado: Estatus de Solicitudes OFV sin cambios, Socios/Accionistas
+    idénticos, buzón sin mensajes nuevos).
+- Estado final: 🛑 BLOQUEADO — misma causa raíz (.p12 ≠ representante RNC),
+  sin cambio externo. Nuevo hallazgo refina la vía de desbloqueo.
+- Commits: 1 (actualización plan maestro con log corrida 9)
+- Próximo paso: REQUIERE ACCIÓN DEL USUARIO:
+  1. **Opción D (PRESENCIAL — vía más segura según chatbot DIGI)**:
+     - RC Hernandez: MUSTAFA firma y sella la carta → depositar en CAP DGII
+       (sede central Av. México #48, o administración local más cercana)
+     - D Clase: JOSE ALEJANDRO firma y sella la carta → mismo proceso
+     - Documentos: carta firmada/sellada + Registro Mercantil + cédula Roberto
+     - Plantillas: `carta-admin-ecf-rc-hernandez.md`, `carta-admin-ecf-dclase.md`
+  2. **Alternativa (intento vía email)**: Enviar carta escaneada a
+     facturacionelectronica@dgii.gov.do. Si DGII acepta → ~3 días. Si rechaza
+     por ser inclusión inicial → ir presencial. Plantilla email lista:
+     `email-dgii-solicitud-admin-ecf.md`
+  3. **Post-aprobación DGII** (runner automático):
+     a. Verificar que Roberto aparezca en Socios/Accionistas del RNC
+     b. Cancelar solicitud 102301 (botón "Cancelar Postulación" localizado)
+     c. Crear nueva solicitud con Roberto como representante
+     d. Firmar XML con .p12 → Phase 1 completa → continuar con Phase 2
