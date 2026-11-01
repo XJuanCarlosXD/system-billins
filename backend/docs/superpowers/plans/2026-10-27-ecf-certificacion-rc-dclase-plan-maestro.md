@@ -978,3 +978,33 @@ el throughput esperado es 3-5× más rápido.
      b. Cancelar solicitud 102301 (botón "Cancelar Postulación" localizado)
      c. Crear nueva solicitud con Roberto como representante
      d. Firmar XML con .p12 → Phase 1 completa → continuar con Phase 2
+
+### Corrida 10 — 2026-11-01 ~19:00 UTC
+- Empresa: RC Hernandez (verificación de estado)
+- Fase trabajada: Fase 1 — verificación rutinaria de bloqueo
+- Acción:
+  - Login OFV RC Hernandez → Socios/Accionistas: **SIN CAMBIOS**. Mismos 5
+    registros exactos (MUSTAFA Rep+Socio, CESAR Socio, LIDIA y ALEXANDER
+    inactivos). Roberto Abreu Espinal sigue SIN figurar en el RNC.
+  - Buzón OFV: 72 mensajes sin leer (sin cambios). Ningún mensaje nuevo.
+  - Estatus de Solicitudes OFV: **SIN CAMBIOS**. Más reciente sigue siendo
+    9/23/2025 (Copia de Actas RNC — Completada). El usuario NO ha iniciado
+    ningún trámite nuevo desde las corridas anteriores.
+  - **Conclusión**: Sin cambio externo desde corrida 9. El usuario no ha
+    tomado acción sobre la Opción D (carta presencial a DGII). El bloqueo
+    persiste idéntico.
+- Estado final: 🛑 BLOQUEADO — misma causa raíz (.p12 ≠ representante RNC),
+  sin cambio externo. 10ª corrida consecutiva con el mismo bloqueo.
+- Commits: 1 (actualización plan maestro con log corrida 10)
+- Próximo paso: REQUIERE ACCIÓN DEL USUARIO:
+  1. **Opción D (PRESENCIAL — vía más segura según chatbot DIGI)**:
+     - RC Hernandez: MUSTAFA firma y sella la carta → depositar en CAP DGII
+     - D Clase: JOSE ALEJANDRO firma y sella la carta → mismo proceso
+     - Plantillas listas: `carta-admin-ecf-rc-hernandez.md`,
+       `carta-admin-ecf-dclase.md`
+  2. **Alternativa (email)**: Enviar carta escaneada a
+     facturacionelectronica@dgii.gov.do. Plantilla: `email-dgii-solicitud-admin-ecf.md`
+  3. **Post-aprobación DGII** (runner automático):
+     a. Verificar Roberto en Socios/Accionistas
+     b. Cancelar solicitud 102301 → crear nueva con Roberto
+     c. Firmar XML → Phase 1 completa → Phase 2
