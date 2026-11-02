@@ -1026,6 +1026,22 @@ el throughput esperado es 3-5× más rápido.
 - Estado final: 🛑 BLOQUEADO — misma causa raíz (.p12 ≠ representante RNC),
   sin cambio externo.
 - Commits: 1 (actualización plan maestro con log corrida 11)
+- Próximo paso: REQUIERE ACCIÓN DEL USUARIO (ver corrida 10)
+
+### Corrida 12 — 2026-11-02 ~03:00 UTC
+- Empresa: RC Hernandez (verificación de estado)
+- Fase trabajada: Fase 1 — verificación rutinaria de bloqueo
+- Acción:
+  - Login OFV RC Hernandez → Socios/Accionistas: **SIN CAMBIOS**. Mismos 5
+    registros exactos (MUSTAFA Rep+Socio, CESAR Socio, LIDIA y ALEXANDER
+    inactivos). Roberto Abreu Espinal sigue SIN figurar en el RNC.
+  - Buzón OFV: 72 mensajes sin leer (sin cambios). Ningún mensaje nuevo.
+  - **Conclusión**: Sin cambio externo desde corrida 11. El usuario no ha
+    tomado acción sobre la Opción D (carta presencial a DGII). El bloqueo
+    persiste idéntico. 12ª corrida consecutiva con el mismo bloqueo.
+- Estado final: 🛑 BLOQUEADO — misma causa raíz (.p12 ≠ representante RNC),
+  sin cambio externo.
+- Commits: 1 (actualización plan maestro con log corrida 12)
 - Próximo paso: REQUIERE ACCIÓN DEL USUARIO:
   1. **Opción D (PRESENCIAL — vía más segura según chatbot DIGI)**:
      - RC Hernandez: MUSTAFA firma y sella la carta → depositar en CAP DGII
