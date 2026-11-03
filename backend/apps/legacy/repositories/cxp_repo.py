@@ -1688,11 +1688,11 @@ def _next_no_docu(cur, no_cia, punto, tipo_docu):
 
 
 def _check_ncf_duplicate(cur, no_cia, no_proveedor, ncf_num, pos_ncf,
-                          exclude=None):
+                          exclude=None, rnc=None):
     """Rechaza registrar dos veces el mismo NCF (prefijo+numero) para el
-    mismo proveedor dentro de la misma empresa. Salta si el NCF esta vacio
-    (ajustes/cheques sin comprobante fiscal). Ignora documentos reversados
-    (status='R') porque su NCF puede re-registrarse en el correcto.
+    mismo proveedor y mismo RNC dentro de la misma empresa. Salta si el NCF
+    esta vacio (ajustes/cheques sin comprobante fiscal). Ignora documentos
+    reversados (status='R') porque su NCF puede re-registrarse en el correcto.
 
     exclude=(tipo_docu, no_docu) evita que un UPDATE colisione consigo mismo.
     """
@@ -1702,11 +1702,13 @@ def _check_ncf_duplicate(cur, no_cia, no_proveedor, ncf_num, pos_ncf,
         "SELECT tipo_docu, no_docu FROM CXP.TCXP_DOCUMENTO "
         "WHERE no_cia=:1 AND no_proveedor=:2 AND ncf=:3 "
         "  AND UPPER(posiciones_fijas_ncf)=:4 "
+        "  AND NVL(rnc,'')=NVL(:5,'') "
         "  AND NVL(status,'A') <> 'R'"
     )
-    params = [no_cia, str(no_proveedor), ncf_num, str(pos_ncf).upper()]
+    params = [no_cia, str(no_proveedor), ncf_num, str(pos_ncf).upper(),
+              str(rnc or '').strip()]
     if exclude:
-        sql += " AND NOT (tipo_docu=:5 AND no_docu=:6)"
+        sql += " AND NOT (tipo_docu=:6 AND no_docu=:7)"
         params += [exclude[0], exclude[1]]
     row = cur.execute(sql, params).fetchone()
     if row:
@@ -1714,7 +1716,8 @@ def _check_ncf_duplicate(cur, no_cia, no_proveedor, ncf_num, pos_ncf,
         _width  = 10 if _pos_up.startswith('E') else 8
         raise ValueError(
             "El NCF {0}{1} ya esta registrado para este proveedor "
-            "(documento {2} {3}). No se permite duplicar NCF en CxP.".format(
+            "con el mismo RNC (documento {2} {3}). "
+            "No se permite duplicar NCF en CxP.".format(
                 _pos_up, str(ncf_num).zfill(_width),
                 row[0], row[1],
             )
@@ -1878,7 +1881,8 @@ def entrada_documento(d, _skip_periodo_gate: bool = False):
                 .strip().upper() or None
             )
             _check_ncf_duplicate(cur, no_cia, no_proveedor, _ncf_num_u, _pos_ncf_u,
-                                 exclude=(tipo_docu, no_docu))
+                                 exclude=(tipo_docu, no_docu),
+                                 rnc=d.get("rnc"))
             cur.execute(
                 "UPDATE CXP.TCXP_DOCUMENTO SET "
                 "no_proveedor=:1, fecha=TO_DATE(:2,'YYYY-MM-DD'), "
@@ -2038,7 +2042,8 @@ def entrada_documento(d, _skip_periodo_gate: bool = False):
 
             # Validar duplicado ANTES de reservar no_docu para no dejar huecos
             # en TCXP_SECUENCIA cuando el operador reintenta con el mismo NCF.
-            _check_ncf_duplicate(cur, no_cia, no_proveedor, _ncf_num, _pos_ncf)
+            _check_ncf_duplicate(cur, no_cia, no_proveedor, _ncf_num, _pos_ncf,
+                                 rnc=d.get("rnc"))
             no_docu = _next_no_docu(cur, no_cia, punto, tipo_docu)
             # Campos DGI adicionales (opcionales, NULL si no se envian).
             _isc        = float(d.get("isc") or 0) or None
@@ -2401,7 +2406,8 @@ def corregir_datos_dgii(d):
 
     with client.cursor() as cur:
         _check_ncf_duplicate(cur, no_cia, _no_prov_actual, _ncf_num, _pos_ncf,
-                             exclude=(tipo_docu, no_docu))
+                             exclude=(tipo_docu, no_docu),
+                             rnc=d.get("rnc"))
         cur.execute(
             "UPDATE CXP.TCXP_DOCUMENTO SET "
             "ncf=:1, posiciones_fijas_ncf=:2, rnc=:3, "
